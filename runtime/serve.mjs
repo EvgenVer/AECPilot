@@ -1,0 +1,278 @@
+// Lifecycle manager for `hermes serve` — the headless JSON-RPC/WebSocket
+// gateway (tui_gateway) that powers the desktop app's chat. No npm deps: uses
+// node:child_process, node:net and the Node 22 built-in global WebSocket.
+//
+// Endpoint: ws://<host>:<port>/api/ws — newline-delimited JSON-RPC. The
+// server sends a `gateway.ready` event frame immediately after the WS
+// handshake, before any request is sent — that frame alone proves the
+// gateway is alive and speaking JSON-RPC.
+//
+// Auth (loopback bind, no --insecure/gated mode): a `?token=<value>` query
+// param, checked against a per-process session token. Instead of parsing it
+// out of the served HTML, we pre-set it via HERMES_DASHBOARD_SESSION_TOKEN —
+// the same env var the real desktop shell uses (see hermes_cli/web_server.py
+// comment: "The desktop shell mints the token and injects it via
+// HERMES_DASHBOARD_SESSION_TOKEN so its main process can authenticate").
+//
+// Usage: node runtime/serve.mjs smoke
+
+import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import fs from "node:fs";
+import net from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
+
+// Fixed port, chosen free in the dev environment (default hermes port 9119
+// is left to any other local Hermes instance the user may run).
+export const SERVE_PORT = 18789;
+export const SERVE_HOST = "127.0.0.1";
+export const LOG_PATH = path.join(HERMES_HOME_DIR, "serve.log");
+
+function isPortFree(port, host) {
+  return new Promise((resolve) => {
+    const probe = net.createConnection({ port, host }, () => {
+      probe.end();
+      resolve(false); // something is already listening
+    });
+    probe.on("error", () => resolve(true)); // ECONNREFUSED etc. => free
+  });
+}
+
+function appendLog(line) {
+  fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
+  fs.appendFileSync(LOG_PATH, `[${new Date().toISOString()}] ${line}\n`);
+}
+
+/**
+ * Spawns `hermes serve` against the isolated dev profile.
+ * Returns { proc, port, host, wsUrl, token } once the process has been
+ * started (does not wait for the gateway to become healthy — use
+ * waitHealthy for that).
+ */
+export async function startServe({ port = SERVE_PORT, host = SERVE_HOST } = {}) {
+  if (!fs.existsSync(HERMES_BIN)) {
+    throw new Error(`hermes binary not found at ${HERMES_BIN} — run 'node runtime/setup.mjs' first`);
+  }
+
+  if (!(await isPortFree(port, host))) {
+    throw new Error(`port ${port} on ${host} is already in use — refusing to start serve`);
+  }
+
+  fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });
+
+  // Pre-mint the session token so we can authenticate the WS health-check
+  // without scraping it out of the dashboard's HTML response.
+  const token = randomBytes(24).toString("hex");
+
+  const proc = spawn(
+    HERMES_BIN,
+    ["serve", "--port", String(port), "--host", host, "--skip-build"],
+    {
+      env: {
+        ...process.env,
+        HERMES_HOME: HERMES_HOME_DIR,
+        HERMES_DASHBOARD_SESSION_TOKEN: token,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
+  const logStream = fs.createWriteStream(LOG_PATH, { flags: "a" });
+  logStream.write(`\n[${new Date().toISOString()}] starting hermes serve pid=${proc.pid} port=${port}\n`);
+  proc.stdout.pipe(logStream, { end: false });
+  proc.stderr.pipe(logStream, { end: false });
+
+  proc.on("exit", (code, signal) => {
+    appendLog(`hermes serve exited pid=${proc.pid} code=${code} signal=${signal}`);
+  });
+  proc.on("error", (err) => {
+    appendLog(`hermes serve spawn error: ${err.message}`);
+  });
+
+  const wsUrl = `ws://${host}:${port}/api/ws?token=${token}`;
+  return { proc, port, host, wsUrl, token };
+}
+
+/**
+ * Waits until the gateway is healthy: opens the /api/ws WebSocket and
+ * resolves with the first JSON-RPC frame the server sends (the
+ * `gateway.ready` event, or any JSON-RPC error/response — both prove the
+ * gateway is alive). Rejects on timeout or if the process exits first.
+ */
+export function waitHealthy(serveHandle, timeoutMs = 30000) {
+  const { proc, wsUrl } = serveHandle;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const onProcExit = (code, signal) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`hermes serve exited before becoming healthy (code=${code} signal=${signal})`));
+    };
+    const onProcError = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`hermes serve process error before becoming healthy: ${err.message}`));
+    };
+    proc.once("exit", onProcExit);
+    proc.once("error", onProcError);
+
+    function cleanup() {
+      proc.removeListener("exit", onProcExit);
+      proc.removeListener("error", onProcError);
+    }
+
+    function attempt() {
+      if (settled) return;
+      if (Date.now() > deadline) {
+        settled = true;
+        cleanup();
+        reject(new Error(`gateway did not become healthy within ${timeoutMs}ms`));
+        return;
+      }
+
+      const ws = new WebSocket(wsUrl);
+      let attemptDone = false;
+
+      const attemptTimer = setTimeout(() => {
+        if (attemptDone) return;
+        attemptDone = true;
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+        if (settled) return; // process already exited/errored — onProcExit/onProcError won
+        setTimeout(attempt, 500); // retry — server may still be booting
+      }, 2000);
+
+      ws.addEventListener("open", () => {
+        // handshake alone is a good sign, but wait for the first JSON-RPC
+        // frame to be sure the gateway is actually speaking JSON-RPC.
+      });
+
+      ws.addEventListener("message", (event) => {
+        if (attemptDone || settled) return;
+        let frame;
+        try {
+          frame = JSON.parse(event.data);
+        } catch {
+          return; // not a JSON-RPC frame — keep waiting
+        }
+        if (frame && frame.jsonrpc === "2.0") {
+          attemptDone = true;
+          settled = true;
+          clearTimeout(attemptTimer);
+          cleanup();
+          try {
+            ws.close();
+          } catch {
+            // ignore
+          }
+          resolve(frame);
+        }
+      });
+
+      ws.addEventListener("error", () => {
+        if (attemptDone) return;
+        attemptDone = true;
+        clearTimeout(attemptTimer);
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+        if (settled) return; // process already exited/errored — onProcExit/onProcError won
+        setTimeout(attempt, 500); // retry — connection refused while booting
+      });
+    }
+
+    attempt();
+  });
+}
+
+/**
+ * Stops a hermes serve process started by startServe(). Tries a graceful
+ * kill first, then falls back to `taskkill /PID <pid> /T /F` on Windows to
+ * make sure child processes (hermes.exe spawns a python.exe that actually
+ * listens on the port) don't linger.
+ */
+export async function stopServe(serveHandle, { gracefulTimeoutMs = 5000 } = {}) {
+  const { proc } = serveHandle;
+  if (!proc.pid) {
+    return; // spawn never produced a live process — nothing to stop
+  }
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return; // already exited
+  }
+
+  // Race all three: 'exit' is the normal case, but a process that never
+  // truly started (spawn error after the pid was assigned) may only emit
+  // 'error', and 'close' is the more definitive "stdio streams are done"
+  // signal — whichever fires first means the process is no longer live.
+  const exited = new Promise((resolve) => {
+    proc.once("exit", resolve);
+    proc.once("close", resolve);
+    proc.once("error", resolve);
+  });
+
+  proc.kill();
+
+  const timedOut = await Promise.race([
+    exited.then(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(true), gracefulTimeoutMs)),
+  ]);
+
+  if (timedOut && process.platform === "win32" && proc.pid) {
+    appendLog(`graceful stop timed out for pid=${proc.pid}, falling back to taskkill /T /F`);
+    spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+    await exited;
+  } else if (timedOut && proc.pid) {
+    proc.kill("SIGKILL");
+    await exited;
+  }
+}
+
+async function runSmoke() {
+  console.log(`== starting hermes serve on ${SERVE_HOST}:${SERVE_PORT}`);
+  let handle;
+  try {
+    handle = await startServe();
+  } catch (err) {
+    console.error(`smoke FAIL: could not start serve: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    console.log("== waiting for gateway to become healthy");
+    const frame = await waitHealthy(handle, 30000);
+    console.log("== JSON-RPC response received:");
+    console.log(JSON.stringify(frame));
+    process.exitCode = 0;
+  } catch (err) {
+    console.error(`smoke FAIL: ${err.message}`);
+    process.exitCode = 1;
+  } finally {
+    console.log("== stopping hermes serve");
+    await stopServe(handle);
+    console.log(`== log at ${LOG_PATH}`);
+  }
+}
+
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+// No top-level await: this module is also imported by the Electron main
+// process, which electron-vite bundles as CJS — a format that rejects
+// top-level await at build time.
+if (isMain && process.argv[2] === "smoke") {
+  void runSmoke();
+} else if (isMain) {
+  console.error("usage: node runtime/serve.mjs smoke");
+  process.exitCode = 1;
+}

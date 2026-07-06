@@ -19,3 +19,20 @@ re-run. Both dirs are gitignored (local artifacts). Paths/pins are defined in
 
 The first `hermes` invocation against the dev profile creates `.update_check`
 (update self-check cache) and `logs/` inside `runtime/dev-profile` — expected.
+
+## serve.mjs
+
+Lifecycle manager for `hermes serve` (the JSON-RPC/WebSocket gateway at
+`/api/ws` that the desktop app's chat connects to). No npm deps.
+
+```
+node runtime/serve.mjs smoke
+```
+
+Starts serve on `127.0.0.1:18789`, waits for a JSON-RPC health-check
+response, prints it, then stops the process. Process output is logged
+(append) to `runtime/dev-profile/serve.log`.
+
+TODO(Phase 5 / task 5.1): the Electron main process locates this file via a
+relative path from `__dirname`, which breaks once the app is packaged into
+`app.asar` — revisit for the bundled layout.
