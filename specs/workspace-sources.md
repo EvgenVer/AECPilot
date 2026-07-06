@@ -58,8 +58,10 @@ Vault: агент работает штатными файловыми инст�
 Vault (создаётся при создании проекта):
 ```
 <vault>/
-  wiki/            # вики проекта (ведёт skill aec-wiki)
-  workspace/       # рабочие файлы и артефакты агента/пользователя
+  wiki/            # вики проекта (ведёт skill aec-wiki; структура — specs/wiki.md)
+  workspace/       # рабочие файлы и артефакты агента/пользователя (reports/, drafts/)
+  templates/       # DOCX-шаблоны документов + manifest (specs/docgen.md)
+  checklists/      # чек-листы состава ИД (specs/id-check.md)
   AGENTS.md        # проектные правила для агента (генерируется из шаблона)
   .aecpilot/
     project.json   # {name, created_at, sources: [{id, root_path, added_at}],
@@ -67,6 +69,7 @@ Vault (создаётся при создании проекта):
     index.db       # SQLite: files(source_id, rel_path, size, mtime, sha256,
                    #   status: ok|changed|deleted|detached, indexed_at) + FTS5 по извлечённому тексту
     lancedb/       # векторное хранилище (появляется в Phase 2)
+    memory/        # память проекта Mem0 (появляется в Phase 4, specs/agent-memory.md)
     logs/          # журнал операций и отклонённых попыток записи
 ```
 

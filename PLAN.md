@@ -48,6 +48,7 @@ specs/             # поведенческие контракты (этот р�
 | mem0ai | подключаемая память | runtime (py) | Apache-2.0 |
 | lancedb | embedded-векторное хранилище | runtime (py) | Apache-2.0 |
 | mcp (python-sdk) | реализация MCP-серверов | runtime (py) | MIT |
+| docxtpl | рендер DOCX-шаблонов (aec-docgen) | runtime (py) | MIT |
 | electron, react | desktop UI | runtime (ts) | MIT |
 | pdfjs-dist | PDF-вьюер | runtime (ts) | Apache-2.0 |
 | docx-preview | DOCX-вьюер | runtime (ts) | MIT |
@@ -59,7 +60,7 @@ specs/             # поведенческие контракты (этот р�
 
 ## Data / API / integrations
 - **tui_gateway (JSON-RPC/WS)** — внешний контракт Hermes; фиксируем pinned-версией + контрактный smoke-тест (создать сессию, отправить сообщение, получить стрим, approval-раунд).
-- **MCP-контракты наших серверов** — в specs/ (`sources_*`, `rag_*`); `aec-memory` — контракт в спеке Phase 4.
+- **MCP-контракты наших серверов** — в specs/ (`sources_*` — workspace-sources; `rag_*` — qa-over-sources; `memory_*` — agent-memory).
 - **Данные проекта** — specs/workspace-sources.md §Data schemas (`project.json`, `index.db`, `lancedb/`).
 - **LLM** — OpenAI-совместимые endpoint (chat + embeddings) из настроек; MVP — облачные (решение владельца: в контуре моделей пока нет; при переходе — re-ingest).
 
@@ -75,8 +76,8 @@ specs/             # поведенческие контракты (этот р�
 | **0 — Foundations** | ядро на связи | monorepo; pinned hermes; `hermes serve` запускается лончером; Electron-каркас с чатом через gateway; проверен R2 (SOUL в gateway) | ручной сквозной чат; gateway smoke-тест; пустые тест-раннеры зелёные |
 | **1 — Vault & sources** | фундамент данных | vault + project.json; проводник; add/remove источника; `aec-sources`; индексер + детект + уведомления | pytest; BDD workspace-sources (вкл. на сетевой шаре); AC5/AC6 |
 | **2 — Ingest & RAG (эталон)** | сценарий G1 целиком | Docling-пайплайн; LightRAG per-project; `aec-rag`; skill `aec-qa`; цитаты→минимальный PDF-вьюер; эвал-датасет + baseline; нагрузочная проверка (A3/R3) и замер OCR (R4); security-review | pytest; eval baseline; AC1 вручную |
-| **3 — Viewers & wiki** | просмотр и вики | полные вьюеры (PDF/DOCX/XLSX/CSV); MD-редактор; spec + skill `aec-wiki`; рендер вики + wikilinks | BDD; тесты; AC3; AC8 |
-| **4 — Memory & skills** | остальные сценарии | `aec-memory` (Mem0); specs + skills `aec-id-check`, `aec-docgen` + smoke-эвалы; языковые настройки (SOUL-правило, wiki_lang, UI locale) | pytest; smoke-эвалы; AC4; проверки G7 |
+| **3 — Viewers & wiki** | просмотр и вики | полные вьюеры (PDF/DOCX/XLSX/CSV); MD-редактор; skill `aec-wiki` по specs/wiki.md; рендер вики + wikilinks | BDD; тесты; AC3; AC8 |
+| **4 — Memory & skills** | остальные сценарии | `aec-memory` по specs/agent-memory.md; skills `aec-id-check`, `aec-docgen` по их спекам + smoke-эвалы; языковые настройки (SOUL-правило, wiki_lang, UI locale) | pytest; smoke-эвалы; AC4; проверки G7 |
 | **5 — Packaging & field** | продукт в руках | инсталлятор Windows (+mac/linux best effort); i18n-полировка; полный эвал с порогом; полевые испытания; пользовательские доки | AC1–AC8 целиком |
 
 Каждая фаза заканчивается: тесты зелёные → self-review (`code-review`) → коммит → сверка планов (TASKS/SPEC актуальны).
