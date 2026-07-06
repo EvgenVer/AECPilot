@@ -36,3 +36,18 @@ response, prints it, then stops the process. Process output is logged
 TODO(Phase 5 / task 5.1): the Electron main process locates this file via a
 relative path from `__dirname`, which breaks once the app is packaged into
 `app.asar` — revisit for the bundled layout.
+
+## gateway-smoke.mjs
+
+Contract smoke test for the `tui_gateway` JSON-RPC protocol: create a
+session, send a message, collect the streamed reply, close the session.
+
+```
+node runtime/gateway-smoke.mjs
+```
+
+Exit 0 = got a real model reply. Exit 1 = a protocol-level failure. Exit 2 =
+protocol worked but the model call failed on auth (expected until
+`runtime/dev-profile/.env` has a real `OPENAI_API_KEY` — see the placeholder
+there). Exit 3 = protocol worked but the model call failed for a non-auth
+reason (network, rate limit, 5xx, ...).
