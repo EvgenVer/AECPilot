@@ -3,9 +3,10 @@
      (run the planning skill's NOTES closeout first). Stable facts → MEMORY.md. -->
 
 ## Current task & state
-Phase 0 — Foundations (TASKS 0.1–0.16). Комплект планирования утверждён владельцем 2026-07-06.
-Выполнено: 0.1 (пины в PLAN §Stack), 0.2 (.gitattributes/.editorconfig, варнингов нет).
-Резюм-поинт: следующие — 0.3 (pnpm-workspace + Electron hello window) и 0.4 (uv-workspace + каркас mcp/aec_sources), параллелимы.
+Phase 0 — Foundations (TASKS 0.1–0.16), режим оркестрации (executor=sonnet, reviewer=opus).
+Выполнено: 0.1, 0.2, 0.3 (Electron-каркас, smoke по did-finish-load), 0.4 (uv-workspace, aec-sources в dev-группе).
+В работе: 0.6 (изолированный hermes-runtime, executor в фоне). Следующее: 0.5 (линтеры) → 0.7 (запуск serve из Node).
+Решение владельца: dev-LLM = OpenAI напрямую; ключ владелец впишет сам в gitignored-файл на задаче 0.8 (плейсхолдер-подход).
 
 ## Decisions taken
 - Тулкит-файлы закоммичены отдельным chore-коммитом (по вопросу владельца).

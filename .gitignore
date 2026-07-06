@@ -1,4 +1,21 @@
 ﻿
+# Dependencies / builds
+node_modules/
+out/
+dist/
+release/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Tooling
+*.log
+.eslintcache
+
 # Secrets / env (from AI-Agent toolkit)
 .env
 .env.*

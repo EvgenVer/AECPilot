@@ -1,0 +1,10 @@
+{
+  "name": "aecpilot",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "dev": "pnpm -C apps/desktop dev",
+    "build": "pnpm -C apps/desktop build"
+  }
+}

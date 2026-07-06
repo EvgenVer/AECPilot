@@ -6,8 +6,6 @@
 ## Active
 
 ### Phase 0 — Foundations
-- [ ] 0.3 Создать pnpm-workspace и каркас apps/desktop (Electron+React+Vite, «hello window») — files: package.json, apps/desktop/** · verify: `pnpm dev` открывает окно · dep: 0.1 · parallel: no
-- [ ] 0.4 Создать uv-workspace и каркас пакета mcp/aec_sources с одним проходящим тестом — files: pyproject.toml, mcp/aec_sources/** · verify: `uv run pytest -q` → 1 passed · dep: 0.1 · parallel: yes
 - [ ] 0.5 Настроить линтеры и корневые команды проверки (ruff; eslint+prettier; сводный скрипт) — files: конфиги линтеров · verify: `pnpm lint` и `uv run ruff check .` проходят · dep: 0.3, 0.4 · parallel: no
 - [ ] 0.6 Реализовать в runtime/ установку pinned hermes-agent в изолированный venv + изолированный HERMES_HOME (dev-профиль) — files: runtime/** · verify: `hermes --version` = пин; профиль создаётся в заданной папке, не в ~ · dep: 0.1 · parallel: yes
 - [ ] 0.7 Реализовать запуск/останов `hermes serve` из Node (child process, health-check, лог) — files: apps/desktop, runtime/ · verify: smoke-скрипт получает JSON-RPC-ответ · dep: 0.6 · parallel: no
@@ -117,3 +115,5 @@
 ## Done
 - [x] 0.1 Провести dependency-vetting и запиннить ядро стека — verified: реестры PyPI/npm/endoflife проверены 2026-07-06; версии в PLAN §Stack (hermes-agent 0.18.0, Python 3.12.13, uv ≥0.11.26, Node 24 LTS, Electron 43.x, pnpm 11.x)
 - [x] 0.2 Добавить .gitattributes и .editorconfig — verified: `git add --renormalize .` прошёл без LF/CRLF-варнингов
+- [x] 0.3 pnpm-workspace + каркас apps/desktop — verified: corepack pnpm install/build ок (pnpm 11.10.0, electron 43.0.0, vite 7.3.6); smoke AEC_SMOKE=1 → «window created»/«smoke ok» по did-finish-load, exit 0; ревью: 1 major (битый lint-скрипт) + minor/nits — исправлены за 1 итерацию; onlyBuiltDependencies=[electron,esbuild] одобрен ревью как минимальный
+- [x] 0.4 uv-workspace + каркас mcp/aec_sources — verified: uv sync ок (managed Python 3.12.13), `uv run pytest -q` → 1 passed; ревью: pytest сужен до >=8,<10, aec-sources перенесён в dev-группу (1 итерация)
