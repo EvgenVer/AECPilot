@@ -13,7 +13,14 @@ members = ["mcp/*"]
 aec-sources = { workspace = true }
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "aec-sources"]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1", "aec-sources"]
 
 [tool.pytest.ini_options]
 testpaths = ["mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

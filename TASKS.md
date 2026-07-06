@@ -6,8 +6,6 @@
 ## Active
 
 ### Phase 0 — Foundations
-- [ ] 0.5 Настроить линтеры и корневые команды проверки (ruff; eslint+prettier; сводный скрипт) — files: конфиги линтеров · verify: `pnpm lint` и `uv run ruff check .` проходят · dep: 0.3, 0.4 · parallel: no
-- [ ] 0.6 Реализовать в runtime/ установку pinned hermes-agent в изолированный venv + изолированный HERMES_HOME (dev-профиль) — files: runtime/** · verify: `hermes --version` = пин; профиль создаётся в заданной папке, не в ~ · dep: 0.1 · parallel: yes
 - [ ] 0.7 Реализовать запуск/останов `hermes serve` из Node (child process, health-check, лог) — files: apps/desktop, runtime/ · verify: smoke-скрипт получает JSON-RPC-ответ · dep: 0.6 · parallel: no
 - [ ] 0.8 Написать контрактный gateway-smoke-скрипт (создать сессию → сообщение → стрим → закрыть) — files: runtime/smoke/** · verify: скрипт зелёный локально (войдёт в регулярные проверки) · dep: 0.7 · parallel: no
 - [ ] 0.9 Проверить R2: маркерный SOUL.md в dev-профиле проявляется в ответах через gateway; результат и workaround зафиксировать — files: PLAN.md §Risks · verify: запись с выводом (работает / workaround описан) · dep: 0.8 · parallel: no
@@ -117,3 +115,5 @@
 - [x] 0.2 Добавить .gitattributes и .editorconfig — verified: `git add --renormalize .` прошёл без LF/CRLF-варнингов
 - [x] 0.3 pnpm-workspace + каркас apps/desktop — verified: corepack pnpm install/build ок (pnpm 11.10.0, electron 43.0.0, vite 7.3.6); smoke AEC_SMOKE=1 → «window created»/«smoke ok» по did-finish-load, exit 0; ревью: 1 major (битый lint-скрипт) + minor/nits — исправлены за 1 итерацию; onlyBuiltDependencies=[electron,esbuild] одобрен ревью как минимальный
 - [x] 0.4 uv-workspace + каркас mcp/aec_sources — verified: uv sync ок (managed Python 3.12.13), `uv run pytest -q` → 1 passed; ревью: pytest сужен до >=8,<10, aec-sources перенесён в dev-группу (1 итерация)
+- [x] 0.5 Линтеры и корневые команды — verified: `corepack pnpm lint` = eslint (0/0) + tsc --noEmit + ruff «All checks passed!»; format:check зелёный; eslint flat config с reactHooks.configs.flat.recommended; все корневые скрипты corepack-явные (работают без pnpm в PATH); ревью: без блокеров, minor/nit закрыты за 1 итерацию; побочный эффект executor'а (corepack-шимы в каталоге hermes) откачен полностью по решению владельца (12 файлов удалено, node.exe цел)
+- [x] 0.6 runtime-лончер: изолированные venv + HERMES_HOME — verified: `hermes.exe --version` из runtime/.hermes-venv = 0.18.0 (Python 3.12.13); `hermes config path` с HERMES_HOME → runtime/dev-profile (пользовательская установка не тронута — mtime-diff пустой, содержимое не читалось); setup.mjs идемпотентен; ревью: чисто, 2 minor/2 nit исправлены за 1 итерацию; POSIX-ветка помечена как непроверенная (Windows-target Phase 0)

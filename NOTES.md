@@ -4,8 +4,9 @@
 
 ## Current task & state
 Phase 0 — Foundations (TASKS 0.1–0.16), режим оркестрации (executor=sonnet, reviewer=opus).
-Выполнено: 0.1, 0.2, 0.3 (Electron-каркас, smoke по did-finish-load), 0.4 (uv-workspace, aec-sources в dev-группе).
-В работе: 0.6 (изолированный hermes-runtime, executor в фоне). Следующее: 0.5 (линтеры) → 0.7 (запуск serve из Node).
+Выполнено: 0.1–0.6 (каркасы, линтеры, изолированный hermes-runtime). Все корневые скрипты corepack-явные — pnpm в PATH не нужен.
+Следующее: 0.7 (запуск serve из Node + health-check) → 0.8 (gateway-smoke; потребует OpenAI-ключ владельца в runtime/dev-profile, плейсхолдер-подход) → 0.9 (SOUL в gateway, риск R2).
+Инцидент-урок: corepack enable в каталог hermes (вне workspace) — откачен полностью (12 шимов, node.exe цел); брифы executor'ам теперь явно запрещают модификации вне репо.
 Решение владельца: dev-LLM = OpenAI напрямую; ключ владелец впишет сам в gitignored-файл на задаче 0.8 (плейсхолдер-подход).
 
 ## Decisions taken

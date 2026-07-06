@@ -12,6 +12,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Hermes runtime (local artifacts, task 0.6)
+runtime/.hermes-venv/
+runtime/dev-profile/
+
 # Tooling
 *.log
 .eslintcache

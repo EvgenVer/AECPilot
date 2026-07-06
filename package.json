@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "packageManager": "pnpm@11.10.0",
   "scripts": {
-    "dev": "pnpm -C apps/desktop dev",
-    "build": "pnpm -C apps/desktop build"
+    "dev": "corepack pnpm -C apps/desktop dev",
+    "build": "corepack pnpm -C apps/desktop build",
+    "lint": "corepack pnpm -C apps/desktop lint && corepack pnpm -C apps/desktop typecheck && uv run ruff check ."
   }
 }
