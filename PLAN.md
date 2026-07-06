@@ -35,7 +35,16 @@ specs/             # поведенческие контракты (этот р�
 - Python-слой: Python 3.12, менеджер uv (venv + lockfile); MCP — официальный python SDK.
 - Тесты: pytest (python), Vitest (UI-юниты), Playwright (e2e smoke).
 - Линтеры: ruff (py), eslint + prettier (ts).
-- Точные версии всех инструментов фиксируются в Phase 0 (задача vet & pin).
+- Точные версии ядра стека (vetting 2026-07-06, задача 0.1; lock-файлы пиннят точные патчи):
+
+| Инструмент | Пин | Основание |
+|---|---|---|
+| hermes-agent | 0.18.0 (PyPI, MIT, Nous Research; requires-python >=3.11,<3.14; provenance ✔) | реестр PyPI |
+| Python | 3.12.13 (security-поддержка до окт. 2028; 3.14 несовместим с hermes-agent) | endoflife.date |
+| uv | 0.11.x, ≥0.11.26 (MIT/Apache-2.0, Astral) | PyPI |
+| Node.js | 24 LTS, ≥24.18.0 (Active LTS; security до апр. 2028; совпадает с Node внутри Electron 43) | endoflife.date |
+| Electron | 43.x, ≥43.0.0 (Chromium 150, Node 24; поддержка до янв. 2027 — самый длинный runway из трёх поддерживаемых мажоров) | endoflife.date |
+| pnpm | 11.x, ≥11.10.0 (MIT; требует Node ≥22.13) | npm registry |
 
 ## Selected dependencies
 Все зависимости проходят skill `dependency-vetting` перед установкой (реестр, лицензия, поддержка); версии пиннятся в lock-файлах. Лицензионное правило — C3 (только permissive).

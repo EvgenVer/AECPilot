@@ -6,8 +6,6 @@
 ## Active
 
 ### Phase 0 — Foundations
-- [ ] 0.1 Провести dependency-vetting и запиннить ядро стека (hermes-agent, electron, node LTS, python 3.12, uv, pnpm) — files: PLAN.md §Stack · verify: таблица версий заполнена, реестры и лицензии проверены · dep: none · parallel: yes
-- [ ] 0.2 Добавить .gitattributes (text=auto, eol=lf для кода/md) и .editorconfig — files: .gitattributes, .editorconfig · verify: git add --renormalize без варнингов LF/CRLF · dep: none · parallel: yes
 - [ ] 0.3 Создать pnpm-workspace и каркас apps/desktop (Electron+React+Vite, «hello window») — files: package.json, apps/desktop/** · verify: `pnpm dev` открывает окно · dep: 0.1 · parallel: no
 - [ ] 0.4 Создать uv-workspace и каркас пакета mcp/aec_sources с одним проходящим тестом — files: pyproject.toml, mcp/aec_sources/** · verify: `uv run pytest -q` → 1 passed · dep: 0.1 · parallel: yes
 - [ ] 0.5 Настроить линтеры и корневые команды проверки (ruff; eslint+prettier; сводный скрипт) — files: конфиги линтеров · verify: `pnpm lint` и `uv run ruff check .` проходят · dep: 0.3, 0.4 · parallel: no
@@ -117,4 +115,5 @@
 - (пусто)
 
 ## Done
-- (пусто)
+- [x] 0.1 Провести dependency-vetting и запиннить ядро стека — verified: реестры PyPI/npm/endoflife проверены 2026-07-06; версии в PLAN §Stack (hermes-agent 0.18.0, Python 3.12.13, uv ≥0.11.26, Node 24 LTS, Electron 43.x, pnpm 11.x)
+- [x] 0.2 Добавить .gitattributes и .editorconfig — verified: `git add --renormalize .` прошёл без LF/CRLF-варнингов
