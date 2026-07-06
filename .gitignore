@@ -1,0 +1,11 @@
+﻿
+# Secrets / env (from AI-Agent toolkit)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa*
+.ssh/
+secrets/
+.claude/settings.local.json
