@@ -15,6 +15,7 @@ interface ServeHandle {
 
 interface ServeModule {
   startServe: (opts?: { port?: number; host?: string }) => Promise<ServeHandle>
+  waitHealthy: (handle: ServeHandle, timeoutMs?: number) => Promise<unknown>
   stopServe: (handle: ServeHandle, opts?: { gracefulTimeoutMs?: number }) => Promise<void>
 }
 
@@ -113,9 +114,16 @@ app
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.
     if (process.env.AEC_SMOKE !== '1') {
       try {
-        const { startServe, stopServe } = await loadServeModule()
+        const { startServe, waitHealthy, stopServe } = await loadServeModule()
         serveHandle = await startServe()
         stopServeFn = stopServe
+
+        // startServe only spawns the process — the gateway WS endpoint isn't
+        // accepting connections yet. Wait until it's healthy before connecting:
+        // GatewayClient does not retry a failed *initial* connect (auto-reconnect
+        // only engages after the first successful 'ready'), so connecting too
+        // early leaves the app permanently disconnected.
+        await waitHealthy(serveHandle, 30000)
 
         // SECURITY: serveHandle.wsUrl embeds the gateway auth token
         // (?token=…). It stays in the main process only — never send it over
