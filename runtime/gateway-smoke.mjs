@@ -32,146 +32,11 @@
 
 import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 import { RUNTIME_DIR } from "./hermes-env.mjs";
+import { connectWs, rpcCall, collectTurn, redact } from "./gateway-client.mjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const RPC_TIMEOUT_MS = 60000;
-const TURN_TIMEOUT_MS = 120000;
 const PROMPT_TEXT = "Reply with exactly: PONG";
-const REDACT_MAX_LEN = 120;
-
-// Provider error text (e.g. OpenAI's HTTP 401 body) can echo a fragment of
-// the API key back verbatim ("Incorrect API key provided: sk-...") — mask
-// any secret-shaped token before it ever reaches a log line, and cap length
-// so a runaway payload can't flood stdout.
-function redact(text) {
-  const str = String(text ?? "");
-  const masked = str.replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***");
-  return masked.length > REDACT_MAX_LEN
-    ? `${masked.slice(0, REDACT_MAX_LEN)}…`
-    : masked;
-}
-
-/** Sends one JSON-RPC request and resolves with its {"result"|"error"} response.
- * Also invokes onEvent for every intervening "event" frame (streamed replies
- * arrive as events, not as the request's own response). */
-function rpcCall(ws, method, params, { onEvent, timeoutMs = RPC_TIMEOUT_MS } = {}) {
-  return new Promise((resolve, reject) => {
-    const id = `smoke-${method}-${Date.now()}`;
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      ws.removeEventListener("message", onMessage);
-      reject(new Error(`timed out waiting for response to "${method}" (${timeoutMs}ms)`));
-    }, timeoutMs);
-
-    function onMessage(event) {
-      let frame;
-      try {
-        frame = JSON.parse(event.data);
-      } catch {
-        return; // not JSON — ignore
-      }
-      if (frame.method === "event") {
-        onEvent?.(frame.params);
-        return;
-      }
-      if (frame.id !== id) return; // response to a different in-flight call
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      ws.removeEventListener("message", onMessage);
-      resolve(frame);
-    }
-
-    ws.addEventListener("message", onMessage);
-    ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
-  });
-}
-
-/** Sends "prompt.submit" and collects the streamed turn (message.start /
- * message.delta / message.complete / error events) until the turn ends. */
-function submitAndCollectTurn(ws, sessionId, text) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let started = false;
-    let deltaCount = 0;
-    let finalText = "";
-    let finalStatus = null;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      ws.removeEventListener("message", onMessage);
-      reject(new Error(`timed out waiting for the turn to finish (${TURN_TIMEOUT_MS}ms)`));
-    }, TURN_TIMEOUT_MS);
-
-    function finish(result) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      ws.removeEventListener("message", onMessage);
-      resolve(result);
-    }
-
-    function onMessage(event) {
-      let frame;
-      try {
-        frame = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      if (frame.method !== "event") return;
-      const evt = frame.params || {};
-      if (evt.session_id && evt.session_id !== sessionId) return; // not ours
-
-      switch (evt.type) {
-        case "message.start":
-          started = true;
-          console.log("== event: message.start");
-          break;
-        case "message.delta":
-          deltaCount += 1;
-          break;
-        case "message.complete":
-          finalText = evt.payload?.text ?? "";
-          finalStatus = evt.payload?.status ?? null;
-          console.log(`== event: message.complete status=${finalStatus} deltas=${deltaCount}`);
-          finish({ started, deltaCount, finalText, finalStatus });
-          break;
-        case "error":
-          console.log(`== event: error message=${redact(evt.payload?.message ?? "(none)")}`);
-          finish({ started, deltaCount, finalText: "", finalStatus: "error", crashed: true });
-          break;
-        case "status.update":
-          console.log(`== event: status.update kind=${evt.payload?.kind ?? ""} text=${redact(evt.payload?.text ?? "")}`);
-          break;
-        default:
-          break; // thinking.delta, session.info, etc. — not part of the turn contract
-      }
-    }
-
-    ws.addEventListener("message", onMessage);
-    rpcCall(ws, "prompt.submit", { session_id: sessionId, text }, {
-      onEvent: () => {}, // message events are consumed by the listener above, not here
-    }).then((resp) => {
-      console.log(`== rpc prompt.submit -> ${JSON.stringify(resp.result || resp.error)}`);
-      if (resp.error) {
-        finish({ started: false, deltaCount: 0, finalText: "", finalStatus: null, rpcError: resp.error });
-      }
-      // On success the turn streams asynchronously — onMessage above resolves it.
-    }, (err) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        ws.removeEventListener("message", onMessage);
-        reject(err);
-      }
-    });
-  });
-}
 
 async function runSmoke() {
   console.log("== starting hermes serve");
@@ -184,36 +49,10 @@ async function runSmoke() {
     console.log(`== gateway ready: ${JSON.stringify(readyFrame.params?.type ?? readyFrame)}`);
 
     console.log("== opening WS connection");
-    ws = new WebSocket(handle.wsUrl);
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("WS connect timed out")), 15000);
-      ws.addEventListener("open", () => {
-        clearTimeout(t);
-        resolve();
-      });
-      ws.addEventListener("error", (e) => {
-        clearTimeout(t);
-        reject(new Error(`WS connect error: ${e.message || e}`));
-      });
-    });
-
-    // First frame after connect is the gateway.ready event (per ws.py).
-    const firstFrame = await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("did not receive gateway.ready after WS connect")), 15000);
-      ws.addEventListener("message", function onFirst(event) {
-        clearTimeout(t);
-        ws.removeEventListener("message", onFirst);
-        try {
-          resolve(JSON.parse(event.data));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
+    const conn = await connectWs(handle.wsUrl);
+    ws = conn.ws;
+    const firstFrame = conn.readyFrame;
     console.log(`== ws first frame: method=${firstFrame.method} type=${firstFrame.params?.type}`);
-    if (firstFrame.method !== "event" || firstFrame.params?.type !== "gateway.ready") {
-      throw new Error(`expected gateway.ready as the first WS frame, got: ${JSON.stringify(firstFrame)}`);
-    }
 
     console.log("== rpc: session.create");
     const createResp = await rpcCall(ws, "session.create", { source: "smoke", cwd: RUNTIME_DIR });
@@ -227,7 +66,7 @@ async function runSmoke() {
     console.log(`== session created: session_id=${sessionId}`);
 
     console.log(`== rpc: prompt.submit text=${JSON.stringify(PROMPT_TEXT)}`);
-    const turn = await submitAndCollectTurn(ws, sessionId, PROMPT_TEXT);
+    const turn = await collectTurn(ws, sessionId, PROMPT_TEXT);
 
     console.log("== rpc: session.close");
     const closeResp = await rpcCall(ws, "session.close", { session_id: sessionId });
