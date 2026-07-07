@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { GatewayClient } from '../shared/gateway/client'
-import type { GatewayEvent } from '../shared/gateway/types'
+import type { GatewayConnectionState, GatewayEvent } from '../shared/gateway/types'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -37,6 +37,11 @@ let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
 let ensureSessionPromise: Promise<string> | undefined
+// Mirrors the gateway's connection state so a freshly-loaded renderer can pull
+// the current value on mount (see `gateway:get-state`). The initial 'ready'
+// fires while no window exists to receive the push, so a push-only channel
+// would leave the renderer stuck at 'closed'.
+let gatewayState: GatewayConnectionState = 'closed'
 
 /** Lazily creates the single implicit chat session (task 0.11 — no sessions
  * list yet, see task 0.14) and caches its id. Concurrent callers await the
@@ -100,6 +105,8 @@ ipcMain.handle('chat:submit', async (_event, text: string) => {
   await gateway.request('prompt.submit', { session_id: activeSessionId, text })
 })
 
+ipcMain.handle('gateway:get-state', () => gatewayState)
+
 app
   .whenReady()
   .then(async () => {
@@ -123,6 +130,7 @@ app
           for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
         })
         gateway.onStateChange((state) => {
+          gatewayState = state
           for (const win of BrowserWindow.getAllWindows())
             win.webContents.send('gateway:state', state)
         })

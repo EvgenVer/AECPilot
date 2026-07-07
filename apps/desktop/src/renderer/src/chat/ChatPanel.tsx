@@ -16,13 +16,24 @@ export default function ChatPanel() {
   const [submitError, setSubmitError] = useState<string | undefined>(undefined)
 
   useEffect(() => {
+    let mounted = true
+    let gotLiveState = false
     const unsubscribeEvent = window.aecpilot.onChatEvent((event) => {
       dispatch({ kind: 'event', event })
     })
     const unsubscribeState = window.aecpilot.onGatewayState((s) => {
+      gotLiveState = true
       setConnectionState(s)
     })
+    // The gateway can reach 'ready' before this window/renderer exists to
+    // receive the push (main connects it before creating the window), so pull
+    // the current state once on mount. A live event always wins over this
+    // hydration snapshot.
+    void window.aecpilot.getGatewayState().then((s) => {
+      if (mounted && !gotLiveState) setConnectionState(s)
+    })
     return () => {
+      mounted = false
       unsubscribeEvent()
       unsubscribeState()
     }

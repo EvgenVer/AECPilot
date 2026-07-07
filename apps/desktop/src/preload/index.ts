@@ -3,6 +3,7 @@ import type { AecpilotApi } from '../shared/ipc'
 
 const api: AecpilotApi = {
   submitPrompt: (text) => ipcRenderer.invoke('chat:submit', text),
+  getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   onChatEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)
