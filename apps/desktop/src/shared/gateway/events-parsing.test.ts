@@ -325,9 +325,10 @@ describe('GatewayClient reconnect/backoff', () => {
     FakeWebSocket.instances = []
   })
 
-  function makeReadyClient(
-    options: { reconnectMaxAttempts?: number } = {}
-  ): { client: GatewayClient; socket: FakeWebSocket } {
+  function makeReadyClient(options: { reconnectMaxAttempts?: number } = {}): {
+    client: GatewayClient
+    socket: FakeWebSocket
+  } {
     // @ts-expect-error — fake transport is intentionally not a full WebSocket
     globalThis.WebSocket = FakeWebSocket
     const client = new GatewayClient({ url: 'ws://fixture', ...options })
