@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
+import { GatewayClient } from '../shared/gateway/client'
+import type { GatewayEvent } from '../shared/gateway/types'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -32,6 +34,33 @@ async function loadServeModule(): Promise<ServeModule> {
 
 let serveHandle: ServeHandle | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
+let gateway: GatewayClient | undefined
+let sessionId: string | undefined
+let ensureSessionPromise: Promise<string> | undefined
+
+/** Lazily creates the single implicit chat session (task 0.11 — no sessions
+ * list yet, see task 0.14) and caches its id. Concurrent callers await the
+ * same in-flight creation rather than racing separate `session.create`
+ * calls. */
+async function ensureSession(): Promise<string> {
+  if (sessionId) return sessionId
+  if (!gateway) throw new Error('cannot create a chat session — gateway is not connected')
+  if (!ensureSessionPromise) {
+    ensureSessionPromise = gateway
+      .request('session.create', {
+        source: 'aecpilot-desktop'
+        // TODO(Phase 1): cwd = vault root
+      })
+      .then((result) => {
+        sessionId = result.session_id
+        return sessionId
+      })
+      .finally(() => {
+        ensureSessionPromise = undefined
+      })
+  }
+  return ensureSessionPromise
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -65,6 +94,12 @@ function createWindow(): void {
   }
 }
 
+ipcMain.handle('chat:submit', async (_event, text: string) => {
+  const activeSessionId = await ensureSession()
+  if (!gateway) throw new Error('cannot submit prompt — gateway is not connected')
+  await gateway.request('prompt.submit', { session_id: activeSessionId, text })
+})
+
 app
   .whenReady()
   .then(async () => {
@@ -74,6 +109,31 @@ app
         const { startServe, stopServe } = await loadServeModule()
         serveHandle = await startServe()
         stopServeFn = stopServe
+
+        // SECURITY: serveHandle.wsUrl embeds the gateway auth token
+        // (?token=…). It stays in the main process only — never send it over
+        // IPC and never log this url or any error that could carry it. The
+        // `gateway connect FAIL` log below is safe only because GatewayClient
+        // errors do not include the url; keep that invariant if you touch it.
+        gateway = new GatewayClient({ url: serveHandle.wsUrl })
+        gateway.onEvent((event: GatewayEvent) => {
+          // Only forward events for the active session, plus session-less
+          // events (e.g. `gateway.ready`, which carries no session_id).
+          if (event.session_id && event.session_id !== sessionId) return
+          for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+        })
+        gateway.onStateChange((state) => {
+          for (const win of BrowserWindow.getAllWindows())
+            win.webContents.send('gateway:state', state)
+        })
+
+        try {
+          await gateway.connect()
+        } catch (error: unknown) {
+          // Same tolerance as a serve-start failure — the window still
+          // opens, the chat just won't be able to connect yet.
+          console.error('aecpilot: gateway connect FAIL', error)
+        }
       } catch (error: unknown) {
         // Backend failing to start must not take the window down — the chat
         // just won't be able to connect yet (see task 0.8).

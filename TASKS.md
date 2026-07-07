@@ -6,7 +6,7 @@
 ## Active
 
 ### Phase 0 — Foundations
-- [ ] 0.11 Реализовать чат-панель: отправка сообщения, стриминговый рендер ответа — files: apps/desktop · verify: ручной сквозной чат в своём окне · dep: 0.10 · parallel: no
+- [ ] 0.11 Реализовать чат-панель: отправка сообщения, стриминговый рендер ответа — files: apps/desktop · verify: ручной сквозной чат в своём окне · dep: 0.10 · parallel: no — **[КОД ГОТОВ, ждёт ручного verify владельца]**: main-proxied GatewayClient + IPC-мост (contextBridge: submitPrompt/onChatEvent/onGatewayState, токен только в main), чистый reducer chat-state.ts + ChatPanel.tsx; авто-проверки зелёные (30/30 тестов вкл. 10 на reducer, typecheck/lint/format:check/electron-vite build), ревью (sonnet, свежий контекст) 0 blocker/major, 1 minor (secret-hygiene инвариант — зафиксирован комментарием у конструктора GatewayClient), 1 nit (TODO cwd=vault, Phase 1). Отметить [x] после прогона владельцем: `pnpm dev` → сообщение → «Connecting…»→«Connected» → стриминговый ответ
 - [ ] 0.12 Реализовать рендер вывода инструментов (стрим tool-событий) в чате — files: apps/desktop · verify: тестовая сессия показывает вызовы инструментов · dep: 0.11 · parallel: yes
 - [ ] 0.13 Реализовать approvals-диалог по событиям gateway — files: apps/desktop · verify: ручной сценарий с действием, требующим approve · dep: 0.11 · parallel: yes
 - [ ] 0.14 Реализовать список/создание/переключение сессий с историей — files: apps/desktop · verify: две сессии, история переживает рестарт приложения · dep: 0.11 · parallel: yes
@@ -104,7 +104,7 @@
 
 ## Discovered
 <!-- Subtasks found during work. -->
-- (пусто)
+- Гейт-пробел: корневой `lint` = eslint+tsc+ruff, но НЕ `prettier --check` — prettier-дрейф проскакивает (поймано на 0.11: файл 0.10 был не отформатирован, исправлено коммитом ad6f7bd). Предложение владельцу: добавить `format:check` в `lint` (apps/desktop и/или корень), чтобы формат-гейт был обязательным.
 
 ## Done
 - [x] 0.1 Провести dependency-vetting и запиннить ядро стека — verified: реестры PyPI/npm/endoflife проверены 2026-07-06; версии в PLAN §Stack (hermes-agent 0.18.0, Python 3.12.13, uv ≥0.11.26, Node 24 LTS, Electron 43.x, pnpm 11.x)
