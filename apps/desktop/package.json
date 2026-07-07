@@ -9,6 +9,7 @@
     "start": "electron-vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -30,6 +31,7 @@
     "prettier": "^3.0.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.0.0",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "vitest": "^4.1.0"
   }
 }
