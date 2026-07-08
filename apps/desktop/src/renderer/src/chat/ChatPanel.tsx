@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from 'react'
 import { chatReducer, initialChatState } from './chat-state'
+import ToolCallCard from './ToolCallCard'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const connectionLabel: Record<GatewayConnectionState, string> = {
@@ -91,24 +92,28 @@ export default function ChatPanel() {
           gap: 8
         }}
       >
-        {state.messages.map((message, index) => (
-          <div
-            key={index}
-            style={{
-              alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '75%',
-              padding: '8px 12px',
-              borderRadius: 8,
-              background: message.role === 'user' ? '#daf1ff' : '#f0f0f0',
-              whiteSpace: 'pre-wrap'
-            }}
-          >
-            {message.text}
-            {message.status === 'error' && (
-              <div style={{ color: '#c33', fontSize: 12, marginTop: 4 }}>error</div>
-            )}
-          </div>
-        ))}
+        {state.items.map((item, index) =>
+          item.kind === 'tool' ? (
+            <ToolCallCard key={item.toolId} call={item} />
+          ) : (
+            <div
+              key={index}
+              style={{
+                alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '75%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: item.role === 'user' ? '#daf1ff' : '#f0f0f0',
+                whiteSpace: 'pre-wrap'
+              }}
+            >
+              {item.text}
+              {item.status === 'error' && (
+                <div style={{ color: '#c33', fontSize: 12, marginTop: 4 }}>error</div>
+              )}
+            </div>
+          )
+        )}
       </div>
 
       {submitError && (

@@ -1,6 +1,6 @@
-// Pure unit tests for the chat reducer (task 0.11) — no DOM, no React: the
-// reducer is framework-free, so these run directly under vitest's node
-// environment (see apps/desktop/vitest.config.ts).
+// Pure unit tests for the chat reducer (tasks 0.11, 0.12) — no DOM, no
+// React: the reducer is framework-free, so these run directly under
+// vitest's node environment (see apps/desktop/vitest.config.ts).
 
 import { describe, expect, it } from 'vitest'
 import { chatReducer, initialChatState, type ChatState } from './chat-state'
@@ -14,7 +14,7 @@ describe('chatReducer', () => {
   it('appends a user message on user-submit', () => {
     const state = chatReducer(initialChatState, { kind: 'user-submit', text: 'hello' })
 
-    expect(state.messages).toEqual([{ role: 'user', text: 'hello' }])
+    expect(state.items).toEqual([{ kind: 'message', role: 'user', text: 'hello' }])
     expect(state.streaming).toBe(false)
   })
 
@@ -32,9 +32,9 @@ describe('chatReducer', () => {
       ev({ type: 'message.complete', payload: { text: '', status: 'complete' } })
     )
 
-    expect(state.messages).toEqual([
-      { role: 'user', text: 'hi' },
-      { role: 'assistant', text: 'Hello!', status: 'complete' }
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'user', text: 'hi' },
+      { kind: 'message', role: 'assistant', text: 'Hello!', status: 'complete' }
     ])
     expect(state.streaming).toBe(false)
   })
@@ -48,8 +48,8 @@ describe('chatReducer', () => {
       ev({ type: 'message.complete', payload: { text: 'the full final text', status: 'complete' } })
     )
 
-    expect(state.messages).toEqual([
-      { role: 'assistant', text: 'the full final text', status: 'complete' }
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'assistant', text: 'the full final text', status: 'complete' }
     ])
   })
 
@@ -59,16 +59,19 @@ describe('chatReducer', () => {
     state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'oops' } }))
     state = chatReducer(state, ev({ type: 'error', payload: { message: 'boom' } }))
 
-    expect(state.messages).toHaveLength(1)
-    expect(state.messages[0].role).toBe('assistant')
-    expect(state.messages[0].status).toBe('error')
+    expect(state.items).toHaveLength(1)
+    const [item] = state.items
+    expect(item.kind).toBe('message')
+    expect(item).toMatchObject({ role: 'assistant', status: 'error' })
     expect(state.streaming).toBe(false)
   })
 
   it('an error event with no in-flight message still produces an assistant message', () => {
     const state = chatReducer(initialChatState, ev({ type: 'error', payload: { message: 'boom' } }))
 
-    expect(state.messages).toEqual([{ role: 'assistant', text: 'boom', status: 'error' }])
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'assistant', text: 'boom', status: 'error' }
+    ])
     expect(state.streaming).toBe(false)
   })
 
@@ -78,7 +81,9 @@ describe('chatReducer', () => {
       ev({ type: 'message.delta', payload: { text: 'surprise' } })
     )
 
-    expect(state.messages).toEqual([{ role: 'assistant', text: 'surprise', status: 'streaming' }])
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'assistant', text: 'surprise', status: 'streaming' }
+    ])
     expect(state.streaming).toBe(true)
   })
 
@@ -126,7 +131,200 @@ describe('chatReducer', () => {
       ev({ type: 'message.complete', payload: { text: 'answer', status: 'complete' } })
     )
 
-    expect(state.messages).toEqual([{ role: 'assistant', text: 'answer', status: 'complete' }])
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'assistant', text: 'answer', status: 'complete' }
+    ])
     expect(state.streaming).toBe(false)
+  })
+
+  // --- task 0.12: tool-event rendering ---------------------------------
+
+  it('start -> tool.start -> tool.complete -> delta x2 -> complete yields one complete tool card above one assistant message', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(
+      state,
+      ev({
+        type: 'tool.start',
+        payload: { tool_id: 't1', name: 'search_files', context: 'Searching files for *.md' }
+      })
+    )
+    state = chatReducer(
+      state,
+      ev({
+        type: 'tool.complete',
+        payload: {
+          tool_id: 't1',
+          name: 'search_files',
+          args: { pattern: '*.md' },
+          duration_s: 2.3,
+          result: { files: ['a.md'] }
+        }
+      })
+    )
+    state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'Found ' } }))
+    state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'it.' } }))
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: '', status: 'complete' } })
+    )
+
+    expect(state.items).toEqual([
+      {
+        kind: 'tool',
+        toolId: 't1',
+        name: 'search_files',
+        context: 'Searching files for *.md',
+        args: { pattern: '*.md' },
+        durationS: 2.3,
+        result: JSON.stringify({ files: ['a.md'] }, null, 2),
+        status: 'complete'
+      },
+      { kind: 'message', role: 'assistant', text: 'Found it.', status: 'complete' }
+    ])
+  })
+
+  it('two parallel tools (start A, start B, complete B, complete A) yield two cards matched by id, no duplicates', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.start', payload: { tool_id: 'a', name: 'tool_a', context: 'doing a' } })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.start', payload: { tool_id: 'b', name: 'tool_b', context: 'doing b' } })
+    )
+    state = chatReducer(
+      state,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 'b', name: 'tool_b', args: {}, duration_s: 1, result: 'result-b' }
+      })
+    )
+    state = chatReducer(
+      state,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 'a', name: 'tool_a', args: {}, duration_s: 2, result: 'result-a' }
+      })
+    )
+
+    expect(state.items).toHaveLength(2)
+    expect(state.items).toEqual([
+      {
+        kind: 'tool',
+        toolId: 'a',
+        name: 'tool_a',
+        context: 'doing a',
+        args: {},
+        durationS: 2,
+        result: 'result-a',
+        status: 'complete'
+      },
+      {
+        kind: 'tool',
+        toolId: 'b',
+        name: 'tool_b',
+        context: 'doing b',
+        args: {},
+        durationS: 1,
+        result: 'result-b',
+        status: 'complete'
+      }
+    ])
+  })
+
+  it('tool.started after tool.start with the same tool_id does not duplicate the card', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.start', payload: { tool_id: 't1', name: 'tool_a', context: 'first' } })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.started', payload: { tool_id: 't1', name: 'tool_a', context: 'second' } })
+    )
+
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0]).toEqual({
+      kind: 'tool',
+      toolId: 't1',
+      name: 'tool_a',
+      context: 'first',
+      status: 'running'
+    })
+  })
+
+  it('tool.complete without a prior start creates a card already complete', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 't1', name: 'tool_a', args: {}, duration_s: 0.5, result: 'done' }
+      })
+    )
+
+    expect(state.items).toEqual([
+      {
+        kind: 'tool',
+        toolId: 't1',
+        name: 'tool_a',
+        context: '',
+        args: {},
+        durationS: 0.5,
+        result: 'done',
+        status: 'complete'
+      }
+    ])
+  })
+
+  it('tool.complete result normalization: object stringified, JSON-string pretty-printed, plain string kept', () => {
+    const objectState = chatReducer(
+      initialChatState,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 't1', name: 't', args: {}, duration_s: 1, result: { a: 1 } }
+      })
+    )
+    expect((objectState.items[0] as { result: string }).result).toBe(
+      JSON.stringify({ a: 1 }, null, 2)
+    )
+
+    const jsonStringState = chatReducer(
+      initialChatState,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 't1', name: 't', args: {}, duration_s: 1, result: '{"a":1}' }
+      })
+    )
+    expect((jsonStringState.items[0] as { result: string }).result).toBe(
+      JSON.stringify({ a: 1 }, null, 2)
+    )
+
+    const plainStringState = chatReducer(
+      initialChatState,
+      ev({
+        type: 'tool.complete',
+        payload: { tool_id: 't1', name: 't', args: {}, duration_s: 1, result: 'just text' }
+      })
+    )
+    expect((plainStringState.items[0] as { result: string }).result).toBe('just text')
+  })
+
+  it('tool.generating with a text payload updates the card context; unknown tool.* types are a no-op', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.start', payload: { tool_id: 't1', name: 'tool_a', context: 'starting' } })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'tool.generating', payload: { tool_id: 't1', text: 'still going' } })
+    )
+    expect(state.items[0]).toMatchObject({ context: 'still going' })
+
+    const beforeUnknown = state
+    state = chatReducer(state, ev({ type: 'tool.mystery', payload: { tool_id: 't1' } }))
+    expect(state).toEqual(beforeUnknown)
   })
 })

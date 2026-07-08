@@ -142,6 +142,46 @@ export interface GatewayErrorEvent {
   payload: { message: string }
 }
 
+/** A tool invocation has begun. `context` is a human-readable one-liner
+ * describing what the tool is doing (e.g. "Searching files for *.md"). */
+export interface ToolStartEvent {
+  type: 'tool.start'
+  session_id?: string
+  payload: { tool_id: string; name: string; context: string }
+}
+
+/** Same shape and handling as `tool.start` — the gateway protocol defines
+ * both names; treat identically (upsert by tool_id, no duplication). */
+export interface ToolStartedEvent {
+  type: 'tool.started'
+  session_id?: string
+  payload: { tool_id: string; name: string; context: string }
+}
+
+/** An in-progress status update for a running tool call. Only known to be
+ * carried in gateway source, not captured live — payload may or may not
+ * include an updated context/text string. */
+export interface ToolGeneratingEvent {
+  type: 'tool.generating'
+  session_id?: string
+  payload?: { tool_id: string; text?: string; context?: string }
+}
+
+/** A tool invocation has finished. `result` is EITHER a JSON string OR an
+ * object — both observed live from tui_gateway 0.18.0; long results can be
+ * tens of KB. */
+export interface ToolCompleteEvent {
+  type: 'tool.complete'
+  session_id?: string
+  payload: {
+    tool_id: string
+    name: string
+    args: object
+    duration_s: number
+    result: string | object
+  }
+}
+
 /** Any event whose `type` this client does not recognize — kept typed rather
  * than silently dropped so callers can decide whether to ignore it. */
 export interface UnknownGatewayEvent {
@@ -158,6 +198,10 @@ export type GatewayEvent =
   | StatusUpdateEvent
   | MessageCompleteEvent
   | GatewayErrorEvent
+  | ToolStartEvent
+  | ToolStartedEvent
+  | ToolGeneratingEvent
+  | ToolCompleteEvent
   | UnknownGatewayEvent
 
 /** Narrows a `GatewayEvent` to the known variant matching `type`, if any.
