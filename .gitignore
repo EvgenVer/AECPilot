@@ -20,6 +20,9 @@ runtime/dev-profile/
 *.log
 .eslintcache
 
+# Playwright e2e artifacts (task 0.16)
+apps/desktop/test-results/
+
 # Secrets / env (from AI-Agent toolkit)
 .env
 .env.*

@@ -44,6 +44,34 @@ let ensureSessionPromise: Promise<string> | undefined
 // would leave the renderer stuck at 'closed'.
 let gatewayState: GatewayConnectionState = 'closed'
 
+/** Wires a `GatewayClient` for `url` into the app: forwards events/state to
+ * every window and attempts the initial connect (tolerating failure — the
+ * window still opens, chat just won't be able to connect yet). Shared by the
+ * normal `hermes serve` startup path and the `AEC_GATEWAY_URL` e2e override
+ * (task 0.16), which points this at a mock gateway instead of spawning
+ * `hermes serve`. */
+async function connectGateway(url: string): Promise<void> {
+  gateway = new GatewayClient({ url })
+  gateway.onEvent((event: GatewayEvent) => {
+    // Only forward events for the active session, plus session-less
+    // events (e.g. `gateway.ready`, which carries no session_id).
+    if (event.session_id && event.session_id !== sessionId) return
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+  })
+  gateway.onStateChange((state) => {
+    gatewayState = state
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('gateway:state', state)
+  })
+
+  try {
+    await gateway.connect()
+  } catch (error: unknown) {
+    // Same tolerance as a serve-start failure — the window still
+    // opens, the chat just won't be able to connect yet.
+    console.error('aecpilot: gateway connect FAIL', error)
+  }
+}
+
 /** Lazily creates the single implicit chat session (task 0.11 — no sessions
  * list yet, see task 0.14) and caches its id. Concurrent callers await the
  * same in-flight creation rather than racing separate `session.create`
@@ -113,47 +141,38 @@ app
   .then(async () => {
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.
     if (process.env.AEC_SMOKE !== '1') {
-      try {
-        const { startServe, waitHealthy, stopServe } = await loadServeModule()
-        serveHandle = await startServe()
-        stopServeFn = stopServe
-
-        // startServe only spawns the process — the gateway WS endpoint isn't
-        // accepting connections yet. Wait until it's healthy before connecting:
-        // GatewayClient does not retry a failed *initial* connect (auto-reconnect
-        // only engages after the first successful 'ready'), so connecting too
-        // early leaves the app permanently disconnected.
-        await waitHealthy(serveHandle, 30000)
-
-        // SECURITY: serveHandle.wsUrl embeds the gateway auth token
-        // (?token=…). It stays in the main process only — never send it over
-        // IPC and never log this url or any error that could carry it. The
-        // `gateway connect FAIL` log below is safe only because GatewayClient
-        // errors do not include the url; keep that invariant if you touch it.
-        gateway = new GatewayClient({ url: serveHandle.wsUrl })
-        gateway.onEvent((event: GatewayEvent) => {
-          // Only forward events for the active session, plus session-less
-          // events (e.g. `gateway.ready`, which carries no session_id).
-          if (event.session_id && event.session_id !== sessionId) return
-          for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
-        })
-        gateway.onStateChange((state) => {
-          gatewayState = state
-          for (const win of BrowserWindow.getAllWindows())
-            win.webContents.send('gateway:state', state)
-        })
-
+      // AEC_GATEWAY_URL (task 0.16, Playwright e2e): point the gateway
+      // client at a pre-started server (a mock gateway in tests) instead of
+      // spawning `hermes serve`. serveHandle/stopServeFn stay undefined in
+      // this mode — existing shutdown guards already tolerate that.
+      if (process.env.AEC_GATEWAY_URL) {
+        console.warn('aecpilot: AEC_GATEWAY_URL override active — skipping hermes serve')
+        await connectGateway(process.env.AEC_GATEWAY_URL)
+      } else {
         try {
-          await gateway.connect()
+          const { startServe, waitHealthy, stopServe } = await loadServeModule()
+          serveHandle = await startServe()
+          stopServeFn = stopServe
+
+          // startServe only spawns the process — the gateway WS endpoint isn't
+          // accepting connections yet. Wait until it's healthy before connecting:
+          // GatewayClient does not retry a failed *initial* connect (auto-reconnect
+          // only engages after the first successful 'ready'), so connecting too
+          // early leaves the app permanently disconnected.
+          await waitHealthy(serveHandle, 30000)
+
+          // SECURITY: serveHandle.wsUrl embeds the gateway auth token
+          // (?token=…). It stays in the main process only — never send it over
+          // IPC and never log this url or any error that could carry it. The
+          // `gateway connect FAIL` log inside connectGateway is safe only
+          // because GatewayClient errors do not include the url; keep that
+          // invariant if you touch it.
+          await connectGateway(serveHandle.wsUrl)
         } catch (error: unknown) {
-          // Same tolerance as a serve-start failure — the window still
-          // opens, the chat just won't be able to connect yet.
-          console.error('aecpilot: gateway connect FAIL', error)
+          // Backend failing to start must not take the window down — the chat
+          // just won't be able to connect yet (see task 0.8).
+          console.error('aecpilot: hermes serve start FAIL', error)
         }
-      } catch (error: unknown) {
-        // Backend failing to start must not take the window down — the chat
-        // just won't be able to connect yet (see task 0.8).
-        console.error('aecpilot: hermes serve start FAIL', error)
       }
     }
 
