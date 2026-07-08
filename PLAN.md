@@ -3,13 +3,13 @@
 
 ## Architecture
 Слои (сверху вниз):
-1. **AECPilot Desktop** (Electron + React, TypeScript) — единственный UI: проводник (vault + источники), вьюеры (PDF/DOCX/TXT/XLSX/CSV), MD-редактор с рендерингом (vault и вики), чат агента (сессии, стриминг, approvals), настройки (LLM-endpoint, языки, лимиты).
+1. **AECPilot Desktop** (Electron + React, TypeScript) — единственный UI, IDE-shell в одном окне (решения владельца 2026-07-08): левая рельса активностей (Проводник · Q&A · Вики · Источники · Память · Документы · Агент-hub) с контекстным сайдбаром; центральные табы вьюеров (PDF/DOCX/TXT/XLSX/CSV) и MD-редактора (vault и вики); **правый док чата агента** (сессии, стриминг, tool-вывод, approvals, цитаты); статус-бар; нижняя панель (индексация/логи); welcome-экран выбора проекта; командная палитра. Деревья vault и источников — один паттерн (разворачивание вглубь; контекстное меню с «показать в проводнике»). Визуал: Linear-подобный светлый минимал + полноценная тёмная тема; детальный бриф — `design/DESIGN_BRIEF.md`.
 2. **hermes-agent** (Python, версия pinned) — агентное ядро **без модификаций**; приложение запускает его локальным процессом (`hermes serve`) и общается по tui_gateway JSON-RPC/WebSocket. Персона и язык агента — SOUL.md профиля пользователя; проектные правила — AGENTS.md в vault (генерируется из нашего шаблона).
 3. **AEC-расширения** (наш переносимый слой):
    - MCP `aec-sources` — read-only доступ к источникам (контракт: specs/workspace-sources.md); write-операций не существует.
    - MCP `aec-rag` — Docling-парсинг + LightRAG-индекс per-project + запросы с locator-цитатами (контракт: specs/qa-over-sources.md); сюда же входит файловый индексер (sha256-скан, детект изменений).
    - MCP `aec-memory` — Mem0, scopes: user / project.
-   - Skills: `aec-qa` (эталон), `aec-wiki` (адаптация бандлового `research-llm-wiki`: AEC-SCHEMA, raw/ = снапшоты источников), `aec-id-check`, `aec-docgen`.
+   - Skills: `aec-qa` (эталон), `aec-wiki` (адаптация бандлового `research-llm-wiki`: AEC-SCHEMA, raw/ = снапшоты источников), `aec-docgen`; `aec-id-check` — post-MVP (SPECIFICATION N9), спека заморожена.
 4. **Хранилище** — files-first: vault (файлы и вики — источник истины) + `.aecpilot/` (SQLite+FTS5 `index.db`, LanceDB, конфиг, логи). Серверов нет (C4).
 
 Границы модулей (monorepo):
@@ -72,6 +72,7 @@ specs/             # поведенческие контракты (этот р�
 - **MCP-контракты наших серверов** — в specs/ (`sources_*` — workspace-sources; `rag_*` — qa-over-sources; `memory_*` — agent-memory).
 - **Данные проекта** — specs/workspace-sources.md §Data schemas (`project.json`, `index.db`, `lancedb/`).
 - **LLM** — OpenAI-совместимые endpoint (chat + embeddings) из настроек; MVP — облачные (решение владельца: в контуре моделей пока нет; при переходе — re-ingest).
+- **Инвентарь tui_gateway 0.18.0** (снят 2026-07-08 по установленному пакету; основание G4/UR10): ~170 методов/событий. Группы: `session.*` (create/close/list/resume/branch/compress/history/usage/undo/steer/interrupt…), `prompt.submit|background`, стрим-события (message/thinking/reasoning/tool/subagent/moa), интерактивы (`approval.*`, `clarify.*`, `sudo.*`, `secret.*`, `input.request`), `model.*` + `agent.*` (system_prompt/reasoning_effort/thinking), `skills.manage|reload`, `plugins.*`, `tools.*`/`toolsets.list`, `config.get|set|show`, `cron.manage`, `reload.mcp|env`, `rollback.list|diff|restore`, вложения (`image.*`/`pdf.attach`/`file.attach`), `voice.*`, `process/terminal/shell`, `projects.*` (собственные проекты hermes). Кандидаты «не переносим»: `billing.*`/`credits` (облако Nous), `pet.*` (игрушка), `display.*` (TUI-специфика), `learning.*` — утверждаются владельцем при детализации Agent-hub. Памяти и хуков в gateway-API нет — это файлы профиля (+slash-команды). Маппинг «группа → экран → фаза» — `design/DESIGN_BRIEF.md`.
 
 ## Validation strategy
 - Детерминированное: `uv run pytest` (MCP-серверы, индексер, RO-негативные), `pnpm test` (UI-юниты), `pnpm e2e` (Playwright smoke: проект → источник → чат → цитата).
@@ -86,8 +87,10 @@ specs/             # поведенческие контракты (этот р�
 | **1 — Vault & sources** | фундамент данных | vault + project.json; проводник; add/remove источника; `aec-sources`; индексер + детект + уведомления | pytest; BDD workspace-sources (вкл. на сетевой шаре); AC5/AC6 |
 | **2 — Ingest & RAG (эталон)** | сценарий G1 целиком | Docling-пайплайн; LightRAG per-project; `aec-rag`; skill `aec-qa`; цитаты→минимальный PDF-вьюер; эвал-датасет + baseline; нагрузочная проверка (A3/R3) и замер OCR (R4); security-review | pytest; eval baseline; AC1 вручную |
 | **3 — Viewers & wiki** | просмотр и вики | полные вьюеры (PDF/DOCX/XLSX/CSV); MD-редактор; skill `aec-wiki` по specs/wiki.md; рендер вики + wikilinks | BDD; тесты; AC3; AC8 |
-| **4 — Memory & skills** | остальные сценарии | `aec-memory` по specs/agent-memory.md; skills `aec-id-check`, `aec-docgen` по их спекам + smoke-эвалы; языковые настройки (SOUL-правило, wiki_lang, UI locale) | pytest; smoke-эвалы; AC4; проверки G7 |
+| **4 — Memory & skills** | остальные сценарии | `aec-memory` по specs/agent-memory.md; skill `aec-docgen` по спеке + smoke-эвал; языковые настройки (SOUL-правило, wiki_lang, UI locale) | pytest; smoke-эвал; AC4; проверки G7 |
 | **5 — Packaging & field** | продукт в руках | инсталлятор Windows (+mac/linux best effort); i18n-полировка; полный эвал с порогом; полевые испытания; пользовательские доки | AC1–AC8 целиком |
+
+Дизайн-воркстрим (параллельно хвосту Phase 0): бриф `design/DESIGN_BRIEF.md` → генерация макетов владельцем в Claude Design → фиксация токенов/макетов в `design/` → задача 1.0 (перекладка UI в shell-каркас). Задачи 0.12–0.16 реализуют логику на текущем минимальном layout; их UI переезжает в дизайн-shell задачей 1.0 без переписывания логики (reducer/IPC от разметки не зависят).
 
 Каждая фаза заканчивается: тесты зелёные → self-review (`code-review`) → коммит → сверка планов (TASKS/SPEC актуальны).
 
@@ -97,5 +100,5 @@ specs/             # поведенческие контракты (этот р�
 - **Embedded-хранилища** → пределы масштаба (R3); принято ради «без серверов» (C4); контроль — нагрузочная проверка Phase 2, fallback — ограничение объёма проекта в MVP.
 - **Свой shell вместо форка Hermes Desktop** → базовый чат-UX делаем сами (дороже Phase 0/2), зато без чужого продуктового кода и merge-долга; их код — открытый референс.
 - **Облачные эмбеддинги в MVP** → быстрый старт; цена — полный re-ingest при переходе в закрытый контур (решение владельца, зафиксировано в C5).
-- **Все 4 skills в MVP** → риск распыления; контроль — эталонный только `aec-qa` (полировка+эвал), остальные принимаются по smoke-критериям.
+- **3 skills в MVP** → риск распыления (снижен выводом `aec-id-check` из MVP, N9); контроль — эталонный только `aec-qa` (полировка+эвал), остальные принимаются по smoke-критериям.
 - **R2 (SOUL.md↔gateway, issue #26596)** → проверено на 0.18.0: SOUL.md применяется в gateway-режиме — `runtime/soul-check.mjs` (маркер `AEC-SOUL-ACTIVE` в ответе модели) даёт exit 0; в наблюдённых прогонах маркер приходил в самом начале первой строки. Гейт проверяет наличие маркера в ответе целиком (`includes`), не только в первой строке. Workaround не понадобился.

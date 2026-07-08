@@ -13,6 +13,7 @@
 - [ ] 0.16 Настроить Playwright e2e-smoke (старт приложения, окно, чат с mock-gateway) — files: apps/desktop/e2e/** · verify: `pnpm e2e` зелёный · dep: 0.11 · parallel: yes
 
 ### Phase 1 — Vault & sources (спека: specs/workspace-sources.md)
+- [ ] 1.0 Реализовать каркас workspace shell по утверждённому дизайну (рельса активностей, контекстный сайдбар, центр-табы, правый чат-док, статус-бар, нижняя панель; чат 0.11–0.14 переезжает в док без переписывания логики) — files: apps/desktop · verify: ручной прогон shell владельцем + все существующие тесты/линт зелёные · dep: Phase 0, дизайн утверждён владельцем (design/) · parallel: no
 - [ ] 1.1 Определить схему project.json (TS-типы + JSON-schema + schema_version) и валидатор — files: apps/desktop/src/project/** · verify: юниты валидный/невалидный конфиг · dep: Phase 0 · parallel: yes
 - [ ] 1.2 Реализовать генератор структуры vault (wiki/, workspace/, templates/, checklists/, .aecpilot/, AGENTS.md из шаблона) — files: apps/desktop, runtime/templates/ · verify: юнит: структура и стартовые файлы создаются · dep: 1.1 · parallel: no
 - [ ] 1.3 Реализовать UI «создать проект» (выбор пустой папки → генератор → открытие) — files: apps/desktop · verify: BDD «Создание проекта» · dep: 1.2 · parallel: no
@@ -77,14 +78,10 @@
 - [ ] 4.3 Включить recall: memory_search как инструмент агента + правило в шаблоне AGENTS.md (1.5) — files: runtime/, skills/ · verify: ручной сценарий «факт из прошлой сессии влияет на ответ» · dep: 4.1, 1.5 · parallel: yes
 - [ ] 4.4 Реализовать UI журнала памяти (списки user/project, удаление, переключатель автозаписи) — files: apps/desktop · verify: BDD «Управление памятью» · dep: 4.2 · parallel: no
 - [ ] 4.5 Прогнать smoke-эвал aec-memory (≥5 сценариев по спеке) — files: eval/ · verify: отчёт по критериям · dep: 4.3 · parallel: yes
-- [ ] 4.6 Реализовать парсер/валидатор чек-листа + дефолтный id-checklist.yaml в генераторе vault — files: mcp или skills, runtime/templates · verify: юниты + файл появляется в новом проекте · dep: 1.2 · parallel: yes
-- [ ] 4.7 Реализовать skill aec-id-check: комплектность по чек-листу (отчёт md+json со ссылками и статусами) — files: skills/aec-id-check · verify: BDD «Комплектность» + «Пункт не найден» на фикстуре · dep: 4.6, 2.12 · parallel: no
-- [ ] 4.8 Реализовать поиск противоречий (нормализация единиц; «редакция vs смежники»; серьёзность) — files: skills/aec-id-check · verify: BDD «Противоречия» + юниты нормализации единиц · dep: 4.7 · parallel: no
-- [ ] 4.9 Прогнать smoke-эвал aec-id-check (фикстурный проект с заложенными дефектами; метрики спеки) — files: eval/ · verify: отчёт (AC4, часть 1) · dep: 4.8 · parallel: yes
 - [ ] 4.10 Реализовать механизм шаблонов docgen: parсер manifest.yaml + рендер DOCX (docxtpl) + маркировка «НЕ НАЙДЕНО» — files: mcp или skills · verify: юнит подстановки на тестовом шаблоне, стили сохранены · dep: 1.2 · parallel: yes
 - [ ] 4.11 Реализовать skill aec-docgen (сбор данных → заполнение → drafts/ + report.md с провенансом и конфликтами) — files: skills/aec-docgen · verify: BDD-сценарии спеки · dep: 4.10, 2.12 · parallel: no
 - [ ] 4.12 Подготовить референс-шаблон ПЗ с владельцем и прогнать на эталонном проекте — files: templates-пример, eval/ · verify: черновик собирается, отчёт корректен · dep: 4.11 · parallel: no
-- [ ] 4.13 Прогнать smoke-эвал aec-docgen (≥5; «0 выдуманных значений») — files: eval/ · verify: отчёт (AC4, часть 2) · dep: 4.12 · parallel: yes
+- [ ] 4.13 Прогнать smoke-эвал aec-docgen (≥5; «0 выдуманных значений») — files: eval/ · verify: отчёт (AC4) · dep: 4.12 · parallel: yes
 - [ ] 4.14 Реализовать языковые настройки: правило языка в SOUL-шаблоне, wiki_lang в настройках проекта, переключатель UI-locale (i18next en/ru, каркас словарей) — files: runtime/, apps/desktop · verify: ручные проверки G7 (три уровня языка) · dep: 0.9 · parallel: yes
 
 ### Phase 5 — Packaging & field
@@ -92,7 +89,7 @@
 - [ ] 5.2 Настроить electron-builder для Windows с бандлом рантаймов (Node app + Python venv + модели Docling) — files: конфиги сборки · verify: инсталлятор ставится на чистую VM · dep: 5.1 · parallel: no
 - [ ] 5.3 Прогнать AC1 на чистой машине (полный сквозной сценарий) — files: отчёт в AGENT_RUNS.md · verify: чек-лист AC1 · dep: 5.2 · parallel: no
 - [ ] 5.4 Собрать macOS/Linux (best effort) — files: конфиги сборки · verify: запуск + smoke на каждой платформе · dep: 5.2 · parallel: yes
-- [ ] 5.5 Прогнать полный эвал всех скиллов и зафиксировать порог AC2 с владельцем — files: eval/reports/ · verify: отчёт ≥ порога; порог записан в SPECIFICATION (закрытие O1) · dep: 2.17, 3.14, 4.9, 4.13 · parallel: yes
+- [ ] 5.5 Прогнать полный эвал всех скиллов и зафиксировать порог AC2 с владельцем — files: eval/reports/ · verify: отчёт ≥ порога; порог записан в SPECIFICATION (закрытие O1) · dep: 2.17, 3.14, 4.13 · parallel: yes
 - [ ] 5.6 Отполировать i18n en/ru по всем экранам (добивка словарей) — files: apps/desktop · verify: ручной проход обоих locale · dep: 4.14 · parallel: yes
 - [ ] 5.7 Провести полевые испытания: установка ≥2 инженерам, реальный проект, 2 недели, канал обратной связи, итоговый отчёт — files: NOTES.md → AGENT_RUNS.md · verify: AC7 + отчёт с находками · dep: 5.3 · parallel: no
 - [ ] 5.8 Написать пользовательскую документацию (README, quickstart ru/en) — files: README.md, docs пользователя · verify: проверка по skill docs-maintenance · dep: 5.3 · parallel: yes
@@ -100,6 +97,14 @@
 
 ## Blocked
 - (пусто)
+
+## Deferred (post-MVP)
+<!-- Выведено из скоупа MVP решением владельца; возврат — через planning gate. -->
+- aec-id-check целиком (решение владельца 2026-07-08, SPECIFICATION N9; spec заморожена — specs/id-check.md):
+  - 4.6 Парсер/валидатор чек-листа + дефолтный id-checklist.yaml в генераторе vault (dep был: 1.2)
+  - 4.7 Skill aec-id-check: комплектность по чек-листу (dep был: 4.6, 2.12)
+  - 4.8 Поиск противоречий (нормализация единиц, серьёзность) (dep был: 4.7)
+  - 4.9 Smoke-эвал aec-id-check (dep был: 4.8)
 
 ## Discovered
 <!-- Subtasks found during work. -->

@@ -17,3 +17,11 @@
 - Validation: consistency-review комплекта — pass; кода нет, тесты не применимы.
 - Skipped checks / waivers: none.
 - Outcome: комплект v2 на утверждении. Open: O5 (текст ответа «другое» по docgen не дошёл — уточнить у владельца).
+
+## 2026-07-08 — дизайн-решения UI: planning-проход + бриф для Claude Design
+- Intent: зафиксировать решения владельца по UI (IDE-shell, правый чат-док, Linear-светлый визуал, hub «Агент», источники-деревья + «показать в проводнике», aec-id-check — из MVP) и подготовить дизайн-бриф; основа паритета G4 — инвентарь поверхности tui_gateway 0.18.0 (~170 методов/событий, снят по запиннённому пакету в runtime/.hermes-venv, read-only).
+- Risk class: medium (правки планировочных документов) · approvals: решения владельца в обсуждении ✔; комплект правок утверждён владельцем ✔ («утверждаю комить и продолжай оркестрацию»).
+- Changed files: SPECIFICATION.md (G3/G4/N9/UR2/UR5/UR10/AC4), specs/workspace-sources.md (+2 сценария, UI-опы), specs/id-check.md (DEFERRED-баннер), PLAN.md (IA слоя 1, инвентарь gateway, фаза 4, дизайн-воркстрим, риск), TASKS.md (1.0 shell; 4.6–4.9 → Deferred; dep 5.5; 4.13), design/DESIGN_BRIEF.md (новый), NOTES.md.
+- Validation: consistency-review (SPEC↔specs↔PLAN↔TASKS↔бриф) — pass; код не менялся.
+- Skipped checks / waivers: none.
+- Outcome: комплект v3 утверждён; владелец генерит дизайн в Claude Design по брифу; оркестрация продолжается (0.12/0.16), перекладка UI в shell — задача 1.0.

@@ -1,8 +1,12 @@
 # specs/id-check — Проверка комплектности и противоречий ИД (skill aec-id-check)
 <!-- Behavior contract for ONE feature. References SPECIFICATION, never copies it. -->
 
+> **STATUS: DEFERRED (post-MVP).** Выведена из MVP решением владельца 2026-07-08
+> (SPECIFICATION N9): концепция дозревает. Спека заморожена как база для возврата;
+> задачи 4.6–4.9 перенесены в TASKS §Deferred.
+
 ## Overview & requirement link
-Ref: SPECIFICATION.md — G3; AC4; N2 (решения принимает человек); UR7.
+Ref: SPECIFICATION.md — N9 (было G3); N2 (решения принимает человек); UR7.
 Решение владельца (grill 06.07.2026): в MVP обе проверки — (1) комплектность по настраиваемому чек-листу состава ИД, (2) поиск противоречий значений между документами.
 
 ## Behavior (BDD / Gherkin)
