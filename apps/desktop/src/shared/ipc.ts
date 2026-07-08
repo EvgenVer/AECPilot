@@ -19,4 +19,11 @@ export interface AecpilotApi {
    * connects the gateway before the window exists), so the renderer hydrates
    * from this on mount instead of waiting for the next change event. */
   getGatewayState(): Promise<GatewayConnectionState>
+  /** Responds to the oldest pending `approval.request` for the active
+   * session (or all of them, with `all: true`). `choice` must only be
+   * 'always' when the matching request's `allow_permanent` was true. */
+  respondApproval(
+    choice: 'once' | 'session' | 'always' | 'deny',
+    all?: boolean
+  ): Promise<{ resolved: number }>
 }

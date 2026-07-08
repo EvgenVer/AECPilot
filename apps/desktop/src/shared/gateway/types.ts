@@ -83,11 +83,27 @@ export interface SessionCloseResult {
   closed: boolean
 }
 
+/** Approvals form a FIFO queue per session — there is no request id. A
+ * `choice` of 'always' must only be sent when the matching
+ * `ApprovalRequestEvent.payload.allow_permanent` was true. */
+export interface ApprovalRespondParams {
+  session_id: string
+  choice: 'once' | 'session' | 'always' | 'deny'
+  all?: boolean
+}
+
+/** `resolved` is how many pending approvals this call resolved (0 = nothing
+ * was pending). */
+export interface ApprovalRespondResult {
+  resolved: number
+}
+
 /** Maps each supported RPC method name to its params/result shape. */
 export interface GatewayMethodMap {
   'session.create': { params: SessionCreateParams; result: SessionCreateResult }
   'prompt.submit': { params: PromptSubmitParams; result: PromptSubmitResult }
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
+  'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
 }
 
 export type GatewayMethod = keyof GatewayMethodMap
@@ -182,6 +198,22 @@ export interface ToolCompleteEvent {
   }
 }
 
+/** The agent is requesting permission for a gated action (e.g. a shell
+ * command). `command` is already redacted for display by the gateway.
+ * Approvals form a FIFO queue per session — there is no request id; a
+ * response resolves the oldest pending one (or all, with `all: true`).
+ * `allow_permanent` gates whether the UI may offer the 'always' choice. */
+export interface ApprovalRequestEvent {
+  type: 'approval.request'
+  session_id?: string
+  payload: {
+    command: string
+    description: string
+    pattern_keys: string[]
+    allow_permanent: boolean
+  }
+}
+
 /** Any event whose `type` this client does not recognize — kept typed rather
  * than silently dropped so callers can decide whether to ignore it. */
 export interface UnknownGatewayEvent {
@@ -202,6 +234,7 @@ export type GatewayEvent =
   | ToolStartedEvent
   | ToolGeneratingEvent
   | ToolCompleteEvent
+  | ApprovalRequestEvent
   | UnknownGatewayEvent
 
 /** Narrows a `GatewayEvent` to the known variant matching `type`, if any.

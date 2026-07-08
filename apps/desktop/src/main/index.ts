@@ -134,6 +134,22 @@ ipcMain.handle('chat:submit', async (_event, text: string) => {
   await gateway.request('prompt.submit', { session_id: activeSessionId, text })
 })
 
+const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
+type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
+function isApprovalChoice(value: string): value is ApprovalChoice {
+  return APPROVAL_CHOICES.includes(value as ApprovalChoice)
+}
+
+ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boolean) => {
+  if (!gateway || !sessionId) throw new Error('no active session')
+  if (!isApprovalChoice(choice)) throw new Error('invalid approval choice')
+  return gateway.request('approval.respond', {
+    session_id: sessionId,
+    choice,
+    all
+  })
+})
+
 ipcMain.handle('gateway:get-state', () => gatewayState)
 
 app

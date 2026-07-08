@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from 'react'
 import { chatReducer, initialChatState } from './chat-state'
 import ToolCallCard from './ToolCallCard'
+import ApprovalCard from './ApprovalCard'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const connectionLabel: Record<GatewayConnectionState, string> = {
@@ -40,7 +41,9 @@ export default function ChatPanel() {
     }
   }, [])
 
-  const canSend = draft.trim().length > 0 && !state.streaming && connectionState === 'ready'
+  const awaitingApproval = state.approvals.length > 0
+  const canSend =
+    draft.trim().length > 0 && !state.streaming && connectionState === 'ready' && !awaitingApproval
 
   async function handleSend(): Promise<void> {
     const text = draft.trim()
@@ -120,6 +123,14 @@ export default function ChatPanel() {
         <div style={{ color: '#c33', fontSize: 12, padding: '0 12px' }}>{submitError}</div>
       )}
 
+      {awaitingApproval && (
+        <ApprovalCard
+          request={state.approvals[0]}
+          queueLength={state.approvals.length}
+          onResolved={(resolved) => dispatch({ kind: 'approvals-resolved', count: resolved })}
+        />
+      )}
+
       <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #ddd' }}>
         <input
           type="text"
@@ -127,6 +138,7 @@ export default function ChatPanel() {
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message…"
+          disabled={awaitingApproval}
           style={{ flex: 1, padding: '8px 10px', fontSize: 14 }}
         />
         <button onClick={() => void handleSend()} disabled={!canSend}>

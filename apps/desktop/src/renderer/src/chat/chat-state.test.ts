@@ -327,4 +327,131 @@ describe('chatReducer', () => {
     state = chatReducer(state, ev({ type: 'tool.mystery', payload: { tool_id: 't1' } }))
     expect(state).toEqual(beforeUnknown)
   })
+
+  // --- task 0.13: approvals ---------------------------------------------
+
+  it('approval.request pushes a request with correct field mapping', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({
+        type: 'approval.request',
+        payload: {
+          command: 'rm -rf build/',
+          description: 'Delete the build directory',
+          pattern_keys: ['rm'],
+          allow_permanent: true
+        }
+      })
+    )
+
+    expect(state.approvals).toEqual([
+      {
+        command: 'rm -rf build/',
+        description: 'Delete the build directory',
+        patternKeys: ['rm'],
+        allowPermanent: true
+      }
+    ])
+  })
+
+  it('approval.request with missing fields falls back to defaults', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'approval.request', payload: {} as never })
+    )
+
+    expect(state.approvals).toEqual([
+      { command: '', description: '', patternKeys: [], allowPermanent: false }
+    ])
+  })
+
+  it('reducer ignores a malformed approval.request payload without crashing', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'approval.request', payload: undefined as never })
+    )
+
+    expect(state.approvals).toEqual([
+      { command: '', description: '', patternKeys: [], allowPermanent: false }
+    ])
+  })
+
+  it('two approval.request events queue in FIFO order', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'first', description: 'd1', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'second', description: 'd2', pattern_keys: [], allow_permanent: false }
+      })
+    )
+
+    expect(state.approvals.map((a) => a.command)).toEqual(['first', 'second'])
+  })
+
+  it('approvals-resolved count:1 drops only the queue head', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'first', description: 'd1', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'second', description: 'd2', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    state = chatReducer(state, { kind: 'approvals-resolved', count: 1 })
+
+    expect(state.approvals.map((a) => a.command)).toEqual(['second'])
+  })
+
+  it('approvals-resolved with a count larger than the queue empties it safely', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'only', description: 'd', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    state = chatReducer(state, { kind: 'approvals-resolved', count: 99 })
+
+    expect(state.approvals).toEqual([])
+  })
+
+  it('approvals-resolved on an empty queue is a no-op', () => {
+    const state = chatReducer(initialChatState, { kind: 'approvals-resolved', count: 1 })
+    expect(state.approvals).toEqual([])
+  })
+
+  it('approval.request does not touch items or streaming', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'hi' } }))
+    const beforeApproval = state
+
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'cmd', description: 'd', pattern_keys: [], allow_permanent: false }
+      })
+    )
+
+    expect(state.items).toEqual(beforeApproval.items)
+    expect(state.streaming).toBe(beforeApproval.streaming)
+    expect(state.approvals).toHaveLength(1)
+  })
 })

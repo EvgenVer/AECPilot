@@ -24,18 +24,32 @@ export interface ChatToolCall {
 
 export type ChatItem = ChatMessage | ChatToolCall
 
+/** A pending `approval.request` from the agent. Approvals form a FIFO queue
+ * per session (no request id) and are rendered pinned above the input, not
+ * in the transcript — see ChatPanel/ApprovalCard. */
+export interface ApprovalRequest {
+  command: string
+  description: string
+  patternKeys: string[]
+  allowPermanent: boolean
+}
+
 export interface ChatState {
   items: ChatItem[]
   streaming: boolean
+  approvals: ApprovalRequest[]
 }
 
 export const initialChatState: ChatState = {
   items: [],
-  streaming: false
+  streaming: false,
+  approvals: []
 }
 
 export type ChatAction =
-  { kind: 'user-submit'; text: string } | { kind: 'event'; event: GatewayEvent }
+  | { kind: 'user-submit'; text: string }
+  | { kind: 'event'; event: GatewayEvent }
+  | { kind: 'approvals-resolved'; count: number }
 
 /** The in-flight assistant message, if any, is always the last *message*
  * item while it carries status 'streaming' — tool cards may sit after it in
@@ -106,6 +120,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
   }
 
+  if (action.kind === 'approvals-resolved') {
+    const count = Math.min(action.count, state.approvals.length)
+    return { ...state, approvals: state.approvals.slice(count) }
+  }
+
   const { event } = action
 
   // A plain `switch (event.type)` does not narrow `event.payload` here for
@@ -117,6 +136,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
   if (isGatewayEventOfType(event, 'message.start')) {
     return {
+      ...state,
       items: [
         ...state.items,
         { kind: 'message', role: 'assistant', text: '', status: 'streaming' }
@@ -130,6 +150,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     if (index === undefined) {
       // Implicit start: a delta arrived with no prior message.start.
       return {
+        ...state,
         items: [
           ...state.items,
           { kind: 'message', role: 'assistant', text: event.payload.text, status: 'streaming' }
@@ -150,6 +171,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     if (index === undefined) {
       // Implicit start: a complete arrived with no prior message.start/delta.
       return {
+        ...state,
         items: [
           ...state.items,
           { kind: 'message', role: 'assistant', text: finalText, status: event.payload.status }
@@ -164,13 +186,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       text: finalText,
       status: event.payload.status
     }
-    return { items, streaming: false }
+    return { ...state, items, streaming: false }
   }
 
   if (isGatewayEventOfType(event, 'error')) {
     const index = inFlightIndex(state.items)
     if (index === undefined) {
       return {
+        ...state,
         items: [
           ...state.items,
           { kind: 'message', role: 'assistant', text: event.payload.message, status: 'error' }
@@ -181,7 +204,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     const items = [...state.items]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: current.text || event.payload.message, status: 'error' }
-    return { items, streaming: false }
+    return { ...state, items, streaming: false }
   }
 
   if (isGatewayEventOfType(event, 'tool.start') || isGatewayEventOfType(event, 'tool.started')) {
@@ -226,6 +249,17 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       status: 'complete'
     }
     return { ...state, items }
+  }
+
+  if (isGatewayEventOfType(event, 'approval.request')) {
+    const payload = event.payload ?? {}
+    const request: ApprovalRequest = {
+      command: payload.command ?? '',
+      description: payload.description ?? '',
+      patternKeys: payload.pattern_keys ?? [],
+      allowPermanent: payload.allow_permanent ?? false
+    }
+    return { ...state, approvals: [...state.approvals, request] }
   }
 
   // 'thinking.delta' / 'status.update' / 'gateway.ready' / anything unknown
