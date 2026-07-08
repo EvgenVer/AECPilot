@@ -2,6 +2,7 @@ import { useEffect, useReducer, useState } from 'react'
 import { chatReducer, initialChatState } from './chat-state'
 import ToolCallCard from './ToolCallCard'
 import ApprovalCard from './ApprovalCard'
+import SessionMenu from './SessionMenu'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const connectionLabel: Record<GatewayConnectionState, string> = {
@@ -76,13 +77,23 @@ export default function ChatPanel() {
     >
       <header
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           padding: '8px 12px',
           borderBottom: '1px solid #ddd',
-          fontSize: 13,
-          color: connectionState === 'ready' ? '#2a7' : '#a72'
+          fontSize: 13
         }}
       >
-        {connectionLabel[connectionState]}
+        <span style={{ color: connectionState === 'ready' ? '#2a7' : '#a72' }}>
+          {connectionLabel[connectionState]}
+        </span>
+        <SessionMenu
+          disabled={state.streaming || awaitingApproval}
+          currentLabel="Сессия"
+          onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
+          onError={setSubmitError}
+        />
       </header>
 
       <div

@@ -5,6 +5,9 @@ const api: AecpilotApi = {
   submitPrompt: (text) => ipcRenderer.invoke('chat:submit', text),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),
+  listSessions: () => ipcRenderer.invoke('sessions:list'),
+  newSession: () => ipcRenderer.invoke('sessions:new'),
+  switchSession: (id) => ipcRenderer.invoke('sessions:switch', id),
   onChatEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

@@ -2,7 +2,11 @@
 // no React import here — so it can be unit-tested directly with vitest and
 // reused unchanged if the panel is ever restructured.
 
-import { isGatewayEventOfType, type GatewayEvent } from '../../../shared/gateway/types'
+import {
+  isGatewayEventOfType,
+  type GatewayEvent,
+  type HistoryMessage
+} from '../../../shared/gateway/types'
 
 export interface ChatMessage {
   kind: 'message'
@@ -50,6 +54,7 @@ export type ChatAction =
   | { kind: 'user-submit'; text: string }
   | { kind: 'event'; event: GatewayEvent }
   | { kind: 'approvals-resolved'; count: number }
+  | { kind: 'session-loaded'; messages: HistoryMessage[] }
 
 /** The in-flight assistant message, if any, is always the last *message*
  * item while it carries status 'streaming' — tool cards may sit after it in
@@ -112,6 +117,30 @@ function upsertRunningToolCard(
   return [...items, card]
 }
 
+/** Maps a `session.history`/`session.resume` history entry to a `ChatItem`,
+ * or `undefined` for a 'system' role or any unrecognized role — those are
+ * skipped rather than rendered. Tolerant of missing fields (never throws). */
+function mapHistoryMessage(message: HistoryMessage, index: number): ChatItem | undefined {
+  if (message.role === 'user' || message.role === 'assistant') {
+    return {
+      kind: 'message',
+      role: message.role,
+      text: message.text ?? '',
+      status: message.role === 'assistant' ? 'complete' : undefined
+    }
+  }
+  if (message.role === 'tool') {
+    return {
+      kind: 'tool',
+      toolId: `hist-${index}`,
+      name: message.name ?? '',
+      context: message.context ?? '',
+      status: 'complete'
+    }
+  }
+  return undefined
+}
+
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.kind === 'user-submit') {
     return {
@@ -123,6 +152,13 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.kind === 'approvals-resolved') {
     const count = Math.min(action.count, state.approvals.length)
     return { ...state, approvals: state.approvals.slice(count) }
+  }
+
+  if (action.kind === 'session-loaded') {
+    const items = action.messages
+      .map(mapHistoryMessage)
+      .filter((item): item is ChatItem => item !== undefined)
+    return { items, approvals: [], streaming: false }
   }
 
   const { event } = action

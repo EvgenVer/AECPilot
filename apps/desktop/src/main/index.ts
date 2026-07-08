@@ -37,6 +37,10 @@ let serveHandle: ServeHandle | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
+// Bumped whenever sessions:new/sessions:switch assign sessionId directly, so
+// an in-flight ensureSession() create can detect it was superseded and must
+// not overwrite the newer sessionId with its own stale result.
+let sessionEpoch = 0
 let ensureSessionPromise: Promise<string> | undefined
 // Mirrors the gateway's connection state so a freshly-loaded renderer can pull
 // the current value on mount (see `gateway:get-state`). The initial 'ready'
@@ -72,20 +76,25 @@ async function connectGateway(url: string): Promise<void> {
   }
 }
 
-/** Lazily creates the single implicit chat session (task 0.11 — no sessions
- * list yet, see task 0.14) and caches its id. Concurrent callers await the
- * same in-flight creation rather than racing separate `session.create`
- * calls. */
+/** Lazily creates the initial chat session (task 0.11) and caches its id.
+ * Concurrent callers await the same in-flight creation rather than racing
+ * separate `session.create` calls. The `sessions:new`/`sessions:switch`
+ * handlers (task 0.14) also update `sessionId` directly once a session
+ * already exists via them. */
 async function ensureSession(): Promise<string> {
   if (sessionId) return sessionId
   if (!gateway) throw new Error('cannot create a chat session — gateway is not connected')
   if (!ensureSessionPromise) {
+    const epoch = sessionEpoch
     ensureSessionPromise = gateway
       .request('session.create', {
         source: 'aecpilot-desktop'
         // TODO(Phase 1): cwd = vault root
       })
       .then((result) => {
+        if (sessionEpoch !== epoch) {
+          throw new Error('session changed during submit — try again')
+        }
         sessionId = result.session_id
         return sessionId
       })
@@ -148,6 +157,30 @@ ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boo
     choice,
     all
   })
+})
+
+ipcMain.handle('sessions:list', () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('session.list', { limit: 100 })
+})
+
+ipcMain.handle('sessions:new', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const result = await gateway.request('session.create', { source: 'aecpilot-desktop' })
+  sessionId = result.session_id
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+  return { sessionId }
+})
+
+ipcMain.handle('sessions:switch', async (_event, id: string) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid session id')
+  const result = await gateway.request('session.resume', { session_id: id })
+  sessionId = result.session_id
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+  return { sessionId: result.session_id, messages: result.messages ?? [] }
 })
 
 ipcMain.handle('gateway:get-state', () => gatewayState)

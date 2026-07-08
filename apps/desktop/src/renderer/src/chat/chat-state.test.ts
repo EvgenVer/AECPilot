@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { chatReducer, initialChatState, type ChatState } from './chat-state'
-import type { GatewayEvent } from '../../../shared/gateway/types'
+import type { GatewayEvent, HistoryMessage } from '../../../shared/gateway/types'
 
 function ev(event: GatewayEvent): { kind: 'event'; event: GatewayEvent } {
   return { kind: 'event', event }
@@ -453,5 +453,89 @@ describe('chatReducer', () => {
     expect(state.items).toEqual(beforeApproval.items)
     expect(state.streaming).toBe(beforeApproval.streaming)
     expect(state.approvals).toHaveLength(1)
+  })
+
+  // --- task 0.14: session-loaded (list/create/switch sessions) ----------
+
+  it('session-loaded maps user/assistant/tool history entries with correct statuses and hist-N toolIds', () => {
+    const messages: HistoryMessage[] = [
+      { role: 'user', text: 'hi' },
+      { role: 'assistant', text: 'hello there' },
+      { role: 'tool', name: 'search_files', context: 'Searching files for *.md' }
+    ]
+
+    const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
+
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'user', text: 'hi' },
+      { kind: 'message', role: 'assistant', text: 'hello there', status: 'complete' },
+      {
+        kind: 'tool',
+        toolId: 'hist-2',
+        name: 'search_files',
+        context: 'Searching files for *.md',
+        status: 'complete'
+      }
+    ])
+  })
+
+  it('session-loaded skips system and unrecognized roles', () => {
+    const messages: HistoryMessage[] = [
+      { role: 'user', text: 'kept' },
+      { role: 'system', text: 'dropped' },
+      { role: 'mystery', text: 'also dropped' }
+    ]
+
+    const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
+
+    expect(state.items).toEqual([{ kind: 'message', role: 'user', text: 'kept' }])
+  })
+
+  it('session-loaded tolerates missing text/name/context fields without crashing', () => {
+    const messages: HistoryMessage[] = [{ role: 'user' }, { role: 'assistant' }, { role: 'tool' }]
+
+    const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
+
+    expect(state.items).toEqual([
+      { kind: 'message', role: 'user', text: '' },
+      { kind: 'message', role: 'assistant', text: '', status: 'complete' },
+      { kind: 'tool', toolId: 'hist-2', name: '', context: '', status: 'complete' }
+    ])
+  })
+
+  it('session-loaded resets a queued approval', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'cmd', description: 'd', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    expect(state.approvals).toHaveLength(1)
+
+    state = chatReducer(state, { kind: 'session-loaded', messages: [{ role: 'user', text: 'hi' }] })
+
+    expect(state.approvals).toEqual([])
+  })
+
+  it('session-loaded resets an in-flight streaming turn', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    expect(state.streaming).toBe(true)
+
+    state = chatReducer(state, { kind: 'session-loaded', messages: [] })
+
+    expect(state.streaming).toBe(false)
+  })
+
+  it('session-loaded with an empty array empties the transcript', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, { kind: 'user-submit', text: 'hello' })
+    expect(state.items).toHaveLength(1)
+
+    state = chatReducer(state, { kind: 'session-loaded', messages: [] })
+
+    expect(state.items).toEqual([])
   })
 })

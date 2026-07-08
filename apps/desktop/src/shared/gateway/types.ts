@@ -98,12 +98,74 @@ export interface ApprovalRespondResult {
   resolved: number
 }
 
+/** One entry in `session.list`'s result — the gateway already filters out
+ * internal 'tool' sub-agent sessions. */
+export interface SessionSummary {
+  id: string
+  title: string
+  preview: string
+  started_at: number
+  message_count: number
+  source: string
+}
+
+export interface SessionListParams {
+  limit?: number
+}
+
+export interface SessionListResult {
+  sessions: SessionSummary[]
+}
+
+/** One entry in a session's history, as returned by `session.history` /
+ * `session.resume`. Kept tolerant (all fields optional besides `role`)
+ * because assistant entries may carry extra reasoning fields this client
+ * ignores, and mapping code must not crash on a missing field. */
+export interface HistoryMessage {
+  role: string
+  text?: string
+  name?: string
+  context?: string
+}
+
+export interface SessionHistoryParams {
+  session_id: string
+}
+
+export interface SessionHistoryResult {
+  count: number
+  messages: HistoryMessage[]
+}
+
+export interface SessionResumeParams {
+  session_id: string
+}
+
+/** The `session_id` returned here is a NEW live sid — NOT the one passed in
+ * `params.session_id` — the gateway may reuse a live session under a
+ * different id. Callers must adopt `result.session_id` as the active sid. */
+export interface SessionResumeResult {
+  session_id: string
+  resumed: string
+  message_count: number
+  messages: HistoryMessage[]
+  info: unknown
+  inflight: unknown
+  running: boolean
+  session_key: unknown
+  started_at: number
+  status: 'streaming' | 'idle'
+}
+
 /** Maps each supported RPC method name to its params/result shape. */
 export interface GatewayMethodMap {
   'session.create': { params: SessionCreateParams; result: SessionCreateResult }
   'prompt.submit': { params: PromptSubmitParams; result: PromptSubmitResult }
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
   'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
+  'session.list': { params: SessionListParams; result: SessionListResult }
+  'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
+  'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
 }
 
 export type GatewayMethod = keyof GatewayMethodMap

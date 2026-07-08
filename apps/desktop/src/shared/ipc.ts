@@ -2,7 +2,12 @@
 // renderer never sees the gateway URL/token or the raw `ipcRenderer` — only
 // these methods, contextBridge-exposed as `window.aecpilot`.
 
-import type { GatewayConnectionState, GatewayEvent } from './gateway/types'
+import type {
+  GatewayConnectionState,
+  GatewayEvent,
+  HistoryMessage,
+  SessionSummary
+} from './gateway/types'
 
 export interface AecpilotApi {
   /** Submits a prompt to the (lazily created) chat session. Resolves once
@@ -26,4 +31,13 @@ export interface AecpilotApi {
     choice: 'once' | 'session' | 'always' | 'deny',
     all?: boolean
   ): Promise<{ resolved: number }>
+  /** Lists existing sessions, in the order returned by the gateway.
+   * Internal 'tool' sub-agent sessions are already filtered out server-side. */
+  listSessions(): Promise<{ sessions: SessionSummary[] }>
+  /** Creates a brand-new session and makes it the active one. */
+  newSession(): Promise<{ sessionId: string }>
+  /** Switches the active session to `id`, returning its resumed history.
+   * The gateway may hand back a different live session id than the one
+   * passed in — callers should treat the returned `sessionId` as active. */
+  switchSession(id: string): Promise<{ sessionId: string; messages: HistoryMessage[] }>
 }
