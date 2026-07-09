@@ -3,6 +3,7 @@ import { chatReducer, initialChatState } from './chat-state'
 import ToolCallCard from './ToolCallCard'
 import ApprovalCard from './ApprovalCard'
 import SessionMenu from './SessionMenu'
+import SettingsPanel from './SettingsPanel'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const connectionLabel: Record<GatewayConnectionState, string> = {
@@ -17,6 +18,7 @@ export default function ChatPanel() {
   const [connectionState, setConnectionState] = useState<GatewayConnectionState>('closed')
   const [draft, setDraft] = useState('')
   const [submitError, setSubmitError] = useState<string | undefined>(undefined)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -88,12 +90,35 @@ export default function ChatPanel() {
         <span style={{ color: connectionState === 'ready' ? '#2a7' : '#a72' }}>
           {connectionLabel[connectionState]}
         </span>
-        <SessionMenu
-          disabled={state.streaming || awaitingApproval}
-          currentLabel="Сессия"
-          onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
-          onError={setSubmitError}
-        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setSettingsOpen((open) => !open)}
+              disabled={state.streaming || awaitingApproval}
+              style={{
+                font: 'inherit',
+                fontSize: 12,
+                padding: '4px 8px',
+                cursor: state.streaming || awaitingApproval ? 'default' : 'pointer'
+              }}
+            >
+              ⚙
+            </button>
+            {settingsOpen && (
+              <SettingsPanel
+                disabled={state.streaming || awaitingApproval}
+                onClose={() => setSettingsOpen(false)}
+                onRestarted={() => dispatch({ kind: 'session-loaded', messages: [] })}
+              />
+            )}
+          </div>
+          <SessionMenu
+            disabled={state.streaming || awaitingApproval}
+            currentLabel="Сессия"
+            onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
+            onError={setSubmitError}
+          />
+        </div>
       </header>
 
       <div

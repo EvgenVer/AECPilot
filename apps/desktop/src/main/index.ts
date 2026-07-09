@@ -1,9 +1,20 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { GatewayClient } from '../shared/gateway/client'
 import type { GatewayConnectionState, GatewayEvent } from '../shared/gateway/types'
+import {
+  encryptKey,
+  getDecryptedKey,
+  isEncryptionAvailable,
+  keyEnvVarStatus,
+  loadLlmSettings,
+  PROVIDER_API_KEY_ENV_VAR,
+  saveLlmSettings
+} from './llm-settings'
+import { mergeModelIntoConfigYaml, validateSaveLlmSettingsPayload } from './llm-settings-pure'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -14,9 +25,14 @@ interface ServeHandle {
 }
 
 interface ServeModule {
-  startServe: (opts?: { port?: number; host?: string }) => Promise<ServeHandle>
+  startServe: (opts?: {
+    port?: number
+    host?: string
+    extraEnv?: Record<string, string>
+  }) => Promise<ServeHandle>
   waitHealthy: (handle: ServeHandle, timeoutMs?: number) => Promise<unknown>
   stopServe: (handle: ServeHandle, opts?: { gracefulTimeoutMs?: number }) => Promise<void>
+  HERMES_HOME_DIR: string
 }
 
 // runtime/serve.mjs resolves its own paths (HERMES_BIN, HERMES_HOME_DIR, …)
@@ -74,6 +90,49 @@ async function connectGateway(url: string): Promise<void> {
     // opens, the chat just won't be able to connect yet.
     console.error('aecpilot: gateway connect FAIL', error)
   }
+}
+
+/** Reads `<homeDir>/config.yaml`, merges in the saved model/baseUrl override
+ * (task 0.15) via the pure line-based transform, and writes it back if
+ * anything changed. Plaintext — model/baseUrl are not secrets. Logs (does
+ * not throw) if config.yaml can't be read/parsed as expected, since a
+ * missing model override must never block startup or a settings save. */
+function applyModelConfigOverride(
+  homeDir: string,
+  settings: { model?: string; baseUrl?: string }
+): void {
+  if (!settings.model && !settings.baseUrl) return
+  const configPath = join(homeDir, 'config.yaml')
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply LLM settings', error)
+    return
+  }
+  const merged = mergeModelIntoConfigYaml(original, settings)
+  if (merged.unexpectedStructure) {
+    console.warn(
+      'aecpilot: config.yaml did not have the expected model: mapping — leaving it untouched'
+    )
+    return
+  }
+  if (!merged.changed) return
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with LLM settings', error)
+  }
+}
+
+/** Builds the spawn-env override for `startServe` (task 0.15): only the
+ * provider's credential env var, only when a key is actually stored and
+ * decryptable. SECURITY: the decrypted value lives in this object only long
+ * enough to be handed to `startServe`'s child_process spawn — never logged,
+ * never returned from here to anything but that call. */
+function buildExtraEnv(): Record<string, string> {
+  const key = getDecryptedKey()
+  return key ? { [PROVIDER_API_KEY_ENV_VAR]: key } : {}
 }
 
 /** Lazily creates the initial chat session (task 0.11) and caches its id.
@@ -185,6 +244,77 @@ ipcMain.handle('sessions:switch', async (_event, id: string) => {
 
 ipcMain.handle('gateway:get-state', () => gatewayState)
 
+ipcMain.handle('settings:get', async () => {
+  const settings = loadLlmSettings()
+  let envOverridesKey = false
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    envOverridesKey = keyEnvVarStatus(HERMES_HOME_DIR)
+  } catch (error: unknown) {
+    console.error('aecpilot: could not check profile .env for a key override', error)
+  }
+  return {
+    model: settings.model,
+    baseUrl: settings.baseUrl,
+    hasKey: Boolean(settings.encryptedKey),
+    encryptionAvailable: isEncryptionAvailable(),
+    envOverridesKey
+  }
+})
+
+ipcMain.handle('settings:save', async (_event, payload: unknown) => {
+  const validated = validateSaveLlmSettingsPayload(payload)
+  if (!validated.ok) throw new Error(validated.error)
+  const { model, baseUrl, key } = validated.payload
+
+  const current = loadLlmSettings()
+  const next = {
+    model: model !== undefined ? model : current.model,
+    baseUrl: baseUrl !== undefined ? baseUrl : current.baseUrl,
+    encryptedKey:
+      key === null ? undefined : key !== undefined ? encryptKey(key) : current.encryptedKey
+  }
+  saveLlmSettings(next)
+
+  // AEC_GATEWAY_URL (task 0.16 e2e mode): no hermes serve process is running
+  // to restart — settings are saved, but nothing to reconnect.
+  if (process.env.AEC_GATEWAY_URL) {
+    return { ok: true, restarted: false }
+  }
+
+  try {
+    const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
+
+    if (serveHandle && stopServeFn) {
+      const oldHandle = serveHandle
+      serveHandle = undefined
+      await stopServeFn(oldHandle)
+    }
+
+    applyModelConfigOverride(HERMES_HOME_DIR, next)
+    serveHandle = await startServe({ extraEnv: buildExtraEnv() })
+    stopServeFn = stopServe
+    await waitHealthy(serveHandle, 30000)
+
+    // Close the old gateway client before wiring a new one — avoids two
+    // live clients racing to forward events/state to the same windows.
+    gateway?.close()
+    sessionId = undefined
+    sessionEpoch += 1
+    ensureSessionPromise = undefined
+    await connectGateway(serveHandle.wsUrl)
+
+    return { ok: true, restarted: true }
+  } catch (error: unknown) {
+    console.error('aecpilot: backend restart FAIL after settings save', error)
+    return {
+      ok: false,
+      restarted: false,
+      error: error instanceof Error ? error.message : 'backend restart failed'
+    }
+  }
+})
+
 app
   .whenReady()
   .then(async () => {
@@ -199,9 +329,15 @@ app
         await connectGateway(process.env.AEC_GATEWAY_URL)
       } else {
         try {
-          const { startServe, waitHealthy, stopServe } = await loadServeModule()
-          serveHandle = await startServe()
+          const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
           stopServeFn = stopServe
+
+          // Task 0.15: apply any saved model/endpoint override to the profile's
+          // config.yaml (plaintext — not a secret) and pass a decrypted API key
+          // (if one is stored) into the child process env only — never written
+          // to disk. This must happen before startServe spawns hermes.
+          applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
+          serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
           // accepting connections yet. Wait until it's healthy before connecting:

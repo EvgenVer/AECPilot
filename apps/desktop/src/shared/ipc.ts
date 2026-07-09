@@ -40,4 +40,26 @@ export interface AecpilotApi {
    * The gateway may hand back a different live session id than the one
    * passed in — callers should treat the returned `sessionId` as active. */
   switchSession(id: string): Promise<{ sessionId: string; messages: HistoryMessage[] }>
+  /** Reads the current LLM settings (task 0.15). Never carries the API key
+   * itself — only `hasKey` (whether one is stored) and `encryptionAvailable`
+   * (whether safeStorage can save one on this machine). `envOverridesKey`
+   * is true when the hermes profile's dev `.env` already assigns the
+   * provider's credential env var, which takes priority over any key saved
+   * here — the UI should warn about this. */
+  getLlmSettings(): Promise<{
+    model?: string
+    baseUrl?: string
+    hasKey: boolean
+    encryptionAvailable: boolean
+    envOverridesKey: boolean
+  }>
+  /** Saves LLM settings and restarts the hermes backend to apply them
+   * (skipped under the `AEC_GATEWAY_URL` e2e override, where `restarted` is
+   * always false). `key: string` sets a new key, `key: null` clears it,
+   * `key` omitted leaves the stored key untouched. */
+  saveLlmSettings(payload: {
+    model?: string
+    baseUrl?: string
+    key?: string | null
+  }): Promise<{ ok: boolean; restarted: boolean; error?: string }>
 }

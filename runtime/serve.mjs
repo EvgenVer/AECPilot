@@ -24,6 +24,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
 
+// Re-exported so callers that already dynamically import this module (the
+// desktop app's main process, task 0.7/0.15) don't need a second dynamic
+// import of hermes-env.mjs just to locate the profile dir.
+export { HERMES_HOME_DIR };
+
 // Fixed port, chosen free in the dev environment (default hermes port 9119
 // is left to any other local Hermes instance the user may run).
 export const SERVE_PORT = 18789;
@@ -47,11 +52,15 @@ function appendLog(line) {
 
 /**
  * Spawns `hermes serve` against the isolated dev profile.
+ * `extraEnv` (task 0.15) is merged over the base env (HERMES_HOME,
+ * HERMES_DASHBOARD_SESSION_TOKEN, and the inherited process.env) — used by
+ * the desktop app's main process to inject a safeStorage-decrypted provider
+ * API key into the child process without ever writing it to disk.
  * Returns { proc, port, host, wsUrl, token } once the process has been
  * started (does not wait for the gateway to become healthy — use
  * waitHealthy for that).
  */
-export async function startServe({ port = SERVE_PORT, host = SERVE_HOST } = {}) {
+export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEnv = {} } = {}) {
   if (!fs.existsSync(HERMES_BIN)) {
     throw new Error(`hermes binary not found at ${HERMES_BIN} — run 'node runtime/setup.mjs' first`);
   }
@@ -74,6 +83,7 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST } = {}) 
         ...process.env,
         HERMES_HOME: HERMES_HOME_DIR,
         HERMES_DASHBOARD_SESSION_TOKEN: token,
+        ...extraEnv,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },

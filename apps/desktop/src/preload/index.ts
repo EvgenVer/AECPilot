@@ -8,6 +8,8 @@ const api: AecpilotApi = {
   listSessions: () => ipcRenderer.invoke('sessions:list'),
   newSession: () => ipcRenderer.invoke('sessions:new'),
   switchSession: (id) => ipcRenderer.invoke('sessions:switch', id),
+  getLlmSettings: () => ipcRenderer.invoke('settings:get'),
+  saveLlmSettings: (payload) => ipcRenderer.invoke('settings:save', payload),
   onChatEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)
