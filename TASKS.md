@@ -7,6 +7,8 @@
 
 ### Phase 0 — Foundations
 
+- [ ] 0.17 Реализовать выбор режима approvals (manual/smart/off) — files: apps/desktop, apps/desktop/src/main/llm-settings*.ts · verify: чтение текущего режима из config.yaml; переключатель в шапке чата + индикатор; смена off→ рискованная команда выполняется без карточки, manual→ та же команда даёт approval-карточку (заодно живой verify 0.13), smart→ без карточки-запроса; применяется без перезапуска (юниты на pure config-merge approvals.mode; ручной сквозной — владелец) · dep: 0.13, 0.15 · parallel: no
+
 ### Phase 1 — Vault & sources (спека: specs/workspace-sources.md)
 - [ ] 1.0 Реализовать каркас workspace shell по утверждённому дизайну (рельса активностей, контекстный сайдбар, центр-табы, правый чат-док, статус-бар, нижняя панель; чат 0.11–0.14 переезжает в док без переписывания логики) — files: apps/desktop · verify: ручной прогон shell владельцем + все существующие тесты/линт зелёные · dep: Phase 0, дизайн утверждён владельцем (design/) · parallel: no
 - [ ] 1.1 Определить схему project.json (TS-типы + JSON-schema + schema_version) и валидатор — files: apps/desktop/src/project/** · verify: юниты валидный/невалидный конфиг · dep: Phase 0 · parallel: yes
