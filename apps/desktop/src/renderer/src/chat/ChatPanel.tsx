@@ -4,6 +4,7 @@ import ToolCallCard from './ToolCallCard'
 import ApprovalCard from './ApprovalCard'
 import SessionMenu from './SessionMenu'
 import SettingsPanel from './SettingsPanel'
+import ApprovalsModeSelect from './ApprovalsModeSelect'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const connectionLabel: Record<GatewayConnectionState, string> = {
@@ -90,7 +91,11 @@ export default function ChatPanel() {
         <span style={{ color: connectionState === 'ready' ? '#2a7' : '#a72' }}>
           {connectionLabel[connectionState]}
         </span>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ApprovalsModeSelect
+            disabled={state.streaming || awaitingApproval}
+            onError={setSubmitError}
+          />
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setSettingsOpen((open) => !open)}

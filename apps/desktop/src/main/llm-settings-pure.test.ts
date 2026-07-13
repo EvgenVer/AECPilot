@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   envVarIsDefined,
+  isApprovalMode,
+  mergeApprovalsModeIntoConfigYaml,
   mergeModelIntoConfigYaml,
+  parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
 
@@ -198,5 +201,149 @@ describe('validateSaveLlmSettingsPayload', () => {
   it('rejects a key that is neither string nor null', () => {
     const result = validateSaveLlmSettingsPayload({ key: 42 })
     expect(result).toEqual({ ok: false, error: 'key must be a string, null, or omitted' })
+  })
+})
+
+describe('isApprovalMode', () => {
+  it('accepts the three whitelisted modes', () => {
+    expect(isApprovalMode('manual')).toBe(true)
+    expect(isApprovalMode('smart')).toBe(true)
+    expect(isApprovalMode('off')).toBe(true)
+  })
+
+  it('rejects anything else', () => {
+    expect(isApprovalMode('yolo')).toBe(false)
+    expect(isApprovalMode('')).toBe(false)
+    expect(isApprovalMode(42)).toBe(false)
+    expect(isApprovalMode(undefined)).toBe(false)
+  })
+})
+
+describe('parseApprovalsMode', () => {
+  it('defaults to manual when there is no approvals: block', () => {
+    expect(parseApprovalsMode('model:\n  default: "gpt-5-mini"\n')).toBe('manual')
+  })
+
+  it('defaults to manual for an empty file', () => {
+    expect(parseApprovalsMode('')).toBe('manual')
+  })
+
+  it('reads a bare (YAML-boolean) off as off', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: off\n')).toBe('off')
+  })
+
+  it('reads a quoted mode as-is', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: "smart"\n')).toBe('smart')
+  })
+
+  it('reads a single-quoted mode as-is', () => {
+    expect(parseApprovalsMode("approvals:\n  mode: 'smart'\n")).toBe('smart')
+  })
+
+  it('maps the literal string false to off, mirroring hermes normalization', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: false\n')).toBe('off')
+  })
+
+  it('maps the literal string true to manual, mirroring hermes normalization', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: true\n')).toBe('manual')
+  })
+
+  it('falls back to manual (with a warning, not a throw) for an unknown value', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: banana\n')).toBe('manual')
+  })
+
+  it('falls back to manual when the block exists but has no mode: line', () => {
+    expect(parseApprovalsMode('approvals:\n  timeout: 30\n')).toBe('manual')
+  })
+
+  it('tolerates a trailing inline comment', () => {
+    expect(parseApprovalsMode('approvals:\n  mode: smart  # LLM decides\n')).toBe('smart')
+  })
+
+  it('never throws on malformed input', () => {
+    expect(() => parseApprovalsMode('approvals:')).not.toThrow()
+  })
+
+  it('reads the block header with a trailing comment (approvals:  # human approvals)', () => {
+    expect(parseApprovalsMode('approvals:  # human approvals\n  mode: "smart"\n')).toBe('smart')
+  })
+})
+
+describe('mergeApprovalsModeIntoConfigYaml', () => {
+  const WITH_APPROVALS = `model:\n  default: "gpt-5-mini"\napprovals:\n  mode: "manual"\n  timeout: 30\n`
+
+  it('updates an existing mode: line in place, preserving the timeout sibling', () => {
+    const result = mergeApprovalsModeIntoConfigYaml(WITH_APPROVALS, 'smart')
+
+    expect(result.changed).toBe(true)
+    expect(result.unexpectedStructure).toBe(false)
+    expect(result.text).toContain('mode: "smart"')
+    expect(result.text).toContain('timeout: 30')
+    expect(result.text).toContain('default: "gpt-5-mini"')
+    expect((result.text.match(/mode:/g) ?? []).length).toBe(1)
+  })
+
+  it('appends a new approvals: block with the exact shape when absent', () => {
+    const original = 'model:\n  default: "gpt-5-mini"\n'
+    const result = mergeApprovalsModeIntoConfigYaml(original, 'smart')
+
+    expect(result.changed).toBe(true)
+    expect(result.unexpectedStructure).toBe(false)
+    expect(result.text).toBe(`${original}approvals:\n  mode: "smart"\n`)
+  })
+
+  it('appends a new block with a separating newline when the file lacks a trailing one', () => {
+    const original = 'model:\n  default: "gpt-5-mini"'
+    const result = mergeApprovalsModeIntoConfigYaml(original, 'off')
+
+    expect(result.text).toBe(`${original}\napprovals:\n  mode: "off"\n`)
+  })
+
+  it('is idempotent: changed is false and text is untouched when the mode already matches', () => {
+    const result = mergeApprovalsModeIntoConfigYaml(WITH_APPROVALS, 'manual')
+
+    expect(result.changed).toBe(false)
+    expect(result.unexpectedStructure).toBe(false)
+    expect(result.text).toBe(WITH_APPROVALS)
+  })
+
+  it('is idempotent when the block is absent and the requested mode is the default (manual)', () => {
+    const original = 'model:\n  default: "gpt-5-mini"\n'
+    const result = mergeApprovalsModeIntoConfigYaml(original, 'manual')
+
+    expect(result.changed).toBe(false)
+    expect(result.text).toBe(original)
+  })
+
+  it('preserves the rest of the file byte-for-byte outside the approvals: block', () => {
+    const result = mergeApprovalsModeIntoConfigYaml(WITH_APPROVALS, 'off')
+
+    expect(result.text).toContain('model:\n  default: "gpt-5-mini"\n')
+  })
+
+  it('flags unexpectedStructure and leaves input unchanged for a scalar approvals: off', () => {
+    const scalar = 'model:\n  default: "gpt-5-mini"\napprovals: off\n'
+    const result = mergeApprovalsModeIntoConfigYaml(scalar, 'smart')
+
+    expect(result.changed).toBe(false)
+    expect(result.unexpectedStructure).toBe(true)
+    expect(result.text).toBe(scalar)
+  })
+
+  it('updates mode: in place under a block header with a trailing comment, preserving the header', () => {
+    const withComment =
+      'model:\n  default: "gpt-5-mini"\napprovals:  # human approvals\n  mode: "manual"\n'
+    const result = mergeApprovalsModeIntoConfigYaml(withComment, 'off')
+
+    expect(result.changed).toBe(true)
+    expect(result.unexpectedStructure).toBe(false)
+    expect(result.text).toContain('approvals:  # human approvals\n')
+    expect(result.text).toContain('mode: "off"')
+  })
+
+  it('quotes the written value via JSON.stringify', () => {
+    const result = mergeApprovalsModeIntoConfigYaml('model:\n  default: "x"\n', 'off')
+    const line = result.text.split('\n').find((l) => /^\s*mode:/.test(l))
+    expect(line).toBe(`  mode: ${JSON.stringify('off')}`)
   })
 })

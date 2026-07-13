@@ -62,4 +62,16 @@ export interface AecpilotApi {
     baseUrl?: string
     key?: string | null
   }): Promise<{ ok: boolean; restarted: boolean; error?: string }>
+  /** Reads the hermes profile's current `approvals.mode` from `config.yaml`
+   * (task 0.17). A plain file read in the main process — no gateway RPC
+   * involved — so it works the same whether or not `hermes serve` is
+   * running under this app. Falls back to `'manual'` (hermes's own default)
+   * if the file can't be read. */
+  getApprovalsMode(): Promise<{ mode: 'manual' | 'smart' | 'off' }>
+  /** Writes `mode` into the profile's `config.yaml` `approvals:` mapping.
+   * hermes re-reads config.yaml per command, so this applies live — no
+   * backend restart is triggered or needed. */
+  setApprovalsMode(
+    mode: 'manual' | 'smart' | 'off'
+  ): Promise<{ ok: boolean; mode?: string; error?: string }>
 }

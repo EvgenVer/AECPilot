@@ -10,6 +10,8 @@ const api: AecpilotApi = {
   switchSession: (id) => ipcRenderer.invoke('sessions:switch', id),
   getLlmSettings: () => ipcRenderer.invoke('settings:get'),
   saveLlmSettings: (payload) => ipcRenderer.invoke('settings:save', payload),
+  getApprovalsMode: () => ipcRenderer.invoke('approvals:get-mode'),
+  setApprovalsMode: (mode) => ipcRenderer.invoke('approvals:set-mode', mode),
   onChatEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

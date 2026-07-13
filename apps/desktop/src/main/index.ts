@@ -14,7 +14,13 @@ import {
   PROVIDER_API_KEY_ENV_VAR,
   saveLlmSettings
 } from './llm-settings'
-import { mergeModelIntoConfigYaml, validateSaveLlmSettingsPayload } from './llm-settings-pure'
+import {
+  isApprovalMode,
+  mergeApprovalsModeIntoConfigYaml,
+  mergeModelIntoConfigYaml,
+  parseApprovalsMode,
+  validateSaveLlmSettingsPayload
+} from './llm-settings-pure'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -311,6 +317,45 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
       ok: false,
       restarted: false,
       error: error instanceof Error ? error.message : 'backend restart failed'
+    }
+  }
+})
+
+ipcMain.handle('approvals:get-mode', async () => {
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const text = readFileSync(join(HERMES_HOME_DIR, 'config.yaml'), 'utf-8')
+    return { mode: parseApprovalsMode(text) }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to get the approvals mode', error)
+    return { mode: 'manual' }
+  }
+})
+
+// Task 0.17: writes the profile's config.yaml directly (no gateway RPC — the
+// gateway's `config.set {key:'yolo'}` only toggles off<->manual, not
+// 'smart'). hermes re-reads config.yaml per command (cached on
+// mtime_ns+size), so this applies live — no serve restart needed or wanted.
+ipcMain.handle('approvals:set-mode', async (_event, mode: string) => {
+  if (!isApprovalMode(mode)) throw new Error('invalid approvals mode')
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const configPath = join(HERMES_HOME_DIR, 'config.yaml')
+    const original = readFileSync(configPath, 'utf-8')
+    const merged = mergeApprovalsModeIntoConfigYaml(original, mode)
+    if (merged.unexpectedStructure) {
+      return {
+        ok: false,
+        error: 'config.yaml has an unexpected approvals block — leaving it untouched'
+      }
+    }
+    if (merged.changed) writeFileSync(configPath, merged.text, 'utf-8')
+    return { ok: true, mode }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not set the approvals mode in config.yaml', error)
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'could not set the approvals mode'
     }
   }
 })

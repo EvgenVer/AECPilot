@@ -81,6 +81,130 @@ export function mergeModelIntoConfigYaml(
   return { text: nextLines.join('\n'), changed: true, unexpectedStructure: false }
 }
 
+/** Valid values of the hermes profile's `approvals.mode` config key (task
+ * 0.17). `'manual'` is hermes's default (human approves risky actions),
+ * `'smart'` lets the LLM auto-approve/deny, `'off'` disables approvals. */
+export const APPROVAL_MODES = ['manual', 'smart', 'off'] as const
+export type ApprovalMode = (typeof APPROVAL_MODES)[number]
+
+/** Whitelist guard for a value coming from the renderer/IPC boundary. */
+export function isApprovalMode(value: unknown): value is ApprovalMode {
+  return typeof value === 'string' && (APPROVAL_MODES as readonly string[]).includes(value)
+}
+
+const APPROVALS_SECTION_RE = /^approvals:\s*(#.*)?$/
+const APPROVALS_SCALAR_RE = /^approvals:\s*[^#\s]/
+
+/** Extracts the raw scalar text of a `mode:` line (tolerating single/double
+ * quotes and a trailing inline comment) and normalizes it the way hermes'
+ * `_normalize_approval_mode` does: a recognized mode string wins as-is;
+ * YAML's bare boolean words (`true`→'manual', `false`→'off', which is how
+ * bare `off`/`no`/`on`/`yes` parse under YAML 1.1) are mapped like hermes
+ * maps the resulting Python bool; anything else (including no `mode:` line,
+ * or no `approvals:` block at all) falls back to hermes's default,
+ * `'manual'`. Never throws. */
+export function parseApprovalsMode(yamlText: string): ApprovalMode {
+  const lines = yamlText.split('\n')
+  const sectionStart = lines.findIndex((line) => APPROVALS_SECTION_RE.test(line))
+  if (sectionStart === -1) return 'manual'
+
+  let sectionEnd = lines.length
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    if (TOP_LEVEL_LINE_RE.test(lines[i])) {
+      sectionEnd = i
+      break
+    }
+  }
+
+  const modeLine = lines
+    .slice(sectionStart + 1, sectionEnd)
+    .find((line) => /^\s*mode:\s*/.test(line))
+  if (!modeLine) return 'manual'
+
+  let raw = modeLine.replace(/^\s*mode:\s*/, '').trim()
+  if (raw.startsWith('"') || raw.startsWith("'")) {
+    const quote = raw[0]
+    const end = raw.indexOf(quote, 1)
+    raw = end === -1 ? raw.slice(1) : raw.slice(1, end)
+  } else {
+    const hashIdx = raw.indexOf('#')
+    if (hashIdx !== -1) raw = raw.slice(0, hashIdx)
+    raw = raw.trim()
+  }
+
+  const lower = raw.toLowerCase()
+  if (isApprovalMode(lower)) return lower
+  if (lower === 'true') return 'manual'
+  if (lower === 'false') return 'off'
+  return 'manual'
+}
+
+export interface MergeApprovalsModeResult {
+  text: string
+  changed: boolean
+  /** True only when `approvals:` exists but is a scalar (not a mapping),
+   * e.g. `approvals: off` — genuinely unparseable by this line-based
+   * transform. Callers should leave the file untouched and surface an
+   * error rather than risk corrupting it. */
+  unexpectedStructure: boolean
+}
+
+/** Merges `mode` into the `approvals:` mapping of a hermes `config.yaml`
+ * text, preserving every other key (e.g. `timeout`) and all comments. If the
+ * `approvals:` mapping doesn't exist yet, a new block is appended at the end
+ * of the file (unlike `mergeModelIntoConfigYaml`, which requires the
+ * `model:` mapping to already exist). The value is always written quoted
+ * (`mode: "smart"`) to sidestep the YAML 1.1 bare-boolean-word pitfall
+ * (`off`/`no`/`on`/`yes` parsing as booleans). `changed` is false when the
+ * effective mode (per `parseApprovalsMode`) already matches. */
+export function mergeApprovalsModeIntoConfigYaml(
+  yamlText: string,
+  mode: ApprovalMode
+): MergeApprovalsModeResult {
+  const lines = yamlText.split('\n')
+  if (lines.some((line) => APPROVALS_SCALAR_RE.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: true }
+  }
+
+  if (parseApprovalsMode(yamlText) === mode) {
+    return { text: yamlText, changed: false, unexpectedStructure: false }
+  }
+
+  const sectionStart = lines.findIndex((line) => APPROVALS_SECTION_RE.test(line))
+  if (sectionStart === -1) {
+    const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
+    const block = `approvals:\n  mode: ${JSON.stringify(mode)}\n`
+    return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
+  }
+
+  let sectionEnd = lines.length
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    if (TOP_LEVEL_LINE_RE.test(lines[i])) {
+      sectionEnd = i
+      break
+    }
+  }
+
+  const sectionLines = lines.slice(sectionStart + 1, sectionEnd)
+  let modeSet = false
+  const nextSectionLines = sectionLines.map((line) => {
+    if (/^\s*mode:/.test(line)) {
+      modeSet = true
+      return `  mode: ${JSON.stringify(mode)}`
+    }
+    return line
+  })
+  if (!modeSet) nextSectionLines.unshift(`  mode: ${JSON.stringify(mode)}`)
+
+  const nextLines = [
+    ...lines.slice(0, sectionStart + 1),
+    ...nextSectionLines,
+    ...lines.slice(sectionEnd)
+  ]
+
+  return { text: nextLines.join('\n'), changed: true, unexpectedStructure: false }
+}
+
 /** Checks whether `envVarName` is *assigned* on some line of `.env`-style
  * text — a regex on line starts, never returning or retaining any value.
  * Matches `VAR=`, indented `  VAR =`; ignores commented-out `#VAR=` lines
