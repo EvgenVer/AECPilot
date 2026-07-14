@@ -2,7 +2,10 @@
 name = "aec-sources"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
-dependencies = []
+dependencies = ["mcp>=1,<2"]
+
+[project.scripts]
+aec-sources = "aec_sources.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
