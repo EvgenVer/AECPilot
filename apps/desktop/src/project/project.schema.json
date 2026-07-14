@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aecpilot.dev/schemas/project.schema.json",
+  "title": "AECPilot project.json",
+  "description": "Schema for <vault>/.aecpilot/project.json (specs/workspace-sources.md § Data schemas). Documentation artifact only — the runtime validator lives in ./project-config.ts (hand-written, no ajv/schema-library dependency) and must be kept in sync with this file manually.",
+  "type": "object",
+  "required": ["schema_version", "name", "created_at", "sources", "settings"],
+  "properties": {
+    "schema_version": {
+      "description": "Current supported value is 1; any other value fails validation.",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "root_path", "added_at"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "root_path": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "added_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": ["wiki_lang", "scan_interval_s", "embedding_model"],
+      "properties": {
+        "wiki_lang": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "\"auto\" or a language code, e.g. \"ru\", \"en\"."
+        },
+        "scan_interval_s": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "embedding_model": {
+          "type": "string",
+          "description": "May be empty when no embedding model is configured yet."
+        }
+      }
+    }
+  }
+}

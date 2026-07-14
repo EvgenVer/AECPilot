@@ -6,8 +6,6 @@
 ## Active
 
 ### Phase 1 — Vault & sources (спека: specs/workspace-sources.md)
-- [ ] 1.0 Реализовать каркас workspace shell по утверждённому дизайну (рельса активностей, контекстный сайдбар, центр-табы, правый чат-док, статус-бар, нижняя панель; чат 0.11–0.14 переезжает в док без переписывания логики) — files: apps/desktop · verify: ручной прогон shell владельцем + все существующие тесты/линт зелёные · dep: Phase 0, дизайн утверждён владельцем (design/) · parallel: no
-- [ ] 1.1 Определить схему project.json (TS-типы + JSON-schema + schema_version) и валидатор — files: apps/desktop/src/project/** · verify: юниты валидный/невалидный конфиг · dep: Phase 0 · parallel: yes
 - [ ] 1.2 Реализовать генератор структуры vault (wiki/, workspace/, templates/, checklists/, .aecpilot/, AGENTS.md из шаблона) — files: apps/desktop, runtime/templates/ · verify: юнит: структура и стартовые файлы создаются · dep: 1.1 · parallel: no
 - [ ] 1.3 Реализовать UI «создать проект» (выбор пустой папки → генератор → открытие) — files: apps/desktop · verify: BDD «Создание проекта» · dep: 1.2 · parallel: no
 - [ ] 1.4 Реализовать UI «открыть проект» + список недавних (persist в конфиге приложения) — files: apps/desktop · verify: повторное открытие из списка · dep: 1.3 · parallel: yes
@@ -89,7 +87,7 @@
 - [ ] 5.9 Финальная сверка: SPECIFICATION/PLAN/TASKS актуальны, AC1–AC8 сведены в итоговый отчёт — files: планировочные файлы · verify: consistency-review пройден · dep: все · parallel: no
 
 ## Blocked
-- (пусто)
+- [ ] 1.0 Реализовать каркас workspace shell по утверждённому дизайну (рельса активностей, контекстный сайдбар, центр-табы, правый чат-док, статус-бар, нижняя панель; чат 0.11–0.14 переезжает в док без переписывания логики) — files: apps/desktop · verify: ручной прогон shell владельцем + все существующие тесты/линт зелёные · dep: Phase 0, дизайн утверждён владельцем (design/) · parallel: no — BLOCKED 2026-07-14: ждёт явного «дизайн утверждаю» владельца (гейт из NOTES); команда «приступай к фазе 1» гейт не снимает. UI-задачи, строящиеся на shell (1.3, 1.4, 1.6, 1.7, 1.8, 1.14, 1.15, 1.16, 1.19), остаются в Active, но оркестратор не диспетчеризует их до снятия гейта — решение координатора против переделки UI под утверждаемый дизайн.
 
 ## Deferred (post-MVP)
 <!-- Выведено из скоупа MVP решением владельца; возврат — через planning gate. -->
@@ -105,6 +103,7 @@
 - ChatMessage без стабильного id: в ChatPanel пузыри сообщений keyed по index, а вставка tool-карточки перед стриминговым пузырём сдвигает индексы → React remount. Безвредно, пока пузыри stateless; при первом stateful-пузыре (редактирование, per-message действия — вероятно 0.14/1.0) добавить монотонный id в ChatMessage и key по нему (ревью 0.12, nit).
 
 ## Done
+- [x] 1.1 Схема project.json (TS-типы + JSON Schema + schema_version + валидатор) — verified: vitest 131/131 (35 новых юнитов: валидный/невалидный конфиг, сбор всех ошибок за вызов, per-index пути sources[i].*, forward-compat лишних полей; guard Date.parse покрыт строками, проходящими регэксп но NaN в V8 — '2026-13-40…'/'2026-00-10…', предложенная '2026-02-30' отвергнута исполнителем как roll-over в V8; пробельные строки отклоняются trim-проверкой), root lint (eslint+tsc+ruff) и format:check чисто. Артефакты: apps/desktop/src/project/{project-config.ts (типы ProjectConfig/ProjectSource/ProjectSettings, PROJECT_CONFIG_SCHEMA_VERSION=1, validateProjectConfig → все ошибки разом), project.schema.json (draft 2020-12, pattern \S на непустых полях), project-config.test.ts}; без новых зависимостей (рукописный валидатор). Ревью (свежий контекст, opus): 0 blocker/major, 2 minor (непокрытый Date.parse-guard; пробельные строки) — закрыты за 1 итерацию, 1 nit (Infinity непредставим в JSON) принят без правки
 - [x] 0.1 Провести dependency-vetting и запиннить ядро стека — verified: реестры PyPI/npm/endoflife проверены 2026-07-06; версии в PLAN §Stack (hermes-agent 0.18.0, Python 3.12.13, uv ≥0.11.26, Node 24 LTS, Electron 43.x, pnpm 11.x)
 - [x] 0.2 Добавить .gitattributes и .editorconfig — verified: `git add --renormalize .` прошёл без LF/CRLF-варнингов
 - [x] 0.3 pnpm-workspace + каркас apps/desktop — verified: corepack pnpm install/build ок (pnpm 11.10.0, electron 43.0.0, vite 7.3.6); smoke AEC_SMOKE=1 → «window created»/«smoke ok» по did-finish-load, exit 0; ревью: 1 major (битый lint-скрипт) + minor/nits — исправлены за 1 итерацию; onlyBuiltDependencies=[electron,esbuild] одобрен ревью как минимальный
