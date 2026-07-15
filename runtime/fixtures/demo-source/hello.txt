@@ -1,0 +1,4 @@
+Hello from the aec-sources demo fixture (task 1.12).
+This file exists only so sources_tree/sources_read/sources_stat have
+something real to look at when aec-sources is registered as an MCP server
+in the hermes dev profile.
