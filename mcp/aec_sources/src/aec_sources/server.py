@@ -3,45 +3,93 @@
 Contract: specs/workspace-sources.md (API contracts). Tools are read-only by
 construction; no write/delete tools exist for sources.
 
-The 4 tools below are stubs for this task (1.9) — each raises a ToolError
-("not implemented"). Real implementations land in tasks 1.10 (list/tree/stat)
-and 1.11 (read, with anti-traversal).
+sources_list/sources_tree/sources_stat are implemented here (task 1.10).
+sources_read remains a stub, raising ToolError ("not implemented") — its
+real implementation (with anti-traversal, task 1.11) reuses
+``aec_sources.paths.resolve_in_root``.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
 from aec_sources.config import SourceRoot
+from aec_sources.fs import list_directory, list_roots_status, stat_path
+from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 
 
 def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
     """Construct the aec-sources MCP server with the 4 read-only tools registered.
 
-    ``roots`` are the configured source roots (parsed from project.json); they
-    are stored on the server for the real implementations in tasks 1.10/1.11
-    and are unused by the current stub tool bodies.
+    ``roots`` are the configured source roots (parsed from project.json).
     """
     server = FastMCP(name="aec-sources")
     server.source_roots = list(roots or [])
 
+    def _find_root(source_id: str) -> SourceRoot:
+        for root in server.source_roots:
+            if root.id == source_id:
+                return root
+        raise ToolError(f"unknown source id {source_id!r}")
+
+    def _resolve(source: SourceRoot, path: str | None) -> Path:
+        root = Path(source.root_path)
+        if not root.is_dir():
+            raise ToolError(f"source {source.id!r} root is unavailable: {source.root_path}")
+        try:
+            target = resolve_in_root(root, path)
+            exists = target.exists()
+        except PathOutsideSourceError as exc:
+            raise ToolError(str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise ToolError(
+                f"invalid path in source {source.id!r}: {path!r} ({type(exc).__name__})"
+            ) from exc
+        if not exists:
+            raise ToolError(f"path not found in source {source.id!r}: {path!r}")
+        return target
+
     @server.tool(description="List configured read-only source roots and their availability.")
     def sources_list() -> list[dict]:
-        raise ToolError("sources_list is not implemented yet (see task 1.10)")
+        return list_roots_status(server.source_roots)
 
     @server.tool(
         description="List directory entries (name, type, size, mtime) under a source root."
     )
     def sources_tree(source_id: str, path: str | None = None) -> list[dict]:
-        raise ToolError("sources_tree is not implemented yet (see task 1.10)")
+        source = _find_root(source_id)
+        target = _resolve(source, path)
+        try:
+            is_dir = target.is_dir()
+            if not is_dir:
+                raise ToolError(f"path is not a directory in source {source_id!r}: {path!r}")
+            return list_directory(target)
+        except (OSError, ValueError) as exc:
+            raise ToolError(
+                f"unable to list path in source {source_id!r}: {path!r} ({type(exc).__name__})"
+            ) from exc
 
     @server.tool(description="Read file content (optionally a byte range) from a source root.")
     def sources_read(source_id: str, path: str, range: list[int] | None = None) -> str:
         raise ToolError("sources_read is not implemented yet (see task 1.11)")
 
-    @server.tool(description="Get file metadata (size, mtime, sha256) for a path in a source root.")
-    def sources_stat(source_id: str, path: str) -> dict:
-        raise ToolError("sources_stat is not implemented yet (see task 1.10)")
+    @server.tool(
+        description=(
+            "Get file/directory metadata (size, mtime) for a path in a source root. "
+            "sha256 is not computed in this version (see task 1.13, the indexer)."
+        )
+    )
+    def sources_stat(source_id: str, path: str) -> dict[str, object]:
+        source = _find_root(source_id)
+        target = _resolve(source, path)
+        try:
+            return stat_path(target)
+        except (OSError, ValueError) as exc:
+            raise ToolError(
+                f"unable to stat path in source {source_id!r}: {path!r} ({type(exc).__name__})"
+            ) from exc
 
     return server
