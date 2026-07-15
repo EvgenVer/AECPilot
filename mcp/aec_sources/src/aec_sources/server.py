@@ -3,10 +3,9 @@
 Contract: specs/workspace-sources.md (API contracts). Tools are read-only by
 construction; no write/delete tools exist for sources.
 
-sources_list/sources_tree/sources_stat are implemented here (task 1.10).
-sources_read remains a stub, raising ToolError ("not implemented") — its
-real implementation (with anti-traversal, task 1.11) reuses
-``aec_sources.paths.resolve_in_root``.
+All 4 read-only tools (sources_list/sources_tree/sources_read/sources_stat)
+are implemented here. Every path-taking tool reuses
+``aec_sources.paths.resolve_in_root`` (task 1.10) for anti-traversal.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
 from aec_sources.config import SourceRoot
-from aec_sources.fs import list_directory, list_roots_status, stat_path
+from aec_sources.fs import list_directory, list_roots_status, read_file_range, stat_path
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 
 
@@ -72,9 +71,28 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
                 f"unable to list path in source {source_id!r}: {path!r} ({type(exc).__name__})"
             ) from exc
 
-    @server.tool(description="Read file content (optionally a byte range) from a source root.")
+    @server.tool(
+        description=(
+            "Read a file's content from a source root, as text (UTF-8, invalid bytes "
+            "replaced). Without range, the whole file is read, but rejected with an "
+            "error if it is larger than 10 MiB — pass range instead. range is "
+            "[offset, length], byte offsets into the file (length capped at 10 MiB); "
+            "an offset past end-of-file yields an empty string."
+        )
+    )
     def sources_read(source_id: str, path: str, range: list[int] | None = None) -> str:
-        raise ToolError("sources_read is not implemented yet (see task 1.11)")
+        source = _find_root(source_id)
+        target = _resolve(source, path)
+        if target.is_dir():
+            raise ToolError(f"path is not a file in source {source_id!r}: {path!r}")
+        try:
+            return read_file_range(target, range)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        except OSError as exc:
+            raise ToolError(
+                f"unable to read path in source {source_id!r}: {path!r} ({type(exc).__name__})"
+            ) from exc
 
     @server.tool(
         description=(

@@ -1,4 +1,5 @@
 import pytest
+from aec_sources.config import SourceRoot
 from aec_sources.server import build_server
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -18,11 +19,13 @@ async def test_tools_list_has_exactly_the_four_contract_tools():
 
 
 @pytest.mark.anyio
-async def test_stub_tools_return_not_implemented_error():
-    """sources_read remains a stub in this task (1.10); real impl lands in 1.11."""
-    server = build_server()
+async def test_sources_read_on_a_directory_is_error(tmp_path):
+    """sources_read only reads files (task 1.11); a directory path is rejected."""
+    root = tmp_path / "source-root"
+    (root / "sub").mkdir(parents=True)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
 
     async with create_connected_server_and_client_session(server) as client:
-        result = await client.call_tool("sources_read", {"source_id": "x", "path": "y"})
+        result = await client.call_tool("sources_read", {"source_id": "src", "path": "sub"})
 
     assert result.isError is True

@@ -9,6 +9,7 @@ from datetime import datetime
 
 import pytest
 from aec_sources.config import SourceRoot
+from aec_sources.fs import read_file_range
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 from aec_sources.server import build_server
 from mcp.shared.memory import create_connected_server_and_client_session
@@ -261,6 +262,250 @@ async def test_sources_stat_null_byte_in_path_is_error_not_traceback(tmp_path):
     assert str(root) not in message
 
 
+# --- sources_read tests (task 1.11) ----------------------------------------------
+
+
+def make_read_fixture(tmp_path):
+    """A dedicated source root for sources_read: ascii digits for byte-precise
+    range assertions, a Cyrillic-named file with Cyrillic content for the
+    whole-file read test, and an empty subdirectory to exercise the
+    directory-is-not-a-file error.
+    """
+    root = tmp_path / "read-root"
+    root.mkdir()
+    (root / "digits.txt").write_text("0123456789", encoding="utf-8")
+    cyr_dir = root / "Кириллица"
+    cyr_dir.mkdir()
+    (cyr_dir / "документ.txt").write_text("Привет, мир!", encoding="utf-8")
+    (root / "sub").mkdir()
+    return root
+
+
+@pytest.mark.anyio
+async def test_sources_read_whole_file_cyrillic_name_and_content(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "src", "path": "Кириллица/документ.txt"}
+        )
+
+    assert result.isError is False
+    assert result.structuredContent["result"] == "Привет, мир!"
+
+
+@pytest.mark.anyio
+async def test_sources_read_range_prefix(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [0, 5]}
+        )
+
+    assert result.isError is False
+    assert result.structuredContent["result"] == "01234"
+
+
+@pytest.mark.anyio
+async def test_sources_read_range_middle(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [3, 4]}
+        )
+
+    assert result.isError is False
+    assert result.structuredContent["result"] == "3456"
+
+
+@pytest.mark.anyio
+async def test_sources_read_range_offset_past_eof_is_empty_not_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [100, 5]}
+        )
+
+    assert result.isError is False
+    assert result.structuredContent["result"] == ""
+
+
+@pytest.mark.anyio
+async def test_sources_read_range_length_past_eof_is_truncated_not_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [8, 100]}
+        )
+
+    assert result.isError is False
+    assert result.structuredContent["result"] == "89"
+
+
+@pytest.mark.anyio
+async def test_sources_read_parent_traversal_is_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(client, "sources_read", {"source_id": "src", "path": "../secret.txt"})
+
+    assert result.isError is True
+
+
+@pytest.mark.anyio
+async def test_sources_read_absolute_path_is_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client,
+            "sources_read",
+            {"source_id": "src", "path": "C:/Windows/System32/notepad.exe"},
+        )
+
+    assert result.isError is True
+
+
+@pytest.mark.anyio
+async def test_sources_read_unknown_source_id_is_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client, "sources_read", {"source_id": "no-such-source", "path": "digits.txt"}
+        )
+
+    assert result.isError is True
+
+
+@pytest.mark.anyio
+async def test_sources_read_directory_is_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(client, "sources_read", {"source_id": "src", "path": "sub"})
+
+    assert result.isError is True
+
+
+@pytest.mark.anyio
+async def test_sources_read_nonexistent_path_is_error(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(client, "sources_read", {"source_id": "src", "path": "no-such.txt"})
+
+    assert result.isError is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "bad_range",
+    [[0], [0, 1, 2], [-1, 5], [0, 0]],
+    ids=["one-element", "three-elements", "negative-offset", "zero-length"],
+)
+async def test_sources_read_malformed_range_is_error(tmp_path, bad_range):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(
+            client,
+            "sources_read",
+            {"source_id": "src", "path": "digits.txt", "range": bad_range},
+        )
+
+    assert result.isError is True
+    message = error_text(result)
+    assert message  # a human-readable explanation, not a bare failure
+
+
+@pytest.mark.anyio
+async def test_sources_read_null_byte_in_path_is_error_not_traceback(tmp_path):
+    root = make_read_fixture(tmp_path)
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(client, "sources_read", {"source_id": "src", "path": "a\x00b"})
+
+    assert result.isError is True
+    message = error_text(result)
+    assert "Traceback" not in message
+    assert str(root) not in message
+
+
+@pytest.mark.anyio
+async def test_sources_read_symlink_escaping_root_is_error(tmp_path):
+    """A symlink *inside* the root pointing *outside* it is the main
+    exfiltration vector for sources_read: resolve_in_root's containment
+    check (which resolves symlinks) must still catch it.
+    """
+    root = make_read_fixture(tmp_path)
+    outside_target = tmp_path / "outside-secret.txt"
+    outside_target.write_text("outside content", encoding="utf-8")
+    link = root / "escape-link.txt"
+    try:
+        os.symlink(outside_target, link)
+    except OSError:
+        pytest.skip("symlink creation not permitted (needs Windows dev mode/privileges)")
+
+    server = build_server([SourceRoot(id="src", root_path=str(root))])
+
+    async with create_connected_server_and_client_session(server) as client:
+        result = await call(client, "sources_read", {"source_id": "src", "path": "escape-link.txt"})
+
+    assert result.isError is True
+
+
+# --- read_file_range unit tests: the 10 MiB default limit is exercised via a
+# small max_bytes override on the pure helper, rather than by creating a real
+# multi-megabyte fixture file. -----------------------------------------------
+
+
+def test_read_file_range_whole_file_over_limit_is_error(tmp_path):
+    target = tmp_path / "big.txt"
+    target.write_text("0123456789", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="too large"):
+        read_file_range(target, None, max_bytes=5)
+
+
+def test_read_file_range_whole_file_at_limit_is_ok(tmp_path):
+    target = tmp_path / "exact.txt"
+    target.write_text("01234", encoding="utf-8")
+
+    assert read_file_range(target, None, max_bytes=5) == "01234"
+
+
+def test_read_file_range_length_over_limit_is_error(tmp_path):
+    target = tmp_path / "small.txt"
+    target.write_text("0123456789", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="limit"):
+        read_file_range(target, [0, 10], max_bytes=5)
+
+
+def test_read_file_range_binary_content_is_replaced_not_raised(tmp_path):
+    target = tmp_path / "binary.bin"
+    target.write_bytes(b"\xff\xfeabc")
+
+    assert "abc" in read_file_range(target, None)
+
+
 # --- resolve_in_root unit tests -------------------------------------------------
 
 
@@ -357,3 +602,18 @@ def test_resolve_in_root_rejects_unc_forward_slashes(tmp_path):
 def test_resolve_in_root_rejects_unc_backslashes(tmp_path):
     with pytest.raises(PathOutsideSourceError):
         resolve_in_root(tmp_path, r"\\server\share")
+
+
+def test_resolve_in_root_rejects_symlink_escaping_root(tmp_path):
+    outside_target = tmp_path / "outside-secret.txt"
+    outside_target.write_text("outside content", encoding="utf-8")
+    root = tmp_path / "root"
+    root.mkdir()
+    link = root / "escape-link.txt"
+    try:
+        os.symlink(outside_target, link)
+    except OSError:
+        pytest.skip("symlink creation not permitted (needs Windows dev mode/privileges)")
+
+    with pytest.raises(PathOutsideSourceError):
+        resolve_in_root(root, "escape-link.txt")
