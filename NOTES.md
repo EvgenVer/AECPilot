@@ -3,27 +3,23 @@
      (run the planning skill's NOTES closeout first). Stable facts → MEMORY.md. -->
 
 ## Current task & state
-МЕЖФАЗНАЯ ПАУЗА (закрыта 2026-07-14 по команде владельца: «к фазе 1 не переходи»).
-Phase 0 (0.1–0.17) реализована целиком, всё закоммичено, дерево чистое; уроки фазы
-перенесены в MEMORY.md (closeout выполнен). Дизайн: v1 (14 экранов) + v2
-(tokens.css/tokens.json, Viewers.html, правки Wiki/Settings/Agent/Shell) проверены
-координатором (распаковкой бандлов) и закоммичены (c48833a, b89a90e).
+Phase 1 — Vault & sources, ОРКЕСТРАЦИЯ ИДЁТ (старт 2026-07-14 по команде владельца;
+executor=sonnet, reviewer=opus→sonnet→инлайн). Done+закоммичено: 1.1, 1.2, 1.5, 1.9,
+1.10, 1.11, 1.13 (7 коммитов, все с ревью). 2026-07-15 владелец снял ВСЕ гейты:
+«дизайн утверждаю» (1.0 разблокирована), go на Vibe Diff hermes[mcp]==0.18.0
+(1.12 доделывается), ручные verify 0.13/0.17 подтверждены (0.14/0.15 — ранее).
 
-## Ожидают владельца (гейты следующего шага)
-- [ ] РУЧНОЙ verify 0.13+0.17: `pnpm dev` → селектор «Одобрения» в шапке чата →
-      manual: `Выполни в shell команду: echo test` → approval-карточка → Разрешить;
-      smart: та же команда без карточки (авто-решение); off: warning-окраска селектора,
-      команда без вопросов. Переключения живые, без рестарта. (0.14/0.15 уже подтверждены.)
-- [ ] Слово «дизайн утверждаю» → снимает гейт задачи 1.0 (перекладка UI в IDE-shell
-      по design/tokens.css и макетам design/screens/).
+## In flight (эта сессия)
+- 1.0 shell — executor диспетчеризован (дизайн: design/tokens.css + макеты screens/).
+- 1.12 — executor доустанавливает hermes[mcp], правит setup.mjs + PLAN, живой verify.
+- 1.18 edge-фикстуры — фикс-итерация по ревью (long-path probe, UNC-пороги).
+- Далее по dep: 1.17 (после 1.12) → UI-хвост 1.3/1.4/1.6/1.7/1.8 (после 1.0) →
+  1.14/1.15/1.16 → 1.19.
 
-## Resume point (следующая сессия)
-Phase 1 — Vault & sources (specs/workspace-sources.md), режим оркестрации
-(.agents/skills/orchestration; executor=sonnet, reviewer=opus→sonnet→инлайн):
-- 1.0 shell-каркас — ТОЛЬКО после «дизайн утверждаю»; рабочий артефакт design/tokens.css.
-- Независимые от дизайна, можно параллельно: 1.1 (схема project.json) и
-  1.9–1.11 (MCP aec-sources, python; каркас → list/tree/stat → read+анти-traversal).
-- Правило владельца: после каждого логического блока — отметка в TASKS + коммит.
+## Resume point (при обрыве сессии)
+Продолжать оркестрацию Phase 1 по TASKS.md (Active/Blocked/Done — источник состояния).
+Плейбук обрыва субагента лимитом — MEMORY.md (git status → свой verify → добор).
+Правило владельца: после каждого логического блока — отметка в TASKS + коммит.
 
 ## Open threads (мелочь, не гейты)
 - nit (0.9): в runtime/gateway-client.mjs id-префикс RPC захардкожен «smoke-» —
