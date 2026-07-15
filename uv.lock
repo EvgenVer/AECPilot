@@ -4,9 +4,15 @@ requires-python = ">=3.12, <3.14"
 
 [manifest]
 members = [
+    "aec-rag",
     "aec-sources",
     "aecpilot",
 ]
+
+[[package]]
+name = "aec-rag"
+version = "0.1.0"
+source = { editable = "mcp/aec_rag" }
 
 [[package]]
 name = "aec-sources"
@@ -26,6 +32,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "aec-rag" },
     { name = "aec-sources" },
     { name = "pytest" },
     { name = "ruff" },
@@ -35,6 +42,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aec-rag", editable = "mcp/aec_rag" },
     { name = "aec-sources", editable = "mcp/aec_sources" },
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = ">=0.12,<1" },

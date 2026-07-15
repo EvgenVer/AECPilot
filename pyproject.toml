@@ -11,9 +11,10 @@ members = ["mcp/*"]
 
 [tool.uv.sources]
 aec-sources = { workspace = true }
+aec-rag = { workspace = true }
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.12,<1", "aec-sources"]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1", "aec-sources", "aec-rag"]
 
 [tool.pytest.ini_options]
 testpaths = ["mcp"]
