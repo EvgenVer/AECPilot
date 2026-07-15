@@ -147,7 +147,7 @@ function collectTurnWithToolEvents(ws, sessionId, text, { turnTimeoutMs = 120000
     rpcCall(ws, "prompt.submit", { session_id: sessionId, text }, {
       onEvent: () => {},
     }).then((resp) => {
-      onLog(`== rpc prompt.submit -> ${JSON.stringify(resp.result || resp.error)}`);
+      onLog(`== rpc prompt.submit -> ${redact(JSON.stringify(resp.result || resp.error))}`);
       if (resp.error) {
         finish({ started: false, finalText: "", finalStatus: null, rpcError: resp.error, toolEvents });
       }
@@ -206,11 +206,11 @@ async function runCheck() {
     console.log("== rpc: session.create");
     const createResp = await rpcCall(ws, "session.create", { source: "aec-sources-check", cwd: RUNTIME_DIR });
     if (createResp.error) {
-      throw new Error(`session.create failed: ${JSON.stringify(createResp.error)}`);
+      throw new Error(`session.create failed: ${redact(JSON.stringify(createResp.error))}`);
     }
     const sessionId = createResp.result?.session_id;
     if (!sessionId) {
-      throw new Error(`session.create returned no session_id: ${JSON.stringify(createResp.result)}`);
+      throw new Error(`session.create returned no session_id: ${redact(JSON.stringify(createResp.result))}`);
     }
     console.log(`== session created: session_id=${sessionId}`);
 
@@ -219,7 +219,7 @@ async function runCheck() {
 
     console.log("== rpc: session.close");
     const closeResp = await rpcCall(ws, "session.close", { session_id: sessionId });
-    console.log(`== session.close -> ${JSON.stringify(closeResp.result || closeResp.error)}`);
+    console.log(`== session.close -> ${redact(JSON.stringify(closeResp.result || closeResp.error))}`);
 
     ws.close();
     ws = undefined;

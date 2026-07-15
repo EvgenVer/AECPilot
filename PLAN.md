@@ -52,6 +52,7 @@ specs/             # поведенческие контракты (этот р�
 | Пакет | Зачем | Тип | Лицензия |
 |---|---|---|---|
 | hermes-agent | агентное ядро | runtime (py) | MIT |
+| hermes-agent[mcp] extra | MCP-*клиент* внутри hermes (нужен, чтобы hermes мог подключаться к нашим MCP-серверам, напр. aec-sources; task 1.12); тянет mcp==1.26.0 + starlette==1.0.1 — пины hermes-agent 0.18.0, установлены в изолированном `runtime/.hermes-venv`, НЕ в корневом `.venv` (там mcp==1.28.1 — SDK для наших MCP-серверов, отдельная версия) | runtime (py) | MIT |
 | lightrag-hku | RAG-движок (graph+vector) | runtime (py) | MIT |
 | docling | парсинг PDF/DOCX/XLSX/сканов, OCR | runtime (py) | MIT |
 | mem0ai | подключаемая память | runtime (py) | Apache-2.0 |

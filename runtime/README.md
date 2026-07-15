@@ -11,7 +11,7 @@ Run setup:
 node runtime/setup.mjs
 ```
 
-Creates a venv at `runtime/.hermes-venv` (Python 3.12.13, `hermes-agent==0.18.0`,
+Creates a venv at `runtime/.hermes-venv` (Python 3.12.13, `hermes-agent[mcp]==0.18.0`,
 see PLAN.md § Stack) and a dev profile dir at `runtime/dev-profile` (set as
 `HERMES_HOME` when invoking the isolated `hermes` binary). Idempotent — safe to
 re-run. Both dirs are gitignored (local artifacts). Paths/pins are defined in
@@ -61,13 +61,17 @@ in the dev profile's `config.yaml` under `mcp_servers.aec-sources` (task 1.12):
 node runtime/register-aec-sources.mjs [projectJsonPath]
 ```
 
-With no argument, points at the tracked fixture
-`runtime/fixtures/demo-vault/.aecpilot/project.json` (its `root_path`
-placeholder is rewritten in place to the absolute path of
-`runtime/fixtures/demo-source` on this machine — never committed with a real
-absolute path). Idempotent; preserves any other `mcp_servers` entries and
-config.yaml comments/ordering (no YAML parser dependency, same text-merge
-approach as `apps/desktop/src/main/llm-settings-pure.ts`).
+With no argument, materializes a working copy of the tracked fixture template
+`runtime/fixtures/demo-vault/.aecpilot/project.json` (its `root_path` is the
+literal placeholder `__DEMO_SOURCE_ROOT__`) into
+`runtime/dev-profile/aec-demo-vault/.aecpilot/project.json` — inside
+`runtime/dev-profile`, already gitignored — substituting the placeholder with
+the absolute path of `runtime/fixtures/demo-source` on this machine. The
+tracked template is only ever read, never written, so it stays clean
+(placeholder-only) in git regardless of how many times the script runs.
+Idempotent; preserves any other `mcp_servers` entries and config.yaml
+comments/ordering (no YAML parser dependency, same text-merge approach as
+`apps/desktop/src/main/llm-settings-pure.ts`).
 
 `aec-sources-check.mjs` is the live verify: it registers aec-sources against
 a throwaway tmp fixture, starts `hermes serve`, asks the model to call the
@@ -81,11 +85,15 @@ node runtime/aec-sources-check.mjs
 
 Exit 0 = the tool was called and returned the fixture's "demo" source. Exit
 2 = protocol OK, no/invalid API key (same convention as gateway-smoke.mjs).
-Exit 3 = any other failure, including the model correctly reporting the tool
-isn't available — which is exactly what happens while `runtime/.hermes-venv`
-lacks the `mcp` Python SDK (hermes-agent's optional `mcp` extra,
-`mcp==1.26.0` + `starlette==1.0.1`; `setup.mjs` currently installs the bare
-`hermes-agent` package with no extras, so `tools.mcp_tool._MCP_AVAILABLE` is
-`False` and no MCP server — not just aec-sources — can ever connect). Adding
-that extra needs its own approval (dependency change to the pinned runtime
-install) before this check can pass end-to-end.
+Exit 3 = any other failure (protocol-level failure, non-auth model failure,
+or the model correctly reporting the tool isn't available).
+
+`setup.mjs` installs `hermes-agent[mcp]==0.18.0` — the `mcp` extra (approved,
+see PLAN.md § Selected dependencies) pulls in hermes's pinned `mcp==1.26.0` +
+`starlette==1.0.1` into `runtime/.hermes-venv`, which is what lets
+`tools.mcp_tool` act as an MCP *client* and connect to aec-sources (or any
+other MCP server) at all. Historical note: before that extra was approved
+and installed, this check reliably hit exit 3 with the model correctly
+reporting no such tool — `tools.mcp_tool._MCP_AVAILABLE` was `False` and no
+MCP server could ever connect, regardless of what was registered in
+config.yaml. That's no longer the current state.

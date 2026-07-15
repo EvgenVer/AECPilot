@@ -20,11 +20,16 @@
 //
 // Usage:
 //   node runtime/register-aec-sources.mjs [projectJsonPath]
-// With no argument, registers against the tracked fixture at
-// runtime/fixtures/demo-vault/.aecpilot/project.json (its `root_path`
-// placeholder is rewritten in place to the absolute path of
-// runtime/fixtures/demo-source on this machine — never a committed absolute
-// path).
+// With no argument, registers against a *materialized copy* of the tracked
+// fixture template at runtime/fixtures/demo-vault/.aecpilot/project.json:
+// that template's `root_path` placeholder (`__DEMO_SOURCE_ROOT__`) is
+// substituted with the absolute path of runtime/fixtures/demo-source on this
+// machine, and the result is written to
+// runtime/dev-profile/aec-demo-vault/.aecpilot/project.json — inside
+// runtime/dev-profile, which is already fully gitignored (task 0.6). The
+// tracked template itself is only ever read, never written, so it stays
+// clean (placeholder-only) in git regardless of how many times this script
+// runs or on which machine.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -39,37 +44,53 @@ export const AEC_SOURCES_BIN = isWindows
   : path.join(REPO_ROOT, ".venv", "bin", "aec-sources");
 
 export const DEMO_SOURCE_DIR = path.join(RUNTIME_DIR, "fixtures", "demo-source");
-export const DEMO_VAULT_PROJECT_JSON = path.join(
+
+// Tracked template — read-only, never written by this script. Its
+// `root_path` is the literal placeholder `__DEMO_SOURCE_ROOT__`.
+export const DEMO_VAULT_TEMPLATE_PROJECT_JSON = path.join(
   RUNTIME_DIR,
   "fixtures",
   "demo-vault",
   ".aecpilot",
   "project.json",
 );
+
+// Materialized working copy — inside runtime/dev-profile (gitignored), so
+// substituting the real absolute path here never dirties a tracked file.
+export const DEMO_VAULT_MATERIALIZED_PROJECT_JSON = path.join(
+  HERMES_HOME_DIR,
+  "aec-demo-vault",
+  ".aecpilot",
+  "project.json",
+);
+
 const DEMO_SOURCE_ID = "demo";
+const DEMO_ROOT_PLACEHOLDER = "__DEMO_SOURCE_ROOT__";
 
 export const CONFIG_PATH = path.join(HERMES_HOME_DIR, "config.yaml");
 
 /**
- * Rewrites the tracked demo project.json's `root_path` (for source id
- * "demo") to the absolute path of runtime/fixtures/demo-source on this
- * machine. No-op if it already matches. Never called for a caller-supplied
- * projectJsonPath (only the default fixture is templated this way).
+ * Reads the tracked demo project.json template, substitutes its `root_path`
+ * placeholder (for source id "demo") with the absolute path of
+ * runtime/fixtures/demo-source on this machine, and writes the result to
+ * `DEMO_VAULT_MATERIALIZED_PROJECT_JSON` (gitignored). The template itself
+ * is never modified. Returns the materialized path.
  */
-export function ensureDemoFixtureProjectJson() {
-  const raw = fs.readFileSync(DEMO_VAULT_PROJECT_JSON, "utf-8");
+export function materializeDemoFixtureProjectJson() {
+  const raw = fs.readFileSync(DEMO_VAULT_TEMPLATE_PROJECT_JSON, "utf-8");
   const data = JSON.parse(raw);
-  let changed = false;
   for (const source of data.sources ?? []) {
-    if (source.id === DEMO_SOURCE_ID && source.root_path !== DEMO_SOURCE_DIR) {
+    if (source.id === DEMO_SOURCE_ID && source.root_path === DEMO_ROOT_PLACEHOLDER) {
       source.root_path = DEMO_SOURCE_DIR;
-      changed = true;
     }
   }
-  if (changed) {
-    fs.writeFileSync(DEMO_VAULT_PROJECT_JSON, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
-  }
-  return changed;
+  fs.mkdirSync(path.dirname(DEMO_VAULT_MATERIALIZED_PROJECT_JSON), { recursive: true });
+  fs.writeFileSync(
+    DEMO_VAULT_MATERIALIZED_PROJECT_JSON,
+    `${JSON.stringify(data, null, 2)}\n`,
+    "utf-8",
+  );
+  return DEMO_VAULT_MATERIALIZED_PROJECT_JSON;
 }
 
 const MCP_SERVERS_SECTION_RE = /^mcp_servers:\s*(#.*)?$/;
@@ -162,8 +183,9 @@ export function mergeAecSourcesIntoConfigYaml(yamlText, { command, args, enabled
 }
 
 /**
- * Registers `aec-sources` against `projectJsonPath` (default: the tracked
- * demo fixture, whose `root_path` placeholder is rewritten first). Returns
+ * Registers `aec-sources` against `projectJsonPath` (default: a materialized
+ * copy of the tracked demo fixture template — see
+ * `materializeDemoFixtureProjectJson`). Returns
  * `{ projectJsonPath, command, configPath, changed }`.
  */
 export function registerAecSources({ projectJsonPath } = {}) {
@@ -173,13 +195,9 @@ export function registerAecSources({ projectJsonPath } = {}) {
     );
   }
 
-  let resolvedProjectJsonPath;
-  if (projectJsonPath) {
-    resolvedProjectJsonPath = path.resolve(projectJsonPath);
-  } else {
-    ensureDemoFixtureProjectJson();
-    resolvedProjectJsonPath = DEMO_VAULT_PROJECT_JSON;
-  }
+  const resolvedProjectJsonPath = projectJsonPath
+    ? path.resolve(projectJsonPath)
+    : materializeDemoFixtureProjectJson();
 
   const existing = fs.existsSync(CONFIG_PATH) ? fs.readFileSync(CONFIG_PATH, "utf-8") : "";
   const { text, changed } = mergeAecSourcesIntoConfigYaml(existing, {

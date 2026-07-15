@@ -5,7 +5,7 @@
   "sources": [
     {
       "id": "demo",
-      "root_path": "D:\\my program\\AECPilot\\runtime\\fixtures\\demo-source",
+      "root_path": "__DEMO_SOURCE_ROOT__",
       "added_at": "2026-07-15T00:00:00Z"
     }
   ],

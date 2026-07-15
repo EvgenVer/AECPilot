@@ -40,13 +40,18 @@ run("uv", [
   "--allow-existing", // idempotent: keep re-running without clearing/erroring
 ]);
 
-console.log(`== 2/3: installing hermes-agent==${HERMES_VERSION} (pinned)`);
+console.log(`== 2/3: installing hermes-agent[mcp]==${HERMES_VERSION} (pinned)`);
+// The `mcp` extra (task 1.12) pulls in hermes's pinned mcp==1.26.0 +
+// starlette==1.0.1 — required for hermes to act as an MCP *client* (connect
+// to stdio/HTTP MCP servers like mcp/aec_sources) via tools/mcp_tool.py.
+// Without it, tools.mcp_tool._MCP_AVAILABLE is False and no MCP server can
+// ever connect, regardless of what's registered in config.yaml.
 run("uv", [
   "pip",
   "install",
   "--python",
   VENV_DIR,
-  `hermes-agent==${HERMES_VERSION}`,
+  `hermes-agent[mcp]==${HERMES_VERSION}`,
 ]);
 
 console.log(`== 3/3: preparing isolated HERMES_HOME at ${HERMES_HOME_DIR}`);
