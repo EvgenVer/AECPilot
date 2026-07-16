@@ -10,23 +10,61 @@ are implemented here. Every path-taking tool reuses
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import ContentBlock
 
+from aec_sources.audit import log_rejected
 from aec_sources.config import SourceRoot
 from aec_sources.fs import list_directory, list_roots_status, read_file_range, stat_path
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 
 
-def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
+class _AuditingFastMCP(FastMCP):
+    """FastMCP that also journals calls to tool names it doesn't register at
+    all — e.g. an agent guessing at a write/delete tool
+    (``sources_write``/``sources_delete``/...) that simply doesn't exist,
+    read-only by construction (specs/workspace-sources.md). Calls to the 4
+    registered tools are journaled from inside their bodies instead (see
+    ``_resolve`` below), since only there is the source/path context
+    available; here we only see the raw ``name``.
+
+    ``logs_dir`` is ``None`` (the default) when the caller of
+    ``build_server`` didn't request journaling; in that case this behaves
+    exactly like plain ``FastMCP``.
+    """
+
+    logs_dir: Path | None = None
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        # `_tool_manager` is a private FastMCP internal (pinned mcp>=1,<2); if a
+        # dependency bump renames/removes it, this silently stops journaling —
+        # caught by test_unknown_write_like_tool_call_is_error_and_journaled
+        # (the journal simply won't be created).
+        if self.logs_dir is not None and self._tool_manager.get_tool(name) is None:
+            log_rejected(self.logs_dir, {"event": "unknown_tool", "tool": name})
+        return await super().call_tool(name, arguments)
+
+
+def build_server(
+    roots: list[SourceRoot] | None = None, logs_dir: Path | None = None
+) -> FastMCP:
     """Construct the aec-sources MCP server with the 4 read-only tools registered.
 
     ``roots`` are the configured source roots (parsed from project.json).
+    ``logs_dir`` is the project's rejected-attempts journal directory (see
+    ``aec_sources.audit``); ``None`` (the default, for backward
+    compatibility with existing callers/tests) disables journaling.
     """
-    server = FastMCP(name="aec-sources")
+    server = _AuditingFastMCP(name="aec-sources")
     server.source_roots = list(roots or [])
+    server.logs_dir = logs_dir
 
     def _find_root(source_id: str) -> SourceRoot:
         for root in server.source_roots:
@@ -34,7 +72,7 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
                 return root
         raise ToolError(f"unknown source id {source_id!r}")
 
-    def _resolve(source: SourceRoot, path: str | None) -> Path:
+    def _resolve(source: SourceRoot, path: str | None, tool: str) -> Path:
         root = Path(source.root_path)
         if not root.is_dir():
             raise ToolError(f"source {source.id!r} root is unavailable: {source.root_path}")
@@ -42,6 +80,17 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
             target = resolve_in_root(root, path)
             exists = target.exists()
         except PathOutsideSourceError as exc:
+            if server.logs_dir is not None:
+                log_rejected(
+                    server.logs_dir,
+                    {
+                        "event": "path_outside_source",
+                        "tool": tool,
+                        "source_id": source.id,
+                        "path": path,
+                        "reason": str(exc),
+                    },
+                )
             raise ToolError(str(exc)) from exc
         except (OSError, ValueError) as exc:
             raise ToolError(
@@ -60,7 +109,7 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
     )
     def sources_tree(source_id: str, path: str | None = None) -> list[dict]:
         source = _find_root(source_id)
-        target = _resolve(source, path)
+        target = _resolve(source, path, "sources_tree")
         try:
             is_dir = target.is_dir()
             if not is_dir:
@@ -82,7 +131,7 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
     )
     def sources_read(source_id: str, path: str, range: list[int] | None = None) -> str:
         source = _find_root(source_id)
-        target = _resolve(source, path)
+        target = _resolve(source, path, "sources_read")
         if target.is_dir():
             raise ToolError(f"path is not a file in source {source_id!r}: {path!r}")
         try:
@@ -102,7 +151,7 @@ def build_server(roots: list[SourceRoot] | None = None) -> FastMCP:
     )
     def sources_stat(source_id: str, path: str) -> dict[str, object]:
         source = _find_root(source_id)
-        target = _resolve(source, path)
+        target = _resolve(source, path, "sources_stat")
         try:
             return stat_path(target)
         except (OSError, ValueError) as exc:
