@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
-import type { OpenProject, ProjectSource, VaultTreeNode } from '../../../shared/ipc'
+import type { OpenProject, ProjectSource, SourceTreeNode, VaultTreeNode } from '../../../shared/ipc'
 
 const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer'>, string> = {
   qa: 'Поиск по проекту появится здесь (Phase 2).',
@@ -90,9 +90,7 @@ function SourcesActivity({ currentProject }: { currentProject: OpenProject | nul
       <ul className="sources-panel__list">
         {sources.length === 0 && <li className="sources-panel__empty">Источники не подключены</li>}
         {sources.map((source) => (
-          <li key={source.id} className="sources-panel__item" title={source.root_path}>
-            {source.root_path}
-          </li>
+          <SourceEntry key={source.id} source={source} />
         ))}
       </ul>
 
@@ -129,6 +127,206 @@ function SourcesActivity({ currentProject }: { currentProject: OpenProject | nul
         </div>
       )}
     </div>
+  )
+}
+
+/** Recursively renders a connected source's already-loaded subtree (task
+ * 1.8) — plain nested rows with per-node expand/collapse state, not
+ * react-arborist: unlike the single vault tree (one fixed-size virtualized
+ * list), each source here is an independent, variable-height subtree nested
+ * inside a scrolling sidebar list, which react-arborist's `Tree` isn't built
+ * for. Read-only: clicking a folder only toggles it open/closed, clicking a
+ * file does nothing (no viewer yet, same as the vault tree's file rows). */
+function SourceTreeChildren({ nodes, depth }: { nodes: SourceTreeNode[]; depth: number }) {
+  return (
+    <>
+      {nodes.map((node) => (
+        <SourceTreeRow key={node.path} node={node} depth={depth} />
+      ))}
+    </>
+  )
+}
+
+function SourceTreeRow({ node, depth }: { node: SourceTreeNode; depth: number }) {
+  const [open, setOpen] = useState(false)
+  const isDir = node.type === 'dir'
+
+  return (
+    <div>
+      <div
+        className="sources-panel__tree-row"
+        style={{ paddingLeft: depth * 16 }}
+        onClick={() => isDir && setOpen((o) => !o)}
+      >
+        <span className="sources-panel__tree-icon">{isDir ? (open ? '📂' : '📁') : '📄'}</span>
+        <span className="sources-panel__tree-name">{node.name}</span>
+      </div>
+      {isDir && open && node.children && (
+        <SourceTreeChildren nodes={node.children} depth={depth + 1} />
+      )}
+    </div>
+  )
+}
+
+// Availability (task 1.8 fix-iteration 1): checked eagerly, once per source,
+// right on mount — this is the sidebar's actual "недоступен" badge, and must
+// be visible without the user expanding anything. `'checking'` is the
+// transient state while that first check (or a manual "Обновить") is
+// in flight.
+type SourceStatus = 'checking' | 'ok' | 'unavailable' | 'error'
+
+// The subtree, by contrast, stays lazy — fetched only once the source is
+// expanded (and only when its status is 'ok' — nothing to build a tree from
+// otherwise).
+type SourceTreeState = 'idle' | 'loading' | 'ok' | 'error'
+
+/** One connected source in the "Источники" activity (task 1.8): an
+ * expandable node with an "RO" badge (sources are read-only by construction)
+ * whose availability is checked as soon as the list loads (via
+ * `sources:status`, one IPC call per source — never a single call batching
+ * every source, so one dead network share's `statSync` only stalls its own
+ * check) — showing "недоступен" without requiring the user to expand
+ * anything first. Once expanded, an available source's file tree is fetched
+ * lazily via `sources:tree`; an unavailable one shows a status message plus
+ * "Обновить" to re-check without reopening the project. Every check/fetch is
+ * isolated per source, so one bad source never blocks the others. */
+function SourceEntry({ source }: { source: ProjectSource }) {
+  const [expanded, setExpanded] = useState(false)
+  const [status, setStatus] = useState<SourceStatus>('checking')
+  const [statusError, setStatusError] = useState<string | undefined>(undefined)
+  const [treeState, setTreeState] = useState<SourceTreeState>('idle')
+  const [tree, setTree] = useState<SourceTreeNode[]>([])
+  const [treeError, setTreeError] = useState<string | undefined>(undefined)
+
+  function applyStatusResult(
+    result: Awaited<ReturnType<typeof window.aecpilot.getSourceStatus>>
+  ): void {
+    if (!result.ok) {
+      setStatus('error')
+      setStatusError(result.error)
+      return
+    }
+    setStatus(result.status)
+    // A stale tree from before the source went unavailable (or before a
+    // refresh) must not linger — re-expanding re-fetches it.
+    setTreeState('idle')
+    setTree([])
+  }
+
+  useEffect(() => {
+    // Declared inside the effect (not a sibling component-level function) —
+    // same convention as SourcesActivity's/ExplorerActivity's own mount
+    // effects, which keeps this fetch-then-setState pattern outside
+    // `react-hooks/set-state-in-effect`'s reach (that rule traces call
+    // chains starting from a *named function passed in by reference*, not
+    // one declared directly in the effect body).
+    async function checkOnMount(): Promise<void> {
+      try {
+        const result = await window.aecpilot.getSourceStatus(source.id)
+        applyStatusResult(result)
+      } catch (err) {
+        setStatus('error')
+        setStatusError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    void checkOnMount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mounted source; `source.id` is this entry's stable identity (keyed by id in the parent list)
+  }, [])
+
+  // Used by the "Обновить" button (a click handler, not an effect) — sets
+  // the transient "checking" state up front, then re-runs the same fetch.
+  async function handleRefresh(): Promise<void> {
+    setStatus('checking')
+    setStatusError(undefined)
+    try {
+      const result = await window.aecpilot.getSourceStatus(source.id)
+      applyStatusResult(result)
+    } catch (err) {
+      setStatus('error')
+      setStatusError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function loadTree(): Promise<void> {
+    setTreeState('loading')
+    setTreeError(undefined)
+    try {
+      const result = await window.aecpilot.getSourceTree(source.id)
+      if (!result.ok) {
+        setTreeState('error')
+        setTreeError(result.error)
+        return
+      }
+      if (result.status === 'unavailable') {
+        // Became unavailable between the status check and now (e.g. a share
+        // dropped mid-session) — reflect that in the badge too.
+        setStatus('unavailable')
+        setTreeState('idle')
+        return
+      }
+      setTree(result.tree)
+      setTreeState('ok')
+    } catch (err) {
+      setTreeState('error')
+      setTreeError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function handleToggle(): void {
+    setExpanded((prev) => {
+      const next = !prev
+      if (next && status === 'ok' && treeState === 'idle') void loadTree()
+      return next
+    })
+  }
+
+  return (
+    <li className="sources-panel__source">
+      <div className="sources-panel__source-header" title={source.root_path} onClick={handleToggle}>
+        <span className="sources-panel__source-arrow">{expanded ? '▾' : '▸'}</span>
+        <span className="sources-panel__source-name">{source.root_path}</span>
+        <span className="sources-panel__ro-badge">RO</span>
+        {status === 'unavailable' && (
+          <span className="sources-panel__unavailable-badge">недоступен</span>
+        )}
+        {status === 'unavailable' && (
+          <button
+            type="button"
+            className="sources-panel__refresh-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              void handleRefresh()
+            }}
+          >
+            Обновить
+          </button>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="sources-panel__source-body">
+          {status === 'checking' && (
+            <div className="sources-panel__source-empty">Проверка доступности…</div>
+          )}
+          {status === 'unavailable' && (
+            <div className="sources-panel__source-empty">Источник недоступен</div>
+          )}
+          {status === 'error' && <div className="sources-panel__error">{statusError}</div>}
+          {status === 'ok' && treeState === 'loading' && (
+            <div className="sources-panel__source-empty">Загрузка…</div>
+          )}
+          {status === 'ok' && treeState === 'error' && (
+            <div className="sources-panel__error">{treeError}</div>
+          )}
+          {status === 'ok' && treeState === 'ok' && tree.length === 0 && (
+            <div className="sources-panel__source-empty">Источник пуст</div>
+          )}
+          {status === 'ok' && treeState === 'ok' && tree.length > 0 && (
+            <SourceTreeChildren nodes={tree} depth={1} />
+          )}
+        </div>
+      )}
+    </li>
   )
 }
 

@@ -8,7 +8,13 @@ import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateProjectConfig } from '../project/project-config'
 import { generateVault } from '../project/vault-generator'
-import { addSourceToProject, createProject, openProject } from './project-manager'
+import {
+  addSourceToProject,
+  createProject,
+  getSourceStatusResult,
+  getSourceTreeResult,
+  openProject
+} from './project-manager'
 
 // Fix-iteration 1 (review minor): lets the "write failure" test below make a
 // single `writeFileSync` call throw without affecting any other test in
@@ -336,5 +342,143 @@ describe('addSourceToProject', () => {
       expect(result.errors[0]).toContain('Не удалось сохранить project.json')
     }
     expect(after).toBe(before)
+  })
+})
+
+// Task 1.8: core of BDD "Недоступный источник" — one source's root becomes
+// unreachable (mocked here as "never existed"/"removed after being added"),
+// the other's tree still builds normally, and neither ever throws.
+describe('getSourceTreeResult', () => {
+  let parent: string
+  let vaultPath: string
+  let okSourceDir: string
+  let missingSourceDir: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-source-tree-result-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+
+    okSourceDir = path.join(parent, 'source-ok')
+    fs.mkdirSync(okSourceDir)
+    fs.writeFileSync(path.join(okSourceDir, 'note.txt'), 'hi')
+
+    missingSourceDir = path.join(parent, 'source-missing')
+    fs.mkdirSync(missingSourceDir) // must exist when added — nesting/duplicate checks require it
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('returns the tree for a reachable source', () => {
+    const added = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+    expect('ok' in added && added.ok).toBe(true)
+
+    const result = getSourceTreeResult(vaultPath, 'src-ok')
+
+    expect(result).toEqual({
+      ok: true,
+      status: 'ok',
+      tree: [{ name: 'note.txt', path: 'note.txt', type: 'file' }]
+    })
+  })
+
+  it('returns {ok:false} for an unknown sourceId', () => {
+    expect(getSourceTreeResult(vaultPath, 'no-such-id')).toEqual({
+      ok: false,
+      error: 'Источник не найден'
+    })
+  })
+
+  it('reports unavailable (never throws) once the source root is removed, isolated from an ok source', () => {
+    const addedOk = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+    expect('ok' in addedOk && addedOk.ok).toBe(true)
+    const addedMissing = addSourceToProject(vaultPath, missingSourceDir, {
+      idFactory: () => 'src-missing'
+    })
+    expect('ok' in addedMissing && addedMissing.ok).toBe(true)
+
+    // Mocks "the network path became unreachable" (specs/workspace-sources.md
+    // "Недоступный источник") — removing the folder after it was connected.
+    fs.rmSync(missingSourceDir, { recursive: true, force: true })
+
+    const okResult = getSourceTreeResult(vaultPath, 'src-ok')
+    const missingResult = getSourceTreeResult(vaultPath, 'src-missing')
+
+    expect(okResult).toEqual({
+      ok: true,
+      status: 'ok',
+      tree: [{ name: 'note.txt', path: 'note.txt', type: 'file' }]
+    })
+    expect(missingResult).toEqual({ ok: true, status: 'unavailable' })
+  })
+})
+
+// Task 1.8 fix-iteration 1: the cheap, tree-free status check the sidebar
+// calls for every connected source on load (MAJOR fix — the "недоступен"
+// badge must be visible without a manual expand). Same isolation guarantee
+// as getSourceTreeResult, minus the directory read.
+describe('getSourceStatusResult', () => {
+  let parent: string
+  let vaultPath: string
+  let okSourceDir: string
+  let missingSourceDir: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-source-status-result-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+
+    okSourceDir = path.join(parent, 'source-ok')
+    fs.mkdirSync(okSourceDir)
+
+    missingSourceDir = path.join(parent, 'source-missing')
+    fs.mkdirSync(missingSourceDir) // must exist when added — nesting/duplicate checks require it
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('returns status "ok" for a reachable source', () => {
+    const added = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+    expect('ok' in added && added.ok).toBe(true)
+
+    expect(getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
+  })
+
+  it('returns {ok:false} for an unknown sourceId', () => {
+    expect(getSourceStatusResult(vaultPath, 'no-such-id')).toEqual({
+      ok: false,
+      error: 'Источник не найден'
+    })
+  })
+
+  it('reports unavailable once the source root is removed, isolated from an ok source', () => {
+    const addedOk = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+    expect('ok' in addedOk && addedOk.ok).toBe(true)
+    const addedMissing = addSourceToProject(vaultPath, missingSourceDir, {
+      idFactory: () => 'src-missing'
+    })
+    expect('ok' in addedMissing && addedMissing.ok).toBe(true)
+
+    fs.rmSync(missingSourceDir, { recursive: true, force: true })
+
+    expect(getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
+    expect(getSourceStatusResult(vaultPath, 'src-missing')).toEqual({
+      ok: true,
+      status: 'unavailable'
+    })
   })
 })

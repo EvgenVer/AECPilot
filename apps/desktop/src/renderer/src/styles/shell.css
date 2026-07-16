@@ -241,16 +241,6 @@ button {
   gap: 2px;
 }
 
-.sources-panel__item {
-  padding: 6px 4px;
-  font-size: 12.5px;
-  color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--border);
-}
-
 .sources-panel__empty {
   color: var(--text-3);
   font-size: 12.5px;
@@ -313,6 +303,110 @@ button {
   border-color: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
+}
+
+/* ============ Source tree (task 1.8) ============ */
+
+.sources-panel__source {
+  border-bottom: 1px solid var(--border);
+}
+
+.sources-panel__source-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+}
+
+.sources-panel__source-header:hover {
+  background: var(--bg-hover);
+}
+
+.sources-panel__source-arrow {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.sources-panel__source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sources-panel__ro-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+  background: var(--bg-hover);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+.sources-panel__unavailable-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+.sources-panel__refresh-btn {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font-size: var(--fs-caption);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sources-panel__source-body {
+  padding-bottom: 4px;
+}
+
+.sources-panel__source-empty {
+  color: var(--text-3);
+  font-size: 12.5px;
+  padding: 6px 4px 6px 16px;
+}
+
+.sources-panel__tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+}
+
+.sources-panel__tree-row:hover {
+  background: var(--bg-hover);
+}
+
+.sources-panel__tree-icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.sources-panel__tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============ Explorer panel (task 1.6) ============ */

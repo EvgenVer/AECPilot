@@ -24,6 +24,8 @@ import {
 import {
   addSourceToProject,
   createProject,
+  getSourceStatusResult,
+  getSourceTreeResult,
   listProjectSources,
   openProject,
   type OpenProject
@@ -497,6 +499,37 @@ ipcMain.handle('sources:add', (_event, payload: unknown) => {
   return addSourceToProject(currentProject.vaultPath, rootPath, {
     confirmed: confirmed === true
   })
+})
+
+// Task 1.8 fix-iteration 1: cheap per-source availability check (no
+// directory read) — the sidebar calls this once per connected source on
+// load, so every source's "RO"/"недоступен" badge shows up without a manual
+// expand, and without the cost of a full recursive tree build per source.
+ipcMain.handle('sources:status', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { sourceId } = payload as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+  return getSourceStatusResult(currentProject.vaultPath, sourceId)
+})
+
+// Task 1.8: builds a connected source's directory tree for the sidebar's
+// "Источники" activity — read-only, no-op when no project is open (a stale
+// renderer call after the project was closed mid-flight must never throw).
+ipcMain.handle('sources:tree', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { sourceId } = payload as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+  return getSourceTreeResult(currentProject.vaultPath, sourceId)
 })
 
 // Task 1.6: the vault explorer tree + file/folder create/rename/delete.

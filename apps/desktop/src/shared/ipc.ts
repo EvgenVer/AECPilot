@@ -45,6 +45,31 @@ export interface VaultTreeNode {
   children?: VaultTreeNode[]
 }
 
+/** A node in a connected source's directory tree (task 1.8) — mirrors
+ * `SourceTreeNode` from `../main/source-tree`, redeclared here for the same
+ * reason as `ProjectSource` above. */
+export interface SourceTreeNode {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  children?: SourceTreeNode[]
+}
+
+/** Result of `getSourceTree` (task 1.8): `status: 'unavailable'` means the
+ * source's root can't currently be reached (path gone, network share
+ * dropped, permission revoked, …) — the rest of the app keeps working; an
+ * unknown `sourceId` comes back as `ok: false`. */
+export type SourceTreeResult =
+  | { ok: true; status: 'ok'; tree: SourceTreeNode[] }
+  | { ok: true; status: 'unavailable' }
+  | { ok: false; error: string }
+
+/** Result of `getSourceStatus` (task 1.8 fix-iteration 1) — same `status`
+ * meaning as `SourceTreeResult`, without the tree; cheap enough to call for
+ * every connected source on load. */
+export type SourceStatusResult =
+  { ok: true; status: 'ok' | 'unavailable' } | { ok: false; error: string }
+
 /** Result of a vault write operation (create/rename/delete/show-in-explorer,
  * task 1.6). `error` is a human-readable, Russian message suitable for
  * display next to the explorer toolbar. */
@@ -167,6 +192,16 @@ export interface AecpilotApi {
     | { ok: false; errors: string[] }
     | { needsConfirm: string[] }
   >
+  /** Checks whether a connected source's root is currently reachable (task
+   * 1.8 fix-iteration 1) — cheap, meant to be called once per source right
+   * after `listSources` so the sidebar can show every source's "недоступен"
+   * badge without a manual expand. */
+  getSourceStatus(sourceId: string): Promise<SourceStatusResult>
+  /** Reads a connected source's directory tree (task 1.8) — read-only, no
+   * write operations exist for a source (RO by construction, see
+   * specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
+   * as a leaf, never traversed. */
+  getSourceTree(sourceId: string): Promise<SourceTreeResult>
   /** Reads the current project's vault file tree (task 1.6). Empty array if
    * no project is open. `.aecpilot` is always hidden; symlinks are shown as
    * a leaf, never traversed. */

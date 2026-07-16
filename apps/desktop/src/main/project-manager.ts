@@ -15,6 +15,7 @@ import {
   validateProjectConfig
 } from '../project/project-config'
 import { validateNewSource } from '../project/source-validation'
+import { buildSourceTree, isSourceAvailable, type SourceTreeNode } from './source-tree'
 
 export interface OpenProject {
   name: string
@@ -185,6 +186,56 @@ function writeProjectConfigFile(vaultPath: string, config: ProjectConfig): void 
 export function listProjectSources(vaultPath: string): ProjectSource[] {
   const result = readProjectConfigFile(vaultPath)
   return result.ok ? result.config.sources : []
+}
+
+function findSourceById(vaultPath: string, sourceId: string): ProjectSource | undefined {
+  return listProjectSources(vaultPath).find((s) => s.id === sourceId)
+}
+
+export type SourceStatusResult =
+  { ok: true; status: 'ok' | 'unavailable' } | { ok: false; error: string }
+
+/** Resolves `sourceId` against the project's connected sources and checks
+ * whether its root is currently reachable (task 1.8 fix-iteration 1, backs
+ * the `sources:status` IPC handler) — cheap (`isSourceAvailable` only, no
+ * directory read), so the sidebar can show every connected source's "RO"/
+ * "недоступен" badge right away on load, one IPC call per source, without
+ * paying for a full recursive tree build per source just to render badges.
+ * An unknown `sourceId` comes back as `{ ok: false }`. */
+export function getSourceStatusResult(vaultPath: string, sourceId: string): SourceStatusResult {
+  const source = findSourceById(vaultPath, sourceId)
+  if (!source) return { ok: false, error: 'Источник не найден' }
+  return { ok: true, status: isSourceAvailable(source.root_path) ? 'ok' : 'unavailable' }
+}
+
+export type SourceTreeResult =
+  | { ok: true; status: 'ok'; tree: SourceTreeNode[] }
+  | { ok: true; status: 'unavailable' }
+  | { ok: false; error: string }
+
+/** Resolves `sourceId` against the project's connected sources and builds its
+ * file tree (task 1.8, backs the `sources:tree` IPC handler) — read-only,
+ * never mutates anything. An unknown `sourceId` comes back as
+ * `{ ok: false }`; an inaccessible root (path gone, network share dropped,
+ * permission revoked, …) — whether caught up front by `isSourceAvailable` or
+ * surfacing only once `buildSourceTree` actually reads it — is reported as
+ * `{ ok: true, status: 'unavailable' }`, never thrown, so one bad source
+ * never blocks the others (specs/workspace-sources.md's "Недоступный
+ * источник"). */
+export function getSourceTreeResult(vaultPath: string, sourceId: string): SourceTreeResult {
+  const source = findSourceById(vaultPath, sourceId)
+  if (!source) return { ok: false, error: 'Источник не найден' }
+
+  if (!isSourceAvailable(source.root_path)) {
+    return { ok: true, status: 'unavailable' }
+  }
+
+  try {
+    return { ok: true, status: 'ok', tree: buildSourceTree(source.root_path) }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not build source tree', error)
+    return { ok: true, status: 'unavailable' }
+  }
 }
 
 export type AddSourceResult =

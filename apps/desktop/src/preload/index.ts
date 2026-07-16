@@ -20,6 +20,8 @@ const api: AecpilotApi = {
   openProject: (vaultPath) => ipcRenderer.invoke('project:open', { vaultPath }),
   listSources: () => ipcRenderer.invoke('sources:list'),
   addSource: (rootPath, confirmed) => ipcRenderer.invoke('sources:add', { rootPath, confirmed }),
+  getSourceStatus: (sourceId) => ipcRenderer.invoke('sources:status', { sourceId }),
+  getSourceTree: (sourceId) => ipcRenderer.invoke('sources:tree', { sourceId }),
   getVaultTree: () => ipcRenderer.invoke('vault:tree'),
   createVaultFile: (parentRel, name) =>
     ipcRenderer.invoke('vault:create-file', { parentRel, name }),
