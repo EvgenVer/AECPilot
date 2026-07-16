@@ -21,7 +21,13 @@ import {
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
-import { createProject, openProject, type OpenProject } from './project-manager'
+import {
+  addSourceToProject,
+  createProject,
+  listProjectSources,
+  openProject,
+  type OpenProject
+} from './project-manager'
 import { loadRecents, recordRecent } from './recents'
 
 interface ServeHandle {
@@ -462,6 +468,29 @@ ipcMain.handle('project:open', (_event, payload: unknown) => {
 ipcMain.handle('project:get-current', () => currentProject ?? null)
 
 ipcMain.handle('project:list-recents', () => loadRecents())
+
+// Task 1.7: lists the current project's connected sources. Empty array if no
+// project is open or the config can't be read/validated.
+ipcMain.handle('sources:list', () => {
+  return currentProject ? listProjectSources(currentProject.vaultPath) : []
+})
+
+ipcMain.handle('sources:add', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, errors: ['нет открытого проекта'] }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, errors: ['invalid payload'] }
+  }
+  const { rootPath, confirmed } = payload as Record<string, unknown>
+  if (typeof rootPath !== 'string' || rootPath.length === 0) {
+    return { ok: false, errors: ['rootPath must be a non-empty string'] }
+  }
+  if (!isAbsolute(rootPath)) {
+    return { ok: false, errors: ['путь к источнику должен быть абсолютным'] }
+  }
+  return addSourceToProject(currentProject.vaultPath, rootPath, {
+    confirmed: confirmed === true
+  })
+})
 
 app
   .whenReady()

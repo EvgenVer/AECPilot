@@ -5,10 +5,16 @@
 // (dialog/BrowserWindow/app stay in main/index.ts and recents.ts) so this can
 // be unit-tested directly, the same way task 1.2's vault-generator.ts is.
 
-import { readFileSync } from 'node:fs'
+import { accessSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { generateVault } from '../project/vault-generator'
-import { validateProjectConfig } from '../project/project-config'
+import {
+  type ProjectConfig,
+  type ProjectSource,
+  validateProjectConfig
+} from '../project/project-config'
+import { validateNewSource } from '../project/source-validation'
 
 export interface OpenProject {
   name: string
@@ -116,4 +122,149 @@ export function openProject(vaultPath: string): ProjectResult {
   }
 
   return { ok: true, project: { name: validated.value.name, vaultPath } }
+}
+
+/** Reads and validates `<vaultPath>/.aecpilot/project.json`, returning the
+ * full config (not just `name`/`vaultPath` like `openProject`'s result) —
+ * needed by `addSourceToProject` to read/append `sources`. Duplicates
+ * `openProject`'s read/parse/validate steps rather than sharing them, since
+ * the two return different shapes and `openProject` is out of scope for this
+ * task. */
+function readProjectConfigFile(
+  vaultPath: string
+): { ok: true; config: ProjectConfig } | { ok: false; error: string } {
+  const configPath = join(vaultPath, '.aecpilot', 'project.json')
+
+  let raw: string
+  try {
+    raw = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Папка недоступна: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { ok: false, error: 'Файл .aecpilot/project.json повреждён (невалидный JSON)' }
+  }
+
+  const validated = validateProjectConfig(parsed)
+  if (!validated.ok) {
+    const details = validated.errors
+      .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
+      .join('; ')
+    return { ok: false, error: `Некорректный project.json: ${details}` }
+  }
+
+  return { ok: true, config: validated.value }
+}
+
+/** Writes `config` to `<vaultPath>/.aecpilot/project.json` atomically
+ * (write to a temp file, then rename over the original) — same 2-space
+ * indent + trailing newline as `generateVault`. */
+function writeProjectConfigFile(vaultPath: string, config: ProjectConfig): void {
+  const configPath = join(vaultPath, '.aecpilot', 'project.json')
+  const tempPath = `${configPath}.tmp-${randomUUID()}`
+  writeFileSync(tempPath, `${JSON.stringify(config, null, 2)}\n`)
+  try {
+    renameSync(tempPath, configPath)
+  } catch (error: unknown) {
+    unlinkSync(tempPath)
+    throw error
+  }
+}
+
+/** Lists a project's connected sources by reading `project.json` (task 1.7,
+ * backs the `sources:list` IPC handler). Returns an empty array if the vault
+ * or its config can't be read/validated — a renamed or broken vault must
+ * never crash the sidebar. */
+export function listProjectSources(vaultPath: string): ProjectSource[] {
+  const result = readProjectConfigFile(vaultPath)
+  return result.ok ? result.config.sources : []
+}
+
+export type AddSourceResult =
+  | { ok: true; sources: ProjectSource[] }
+  | { ok: false; errors: string[] }
+  | { needsConfirm: string[] }
+
+/** Adds `rootPath` as a new read-only source of the project at `vaultPath`
+ * (task 1.7): reads `project.json`, validates the candidate against the
+ * vault and existing sources (`validateNewSource` — nesting is an error,
+ * overlap with an existing source is a warning), does a best-effort
+ * accessibility check (an inaccessible path never blocks — it's added as a
+ * warning that it "will be added as unavailable"), and — unless there are
+ * unconfirmed warnings — appends the new source and writes the config back
+ * atomically.
+ *
+ * - Any validation errors (nesting, exact duplicate, non-absolute path) ->
+ *   `{ ok: false, errors }`, nothing written.
+ * - Warnings (overlap and/or inaccessible-path) with `confirmed` not `true`
+ *   -> `{ needsConfirm: warnings }`, nothing written yet — the caller should
+ *   re-invoke with `confirmed: true` to proceed.
+ * - Otherwise -> the source is added, `project.json` is re-validated
+ *   (`validateProjectConfig`) as a safety net before writing, and the
+ *   updated `sources` list is returned. */
+export function addSourceToProject(
+  vaultPath: string,
+  rootPath: string,
+  options?: { confirmed?: boolean; nowIso?: string; idFactory?: () => string }
+): AddSourceResult {
+  const configResult = readProjectConfigFile(vaultPath)
+  if (!configResult.ok) return { ok: false, errors: [configResult.error] }
+  const config = configResult.config
+
+  const validation = validateNewSource({
+    vaultPath,
+    existingRoots: config.sources,
+    candidatePath: rootPath
+  })
+  if (!validation.ok) return { ok: false, errors: validation.errors }
+
+  const warnings = [...validation.warnings]
+  try {
+    accessSync(rootPath)
+  } catch {
+    warnings.push('Путь сейчас недоступен — источник будет добавлен как недоступный')
+  }
+
+  if (warnings.length > 0 && !options?.confirmed) {
+    return { needsConfirm: warnings }
+  }
+
+  const newSource: ProjectSource = {
+    id: options?.idFactory?.() ?? randomUUID(),
+    root_path: rootPath,
+    added_at: options?.nowIso ?? new Date().toISOString()
+  }
+  const updatedConfig: ProjectConfig = { ...config, sources: [...config.sources, newSource] }
+
+  const revalidated = validateProjectConfig(updatedConfig)
+  if (!revalidated.ok) {
+    const details = revalidated.errors
+      .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
+      .join('; ')
+    return { ok: false, errors: [`Некорректный project.json после добавления: ${details}`] }
+  }
+
+  // Fix-iteration 1 (review minor): a write failure (disk full, permission
+  // denied, share dropped mid-write, …) must come back as a normal
+  // `{ ok: false }` result — letting it throw here would surface as an
+  // unhandled rejection in the renderer's `ipcRenderer.invoke` call.
+  try {
+    writeProjectConfigFile(vaultPath, updatedConfig)
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      errors: [
+        `Не удалось сохранить project.json: ${error instanceof Error ? error.message : String(error)}`
+      ]
+    }
+  }
+
+  return { ok: true, sources: updatedConfig.sources }
 }

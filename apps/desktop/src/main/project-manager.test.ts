@@ -5,10 +5,19 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateProjectConfig } from '../project/project-config'
 import { generateVault } from '../project/vault-generator'
-import { createProject, openProject } from './project-manager'
+import { addSourceToProject, createProject, openProject } from './project-manager'
+
+// Fix-iteration 1 (review minor): lets the "write failure" test below make a
+// single `writeFileSync` call throw without affecting any other test in
+// this file — same technique as vault-generator.test.ts's mock (see its
+// comment for why `vi.spyOn` doesn't work on this ESM module namespace).
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return { ...actual, writeFileSync: vi.fn(actual.writeFileSync) }
+})
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
@@ -178,5 +187,154 @@ describe('openProject', () => {
       expect(result.error).toContain('Некорректный project.json')
       expect(result.error).toContain('name')
     }
+  })
+})
+
+describe('addSourceToProject', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-add-source-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('adds a source, re-reads and re-validates project.json, and returns the updated list', () => {
+    const sourceDir = path.join(parent, 'source-a')
+    fs.mkdirSync(sourceDir)
+
+    const result = addSourceToProject(vaultPath, sourceDir, {
+      nowIso: '2026-07-15T09:00:00.000Z',
+      idFactory: () => 'fixed-id-1'
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      sources: [{ id: 'fixed-id-1', root_path: sourceDir, added_at: '2026-07-15T09:00:00.000Z' }]
+    })
+
+    const raw = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    expect(raw.endsWith('\n')).toBe(true)
+    const parsed = JSON.parse(raw)
+    const validated = validateProjectConfig(parsed)
+    expect(validated.ok).toBe(true)
+    if (validated.ok) {
+      expect(validated.value.sources).toEqual([
+        { id: 'fixed-id-1', root_path: sourceDir, added_at: '2026-07-15T09:00:00.000Z' }
+      ])
+    }
+  })
+
+  it('rejects re-adding the exact same path (already connected), leaving project.json untouched', () => {
+    const sourceDir = path.join(parent, 'source-b')
+    fs.mkdirSync(sourceDir)
+
+    const first = addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-1' })
+    expect('ok' in first && first.ok).toBe(true)
+
+    const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    const second = addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-2' })
+    const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+    expect(second).toEqual({ ok: false, errors: ['Этот путь уже подключён как источник'] })
+    expect(after).toBe(before)
+  })
+
+  it('rejects a source nested inside the vault, without writing anything', () => {
+    const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+    const result = addSourceToProject(vaultPath, path.join(vaultPath, 'wiki'))
+
+    expect('ok' in result && result.ok).toBe(false)
+    const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    expect(after).toBe(before)
+  })
+
+  it('returns needsConfirm for an inaccessible (non-existent) path, writing nothing until confirmed', () => {
+    const missingDir = path.join(parent, 'does-not-exist')
+
+    const result = addSourceToProject(vaultPath, missingDir)
+
+    expect(result).toEqual({
+      needsConfirm: ['Путь сейчас недоступен — источник будет добавлен как недоступный']
+    })
+
+    const confirmed = addSourceToProject(vaultPath, missingDir, {
+      confirmed: true,
+      idFactory: () => 'id-missing'
+    })
+    expect(confirmed).toEqual({
+      ok: true,
+      sources: [expect.objectContaining({ id: 'id-missing', root_path: missingDir })]
+    })
+  })
+
+  it('returns needsConfirm for an overlap with an existing source, then adds it once confirmed', () => {
+    const parentDir = path.join(parent, 'overlap-parent')
+    fs.mkdirSync(parentDir)
+    const addFirst = addSourceToProject(vaultPath, parentDir, { idFactory: () => 'id-parent' })
+    expect('ok' in addFirst && addFirst.ok).toBe(true)
+
+    const nestedDir = path.join(parentDir, 'nested')
+    fs.mkdirSync(nestedDir)
+
+    const result = addSourceToProject(vaultPath, nestedDir)
+    expect('needsConfirm' in result).toBe(true)
+    if ('needsConfirm' in result) {
+      expect(result.needsConfirm[0]).toContain(parentDir)
+    }
+
+    const confirmed = addSourceToProject(vaultPath, nestedDir, {
+      confirmed: true,
+      idFactory: () => 'id-nested'
+    })
+    expect('ok' in confirmed && confirmed.ok).toBe(true)
+    if ('ok' in confirmed && confirmed.ok) expect(confirmed.sources).toHaveLength(2)
+  })
+
+  it('rejects when the vault has no project.json', () => {
+    const notAVault = path.join(parent, 'not-a-vault')
+    fs.mkdirSync(notAVault)
+
+    const result = addSourceToProject(notAVault, path.join(parent, 'source-c'))
+
+    expect('ok' in result && result.ok).toBe(false)
+    if ('ok' in result && !result.ok) expect(result.errors[0]).toContain('Папка недоступна')
+  })
+
+  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', () => {
+    const sourceDir = path.join(parent, 'source-write-fail')
+    fs.mkdirSync(sourceDir)
+
+    const writeFileSyncMock = vi.mocked(fs.writeFileSync)
+    const realWriteFileSync = writeFileSyncMock.getMockImplementation()!
+    writeFileSyncMock.mockImplementationOnce(() => {
+      throw new Error('simulated disk failure')
+    })
+
+    const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    let result: ReturnType<typeof addSourceToProject>
+    try {
+      result = addSourceToProject(vaultPath, sourceDir)
+    } finally {
+      writeFileSyncMock.mockImplementation(realWriteFileSync)
+    }
+    const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+    expect('ok' in result && result.ok).toBe(false)
+    if ('ok' in result && !result.ok) {
+      expect(result.errors[0]).toContain('Не удалось сохранить project.json')
+    }
+    expect(after).toBe(before)
   })
 })

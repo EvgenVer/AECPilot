@@ -23,6 +23,16 @@ export interface RecentProject {
   openedAt: string
 }
 
+/** A connected source of the current project (task 1.7) — mirrors
+ * `ProjectSource` from `../project/project-config`, redeclared here (same
+ * pattern as `OpenProject`/`RecentProject` above) so the renderer/preload
+ * layers don't import main-only modules. */
+export interface ProjectSource {
+  id: string
+  root_path: string
+  added_at: string
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -122,4 +132,22 @@ export interface AecpilotApi {
   openProject(
     vaultPath: string
   ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
+  /** Lists the current project's connected sources (task 1.7). Empty array
+   * if no project is open. */
+  listSources(): Promise<ProjectSource[]>
+  /** Adds `rootPath` as a new read-only source of the current project (task
+   * 1.7). `confirmed` must be `true` to proceed past a warning (path
+   * overlaps an existing source, or is currently inaccessible) previously
+   * returned as `needsConfirm` — call again with the same `rootPath` and
+   * `confirmed: true` to add it anyway. Errors (nesting inside the vault,
+   * exact duplicate, no open project) always block, regardless of
+   * `confirmed`. */
+  addSource(
+    rootPath: string,
+    confirmed?: boolean
+  ): Promise<
+    | { ok: true; sources: ProjectSource[] }
+    | { ok: false; errors: string[] }
+    | { needsConfirm: string[] }
+  >
 }

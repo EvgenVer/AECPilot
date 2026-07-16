@@ -80,7 +80,7 @@ export default function Shell() {
       />
       <div className="app-shell__body">
         <Rail active={activity} onSelect={setActivity} onSettings={() => setSettingsOpen(true)} />
-        <Sidebar active={activity} />
+        <Sidebar active={activity} currentProject={currentProject} />
         <CenterArea active={activity} />
         <ChatDock state={chatState} dispatch={dispatch} connectionState={connectionState} />
       </div>
