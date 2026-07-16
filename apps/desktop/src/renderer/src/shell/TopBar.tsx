@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { ScanIcon, SearchIcon, SettingsIcon } from './icons'
 import ProjectMenu from './ProjectMenu'
 import SettingsPanel from '../chat/SettingsPanel'
@@ -7,12 +8,19 @@ import type { OpenProject } from '../../../shared/ipc'
  * approved shell layout (design/DESIGN_BRIEF.md §3). The project button
  * opens `ProjectMenu` (task 1.4: open existing / create / recents), whether
  * or not a project is currently open — switching mid-session just replaces
- * `currentProject` in main. The command palette trigger and "scan now" stay
- * visual-only — no command palette task scheduled, scanning is Phase 2. The
- * settings entry point reuses the existing LLM settings popover from Phase
- * 0, anchored here (a `position: relative` wrapper around this gear button)
- * even though the rail's bottom settings icon can also open it — both
- * triggers share the one `settingsOpen` state lifted to Shell. */
+ * `currentProject` in main. The command palette trigger stays visual-only —
+ * no command palette task scheduled. "Сканировать" (task 1.14) is live:
+ * hydrates its "идёт сканирование" indicator from `getScanState` on mount
+ * (a scan can already be in flight from the interval schedule before this
+ * mounts) and subscribes to `onScanState` for updates; clicking it fires
+ * `triggerScan` ("сканировать сейчас" — a no-op if a scan is already
+ * running). The change list itself (task 1.15) is not this task's job — this
+ * button only surfaces that a scan is happening, via its own disabled state
+ * and label. The settings entry point reuses the existing LLM settings
+ * popover from Phase 0, anchored here (a `position: relative` wrapper around
+ * this gear button) even though the rail's bottom settings icon can also
+ * open it — both triggers share the one `settingsOpen` state lifted to
+ * Shell. */
 export default function TopBar({
   settingsOpen,
   settingsDisabled,
@@ -30,6 +38,20 @@ export default function TopBar({
   currentProject: OpenProject | null
   onOpenCreateProject: () => void
 }) {
+  const [scanning, setScanning] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    void window.aecpilot.getScanState().then((state) => {
+      if (mounted) setScanning(state.scanning)
+    })
+    const unsubscribe = window.aecpilot.onScanState((s) => setScanning(s))
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [])
+
   return (
     <header className="topbar" role="banner">
       <div className="topbar__mark" aria-hidden="true">
@@ -51,11 +73,12 @@ export default function TopBar({
       <button
         type="button"
         className="topbar__btn"
-        disabled
-        title="Сканирование источников — Phase 2"
+        disabled={!currentProject || scanning}
+        title={scanning ? 'Идёт сканирование источников…' : 'Сканировать источники сейчас'}
+        onClick={() => void window.aecpilot.triggerScan()}
       >
         <ScanIcon width={14} height={14} />
-        Сканировать
+        {scanning ? 'Сканирование…' : 'Сканировать'}
       </button>
 
       <div className="topbar__spacer" />

@@ -188,6 +188,20 @@ export function listProjectSources(vaultPath: string): ProjectSource[] {
   return result.ok ? result.config.sources : []
 }
 
+// specs/workspace-sources.md § Data schemas: settings.scan_interval_s
+// default. Only used as a fallback if project.json can't be read right after
+// it was just opened/created — the schema itself requires the field once the
+// config parses at all (project-config.ts's validateSettings).
+const DEFAULT_SCAN_INTERVAL_S = 300
+
+/** Reads a project's configured scan interval (task 1.14, backs the scan
+ * scheduler's `start`/`restart` on project open/create). Falls back to
+ * `DEFAULT_SCAN_INTERVAL_S` if `project.json` can't be read/validated. */
+export function getScanIntervalSeconds(vaultPath: string): number {
+  const result = readProjectConfigFile(vaultPath)
+  return result.ok ? result.config.settings.scan_interval_s : DEFAULT_SCAN_INTERVAL_S
+}
+
 function findSourceById(vaultPath: string, sourceId: string): ProjectSource | undefined {
   return listProjectSources(vaultPath).find((s) => s.id === sourceId)
 }

@@ -4,6 +4,9 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = []
 
+[project.scripts]
+aec-rag = "aec_rag.__main__:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

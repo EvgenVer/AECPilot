@@ -29,6 +29,19 @@ const api: AecpilotApi = {
   renameVaultEntry: (rel, newName) => ipcRenderer.invoke('vault:rename', { rel, newName }),
   deleteVaultEntry: (rel) => ipcRenderer.invoke('vault:delete', { rel }),
   showVaultEntryInExplorer: (rel) => ipcRenderer.invoke('vault:show-in-explorer', { rel }),
+  getScanState: () => ipcRenderer.invoke('scan:get-state'),
+  triggerScan: () => ipcRenderer.invoke('scan:trigger'),
+  onScanState: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, scanning: boolean): void => cb(scanning)
+    ipcRenderer.on('scan:state', listener)
+    return () => ipcRenderer.removeListener('scan:state', listener)
+  },
+  onScanReport: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, report: Parameters<typeof cb>[0]): void =>
+      cb(report)
+    ipcRenderer.on('scan:report', listener)
+    return () => ipcRenderer.removeListener('scan:report', listener)
+  },
   onProjectOpened: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

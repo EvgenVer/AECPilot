@@ -11,6 +11,7 @@ import { generateVault } from '../project/vault-generator'
 import {
   addSourceToProject,
   createProject,
+  getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
   openProject
@@ -480,5 +481,49 @@ describe('getSourceStatusResult', () => {
       ok: true,
       status: 'unavailable'
     })
+  })
+})
+
+describe('getScanIntervalSeconds', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-scan-interval-')
+    vaultPath = path.join(parent, 'vault')
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it("reads generateVault's default (300s) from a freshly created vault", () => {
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+
+    expect(getScanIntervalSeconds(vaultPath)).toBe(300)
+  })
+
+  it('reads a non-default configured value', () => {
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+    const configPath = path.join(vaultPath, '.aecpilot', 'project.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    config.settings.scan_interval_s = 60
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+
+    expect(getScanIntervalSeconds(vaultPath)).toBe(60)
+  })
+
+  it('falls back to the 300s default when project.json is unreadable', () => {
+    expect(getScanIntervalSeconds(vaultPath)).toBe(300)
   })
 })

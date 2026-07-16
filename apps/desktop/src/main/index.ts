@@ -24,6 +24,7 @@ import {
 import {
   addSourceToProject,
   createProject,
+  getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
   listProjectSources,
@@ -31,6 +32,8 @@ import {
   type OpenProject
 } from './project-manager'
 import { loadRecents, recordRecent } from './recents'
+import { runScan } from './scan-runner'
+import { ScanScheduler } from './scan-scheduler'
 import {
   buildVaultTree,
   createDirEntry,
@@ -38,6 +41,7 @@ import {
   renameEntry,
   resolveVaultEntryRel
 } from './vault-fs'
+import type { ScanReport } from '../shared/ipc'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -92,6 +96,63 @@ let currentProject: OpenProject | undefined
 // not overwrite the newer sessionId with its own stale result.
 let sessionEpoch = 0
 let ensureSessionPromise: Promise<string> | undefined
+
+// Task 1.14: the last completed scan's report, if any — read by
+// `scan:get-state` so a renderer that mounts after a scan already finished
+// (or between sessions) can hydrate without waiting for the next one. The
+// actual scan (spawning the aec-rag CLI) and its schedule live in
+// scanScheduler; this and `scanning` below just mirror its callbacks for
+// polling/broadcast.
+let lastScanReport: ScanReport | null = null
+let scanning = false
+
+// Runs `aec-rag scan` against whichever project is open *at scan time* (read
+// via the closure below, not captured at construction) — one long-lived
+// scheduler instance survives project switches; project:create/project:open
+// call `.start()` with the newly-opened project's settings.scan_interval_s,
+// and a project switch mid-scan just means that in-flight scan's report
+// still lands (against the project it was started for), same as any other
+// async operation racing a project switch elsewhere in this file.
+const scanScheduler = new ScanScheduler<ScanReport>(
+  () => {
+    if (!currentProject) return Promise.reject(new Error('нет открытого проекта'))
+    return runScan(currentProject.vaultPath)
+  },
+  {
+    onScanStart: () => {
+      scanning = true
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('scan:state', true)
+    },
+    onReport: (report) => {
+      scanning = false
+      lastScanReport = report
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('scan:state', false)
+        win.webContents.send('scan:report', report)
+      }
+    },
+    onError: (error: unknown) => {
+      scanning = false
+      console.error('aecpilot: scan FAIL', error)
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('scan:state', false)
+    }
+  }
+)
+
+// (Re)starts scanScheduler for a newly opened/created project (task 1.14):
+// resets the last report (review fix, minor 4 — otherwise `scan:get-state`
+// would hand a freshly-opened project B a report that's actually project A's,
+// left over from before the switch), and clamps the configured interval
+// (review fix, nit) — project-config.ts's validator only requires
+// scan_interval_s > 0, no upper bound, and `setTimeout` silently clamps any
+// delay past Node's signed-32-bit max to 1ms, which would otherwise turn an
+// absurdly large configured interval into a scan storm.
+const MAX_SET_TIMEOUT_MS = 2 ** 31 - 1
+function startScanSchedulerForProject(vaultPath: string): void {
+  lastScanReport = null
+  scanScheduler.start(Math.min(getScanIntervalSeconds(vaultPath) * 1000, MAX_SET_TIMEOUT_MS))
+}
+
 // Mirrors the gateway's connection state so a freshly-loaded renderer can pull
 // the current value on mount (see `gateway:get-state`). The initial 'ready'
 // fires while no window exists to receive the push, so a push-only channel
@@ -423,6 +484,7 @@ ipcMain.handle('project:create', (_event, payload: unknown) => {
   if (!result.ok) return result
 
   currentProject = result.project
+  startScanSchedulerForProject(result.project.vaultPath)
   try {
     recordRecent({ ...result.project, openedAt: new Date().toISOString() })
   } catch (error: unknown) {
@@ -461,6 +523,7 @@ ipcMain.handle('project:open', (_event, payload: unknown) => {
   if (!result.ok) return result
 
   currentProject = result.project
+  startScanSchedulerForProject(result.project.vaultPath)
   try {
     recordRecent({ ...result.project, openedAt: new Date().toISOString() })
   } catch (error: unknown) {
@@ -475,6 +538,19 @@ ipcMain.handle('project:open', (_event, payload: unknown) => {
 })
 
 ipcMain.handle('project:get-current', () => currentProject ?? null)
+
+// Task 1.14: "сканировать сейчас" — fires an immediate scan (a no-op if one
+// is already in flight; watch scan:state/scan:report for the outcome, not
+// this call's resolution). `scan:get-state` mirrors gateway:get-state's
+// hydrate-on-mount pattern for the renderer's minimal "идёт сканирование"
+// indicator.
+ipcMain.handle('scan:trigger', () => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  void scanScheduler.triggerNow()
+  return { ok: true }
+})
+
+ipcMain.handle('scan:get-state', () => ({ scanning, lastReport: lastScanReport }))
 
 ipcMain.handle('project:list-recents', () => loadRecents())
 

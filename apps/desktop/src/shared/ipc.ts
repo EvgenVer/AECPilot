@@ -75,6 +75,27 @@ export type SourceStatusResult =
  * display next to the explorer toolbar. */
 export type VaultOpResult = { ok: true } | { ok: false; error: string }
 
+/** One source's change report from an `aec-rag scan` run (task 1.14) —
+ * mirrors `scan_source`'s return shape (mcp/aec_rag/src/aec_rag/indexer.py):
+ * `root_unavailable` means the source's root couldn't be reached during this
+ * scan (network share dropped, …) — every other field stays at its default
+ * in that case, the existing index is left untouched. */
+export interface SourceScanReport {
+  added: string[]
+  changed: string[]
+  deleted: string[]
+  unchanged: number
+  root_unavailable: boolean
+}
+
+/** Full report of one scan cycle (task 1.14): one `SourceScanReport` per
+ * connected source, keyed by source id. Consumed by task 1.15's
+ * change-notification UI; this task only makes it available (broadcast +
+ * last-report snapshot). */
+export interface ScanReport {
+  sources: Record<string, SourceScanReport>
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -223,4 +244,23 @@ export interface AecpilotApi {
    * (specs/workspace-sources.md § API contracts, UI operations) —
    * read-only, never modifies the vault. */
   showVaultEntryInExplorer(rel: string): Promise<VaultOpResult>
+  /** Reads the scan scheduler's current state (task 1.14): whether a scan is
+   * in flight right now, and the most recent completed report (`null` if no
+   * scan has finished yet this session). Mirrors `getGatewayState`'s
+   * hydrate-on-mount pattern — a scan can start/finish before the renderer
+   * subscribes to `onScanState`/`onScanReport`. */
+  getScanState(): Promise<{ scanning: boolean; lastReport: ScanReport | null }>
+  /** "Сканировать сейчас" — triggers an immediate scan of the current
+   * project's sources. A no-op (still `ok: true`) if a scan is already in
+   * flight; `ok: false` if no project is open. Resolves as soon as the scan
+   * is *requested*, not once it completes — watch `onScanState`/
+   * `onScanReport` for the outcome. */
+  triggerScan(): Promise<{ ok: boolean; error?: string }>
+  /** Subscribes to "a scan started/finished" state changes (task 1.14) — the
+   * UI's minimal "идёт сканирование" indicator. Returns an unsubscribe
+   * function. */
+  onScanState(cb: (scanning: boolean) => void): () => void
+  /** Subscribes to completed scan reports (task 1.14). Returns an
+   * unsubscribe function. */
+  onScanReport(cb: (report: ScanReport) => void): () => void
 }
