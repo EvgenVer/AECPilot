@@ -41,7 +41,7 @@ import {
   renameEntry,
   resolveVaultEntryRel
 } from './vault-fs'
-import type { ScanReport } from '../shared/ipc'
+import type { ScanReportEnvelope } from '../shared/ipc'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -102,8 +102,9 @@ let ensureSessionPromise: Promise<string> | undefined
 // (or between sessions) can hydrate without waiting for the next one. The
 // actual scan (spawning the aec-rag CLI) and its schedule live in
 // scanScheduler; this and `scanning` below just mirror its callbacks for
-// polling/broadcast.
-let lastScanReport: ScanReport | null = null
+// polling/broadcast. Tagged as a `ScanReportEnvelope` (task 1.15 fix-
+// iteration 1, review major) — see that type's doc comment for why.
+let lastScanReport: ScanReportEnvelope | null = null
 let scanning = false
 
 // Runs `aec-rag scan` against whichever project is open *at scan time* (read
@@ -113,22 +114,29 @@ let scanning = false
 // and a project switch mid-scan just means that in-flight scan's report
 // still lands (against the project it was started for), same as any other
 // async operation racing a project switch elsewhere in this file.
-const scanScheduler = new ScanScheduler<ScanReport>(
+const scanScheduler = new ScanScheduler<ScanReportEnvelope>(
   () => {
     if (!currentProject) return Promise.reject(new Error('нет открытого проекта'))
-    return runScan(currentProject.vaultPath)
+    // Fix-iteration 1 (review major, task 1.15): `vaultPath` is captured
+    // here — this runner fires synchronously when the scan *starts*, not
+    // when it resolves — so a scan begun against project A stays tagged A
+    // even if the user switches to project B before `runScan` returns.
+    // Renderer subscribers must drop an envelope whose vaultPath doesn't
+    // match the project that's current *for them*.
+    const vaultPath = currentProject.vaultPath
+    return runScan(vaultPath).then((report) => ({ vaultPath, report }))
   },
   {
     onScanStart: () => {
       scanning = true
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('scan:state', true)
     },
-    onReport: (report) => {
+    onReport: (envelope) => {
       scanning = false
-      lastScanReport = report
+      lastScanReport = envelope
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send('scan:state', false)
-        win.webContents.send('scan:report', report)
+        win.webContents.send('scan:report', envelope)
       }
     },
     onError: (error: unknown) => {

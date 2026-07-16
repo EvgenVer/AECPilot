@@ -96,6 +96,19 @@ export interface ScanReport {
   sources: Record<string, SourceScanReport>
 }
 
+/** A `ScanReport` tagged with the vault it belongs to (task 1.15 fix-iteration
+ * 1, review major): `main`'s scan runner captures `vaultPath` at the moment a
+ * scan *starts* (not when it completes), so a scan that began against
+ * project A stays tagged A even if the user switches to project B before it
+ * finishes — `scan:report`/`scan:get-state` always carry this envelope, never
+ * a bare `ScanReport`, so a late report can never be mistaken for the
+ * now-current project's. Consumers (`ScanNotification`) must drop an
+ * envelope whose `vaultPath` doesn't match the currently-open project. */
+export interface ScanReportEnvelope {
+  vaultPath: string
+  report: ScanReport
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -246,10 +259,11 @@ export interface AecpilotApi {
   showVaultEntryInExplorer(rel: string): Promise<VaultOpResult>
   /** Reads the scan scheduler's current state (task 1.14): whether a scan is
    * in flight right now, and the most recent completed report (`null` if no
-   * scan has finished yet this session). Mirrors `getGatewayState`'s
+   * scan has finished yet this session, or the project was switched since —
+   * `main` resets it on every project switch). Mirrors `getGatewayState`'s
    * hydrate-on-mount pattern — a scan can start/finish before the renderer
    * subscribes to `onScanState`/`onScanReport`. */
-  getScanState(): Promise<{ scanning: boolean; lastReport: ScanReport | null }>
+  getScanState(): Promise<{ scanning: boolean; lastReport: ScanReportEnvelope | null }>
   /** "Сканировать сейчас" — triggers an immediate scan of the current
    * project's sources. A no-op (still `ok: true`) if a scan is already in
    * flight; `ok: false` if no project is open. Resolves as soon as the scan
@@ -260,7 +274,10 @@ export interface AecpilotApi {
    * UI's minimal "идёт сканирование" indicator. Returns an unsubscribe
    * function. */
   onScanState(cb: (scanning: boolean) => void): () => void
-  /** Subscribes to completed scan reports (task 1.14). Returns an
-   * unsubscribe function. */
-  onScanReport(cb: (report: ScanReport) => void): () => void
+  /** Subscribes to completed scan reports (task 1.14), each tagged with the
+   * vault it was scanned against (`ScanReportEnvelope`, task 1.15 fix-
+   * iteration 1) — a late report from a project the user has since switched
+   * away from must be checked against the currently-open project before
+   * use. Returns an unsubscribe function. */
+  onScanReport(cb: (envelope: ScanReportEnvelope) => void): () => void
 }

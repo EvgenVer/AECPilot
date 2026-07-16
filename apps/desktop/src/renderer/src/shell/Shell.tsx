@@ -5,6 +5,7 @@ import CenterArea from './CenterArea'
 import StatusBar from './StatusBar'
 import TopBar from './TopBar'
 import CreateProjectDialog from './CreateProjectDialog'
+import ScanNotification from './ScanNotification'
 import type { ActivityId } from './activities'
 import ChatDock from '../chat/ChatDock'
 import { chatReducer, initialChatState } from '../chat/chat-state'
@@ -16,7 +17,9 @@ import type { OpenProject } from '../../../shared/ipc'
  * dock carries over all of Phase 0's chat functionality unchanged (reducer,
  * IPC) — this component only owns shell-level UI state (active activity,
  * settings popover, connection state for the status bar, current project /
- * create-project modal — task 1.3). */
+ * create-project modal — task 1.3). `ScanNotification` (task 1.15) is
+ * self-contained — it subscribes to scan reports itself, so it only needs
+ * `currentProject` here to clear itself on a project switch. */
 export default function Shell() {
   const [activity, setActivity] = useState<ActivityId>('explorer')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -93,6 +96,7 @@ export default function Shell() {
         }}
       />
       {createProjectOpen && <CreateProjectDialog onClose={() => setCreateProjectOpen(false)} />}
+      <ScanNotification currentProject={currentProject} />
     </div>
   )
 }
