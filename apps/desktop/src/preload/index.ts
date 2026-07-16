@@ -17,6 +17,7 @@ const api: AecpilotApi = {
   createProject: (dirPath, name) => ipcRenderer.invoke('project:create', { dirPath, name }),
   getCurrentProject: () => ipcRenderer.invoke('project:get-current'),
   listRecentProjects: () => ipcRenderer.invoke('project:list-recents'),
+  openProject: (vaultPath) => ipcRenderer.invoke('project:open', { vaultPath }),
   onProjectOpened: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

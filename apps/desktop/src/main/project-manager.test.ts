@@ -1,12 +1,14 @@
-// Unit tests for task 1.3's createProject — the electron-free orchestration
-// of "validate name + read template + generateVault" behind project:create.
+// Unit tests for task 1.3's createProject (validate name + read template +
+// generateVault behind project:create) and task 1.4's openProject
+// (read + validate an existing vault's project.json behind project:open).
 
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateProjectConfig } from '../project/project-config'
-import { createProject } from './project-manager'
+import { generateVault } from '../project/vault-generator'
+import { createProject, openProject } from './project-manager'
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
@@ -115,6 +117,66 @@ describe('createProject — target path is a file', () => {
       expect(result).toEqual({ ok: false, error: 'Указанный путь — файл, а не папка' })
     } finally {
       fs.rmSync(parent, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('openProject', () => {
+  let parent: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-open-project-')
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('opens a valid vault (fixture via generateVault), taking the name from project.json — not the folder name', () => {
+    const vaultPath = path.join(parent, 'some-folder-name')
+    generateVault({ vaultPath, projectName: 'Объект-Y', agentsTemplate: AGENTS_TEMPLATE })
+
+    const result = openProject(vaultPath)
+
+    expect(result).toEqual({ ok: true, project: { name: 'Объект-Y', vaultPath } })
+  })
+
+  it('rejects a folder with no .aecpilot/project.json', () => {
+    const vaultPath = path.join(parent, 'not-a-vault')
+    fs.mkdirSync(vaultPath)
+
+    const result = openProject(vaultPath)
+
+    expect(result).toEqual({ ok: false, error: 'Папка не является проектом AECPilot' })
+  })
+
+  it('rejects a corrupt (non-JSON) project.json', () => {
+    const vaultPath = path.join(parent, 'broken-json-vault')
+    fs.mkdirSync(path.join(vaultPath, '.aecpilot'), { recursive: true })
+    fs.writeFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), '{ not valid json')
+
+    const result = openProject(vaultPath)
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Файл .aecpilot/project.json повреждён (невалидный JSON)'
+    })
+  })
+
+  it('rejects a schema-invalid project.json, listing the errors', () => {
+    const vaultPath = path.join(parent, 'invalid-config-vault')
+    fs.mkdirSync(path.join(vaultPath, '.aecpilot'), { recursive: true })
+    fs.writeFileSync(
+      path.join(vaultPath, '.aecpilot', 'project.json'),
+      JSON.stringify({ schema_version: 1, name: '' })
+    )
+
+    const result = openProject(vaultPath)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('Некорректный project.json')
+      expect(result.error).toContain('name')
     }
   })
 })

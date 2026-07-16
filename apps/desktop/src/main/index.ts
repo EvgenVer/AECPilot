@@ -21,7 +21,7 @@ import {
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
-import { createProject, type OpenProject } from './project-manager'
+import { createProject, openProject, type OpenProject } from './project-manager'
 import { loadRecents, recordRecent } from './recents'
 
 interface ServeHandle {
@@ -68,8 +68,9 @@ let serveHandle: ServeHandle | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
-// Task 1.3: the vault currently open, if any. Opening/switching between
-// existing projects is task 1.4 — this is only ever set by project:create.
+// Tasks 1.3/1.4: the vault currently open, if any — set by project:create or
+// project:open. Switching projects mid-session just replaces this; chat
+// sessions aren't tied to a project yet (that binding lands later).
 let currentProject: OpenProject | undefined
 // Bumped whenever sessions:new/sessions:switch assign sessionId directly, so
 // an in-flight ensureSession() create can detect it was superseded and must
@@ -412,6 +413,44 @@ ipcMain.handle('project:create', (_event, payload: unknown) => {
   } catch (error: unknown) {
     // Best-effort — a broken recents file must never block opening the
     // freshly-created project.
+    console.error('aecpilot: could not record recent project', error)
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('project:opened', result.project)
+  }
+  return result
+})
+
+// Task 1.4: opens an existing vault (`.aecpilot/project.json` already
+// present — see project-manager.ts's openProject for the read/validate
+// logic). Re-opening the already-open project (same vaultPath) is a no-op
+// success, without re-recording the recent entry or re-broadcasting
+// project:opened — the UI already reflects it.
+ipcMain.handle('project:open', (_event, payload: unknown) => {
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { vaultPath } = payload as Record<string, unknown>
+  if (typeof vaultPath !== 'string' || vaultPath.length === 0) {
+    return { ok: false, error: 'vaultPath must be a non-empty string' }
+  }
+  if (!isAbsolute(vaultPath)) {
+    return { ok: false, error: 'путь к папке должен быть абсолютным' }
+  }
+
+  if (currentProject && currentProject.vaultPath === vaultPath) {
+    return { ok: true, project: currentProject }
+  }
+
+  const result = openProject(vaultPath)
+  if (!result.ok) return result
+
+  currentProject = result.project
+  try {
+    recordRecent({ ...result.project, openedAt: new Date().toISOString() })
+  } catch (error: unknown) {
+    // Best-effort — a broken recents file must never block opening the
+    // project.
     console.error('aecpilot: could not record recent project', error)
   }
   for (const win of BrowserWindow.getAllWindows()) {

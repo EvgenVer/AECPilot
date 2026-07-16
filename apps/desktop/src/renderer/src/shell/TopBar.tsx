@@ -1,18 +1,18 @@
-import { FilesIcon, ScanIcon, SearchIcon, SettingsIcon } from './icons'
+import { ScanIcon, SearchIcon, SettingsIcon } from './icons'
+import ProjectMenu from './ProjectMenu'
 import SettingsPanel from '../chat/SettingsPanel'
 import type { OpenProject } from '../../../shared/ipc'
 
 /** Top bar (task 1.0): app identity + inert placeholders matching the
- * approved shell layout (design/DESIGN_BRIEF.md §3). The project placeholder
- * is wired to open the create-project modal (task 1.3) while no project is
- * open; once one is, it shows the project name and creating another is out
- * of scope (opening/switching is task 1.4). The command palette trigger and
- * "scan now" stay visual-only — no command palette task scheduled, scanning
- * is Phase 2. The settings entry point reuses the existing LLM settings
- * popover from Phase 0, anchored here (a `position: relative` wrapper around
- * this gear button) even though the rail's bottom settings icon can also
- * open it — both triggers share the one `settingsOpen` state lifted to
- * Shell. */
+ * approved shell layout (design/DESIGN_BRIEF.md §3). The project button
+ * opens `ProjectMenu` (task 1.4: open existing / create / recents), whether
+ * or not a project is currently open — switching mid-session just replaces
+ * `currentProject` in main. The command palette trigger and "scan now" stay
+ * visual-only — no command palette task scheduled, scanning is Phase 2. The
+ * settings entry point reuses the existing LLM settings popover from Phase
+ * 0, anchored here (a `position: relative` wrapper around this gear button)
+ * even though the rail's bottom settings icon can also open it — both
+ * triggers share the one `settingsOpen` state lifted to Shell. */
 export default function TopBar({
   settingsOpen,
   settingsDisabled,
@@ -35,20 +35,7 @@ export default function TopBar({
       <div className="topbar__mark" aria-hidden="true">
         A
       </div>
-      <button
-        type="button"
-        className="topbar__btn"
-        disabled={currentProject !== null}
-        onClick={currentProject === null ? onOpenCreateProject : undefined}
-        title={
-          currentProject
-            ? currentProject.vaultPath
-            : 'Создать проект — выбрать пустую папку (задача 1.4: открытие существующего — позже)'
-        }
-      >
-        <FilesIcon width={14} height={14} />
-        <span>{currentProject ? currentProject.name : 'Проект не открыт'}</span>
-      </button>
+      <ProjectMenu currentProject={currentProject} onOpenCreateProject={onOpenCreateProject} />
 
       <button
         type="button"

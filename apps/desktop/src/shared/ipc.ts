@@ -9,9 +9,8 @@ import type {
   SessionSummary
 } from './gateway/types'
 
-/** The currently-open project (task 1.3). Opening/switching between
- * existing projects is task 1.4 — for now this is only ever set by
- * `createProject`. */
+/** The currently-open project (tasks 1.3/1.4) — set by `createProject` or
+ * `openProject`. */
 export interface OpenProject {
   name: string
   vaultPath: string
@@ -109,11 +108,18 @@ export interface AecpilotApi {
   ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
   /** Reads the currently-open project, if any. */
   getCurrentProject(): Promise<OpenProject | null>
-  /** Lists recently created/opened projects, most-recent first. Re-opening
-   * one of these by clicking it is out of scope here (task 1.4) — this is
-   * read-only. */
+  /** Lists recently created/opened projects, most-recent first. */
   listRecentProjects(): Promise<RecentProject[]>
   /** Subscribes to "a project was created/opened" events (task 1.3/1.4).
    * Returns an unsubscribe function. */
   onProjectOpened(cb: (project: OpenProject) => void): () => void
+  /** Opens an existing vault at `vaultPath` (must contain a valid
+   * `.aecpilot/project.json`, task 1.4), records it as the most-recent
+   * project, and makes it the current open project (see `onProjectOpened`).
+   * Re-opening the already-open project is a no-op success. `error` is a
+   * human-readable message suitable for display next to the recents entry or
+   * the open-project action. */
+  openProject(
+    vaultPath: string
+  ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
 }
