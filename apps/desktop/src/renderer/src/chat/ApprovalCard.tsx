@@ -29,56 +29,49 @@ export default function ApprovalCard({
   }
 
   return (
-    <div
-      style={{
-        margin: '0 12px 8px',
-        borderRadius: 8,
-        background: '#fff8e6',
-        border: '1px solid #e8c95a',
-        fontSize: 13
-      }}
-    >
-      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontWeight: 600 }}>Агент запрашивает разрешение</div>
-        <div>{request.description}</div>
-        <pre
-          style={{
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: 12,
-            background: '#fff',
-            border: '1px solid #e8c95a',
-            borderRadius: 4,
-            padding: 6
-          }}
+    <div className="approval-card">
+      <div className="approval-card__head">Агент запрашивает разрешение</div>
+      <div className="approval-card__desc">{request.description}</div>
+      <pre className="approval-card__cmd">{request.command}</pre>
+      {queueLength > 1 && (
+        <div className="approval-card__queue">ещё {queueLength - 1} в очереди</div>
+      )}
+      {error && <div className="approval-card__error">{error}</div>}
+      <div className="approval-card__actions">
+        <button
+          type="button"
+          className="approval-card__btn approval-card__btn--primary"
+          disabled={pending}
+          onClick={() => void respond('once')}
         >
-          {request.command}
-        </pre>
-        {queueLength > 1 && (
-          <div style={{ opacity: 0.6, fontSize: 12 }}>ещё {queueLength - 1} в очереди</div>
-        )}
-        {error && <div style={{ color: '#c33', fontSize: 12 }}>{error}</div>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button disabled={pending} onClick={() => void respond('once')}>
-            Разрешить
-          </button>
-          <button disabled={pending} onClick={() => void respond('session')}>
-            На сессию
-          </button>
-          {request.allowPermanent && (
-            <button disabled={pending} onClick={() => void respond('always')}>
-              Всегда
-            </button>
-          )}
+          Разрешить
+        </button>
+        <button
+          type="button"
+          className="approval-card__btn"
+          disabled={pending}
+          onClick={() => void respond('session')}
+        >
+          На сессию
+        </button>
+        {request.allowPermanent && (
           <button
+            type="button"
+            className="approval-card__btn"
             disabled={pending}
-            onClick={() => void respond('deny')}
-            style={{ color: '#c33', borderColor: '#c33' }}
+            onClick={() => void respond('always')}
           >
-            Отклонить
+            Всегда
           </button>
-        </div>
+        )}
+        <button
+          type="button"
+          className="approval-card__btn approval-card__btn--danger"
+          disabled={pending}
+          onClick={() => void respond('deny')}
+        >
+          Отклонить
+        </button>
       </div>
     </div>
   )

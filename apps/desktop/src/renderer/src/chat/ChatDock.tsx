@@ -1,0 +1,143 @@
+import { useRef, useState } from 'react'
+import type { Dispatch } from 'react'
+import type { ChatAction, ChatState } from './chat-state'
+import ToolCallCard from './ToolCallCard'
+import ApprovalCard from './ApprovalCard'
+import SessionMenu from './SessionMenu'
+import { AttachIcon, SendIcon } from '../shell/icons'
+import type { GatewayConnectionState } from '../../../shared/gateway/types'
+
+/** Right-hand chat dock (task 1.0): the Phase 0 chat panel (0.11–0.17),
+ * restyled to sit in the workspace shell's chat dock region per
+ * design/screens/Shell.html — reducer/IPC calls are unchanged, only the
+ * layout/markup moved. Connection state (no dot here — see StatusBar.tsx)
+ * and the approvals-mode indicator now live in the shell's status bar; the
+ * LLM settings popover moved to the top bar (TopBar.tsx) — this dock keeps
+ * only the session selector, transcript and composer. */
+export default function ChatDock({
+  state,
+  dispatch,
+  connectionState
+}: {
+  state: ChatState
+  dispatch: Dispatch<ChatAction>
+  connectionState: GatewayConnectionState
+}) {
+  const [draft, setDraft] = useState('')
+  const [submitError, setSubmitError] = useState<string | undefined>(undefined)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const awaitingApproval = state.approvals.length > 0
+  const canSend =
+    draft.trim().length > 0 && !state.streaming && connectionState === 'ready' && !awaitingApproval
+
+  async function handleSend(): Promise<void> {
+    const text = draft.trim()
+    if (!text || state.streaming || connectionState !== 'ready') return
+    setSubmitError(undefined)
+    setDraft('')
+    dispatch({ kind: 'user-submit', text })
+    try {
+      await window.aecpilot.submitPrompt(text)
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void handleSend()
+    }
+  }
+
+  function handleDraftChange(event: React.ChangeEvent<HTMLTextAreaElement>): void {
+    setDraft(event.target.value)
+    const el = textareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 132)}px`
+    }
+  }
+
+  return (
+    <div className="chat-dock">
+      <div className="chat-dock__header">
+        <SessionMenu
+          disabled={state.streaming || awaitingApproval}
+          currentLabel="Сессия"
+          onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
+          onError={setSubmitError}
+        />
+      </div>
+
+      <div className="chat-dock__feed">
+        {state.items.map((item) =>
+          item.kind === 'tool' ? (
+            <ToolCallCard key={item.toolId} call={item} />
+          ) : (
+            <div
+              key={item.id}
+              className={
+                item.role === 'user' ? 'message message--user' : 'message message--assistant'
+              }
+            >
+              {item.text}
+              {item.status === 'error' && <div className="message__error">ошибка</div>}
+            </div>
+          )
+        )}
+      </div>
+
+      {submitError && <div className="chat-dock__error">{submitError}</div>}
+
+      {awaitingApproval && (
+        <ApprovalCard
+          request={state.approvals[0]}
+          queueLength={state.approvals.length}
+          onResolved={(resolved) => dispatch({ kind: 'approvals-resolved', count: resolved })}
+        />
+      )}
+
+      <div className="chat-dock__composer">
+        <div className="composer">
+          <textarea
+            ref={textareaRef}
+            className="composer__input"
+            rows={1}
+            value={draft}
+            onChange={handleDraftChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Спросите про проект…"
+            // Disabled while awaiting an approval or mid-stream (Phase 0
+            // behavior — sending was already blocked, now so is typing).
+            // Deliberately NOT disabled on connectionState !== 'ready': the
+            // user can keep drafting while the gateway reconnects.
+            disabled={awaitingApproval || state.streaming}
+          />
+          <div className="composer__row">
+            <button
+              type="button"
+              className="composer__icon-btn"
+              disabled
+              title="Вложения — Phase 2+"
+              aria-label="Прикрепить файл"
+            >
+              <AttachIcon width={16} height={16} />
+            </button>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              className="composer__send"
+              onClick={() => void handleSend()}
+              disabled={!canSend}
+              aria-label="Отправить"
+            >
+              <SendIcon width={16} height={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

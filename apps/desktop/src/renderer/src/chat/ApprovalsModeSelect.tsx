@@ -62,25 +62,13 @@ export default function ApprovalsModeSelect({
 
   return (
     <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        fontSize: 12,
-        color: mode === 'off' ? '#a72' : 'inherit'
-      }}
+      className={mode === 'off' ? 'approvals-select approvals-select--off' : 'approvals-select'}
     >
       Одобрения:
       <select
         value={mode}
         onChange={(event) => void handleChange(event.target.value as ApprovalMode)}
         disabled={disabled || saving}
-        style={{
-          font: 'inherit',
-          fontSize: 12,
-          padding: '2px 4px',
-          color: mode === 'off' ? '#a72' : 'inherit'
-        }}
       >
         {MODE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value} title={option.title}>

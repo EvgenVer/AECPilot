@@ -69,9 +69,9 @@ test.afterAll(async () => {
 test('chat panel connects to the mock gateway and streams a reply', async () => {
   const page = await app.firstWindow()
 
-  await expect(page.getByText('Connected')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('Подключено')).toBeVisible({ timeout: 15000 })
 
-  const input = page.getByPlaceholder('Type a message…')
+  const input = page.getByPlaceholder('Спросите про проект…')
   await input.fill('ping')
   await input.press('Enter')
 

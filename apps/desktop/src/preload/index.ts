@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AecpilotApi } from '../shared/ipc'
 
 const api: AecpilotApi = {
+  showWelcome: process.env.AEC_SHOW_WELCOME === '1',
   submitPrompt: (text) => ipcRenderer.invoke('chat:submit', text),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),

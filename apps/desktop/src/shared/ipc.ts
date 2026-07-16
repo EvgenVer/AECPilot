@@ -10,6 +10,12 @@ import type {
 } from './gateway/types'
 
 export interface AecpilotApi {
+  /** Whether to show the Welcome/"choose a project" screen instead of the
+   * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
+   * at preload time — there is no project system yet (Phase 1.3/1.4), so
+   * this is a dev-only flag to preview the Welcome screen; the normal
+   * autostart-into-shell flow (and e2e) is unaffected when it's unset. */
+  showWelcome: boolean
   /** Submits a prompt to the (lazily created) chat session. Resolves once
    * the gateway has accepted it for streaming; rejects on failure. */
   submitPrompt(text: string): Promise<void>

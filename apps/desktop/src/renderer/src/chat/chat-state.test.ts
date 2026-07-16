@@ -3,7 +3,7 @@
 // vitest's node environment (see apps/desktop/vitest.config.ts).
 
 import { describe, expect, it } from 'vitest'
-import { chatReducer, initialChatState, type ChatState } from './chat-state'
+import { chatReducer, initialChatState, type ChatMessage, type ChatState } from './chat-state'
 import type { GatewayEvent, HistoryMessage } from '../../../shared/gateway/types'
 
 function ev(event: GatewayEvent): { kind: 'event'; event: GatewayEvent } {
@@ -14,7 +14,7 @@ describe('chatReducer', () => {
   it('appends a user message on user-submit', () => {
     const state = chatReducer(initialChatState, { kind: 'user-submit', text: 'hello' })
 
-    expect(state.items).toEqual([{ kind: 'message', role: 'user', text: 'hello' }])
+    expect(state.items).toEqual([{ kind: 'message', id: 0, role: 'user', text: 'hello' }])
     expect(state.streaming).toBe(false)
   })
 
@@ -33,8 +33,8 @@ describe('chatReducer', () => {
     )
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'user', text: 'hi' },
-      { kind: 'message', role: 'assistant', text: 'Hello!', status: 'complete' }
+      { kind: 'message', id: 0, role: 'user', text: 'hi' },
+      { kind: 'message', id: 1, role: 'assistant', text: 'Hello!', status: 'complete' }
     ])
     expect(state.streaming).toBe(false)
   })
@@ -49,7 +49,7 @@ describe('chatReducer', () => {
     )
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'assistant', text: 'the full final text', status: 'complete' }
+      { kind: 'message', id: 0, role: 'assistant', text: 'the full final text', status: 'complete' }
     ])
   })
 
@@ -70,7 +70,7 @@ describe('chatReducer', () => {
     const state = chatReducer(initialChatState, ev({ type: 'error', payload: { message: 'boom' } }))
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'assistant', text: 'boom', status: 'error' }
+      { kind: 'message', id: 0, role: 'assistant', text: 'boom', status: 'error' }
     ])
     expect(state.streaming).toBe(false)
   })
@@ -82,7 +82,7 @@ describe('chatReducer', () => {
     )
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'assistant', text: 'surprise', status: 'streaming' }
+      { kind: 'message', id: 0, role: 'assistant', text: 'surprise', status: 'streaming' }
     ])
     expect(state.streaming).toBe(true)
   })
@@ -132,7 +132,7 @@ describe('chatReducer', () => {
     )
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'assistant', text: 'answer', status: 'complete' }
+      { kind: 'message', id: 0, role: 'assistant', text: 'answer', status: 'complete' }
     ])
     expect(state.streaming).toBe(false)
   })
@@ -180,7 +180,7 @@ describe('chatReducer', () => {
         result: JSON.stringify({ files: ['a.md'] }, null, 2),
         status: 'complete'
       },
-      { kind: 'message', role: 'assistant', text: 'Found it.', status: 'complete' }
+      { kind: 'message', id: 0, role: 'assistant', text: 'Found it.', status: 'complete' }
     ])
   })
 
@@ -467,8 +467,8 @@ describe('chatReducer', () => {
     const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'user', text: 'hi' },
-      { kind: 'message', role: 'assistant', text: 'hello there', status: 'complete' },
+      { kind: 'message', id: 0, role: 'user', text: 'hi' },
+      { kind: 'message', id: 1, role: 'assistant', text: 'hello there', status: 'complete' },
       {
         kind: 'tool',
         toolId: 'hist-2',
@@ -488,7 +488,7 @@ describe('chatReducer', () => {
 
     const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
 
-    expect(state.items).toEqual([{ kind: 'message', role: 'user', text: 'kept' }])
+    expect(state.items).toEqual([{ kind: 'message', id: 0, role: 'user', text: 'kept' }])
   })
 
   it('session-loaded tolerates missing text/name/context fields without crashing', () => {
@@ -497,8 +497,8 @@ describe('chatReducer', () => {
     const state = chatReducer(initialChatState, { kind: 'session-loaded', messages })
 
     expect(state.items).toEqual([
-      { kind: 'message', role: 'user', text: '' },
-      { kind: 'message', role: 'assistant', text: '', status: 'complete' },
+      { kind: 'message', id: 0, role: 'user', text: '' },
+      { kind: 'message', id: 1, role: 'assistant', text: '', status: 'complete' },
       { kind: 'tool', toolId: 'hist-2', name: '', context: '', status: 'complete' }
     ])
   })
@@ -537,5 +537,63 @@ describe('chatReducer', () => {
     state = chatReducer(state, { kind: 'session-loaded', messages: [] })
 
     expect(state.items).toEqual([])
+  })
+
+  // --- task 1.0: stable/monotonic ChatMessage.id (nit from 0.12/0.14 review) ---
+
+  it('ChatMessage ids are monotonic across a user turn followed by an assistant turn', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, { kind: 'user-submit', text: 'q1' })
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: 'a1', status: 'complete' } })
+    )
+    state = chatReducer(state, { kind: 'user-submit', text: 'q2' })
+
+    const ids = state.items
+      .filter((item): item is ChatMessage => item.kind === 'message')
+      .map((item) => item.id)
+    expect(ids).toEqual([0, 1, 2])
+  })
+
+  it('a ChatMessage id is stable when a tool card is inserted before it, shifting its array index', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' })) // assistant message id 0, index 0
+    state = chatReducer(
+      state,
+      ev({
+        type: 'tool.start',
+        payload: { tool_id: 't1', name: 'search_files', context: 'looking' }
+      })
+    ) // tool card inserted before the empty streaming message -> message now at index 1
+
+    const beforeDelta = state.items.find((item): item is ChatMessage => item.kind === 'message')
+    expect(beforeDelta?.id).toBe(0)
+    expect(state.items.findIndex((item) => item.kind === 'message')).toBe(1)
+
+    state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'hi' } }))
+    const afterDelta = state.items.find((item): item is ChatMessage => item.kind === 'message')
+    expect(afterDelta?.id).toBe(0)
+  })
+
+  it('session-loaded assigns fresh sequential ids starting at 0, independent of prior state.nextId', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, { kind: 'user-submit', text: 'a' })
+    state = chatReducer(state, { kind: 'user-submit', text: 'b' })
+    expect(state.nextId).toBe(2)
+
+    state = chatReducer(state, {
+      kind: 'session-loaded',
+      messages: [
+        { role: 'user', text: 'x' },
+        { role: 'assistant', text: 'y' }
+      ]
+    })
+
+    expect(state.items).toEqual([
+      { kind: 'message', id: 0, role: 'user', text: 'x' },
+      { kind: 'message', id: 1, role: 'assistant', text: 'y', status: 'complete' }
+    ])
+    expect(state.nextId).toBe(2)
   })
 })

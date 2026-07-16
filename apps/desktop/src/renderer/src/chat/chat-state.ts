@@ -10,6 +10,11 @@ import {
 
 export interface ChatMessage {
   kind: 'message'
+  /** Monotonic, stable id assigned once at creation (task 1.0, nit from
+   * 0.12/0.14 review) — used as the React `key` instead of array index, so a
+   * tool card inserted before an in-flight streaming bubble (which shifts
+   * every later index) never causes it to remount. */
+  id: number
   role: 'user' | 'assistant'
   text: string
   status?: 'streaming' | 'complete' | 'error' | 'interrupted'
@@ -30,7 +35,7 @@ export type ChatItem = ChatMessage | ChatToolCall
 
 /** A pending `approval.request` from the agent. Approvals form a FIFO queue
  * per session (no request id) and are rendered pinned above the input, not
- * in the transcript — see ChatPanel/ApprovalCard. */
+ * in the transcript — see ChatDock/ApprovalCard. */
 export interface ApprovalRequest {
   command: string
   description: string
@@ -42,12 +47,15 @@ export interface ChatState {
   items: ChatItem[]
   streaming: boolean
   approvals: ApprovalRequest[]
+  /** Next id to assign to a newly-created `ChatMessage` (see `ChatMessage.id`). */
+  nextId: number
 }
 
 export const initialChatState: ChatState = {
   items: [],
   streaming: false,
-  approvals: []
+  approvals: [],
+  nextId: 0
 }
 
 export type ChatAction =
@@ -82,6 +90,16 @@ function normalizeToolResult(result: string | object): string {
   } catch {
     return result
   }
+}
+
+/** Creates a new `ChatMessage` with the next monotonic id from `nextId`,
+ * returning both the message and the incremented counter to store back on
+ * state. */
+function createMessage(
+  nextId: number,
+  fields: Omit<ChatMessage, 'kind' | 'id'>
+): { message: ChatMessage; nextId: number } {
+  return { message: { kind: 'message', id: nextId, ...fields }, nextId: nextId + 1 }
 }
 
 /** Index of the tool card with the given toolId, if one exists. */
@@ -124,6 +142,10 @@ function mapHistoryMessage(message: HistoryMessage, index: number): ChatItem | u
   if (message.role === 'user' || message.role === 'assistant') {
     return {
       kind: 'message',
+      // Placeholder — the reducer's 'session-loaded' branch reassigns real
+      // monotonic ids to every mapped message in order, since this function
+      // has no running counter of its own.
+      id: 0,
       role: message.role,
       text: message.text ?? '',
       status: message.role === 'assistant' ? 'complete' : undefined
@@ -143,10 +165,8 @@ function mapHistoryMessage(message: HistoryMessage, index: number): ChatItem | u
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.kind === 'user-submit') {
-    return {
-      ...state,
-      items: [...state.items, { kind: 'message', role: 'user', text: action.text }]
-    }
+    const { message, nextId } = createMessage(state.nextId, { role: 'user', text: action.text })
+    return { ...state, items: [...state.items, message], nextId }
   }
 
   if (action.kind === 'approvals-resolved') {
@@ -155,10 +175,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   }
 
   if (action.kind === 'session-loaded') {
-    const items = action.messages
+    const mapped = action.messages
       .map(mapHistoryMessage)
       .filter((item): item is ChatItem => item !== undefined)
-    return { items, approvals: [], streaming: false }
+    let nextId = 0
+    const items = mapped.map((item) => (item.kind === 'message' ? { ...item, id: nextId++ } : item))
+    return { items, approvals: [], streaming: false, nextId }
   }
 
   const { event } = action
@@ -171,28 +193,24 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   // events-parsing.test.ts.
 
   if (isGatewayEventOfType(event, 'message.start')) {
-    return {
-      ...state,
-      items: [
-        ...state.items,
-        { kind: 'message', role: 'assistant', text: '', status: 'streaming' }
-      ],
-      streaming: true
-    }
+    const { message, nextId } = createMessage(state.nextId, {
+      role: 'assistant',
+      text: '',
+      status: 'streaming'
+    })
+    return { ...state, items: [...state.items, message], nextId, streaming: true }
   }
 
   if (isGatewayEventOfType(event, 'message.delta')) {
     const index = inFlightIndex(state.items)
     if (index === undefined) {
       // Implicit start: a delta arrived with no prior message.start.
-      return {
-        ...state,
-        items: [
-          ...state.items,
-          { kind: 'message', role: 'assistant', text: event.payload.text, status: 'streaming' }
-        ],
-        streaming: true
-      }
+      const { message, nextId } = createMessage(state.nextId, {
+        role: 'assistant',
+        text: event.payload.text,
+        status: 'streaming'
+      })
+      return { ...state, items: [...state.items, message], nextId, streaming: true }
     }
     const items = [...state.items]
     const current = items[index] as ChatMessage
@@ -206,34 +224,31 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       event.payload.text || (index !== undefined ? (state.items[index] as ChatMessage).text : '')
     if (index === undefined) {
       // Implicit start: a complete arrived with no prior message.start/delta.
-      return {
-        ...state,
-        items: [
-          ...state.items,
-          { kind: 'message', role: 'assistant', text: finalText, status: event.payload.status }
-        ],
-        streaming: false
-      }
+      const { message, nextId } = createMessage(state.nextId, {
+        role: 'assistant',
+        text: finalText,
+        status: event.payload.status
+      })
+      return { ...state, items: [...state.items, message], nextId, streaming: false }
     }
     const items = [...state.items]
-    items[index] = {
-      kind: 'message',
-      role: 'assistant',
-      text: finalText,
-      status: event.payload.status
-    }
+    const current = items[index] as ChatMessage
+    items[index] = { ...current, text: finalText, status: event.payload.status }
     return { ...state, items, streaming: false }
   }
 
   if (isGatewayEventOfType(event, 'error')) {
     const index = inFlightIndex(state.items)
     if (index === undefined) {
+      const { message, nextId } = createMessage(state.nextId, {
+        role: 'assistant',
+        text: event.payload.message,
+        status: 'error'
+      })
       return {
         ...state,
-        items: [
-          ...state.items,
-          { kind: 'message', role: 'assistant', text: event.payload.message, status: 'error' }
-        ],
+        items: [...state.items, message],
+        nextId,
         streaming: false
       }
     }

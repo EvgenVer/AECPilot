@@ -13,94 +13,39 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
     showFullResult || !resultIsTruncated ? result : result.slice(0, RESULT_PREVIEW_LIMIT)
 
   return (
-    <div
-      style={{
-        alignSelf: 'flex-start',
-        maxWidth: '75%',
-        borderRadius: 8,
-        background: '#f7f5ee',
-        border: '1px solid #e2ddc9',
-        fontFamily: 'ui-monospace, monospace',
-        fontSize: 13
-      }}
-    >
+    <div className="tool-card">
       <button
+        type="button"
+        className="tool-card__head"
         onClick={() => setExpanded((value) => !value)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          width: '100%',
-          padding: '6px 10px',
-          background: 'transparent',
-          border: 'none',
-          textAlign: 'left',
-          cursor: 'pointer',
-          font: 'inherit',
-          color: 'inherit'
-        }}
       >
-        <span>
-          ⚙ {call.name} — {call.context}
-        </span>
+        <span>⚙ {call.name}</span>
+        <span className="tool-card__context">{call.context}</span>
         {call.status === 'running' ? (
-          <span style={{ opacity: 0.6, animation: 'pulse 1.5s ease-in-out infinite' }}>
-            выполняется…
-          </span>
+          <span className="tool-card__status tool-card__status--running">выполняется…</span>
         ) : (
-          <span style={{ opacity: 0.6 }}>{call.durationS?.toFixed(1)}s</span>
+          call.durationS !== undefined && (
+            <span className="tool-card__status">{call.durationS.toFixed(1)}s</span>
+          )
         )}
       </button>
 
       {expanded && (
-        <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="tool-card__body">
           {call.args !== undefined && (
-            <pre
-              style={{
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: 12,
-                background: '#fff',
-                border: '1px solid #e2ddc9',
-                borderRadius: 4,
-                padding: 6
-              }}
-            >
-              {JSON.stringify(call.args, null, 2)}
-            </pre>
+            <pre className="tool-card__pre">{JSON.stringify(call.args, null, 2)}</pre>
           )}
           {call.result !== undefined && (
             <>
-              <pre
-                style={{
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: 'ui-monospace, monospace',
-                  fontSize: 12,
-                  background: '#fff',
-                  border: '1px solid #e2ddc9',
-                  borderRadius: 4,
-                  padding: 6
-                }}
-              >
+              <pre className="tool-card__pre">
                 {displayedResult}
                 {!showFullResult && resultIsTruncated && '…'}
               </pre>
               {resultIsTruncated && (
                 <button
+                  type="button"
+                  className="tool-card__more"
                   onClick={() => setShowFullResult((value) => !value)}
-                  style={{
-                    alignSelf: 'flex-start',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#357',
-                    cursor: 'pointer',
-                    font: 'inherit',
-                    fontSize: 12,
-                    padding: 0
-                  }}
                 >
                   {showFullResult ? 'свернуть' : 'показать полностью'}
                 </button>
