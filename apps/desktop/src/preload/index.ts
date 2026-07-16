@@ -20,6 +20,13 @@ const api: AecpilotApi = {
   openProject: (vaultPath) => ipcRenderer.invoke('project:open', { vaultPath }),
   listSources: () => ipcRenderer.invoke('sources:list'),
   addSource: (rootPath, confirmed) => ipcRenderer.invoke('sources:add', { rootPath, confirmed }),
+  getVaultTree: () => ipcRenderer.invoke('vault:tree'),
+  createVaultFile: (parentRel, name) =>
+    ipcRenderer.invoke('vault:create-file', { parentRel, name }),
+  createVaultDir: (parentRel, name) => ipcRenderer.invoke('vault:create-dir', { parentRel, name }),
+  renameVaultEntry: (rel, newName) => ipcRenderer.invoke('vault:rename', { rel, newName }),
+  deleteVaultEntry: (rel) => ipcRenderer.invoke('vault:delete', { rel }),
+  showVaultEntryInExplorer: (rel) => ipcRenderer.invoke('vault:show-in-explorer', { rel }),
   onProjectOpened: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

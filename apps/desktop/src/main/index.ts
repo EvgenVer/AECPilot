@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -29,6 +29,13 @@ import {
   type OpenProject
 } from './project-manager'
 import { loadRecents, recordRecent } from './recents'
+import {
+  buildVaultTree,
+  createDirEntry,
+  createFileEntry,
+  renameEntry,
+  resolveVaultEntryRel
+} from './vault-fs'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -490,6 +497,123 @@ ipcMain.handle('sources:add', (_event, payload: unknown) => {
   return addSourceToProject(currentProject.vaultPath, rootPath, {
     confirmed: confirmed === true
   })
+})
+
+// Task 1.6: the vault explorer tree + file/folder create/rename/delete.
+// Every handler is a no-op/`ok:false` when no project is open — the sidebar
+// shows an empty-state instead of calling these, but a stale renderer call
+// (e.g. after the project was closed mid-flight) must never throw.
+ipcMain.handle('vault:tree', () => {
+  if (!currentProject) return []
+  try {
+    return buildVaultTree(currentProject.vaultPath)
+  } catch (error: unknown) {
+    console.error('aecpilot: could not build vault tree', error)
+    return []
+  }
+})
+
+ipcMain.handle('vault:create-file', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { parentRel, name } = payload as Record<string, unknown>
+  if (typeof name !== 'string') return { ok: false, error: 'name must be a string' }
+  if (parentRel !== undefined && typeof parentRel !== 'string') {
+    return { ok: false, error: 'invalid parentRel' }
+  }
+  try {
+    createFileEntry(currentProject.vaultPath, parentRel as string | undefined, name)
+    return { ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { parentRel, name } = payload as Record<string, unknown>
+  if (typeof name !== 'string') return { ok: false, error: 'name must be a string' }
+  if (parentRel !== undefined && typeof parentRel !== 'string') {
+    return { ok: false, error: 'invalid parentRel' }
+  }
+  try {
+    createDirEntry(currentProject.vaultPath, parentRel as string | undefined, name)
+    return { ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('vault:rename', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel, newName } = payload as Record<string, unknown>
+  if (typeof rel !== 'string' || typeof newName !== 'string') {
+    return { ok: false, error: 'invalid payload' }
+  }
+  try {
+    renameEntry(currentProject.vaultPath, rel, newName)
+    return { ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Deletion is never permanent — the item goes to the OS recycle bin
+// (shell.trashItem), and the renderer is expected to confirm with the user
+// first. `resolveVaultEntryRel` rejects an escaping/empty/`.aecpilot` `rel`
+// before shell.trashItem ever sees a path.
+ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel } = payload as Record<string, unknown>
+  if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
+  let absPath: string
+  try {
+    absPath = resolveVaultEntryRel(currentProject.vaultPath, rel)
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  try {
+    await shell.trashItem(absPath)
+    return { ok: true }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось переместить в корзину: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    }
+  }
+})
+
+// "Показать в проводнике" (specs/workspace-sources.md § API contracts, UI
+// operations) — read-only, opens the OS file manager with the item
+// highlighted.
+ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel } = payload as Record<string, unknown>
+  if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
+  let absPath: string
+  try {
+    absPath = resolveVaultEntryRel(currentProject.vaultPath, rel)
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  shell.showItemInFolder(absPath)
+  return { ok: true }
 })
 
 app

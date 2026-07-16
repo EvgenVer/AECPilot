@@ -315,6 +315,151 @@ button {
   font-weight: 600;
 }
 
+/* ============ Explorer panel (task 1.6) ============ */
+
+.explorer-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 8px 0;
+  gap: 8px;
+}
+
+.explorer-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.explorer-panel__btn {
+  height: var(--control-h);
+  padding: 0 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.explorer-panel__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.explorer-panel__create-row {
+  display: flex;
+  gap: 6px;
+}
+
+.explorer-panel__create-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font-family: inherit;
+}
+
+.explorer-panel__error {
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+
+.explorer-panel__confirm {
+  border: 1px solid var(--warning);
+  background: var(--warning-soft);
+  border-radius: var(--r-card);
+  padding: 9px 10px;
+  font-size: var(--fs-small);
+}
+
+.explorer-panel__confirm-text {
+  color: var(--text-1);
+  margin-bottom: 8px;
+}
+
+.explorer-panel__confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.explorer-panel__confirm-btn {
+  flex: 1;
+  height: 26px;
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-small);
+  cursor: pointer;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+}
+
+.explorer-panel__confirm-btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.explorer-panel__empty {
+  color: var(--text-3);
+  font-size: 12.5px;
+  padding: 10px 4px;
+}
+
+.explorer-panel__tree {
+  flex: 1;
+  min-height: 0;
+}
+
+.vault-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+}
+
+.vault-tree__row:hover {
+  background: var(--bg-hover);
+}
+
+.vault-tree__row--selected {
+  background: var(--bg-active);
+}
+
+.vault-tree__icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.vault-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-tree__edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-family: inherit;
+}
+
 /* ============ Center ============ */
 
 .center {

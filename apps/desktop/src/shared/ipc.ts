@@ -33,6 +33,23 @@ export interface ProjectSource {
   added_at: string
 }
 
+/** A node in the vault explorer tree (task 1.6) — mirrors `VaultTreeNode`
+ * from `../main/vault-fs`, redeclared here for the same reason as
+ * `ProjectSource` above. `path` is a posix-style (`/`-separated) rel path
+ * from the vault root, used as-is for every `vault:*` IPC call that takes a
+ * `rel`/`parentRel`. */
+export interface VaultTreeNode {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  children?: VaultTreeNode[]
+}
+
+/** Result of a vault write operation (create/rename/delete/show-in-explorer,
+ * task 1.6). `error` is a human-readable, Russian message suitable for
+ * display next to the explorer toolbar. */
+export type VaultOpResult = { ok: true } | { ok: false; error: string }
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -150,4 +167,25 @@ export interface AecpilotApi {
     | { ok: false; errors: string[] }
     | { needsConfirm: string[] }
   >
+  /** Reads the current project's vault file tree (task 1.6). Empty array if
+   * no project is open. `.aecpilot` is always hidden; symlinks are shown as
+   * a leaf, never traversed. */
+  getVaultTree(): Promise<VaultTreeNode[]>
+  /** Creates an empty file named `name` inside `parentRel` (rel path from
+   * the vault root; omitted/`''` means the vault root). */
+  createVaultFile(parentRel: string | undefined, name: string): Promise<VaultOpResult>
+  /** Creates a new folder named `name` inside `parentRel` — same contract as
+   * `createVaultFile`. */
+  createVaultDir(parentRel: string | undefined, name: string): Promise<VaultOpResult>
+  /** Renames the file/folder at `rel` to `newName`, staying in the same
+   * parent folder. */
+  renameVaultEntry(rel: string, newName: string): Promise<VaultOpResult>
+  /** Moves the file/folder at `rel` to the OS recycle bin — never a
+   * permanent delete. The caller is expected to confirm with the user
+   * first. */
+  deleteVaultEntry(rel: string): Promise<VaultOpResult>
+  /** Opens the OS file manager with the item at `rel` highlighted
+   * (specs/workspace-sources.md § API contracts, UI operations) —
+   * read-only, never modifies the vault. */
+  showVaultEntryInExplorer(rel: string): Promise<VaultOpResult>
 }
