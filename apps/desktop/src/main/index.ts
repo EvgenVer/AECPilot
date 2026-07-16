@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { GatewayClient } from '../shared/gateway/client'
@@ -21,6 +21,8 @@ import {
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
+import { createProject, type OpenProject } from './project-manager'
+import { loadRecents, recordRecent } from './recents'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -55,10 +57,20 @@ async function loadServeModule(): Promise<ServeModule> {
   return (await import(/* @vite-ignore */ specifier)) as ServeModule
 }
 
+// TODO(Phase 5 / task 5.1): resolved relative to this file's location on
+// disk, same as runtime/serve.mjs's own resolution above — revisit once this
+// ships inside app.asar.
+function agentsTemplatePath(): string {
+  return join(__dirname, '../../../../runtime/templates/AGENTS.md')
+}
+
 let serveHandle: ServeHandle | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
+// Task 1.3: the vault currently open, if any. Opening/switching between
+// existing projects is task 1.4 — this is only ever set by project:create.
+let currentProject: OpenProject | undefined
 // Bumped whenever sessions:new/sessions:switch assign sessionId directly, so
 // an in-flight ensureSession() create can detect it was superseded and must
 // not overwrite the newer sessionId with its own stale result.
@@ -359,6 +371,58 @@ ipcMain.handle('approvals:set-mode', async (_event, mode: string) => {
     }
   }
 })
+
+// Task 1.3: opens a native "choose folder" dialog (createDirectory: true —
+// the OS picker lets the user create a new empty folder in place) for the
+// create-project flow. Returns null on cancel.
+ipcMain.handle('project:pick-directory', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+  const result = win
+    ? await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
+    : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+})
+
+ipcMain.handle('project:create', (_event, payload: unknown) => {
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { dirPath, name } = payload as Record<string, unknown>
+  if (typeof dirPath !== 'string' || dirPath.length === 0) {
+    return { ok: false, error: 'dirPath must be a non-empty string' }
+  }
+  // Fix-iteration 1 (review minor): reject a non-absolute path before it
+  // ever reaches generateVault. Not cross-checked against the last
+  // project:pick-directory result — coordinator decision: out of scope for
+  // the current threat model (residual risk tracked in TASKS.md Discovered).
+  if (!isAbsolute(dirPath)) {
+    return { ok: false, error: 'путь к папке должен быть абсолютным' }
+  }
+  if (typeof name !== 'string') {
+    return { ok: false, error: 'name must be a string' }
+  }
+
+  const result = createProject(dirPath, name, agentsTemplatePath())
+  if (!result.ok) return result
+
+  currentProject = result.project
+  try {
+    recordRecent({ ...result.project, openedAt: new Date().toISOString() })
+  } catch (error: unknown) {
+    // Best-effort — a broken recents file must never block opening the
+    // freshly-created project.
+    console.error('aecpilot: could not record recent project', error)
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('project:opened', result.project)
+  }
+  return result
+})
+
+ipcMain.handle('project:get-current', () => currentProject ?? null)
+
+ipcMain.handle('project:list-recents', () => loadRecents())
 
 app
   .whenReady()

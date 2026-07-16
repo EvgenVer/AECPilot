@@ -13,6 +13,16 @@ const api: AecpilotApi = {
   saveLlmSettings: (payload) => ipcRenderer.invoke('settings:save', payload),
   getApprovalsMode: () => ipcRenderer.invoke('approvals:get-mode'),
   setApprovalsMode: (mode) => ipcRenderer.invoke('approvals:set-mode', mode),
+  pickProjectDirectory: () => ipcRenderer.invoke('project:pick-directory'),
+  createProject: (dirPath, name) => ipcRenderer.invoke('project:create', { dirPath, name }),
+  getCurrentProject: () => ipcRenderer.invoke('project:get-current'),
+  listRecentProjects: () => ipcRenderer.invoke('project:list-recents'),
+  onProjectOpened: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('project:opened', listener)
+    return () => ipcRenderer.removeListener('project:opened', listener)
+  },
   onChatEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
       cb(payload)

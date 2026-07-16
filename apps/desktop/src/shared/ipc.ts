@@ -9,6 +9,21 @@ import type {
   SessionSummary
 } from './gateway/types'
 
+/** The currently-open project (task 1.3). Opening/switching between
+ * existing projects is task 1.4 — for now this is only ever set by
+ * `createProject`. */
+export interface OpenProject {
+  name: string
+  vaultPath: string
+}
+
+/** An entry in the "recent projects" list (task 1.3/1.4). */
+export interface RecentProject {
+  name: string
+  vaultPath: string
+  openedAt: string
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -80,4 +95,25 @@ export interface AecpilotApi {
   setApprovalsMode(
     mode: 'manual' | 'smart' | 'off'
   ): Promise<{ ok: boolean; mode?: string; error?: string }>
+  /** Opens a native "choose folder" dialog for the create-project flow (task
+   * 1.3). The dialog allows creating a new folder. Returns `null` if the
+   * user cancels. */
+  pickProjectDirectory(): Promise<string | null>
+  /** Creates a new vault at `dirPath` (must be an empty directory) named
+   * `name`, records it as the most-recent project, and makes it the current
+   * open project (see `onProjectOpened`). `error` is a human-readable
+   * message suitable for display in the create-project dialog. */
+  createProject(
+    dirPath: string,
+    name: string
+  ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
+  /** Reads the currently-open project, if any. */
+  getCurrentProject(): Promise<OpenProject | null>
+  /** Lists recently created/opened projects, most-recent first. Re-opening
+   * one of these by clicking it is out of scope here (task 1.4) — this is
+   * read-only. */
+  listRecentProjects(): Promise<RecentProject[]>
+  /** Subscribes to "a project was created/opened" events (task 1.3/1.4).
+   * Returns an unsubscribe function. */
+  onProjectOpened(cb: (project: OpenProject) => void): () => void
 }
