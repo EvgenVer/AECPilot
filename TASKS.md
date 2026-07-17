@@ -5,7 +5,36 @@
 
 ## Active
 
-### Phase 1 — Vault & sources (спека: specs/workspace-sources.md)
+### Phase 1 — Vault & sources (спека: specs/workspace-sources.md) — ЗАКРЫТА (см. §Done)
+
+### Phase 1.5 — Conformance & UX polish (фидбек владельца 2026-07-17; спека: specs/workspace-sources.md обновлена)
+<!-- Бо́льшая часть — conformance к УЖЕ утверждённым SPEC UR2 (единое дерево vault+источники)
+     и PLAN §Architecture (один паттерн деревьев + контекстное меню); Phase 1 реализовала
+     источники отдельной вкладкой. Дизайн-референс при пробелах макетов — VS Code (MEMORY). -->
+Баги (форензика, в работе — коммитятся отдельно от фичей):
+- [x] 1.5.1 Баг: агент не видит добавленный/удалённый источник до переоткрытия — reload.mcp после sources:add/remove — verified: ЖИВОЙ прогон в ОДНОЙ сессии (baseline demo → add без reload: источник невиден (баг подтверждён) → reload.mcp{confirm:true} без session_id/сброса сессии → тот же источник виден (фикс подтверждён)); vitest 324/324, lint/format/build чисто, e2e 1 passed, aec-sources-check exit 0. Корень (доказан по исходникам hermes): aec-sources.exe парсит project.json один раз при старте, hermes кэширует MCP-процесс на жизнь serve; add/remove меняют содержимое project.json, но НЕ config.yaml → !changed-скип 1.20 не перезагрузил бы. Реализация: reloadMcp() вынесен и переиспользуется; sources:add reload при реальном успехе (!needsConfirm && ok), sources:remove — после успешного removeFromProject, оба best-effort, сессия НЕ сбрасывается (проект/cwd те же, диспетчер инструмента hermes ищет MCP по имени на каждый вызов → живая сессия подхватывает). Гонки со сканом нет (aec-rag scan/detach — отдельный CLI-процесс вне gateway). Ревью: инлайн-координатор (1 файл index.ts, форензик-доказательство live, прецедент «main вне vitest»)
+- [!] 1.5.2 Баг: в чате «тонкие пустые прямоугольники» — БЛОКИРОВАН: нужен конкретный repro владельца (скриншот/шаги). Форензика (реальный gateway hermes 0.18.0, live-события + history 30 сессий) ОПРОВЕРГЛА гипотезу «пустое имя»: name у tool.start/tool.complete и в role:'tool' истории ВСЕГДА непустой (mcp_aec_sources_*, search_files, read_file, terminal, skill_view). Координатор доп. проверил рендер: пустой пузырь .message--assistant фона/паддинга не имеет (схлопывается, не box); .tool-card всегда с именем. Ни одна гипотеза не даёт видимый пустой box из кода. Related-находка (не «пустой box»): у MCP-инструментов server-side пустой context (hermes build_tool_preview не делает подпись для MCP) → карточка показывает голое имя без описания — мелочь, ФОЛД в отложенную складку чата 1.5.D1, не сюда. Ждём скрин/шаги: какой инструмент, когда, в какой теме · files: apps/desktop · dep: repro владельца · parallel: yes
+
+Изменения требований (В):
+- [x] 1.5.3 Убрать checklists/ из структуры vault — verified: vitest 325/325 (координатор перепрогнал; убран 'checklists' из VAULT_SUBDIRS, обновлён тест структуры + новый негативный ассерт «checklists не создан»), lint/format/build чисто. Изменено: vault-generator.ts, vault-generator.test.ts, runtime/templates/AGENTS.md (убрана строка §2 структуры; ЭВАЛ-WAIVER: чисто структурная правка, поведенческие правила §3-6 не тронуты, id-check выведен из MVP N9). Grep подтвердил: содержательного использования checklists нет; specs/id-check.md (заморожена) и §Done-записи не тронуты. Ревью: инлайн-координатор (тривиально)
+- [ ] 1.5.4 Инициализация проекта в непустой папке (Obsidian-style): «открыть папку» без .aecpilot → создать недостающую структуру, существующие файлы не трогать, конфликт AGENTS.md/.aecpilot → подтверждение без перезаписи по умолчанию — files: apps/desktop (project-manager, vault-generator, диалог открытия/создания) · verify: vitest (непустая папка: файлы целы, структура добрана; конфликт имён → отказ без перезаписи), BDD «Инициализация в непустой директории», e2e · dep: — · parallel: no
+
+Conformance к утверждённому дизайну и SPEC/PLAN (Б):
+- [ ] 1.5.5 Источники в дереве Проводника (UR2): источники — секции того же дерева vault (react-arborist), RO-бейджи, статус доступности inline, разворачивание вглубь; узлы источника поддерживают показать-в-проводнике/копировать-путь на любом уровне; фикс Блок 7 (статус «недоступен» виден сразу/по скану, без ремаунта вкладки); фикс hover-подсветки за контуром панели. Вкладка «Источники» на рельсе СОХРАНЯЕТСЯ как менеджер (add/remove/overlap/RO-статус) — её карточки приводятся к макету Sources.html (фикс Блок 4: переполнение кнопок «Добавить всё равно», «Отключить»/«Обновить»). Вид по design/screens/Explorer.html + Sources.html (рендерить в браузере — бандлы grep-слепы, MEMORY) — files: apps/desktop · verify: vitest, e2e, ручной прогон vs макет · dep: — · parallel: no
+- [ ] 1.5.6 Панель инструментов дерева иконками вместо текстовых кнопок (+файл, +папка, переименовать, удалить, показать в проводнике, обновить) + поле поиска/фильтра по дереву — стиль VS Code / design/screens/Explorer.html — files: apps/desktop · verify: vitest фильтра, ручной прогон vs макет · dep: 1.5.5 · parallel: no
+- [ ] 1.5.7 Контекстное меню (ПКМ) на любом узле с теми же командами, что в тулбаре (для vault — вкл. создать; показать-в-проводнике/копировать-путь — и для узлов источника на любом уровне, UR2); удаление узла vault по клавише Del (в корзину, с подтверждением) — files: apps/desktop · verify: vitest, ручной прогон · dep: 1.5.5 · parallel: no
+- [ ] 1.5.8 Баг вёрстки: текст кнопки «Обновить» в тосте изменений (ScanNotification) выходит за границы — CSS-фикс — files: apps/desktop (styles) · verify: ручной прогон, lint/format · dep: — · parallel: yes
+
+Новые UX-возможности (В):
+- [ ] 1.5.9 Ресайз панелей (проводник / центральный вьюер / чат-док) перетаскиванием как в VS Code, с сохранением размеров между сессиями — files: apps/desktop · verify: vitest логики размеров (кламп/persist), ручной прогон · dep: — · parallel: no
+- [ ] 1.5.10 Переключатель темы (светлая/тёмная) в Settings (UR10) + сквозная проверка тёмной темы по экранам — files: apps/desktop · verify: ручной прогон обеих тем, vitest persist · dep: — · parallel: yes
+
+Отложено с пометкой (НЕ в этом батче — по команде владельца позже):
+<!-- 1.5.D1 Складка чата: tool-вызовы + ход рассуждений (thinking/reasoning-события gateway
+     есть в инвентаре PLAN §Data/API) в разворачиваемом блоке — паритет с Hermes Desktop
+     (G4/UR4); recon по событиям + редизайн ToolCallCard; делать когда дозреет Agent-hub.
+     1.5.D2 Ревью и утверждение содержимого шаблона runtime/templates/AGENTS.md с владельцем
+     (обсуждение) — перед Phase 3 (wiki): половина правил шаблона про вики/память. -->
 
 ### Phase 2 — Ingest & RAG, эталонный сценарий (спека: specs/qa-over-sources.md)
 - [ ] 2.1 Подключить Docling: text-PDF → markdown с постраничным locator — files: mcp/aec_rag · verify: pytest на образце (страницы в мета) · dep: Phase 1 · parallel: yes

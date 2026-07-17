@@ -3,9 +3,23 @@
      (run the planning skill's NOTES closeout first). Stable facts → MEMORY.md. -->
 
 ## Current task & state
-Phase 1 — Vault & sources: ОРКЕСТРАЦИЯ ЗАВЕРШЕНА 2026-07-17. Все 20 задач
-(1.0–1.20) Done+закоммичены с ревью (последний коммит — 1.20, привязка чата к
-проекту). Итог фазы и хронология — TASKS.md §Done; остаточные риски — §Discovered.
+Phase 1 — Vault & sources: ЗАКРЫТА 2026-07-17 (1.0–1.20 Done+закоммичены; §Done).
+Ручной прогон владельца 2026-07-17 дал фидбек → спланирована **Phase 1.5**
+(Conformance & UX polish, TASKS §Active). Планировочные доки обновлены
+(SPECIFICATION UR1, specs/workspace-sources.md, PLAN фаза 1.5, TASKS 1.5.*).
+Phase 1.5 ОДОБРЕНА владельцем 2026-07-17 целиком (вкл. ресайз 1.5.9 и тему 1.5.10);
+Obsidian-init подтверждён. Решения: checklists убрать; непустая папка = Obsidian;
+баги сразу/остальное через гейт (гейт пройден); складка чата «как в Hermes» — позже.
+
+## In flight / rollout (эта сессия)
+- Готово+ревью, коммитится: 1.5.1 (reload.mcp add/remove, живой прогон), 1.5.3 (checklists).
+- В работе: 1.5.2 (пустые tool-карточки, форензика, файлы чата — параллельно, disjoint).
+- КООРДИНАЦИЯ ПО КОНТЕНЦИИ ФАЙЛОВ (index.ts/shell.css/Sidebar.tsx — горячие точки):
+  Wave 1 (после коммита 1.5.1/1.5.3): 1.5.4 (Obsidian-init, Track A: index.ts+generator+
+  диалоги) ∥ 1.5.10 (тема, disjoint: Settings/tokens/shell.css) ∥ 1.5.2 (чат).
+  Wave 2 (после 1.5.4+1.5.10): Track B цепочкой на shell.css/Sidebar/index.ts —
+  1.5.5 (источники в дереве, +IPC show-in-explorer для источника) → 1.5.6 (иконки+поиск)
+  → 1.5.7 (ПКМ+Del) → 1.5.9 (ресайз) → 1.5.8 (тост CSS). Один редактор shell.css за раз.
 
 ## Ожидает владельца (не блокирует Phase 2, но входит в DoD фазы)
 - Ручной прогон shell 1.0 (отмечен «ОЖИДАЕТСЯ» в TASKS §Done; общее «по ручному
