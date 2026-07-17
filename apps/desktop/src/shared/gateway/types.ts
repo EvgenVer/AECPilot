@@ -62,6 +62,13 @@ export interface SessionCreateParams {
 
 export interface SessionCreateResult {
   session_id: string
+  /** The gateway's persisted id for this session (task 1.20) — distinct from
+   * `session_id` above (a fresh, ephemeral live-session id every call): this
+   * is the one `session.list`/`session.resume` address, and the one the
+   * desktop tags to the current project's vault (see
+   * `main/session-projects.ts`). Optional because the e2e mock gateway
+   * doesn't return it — every consumer must tolerate its absence. */
+  stored_session_id?: string
   messages: unknown[]
   info: unknown
 }
@@ -137,6 +144,26 @@ export interface SessionHistoryResult {
   messages: HistoryMessage[]
 }
 
+/** `reload.mcp` (task 1.20): forces hermes to disconnect and reconnect every
+ * configured MCP server against the CURRENT config.yaml. Needed because
+ * hermes's MCP layer caches a connected server by name for the life of the
+ * `hermes serve` process (tools/mcp_tool.py's `_servers` dict) and does NOT
+ * reconnect it just because config.yaml changed underneath it — confirmed
+ * live (task 1.20's verify notes): without this call after re-registering
+ * aec-sources against a newly opened project, a session created afterwards
+ * still sees the PREVIOUS project's sources. `confirm: true` bypasses the
+ * interactive "/reload-mcp invalidates the prompt cache" warning gate — there
+ * is no live transcript to warn on this project-switch path. */
+export interface ReloadMcpParams {
+  confirm?: boolean
+  session_id?: string
+}
+
+export interface ReloadMcpResult {
+  status: 'reloaded' | 'confirm_required'
+  message?: string
+}
+
 export interface SessionResumeParams {
   session_id: string
 }
@@ -166,6 +193,7 @@ export interface GatewayMethodMap {
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
+  'reload.mcp': { params: ReloadMcpParams; result: ReloadMcpResult }
 }
 
 export type GatewayMethod = keyof GatewayMethodMap

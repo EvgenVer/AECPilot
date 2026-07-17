@@ -10,9 +10,9 @@ const MAX_MENU_RECENTS = 5
  * + open), "создать проект…" (delegates to the existing CreateProjectDialog
  * via `onOpenCreateProject`), and up to 5 most-recent projects. Reusable
  * whether or not a project is currently open — opening/switching just
- * replaces `currentProject` (see main/index.ts's `project:open`); chat
- * sessions aren't tied to a project yet. Closes on an outside click, same
- * pattern as chat/SessionMenu.tsx. */
+ * replaces `currentProject` (see main/index.ts's `project:open`), which also
+ * abandons the active chat session and re-scopes it to the new project (task
+ * 1.20). Closes on an outside click, same pattern as chat/SessionMenu.tsx. */
 export default function ProjectMenu({
   currentProject,
   onOpenCreateProject

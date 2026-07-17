@@ -19,7 +19,12 @@ import type { OpenProject } from '../../../shared/ipc'
  * settings popover, connection state for the status bar, current project /
  * create-project modal — task 1.3). `ScanNotification` (task 1.15) is
  * self-contained — it subscribes to scan reports itself, so it only needs
- * `currentProject` here to clear itself on a project switch. */
+ * `currentProject` here to clear itself on a project switch. `ChatDock` is
+ * scoped to the open project on the main-process side (task 1.20); this
+ * shell just resets the visible transcript on every `project:opened` (a
+ * project switch abandons the active session there) and forwards
+ * `currentProject` so the session selector can show which project the chat
+ * is in. */
 export default function Shell() {
   const [activity, setActivity] = useState<ActivityId>('explorer')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -60,6 +65,12 @@ export default function Shell() {
     const unsubscribe = window.aecpilot.onProjectOpened((project) => {
       setCurrentProject(project)
       setCreateProjectOpen(false)
+      // Task 1.20: a project switch abandons the active session on the main
+      // side (main/index.ts's resetActiveSessionForProjectSwitch) — clear
+      // the visible transcript to match, same reset chatState already gets
+      // after a settings-triggered backend restart (TopBar's
+      // onSettingsRestarted).
+      dispatch({ kind: 'session-loaded', messages: [] })
     })
     return () => {
       mounted = false
@@ -85,7 +96,12 @@ export default function Shell() {
         <Rail active={activity} onSelect={setActivity} onSettings={() => setSettingsOpen(true)} />
         <Sidebar active={activity} currentProject={currentProject} />
         <CenterArea active={activity} />
-        <ChatDock state={chatState} dispatch={dispatch} connectionState={connectionState} />
+        <ChatDock
+          state={chatState}
+          dispatch={dispatch}
+          connectionState={connectionState}
+          currentProject={currentProject}
+        />
       </div>
       <StatusBar
         connectionState={connectionState}

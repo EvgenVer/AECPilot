@@ -6,6 +6,7 @@ import ApprovalCard from './ApprovalCard'
 import SessionMenu from './SessionMenu'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
+import type { OpenProject } from '../../../shared/ipc'
 
 /** Right-hand chat dock (task 1.0): the Phase 0 chat panel (0.11–0.17),
  * restyled to sit in the workspace shell's chat dock region per
@@ -13,15 +14,19 @@ import type { GatewayConnectionState } from '../../../shared/gateway/types'
  * layout/markup moved. Connection state (no dot here — see StatusBar.tsx)
  * and the approvals-mode indicator now live in the shell's status bar; the
  * LLM settings popover moved to the top bar (TopBar.tsx) — this dock keeps
- * only the session selector, transcript and composer. */
+ * only the session selector, transcript and composer. `currentProject` (task
+ * 1.20) only drives the session selector's label — the chat is scoped to it
+ * on the main-process side (main/index.ts, session-projects.ts). */
 export default function ChatDock({
   state,
   dispatch,
-  connectionState
+  connectionState,
+  currentProject
 }: {
   state: ChatState
   dispatch: Dispatch<ChatAction>
   connectionState: GatewayConnectionState
+  currentProject: OpenProject | null
 }) {
   const [draft, setDraft] = useState('')
   const [submitError, setSubmitError] = useState<string | undefined>(undefined)
@@ -65,7 +70,7 @@ export default function ChatDock({
       <div className="chat-dock__header">
         <SessionMenu
           disabled={state.streaming || awaitingApproval}
-          currentLabel="Сессия"
+          currentLabel={currentProject ? currentProject.name : 'Сессия'}
           onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
           onError={setSubmitError}
         />

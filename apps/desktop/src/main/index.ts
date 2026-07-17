@@ -35,6 +35,7 @@ import {
 import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
+import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
 import {
   buildVaultTree,
   createDirEntry,
@@ -84,13 +85,92 @@ function agentsTemplatePath(): string {
   return join(__dirname, '../../../../runtime/templates/AGENTS.md')
 }
 
+interface RegisterAecSourcesModule {
+  registerAecSources: (opts?: { projectJsonPath?: string }) => {
+    projectJsonPath: string
+    command: string
+    configPath: string
+    changed: boolean
+  }
+}
+
+// Same dynamic-import rationale as loadServeModule above (task 1.20): a
+// static import would let electron-vite inline runtime/register-aec-
+// sources.mjs's source into out/main/index.js, breaking its own relative
+// import of ./hermes-env.mjs.
+// TODO(Phase 5 / task 5.1): same packaged-app caveat as loadServeModule.
+async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule> {
+  const specifier = pathToFileURL(
+    join(__dirname, '../../../../runtime/register-aec-sources.mjs')
+  ).href
+  return (await import(/* @vite-ignore */ specifier)) as RegisterAecSourcesModule
+}
+
+// reload.mcp shuts down every configured MCP server process-wide (not just
+// aec-sources) and reconnects them — cheap enough (local stdio spawns) that
+// 15s is generous, but still bounded well under the client's 60s default so
+// project:open/create can't hang behind it (review fix, minor 3).
+const RELOAD_MCP_TIMEOUT_MS = 15000
+
+/** Registers the `aec-sources` MCP server against the opened project's
+ * `project.json` (task 1.20, mechanic 1.12) — idempotent config.yaml edit —
+ * and, only if that edit actually changed anything (review fix, nit 2: an
+ * unchanged config means the same project is already registered — tearing
+ * down every MCP server for nothing would be pure regression), forces hermes
+ * to pick up the new args via the `reload.mcp` RPC (`confirm: true`, no live
+ * session to warn — see `ReloadMcpParams`'s doc comment in
+ * shared/gateway/types.ts for why this second step is required: hermes
+ * caches a connected MCP server by name for the life of the `hermes serve`
+ * process, so merely rewriting config.yaml does NOT reconnect an
+ * already-running `aec-sources` server with the new `--project` path).
+ * Best-effort throughout — a missing `aec-sources` binary (not built via
+ * `uv sync` yet), a config.yaml write failure, a `reload.mcp` timeout/error,
+ * or the gateway not being connected yet must never block opening/creating a
+ * project; the agent just won't see this project's sources until the
+ * condition is fixed and the project is reopened. */
+async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
+  let changed: boolean
+  try {
+    const { registerAecSources } = await loadRegisterAecSourcesModule()
+    ;({ changed } = registerAecSources({
+      projectJsonPath: join(vaultPath, '.aecpilot', 'project.json')
+    }))
+  } catch (error: unknown) {
+    console.error('aecpilot: could not register aec-sources for the opened project', error)
+    return
+  }
+  if (!changed || !gateway) return
+  try {
+    const result = await gateway.request('reload.mcp', { confirm: true }, RELOAD_MCP_TIMEOUT_MS)
+    if (result.status !== 'reloaded') {
+      console.error(`aecpilot: reload.mcp did not reload (status=${result.status})`, result.message)
+    }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not reload MCP servers for the opened project', error)
+  }
+}
+
+/** Abandons the active chat session on a project switch (task 1.20): the
+ * next `chat:submit`/`sessions:new` call creates a fresh session scoped to
+ * whichever project is current at that time (`cwd` = its vault, tagged in
+ * session-projects.ts) — the minimal scoping the spec calls for, mirroring
+ * the sessionId reset `settings:save` already does after a backend restart.
+ * Does not close the old session server-side — it simply stops being
+ * addressed by this app instance, same as any other superseded async
+ * operation in this file. */
+function resetActiveSessionForProjectSwitch(): void {
+  sessionId = undefined
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+}
+
 let serveHandle: ServeHandle | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
 // Tasks 1.3/1.4: the vault currently open, if any — set by project:create or
-// project:open. Switching projects mid-session just replaces this; chat
-// sessions aren't tied to a project yet (that binding lands later).
+// project:open. Switching projects mid-session replaces this and (task 1.20)
+// abandons the active chat session — see resetActiveSessionForProjectSwitch.
 let currentProject: OpenProject | undefined
 // Bumped whenever sessions:new/sessions:switch assign sessionId directly, so
 // an in-flight ensureSession() create can detect it was superseded and must
@@ -249,16 +329,24 @@ async function ensureSession(): Promise<string> {
   if (!gateway) throw new Error('cannot create a chat session — gateway is not connected')
   if (!ensureSessionPromise) {
     const epoch = sessionEpoch
+    const project = currentProject
     ensureSessionPromise = gateway
       .request('session.create', {
-        source: 'aecpilot-desktop'
-        // TODO(Phase 1): cwd = vault root
+        source: 'aecpilot-desktop',
+        // Task 1.20 (specs/workspace-sources.md § API — "working dir агента
+        // = vault"): only sent when a project is open, so a Phase 0-style
+        // chat with no project keeps falling back to the gateway's own
+        // launch cwd, unchanged.
+        ...(project ? { cwd: project.vaultPath } : {})
       })
       .then((result) => {
         if (sessionEpoch !== epoch) {
           throw new Error('session changed during submit — try again')
         }
         sessionId = result.session_id
+        if (project && result.stored_session_id) {
+          tagSessionProject(result.stored_session_id, project.vaultPath)
+        }
         return sessionId
       })
       .finally(() => {
@@ -322,14 +410,49 @@ ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boo
   })
 })
 
-ipcMain.handle('sessions:list', () => {
+// Task 1.20: scoped to the open project — a session.list row only shows up
+// once this app has tagged its (persisted, gateway-side) id against the
+// current vault (see session-projects.ts's header comment for why the
+// gateway's own session.list can't do this filtering itself). With no
+// project open, the list is filtered down to NEVER-tagged sessions (review
+// fix, minor 1) — otherwise every project's sessions would show up mixed
+// together at app startup (currentProject is unset until a project is
+// opened) and clicking one would silently resume a session that belongs to
+// a different vault. Phase 0 sessions and chat-smoke.spec.ts's project-less
+// mock-gateway session (neither ever tagged) stay visible either way.
+ipcMain.handle('sessions:list', async () => {
   if (!gateway) throw new Error('gateway is not connected')
-  return gateway.request('session.list', { limit: 100 })
+  const result = await gateway.request('session.list', { limit: 100 })
+  if (currentProject) {
+    const taggedIds = sessionIdsForProject(currentProject.vaultPath)
+    return { sessions: result.sessions.filter((s) => taggedIds.has(s.id)) }
+  }
+  const untagged = new Set(untaggedSessionIds(result.sessions.map((s) => s.id)))
+  return { sessions: result.sessions.filter((s) => untagged.has(s.id)) }
 })
 
 ipcMain.handle('sessions:new', async () => {
   if (!gateway) throw new Error('gateway is not connected')
-  const result = await gateway.request('session.create', { source: 'aecpilot-desktop' })
+  const project = currentProject
+  const epoch = sessionEpoch
+  const result = await gateway.request('session.create', {
+    source: 'aecpilot-desktop',
+    ...(project ? { cwd: project.vaultPath } : {})
+  })
+  // Tag regardless of whether this call wins the race below — even a
+  // superseded session still belongs to `project` (captured above) and
+  // should show up in ITS session list once that project is open again,
+  // rather than being orphaned untagged.
+  if (project && result.stored_session_id) {
+    tagSessionProject(result.stored_session_id, project.vaultPath)
+  }
+  // Review fix, minor 2: a project switch (resetActiveSessionForProjectSwitch)
+  // — or another sessions:new/sessions:switch — may have bumped sessionEpoch
+  // while session.create above was in flight. Adopting this result as the
+  // active session now would silently overwrite that reset with a session
+  // built against the WRONG (now stale) project. Same guard ensureSession()
+  // already uses.
+  if (sessionEpoch !== epoch) return { sessionId: result.session_id }
   sessionId = result.session_id
   sessionEpoch += 1
   ensureSessionPromise = undefined
@@ -470,7 +593,7 @@ ipcMain.handle('project:pick-directory', async (event) => {
   return result.filePaths[0]
 })
 
-ipcMain.handle('project:create', (_event, payload: unknown) => {
+ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -494,6 +617,13 @@ ipcMain.handle('project:create', (_event, payload: unknown) => {
 
   currentProject = result.project
   startScanSchedulerForProject(result.project.vaultPath)
+  // Task 1.20: register aec-sources against THIS project's project.json
+  // (mechanic 1.12) and abandon any session tied to whatever was open
+  // before, before the recents/broadcast steps below — so by the time a
+  // renderer can react to `project:opened`, both are already in place for
+  // the very next chat message.
+  await registerAecSourcesForProject(result.project.vaultPath)
+  resetActiveSessionForProjectSwitch()
   try {
     recordRecent({ ...result.project, openedAt: new Date().toISOString() })
   } catch (error: unknown) {
@@ -512,7 +642,7 @@ ipcMain.handle('project:create', (_event, payload: unknown) => {
 // logic). Re-opening the already-open project (same vaultPath) is a no-op
 // success, without re-recording the recent entry or re-broadcasting
 // project:opened — the UI already reflects it.
-ipcMain.handle('project:open', (_event, payload: unknown) => {
+ipcMain.handle('project:open', async (_event, payload: unknown) => {
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -533,6 +663,9 @@ ipcMain.handle('project:open', (_event, payload: unknown) => {
 
   currentProject = result.project
   startScanSchedulerForProject(result.project.vaultPath)
+  // Task 1.20 — see the matching comment in project:create above.
+  await registerAecSourcesForProject(result.project.vaultPath)
+  resetActiveSessionForProjectSwitch()
   try {
     recordRecent({ ...result.project, openedAt: new Date().toISOString() })
   } catch (error: unknown) {
