@@ -112,22 +112,45 @@ async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule>
 // project:open/create can't hang behind it (review fix, minor 3).
 const RELOAD_MCP_TIMEOUT_MS = 15000
 
+/** Forces hermes to disconnect and reconnect every configured MCP server via
+ * the `reload.mcp` RPC (`confirm: true`, no live session to warn — see
+ * `ReloadMcpParams`'s doc comment in shared/gateway/types.ts for why this is
+ * needed at all: hermes caches a connected MCP server by name for the life of
+ * the `hermes serve` process and does NOT reconnect it just because its
+ * backing data changed underneath it). Shared by `registerAecSourcesForProject`
+ * (task 1.20) and the `sources:add`/`sources:remove` IPC handlers (bugfix:
+ * an added/removed source was invisible to the agent until a project switch)
+ * — those two only ever rewrite project.json, never config.yaml, so
+ * `registerAecSourcesForProject`'s own "config unchanged, skip the reload"
+ * gate would never fire a reload for them; they call this unconditionally
+ * instead. Best-effort — no gateway connected yet, a timeout, or an RPC error
+ * must never block whatever project.json write already succeeded; logged,
+ * not thrown. Deliberately does not touch `sessionId`/session state: the
+ * active chat session (same project, same cwd) stays alive and picks up the
+ * refreshed `aec-sources` data on its very next tool call — see the "does not
+ * reset the session" note on the `sources:add`/`sources:remove` handlers. */
+async function reloadMcp(): Promise<void> {
+  if (!gateway) return
+  try {
+    const result = await gateway.request('reload.mcp', { confirm: true }, RELOAD_MCP_TIMEOUT_MS)
+    if (result.status !== 'reloaded') {
+      console.error(`aecpilot: reload.mcp did not reload (status=${result.status})`, result.message)
+    }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not reload MCP servers', error)
+  }
+}
+
 /** Registers the `aec-sources` MCP server against the opened project's
  * `project.json` (task 1.20, mechanic 1.12) — idempotent config.yaml edit —
  * and, only if that edit actually changed anything (review fix, nit 2: an
  * unchanged config means the same project is already registered — tearing
  * down every MCP server for nothing would be pure regression), forces hermes
- * to pick up the new args via the `reload.mcp` RPC (`confirm: true`, no live
- * session to warn — see `ReloadMcpParams`'s doc comment in
- * shared/gateway/types.ts for why this second step is required: hermes
- * caches a connected MCP server by name for the life of the `hermes serve`
- * process, so merely rewriting config.yaml does NOT reconnect an
- * already-running `aec-sources` server with the new `--project` path).
+ * to pick up the new args via `reloadMcp()`.
  * Best-effort throughout — a missing `aec-sources` binary (not built via
- * `uv sync` yet), a config.yaml write failure, a `reload.mcp` timeout/error,
- * or the gateway not being connected yet must never block opening/creating a
- * project; the agent just won't see this project's sources until the
- * condition is fixed and the project is reopened. */
+ * `uv sync` yet) or a config.yaml write failure must never block opening/
+ * creating a project; the agent just won't see this project's sources until
+ * the condition is fixed and the project is reopened. */
 async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
   let changed: boolean
   try {
@@ -139,15 +162,8 @@ async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
     console.error('aecpilot: could not register aec-sources for the opened project', error)
     return
   }
-  if (!changed || !gateway) return
-  try {
-    const result = await gateway.request('reload.mcp', { confirm: true }, RELOAD_MCP_TIMEOUT_MS)
-    if (result.status !== 'reloaded') {
-      console.error(`aecpilot: reload.mcp did not reload (status=${result.status})`, result.message)
-    }
-  } catch (error: unknown) {
-    console.error('aecpilot: could not reload MCP servers for the opened project', error)
-  }
+  if (!changed) return
+  await reloadMcp()
 }
 
 /** Abandons the active chat session on a project switch (task 1.20): the
@@ -702,7 +718,18 @@ ipcMain.handle('sources:list', () => {
   return currentProject ? listProjectSources(currentProject.vaultPath) : []
 })
 
-ipcMain.handle('sources:add', (_event, payload: unknown) => {
+// Bugfix (owner manual run, block 6): a source added here only rewrites
+// project.json — config.yaml's aec-sources `--project` arg stays the same
+// path, so `registerAecSourcesForProject`'s "config unchanged" skip would
+// never fire a reload for it, and the already-running aec-sources subprocess
+// (which parsed project.json once, at its own startup) would keep serving
+// its stale source list until the user switched projects and back. `reloadMcp`
+// is called unconditionally here — best-effort, does not roll back the
+// already-written project.json on failure — and deliberately does NOT reset
+// the active chat session (see reloadMcp's doc comment): the project and cwd
+// are unchanged, only the tool-backing data is, so the current session picks
+// it up on its next tool call without losing history.
+ipcMain.handle('sources:add', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, errors: ['нет открытого проекта'] }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, errors: ['invalid payload'] }
@@ -714,9 +741,11 @@ ipcMain.handle('sources:add', (_event, payload: unknown) => {
   if (!isAbsolute(rootPath)) {
     return { ok: false, errors: ['путь к источнику должен быть абсолютным'] }
   }
-  return addSourceToProject(currentProject.vaultPath, rootPath, {
+  const result = addSourceToProject(currentProject.vaultPath, rootPath, {
     confirmed: confirmed === true
   })
+  if (!('needsConfirm' in result) && result.ok) await reloadMcp()
+  return result
 })
 
 // Task 1.8 fix-iteration 1: cheap per-source availability check (no
@@ -741,6 +770,9 @@ ipcMain.handle('sources:status', (_event, payload: unknown) => {
 // (never deleted). A detach failure (missing binary, timeout, …) is logged
 // but does NOT roll back the project.json removal — it will catch up on a
 // retry/next scan regardless.
+// Bugfix (owner manual run, block 6): same reasoning as sources:add above —
+// removing a source only rewrites project.json, so `reloadMcp` is called
+// unconditionally (best-effort, no session reset) once that write succeeds.
 ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
@@ -753,6 +785,8 @@ ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
 
   const result = removeSourceFromProject(currentProject.vaultPath, sourceId)
   if (!result.ok) return result
+
+  await reloadMcp()
 
   try {
     await runDetach(currentProject.vaultPath, sourceId)
