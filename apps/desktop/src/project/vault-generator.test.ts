@@ -49,16 +49,20 @@ describe('generateVault — successful generation', () => {
       nowIso: NOW_ISO
     })
 
-    for (const dir of [
-      'wiki',
-      'workspace',
-      'templates',
-      'checklists',
-      '.aecpilot',
-      '.aecpilot/logs'
-    ]) {
+    for (const dir of ['wiki', 'workspace', 'templates', '.aecpilot', '.aecpilot/logs']) {
       expect(fs.statSync(path.join(vaultPath, dir)).isDirectory()).toBe(true)
     }
+  })
+
+  it('does not create a checklists/ directory', () => {
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: NOW_ISO
+    })
+
+    expect(fs.existsSync(path.join(vaultPath, 'checklists'))).toBe(false)
   })
 
   it('writes AGENTS.md with the {{PROJECT_NAME}} placeholder substituted', () => {

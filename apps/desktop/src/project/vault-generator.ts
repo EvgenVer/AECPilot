@@ -9,7 +9,7 @@ import { PROJECT_CONFIG_SCHEMA_VERSION, type ProjectConfig } from './project-con
 
 /** Subdirectories created directly under `vaultPath`. `.aecpilot/logs` is
  * created as a nested path (see `generateVault`) so it isn't listed twice. */
-const VAULT_SUBDIRS = ['wiki', 'workspace', 'templates', 'checklists', '.aecpilot']
+const VAULT_SUBDIRS = ['wiki', 'workspace', 'templates', '.aecpilot']
 
 const PROJECT_NAME_PLACEHOLDER = '{{PROJECT_NAME}}'
 
