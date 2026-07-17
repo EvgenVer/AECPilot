@@ -180,6 +180,18 @@ def scan_source(
     updated even if a matching file exists on disk, and never fed into the
     deleted-file reconciliation below. Reattaching them is task 1.16.
 
+    Note: a source can be removed from ``project.json`` while a scan of it
+    (or a racing ``aec-rag detach``) is still in flight against the same
+    ``index.db`` — the SQLite write lock this function holds means a racing
+    ``detach`` can lose or be delayed. If that scan resurrects/keeps rows
+    ``"ok"``/``"changed"`` for a source that's already gone from
+    ``project.json`` by the time it finishes, this function does not itself
+    detect or correct that — ``aec_rag.__main__.run_scan``'s orphan sweep
+    (run right after every scan cycle) does: it detaches any ``source_id``
+    present in ``index.db`` but absent from the just-read ``project.json``,
+    converging the index within one scan cycle regardless of what a prior
+    scan/detach race left behind.
+
     If ``root_path`` itself is not currently reachable (missing or
     unlistable — e.g. a dropped network share), this returns immediately
     with ``root_unavailable: True`` and every list/count at its default
@@ -278,3 +290,28 @@ def scan_source(
         "unchanged": unchanged,
         "root_unavailable": False,
     }
+
+
+def detach_source(conn: sqlite3.Connection, source_id: str) -> int:
+    """Marks every ``files`` row belonging to ``source_id`` as ``detached``
+    (task 1.16, specs/workspace-sources.md's "Отключение источника"): rows are
+    never removed, only their status changes — including rows already
+    ``"ok"``/``"changed"``/``"deleted"``, since disconnecting the source
+    disconnects it entirely, not just its currently-missing files.
+
+    Idempotent: a row already ``"detached"`` is left untouched (not
+    re-stamped with a new ``indexed_at``), so calling this twice for the same
+    source reports 0 newly-affected rows the second time. Rows belonging to
+    *other* source ids are never touched. Reattaching a detached source is
+    out of scope here (see `scan_source`'s doc comment: detached rows are
+    left completely alone by the scanner).
+
+    Returns the number of rows whose status actually changed.
+    """
+    cursor = conn.execute(
+        "UPDATE files SET status = 'detached', indexed_at = ? "
+        "WHERE source_id = ? AND status != 'detached'",
+        (_iso_now(), source_id),
+    )
+    conn.commit()
+    return cursor.rowcount

@@ -10,7 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const spawnMock = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 
-import { DEFAULT_SCAN_TIMEOUT_MS, runScan } from './scan-runner'
+import {
+  DEFAULT_DETACH_TIMEOUT_MS,
+  DEFAULT_SCAN_TIMEOUT_MS,
+  runDetach,
+  runScan
+} from './scan-runner'
 
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter()
@@ -109,5 +114,52 @@ describe('runScan', () => {
 
     await promise
     expect(clearTimeoutSpy).toHaveBeenCalled()
+  })
+})
+
+// Task 1.16: same spawn wrapper shape as `runScan` above, against
+// `aec-rag detach` instead — reuses the same fake-ChildProcess/fake-timers
+// setup (`proc`, `beforeEach`/`afterEach` above).
+describe('runDetach', () => {
+  it('resolves with the parsed JSON report on a clean exit', async () => {
+    const promise = runDetach('C:/vault', 'src-1')
+    proc.stdout.emit('data', Buffer.from('{"source_id":"src-1","detached":2}', 'utf8'))
+    proc.emit('close', 0)
+
+    await expect(promise).resolves.toEqual({ source_id: 'src-1', detached: 2 })
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['detach', '--project', 'C:/vault', '--source', 'src-1'],
+      expect.objectContaining({ windowsHide: true })
+    )
+  })
+
+  it('rejects with a message including stderr on a non-zero exit', async () => {
+    const promise = runDetach('C:/vault', 'src-1')
+    proc.stderr.emit('data', Buffer.from('aec-rag: project.json not found\n', 'utf8'))
+    proc.emit('close', 1)
+
+    await expect(promise).rejects.toThrow(/aec-rag: project.json not found/)
+  })
+
+  it('rejects when the binary is missing (spawn error)', async () => {
+    const promise = runDetach('C:/vault', 'src-1')
+    proc.emit('error', new Error('ENOENT'))
+
+    await expect(promise).rejects.toThrow(/не удалось запустить aec-rag detach/)
+  })
+
+  it('kills the process and rejects if it hangs past the (short) timeout', async () => {
+    const promise = runDetach('C:/vault', 'src-1', 1000)
+    const assertion = expect(promise).rejects.toThrow(/принудительно остановлен/)
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    await assertion
+    expect(proc.kill).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses a much shorter default timeout than a full scan', () => {
+    expect(DEFAULT_DETACH_TIMEOUT_MS).toBeLessThan(DEFAULT_SCAN_TIMEOUT_MS)
   })
 })

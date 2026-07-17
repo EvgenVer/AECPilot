@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from aec_rag import indexer
 from aec_rag.db import open_index
-from aec_rag.indexer import scan_source
+from aec_rag.indexer import detach_source, scan_source
 
 windows_only = pytest.mark.skipif(os.name != "nt", reason="junctions are a Windows/NTFS concept")
 
@@ -417,3 +417,63 @@ def test_junction_cycle_does_not_loop_forever(tmp_path):
     report = scan_source(conn, "src", root)
 
     assert set(report["added"]) == {"top.txt", "sub/nested.txt"}
+
+
+def test_detach_source_marks_all_rows_detached_regardless_of_prior_status(tmp_path):
+    """Task 1.16: disconnecting a source detaches it entirely -- 'ok',
+    'changed', and 'deleted' rows all become 'detached'.
+    """
+    root = make_fixture_root(tmp_path)
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "src", root)
+    (root / "top.txt").write_text("changed content", encoding="utf-8")
+    (root / "sub" / "nested.txt").unlink()
+    scan_source(conn, "src", root)
+
+    rows_before = conn.execute(
+        "SELECT rel_path, status FROM files WHERE source_id = ? ORDER BY rel_path", ("src",)
+    ).fetchall()
+    assert {status for _rel_path, status in rows_before} == {"changed", "deleted", "ok"}
+
+    detached_count = detach_source(conn, "src")
+
+    assert detached_count == 3
+    rows_after = conn.execute(
+        "SELECT rel_path, status FROM files WHERE source_id = ? ORDER BY rel_path", ("src",)
+    ).fetchall()
+    assert all(status == "detached" for _rel_path, status in rows_after)
+    assert [rel_path for rel_path, _status in rows_after] == [
+        rel_path for rel_path, _status in rows_before
+    ]
+
+
+def test_detach_source_is_idempotent(tmp_path):
+    root = make_fixture_root(tmp_path)
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "src", root)
+
+    first = detach_source(conn, "src")
+    assert first == 3
+
+    second = detach_source(conn, "src")
+    assert second == 0
+
+
+def test_detach_source_leaves_other_sources_untouched(tmp_path):
+    root = tmp_path / "source-root"
+    root.mkdir()
+    (root / "a.txt").write_text("a", encoding="utf-8")
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "src-1", root)
+    scan_source(conn, "src-2", root)
+
+    detach_source(conn, "src-1")
+
+    row_1 = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("src-1", "a.txt")
+    ).fetchone()
+    row_2 = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("src-2", "a.txt")
+    ).fetchone()
+    assert row_1[0] == "detached"
+    assert row_2[0] == "ok"

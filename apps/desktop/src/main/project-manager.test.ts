@@ -14,7 +14,8 @@ import {
   getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
-  openProject
+  openProject,
+  removeSourceFromProject
 } from './project-manager'
 
 // Fix-iteration 1 (review minor): lets the "write failure" test below make a
@@ -343,6 +344,104 @@ describe('addSourceToProject', () => {
       expect(result.errors[0]).toContain('Не удалось сохранить project.json')
     }
     expect(after).toBe(before)
+  })
+})
+
+// Task 1.16: BDD "Отключение источника" — project.json is the source of
+// truth for which sources are connected; this only removes the entry
+// (marking index.db rows detached is a separate, best-effort step taken by
+// the `sources:remove` IPC handler via `aec-rag detach`, out of scope here).
+describe('removeSourceFromProject', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-remove-source-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('removes the source, re-reads and re-validates project.json, and returns the remaining list', () => {
+    const sourceDir = path.join(parent, 'source-a')
+    fs.mkdirSync(sourceDir)
+    const otherDir = path.join(parent, 'source-b')
+    fs.mkdirSync(otherDir)
+    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+    addSourceToProject(vaultPath, otherDir, { idFactory: () => 'id-b' })
+
+    const result = removeSourceFromProject(vaultPath, 'id-a')
+
+    expect(result).toEqual({
+      ok: true,
+      sources: [{ id: 'id-b', root_path: otherDir, added_at: expect.any(String) }]
+    })
+
+    const raw = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    expect(raw.endsWith('\n')).toBe(true)
+    const validated = validateProjectConfig(JSON.parse(raw))
+    expect(validated.ok).toBe(true)
+    if (validated.ok) {
+      expect(validated.value.sources.map((s) => s.id)).toEqual(['id-b'])
+    }
+  })
+
+  it('rejects an unknown sourceId, leaving project.json untouched', () => {
+    const sourceDir = path.join(parent, 'source-a')
+    fs.mkdirSync(sourceDir)
+    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+
+    const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    const result = removeSourceFromProject(vaultPath, 'no-such-id')
+    const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+    expect(result).toEqual({ ok: false, error: 'Источник не найден' })
+    expect(after).toBe(before)
+  })
+
+  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', () => {
+    const sourceDir = path.join(parent, 'source-a')
+    fs.mkdirSync(sourceDir)
+    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+
+    const writeFileSyncMock = vi.mocked(fs.writeFileSync)
+    const realWriteFileSync = writeFileSyncMock.getMockImplementation()!
+    writeFileSyncMock.mockImplementationOnce(() => {
+      throw new Error('simulated disk failure')
+    })
+
+    const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    let result: ReturnType<typeof removeSourceFromProject>
+    try {
+      result = removeSourceFromProject(vaultPath, 'id-a')
+    } finally {
+      writeFileSyncMock.mockImplementation(realWriteFileSync)
+    }
+    const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('Не удалось сохранить project.json')
+    })
+    expect(after).toBe(before)
+  })
+
+  it('rejects when the vault has no project.json', () => {
+    const notAVault = path.join(parent, 'not-a-vault')
+    fs.mkdirSync(notAVault)
+
+    const result = removeSourceFromProject(notAVault, 'id-a')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain('Папка недоступна')
   })
 })
 

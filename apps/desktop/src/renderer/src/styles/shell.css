@@ -373,6 +373,24 @@ button {
   cursor: pointer;
 }
 
+.sources-panel__detach-btn {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font-size: var(--fs-caption);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sources-panel__detach-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .sources-panel__source-body {
   padding-bottom: 4px;
 }

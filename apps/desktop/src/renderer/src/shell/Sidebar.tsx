@@ -90,7 +90,11 @@ function SourcesActivity({ currentProject }: { currentProject: OpenProject | nul
       <ul className="sources-panel__list">
         {sources.length === 0 && <li className="sources-panel__empty">Источники не подключены</li>}
         {sources.map((source) => (
-          <SourceEntry key={source.id} source={source} />
+          <SourceEntry
+            key={source.id}
+            source={source}
+            onDetached={(sourceId) => setSources((prev) => prev.filter((s) => s.id !== sourceId))}
+          />
         ))}
       </ul>
 
@@ -189,14 +193,30 @@ type SourceTreeState = 'idle' | 'loading' | 'ok' | 'error'
  * anything first. Once expanded, an available source's file tree is fetched
  * lazily via `sources:tree`; an unavailable one shows a status message plus
  * "Обновить" to re-check without reopening the project. Every check/fetch is
- * isolated per source, so one bad source never blocks the others. */
-function SourceEntry({ source }: { source: ProjectSource }) {
+ * isolated per source, so one bad source never blocks the others.
+ *
+ * "Отключить" (task 1.16, BDD "Отключение источника") is a two-step confirm
+ * — same "Отмена"/primary-action shape as `SourcesActivity`'s own
+ * needsConfirm panel — warning that the source's files will disappear from
+ * this tree and its index.db rows will be marked `detached` (kept, not
+ * deleted); on success, `onDetached` tells the parent to drop it from the
+ * list. */
+function SourceEntry({
+  source,
+  onDetached
+}: {
+  source: ProjectSource
+  onDetached: (sourceId: string) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const [status, setStatus] = useState<SourceStatus>('checking')
   const [statusError, setStatusError] = useState<string | undefined>(undefined)
   const [treeState, setTreeState] = useState<SourceTreeState>('idle')
   const [tree, setTree] = useState<SourceTreeNode[]>([])
   const [treeError, setTreeError] = useState<string | undefined>(undefined)
+  const [confirmingDetach, setConfirmingDetach] = useState(false)
+  const [detaching, setDetaching] = useState(false)
+  const [detachError, setDetachError] = useState<string | undefined>(undefined)
 
   function applyStatusResult(
     result: Awaited<ReturnType<typeof window.aecpilot.getSourceStatus>>
@@ -280,6 +300,28 @@ function SourceEntry({ source }: { source: ProjectSource }) {
     })
   }
 
+  async function handleDetach(): Promise<void> {
+    // Nit (task 1.16 fix-iteration): guards against a double physical click
+    // on the confirm button firing two `sources:remove` IPC calls before the
+    // first re-render disables it.
+    if (detaching) return
+    setDetaching(true)
+    setDetachError(undefined)
+    try {
+      const result = await window.aecpilot.removeSource(source.id)
+      if (!result.ok) {
+        setDetachError(result.error)
+        return
+      }
+      setConfirmingDetach(false)
+      onDetached(source.id)
+    } catch (err) {
+      setDetachError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDetaching(false)
+    }
+  }
+
   return (
     <li className="sources-panel__source">
       <div className="sources-panel__source-header" title={source.root_path} onClick={handleToggle}>
@@ -301,7 +343,47 @@ function SourceEntry({ source }: { source: ProjectSource }) {
             Обновить
           </button>
         )}
+        <button
+          type="button"
+          className="sources-panel__detach-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            setDetachError(undefined)
+            setConfirmingDetach(true)
+          }}
+        >
+          Отключить
+        </button>
       </div>
+
+      {confirmingDetach && (
+        <div className="sources-panel__confirm">
+          <div className="sources-panel__confirm-text">
+            Отключить источник «{source.root_path}»? Его файлы исчезнут из дерева, связанные записи
+            индекса будут помечены как detached (не удалятся), а страницы вики со ссылками на него
+            останутся с пометкой «источник отключён» (появится в Phase 3).
+          </div>
+          {detachError && <div className="sources-panel__error">{detachError}</div>}
+          <div className="sources-panel__confirm-actions">
+            <button
+              type="button"
+              className="sources-panel__confirm-btn"
+              disabled={detaching}
+              onClick={() => setConfirmingDetach(false)}
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="sources-panel__confirm-btn sources-panel__confirm-btn--primary"
+              disabled={detaching}
+              onClick={() => void handleDetach()}
+            >
+              {detaching ? 'Отключение…' : 'Отключить'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {expanded && (
         <div className="sources-panel__source-body">

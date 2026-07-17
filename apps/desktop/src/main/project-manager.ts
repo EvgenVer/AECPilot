@@ -333,3 +333,43 @@ export function addSourceToProject(
 
   return { ok: true, sources: updatedConfig.sources }
 }
+
+export type RemoveSourceResult =
+  { ok: true; sources: ProjectSource[] } | { ok: false; error: string }
+
+/** Disconnects `sourceId` from the project at `vaultPath` (task 1.16,
+ * specs/workspace-sources.md's "Отключение источника"): removes its entry
+ * from `project.json`, atomically, same write path as `addSourceToProject`.
+ * `project.json` is the source of truth here — this function never touches
+ * `index.db` or any file on disk; marking that source's index rows
+ * `detached` is a separate, best-effort step the caller (the `sources:remove`
+ * IPC handler in main/index.ts) takes afterwards via `aec-rag detach`, and a
+ * failure there does not roll this back.
+ *
+ * An unknown `sourceId` or an unreadable/invalid `project.json` comes back
+ * as `{ ok: false }` without writing anything. */
+export function removeSourceFromProject(vaultPath: string, sourceId: string): RemoveSourceResult {
+  const configResult = readProjectConfigFile(vaultPath)
+  if (!configResult.ok) return { ok: false, error: configResult.error }
+  const config = configResult.config
+
+  if (!config.sources.some((s) => s.id === sourceId)) {
+    return { ok: false, error: 'Источник не найден' }
+  }
+
+  const updatedConfig: ProjectConfig = {
+    ...config,
+    sources: config.sources.filter((s) => s.id !== sourceId)
+  }
+
+  try {
+    writeProjectConfigFile(vaultPath, updatedConfig)
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось сохранить project.json: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  return { ok: true, sources: updatedConfig.sources }
+}

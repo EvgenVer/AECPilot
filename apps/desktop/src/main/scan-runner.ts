@@ -106,3 +106,91 @@ export function runScan(
     })
   })
 }
+
+/** `aec-rag detach`'s report shape (task 1.16, mirrors `run_detach` in
+ * mcp/aec_rag/src/aec_rag/__main__.py). */
+export interface DetachReport {
+  source_id: string
+  detached: number
+}
+
+// Task 1.16: a source disconnect is just an `UPDATE ... WHERE source_id = ?`
+// against index.db — nowhere near as long-running as a first scan of a large
+// tree, so this timeout is much shorter than `DEFAULT_SCAN_TIMEOUT_MS`; a
+// hung/dropped share behind it must not leave the "Отключить" click hanging
+// for minutes.
+export const DEFAULT_DETACH_TIMEOUT_MS = 30 * 1000
+
+/** Runs `aec-rag detach --project <vaultPath> --source <sourceId>` (task
+ * 1.16): marks every `index.db` row for `sourceId` as `detached` — never
+ * deletes a row. Called best-effort, right after `removeSourceFromProject`
+ * has already removed the source from `project.json` (the `sources:remove`
+ * IPC handler in main/index.ts) — a rejection here does not roll that back;
+ * `project.json` stays the source of truth. Same rejection contract as
+ * `runScan` (non-zero exit, spawn failure, malformed stdout, or a hung
+ * process past `timeoutMs`). */
+export function runDetach(
+  vaultPath: string,
+  sourceId: string,
+  timeoutMs = DEFAULT_DETACH_TIMEOUT_MS
+): Promise<DetachReport> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(aecRagBinPath(), ['detach', '--project', vaultPath, '--source', sourceId], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    })
+
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    let settled = false
+
+    const timeoutTimer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      proc.kill()
+      reject(
+        new Error(
+          `aec-rag detach не завершился за ${Math.round(timeoutMs / 1000)} с — процесс принудительно остановлен`
+        )
+      )
+    }, timeoutMs)
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      stdoutChunks.push(chunk)
+    })
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderrChunks.push(chunk)
+    })
+
+    proc.on('error', (error: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutTimer)
+      reject(new Error(`не удалось запустить aec-rag detach: ${error.message}`))
+    })
+
+    proc.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutTimer)
+
+      if (code !== 0) {
+        const stderr = Buffer.concat(stderrChunks).toString('utf8')
+        reject(new Error(`aec-rag detach завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        return
+      }
+      try {
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8')
+        resolve(JSON.parse(stdout) as DetachReport)
+      } catch (error: unknown) {
+        reject(
+          new Error(
+            `не удалось разобрать отчёт aec-rag detach: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        )
+      }
+    })
+  })
+}

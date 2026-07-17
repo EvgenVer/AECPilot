@@ -6,7 +6,10 @@ import json
 import sqlite3
 from pathlib import Path
 
+from aec_rag import __main__ as aec_rag_main
 from aec_rag.__main__ import main
+from aec_rag.db import open_index
+from aec_rag.indexer import scan_source
 
 
 def make_vault(tmp_path: Path, sources: list[dict]) -> Path:
@@ -124,3 +127,199 @@ def test_scan_unavailable_source_does_not_block_others(tmp_path, capsys):
     assert report["sources"]["ok"]["added"] == ["a.txt"]
     assert report["sources"]["ok"]["root_unavailable"] is False
     assert report["sources"]["missing"]["root_unavailable"] is True
+
+
+def test_detach_marks_index_rows_detached(tmp_path, capsys):
+    """Task 1.16: `aec-rag detach --project <...> --source <id>`."""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("hello", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    main(["scan", "--project", str(vault)])
+    capsys.readouterr()  # discard the scan's stdout
+
+    code = main(["detach", "--project", str(vault), "--source", "src-1"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report == {"source_id": "src-1", "detached": 1}
+
+    index_db = vault / ".aecpilot" / "index.db"
+    conn = sqlite3.connect(str(index_db))
+    row = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("src-1", "a.txt")
+    ).fetchone()
+    assert row == ("detached",)
+
+
+def test_detach_is_idempotent(tmp_path, capsys):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("hello", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    main(["scan", "--project", str(vault)])
+    capsys.readouterr()
+
+    main(["detach", "--project", str(vault), "--source", "src-1"])
+    capsys.readouterr()
+    code = main(["detach", "--project", str(vault), "--source", "src-1"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report == {"source_id": "src-1", "detached": 0}
+
+
+def test_detach_without_index_db_is_not_fatal(tmp_path, capsys):
+    """A source can be disconnected before it was ever scanned -- no
+    index.db exists yet, and that must not be an error.
+    """
+    vault = make_vault(tmp_path, [])
+
+    code = main(["detach", "--project", str(vault), "--source", "never-scanned"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report == {"source_id": "never-scanned", "detached": 0}
+    assert not (vault / ".aecpilot" / "index.db").exists()
+
+
+def test_detach_missing_vault_exits_1_with_stderr(tmp_path, capsys):
+    missing_vault = tmp_path / "no-such-vault"
+
+    code = main(["detach", "--project", str(missing_vault), "--source", "src-1"])
+
+    assert code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "aec-rag:" in captured.err
+
+
+def test_detach_leaves_other_sources_untouched(tmp_path, capsys):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("hello", encoding="utf-8")
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    (other_dir / "b.txt").write_text("hi", encoding="utf-8")
+    vault = make_vault(
+        tmp_path,
+        [
+            {"id": "src-1", "root_path": str(source_dir), "added_at": "x"},
+            {"id": "src-2", "root_path": str(other_dir), "added_at": "x"},
+        ],
+    )
+    main(["scan", "--project", str(vault)])
+    capsys.readouterr()
+
+    main(["detach", "--project", str(vault), "--source", "src-1"])
+    capsys.readouterr()
+
+    index_db = vault / ".aecpilot" / "index.db"
+    conn = sqlite3.connect(str(index_db))
+    row = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("src-2", "b.txt")
+    ).fetchone()
+    assert row == ("ok",)
+
+
+def test_scan_sweeps_a_source_id_no_longer_in_project_json(tmp_path, capsys):
+    """Task 1.16 fix-iteration (review major): a source removed from
+    project.json while a scan/detach race left its rows un-detached must be
+    cleaned up by the very next scan -- this is what makes the whole system
+    converge even if a `detach` call is lost/fails.
+    """
+    configured_dir = tmp_path / "configured"
+    configured_dir.mkdir()
+    (configured_dir / "a.txt").write_text("hello", encoding="utf-8")
+    vault = make_vault(
+        tmp_path, [{"id": "configured", "root_path": str(configured_dir), "added_at": "x"}]
+    )
+
+    orphan_dir = tmp_path / "orphan"
+    orphan_dir.mkdir()
+    (orphan_dir / "b.txt").write_text("hi", encoding="utf-8")
+    # Simulates a source that was scanned, then removed from project.json
+    # while a racing detach lost/failed -- its rows are still "ok", but its
+    # id is absent from this vault's project.json.
+    index_db = vault / ".aecpilot" / "index.db"
+    conn = open_index(index_db)
+    scan_source(conn, "orphan", orphan_dir)
+    conn.close()
+
+    code = main(["scan", "--project", str(vault)])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["sources"]["configured"]["added"] == ["a.txt"]
+    assert report["detached_orphans"] == {"orphan": 1}
+
+    conn = sqlite3.connect(str(index_db))
+    orphan_row = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("orphan", "b.txt")
+    ).fetchone()
+    configured_row = conn.execute(
+        "SELECT status FROM files WHERE source_id = ? AND rel_path = ?", ("configured", "a.txt")
+    ).fetchone()
+    assert orphan_row == ("detached",)
+    assert configured_row == ("ok",)
+
+
+def test_scan_sweep_is_idempotent_second_scan_reports_no_orphans(tmp_path, capsys):
+    orphan_dir = tmp_path / "orphan"
+    orphan_dir.mkdir()
+    (orphan_dir / "b.txt").write_text("hi", encoding="utf-8")
+    vault = make_vault(tmp_path, [])
+    index_db = vault / ".aecpilot" / "index.db"
+    conn = open_index(index_db)
+    scan_source(conn, "orphan", orphan_dir)
+    conn.close()
+
+    main(["scan", "--project", str(vault)])
+    capsys.readouterr()
+    code = main(["scan", "--project", str(vault)])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert "detached_orphans" not in report
+    assert report["sources"] == {}
+
+
+def test_scan_reports_no_detached_orphans_key_when_nothing_orphaned(tmp_path, capsys):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("hello", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+
+    code = main(["scan", "--project", str(vault)])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert "detached_orphans" not in report
+
+
+def test_detach_locked_index_db_exits_1_with_friendly_message(tmp_path, capsys, monkeypatch):
+    """Task 1.16 fix-iteration (review major, part b): a `detach` that loses
+    a lock race against a concurrent scan must exit 1 with a clear,
+    non-traceback message -- not crash raw. Locking the real database via a
+    second live connection would make this flaky (depends on Python's
+    default 5s busy_timeout), so the race is simulated directly.
+    """
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("hello", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    main(["scan", "--project", str(vault)])
+    capsys.readouterr()
+
+    def boom(_conn, _source_id):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(aec_rag_main, "detach_source", boom)
+
+    code = main(["detach", "--project", str(vault), "--source", "src-1"])
+
+    assert code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "aec-rag:" in captured.err
+    assert "занят идущим сканированием" in captured.err

@@ -29,10 +29,11 @@ import {
   getSourceTreeResult,
   listProjectSources,
   openProject,
+  removeSourceFromProject,
   type OpenProject
 } from './project-manager'
 import { loadRecents, recordRecent } from './recents'
-import { runScan } from './scan-runner'
+import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import {
   buildVaultTree,
@@ -599,6 +600,34 @@ ipcMain.handle('sources:status', (_event, payload: unknown) => {
     return { ok: false, error: 'sourceId must be a non-empty string' }
   }
   return getSourceStatusResult(currentProject.vaultPath, sourceId)
+})
+
+// Task 1.16: disconnects a source (BDD "Отключение источника") —
+// project.json is the source of truth and is updated first; a best-effort
+// `aec-rag detach` run then marks that source's index.db rows `detached`
+// (never deleted). A detach failure (missing binary, timeout, …) is logged
+// but does NOT roll back the project.json removal — it will catch up on a
+// retry/next scan regardless.
+ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { sourceId } = payload as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+
+  const result = removeSourceFromProject(currentProject.vaultPath, sourceId)
+  if (!result.ok) return result
+
+  try {
+    await runDetach(currentProject.vaultPath, sourceId)
+  } catch (error: unknown) {
+    console.error('aecpilot: aec-rag detach FAIL (best-effort)', error)
+  }
+
+  return result
 })
 
 // Task 1.8: builds a connected source's directory tree for the sidebar's

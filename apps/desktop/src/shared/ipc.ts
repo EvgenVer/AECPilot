@@ -94,6 +94,15 @@ export interface SourceScanReport {
  * last-report snapshot). */
 export interface ScanReport {
   sources: Record<string, SourceScanReport>
+  /** Task 1.16 fix-iteration (review major): a source id found in `index.db`
+   * but no longer present in `project.json` (e.g. a `removeSourceFromProject`
+   * that won a race against a concurrent `aec-rag detach`, which then lost
+   * its SQLite lock race and failed) — mapped to the number of its rows just
+   * detached by this scan's self-healing sweep (mcp/aec_rag's `run_scan`).
+   * Only present when non-empty; not surfaced by task 1.15's
+   * `ScanNotification` (it's an internal recovery detail, not a user-facing
+   * source change). */
+  detached_orphans?: Record<string, number>
 }
 
 /** A `ScanReport` tagged with the vault it belongs to (task 1.15 fix-iteration
@@ -231,6 +240,17 @@ export interface AecpilotApi {
    * after `listSources` so the sidebar can show every source's "недоступен"
    * badge without a manual expand. */
   getSourceStatus(sourceId: string): Promise<SourceStatusResult>
+  /** Disconnects `sourceId` from the current project (task 1.16,
+   * specs/workspace-sources.md's "Отключение источника"): removes it from
+   * `project.json` (the source of truth — always happens on success) and,
+   * best-effort, tells `index.db` to mark every matching row `detached`
+   * (never deleted) via a short-lived `aec-rag detach` process; a detach
+   * failure does not roll back the `project.json` removal. `error` is a
+   * human-readable message (unknown `sourceId`, no open project, or a
+   * `project.json` write failure). */
+  removeSource(
+    sourceId: string
+  ): Promise<{ ok: true; sources: ProjectSource[] } | { ok: false; error: string }>
   /** Reads a connected source's directory tree (task 1.8) — read-only, no
    * write operations exist for a source (RO by construction, see
    * specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
