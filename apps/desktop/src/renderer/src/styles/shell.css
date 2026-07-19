@@ -1328,6 +1328,14 @@ button {
   font-weight: 600;
 }
 
+.settings-popover__section-title {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
 .settings-popover__close {
   font: inherit;
   background: transparent;
@@ -1395,6 +1403,37 @@ button {
 .settings-popover__save:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ============ Theme switch (task 1.5.10) ============ */
+
+.theme-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+}
+
+.theme-switch__option {
+  height: var(--control-h);
+  padding: 0 12px;
+  background: var(--bg-surface);
+  border: none;
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.theme-switch__option + .theme-switch__option {
+  border-left: 1px solid var(--border);
+}
+
+.theme-switch__option--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* ============ Approvals mode select (status bar) ============ */
