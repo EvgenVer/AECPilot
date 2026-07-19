@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDownIcon, FilesIcon } from './icons'
+import CreateProjectDialog from './CreateProjectDialog'
 import type { OpenProject, RecentProject } from '../../../shared/ipc'
 
 /** How many recents entries the top-bar project menu shows (task 1.4) —
@@ -12,7 +13,12 @@ const MAX_MENU_RECENTS = 5
  * whether or not a project is currently open — opening/switching just
  * replaces `currentProject` (see main/index.ts's `project:open`), which also
  * abandons the active chat session and re-scopes it to the new project (task
- * 1.20). Closes on an outside click, same pattern as chat/SessionMenu.tsx. */
+ * 1.20). Closes on an outside click, same pattern as chat/SessionMenu.tsx.
+ * Task 1.5.4 (Obsidian-style init): opening a folder that isn't a project
+ * yet no longer just errors — this renders its own `CreateProjectDialog`
+ * instance (independent of the shell's `onOpenCreateProject`-driven one),
+ * pre-filled with that folder and a suggested name, so the user can
+ * initialize a project there instead. */
 export default function ProjectMenu({
   currentProject,
   onOpenCreateProject
@@ -24,6 +30,9 @@ export default function ProjectMenu({
   const [recents, setRecents] = useState<RecentProject[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [initDialog, setInitDialog] = useState<{ dirPath: string; name: string } | undefined>(
+    undefined
+  )
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -36,6 +45,21 @@ export default function ProjectMenu({
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [open])
+
+  // Fix-iteration precedent (Sidebar.tsx's SourcesActivity, task 1.7 review):
+  // a pending init prompt/error belongs to the project that was open when it
+  // was raised — a project switch must clear both, so a stale "Инициализи-
+  // ровать" can never fire against whatever project is now open. Declared as
+  // a nested function (not inlined in the effect body) — same convention as
+  // Sidebar.tsx's SourceEntry mount effect, which keeps this outside
+  // `react-hooks/set-state-in-effect`'s reach.
+  useEffect(() => {
+    function resetForProjectSwitch(): void {
+      setInitDialog(undefined)
+      setError(undefined)
+    }
+    resetForProjectSwitch()
+  }, [currentProject])
 
   function handleToggle(): void {
     if (open) {
@@ -52,6 +76,11 @@ export default function ProjectMenu({
     setError(undefined)
     try {
       const result = await window.aecpilot.openProject(vaultPath)
+      if ('needsInit' in result) {
+        setOpen(false)
+        setInitDialog({ dirPath: vaultPath, name: result.suggestedName })
+        return
+      }
       if (!result.ok) {
         setError(result.error)
         return
@@ -69,6 +98,11 @@ export default function ProjectMenu({
       const picked = await window.aecpilot.pickProjectDirectory()
       if (!picked) return
       const result = await window.aecpilot.openProject(picked)
+      if ('needsInit' in result) {
+        setOpen(false)
+        setInitDialog({ dirPath: picked, name: result.suggestedName })
+        return
+      }
       if (!result.ok) {
         setError(result.error)
         return
@@ -136,6 +170,14 @@ export default function ProjectMenu({
             </>
           )}
         </div>
+      )}
+
+      {initDialog && (
+        <CreateProjectDialog
+          initialDirPath={initDialog.dirPath}
+          initialName={initDialog.name}
+          onClose={() => setInitDialog(undefined)}
+        />
       )}
     </div>
   )

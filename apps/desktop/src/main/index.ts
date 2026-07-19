@@ -613,7 +613,7 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
-  const { dirPath, name } = payload as Record<string, unknown>
+  const { dirPath, name, confirmed } = payload as Record<string, unknown>
   if (typeof dirPath !== 'string' || dirPath.length === 0) {
     return { ok: false, error: 'dirPath must be a non-empty string' }
   }
@@ -628,7 +628,14 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
     return { ok: false, error: 'name must be a string' }
   }
 
-  const result = createProject(dirPath, name, agentsTemplatePath())
+  // Task 1.5.4 (Obsidian-style init): a non-empty dirPath with its own
+  // AGENTS.md/.aecpilot comes back as `needsConfirm` — surfaced as-is,
+  // without touching currentProject/recents/scan scheduler, same shape as
+  // sources:add's two-step confirm below.
+  const result = createProject(dirPath, name, agentsTemplatePath(), {
+    confirmed: confirmed === true
+  })
+  if ('needsConfirm' in result) return result
   if (!result.ok) return result
 
   currentProject = result.project
@@ -674,7 +681,12 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
     return { ok: true, project: currentProject }
   }
 
+  // Task 1.5.4: a vaultPath with no .aecpilot/project.json yet comes back as
+  // `needsInit` (not an error) — surfaced as-is, without touching
+  // currentProject/recents/scan scheduler; the UI should offer to initialize
+  // a project there via project:create instead.
   const result = openProject(vaultPath)
+  if ('needsInit' in result) return result
   if (!result.ok) return result
 
   currentProject = result.project

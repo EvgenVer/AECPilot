@@ -75,6 +75,26 @@ export type SourceStatusResult =
  * display next to the explorer toolbar. */
 export type VaultOpResult = { ok: true } | { ok: false; error: string }
 
+/** Result of `createProject` (tasks 1.3/1.5.4). `needsConfirm` means the
+ * target directory (Obsidian-style init into a non-empty folder) already has
+ * its own `AGENTS.md` and/or `.aecpilot` — re-invoke with `confirmed: true`
+ * to initialize anyway, leaving every existing file/folder (including that
+ * AGENTS.md/.aecpilot) untouched and only adding the missing vault structure
+ * around it. */
+export type CreateProjectResult =
+  { ok: true; project: OpenProject } | { ok: false; error: string } | { needsConfirm: string[] }
+
+/** Result of `openProject` (tasks 1.4/1.5.4). `needsInit` means `vaultPath`
+ * has no `.aecpilot/project.json` yet — not an error, the folder just isn't
+ * an AECPilot project yet (Obsidian-style: any folder can become one).
+ * `suggestedName` is the folder's own name, offered as a default when
+ * prompting the user to name the project before calling `createProject` on
+ * the same path. */
+export type OpenProjectResult =
+  | { ok: true; project: OpenProject }
+  | { ok: false; error: string }
+  | { needsInit: true; suggestedName: string }
+
 /** One source's change report from an `aec-rag scan` run (task 1.14) —
  * mirrors `scan_source`'s return shape (mcp/aec_rag/src/aec_rag/indexer.py):
  * `root_unavailable` means the source's root couldn't be reached during this
@@ -193,14 +213,18 @@ export interface AecpilotApi {
    * 1.3). The dialog allows creating a new folder. Returns `null` if the
    * user cancels. */
   pickProjectDirectory(): Promise<string | null>
-  /** Creates a new vault at `dirPath` (must be an empty directory) named
-   * `name`, records it as the most-recent project, and makes it the current
-   * open project (see `onProjectOpened`). `error` is a human-readable
-   * message suitable for display in the create-project dialog. */
-  createProject(
-    dirPath: string,
-    name: string
-  ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
+  /** Creates a new vault at `dirPath` named `name`, records it as the
+   * most-recent project, and makes it the current open project (see
+   * `onProjectOpened`). `dirPath` may be empty, non-existent, or (task
+   * 1.5.4, Obsidian-style init) a non-empty directory the user already has
+   * files in — only the missing vault structure is created there, existing
+   * files are never touched. `confirmed` must be `true` to proceed past a
+   * naming conflict (the directory already has its own `AGENTS.md`/
+   * `.aecpilot`) previously returned as `needsConfirm` — call again with the
+   * same `dirPath`/`name` and `confirmed: true` to initialize anyway.
+   * `error` is a human-readable message suitable for display in the
+   * create-project dialog. */
+  createProject(dirPath: string, name: string, confirmed?: boolean): Promise<CreateProjectResult>
   /** Reads the currently-open project, if any. */
   getCurrentProject(): Promise<OpenProject | null>
   /** Lists recently created/opened projects, most-recent first. */
@@ -211,12 +235,12 @@ export interface AecpilotApi {
   /** Opens an existing vault at `vaultPath` (must contain a valid
    * `.aecpilot/project.json`, task 1.4), records it as the most-recent
    * project, and makes it the current open project (see `onProjectOpened`).
-   * Re-opening the already-open project is a no-op success. `error` is a
+   * Re-opening the already-open project is a no-op success. A `vaultPath`
+   * that exists but isn't a project yet comes back as `needsInit` (task
+   * 1.5.4) instead of an error — see `OpenProjectResult`. `error` is a
    * human-readable message suitable for display next to the recents entry or
    * the open-project action. */
-  openProject(
-    vaultPath: string
-  ): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }>
+  openProject(vaultPath: string): Promise<OpenProjectResult>
   /** Lists the current project's connected sources (task 1.7). Empty array
    * if no project is open. */
   listSources(): Promise<ProjectSource[]>

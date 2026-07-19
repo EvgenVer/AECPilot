@@ -42,13 +42,14 @@ describe('generateVault — successful generation', () => {
   })
 
   it('creates every required directory', () => {
-    generateVault({
+    const result = generateVault({
       vaultPath,
       projectName: 'Объект-X',
       agentsTemplate: AGENTS_TEMPLATE,
       nowIso: NOW_ISO
     })
 
+    expect(result).toEqual({ ok: true })
     for (const dir of ['wiki', 'workspace', 'templates', '.aecpilot', '.aecpilot/logs']) {
       expect(fs.statSync(path.join(vaultPath, dir)).isDirectory()).toBe(true)
     }
@@ -115,22 +116,242 @@ describe('generateVault — successful generation', () => {
   })
 })
 
-describe('generateVault — non-empty target directory', () => {
-  it('throws before writing anything', () => {
+// Task 1.5.4 — Obsidian-style init: a non-empty target directory is no
+// longer rejected outright. Only the missing pieces are created; the user's
+// pre-existing files/folders are never touched.
+describe('generateVault — non-empty target directory, no naming conflict', () => {
+  it('succeeds, adding the missing structure around the existing file', () => {
     const vaultPath = makeTempDir('aecpilot-vault-nonempty-')
     try {
       fs.writeFileSync(path.join(vaultPath, 'existing.txt'), 'pre-existing content')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO
+      })
+
+      expect(result).toEqual({ ok: true })
+      expect(fs.readFileSync(path.join(vaultPath, 'existing.txt'), 'utf-8')).toBe(
+        'pre-existing content'
+      )
+      for (const dir of ['wiki', 'workspace', 'templates', '.aecpilot', '.aecpilot/logs']) {
+        expect(fs.statSync(path.join(vaultPath, dir)).isDirectory()).toBe(true)
+      }
+      expect(fs.existsSync(path.join(vaultPath, 'AGENTS.md'))).toBe(true)
+      expect(
+        validateProjectConfig(
+          JSON.parse(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8'))
+        ).ok
+      ).toBe(true)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generateVault — non-empty target directory, AGENTS.md naming conflict', () => {
+  it('returns needs-confirm without writing anything when not confirmed', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-conflict-agents-')
+    try {
+      fs.writeFileSync(path.join(vaultPath, 'AGENTS.md'), '# my own notes\n')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO
+      })
+
+      expect(result).toEqual({ ok: false, reason: 'needs-confirm', conflicts: ['agents-md'] })
+      expect(fs.readdirSync(vaultPath)).toEqual(['AGENTS.md'])
+      expect(fs.readFileSync(path.join(vaultPath, 'AGENTS.md'), 'utf-8')).toBe('# my own notes\n')
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+
+  it('once confirmed, adds the missing structure but leaves AGENTS.md untouched', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-conflict-agents-confirmed-')
+    try {
+      fs.writeFileSync(path.join(vaultPath, 'AGENTS.md'), '# my own notes\n')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO,
+        confirmed: true
+      })
+
+      expect(result).toEqual({ ok: true })
+      expect(fs.readFileSync(path.join(vaultPath, 'AGENTS.md'), 'utf-8')).toBe('# my own notes\n')
+      for (const dir of ['wiki', 'workspace', 'templates', '.aecpilot', '.aecpilot/logs']) {
+        expect(fs.statSync(path.join(vaultPath, dir)).isDirectory()).toBe(true)
+      }
+      expect(
+        validateProjectConfig(
+          JSON.parse(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8'))
+        ).ok
+      ).toBe(true)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generateVault — non-empty target directory, .aecpilot naming conflict', () => {
+  it('returns needs-confirm (not yet a project — no project.json inside)', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-conflict-aecpilot-')
+    try {
+      fs.mkdirSync(path.join(vaultPath, '.aecpilot'))
+      fs.writeFileSync(path.join(vaultPath, '.aecpilot', 'unrelated.txt'), 'not ours')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO
+      })
+
+      expect(result).toEqual({ ok: false, reason: 'needs-confirm', conflicts: ['aecpilot'] })
+      expect(fs.existsSync(path.join(vaultPath, 'AGENTS.md'))).toBe(false)
+      expect(fs.existsSync(path.join(vaultPath, '.aecpilot', 'project.json'))).toBe(false)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+
+  it('once confirmed, fills in the missing pieces (logs/, project.json) without touching the pre-existing file', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-conflict-aecpilot-confirmed-')
+    try {
+      fs.mkdirSync(path.join(vaultPath, '.aecpilot'))
+      fs.writeFileSync(path.join(vaultPath, '.aecpilot', 'unrelated.txt'), 'not ours')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO,
+        confirmed: true
+      })
+
+      expect(result).toEqual({ ok: true })
+      expect(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'unrelated.txt'), 'utf-8')).toBe(
+        'not ours'
+      )
+      expect(fs.statSync(path.join(vaultPath, '.aecpilot', 'logs')).isDirectory()).toBe(true)
+      expect(
+        validateProjectConfig(
+          JSON.parse(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8'))
+        ).ok
+      ).toBe(true)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
+// Review fix-iteration 1 (minor 2): `.aecpilot` occupied by a plain FILE (not
+// a directory) is still reported as a conflict above (existsSync doesn't
+// care about the type) — this covers what happens once the user confirms
+// past it, which used to reach the VAULT_SUBDIRS mkdir loop and blow up with
+// a raw EEXIST after wiki/workspace/templates were already created.
+describe('generateVault — .aecpilot occupied by a file, confirmed', () => {
+  it('throws a clear error before creating anything, leaving the file untouched', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-aecpilot-is-file-')
+    try {
+      fs.writeFileSync(path.join(vaultPath, '.aecpilot'), 'not a directory')
 
       expect(() =>
         generateVault({
           vaultPath,
           projectName: 'Объект-X',
           agentsTemplate: AGENTS_TEMPLATE,
-          nowIso: NOW_ISO
+          nowIso: NOW_ISO,
+          confirmed: true
         })
-      ).toThrow()
+      ).toThrow(/\.aecpilot is occupied by a file/)
 
-      expect(fs.readdirSync(vaultPath)).toEqual(['existing.txt'])
+      expect(fs.readdirSync(vaultPath)).toEqual(['.aecpilot'])
+      expect(fs.readFileSync(path.join(vaultPath, '.aecpilot'), 'utf-8')).toBe('not a directory')
+      for (const dir of ['wiki', 'workspace', 'templates']) {
+        expect(fs.existsSync(path.join(vaultPath, dir))).toBe(false)
+      }
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generateVault — already an AECPilot project', () => {
+  it('returns already-project and writes nothing', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-already-project-')
+    try {
+      generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO
+      })
+      const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Другое имя',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: '2026-07-15T00:00:00.000Z'
+      })
+
+      expect(result).toEqual({ ok: false, reason: 'already-project' })
+      const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+      expect(after).toBe(before)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
+// Review fix-iteration 1 (minor 3, accepted as-is): retrying after a
+// partial-init failure (our own half-written AGENTS.md/wiki/, no
+// project.json yet) reports a `needs-confirm` conflict — a false positive
+// (it's not a genuine user file, but generateVault can't tell the
+// difference), but a safe one: once confirmed, it must complete idempotently
+// rather than erroring or clobbering what's already there.
+describe('generateVault — retry after a partial init (our own leftovers), confirmed', () => {
+  it('fills in only what is still missing, leaving the partial leftovers untouched', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-partial-retry-')
+    try {
+      fs.mkdirSync(path.join(vaultPath, 'wiki'))
+      fs.writeFileSync(path.join(vaultPath, 'wiki', 'note.md'), 'left over from a prior attempt')
+      fs.writeFileSync(path.join(vaultPath, 'AGENTS.md'), '# AGENTS.md — Объект-X\n')
+
+      const result = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO,
+        confirmed: true
+      })
+
+      expect(result).toEqual({ ok: true })
+      // The partial leftovers are untouched...
+      expect(fs.readFileSync(path.join(vaultPath, 'wiki', 'note.md'), 'utf-8')).toBe(
+        'left over from a prior attempt'
+      )
+      expect(fs.readFileSync(path.join(vaultPath, 'AGENTS.md'), 'utf-8')).toBe(
+        '# AGENTS.md — Объект-X\n'
+      )
+      // ...and everything that was still missing is filled in.
+      for (const dir of ['workspace', 'templates', '.aecpilot', '.aecpilot/logs']) {
+        expect(fs.statSync(path.join(vaultPath, dir)).isDirectory()).toBe(true)
+      }
+      expect(
+        validateProjectConfig(
+          JSON.parse(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8'))
+        ).ok
+      ).toBe(true)
     } finally {
       fs.rmSync(vaultPath, { recursive: true, force: true })
     }

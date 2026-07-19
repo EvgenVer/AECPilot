@@ -91,8 +91,8 @@ describe('createProject — unreadable template', () => {
 
       const result = createProject(vaultPath, 'Объект-X', missingTemplatePath)
 
-      expect(result.ok).toBe(false)
-      if (!result.ok) expect(result.error).toContain('AGENTS.md')
+      expect('ok' in result && !result.ok).toBe(true)
+      if ('ok' in result && !result.ok) expect(result.error).toContain('AGENTS.md')
       expect(fs.existsSync(vaultPath)).toBe(false)
     } finally {
       fs.rmSync(parent, { recursive: true, force: true })
@@ -100,8 +100,10 @@ describe('createProject — unreadable template', () => {
   })
 })
 
-describe('createProject — non-empty target directory', () => {
-  it('maps generateVault error to a Russian, UI-friendly message, leaving the directory untouched', () => {
+// Task 1.5.4 — Obsidian-style init: a non-empty target directory is no
+// longer rejected outright by createProject either.
+describe('createProject — non-empty target directory, no naming conflict', () => {
+  it('succeeds, leaving the existing file untouched and adding the missing vault structure', () => {
     const parent = makeTempDir('aecpilot-create-project-nonempty-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -112,8 +114,92 @@ describe('createProject — non-empty target directory', () => {
 
       const result = createProject(vaultPath, 'Объект-X', templatePath)
 
-      expect(result).toEqual({ ok: false, error: 'Папка не пуста — выберите пустую папку' })
-      expect(fs.readdirSync(vaultPath)).toEqual(['existing.txt'])
+      expect(result).toEqual({ ok: true, project: { name: 'Объект-X', vaultPath } })
+      expect(fs.readFileSync(path.join(vaultPath, 'existing.txt'), 'utf-8')).toBe(
+        'pre-existing content'
+      )
+      expect(fs.statSync(path.join(vaultPath, 'wiki')).isDirectory()).toBe(true)
+      const projectJson = JSON.parse(
+        fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+      )
+      expect(validateProjectConfig(projectJson).ok).toBe(true)
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('createProject — non-empty target directory, AGENTS.md naming conflict', () => {
+  it('returns needsConfirm without writing anything, then succeeds once confirmed (AGENTS.md preserved)', () => {
+    const parent = makeTempDir('aecpilot-create-project-conflict-')
+    try {
+      const templatePath = path.join(parent, 'AGENTS.template.md')
+      fs.writeFileSync(templatePath, AGENTS_TEMPLATE)
+      const vaultPath = path.join(parent, 'vault')
+      fs.mkdirSync(vaultPath)
+      fs.writeFileSync(path.join(vaultPath, 'AGENTS.md'), '# my own notes\n')
+
+      const result = createProject(vaultPath, 'Объект-X', templatePath)
+
+      expect(result).toEqual({ needsConfirm: [expect.stringContaining('AGENTS.md')] })
+      expect(fs.readdirSync(vaultPath)).toEqual(['AGENTS.md'])
+
+      const confirmed = createProject(vaultPath, 'Объект-X', templatePath, { confirmed: true })
+
+      expect(confirmed).toEqual({ ok: true, project: { name: 'Объект-X', vaultPath } })
+      expect(fs.readFileSync(path.join(vaultPath, 'AGENTS.md'), 'utf-8')).toBe('# my own notes\n')
+      expect(fs.statSync(path.join(vaultPath, 'wiki')).isDirectory()).toBe(true)
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('createProject — target directory already an AECPilot project', () => {
+  it('returns a Russian error pointing at "Открыть проект", without touching project.json', () => {
+    const parent = makeTempDir('aecpilot-create-project-already-')
+    try {
+      const templatePath = path.join(parent, 'AGENTS.template.md')
+      fs.writeFileSync(templatePath, AGENTS_TEMPLATE)
+      const vaultPath = path.join(parent, 'vault')
+      generateVault({ vaultPath, projectName: 'Объект-X', agentsTemplate: AGENTS_TEMPLATE })
+      const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+
+      const result = createProject(vaultPath, 'Другое имя', templatePath)
+
+      expect('ok' in result && !result.ok).toBe(true)
+      if ('ok' in result && !result.ok) expect(result.error).toContain('Открыть проект')
+      expect(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')).toBe(
+        before
+      )
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  // Review fix-iteration 1 (minor 1): a `.aecpilot/project.json` that exists
+  // but is broken/invalid content is still "already a project" as far as
+  // createProject/generateVault are concerned (existence-only check, see
+  // vault-generator.ts's hasProjectJsonFile) — it's never clobbered or
+  // "repaired" by (re-)creating over it. Recovering it is a separate,
+  // deliberate, manual action; openProject is where the corrupt-JSON error
+  // actually surfaces to the user.
+  it('treats a broken (invalid JSON) project.json the same way — already-project, file untouched', () => {
+    const parent = makeTempDir('aecpilot-create-project-broken-json-')
+    try {
+      const templatePath = path.join(parent, 'AGENTS.template.md')
+      fs.writeFileSync(templatePath, AGENTS_TEMPLATE)
+      const vaultPath = path.join(parent, 'vault')
+      fs.mkdirSync(path.join(vaultPath, '.aecpilot'), { recursive: true })
+      fs.writeFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), '{ not valid json')
+
+      const result = createProject(vaultPath, 'Объект-X', templatePath)
+
+      expect('ok' in result && !result.ok).toBe(true)
+      if ('ok' in result && !result.ok) expect(result.error).toContain('Открыть проект')
+      expect(fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')).toBe(
+        '{ not valid json'
+      )
     } finally {
       fs.rmSync(parent, { recursive: true, force: true })
     }
@@ -158,13 +244,24 @@ describe('openProject', () => {
     expect(result).toEqual({ ok: true, project: { name: 'Объект-Y', vaultPath } })
   })
 
-  it('rejects a folder with no .aecpilot/project.json', () => {
+  // Task 1.5.4: a folder with no .aecpilot/project.json is no longer a flat
+  // error — Obsidian-style, any folder can become a project, so the caller
+  // (UI) gets a signal to offer initializing one here instead.
+  it('returns needsInit (not an error) for a folder with no .aecpilot/project.json', () => {
     const vaultPath = path.join(parent, 'not-a-vault')
     fs.mkdirSync(vaultPath)
 
     const result = openProject(vaultPath)
 
-    expect(result).toEqual({ ok: false, error: 'Папка не является проектом AECPilot' })
+    expect(result).toEqual({ needsInit: true, suggestedName: 'not-a-vault' })
+  })
+
+  it('rejects a vaultPath that does not exist at all (not needsInit)', () => {
+    const vaultPath = path.join(parent, 'does-not-exist')
+
+    const result = openProject(vaultPath)
+
+    expect(result).toEqual({ ok: false, error: 'Папка не найдена' })
   })
 
   it('rejects a corrupt (non-JSON) project.json', () => {
@@ -190,8 +287,8 @@ describe('openProject', () => {
 
     const result = openProject(vaultPath)
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
+    expect('ok' in result && !result.ok).toBe(true)
+    if ('ok' in result && !result.ok) {
       expect(result.error).toContain('Некорректный project.json')
       expect(result.error).toContain('name')
     }

@@ -10,9 +10,17 @@ import type { RecentProject } from '../../../shared/ipc'
  * it (task 1.4). Clicking a recents entry re-opens that project directly; an
  * error (e.g. the folder moved/is no longer a valid vault) is shown inline
  * next to that entry — the entry itself is left in the list (removing stale
- * recents is out of scope here). */
+ * recents is out of scope here). Task 1.5.4 (Obsidian-style init): picking/
+ * opening a folder that isn't a project yet no longer errors — it opens the
+ * same create-project dialog, pre-filled with that folder and a suggested
+ * name, so the user can initialize a project there instead. */
 export default function Welcome() {
-  const [dialogOpen, setDialogOpen] = useState(false)
+  // `dirPath`/`name` pre-fill CreateProjectDialog — `{}` for the plain
+  // "Создать проект" button (nothing pre-filled), `{ dirPath, name }` for the
+  // "this folder isn't a project yet" flow below.
+  const [projectDialog, setProjectDialog] = useState<
+    { dirPath?: string; name?: string } | undefined
+  >(undefined)
   const [recents, setRecents] = useState<RecentProject[]>([])
   const [opening, setOpening] = useState(false)
   const [openError, setOpenError] = useState<{ vaultPath: string; message: string } | undefined>(
@@ -34,6 +42,10 @@ export default function Welcome() {
     setOpenError(undefined)
     try {
       const result = await window.aecpilot.openProject(vaultPath)
+      if ('needsInit' in result) {
+        setProjectDialog({ dirPath: vaultPath, name: result.suggestedName })
+        return
+      }
       if (!result.ok) setOpenError({ vaultPath, message: result.error })
     } finally {
       setOpening(false)
@@ -67,9 +79,11 @@ export default function Welcome() {
           </div>
 
           <div className="welcome__actions">
-            <button type="button" className="welcome__action" onClick={() => setDialogOpen(true)}>
+            <button type="button" className="welcome__action" onClick={() => setProjectDialog({})}>
               <div className="welcome__action-title">Создать проект</div>
-              <div className="welcome__action-desc">Пустая папка → структура vault</div>
+              <div className="welcome__action-desc">
+                Папка (может быть непустой) → структура vault
+              </div>
             </button>
             <button
               type="button"
@@ -115,7 +129,13 @@ export default function Welcome() {
         </div>
       </div>
 
-      {dialogOpen && <CreateProjectDialog onClose={() => setDialogOpen(false)} />}
+      {projectDialog && (
+        <CreateProjectDialog
+          initialDirPath={projectDialog.dirPath}
+          initialName={projectDialog.name}
+          onClose={() => setProjectDialog(undefined)}
+        />
+      )}
     </div>
   )
 }

@@ -1,14 +1,25 @@
 // Project-creation/-opening logic for tasks 1.3/1.4: validates the project
 // name, reads the AGENTS.md template, and generates the vault via task 1.2's
 // generateVault (createProject); reads and validates an existing vault's
-// project.json (openProject). Deliberately free of any `electron` import
-// (dialog/BrowserWindow/app stay in main/index.ts and recents.ts) so this can
-// be unit-tested directly, the same way task 1.2's vault-generator.ts is.
+// project.json (openProject). Task 1.5.4 generalized both for Obsidian-style
+// init: createProject now allows a non-empty target directory (delegating the
+// "only fill in what's missing" / naming-conflict logic to generateVault),
+// and openProject tells apart "not a project yet" (needsInit) from a genuine
+// error. Deliberately free of any `electron` import (dialog/BrowserWindow/app
+// stay in main/index.ts and recents.ts) so this can be unit-tested directly,
+// the same way task 1.2's vault-generator.ts is.
 
-import { accessSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  accessSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
+import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { generateVault } from '../project/vault-generator'
+import { generateVault, type VaultConflict } from '../project/vault-generator'
 import {
   type ProjectConfig,
   type ProjectSource,
@@ -22,38 +33,79 @@ export interface OpenProject {
   vaultPath: string
 }
 
-// Shared by both createProject (task 1.3) and openProject (task 1.4) —
-// same shape either way: the resulting project or a human-readable error.
-export type ProjectResult = { ok: true; project: OpenProject } | { ok: false; error: string }
+// Task 1.5.4: `createProject` and `openProject` used to share one
+// `ProjectResult` type (`{ ok: true; project } | { ok: false; error }`) —
+// they now each add their own extra outcome (a naming-conflict confirm for
+// create, a not-yet-a-project signal for open), so they're split into two
+// types that both extend that original shape.
+export type CreateProjectResult =
+  | { ok: true; project: OpenProject }
+  | { ok: false; error: string }
+  /** The target directory already has its own `AGENTS.md` and/or
+   * `.aecpilot` (see `VaultConflict`) — nothing was written. Re-invoke with
+   * `{ confirmed: true }` to initialize anyway (same two-step confirm shape
+   * as `addSourceToProject`'s `needsConfirm`). */
+  | { needsConfirm: string[] }
+
+export type OpenProjectResult =
+  | { ok: true; project: OpenProject }
+  | { ok: false; error: string }
+  /** `vaultPath` exists but has no `.aecpilot/project.json` yet — not an
+   * error: Obsidian-style, any folder can become a project. The caller
+   * should prompt for a project name (`suggestedName` is the folder's own
+   * name, offered as a default) and call `createProject` on the same path. */
+  | { needsInit: true; suggestedName: string }
+
+/** Plain-language text for each `VaultConflict` `generateVault` can report
+ * (task 1.5.4) — kept here, not in vault-generator.ts, same split as
+ * `mapGenerateVaultError` below (Russian UI strings live in this file). */
+const VAULT_CONFLICT_MESSAGES: Record<VaultConflict, string> = {
+  'agents-md':
+    'В папке уже есть свой файл AGENTS.md — он останется без изменений, будет добавлена только недостающая структура vault',
+  aecpilot:
+    'В папке уже есть папка или файл «.aecpilot», не относящиеся к этому проекту — они останутся без изменений'
+}
 
 /** Maps `generateVault`'s (English, exception-message) errors to
- * Russian, UI-friendly text for the two cases a user picking a folder from
- * the create-project dialog is actually likely to hit; anything else
+ * Russian, UI-friendly text for the case a user picking a folder from the
+ * create-project dialog is actually likely to hit; anything else
  * (write/permission failures, …) is passed through with a generic prefix
  * rather than silently swallowed. */
 function mapGenerateVaultError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
-  if (message.includes('vault target directory is not empty')) {
-    return 'Папка не пуста — выберите пустую папку'
-  }
   if (message.includes('vault target path is a file, not a directory')) {
     return 'Указанный путь — файл, а не папка'
+  }
+  // Review fix-iteration 1 (minor 2): only reachable once the user has
+  // already confirmed past a `.aecpilot` naming conflict — see
+  // createMissingVaultEntries's up-front check in vault-generator.ts.
+  if (message.includes('.aecpilot is occupied by a file')) {
+    return '«.aecpilot» занят файлом — переместите или переименуйте его, чтобы продолжить'
   }
   return `Не удалось создать проект: ${message}`
 }
 
 /** Creates a new vault at `dirPath` named `name` (trimmed), reading the
- * AGENTS.md template from `agentsTemplatePath`. Never throws — every failure
- * (blank name, unreadable template, `generateVault` rejecting a non-empty or
- * otherwise invalid `dirPath`) comes back as `{ ok: false, error }` with a
- * human-readable message suitable for display in the create-project dialog.
- * Does not touch the recents list or "current project" state — the
- * `project:create` IPC handler in main/index.ts does both on success. */
+ * AGENTS.md template from `agentsTemplatePath`. `dirPath` may be empty,
+ * non-existent, or (task 1.5.4, Obsidian-style init) a non-empty directory
+ * the user already has files in — `generateVault` only creates whatever
+ * structure is missing there. Never throws — every failure (blank name,
+ * unreadable template, an invalid `dirPath`) comes back as
+ * `{ ok: false, error }` with a human-readable message suitable for display
+ * in the create-project dialog. A directory that's already an AECPilot
+ * project (has a `.aecpilot/project.json` file — its content is not
+ * parsed/validated for this check) is also an `{ ok: false }`
+ * error here — the caller should open it instead (`openProject`). A naming
+ * conflict (the directory already has its own `AGENTS.md`/`.aecpilot`) comes
+ * back as `{ needsConfirm }` unless `options.confirmed` is `true`. Does not
+ * touch the recents list or "current project" state — the `project:create`
+ * IPC handler in main/index.ts does both on success. */
 export function createProject(
   dirPath: string,
   name: string,
-  agentsTemplatePath: string
-): ProjectResult {
+  agentsTemplatePath: string,
+  options?: { confirmed?: boolean }
+): CreateProjectResult {
   const trimmedName = name.trim()
   if (trimmedName.length === 0) {
     return { ok: false, error: 'название проекта не может быть пустым' }
@@ -71,10 +123,26 @@ export function createProject(
     }
   }
 
+  let vaultResult: ReturnType<typeof generateVault>
   try {
-    generateVault({ vaultPath: dirPath, projectName: trimmedName, agentsTemplate })
+    vaultResult = generateVault({
+      vaultPath: dirPath,
+      projectName: trimmedName,
+      agentsTemplate,
+      confirmed: options?.confirmed
+    })
   } catch (error: unknown) {
     return { ok: false, error: mapGenerateVaultError(error) }
+  }
+
+  if (!vaultResult.ok) {
+    if (vaultResult.reason === 'already-project') {
+      return {
+        ok: false,
+        error: 'Эта папка уже является проектом AECPilot — откройте её через «Открыть проект»'
+      }
+    }
+    return { needsConfirm: vaultResult.conflicts.map((c) => VAULT_CONFLICT_MESSAGES[c]) }
   }
 
   return { ok: true, project: { name: trimmedName, vaultPath: dirPath } }
@@ -85,12 +153,19 @@ export function createProject(
  * `validateProjectConfig`) — the project's `name` comes from the config, not
  * from the folder name. Never throws — every failure comes back as
  * `{ ok: false, error }` with a Russian, human-readable message distinguishing
- * "not an AECPilot project" (no project.json), a corrupt file (invalid JSON),
- * a schema-invalid config (lists every validation error), and any other
- * unreadable-path case. Does not touch the recents list or "current project"
- * state — the `project:open` IPC handler in main/index.ts does both on
- * success. */
-export function openProject(vaultPath: string): ProjectResult {
+ * a missing/inaccessible folder, a corrupt file (invalid JSON), a
+ * schema-invalid config (lists every validation error), and any other
+ * unreadable-path case. A folder that exists but has no `.aecpilot/
+ * project.json` yet is *not* an error (task 1.5.4, Obsidian-style init) —
+ * comes back as `{ needsInit: true, suggestedName }` instead, so the caller
+ * can offer to initialize a project there (`createProject`). Does not touch
+ * the recents list or "current project" state — the `project:open` IPC
+ * handler in main/index.ts does both on success. */
+export function openProject(vaultPath: string): OpenProjectResult {
+  if (!existsSync(vaultPath)) {
+    return { ok: false, error: 'Папка не найдена' }
+  }
+
   const configPath = join(vaultPath, '.aecpilot', 'project.json')
 
   let raw: string
@@ -99,7 +174,7 @@ export function openProject(vaultPath: string): ProjectResult {
   } catch (error: unknown) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT' || code === 'ENOTDIR') {
-      return { ok: false, error: 'Папка не является проектом AECPilot' }
+      return { needsInit: true, suggestedName: basename(vaultPath) }
     }
     return {
       ok: false,

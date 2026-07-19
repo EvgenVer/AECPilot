@@ -14,7 +14,8 @@ const api: AecpilotApi = {
   getApprovalsMode: () => ipcRenderer.invoke('approvals:get-mode'),
   setApprovalsMode: (mode) => ipcRenderer.invoke('approvals:set-mode', mode),
   pickProjectDirectory: () => ipcRenderer.invoke('project:pick-directory'),
-  createProject: (dirPath, name) => ipcRenderer.invoke('project:create', { dirPath, name }),
+  createProject: (dirPath, name, confirmed) =>
+    ipcRenderer.invoke('project:create', { dirPath, name, confirmed }),
   getCurrentProject: () => ipcRenderer.invoke('project:get-current'),
   listRecentProjects: () => ipcRenderer.invoke('project:list-recents'),
   openProject: (vaultPath) => ipcRenderer.invoke('project:open', { vaultPath }),
