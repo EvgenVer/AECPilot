@@ -1,8 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
-import { FolderOpenIcon, PowerIcon, ScanIcon, SourcesIcon } from './icons'
+import {
+  ClearIcon,
+  CopyIcon,
+  FilePlusIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+  PowerIcon,
+  RenameIcon,
+  ScanIcon,
+  SearchIcon,
+  SourcesIcon,
+  TrashIcon
+} from './icons'
 import { mergeScanStatuses, type SourceStatus } from './source-status-pure'
+import {
+  matchesSearchQuery,
+  splitBySearchQuery,
+  subtreeMatchesSearchQuery
+} from './explorer-search-pure'
 import type { OpenProject, ProjectSource, SourceTreeNode, VaultTreeNode } from '../../../shared/ipc'
 
 const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer'>, string> = {
@@ -424,13 +441,15 @@ function ExplorerSourceChildren({
   nodes,
   depth,
   selected,
-  onSelect
+  onSelect,
+  query
 }: {
   sourceId: string
   nodes: SourceTreeNode[]
   depth: number
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  query: string
 }) {
   return (
     <>
@@ -442,28 +461,43 @@ function ExplorerSourceChildren({
           depth={depth}
           selected={selected}
           onSelect={onSelect}
+          query={query}
         />
       ))}
     </>
   )
 }
 
+/** A source's tree is fetched whole on first expand (`getSourceTree`), so
+ * `node.children` already holds every descendant regardless of which
+ * folders are currently toggled open — `subtreeMatchesSearchQuery` can
+ * therefore check arbitrarily deep for a match without any extra fetch.
+ * task 1.5.6 deliberately does *not* auto-expand a folder just because a
+ * search matches something inside it (unlike the vault tree, which gets
+ * that for free from react-arborist): a folder containing a match stays
+ * visible as a hint, but still needs a manual click to reveal it — see the
+ * task's own report for the full rationale. */
 function ExplorerSourceRow({
   sourceId,
   node,
   depth,
   selected,
-  onSelect
+  onSelect,
+  query
 }: {
   sourceId: string
   node: SourceTreeNode
   depth: number
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  query: string
 }) {
   const [open, setOpen] = useState(false)
   const isDir = node.type === 'dir'
   const isSelected = selected?.sourceId === sourceId && selected.rel === node.path
+
+  if (!subtreeMatchesSearchQuery(node, query)) return null
+  const { pre, match, post } = splitBySearchQuery(node.name, query)
 
   return (
     <div>
@@ -476,7 +510,11 @@ function ExplorerSourceRow({
         }}
       >
         <span className="vault-tree__icon">{isDir ? (open ? '📂' : '📁') : '📄'}</span>
-        <span className="vault-tree__name">{node.name}</span>
+        <span className="vault-tree__name">
+          {pre}
+          {match && <mark className="vault-tree__match">{match}</mark>}
+          {post}
+        </span>
       </div>
       {isDir && open && node.children && (
         <ExplorerSourceChildren
@@ -485,6 +523,7 @@ function ExplorerSourceRow({
           depth={depth + 1}
           selected={selected}
           onSelect={onSelect}
+          query={query}
         />
       )}
     </div>
@@ -505,19 +544,33 @@ function ExplorerSourceRoot({
   status,
   onRefresh,
   selected,
-  onSelect
+  onSelect,
+  query
 }: {
   source: ProjectSource
   status: SourceStatus
   onRefresh: () => void
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  query: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const [treeState, setTreeState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [tree, setTree] = useState<SourceTreeNode[]>([])
   const [treeError, setTreeError] = useState<string | undefined>(undefined)
   const isSelected = selected?.sourceId === source.id && selected.rel === ''
+  const displayName = displaySourceName(source.root_path)
+
+  // A source whose subtree hasn't been fetched yet (`treeState !== 'ok'`) has
+  // nothing loaded to search — per task 1.5.6's report, that's left visible
+  // rather than hidden (we never filter out a source we can't yet verify).
+  // Once loaded, it hides only when neither its own name nor anything in its
+  // already-fetched subtree matches (same ancestor-of-a-match rule as the
+  // vault tree, applied by hand — see subtreeMatchesSearchQuery).
+  const visible =
+    treeState !== 'ok' ||
+    matchesSearchQuery(displayName, query) ||
+    tree.some((node) => subtreeMatchesSearchQuery(node, query))
 
   async function loadTree(): Promise<void> {
     setTreeState('loading')
@@ -553,6 +606,9 @@ function ExplorerSourceRoot({
     })
   }
 
+  if (!visible) return null
+  const { pre, match, post } = splitBySearchQuery(displayName, query)
+
   return (
     <div className="explorer-panel__source">
       <div
@@ -561,7 +617,11 @@ function ExplorerSourceRoot({
         onClick={handleClick}
       >
         <span className="vault-tree__icon">{expanded ? '📂' : '📁'}</span>
-        <span className="vault-tree__name">{displaySourceName(source.root_path)}</span>
+        <span className="vault-tree__name">
+          {pre}
+          {match && <mark className="vault-tree__match">{match}</mark>}
+          {post}
+        </span>
         <span className="sources-panel__ro-badge">RO</span>
         {status === 'unavailable' && (
           <span className="sources-panel__unavailable-badge">недоступен</span>
@@ -607,6 +667,7 @@ function ExplorerSourceRoot({
               depth={1}
               selected={selected}
               onSelect={onSelect}
+              query={query}
             />
           )}
         </div>
@@ -621,8 +682,11 @@ function ExplorerSourceRoot({
  * `node.reset()`, same pattern as the library's own default node renderer).
  * Clicking a folder toggles it open/closed; clicking a file selects it
  * (task 1.6 explicitly defers opening a file to Phase 2/3 viewers — "allow
- * select only"). */
+ * select only"). Reads the active search query straight off `node.tree`
+ * (task 1.5.6) rather than a prop of its own — react-arborist calls this
+ * renderer directly, with no extra slot to pass one through. */
 function VaultTreeRow({ node, style, dragHandle }: NodeRendererProps<VaultTreeNode>) {
+  const { pre, match, post } = splitBySearchQuery(node.data.name, node.tree.searchTerm)
   return (
     <div
       ref={dragHandle}
@@ -648,7 +712,11 @@ function VaultTreeRow({ node, style, dragHandle }: NodeRendererProps<VaultTreeNo
           }}
         />
       ) : (
-        <span className="vault-tree__name">{node.data.name}</span>
+        <span className="vault-tree__name">
+          {pre}
+          {match && <mark className="vault-tree__match">{match}</mark>}
+          {post}
+        </span>
       )}
     </div>
   )
@@ -664,7 +732,8 @@ function targetParentRel(selected: NodeApi<VaultTreeNode> | null): string {
   return idx === -1 ? '' : selected.data.path.slice(0, idx)
 }
 
-/** "Проводник" activity content (task 1.6, extended by task 1.5.5): a
+/** "Проводник" activity content (task 1.6, extended by task 1.5.5, toolbar
+ * + search icon-ified by task 1.5.6 per design/screens/Explorer.html): a
  * react-arborist tree of the current project's vault, backed by
  * `vault:tree`, with the project's connected sources listed in a section
  * right below it — same visual row pattern (`vault-tree__row` etc.), RO
@@ -672,14 +741,19 @@ function targetParentRel(selected: NodeApi<VaultTreeNode> | null): string {
  * `ExplorerSourceRoot`) — per specs/workspace-sources.md's "единое
  * дерево-проводник" (UR2). Create (+файл/+папка, targeting the selected
  * folder or its selected file's parent, else the root) and delete (with a
- * trash-bound confirm) are plain toolbar buttons, vault-only — a source node
- * has no write operations at all, by construction. Rename reuses
+ * trash-bound confirm) are icon toolbar buttons (task 1.5.6), vault-only — a
+ * source node has no write operations at all, by construction. Rename reuses
  * react-arborist's own inline edit mode. "Показать в проводнике"/
  * "Копировать путь" work for whichever of the two trees is currently
  * selected (vault or source; only one ever is). Every vault-write operation
  * reloads the tree from `vault:tree` afterwards — task 1.6 explicitly
  * decided against a live filesystem watcher, favoring a manual "Обновить"
- * button instead. */
+ * button instead. The search box (task 1.5.6) filters both trees by name
+ * substring, case-insensitive: the vault side hands `query` straight to
+ * react-arborist's own `searchTerm`/`searchMatch` (which keeps a
+ * non-matching folder visible, and open, when a descendant of it matches);
+ * the hand-rolled sources section reimplements the same rule itself — see
+ * `ExplorerSourceRoot`'s and `ExplorerSourceRow`'s own doc comments. */
 function ExplorerActivity({ currentProject }: { currentProject: OpenProject | null }) {
   const treeRef = useRef<TreeApi<VaultTreeNode> | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -694,6 +768,7 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
   )
   const [creatingName, setCreatingName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<VaultTreeNode | undefined>(undefined)
+  const [query, setQuery] = useState('')
   const { statuses, refresh } = useSourceStatuses(sources, currentProject)
 
   async function load(): Promise<void> {
@@ -708,6 +783,7 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
       setCreating(undefined)
       setDeleteTarget(undefined)
       setError(undefined)
+      setQuery('')
       await load()
       const list = currentProject ? await window.aecpilot.listSources() : []
       setSources(list)
@@ -820,55 +896,96 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
       <div className="explorer-panel__toolbar">
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Создать файл"
+          aria-label="Создать файл"
           disabled={!!selectedSource}
           onClick={() => openCreate('file')}
         >
-          + файл
+          <FilePlusIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Создать папку"
+          aria-label="Создать папку"
           disabled={!!selectedSource}
           onClick={() => openCreate('dir')}
         >
-          + папка
+          <FolderPlusIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Переименовать"
+          aria-label="Переименовать"
           disabled={!selected}
           onClick={() => void selected?.edit()}
         >
-          Переименовать
+          <RenameIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Удалить"
+          aria-label="Удалить"
           disabled={!selected}
           onClick={() => selected && setDeleteTarget(selected.data)}
         >
-          Удалить
+          <TrashIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Показать в проводнике"
+          aria-label="Показать в проводнике"
           disabled={!selected && !selectedSource}
           onClick={() => void handleShowInExplorer()}
         >
-          Показать в проводнике
+          <FolderOpenIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="explorer-panel__btn"
+          className="explorer-panel__icon-btn"
+          title="Копировать путь"
+          aria-label="Копировать путь"
           disabled={!selectedSource}
           onClick={() => void handleCopyPath()}
         >
-          Копировать путь
+          <CopyIcon width={15} height={15} />
         </button>
-        <button type="button" className="explorer-panel__btn" onClick={() => void load()}>
-          Обновить
+        <button
+          type="button"
+          className="explorer-panel__icon-btn"
+          title="Обновить"
+          aria-label="Обновить"
+          onClick={() => void load()}
+        >
+          <ScanIcon width={15} height={15} />
         </button>
+      </div>
+
+      <div className="explorer-panel__search">
+        <SearchIcon width={13} height={13} />
+        <input
+          type="text"
+          className="explorer-panel__search-input"
+          placeholder="Поиск по дереву…"
+          aria-label="Поиск по дереву"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query && (
+          <button
+            type="button"
+            className="explorer-panel__search-clear"
+            title="Очистить поиск"
+            aria-label="Очистить поиск"
+            onClick={() => setQuery('')}
+          >
+            <ClearIcon width={12} height={12} />
+          </button>
+        )}
       </div>
 
       {creating && (
@@ -938,6 +1055,8 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
             disableDrop
             width={containerSize.width || undefined}
             height={containerSize.height || undefined}
+            searchTerm={query}
+            searchMatch={(node, term) => matchesSearchQuery(node.data.name, term)}
             onSelect={selectVaultNode}
             onRename={({ id, name }) => {
               void (async () => {
@@ -970,6 +1089,7 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
               onRefresh={() => void refresh(source.id)}
               selected={selectedSource}
               onSelect={selectSourceEntry}
+              query={query}
             />
           ))
         )}

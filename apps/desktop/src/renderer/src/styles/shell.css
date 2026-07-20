@@ -495,10 +495,12 @@ button {
   gap: 8px;
 }
 
+/* task 1.5.6, design/screens/Explorer.html's toolbar: icon buttons instead
+   of text, tight 2px gap. */
 .explorer-panel__toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
 }
 
 .explorer-panel__btn {
@@ -516,6 +518,85 @@ button {
 .explorer-panel__btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.explorer-panel__icon-btn {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-ctl);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.explorer-panel__icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.explorer-panel__icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: transparent;
+}
+
+/* task 1.5.6, design/screens/Explorer.html's search box: a border that
+   picks up --accent while the field is focused (the mockup ties this to
+   "has a value" instead, but a real input can just use :focus-within). */
+.explorer-panel__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-3);
+}
+
+.explorer-panel__search:focus-within {
+  border-color: var(--accent);
+}
+
+.explorer-panel__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.explorer-panel__search-input:focus {
+  outline: none;
+}
+
+.explorer-panel__search-input::placeholder {
+  color: var(--text-3);
+}
+
+.explorer-panel__search-clear {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.explorer-panel__search-clear:hover {
+  color: var(--text-1);
 }
 
 .explorer-panel__create-row {
@@ -628,6 +709,16 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* task 1.5.6, design/screens/Explorer.html's search-mode row: highlights the
+   matched substring within a row's name (vault tree and sources section
+   alike — see splitBySearchQuery in explorer-search-pure.ts). */
+.vault-tree__match {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-radius: 2px;
+  font-weight: 600;
 }
 
 .vault-tree__edit-input {

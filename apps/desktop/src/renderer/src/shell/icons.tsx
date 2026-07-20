@@ -7,7 +7,11 @@
 // (https://lucide.dev) — files, search, book, database (renamed
 // `sources`/SourcesIcon here), brain (`memory`/MemoryIcon), file-text
 // (`docs`/DocsIcon), bot (`agent`/AgentIcon), settings, refresh-cw (`scan`),
-// chevron-down, arrow-up (`send`/SendIcon), paperclip (`attach`/AttachIcon).
+// chevron-down, arrow-up (`send`/SendIcon), paperclip (`attach`/AttachIcon),
+// file-plus (`FilePlusIcon`), folder-plus (`FolderPlusIcon`), edit-2
+// (`RenameIcon`), trash (`TrashIcon`), copy (`CopyIcon`), x (`ClearIcon`) —
+// the last six transcribed from design/screens/Explorer.html's own toolbar/
+// context-menu icon set for task 1.5.6.
 // None of these paths were drawn from scratch here.
 //
 // Lucide is ISC-licensed:
@@ -138,6 +142,73 @@ export function PowerIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
     <Svg {...props}>
       <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
       <path d="M12 2v10" />
+    </Svg>
+  )
+}
+
+/** "Создать файл" (task 1.5.6, ExplorerActivity toolbar) — same file-plus
+ * glyph as design/screens/Explorer.html's own toolbar. */
+export function FilePlusIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M12 11v6M9 14h6" />
+    </Svg>
+  )
+}
+
+/** "Создать папку" (task 1.5.6, ExplorerActivity toolbar) — same
+ * folder-plus glyph as design/screens/Explorer.html's own toolbar. */
+export function FolderPlusIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      <path d="M12 10v6M9 13h6" />
+    </Svg>
+  )
+}
+
+/** "Переименовать" (task 1.5.6, ExplorerActivity toolbar) — same rename
+ * glyph as design/screens/Explorer.html's context-menu icon set. */
+export function RenameIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </Svg>
+  )
+}
+
+/** "Удалить" (task 1.5.6, ExplorerActivity toolbar) — same trash glyph as
+ * design/screens/Explorer.html's context-menu icon set. */
+export function TrashIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </Svg>
+  )
+}
+
+/** "Копировать путь" (task 1.5.6, ExplorerActivity toolbar) — same copy
+ * glyph as design/screens/Explorer.html's context-menu icon set. */
+export function CopyIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </Svg>
+  )
+}
+
+/** Clears the explorer search field (task 1.5.6) — the mockup draws its own
+ * small 12x12 "x", redrawn here as the standard Lucide "x" glyph to stay on
+ * this file's shared 24x24 viewBox convention. */
+export function ClearIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </Svg>
   )
 }
