@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
 import {
@@ -20,6 +21,11 @@ import {
   splitBySearchQuery,
   subtreeMatchesSearchQuery
 } from './explorer-search-pure'
+import {
+  contextMenuSections,
+  type ContextMenuAction,
+  type ExplorerNodeKind
+} from './explorer-context-menu-pure'
 import type { OpenProject, ProjectSource, SourceTreeNode, VaultTreeNode } from '../../../shared/ipc'
 
 const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer'>, string> = {
@@ -442,6 +448,7 @@ function ExplorerSourceChildren({
   depth,
   selected,
   onSelect,
+  onContextMenu,
   query
 }: {
   sourceId: string
@@ -449,6 +456,7 @@ function ExplorerSourceChildren({
   depth: number
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  onContextMenu: (event: ReactMouseEvent, entry: SelectedSourceEntry) => void
   query: string
 }) {
   return (
@@ -461,6 +469,7 @@ function ExplorerSourceChildren({
           depth={depth}
           selected={selected}
           onSelect={onSelect}
+          onContextMenu={onContextMenu}
           query={query}
         />
       ))}
@@ -483,6 +492,7 @@ function ExplorerSourceRow({
   depth,
   selected,
   onSelect,
+  onContextMenu,
   query
 }: {
   sourceId: string
@@ -490,6 +500,7 @@ function ExplorerSourceRow({
   depth: number
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  onContextMenu: (event: ReactMouseEvent, entry: SelectedSourceEntry) => void
   query: string
 }) {
   const [open, setOpen] = useState(false)
@@ -508,6 +519,7 @@ function ExplorerSourceRow({
           onSelect({ sourceId, rel: node.path })
           if (isDir) setOpen((o) => !o)
         }}
+        onContextMenu={(e) => onContextMenu(e, { sourceId, rel: node.path })}
       >
         <span className="vault-tree__icon">{isDir ? (open ? '📂' : '📁') : '📄'}</span>
         <span className="vault-tree__name">
@@ -523,6 +535,7 @@ function ExplorerSourceRow({
           depth={depth + 1}
           selected={selected}
           onSelect={onSelect}
+          onContextMenu={onContextMenu}
           query={query}
         />
       )}
@@ -545,6 +558,7 @@ function ExplorerSourceRoot({
   onRefresh,
   selected,
   onSelect,
+  onContextMenu,
   query
 }: {
   source: ProjectSource
@@ -552,6 +566,7 @@ function ExplorerSourceRoot({
   onRefresh: () => void
   selected: SelectedSourceEntry | null
   onSelect: (entry: SelectedSourceEntry) => void
+  onContextMenu: (event: ReactMouseEvent, entry: SelectedSourceEntry) => void
   query: string
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -615,6 +630,7 @@ function ExplorerSourceRoot({
         className={`vault-tree__row${isSelected ? ' vault-tree__row--selected' : ''}`}
         title={source.root_path}
         onClick={handleClick}
+        onContextMenu={(e) => onContextMenu(e, { sourceId: source.id, rel: '' })}
       >
         <span className="vault-tree__icon">{expanded ? '📂' : '📁'}</span>
         <span className="vault-tree__name">
@@ -667,6 +683,7 @@ function ExplorerSourceRoot({
               depth={1}
               selected={selected}
               onSelect={onSelect}
+              onContextMenu={onContextMenu}
               query={query}
             />
           )}
@@ -684,7 +701,15 @@ function ExplorerSourceRoot({
  * (task 1.6 explicitly defers opening a file to Phase 2/3 viewers — "allow
  * select only"). Reads the active search query straight off `node.tree`
  * (task 1.5.6) rather than a prop of its own — react-arborist calls this
- * renderer directly, with no extra slot to pass one through. */
+ * renderer directly, with no extra slot to pass one through.
+ *
+ * `data-vault-path` (task 1.5.7) exists for the same reason: react-arborist
+ * gives this renderer a fixed prop set (`node`/`tree`/`style`/`dragHandle`),
+ * with no room for a custom "open the context menu" callback from
+ * `ExplorerActivity`. Instead, the right-click is handled once, up on
+ * `<Tree onContextMenu>` (a native prop), which reads this attribute off
+ * `event.target` to look the clicked `NodeApi` back up via `tree.get(id)` —
+ * see `ExplorerActivity`'s `handleVaultContextMenu`. */
 function VaultTreeRow({ node, style, dragHandle }: NodeRendererProps<VaultTreeNode>) {
   const { pre, match, post } = splitBySearchQuery(node.data.name, node.tree.searchTerm)
   return (
@@ -692,6 +717,7 @@ function VaultTreeRow({ node, style, dragHandle }: NodeRendererProps<VaultTreeNo
       ref={dragHandle}
       style={style}
       className={`vault-tree__row${node.isSelected ? ' vault-tree__row--selected' : ''}`}
+      data-vault-path={node.data.path}
       onClick={() => (node.data.type === 'dir' ? node.toggle() : node.select())}
     >
       <span className="vault-tree__icon">
@@ -732,28 +758,120 @@ function targetParentRel(selected: NodeApi<VaultTreeNode> | null): string {
   return idx === -1 ? '' : selected.data.path.slice(0, idx)
 }
 
+const CONTEXT_MENU_ICONS: Record<
+  ContextMenuAction,
+  (props: SVGProps<SVGSVGElement>) => JSX.Element
+> = {
+  'show-in-explorer': FolderOpenIcon,
+  'copy-path': CopyIcon,
+  rename: RenameIcon,
+  'create-file': FilePlusIcon,
+  'create-dir': FolderPlusIcon,
+  delete: TrashIcon
+}
+
+/** Per-node right-click menu (task 1.5.7): positioned at the cursor,
+ * closes on an outside click or Escape (same pattern as
+ * chat/SessionMenu.tsx and shell/ProjectMenu.tsx). Which commands it shows,
+ * and their order/grouping (a divider between sections), comes from
+ * `contextMenuSections` (explorer-context-menu-pure.ts, unit-tested on its
+ * own) — this component only renders that list and dispatches the chosen
+ * action back to `onAction` (`ExplorerActivity`'s `handleContextMenuAction`,
+ * which calls the exact same handlers the toolbar used to call directly). */
+function ExplorerContextMenu({
+  kind,
+  x,
+  y,
+  onAction,
+  onClose
+}: {
+  kind: ExplorerNodeKind
+  x: number
+  y: number
+  onAction: (action: ContextMenuAction) => void
+  onClose: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent): void {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onClose])
+
+  return (
+    <div ref={containerRef} className="context-menu" style={{ top: y, left: x }}>
+      {contextMenuSections(kind).map((section, sectionIndex) => (
+        <div key={sectionIndex}>
+          {sectionIndex > 0 && <div className="context-menu__separator" />}
+          {section.map((item) => {
+            const Icon = CONTEXT_MENU_ICONS[item.action]
+            return (
+              <button
+                key={item.action}
+                type="button"
+                className={`context-menu__item${item.danger ? ' context-menu__item--danger' : ''}`}
+                onClick={() => {
+                  onAction(item.action)
+                  onClose()
+                }}
+              >
+                <Icon width={15} height={15} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** "Проводник" activity content (task 1.6, extended by task 1.5.5, toolbar
- * + search icon-ified by task 1.5.6 per design/screens/Explorer.html): a
- * react-arborist tree of the current project's vault, backed by
- * `vault:tree`, with the project's connected sources listed in a section
- * right below it — same visual row pattern (`vault-tree__row` etc.), RO
- * badge + live availability status, lazy per-source subtree (see
- * `ExplorerSourceRoot`) — per specs/workspace-sources.md's "единое
- * дерево-проводник" (UR2). Create (+файл/+папка, targeting the selected
- * folder or its selected file's parent, else the root) and delete (with a
- * trash-bound confirm) are icon toolbar buttons (task 1.5.6), vault-only — a
- * source node has no write operations at all, by construction. Rename reuses
- * react-arborist's own inline edit mode. "Показать в проводнике"/
- * "Копировать путь" work for whichever of the two trees is currently
- * selected (vault or source; only one ever is). Every vault-write operation
- * reloads the tree from `vault:tree` afterwards — task 1.6 explicitly
- * decided against a live filesystem watcher, favoring a manual "Обновить"
- * button instead. The search box (task 1.5.6) filters both trees by name
- * substring, case-insensitive: the vault side hands `query` straight to
- * react-arborist's own `searchTerm`/`searchMatch` (which keeps a
- * non-matching folder visible, and open, when a descendant of it matches);
- * the hand-rolled sources section reimplements the same rule itself — see
- * `ExplorerSourceRoot`'s and `ExplorerSourceRow`'s own doc comments. */
+ * + search icon-ified by task 1.5.6, rename/delete/show/copy moved from the
+ * toolbar to a per-node context menu by task 1.5.7, all per
+ * design/screens/Explorer.html): a react-arborist tree of the current
+ * project's vault, backed by `vault:tree`, with the project's connected
+ * sources listed in a section right below it — same visual row pattern
+ * (`vault-tree__row` etc.), RO badge + live availability status, lazy
+ * per-source subtree (see `ExplorerSourceRoot`) — per
+ * specs/workspace-sources.md's "единое дерево-проводник" (UR2).
+ *
+ * The toolbar (task 1.5.7) only keeps create-file/create-folder (targeting
+ * the selected folder or its selected file's parent, else the root) and
+ * refresh — vault-only, a source node has no write operations at all, by
+ * construction. Every other per-node command (rename — reuses react-
+ * arborist's own inline edit mode; delete — a trash-bound confirm;
+ * "Показать в проводнике"; "Копировать путь") now lives in `ExplorerContext
+ * Menu`, opened by right-clicking any node (vault or source); a right-click
+ * also selects that node first, so the menu's actions read `selected`/
+ * `selectedSource` exactly like the old toolbar buttons did — same handlers,
+ * just a different trigger. Deleting the selected vault node also has a
+ * keyboard shortcut, Del, handled directly on the tree's own container
+ * (`explorer-panel__tree`) so it never fires while typing in the search box,
+ * the chat composer, or an inline rename — none of those live inside that
+ * container, and the rename `<input>` that does is excluded explicitly.
+ *
+ * Every vault-write operation reloads the tree from `vault:tree` afterwards
+ * — task 1.6 explicitly decided against a live filesystem watcher, favoring
+ * a manual "Обновить" button instead. The search box (task 1.5.6) filters
+ * both trees by name substring, case-insensitive: the vault side hands
+ * `query` straight to react-arborist's own `searchTerm`/`searchMatch` (which
+ * keeps a non-matching folder visible, and open, when a descendant of it
+ * matches); the hand-rolled sources section reimplements the same rule
+ * itself — see `ExplorerSourceRoot`'s and `ExplorerSourceRow`'s own doc
+ * comments. */
 function ExplorerActivity({ currentProject }: { currentProject: OpenProject | null }) {
   const treeRef = useRef<TreeApi<VaultTreeNode> | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -769,6 +887,9 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
   const [creatingName, setCreatingName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<VaultTreeNode | undefined>(undefined)
   const [query, setQuery] = useState('')
+  const [contextMenu, setContextMenu] = useState<
+    { kind: ExplorerNodeKind; x: number; y: number } | undefined
+  >(undefined)
   const { statuses, refresh } = useSourceStatuses(sources, currentProject)
 
   async function load(): Promise<void> {
@@ -784,6 +905,7 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
       setDeleteTarget(undefined)
       setError(undefined)
       setQuery('')
+      setContextMenu(undefined)
       await load()
       const list = currentProject ? await window.aecpilot.listSources() : []
       setSources(list)
@@ -865,17 +987,20 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
   }
 
   // Task 1.5.5 (specs/workspace-sources.md § UI-операции: "«Копировать
-  // путь» — любой узел"): scoped to source nodes for this task — the vault
-  // side of this button is a separate, not-yet-requested extension. The
-  // absolute path always comes from main's resolver (`sources:get-entry-
-  // path`); this never concatenates `rootPath`/`rel` itself.
+  // путь» — любой узел"): source-only through task 1.5.6; task 1.5.7 extends
+  // it to the vault side too (now that "Копировать путь" is a per-node
+  // context-menu command, offered for a vault node as well). Either branch's
+  // absolute path always comes from main's own resolver (`sources:get-entry-
+  // path` / `vault:get-entry-path`) — this never concatenates
+  // `rootPath`/vault root with `rel` itself.
   async function handleCopyPath(): Promise<void> {
-    if (!selectedSource) return
     setError(undefined)
-    const result = await window.aecpilot.getSourceEntryPath(
-      selectedSource.sourceId,
-      selectedSource.rel
-    )
+    const result = selectedSource
+      ? await window.aecpilot.getSourceEntryPath(selectedSource.sourceId, selectedSource.rel)
+      : selected
+        ? await window.aecpilot.getVaultEntryPath(selected.data.path)
+        : undefined
+    if (!result) return
     if (!result.ok) {
       setError(result.error)
       return
@@ -884,6 +1009,67 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
       await navigator.clipboard.writeText(result.path)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  // Task 1.5.7: right-clicking a vault node also selects it (`node.select()`
+  // dispatches react-arborist's own `onSelect` → `selectVaultNode`, exactly
+  // like a left click would), then opens the context menu at the cursor.
+  // Delegated on `<Tree onContextMenu>` (a native, well-typed react-arborist
+  // prop fired on its outer container) rather than handled inside
+  // `VaultTreeRow` itself — react-arborist calls that renderer with a fixed
+  // prop set, with no slot for a custom callback; `data-vault-path` (set on
+  // every row, see `VaultTreeRow`) is how the clicked node is recovered here.
+  function handleVaultContextMenu(event: ReactMouseEvent): void {
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    const rowEl = target.closest<HTMLElement>('[data-vault-path]')
+    if (!rowEl) return
+    const node = treeRef.current?.get(rowEl.dataset.vaultPath ?? '')
+    if (!node || node.isEditing) return
+    event.preventDefault()
+    node.select()
+    setContextMenu({
+      kind: node.data.type === 'dir' ? 'vault-dir' : 'vault-file',
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
+
+  // A source row has direct access to its own `sourceId`/`rel` already (see
+  // `ExplorerSourceRoot`/`ExplorerSourceRow`), so this is wired as an
+  // ordinary prop — no delegation trick needed, unlike the vault side.
+  function handleSourceContextMenu(event: ReactMouseEvent, entry: SelectedSourceEntry): void {
+    event.preventDefault()
+    selectSourceEntry(entry)
+    setContextMenu({ kind: 'source', x: event.clientX, y: event.clientY })
+  }
+
+  // Dispatches a chosen context-menu command to the exact same handler the
+  // toolbar used to call directly (task 1.5.7's brief: "те же обработчики,
+  // что в тулбаре") — by the time a menu item is clicked, `selected`/
+  // `selectedSource` already point at the right-clicked node (set when the
+  // menu was opened, above).
+  function handleContextMenuAction(action: ContextMenuAction): void {
+    switch (action) {
+      case 'show-in-explorer':
+        void handleShowInExplorer()
+        return
+      case 'copy-path':
+        void handleCopyPath()
+        return
+      case 'rename':
+        void selected?.edit()
+        return
+      case 'create-file':
+        openCreate('file')
+        return
+      case 'create-dir':
+        openCreate('dir')
+        return
+      case 'delete':
+        if (selected) setDeleteTarget(selected.data)
+        return
     }
   }
 
@@ -913,46 +1099,6 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
           onClick={() => openCreate('dir')}
         >
           <FolderPlusIcon width={15} height={15} />
-        </button>
-        <button
-          type="button"
-          className="explorer-panel__icon-btn"
-          title="Переименовать"
-          aria-label="Переименовать"
-          disabled={!selected}
-          onClick={() => void selected?.edit()}
-        >
-          <RenameIcon width={15} height={15} />
-        </button>
-        <button
-          type="button"
-          className="explorer-panel__icon-btn"
-          title="Удалить"
-          aria-label="Удалить"
-          disabled={!selected}
-          onClick={() => selected && setDeleteTarget(selected.data)}
-        >
-          <TrashIcon width={15} height={15} />
-        </button>
-        <button
-          type="button"
-          className="explorer-panel__icon-btn"
-          title="Показать в проводнике"
-          aria-label="Показать в проводнике"
-          disabled={!selected && !selectedSource}
-          onClick={() => void handleShowInExplorer()}
-        >
-          <FolderOpenIcon width={15} height={15} />
-        </button>
-        <button
-          type="button"
-          className="explorer-panel__icon-btn"
-          title="Копировать путь"
-          aria-label="Копировать путь"
-          disabled={!selectedSource}
-          onClick={() => void handleCopyPath()}
-        >
-          <CopyIcon width={15} height={15} />
         </button>
         <button
           type="button"
@@ -1041,7 +1187,32 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
         </div>
       )}
 
-      <div className="explorer-panel__tree" ref={containerRef}>
+      <div
+        className="explorer-panel__tree"
+        ref={containerRef}
+        onKeyDown={(e) => {
+          // Task 1.5.7: Del deletes the selected vault node (same
+          // confirm-first flow as the toolbar/context-menu "Удалить") — but
+          // never while the key lands in a form field, most importantly
+          // react-arborist's own inline-rename `<input>` (the search box and
+          // chat composer already can't reach this handler at all, since
+          // neither lives inside this container — see this function's own
+          // doc comment). A source node is never `selected` (it uses
+          // `selectedSource` instead), so this is already a no-op for it.
+          if (e.key !== 'Delete' || !selected) return
+          const target = e.target
+          if (
+            target instanceof HTMLElement &&
+            target.closest(
+              'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+            )
+          ) {
+            return
+          }
+          e.preventDefault()
+          setDeleteTarget(selected.data)
+        }}
+      >
         {tree.length === 0 && !creating ? (
           <div className="explorer-panel__empty">Vault пуст</div>
         ) : (
@@ -1058,6 +1229,7 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
             searchTerm={query}
             searchMatch={(node, term) => matchesSearchQuery(node.data.name, term)}
             onSelect={selectVaultNode}
+            onContextMenu={handleVaultContextMenu}
             onRename={({ id, name }) => {
               void (async () => {
                 const result = await window.aecpilot.renameVaultEntry(id, name)
@@ -1089,11 +1261,22 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
               onRefresh={() => void refresh(source.id)}
               selected={selectedSource}
               onSelect={selectSourceEntry}
+              onContextMenu={handleSourceContextMenu}
               query={query}
             />
           ))
         )}
       </div>
+
+      {contextMenu && (
+        <ExplorerContextMenu
+          kind={contextMenu.kind}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onAction={handleContextMenuAction}
+          onClose={() => setContextMenu(undefined)}
+        />
+      )}
     </div>
   )
 }

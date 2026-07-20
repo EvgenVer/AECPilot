@@ -779,6 +779,54 @@ button {
   padding-bottom: 4px;
 }
 
+/* ============ Explorer's per-node context menu (task 1.5.7) ============
+   design/screens/Explorer.html's own context-menu mockup: fixed-positioned
+   at the cursor (`top`/`left` set inline from the click's clientX/clientY),
+   a stronger border than the ordinary .session-dropdown popover (border-
+   strong, not border) and one level above it in z-index, since this can be
+   open at the same time as other absolute-positioned UI. */
+.context-menu {
+  position: fixed;
+  min-width: 224px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-modal);
+  box-shadow: var(--shadow-popover);
+  padding: 5px;
+  z-index: 20;
+  font-size: var(--fs-body);
+}
+
+.context-menu__separator {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border);
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 29px;
+  padding: 0 8px 0 9px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu__item--danger {
+  color: var(--danger);
+}
+
 /* ============ Center ============ */
 
 .center {

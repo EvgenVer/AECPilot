@@ -317,6 +317,12 @@ export interface AecpilotApi {
    * (specs/workspace-sources.md § API contracts, UI operations) —
    * read-only, never modifies the vault. */
   showVaultEntryInExplorer(rel: string): Promise<VaultOpResult>
+  /** Resolves a vault entry to its absolute path (task 1.5.7) — backs the
+   * context menu's "Копировать путь" for a vault node, same contract as
+   * `getSourceEntryPath`: the renderer copies the returned `path` to the
+   * clipboard itself, never concatenating the vault root with `rel` on its
+   * own (anti-traversal resolution stays a main-process concern). */
+  getVaultEntryPath(rel: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>
   /** Reads the scan scheduler's current state (task 1.14): whether a scan is
    * in flight right now, and the most recent completed report (`null` if no
    * scan has finished yet this session, or the project was switched since —

@@ -35,6 +35,7 @@ const api: AecpilotApi = {
   renameVaultEntry: (rel, newName) => ipcRenderer.invoke('vault:rename', { rel, newName }),
   deleteVaultEntry: (rel) => ipcRenderer.invoke('vault:delete', { rel }),
   showVaultEntryInExplorer: (rel) => ipcRenderer.invoke('vault:show-in-explorer', { rel }),
+  getVaultEntryPath: (rel) => ipcRenderer.invoke('vault:get-entry-path', { rel }),
   getScanState: () => ipcRenderer.invoke('scan:get-state'),
   triggerScan: () => ipcRenderer.invoke('scan:trigger'),
   onScanState: (cb) => {

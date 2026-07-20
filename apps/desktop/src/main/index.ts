@@ -991,6 +991,24 @@ ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
   return { ok: true }
 })
 
+// Task 1.5.7: resolves a vault entry to its absolute path, backing the
+// context menu's "Копировать путь" for a vault node — mirrors
+// `sources:get-entry-path`'s contract exactly (the renderer never builds the
+// path itself).
+ipcMain.handle('vault:get-entry-path', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel } = payload as Record<string, unknown>
+  if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
+  try {
+    return { ok: true, path: resolveVaultEntryRel(currentProject.vaultPath, rel) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 app
   .whenReady()
   .then(async () => {
