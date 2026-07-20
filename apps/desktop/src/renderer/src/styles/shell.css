@@ -2010,15 +2010,22 @@ body.resizing-col * {
 .scan-notification__actions {
   flex: 0 0 auto;
   display: flex;
+  /* Task 1.5.8: stack the action buttons instead of splitting one row.
+     Side by side each got only ~150px in the 340px toast, so the long
+     "Обновить индекс (re-ingest)" label overflowed its box; full-width
+     rows fit it on one line. */
+  flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
 }
 
 .scan-notification__action-btn {
-  flex: 1;
-  height: var(--control-h);
-  padding: 0 8px;
+  width: 100%;
+  /* min-height (not a fixed height) so a label that ever does wrap grows
+     the button downward rather than spilling out of it. */
+  min-height: var(--control-h);
+  padding: 5px 8px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--r-ctl);
