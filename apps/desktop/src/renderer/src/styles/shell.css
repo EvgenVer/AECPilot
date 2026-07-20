@@ -38,6 +38,52 @@ button {
   min-height: 0;
 }
 
+/* Draggable panel separators (task 1.5.9). The element takes no layout
+   width (flex-basis 0), so dropping a resizer between two panels never
+   shifts them; a ::before straddling the shared border gives a comfortable
+   hit area and the hover/focus accent, VS Code-style. */
+.panel-resizer {
+  flex: 0 0 0;
+  width: 0;
+  position: relative;
+  z-index: 5;
+  align-self: stretch;
+}
+
+.panel-resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+  cursor: col-resize;
+  transition: background 0.12s ease;
+}
+
+.panel-resizer:hover::before,
+.panel-resizer:focus-visible::before {
+  background: var(--accent);
+  left: -1px;
+  right: -1px;
+}
+
+.panel-resizer:focus-visible {
+  outline: none;
+}
+
+/* While a drag is in progress the whole window uses the resize cursor and
+   suppresses text selection, so passing over other panels doesn't flicker
+   the cursor or select their content (set on <body> by PanelResizer). */
+body.resizing-col {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.resizing-col * {
+  cursor: col-resize !important;
+}
+
 /* ============ Top bar ============ */
 
 .topbar {
@@ -184,8 +230,12 @@ button {
 /* ============ Sidebar ============ */
 
 .sidebar {
-  width: 262px;
-  flex: 0 0 262px;
+  /* Width is driven by the resizable-panel CSS var (task 1.5.9, set on
+     .app-shell__body from Shell state); the fallback is the pre-1.5.9
+     hardcoded width, so anything rendering the sidebar outside the shell
+     still looks right. */
+  width: var(--sidebar-w, 262px);
+  flex: 0 0 var(--sidebar-w, 262px);
   display: flex;
   flex-direction: column;
   background: var(--bg-sidebar);
@@ -1183,8 +1233,9 @@ button {
 /* ============ Chat dock ============ */
 
 .chat-dock {
-  width: 380px;
-  flex: 0 0 380px;
+  /* Resizable width (task 1.5.9), same var-with-fallback scheme as .sidebar. */
+  width: var(--chat-dock-w, 380px);
+  flex: 0 0 var(--chat-dock-w, 380px);
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);

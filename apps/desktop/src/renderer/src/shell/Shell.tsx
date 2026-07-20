@@ -1,4 +1,5 @@
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import Rail from './Rail'
 import Sidebar from './Sidebar'
 import CenterArea from './CenterArea'
@@ -6,6 +7,16 @@ import StatusBar from './StatusBar'
 import TopBar from './TopBar'
 import CreateProjectDialog from './CreateProjectDialog'
 import ScanNotification from './ScanNotification'
+import PanelResizer from './PanelResizer'
+import {
+  CHAT_MAX,
+  CHAT_MIN,
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  persistPanelSizes,
+  readStoredPanelSizes,
+  type PanelSizes
+} from './panel-sizes-pure'
 import type { ActivityId } from './activities'
 import ChatDock from '../chat/ChatDock'
 import { chatReducer, initialChatState } from '../chat/chat-state'
@@ -32,6 +43,22 @@ export default function Shell() {
   const [connectionState, setConnectionState] = useState<GatewayConnectionState>('closed')
   const [currentProject, setCurrentProject] = useState<OpenProject | null>(null)
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
+  // Task 1.5.9: resizable sidebar + chat dock, restored from localStorage.
+  // `sizesRef` mirrors the state so the drag-end persist (PanelResizer's
+  // onCommit) reads the width the last live `onResize` just set, without the
+  // persist call itself becoming a side effect inside a setState updater.
+  const [panelSizes, setPanelSizes] = useState<PanelSizes>(() =>
+    readStoredPanelSizes(window.localStorage)
+  )
+  const sizesRef = useRef(panelSizes)
+  function resizePanel(key: keyof PanelSizes, width: number): void {
+    const next = { ...sizesRef.current, [key]: width }
+    sizesRef.current = next
+    setPanelSizes(next)
+  }
+  function persistPanels(): void {
+    persistPanelSizes(window.localStorage, sizesRef.current)
+  }
 
   useEffect(() => {
     let mounted = true
@@ -92,10 +119,36 @@ export default function Shell() {
         currentProject={currentProject}
         onOpenCreateProject={() => setCreateProjectOpen(true)}
       />
-      <div className="app-shell__body">
+      <div
+        className="app-shell__body"
+        style={
+          {
+            '--sidebar-w': `${panelSizes.sidebar}px`,
+            '--chat-dock-w': `${panelSizes.chat}px`
+          } as CSSProperties
+        }
+      >
         <Rail active={activity} onSelect={setActivity} onSettings={() => setSettingsOpen(true)} />
         <Sidebar active={activity} currentProject={currentProject} />
+        <PanelResizer
+          label="Изменить ширину боковой панели"
+          width={panelSizes.sidebar}
+          min={SIDEBAR_MIN}
+          max={SIDEBAR_MAX}
+          direction={1}
+          onResize={(w) => resizePanel('sidebar', w)}
+          onCommit={persistPanels}
+        />
         <CenterArea active={activity} />
+        <PanelResizer
+          label="Изменить ширину панели чата"
+          width={panelSizes.chat}
+          min={CHAT_MIN}
+          max={CHAT_MAX}
+          direction={-1}
+          onResize={(w) => resizePanel('chat', w)}
+          onCommit={persistPanels}
+        />
         <ChatDock
           state={chatState}
           dispatch={dispatch}
