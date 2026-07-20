@@ -280,6 +280,22 @@ export interface AecpilotApi {
    * specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
    * as a leaf, never traversed. */
   getSourceTree(sourceId: string): Promise<SourceTreeResult>
+  /** Opens the OS file manager with a connected source's entry highlighted
+   * (task 1.5.5, specs/workspace-sources.md § UI-операции: "любой узел
+   * ... источника, на любом уровне вложенности") — `rel` is the entry's rel
+   * path from the source root (posix-style, as in `SourceTreeNode.path`);
+   * `''` targets the source's own root. Read-only, never modifies the
+   * source. */
+  showSourceEntryInExplorer(sourceId: string, rel: string): Promise<VaultOpResult>
+  /** Resolves a connected source's entry to its absolute path (task 1.5.5)
+   * — backs "Копировать путь": the renderer copies the returned `path` to
+   * the clipboard itself, never concatenating `rootPath`/`rel` on its own
+   * (anti-traversal resolution stays a main-process concern, same as every
+   * other source path resolution). */
+  getSourceEntryPath(
+    sourceId: string,
+    rel: string
+  ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
   /** Reads the current project's vault file tree (task 1.6). Empty array if
    * no project is open. `.aecpilot` is always hidden; symlinks are shown as
    * a leaf, never traversed. */

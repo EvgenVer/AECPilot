@@ -125,6 +125,23 @@ export function ScanIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
   )
 }
 
+export function FolderOpenIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+    </Svg>
+  )
+}
+
+export function PowerIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
+  return (
+    <Svg {...props}>
+      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+      <path d="M12 2v10" />
+    </Svg>
+  )
+}
+
 export function ChevronDownIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
   return (
     <Svg {...props} strokeWidth={2}>

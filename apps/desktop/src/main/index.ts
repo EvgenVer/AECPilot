@@ -36,6 +36,7 @@ import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
+import { resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
   createDirEntry,
@@ -822,6 +823,55 @@ ipcMain.handle('sources:tree', (_event, payload: unknown) => {
     return { ok: false, error: 'sourceId must be a non-empty string' }
   }
   return getSourceTreeResult(currentProject.vaultPath, sourceId)
+})
+
+// Task 1.5.5 (specs/workspace-sources.md § UI-операции): "Показать в
+// проводнике" for a connected source's entry, at any nesting level
+// (`rel: ''` targets the source's own root) — read-only, mirrors
+// `vault:show-in-explorer` but resolved against the source's root instead of
+// the vault.
+ipcMain.handle('sources:show-in-explorer', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { sourceId, rel } = payload as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+  if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
+  const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
+  if (!source) return { ok: false, error: 'Источник не найден' }
+  let absPath: string
+  try {
+    absPath = resolveSourceEntryRel(source.root_path, rel)
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  shell.showItemInFolder(absPath)
+  return { ok: true }
+})
+
+// Task 1.5.5: resolves a connected source's entry to its absolute path,
+// backing "Копировать путь" — the renderer copies the returned path itself
+// (via the clipboard), it never builds the path on its own.
+ipcMain.handle('sources:get-entry-path', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { sourceId, rel } = payload as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+  if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
+  const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
+  if (!source) return { ok: false, error: 'Источник не найден' }
+  try {
+    return { ok: true, path: resolveSourceEntryRel(source.root_path, rel) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
 })
 
 // Task 1.6: the vault explorer tree + file/folder create/rename/delete.

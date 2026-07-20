@@ -51,7 +51,7 @@ export default function ProjectMenu({
   // was raised — a project switch must clear both, so a stale "Инициализи-
   // ровать" can never fire against whatever project is now open. Declared as
   // a nested function (not inlined in the effect body) — same convention as
-  // Sidebar.tsx's SourceEntry mount effect, which keeps this outside
+  // Sidebar.tsx's SourcesActivity `load` effect, which keeps this outside
   // `react-hooks/set-state-in-effect`'s reach.
   useEffect(() => {
     function resetForProjectSwitch(): void {

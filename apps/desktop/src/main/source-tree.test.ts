@@ -7,7 +7,12 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { buildSourceTree, isSourceAvailable } from './source-tree'
+import {
+  buildSourceTree,
+  isSourceAvailable,
+  PathOutsideSourceError,
+  resolveSourceEntryRel
+} from './source-tree'
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-source-tree-'))
@@ -75,5 +80,134 @@ describe('buildSourceTree', () => {
     const tree = buildSourceTree(sourcePath)
     const file = tree.find((n) => n.name === 'a-file.txt')
     expect(file).toEqual({ name: 'a-file.txt', path: 'a-file.txt', type: 'file' })
+  })
+})
+
+// Unit tests for task 1.5.5's `resolveSourceEntryRel` — same adversarial
+// contract as vault-fs.test.ts's `resolveVaultRel`/`resolveVaultEntryRel`
+// (`..`, absolute paths, `\\?\`/`\\.\` device prefixes, control characters,
+// drive-relative `C:foo`, the "C:\a\bc must not look nested inside C:\a\b"
+// boundary case), plus the one place its contract differs: unlike a vault
+// entry op, an empty rel legitimately resolves to the source's own root.
+const SOURCE_ROOT = 'C:\\shares\\object-x'
+
+describe('resolveSourceEntryRel — empty/undefined rel resolves to the source root', () => {
+  it('resolves undefined to the (path-resolved) source root', () => {
+    expect(resolveSourceEntryRel(SOURCE_ROOT, undefined)).toBe(path.resolve(SOURCE_ROOT))
+  })
+
+  it('resolves an empty string to the source root', () => {
+    expect(resolveSourceEntryRel(SOURCE_ROOT, '')).toBe(path.resolve(SOURCE_ROOT))
+  })
+
+  it.each(['.', './', './.', './/'])('resolves rel %s to the source root too', (rel) => {
+    expect(resolveSourceEntryRel(SOURCE_ROOT, rel)).toBe(path.resolve(SOURCE_ROOT))
+  })
+})
+
+describe('resolveSourceEntryRel — traversal attempts', () => {
+  it('rejects a ".." component', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '..\\outside')).toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects a ".." component mixed into a deeper relative path', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'a\\..\\..\\b')).toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects an all-dots component ("...")', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '...')).toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects an absolute path', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'C:\\Windows\\System32')).toThrow(
+      PathOutsideSourceError
+    )
+  })
+
+  it('rejects a \\\\?\\ device/extended-length prefix', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '\\\\?\\C:\\shares\\object-x\\a')).toThrow(
+      PathOutsideSourceError
+    )
+  })
+
+  it('rejects a \\\\.\\ device prefix', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '\\\\.\\C:\\shares\\object-x\\a')).toThrow(
+      PathOutsideSourceError
+    )
+  })
+
+  it('rejects a path containing an embedded control character', () => {
+    const rel = 'a' + String.fromCharCode(0) + 'evil'
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, rel)).toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects a drive-relative component ("C:foo")', () => {
+    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'C:foo')).toThrow(PathOutsideSourceError)
+  })
+})
+
+describe('resolveSourceEntryRel — boundary safety (component, not string-prefix, based)', () => {
+  it('never lets a sibling with a shared string prefix resolve outside the root', () => {
+    const root = 'C:\\a\\b'
+    const resolved = resolveSourceEntryRel(root, 'sub')
+    expect(resolved.toLowerCase().startsWith(path.resolve(root).toLowerCase() + path.sep)).toBe(
+      true
+    )
+    expect(resolved).not.toBe('C:\\a\\bc')
+  })
+})
+
+describe('resolveSourceEntryRel — accepts a valid nested relative path', () => {
+  it('resolves a normal relative path, forward or backward slashes', () => {
+    expect(resolveSourceEntryRel(SOURCE_ROOT, 'a\\b.pdf')).toBe(
+      path.resolve(SOURCE_ROOT, 'a', 'b.pdf')
+    )
+    expect(resolveSourceEntryRel(SOURCE_ROOT, 'a/b.pdf')).toBe(
+      path.resolve(SOURCE_ROOT, 'a', 'b.pdf')
+    )
+  })
+})
+
+// Same junction-based real-path containment contract as vault-fs.test.ts's
+// symlink/junction tests (see that file's comment for why a junction, not a
+// true symlink, is used).
+describe('resolveSourceEntryRel — symlink/junction escape (real-path containment)', () => {
+  let sourceRoot: string
+  let outsideDir: string
+
+  beforeEach(() => {
+    sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-source-tree-root-'))
+    outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-source-tree-outside-'))
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'top secret')
+  })
+
+  afterEach(() => {
+    fs.rmSync(sourceRoot, { recursive: true, force: true })
+    fs.rmSync(outsideDir, { recursive: true, force: true })
+  })
+
+  function makeEscapingJunction(ctx: { skip: () => void }): string | undefined {
+    const link = path.join(sourceRoot, 'escape-link')
+    try {
+      fs.symlinkSync(outsideDir, link, 'junction')
+    } catch {
+      ctx.skip()
+      return undefined
+    }
+    return link
+  }
+
+  it('rejects reaching an entry through an escaping junction component', (ctx) => {
+    const link = makeEscapingJunction(ctx)
+    if (!link) return
+    expect(() => resolveSourceEntryRel(sourceRoot, 'escape-link/secret.txt')).toThrow(
+      PathOutsideSourceError
+    )
+  })
+
+  it('still allows targeting the junction LEAF itself ("Показать в проводнике" the link, not its target)', (ctx) => {
+    const link = makeEscapingJunction(ctx)
+    if (!link) return
+    expect(resolveSourceEntryRel(sourceRoot, 'escape-link')).toBe(link)
   })
 })

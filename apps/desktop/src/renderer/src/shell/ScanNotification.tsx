@@ -77,8 +77,7 @@ export default function ScanNotification({
   // Declared inside the effect and invoked immediately (not a bare setState
   // in the effect body) — same convention as SourcesActivity's/
   // ExplorerActivity's own project-switch reset effects, which keeps this
-  // outside react-hooks/set-state-in-effect's reach (see SourceEntry's
-  // comment on that rule for why).
+  // outside react-hooks/set-state-in-effect's reach.
   useEffect(() => {
     function clear(): void {
       setModel(null)

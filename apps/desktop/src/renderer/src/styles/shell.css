@@ -238,7 +238,7 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
 }
 
 .sources-panel__empty {
@@ -284,12 +284,24 @@ button {
 
 .sources-panel__confirm-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
+/* Owner Block 4 bugfix: a fixed 26px height clipped/overflowed "Добавить
+   всё равно" once it wrapped to two lines in the sidebar's narrow width —
+   min-height (not height) plus centered, wrapping text keeps the button's
+   box around whatever it actually renders. */
 .sources-panel__confirm-btn {
   flex: 1;
-  height: 26px;
+  min-width: 96px;
+  min-height: 26px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
   border-radius: var(--r-ctl);
   font-size: var(--fs-small);
   cursor: pointer;
@@ -305,36 +317,63 @@ button {
   font-weight: 600;
 }
 
-/* ============ Source tree (task 1.8) ============ */
+/* ============ Source cards (task 1.5.5, design/screens/Sources.html) ====
+   Structure adapted from the mockup's card (icon, name + RO badge + status
+   pill, mono path, note, icon-button actions) onto the sidebar's own width/
+   tokens — the mockup's file/indexed/stale counters need per-source scan
+   data this app doesn't persist yet, so they're left out. ============ */
 
-.sources-panel__source {
-  border-bottom: 1px solid var(--border);
+.sources-panel__card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-app);
+  padding: 10px 10px 11px;
 }
 
-.sources-panel__source-header {
+.sources-panel__card--unavailable {
+  border-color: var(--danger);
+}
+
+.sources-panel__card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.sources-panel__card-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.sources-panel__card--unavailable .sources-panel__card-icon {
+  color: var(--danger);
+}
+
+.sources-panel__card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sources-panel__card-title-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 4px;
-  font-size: 12.5px;
-  color: var(--text-1);
-  cursor: pointer;
-  border-radius: var(--r-ctl);
 }
 
-.sources-panel__source-header:hover {
-  background: var(--bg-hover);
-}
-
-.sources-panel__source-arrow {
-  flex: 0 0 auto;
-  color: var(--text-3);
-  font-size: 10px;
-}
-
-.sources-panel__source-name {
+.sources-panel__card-name {
   flex: 1;
   min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -360,71 +399,89 @@ button {
   font-weight: 600;
 }
 
-.sources-panel__refresh-btn {
+.sources-panel__pill {
   flex: 0 0 auto;
-  height: 20px;
-  padding: 0 6px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
-  color: var(--text-1);
-  font-size: var(--fs-caption);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.sources-panel__detach-btn {
-  flex: 0 0 auto;
-  height: 20px;
-  padding: 0 6px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
-  color: var(--text-1);
-  font-size: var(--fs-caption);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.sources-panel__detach-btn:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.sources-panel__source-body {
-  padding-bottom: 4px;
-}
-
-.sources-panel__source-empty {
-  color: var(--text-3);
-  font-size: 12.5px;
-  padding: 6px 4px 6px 16px;
-}
-
-.sources-panel__tree-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  font-size: 12.5px;
-  color: var(--text-1);
-  cursor: pointer;
-  border-radius: var(--r-ctl);
+  gap: 4px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 1px 7px 1px 6px;
 }
 
-.sources-panel__tree-row:hover {
+.sources-panel__pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sources-panel__pill--ok {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.sources-panel__pill--unavailable {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.sources-panel__pill--checking {
+  color: var(--text-3);
   background: var(--bg-hover);
 }
 
-.sources-panel__tree-icon {
-  flex: 0 0 auto;
-  font-size: 13px;
-}
-
-.sources-panel__tree-name {
+.sources-panel__card-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sources-panel__card-note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.sources-panel__card--unavailable .sources-panel__card-note {
+  color: var(--danger);
+}
+
+.sources-panel__card-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+/* Owner Block 4 bugfix: icon buttons (matching the mockup) instead of text
+   ("Отключить" didn't fit next to a visible "Обновить" in the sidebar's
+   width) — fixed 26px square, so any combination of 1-3 actions always
+   fits. */
+.sources-panel__icon-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.sources-panel__icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
 }
 
 /* ============ Explorer panel (task 1.6) ============ */
@@ -525,9 +582,20 @@ button {
   padding: 10px 4px;
 }
 
+/* Owner Block 2 bugfix: before this container's own size was ever measured
+   (`ResizeObserver`'s first callback hasn't fired yet — happens on every
+   fresh mount of this tab, i.e. every app start, since "Проводник" is the
+   default activity), react-arborist's `Tree` briefly renders at its own
+   default width, wider than the sidebar — with no `overflow: hidden` here,
+   that (and its hover highlight) visibly spilled past the panel's right
+   edge until something else re-rendered the tree (e.g. switching activity
+   away and back, which remounts it once the container is already
+   laid out). Clipping to this container's own box fixes the symptom
+   regardless of the exact timing above. */
 .explorer-panel__tree {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .vault-tree__row {
@@ -555,6 +623,8 @@ button {
 }
 
 .vault-tree__name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -570,6 +640,52 @@ button {
   border-radius: 4px;
   color: var(--text-1);
   font-family: inherit;
+}
+
+/* ============ Explorer's sources section (task 1.5.5) ============
+   Below the vault tree, same row pattern (vault-tree__row/__icon/__name) —
+   per specs/workspace-sources.md's "единое дерево-проводник" (UR2). A
+   separate, naturally-scrolling section rather than one shared
+   react-arborist instance with the vault tree above: react-arborist needs
+   an explicit pixel height per instance, which fits the vault tree's own
+   fixed-size virtualized list well, but not a stack of independent,
+   variable-depth, lazily-loaded per-source subtrees next to it. */
+.explorer-panel__sources {
+  flex: 0 1 auto;
+  max-height: 45%;
+  overflow: auto;
+  padding-bottom: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.explorer-panel__sources-header {
+  height: 26px;
+  flex: 0 0 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.explorer-panel__source-refresh {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font-size: var(--fs-caption);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.explorer-panel__source-body {
+  padding-bottom: 4px;
 }
 
 /* ============ Center ============ */

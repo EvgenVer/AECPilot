@@ -24,6 +24,10 @@ const api: AecpilotApi = {
   getSourceStatus: (sourceId) => ipcRenderer.invoke('sources:status', { sourceId }),
   removeSource: (sourceId) => ipcRenderer.invoke('sources:remove', { sourceId }),
   getSourceTree: (sourceId) => ipcRenderer.invoke('sources:tree', { sourceId }),
+  showSourceEntryInExplorer: (sourceId, rel) =>
+    ipcRenderer.invoke('sources:show-in-explorer', { sourceId, rel }),
+  getSourceEntryPath: (sourceId, rel) =>
+    ipcRenderer.invoke('sources:get-entry-path', { sourceId, rel }),
   getVaultTree: () => ipcRenderer.invoke('vault:tree'),
   createVaultFile: (parentRel, name) =>
     ipcRenderer.invoke('vault:create-file', { parentRel, name }),
