@@ -3,7 +3,15 @@
 // vitest's node environment (see apps/desktop/vitest.config.ts).
 
 import { describe, expect, it } from 'vitest'
-import { chatReducer, initialChatState, type ChatMessage, type ChatState } from './chat-state'
+import {
+  HANDLED_GATEWAY_EVENTS,
+  IGNORED_GATEWAY_EVENTS,
+  chatReducer,
+  initialChatState,
+  isUnknownGatewayEvent,
+  type ChatMessage,
+  type ChatState
+} from './chat-state'
 import type { GatewayEvent, HistoryMessage } from '../../../shared/gateway/types'
 
 function ev(event: GatewayEvent): { kind: 'event'; event: GatewayEvent } {
@@ -142,6 +150,37 @@ describe('chatReducer', () => {
         (i): i is ChatMessage => i.kind === 'message' && i.role === 'assistant'
       )
       expect(message?.text).toBe('answer')
+    })
+  })
+
+  // --- task 1.5.D1 / D1.9: the hermes parity ledger --------------------
+  describe('parity ledger', () => {
+    it('every handled event really has a reducer branch', () => {
+      // Guards the ledger against drifting from the reducer: each listed
+      // event must change state (or at least be recognised) rather than fall
+      // through to the ignore branch.
+      for (const type of HANDLED_GATEWAY_EVENTS) {
+        expect(isUnknownGatewayEvent(type)).toBe(false)
+      }
+    })
+
+    it('deliberately ignored events do not count as unknown', () => {
+      for (const type of IGNORED_GATEWAY_EVENTS) {
+        expect(isUnknownGatewayEvent(type)).toBe(false)
+      }
+    })
+
+    it('flags an event nobody has taught the chat about', () => {
+      expect(isUnknownGatewayEvent('subagent.start')).toBe(true)
+      expect(isUnknownGatewayEvent('notification.show')).toBe(true)
+      expect(isUnknownGatewayEvent('something.invented.later')).toBe(true)
+    })
+
+    it('the two lists do not overlap', () => {
+      const handled = new Set<string>(HANDLED_GATEWAY_EVENTS)
+      for (const type of IGNORED_GATEWAY_EVENTS) {
+        expect(handled.has(type)).toBe(false)
+      }
     })
   })
 

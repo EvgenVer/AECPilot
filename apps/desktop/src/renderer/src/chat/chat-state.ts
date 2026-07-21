@@ -98,6 +98,45 @@ export const initialChatState: ChatState = {
   nextId: 0
 }
 
+// --- Hermes parity ledger (task 1.5.D1 / D1.9) -----------------------------
+// Single source of truth for "which gateway events does the chat act on".
+// Two consumers:
+//   1. the dev-only unhandled-event warning (Shell) — so a hermes upgrade
+//      that introduces new events is visible instead of silently dropped;
+//   2. runtime/hermes-event-diff.mjs, which parses these lists and diffs them
+//      against the event names found in the installed hermes TUI bundle.
+// Keep both lists in sync with the reducer below when adding a branch.
+
+/** Events the reducer acts on. */
+export const HANDLED_GATEWAY_EVENTS = [
+  'message.start',
+  'message.delta',
+  'message.complete',
+  'error',
+  'thinking.delta',
+  'reasoning.delta',
+  'reasoning.available',
+  'tool.start',
+  'tool.started',
+  'tool.generating',
+  'tool.complete',
+  'approval.request',
+  'clarify.request',
+  'secret.request',
+  'sudo.request'
+] as const
+
+/** Events we knowingly ignore — no warning, they are not a parity gap. */
+export const IGNORED_GATEWAY_EVENTS = ['gateway.ready', 'status.update', 'session.info'] as const
+
+const KNOWN_EVENTS = new Set<string>([...HANDLED_GATEWAY_EVENTS, ...IGNORED_GATEWAY_EVENTS])
+
+/** True for an event neither handled nor deliberately ignored — i.e. one we
+ * may have started missing after a hermes upgrade. */
+export function isUnknownGatewayEvent(type: string): boolean {
+  return !KNOWN_EVENTS.has(type)
+}
+
 export type ChatAction =
   | { kind: 'user-submit'; text: string }
   /** `receivedAt` (task 1.5.D1) is supplied by the dispatcher so the reducer

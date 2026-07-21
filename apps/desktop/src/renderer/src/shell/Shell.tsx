@@ -19,7 +19,7 @@ import {
 } from './panel-sizes-pure'
 import type { ActivityId } from './activities'
 import ChatDock from '../chat/ChatDock'
-import { chatReducer, initialChatState } from '../chat/chat-state'
+import { chatReducer, initialChatState, isUnknownGatewayEvent } from '../chat/chat-state'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 import type { OpenProject } from '../../../shared/ipc'
 
@@ -64,6 +64,13 @@ export default function Shell() {
     let mounted = true
     let gotLiveState = false
     const unsubscribeEvent = window.aecpilot.onChatEvent((event) => {
+      // Task 1.5.D1 (D1.9): surface an event the chat does not act on, so a
+      // hermes upgrade that adds one is noticed instead of silently dropped.
+      // Dev-only, and the TYPE ONLY is ever logged — payloads carry user text
+      // and, for secret.request, secrets (specs/agent-chat.md §Security).
+      if (import.meta.env.DEV && isUnknownGatewayEvent(event.type)) {
+        console.warn(`[aecpilot] gateway event not handled by the chat: ${event.type}`)
+      }
       // `receivedAt` (task 1.5.D1) times the reasoning block here, at the
       // edge, so the reducer itself never reads a clock and stays pure.
       dispatch({ kind: 'event', event, receivedAt: Date.now() })
