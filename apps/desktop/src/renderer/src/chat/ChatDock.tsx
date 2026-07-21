@@ -116,20 +116,31 @@ export default function ChatDock({
       {/* Task 1.5.D1: blocking agent requests, pinned here (not in the feed)
           because the agent core is stopped until answered and the feed does
           not auto-scroll — a transcript card could scroll out of sight. */}
+      {/* `key` is the request id on purpose (security review of D1.8): it
+          forces a FRESH component — and therefore empty input state — for
+          every request. Without it React would reuse the instance when one
+          request replaces another at the head of the queue, and a value typed
+          for one request could be submitted against a different one. That is
+          not reachable today (a request only leaves the head via our own
+          resolve, which clears first), but on a secret path the guarantee
+          should be structural rather than dependent on a cleanup call. */}
       {pendingInteractive?.kind === 'clarify' && (
         <ClarifyCard
+          key={pendingInteractive.requestId}
           request={pendingInteractive}
           onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
         />
       )}
       {pendingInteractive?.kind === 'secret' && (
         <SecretCard
+          key={pendingInteractive.requestId}
           request={pendingInteractive}
           onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
         />
       )}
       {pendingInteractive?.kind === 'sudo' && (
         <SudoCard
+          key={pendingInteractive.requestId}
           request={pendingInteractive}
           onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
         />

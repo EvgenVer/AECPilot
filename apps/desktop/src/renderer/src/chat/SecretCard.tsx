@@ -99,7 +99,9 @@ export default function SecretCard({
           onChange={(e) => setValue(e.target.value)}
           placeholder="Вставьте значение"
           disabled={pending}
-          autoComplete="off"
+          // "new-password" rather than "off": Chromium ignores `off` on
+          // password fields and may still offer to autofill/save them.
+          autoComplete="new-password"
           spellCheck={false}
           aria-label="Секретное значение"
         />
