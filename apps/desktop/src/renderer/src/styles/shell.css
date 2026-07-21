@@ -1461,6 +1461,8 @@ body.resizing-col * {
   align-items: center;
   gap: 8px;
   width: 100%;
+  /* See .tool-card__head — no global border-box reset in this stylesheet. */
+  box-sizing: border-box;
   padding: 8px 11px;
   background: transparent;
   border: none;
@@ -1507,7 +1509,11 @@ body.resizing-col * {
 }
 
 .reasoning-card__body {
-  padding: 0 11px 10px 33px;
+  /* Bottom spacing is a margin, not padding: `overflow: hidden` clips at the
+     padding box, so bottom padding would let the clamped-away next line show
+     through inside it. */
+  padding: 0 11px 0 33px;
+  margin-bottom: 10px;
   font-size: 12.5px;
   color: var(--text-3);
   line-height: 1.55;
@@ -1525,8 +1531,9 @@ body.resizing-col * {
   overflow: hidden;
 }
 
+/* Task 1.5.D1: full-width card per design Chat.html §5.9 (was content-width). */
 .tool-card {
-  align-self: flex-start;
+  align-self: stretch;
   max-width: 100%;
   border-radius: var(--r-card);
   border: 1px solid var(--border);
@@ -1541,7 +1548,11 @@ body.resizing-col * {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  /* The page has no global border-box reset, so width:100% + horizontal
+     padding would overflow the (now full-width) card by 22px and the card's
+     overflow:hidden would clip the status off the right edge. */
+  box-sizing: border-box;
+  padding: 8px 11px;
   background: transparent;
   border: none;
   text-align: left;
@@ -1550,25 +1561,86 @@ body.resizing-col * {
   color: var(--text-1);
 }
 
+/* A card with nothing to expand is a row, not a button. */
+.tool-card__head--static {
+  cursor: default;
+}
+
+.tool-card__icon {
+  display: inline-flex;
+  color: var(--text-2);
+  flex: 0 0 auto;
+}
+
+.tool-card__icon--running {
+  color: var(--accent);
+}
+
+.tool-card__spinner {
+  animation: tool-spin 1.1s linear infinite;
+}
+
+@keyframes tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-card__spinner {
+    animation: none;
+  }
+}
+
+/* The tool name always has content (see tool-label-pure.ts) — it must stay
+   visible, so it never shrinks below its own width. */
+.tool-card__name {
+  flex: 0 0 auto;
+  color: var(--text-1);
+  font-size: 12px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tool-card__context {
   color: var(--text-3);
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
 }
 
 .tool-card__status {
   color: var(--text-3);
+  font-size: 11px;
   flex: 0 0 auto;
 }
 
 .tool-card__status--running {
-  color: var(--warning);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.tool-card__status--ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.tool-card__chevron {
+  display: inline-flex;
+  color: var(--text-3);
+  flex: 0 0 auto;
 }
 
 .tool-card__body {
-  padding: 0 10px 10px;
+  padding: 0 11px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1577,12 +1649,15 @@ body.resizing-col * {
 .tool-card__pre {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
-  font-size: var(--fs-small);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-2);
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 6px;
+  border-radius: 6px;
+  padding: 9px 11px;
 }
 
 .tool-card__more {
