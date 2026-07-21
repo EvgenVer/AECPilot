@@ -131,6 +131,52 @@ describe('GatewayClient event parsing (fixture frames, no network)', () => {
     }
   })
 
+  // Task 1.5.D1: the reasoning stream feeding the chat's collapsible
+  // reasoning card. Two separate gateway events (hermes wires them to two
+  // different agent callbacks) plus a non-streamed variant.
+  it('dispatches reasoning.delta with typed payload.text', () => {
+    const { socket, client } = makeConnectedClient()
+    const events: GatewayEvent[] = []
+    client.onEvent((e) => events.push(e))
+    socket.emit(frame('gateway.ready'))
+    socket.emit(frame('reasoning.delta', { text: 'weighing options' }))
+
+    const evt = events.find((e) => e.type === 'reasoning.delta')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'reasoning.delta')) {
+      expect(evt.payload.text).toBe('weighing options')
+    }
+  })
+
+  it('dispatches reasoning.available, carrying the optional verbose flag', () => {
+    const { socket, client } = makeConnectedClient()
+    const events: GatewayEvent[] = []
+    client.onEvent((e) => events.push(e))
+    socket.emit(frame('gateway.ready'))
+    socket.emit(frame('reasoning.available', { text: 'full block', verbose: true }))
+
+    const evt = events.find((e) => e.type === 'reasoning.available')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'reasoning.available')) {
+      expect(evt.payload.text).toBe('full block')
+      expect(evt.payload.verbose).toBe(true)
+    }
+  })
+
+  it('keeps reasoning events usable when the optional verbose flag is absent', () => {
+    const { socket, client } = makeConnectedClient()
+    const events: GatewayEvent[] = []
+    client.onEvent((e) => events.push(e))
+    socket.emit(frame('gateway.ready'))
+    socket.emit(frame('reasoning.delta', { text: 'no flag here' }))
+
+    const evt = events.find((e) => e.type === 'reasoning.delta')
+    if (isGatewayEventOfType(evt, 'reasoning.delta')) {
+      expect(evt.payload.verbose).toBeUndefined()
+      expect(evt.payload.text).toBe('no flag here')
+    }
+  })
+
   it('dispatches status.update with kind and text', () => {
     const { socket, client } = makeConnectedClient()
     const events: GatewayEvent[] = []

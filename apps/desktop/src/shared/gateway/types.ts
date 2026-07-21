@@ -226,6 +226,27 @@ export interface ThinkingDeltaEvent {
   payload: { text: string }
 }
 
+/** A chunk of the model's reasoning trace (task 1.5.D1). Distinct from
+ * `thinking.delta` only in origin — hermes 0.18.0 wires them to two separate
+ * agent callbacks (`thinking_callback` / `reasoning_callback`, server.py
+ * `_agent_cbs`) — so the chat treats both as the same reasoning stream.
+ * Unlike `tool.*`, these are NOT suppressed by `display.tool_progress: off`. */
+export interface ReasoningDeltaEvent {
+  type: 'reasoning.delta'
+  session_id?: string
+  payload: { text: string; verbose?: boolean }
+}
+
+/** A complete reasoning block delivered at once rather than streamed (task
+ * 1.5.D1) — relayed through the gateway's tool-progress channel, so unlike
+ * `reasoning.delta` this one IS suppressed when `display.tool_progress` is
+ * `off` (server.py `_on_tool_progress`). */
+export interface ReasoningAvailableEvent {
+  type: 'reasoning.available'
+  session_id?: string
+  payload: { text: string; verbose?: boolean }
+}
+
 export interface StatusUpdateEvent {
   type: 'status.update'
   session_id?: string
@@ -317,6 +338,8 @@ export type GatewayEvent =
   | MessageStartEvent
   | MessageDeltaEvent
   | ThinkingDeltaEvent
+  | ReasoningDeltaEvent
+  | ReasoningAvailableEvent
   | StatusUpdateEvent
   | MessageCompleteEvent
   | GatewayErrorEvent
