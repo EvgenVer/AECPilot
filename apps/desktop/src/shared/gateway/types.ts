@@ -190,10 +190,24 @@ export interface GatewayMethodMap {
   'prompt.submit': { params: PromptSubmitParams; result: PromptSubmitResult }
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
   'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
+  'clarify.respond': { params: ClarifyRespondParams; result: InteractiveRespondResult }
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
   'reload.mcp': { params: ReloadMcpParams; result: ReloadMcpResult }
+}
+
+/** Answer to a `clarify.request` (task 1.5.D1). `request_id` must echo the
+ * one from the event — the gateway keys its pending map by it and replies
+ * with error 4009 when it no longer matches anything. */
+export interface ClarifyRespondParams {
+  request_id: string
+  answer: string
+}
+
+/** Shared shape of the gateway's `*.respond` acknowledgements. */
+export interface InteractiveRespondResult {
+  status: string
 }
 
 export type GatewayMethod = keyof GatewayMethodMap
@@ -325,6 +339,39 @@ export interface ApprovalRequestEvent {
   }
 }
 
+// --- Blocking interactive requests (task 1.5.D1) ---------------------------
+// The gateway raises these through `_block(...)`: the agent core STOPS until
+// answered or until the timeout expires (clarify/secret 300 s, sudo 120 s —
+// server.py `_block`). Leaving one unhandled is not cosmetic; it stalls the
+// agent and reads as a freeze. Each carries a `request_id` that the matching
+// `*.respond` must echo back.
+
+/** The agent needs the user to disambiguate before it can continue. */
+export interface ClarifyRequestEvent {
+  type: 'clarify.request'
+  session_id?: string
+  payload: { request_id: string; question?: string; choices?: string[] }
+}
+
+/** A tool needs a secret (API token) it could not find. `prompt` explains
+ * what is being asked for, `env_var` names where hermes will store it.
+ * Answering with an empty value is a legitimate "skip" (server.py
+ * `secret_cb`). The VALUE itself is never modelled here — see
+ * specs/agent-chat.md §Security. */
+export interface SecretRequestEvent {
+  type: 'secret.request'
+  session_id?: string
+  payload: { request_id: string; prompt?: string; env_var?: string; metadata?: unknown }
+}
+
+/** A tool needs an elevation password. Unlikely on Windows, but an
+ * unhandled request still stalls the agent for 120 s. */
+export interface SudoRequestEvent {
+  type: 'sudo.request'
+  session_id?: string
+  payload: { request_id: string }
+}
+
 /** Any event whose `type` this client does not recognize — kept typed rather
  * than silently dropped so callers can decide whether to ignore it. */
 export interface UnknownGatewayEvent {
@@ -348,6 +395,9 @@ export type GatewayEvent =
   | ToolGeneratingEvent
   | ToolCompleteEvent
   | ApprovalRequestEvent
+  | ClarifyRequestEvent
+  | SecretRequestEvent
+  | SudoRequestEvent
   | UnknownGatewayEvent
 
 /** Narrows a `GatewayEvent` to the known variant matching `type`, if any.

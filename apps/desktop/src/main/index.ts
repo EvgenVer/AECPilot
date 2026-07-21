@@ -417,6 +417,17 @@ function isApprovalChoice(value: string): value is ApprovalChoice {
   return APPROVAL_CHOICES.includes(value as ApprovalChoice)
 }
 
+// Task 1.5.D1: answers a blocking `clarify.request`. The gateway matches the
+// reply by `request_id` (its `_respond` keys a pending map by it) and returns
+// error 4009 once that request is gone — e.g. it already timed out — so the
+// renderer must surface a failure rather than assume success.
+ipcMain.handle('chat:respond-clarify', async (_event, requestId: unknown, answer: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
+  if (typeof answer !== 'string') throw new Error('invalid answer')
+  return gateway.request('clarify.respond', { request_id: requestId, answer })
+})
+
 ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boolean) => {
   if (!gateway || !sessionId) throw new Error('no active session')
   if (!isApprovalChoice(choice)) throw new Error('invalid approval choice')

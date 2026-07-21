@@ -69,10 +69,23 @@ export interface ApprovalRequest {
   allowPermanent: boolean
 }
 
+/** A blocking interactive request from the agent (task 1.5.D1). Unlike
+ * approvals — a FIFO queue with no ids — each of these carries a
+ * `requestId` the answer must echo, so they are matched by id rather than
+ * by position. The agent core is stopped while one is outstanding, so these
+ * are pinned above the composer (like `ApprovalCard`) rather than dropped
+ * into the transcript, which does not auto-scroll and could hide them. */
+export type InteractiveRequest =
+  | { kind: 'clarify'; requestId: string; question: string; choices: string[] }
+  | { kind: 'secret'; requestId: string; prompt: string; envVar: string }
+  | { kind: 'sudo'; requestId: string }
+
 export interface ChatState {
   items: ChatItem[]
   streaming: boolean
   approvals: ApprovalRequest[]
+  /** Outstanding blocking requests, oldest first. */
+  interactive: InteractiveRequest[]
   /** Next id to assign to a newly-created `ChatMessage` (see `ChatMessage.id`). */
   nextId: number
 }
@@ -81,6 +94,7 @@ export const initialChatState: ChatState = {
   items: [],
   streaming: false,
   approvals: [],
+  interactive: [],
   nextId: 0
 }
 
@@ -92,6 +106,8 @@ export type ChatAction =
    * doesn't care, in which case no duration is recorded. */
   | { kind: 'event'; event: GatewayEvent; receivedAt?: number }
   | { kind: 'approvals-resolved'; count: number }
+  /** Drops an answered (or expired) interactive request by its id. */
+  | { kind: 'interactive-resolved'; requestId: string }
   | { kind: 'session-loaded'; messages: HistoryMessage[] }
 
 /** The in-flight assistant message, if any, is always the last *message*
@@ -267,13 +283,21 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     return { ...state, approvals: state.approvals.slice(count) }
   }
 
+  if (action.kind === 'interactive-resolved') {
+    const interactive = state.interactive.filter((r) => r.requestId !== action.requestId)
+    // Answering something already gone is a no-op, not a state churn.
+    return interactive.length === state.interactive.length ? state : { ...state, interactive }
+  }
+
   if (action.kind === 'session-loaded') {
     const mapped = action.messages
       .map(mapHistoryMessage)
       .filter((item): item is ChatItem => item !== undefined)
     let nextId = 0
     const items = mapped.map((item) => (item.kind === 'message' ? { ...item, id: nextId++ } : item))
-    return { items, approvals: [], streaming: false, nextId }
+    // Switching/reloading a session abandons any outstanding blocking
+    // request along with the transcript (task 1.5.D1).
+    return { items, approvals: [], interactive: [], streaming: false, nextId }
   }
 
   const { event } = action
@@ -420,7 +444,42 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     return { ...state, approvals: [...state.approvals, request] }
   }
 
-  // 'thinking.delta' / 'status.update' / 'gateway.ready' / anything unknown
-  // are ignored for 0.11/0.12 — kept minimal per the task brief.
+  // Task 1.5.D1: blocking interactive requests. Queued by `request_id`; a
+  // repeat of one already queued is dropped rather than shown twice.
+  if (
+    isGatewayEventOfType(event, 'clarify.request') ||
+    isGatewayEventOfType(event, 'secret.request') ||
+    isGatewayEventOfType(event, 'sudo.request')
+  ) {
+    const requestId = event.payload?.request_id
+    // Without an id we could never answer it — the gateway matches replies by
+    // request_id — so there is nothing useful to show.
+    if (typeof requestId !== 'string' || requestId === '') return state
+    if (state.interactive.some((r) => r.requestId === requestId)) return state
+
+    let request: InteractiveRequest
+    if (isGatewayEventOfType(event, 'clarify.request')) {
+      request = {
+        kind: 'clarify',
+        requestId,
+        question: event.payload.question ?? '',
+        choices: event.payload.choices ?? []
+      }
+    } else if (isGatewayEventOfType(event, 'secret.request')) {
+      request = {
+        kind: 'secret',
+        requestId,
+        prompt: event.payload.prompt ?? '',
+        envVar: event.payload.env_var ?? ''
+      }
+    } else {
+      request = { kind: 'sudo', requestId }
+    }
+    return { ...state, interactive: [...state.interactive, request] }
+  }
+
+  // 'status.update' / 'gateway.ready' / anything unknown are ignored.
+  // (`thinking.delta` used to be ignored here too — task 1.5.D1 now feeds it
+  // into the reasoning block, see above.)
   return state
 }

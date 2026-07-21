@@ -6,6 +6,8 @@ const api: AecpilotApi = {
   submitPrompt: (text) => ipcRenderer.invoke('chat:submit', text),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),
+  respondClarify: (requestId, answer) =>
+    ipcRenderer.invoke('chat:respond-clarify', requestId, answer),
   listSessions: () => ipcRenderer.invoke('sessions:list'),
   newSession: () => ipcRenderer.invoke('sessions:new'),
   switchSession: (id) => ipcRenderer.invoke('sessions:switch', id),

@@ -145,6 +145,100 @@ describe('chatReducer', () => {
     })
   })
 
+  // --- task 1.5.D1: blocking interactive requests ----------------------
+  describe('interactive requests', () => {
+    it('queues a clarify request with its question and choices', () => {
+      const state = chatReducer(
+        initialChatState,
+        ev({
+          type: 'clarify.request',
+          payload: { request_id: 'r1', question: 'Какая категория?', choices: ['I', 'II'] }
+        })
+      )
+      expect(state.interactive).toEqual([
+        { kind: 'clarify', requestId: 'r1', question: 'Какая категория?', choices: ['I', 'II'] }
+      ])
+    })
+
+    it('queues secret and sudo requests', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(
+        state,
+        ev({
+          type: 'secret.request',
+          payload: { request_id: 'r2', prompt: 'API token', env_var: 'JIRA_TOKEN' }
+        })
+      )
+      state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'r3' } }))
+
+      expect(state.interactive).toEqual([
+        { kind: 'secret', requestId: 'r2', prompt: 'API token', envVar: 'JIRA_TOKEN' },
+        { kind: 'sudo', requestId: 'r3' }
+      ])
+    })
+
+    it('drops a duplicate of a request already queued', () => {
+      let state: ChatState = initialChatState
+      const evt = ev({
+        type: 'clarify.request',
+        payload: { request_id: 'r1', question: 'q', choices: [] }
+      })
+      state = chatReducer(state, evt)
+      state = chatReducer(state, evt)
+      expect(state.interactive).toHaveLength(1)
+    })
+
+    it('ignores a request with no usable id — it could never be answered', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(
+        state,
+        ev({ type: 'clarify.request', payload: { request_id: '', question: 'q' } })
+      )
+      state = chatReducer(
+        state,
+        ev({
+          type: 'sudo.request',
+          payload: {} as unknown as { request_id: string }
+        })
+      )
+      expect(state.interactive).toEqual([])
+    })
+
+    it('tolerates missing optional fields', () => {
+      const state = chatReducer(
+        initialChatState,
+        ev({ type: 'clarify.request', payload: { request_id: 'r1' } })
+      )
+      expect(state.interactive).toEqual([
+        { kind: 'clarify', requestId: 'r1', question: '', choices: [] }
+      ])
+    })
+
+    it('resolves a request by id, leaving the others queued', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'a' } }))
+      state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'b' } }))
+      state = chatReducer(state, { kind: 'interactive-resolved', requestId: 'a' })
+
+      expect(state.interactive).toEqual([{ kind: 'sudo', requestId: 'b' }])
+    })
+
+    it('resolving an unknown id is a no-op that does not churn state', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'a' } }))
+      const before = state
+      state = chatReducer(state, { kind: 'interactive-resolved', requestId: 'nope' })
+      expect(state).toBe(before)
+    })
+
+    it('a session switch clears outstanding requests', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'clarify.request', payload: { request_id: 'r1' } }))
+      state = chatReducer(state, { kind: 'session-loaded', messages: [] })
+      expect(state.interactive).toEqual([])
+    })
+  })
+
   it('appends a user message on user-submit', () => {
     const state = chatReducer(initialChatState, { kind: 'user-submit', text: 'hello' })
 

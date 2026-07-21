@@ -166,6 +166,10 @@ export interface AecpilotApi {
     choice: 'once' | 'session' | 'always' | 'deny',
     all?: boolean
   ): Promise<{ resolved: number }>
+  /** Answers a blocking `clarify.request` (task 1.5.D1). `requestId` must be
+   * the one from the event — the gateway matches by it and rejects a stale
+   * id (its request may have timed out), so callers must handle rejection. */
+  respondClarify(requestId: string, answer: string): Promise<{ status: string }>
   /** Lists existing sessions, in the order returned by the gateway.
    * Internal 'tool' sub-agent sessions are already filtered out server-side. */
   listSessions(): Promise<{ sessions: SessionSummary[] }>
