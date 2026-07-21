@@ -428,6 +428,28 @@ ipcMain.handle('chat:respond-clarify', async (_event, requestId: unknown, answer
   return gateway.request('clarify.respond', { request_id: requestId, answer })
 })
 
+// Task 1.5.D1: answers a blocking `secret.request`. `value` is the secret
+// itself. It is forwarded straight to the gateway and NOTHING here may
+// observe it: never logged, never echoed into an error, never persisted
+// (specs/agent-chat.md §Security). An empty string is the documented "skip".
+ipcMain.handle('chat:respond-secret', async (_event, requestId: unknown, value: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
+  // Validate the shape only — the value is never inspected or reported.
+  if (typeof value !== 'string') throw new Error('invalid secret value')
+  return gateway.request('secret.respond', { request_id: requestId, value })
+})
+
+// Task 1.5.D1: DECLINES a blocking `sudo.request`. Deliberately takes no
+// password argument — this app never collects an OS password, so there is no
+// code path through which one could be sent. The gateway needs the key
+// present, so an empty string is passed, which it treats as "no password".
+ipcMain.handle('chat:decline-sudo', async (_event, requestId: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
+  return gateway.request('sudo.respond', { request_id: requestId, password: '' })
+})
+
 ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boolean) => {
   if (!gateway || !sessionId) throw new Error('no active session')
   if (!isApprovalChoice(choice)) throw new Error('invalid approval choice')

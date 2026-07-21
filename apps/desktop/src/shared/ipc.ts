@@ -170,6 +170,15 @@ export interface AecpilotApi {
    * the one from the event — the gateway matches by it and rejects a stale
    * id (its request may have timed out), so callers must handle rejection. */
   respondClarify(requestId: string, answer: string): Promise<{ status: string }>
+  /** Answers a blocking `secret.request` (task 1.5.D1). `value` is the secret
+   * itself: it exists only in transit — the renderer must clear it right
+   * after this call and must never place it in chat state, the transcript or
+   * a log. Passing an empty string is the documented "skip". */
+  respondSecret(requestId: string, value: string): Promise<{ status: string }>
+  /** Declines a blocking `sudo.request` (task 1.5.D1). Takes NO password by
+   * design: this app never collects an OS password, so no caller is able to
+   * send one. Unblocks the agent, which proceeds without elevation. */
+  declineSudo(requestId: string): Promise<{ status: string }>
   /** Lists existing sessions, in the order returned by the gateway.
    * Internal 'tool' sub-agent sessions are already filtered out server-side. */
   listSessions(): Promise<{ sessions: SessionSummary[] }>

@@ -191,6 +191,8 @@ export interface GatewayMethodMap {
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
   'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
   'clarify.respond': { params: ClarifyRespondParams; result: InteractiveRespondResult }
+  'secret.respond': { params: SecretRespondParams; result: InteractiveRespondResult }
+  'sudo.respond': { params: SudoDeclineParams; result: InteractiveRespondResult }
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
@@ -203,6 +205,24 @@ export interface GatewayMethodMap {
 export interface ClarifyRespondParams {
   request_id: string
   answer: string
+}
+
+/** Answer to a `secret.request` (task 1.5.D1). `value` is the secret itself —
+ * it exists only in transit: never logged, never stored in chat state, never
+ * written to the transcript (specs/agent-chat.md §Security). An empty string
+ * is the documented "skip" answer. */
+export interface SecretRespondParams {
+  request_id: string
+  value: string
+}
+
+/** Answer to a `sudo.request` (task 1.5.D1). `password` is ALWAYS the empty
+ * string here: the product decision is that this app never collects an OS
+ * password — it declines the elevation and lets the agent proceed. The field
+ * exists only because the gateway's `_respond` reads that key. */
+export interface SudoDeclineParams {
+  request_id: string
+  password: ''
 }
 
 /** Shared shape of the gateway's `*.respond` acknowledgements. */

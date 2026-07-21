@@ -5,6 +5,8 @@ import ToolCallCard from './ToolCallCard'
 import ReasoningCard from './ReasoningCard'
 import ApprovalCard from './ApprovalCard'
 import ClarifyCard from './ClarifyCard'
+import SecretCard from './SecretCard'
+import SudoCard from './SudoCard'
 import SessionMenu from './SessionMenu'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
@@ -35,8 +37,9 @@ export default function ChatDock({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const awaitingApproval = state.approvals.length > 0
-  // The oldest clarify question we can actually answer today (task 1.5.D1).
-  const pendingClarify = state.interactive.find((r) => r.kind === 'clarify')
+  // The oldest outstanding blocking request (task 1.5.D1). All three kinds
+  // are answerable now, so the head of the queue is always what to show.
+  const pendingInteractive = state.interactive[0]
   const canSend =
     draft.trim().length > 0 && !state.streaming && connectionState === 'ready' && !awaitingApproval
 
@@ -110,13 +113,24 @@ export default function ChatDock({
         />
       )}
 
-      {/* Task 1.5.D1: a blocking clarify question, pinned here (not in the
-          feed) because the agent is stopped until it is answered and the feed
-          does not auto-scroll. Secret/sudo requests stay queued until their
-          cards land in D1.8. */}
-      {pendingClarify && (
+      {/* Task 1.5.D1: blocking agent requests, pinned here (not in the feed)
+          because the agent core is stopped until answered and the feed does
+          not auto-scroll — a transcript card could scroll out of sight. */}
+      {pendingInteractive?.kind === 'clarify' && (
         <ClarifyCard
-          request={pendingClarify}
+          request={pendingInteractive}
+          onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
+        />
+      )}
+      {pendingInteractive?.kind === 'secret' && (
+        <SecretCard
+          request={pendingInteractive}
+          onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
+        />
+      )}
+      {pendingInteractive?.kind === 'sudo' && (
+        <SudoCard
+          request={pendingInteractive}
           onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
         />
       )}
