@@ -10,7 +10,141 @@ function ev(event: GatewayEvent): { kind: 'event'; event: GatewayEvent } {
   return { kind: 'event', event }
 }
 
+/** Same as `ev`, but supplies the dispatcher timestamp the reasoning block
+ * uses for its duration (task 1.5.D1). */
+function evAt(
+  event: GatewayEvent,
+  receivedAt: number
+): { kind: 'event'; event: GatewayEvent; receivedAt: number } {
+  return { kind: 'event', event, receivedAt }
+}
+
 describe('chatReducer', () => {
+  // --- task 1.5.D1: the reasoning block -------------------------------
+  describe('reasoning block', () => {
+    it('collects thinking/reasoning chunks into ONE streaming block', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, { kind: 'user-submit', text: 'go' })
+      state = chatReducer(state, ev({ type: 'message.start' }))
+      state = chatReducer(state, ev({ type: 'thinking.delta', payload: { text: 'first ' } }))
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'second' } }))
+
+      const blocks = state.items.filter((i) => i.kind === 'reasoning')
+      expect(blocks).toHaveLength(1)
+      expect(blocks[0]).toMatchObject({
+        kind: 'reasoning',
+        text: 'first second',
+        segments: 1,
+        status: 'streaming'
+      })
+    })
+
+    it('starts a block even with no preceding message.start', () => {
+      const state = chatReducer(
+        initialChatState,
+        ev({ type: 'reasoning.delta', payload: { text: 'cold start' } })
+      )
+      expect(state.items).toHaveLength(1)
+      expect(state.items[0]).toMatchObject({ kind: 'reasoning', text: 'cold start', segments: 1 })
+    })
+
+    it('counts a resumed step when reasoning returns after a tool call', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'think A' } }))
+      state = chatReducer(
+        state,
+        ev({
+          type: 'tool.start',
+          payload: { tool_id: 't1', name: 'read_file', context: 'x' }
+        })
+      )
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'think B' } }))
+
+      const block = state.items.find((i) => i.kind === 'reasoning')
+      expect(block).toMatchObject({ segments: 2, text: 'think A\n\nthink B' })
+      // still a single block, the tool card sits after it
+      expect(state.items.filter((i) => i.kind === 'reasoning')).toHaveLength(1)
+    })
+
+    it('seals the block on message.complete and records the duration', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, evAt({ type: 'message.start' }, 1000))
+      state = chatReducer(
+        state,
+        evAt({ type: 'reasoning.delta', payload: { text: 'mulling' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt({ type: 'message.complete', payload: { text: 'done', status: 'complete' } }, 4000)
+      )
+
+      const block = state.items.find((i) => i.kind === 'reasoning')
+      expect(block).toMatchObject({ status: 'complete', startedAt: 1000, endedAt: 4000 })
+    })
+
+    it('omits timestamps entirely when the dispatcher gives none', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'x' } }))
+      state = chatReducer(
+        state,
+        ev({ type: 'message.complete', payload: { text: '', status: 'complete' } })
+      )
+
+      const block = state.items.find((i) => i.kind === 'reasoning')
+      expect(block).toMatchObject({ status: 'complete' })
+      expect(block).not.toHaveProperty('startedAt')
+      expect(block).not.toHaveProperty('endedAt')
+    })
+
+    it('a sealed block is not reopened — the next turn gets its own', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'turn one' } }))
+      state = chatReducer(
+        state,
+        ev({ type: 'message.complete', payload: { text: 'a', status: 'complete' } })
+      )
+      state = chatReducer(state, { kind: 'user-submit', text: 'again' })
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'turn two' } }))
+
+      const blocks = state.items.filter((i) => i.kind === 'reasoning')
+      expect(blocks).toHaveLength(2)
+      expect(blocks[0]).toMatchObject({ text: 'turn one', status: 'complete' })
+      expect(blocks[1]).toMatchObject({ text: 'turn two', status: 'streaming' })
+    })
+
+    it('an errored turn also seals its block', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'oops' } }))
+      state = chatReducer(state, ev({ type: 'error', payload: { message: 'boom' } }))
+
+      expect(state.items.find((i) => i.kind === 'reasoning')).toMatchObject({ status: 'complete' })
+    })
+
+    it('ignores empty reasoning chunks', () => {
+      const state = chatReducer(
+        initialChatState,
+        ev({ type: 'reasoning.delta', payload: { text: '' } })
+      )
+      expect(state.items).toHaveLength(0)
+    })
+
+    it('does not disturb the in-flight assistant bubble', () => {
+      let state: ChatState = initialChatState
+      state = chatReducer(state, ev({ type: 'message.start' }))
+      state = chatReducer(state, ev({ type: 'reasoning.delta', payload: { text: 'hmm' } }))
+      state = chatReducer(state, ev({ type: 'message.delta', payload: { text: 'answer' } }))
+      state = chatReducer(
+        state,
+        ev({ type: 'message.complete', payload: { text: '', status: 'complete' } })
+      )
+
+      const message = state.items.find(
+        (i): i is ChatMessage => i.kind === 'message' && i.role === 'assistant'
+      )
+      expect(message?.text).toBe('answer')
+    })
+  })
+
   it('appends a user message on user-submit', () => {
     const state = chatReducer(initialChatState, { kind: 'user-submit', text: 'hello' })
 
@@ -110,19 +244,19 @@ describe('chatReducer', () => {
     expect(state.streaming).toBe(false)
   })
 
-  it('thinking.delta and status.update are ignored (state unchanged) for 0.11', () => {
+  // Superseded by task 1.5.D1: `thinking.delta` used to be ignored (0.11) and
+  // now feeds the reasoning block — see the "reasoning block" suite above.
+  // `status.update` is still ignored.
+  it('status.update is ignored (state unchanged)', () => {
     let state: ChatState = initialChatState
     state = chatReducer(state, ev({ type: 'message.start' }))
-    const beforeThinking = state
-
-    state = chatReducer(state, ev({ type: 'thinking.delta', payload: { text: 'pondering' } }))
-    expect(state).toEqual(beforeThinking)
+    const before = state
 
     state = chatReducer(
       state,
       ev({ type: 'status.update', payload: { kind: 'retry', text: 'retrying' } })
     )
-    expect(state).toEqual(beforeThinking)
+    expect(state).toEqual(before)
   })
 
   it('message.complete with no in-flight message still produces an assistant message (implicit start)', () => {

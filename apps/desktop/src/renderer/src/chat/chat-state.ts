@@ -31,7 +31,33 @@ export interface ChatToolCall {
   status: 'running' | 'complete'
 }
 
-export type ChatItem = ChatMessage | ChatToolCall
+/** The agent's reasoning trace for one turn (task 1.5.D1), rendered as a
+ * single collapsible card per design/screens/Chat.html §5.9 — not one card
+ * per chunk. `thinking.delta`, `reasoning.delta` and `reasoning.available`
+ * all feed the same item (hermes splits them across two agent callbacks;
+ * to the reader it is one train of thought).
+ *
+ * `segments` backs the design's "N шагов": it counts how many times
+ * reasoning RESUMED after something else appeared in between (a tool card,
+ * an answer chunk) — not the raw delta count, which would be meaningless.
+ * A turn that reasons, calls a tool, then reasons again reads as 2 steps.
+ *
+ * `startedAt`/`endedAt` come from the dispatcher (`ChatAction.receivedAt`),
+ * never from a clock read inside the reducer — the reducer stays pure. When
+ * the dispatcher supplies no timestamp they stay undefined and the card
+ * simply omits the duration (specs/agent-chat.md: мета не выдумывается). */
+export interface ChatReasoning {
+  kind: 'reasoning'
+  /** Monotonic, stable React key — same scheme as `ChatMessage.id`. */
+  id: number
+  text: string
+  segments: number
+  status: 'streaming' | 'complete'
+  startedAt?: number
+  endedAt?: number
+}
+
+export type ChatItem = ChatMessage | ChatToolCall | ChatReasoning
 
 /** A pending `approval.request` from the agent. Approvals form a FIFO queue
  * per session (no request id) and are rendered pinned above the input, not
@@ -60,7 +86,11 @@ export const initialChatState: ChatState = {
 
 export type ChatAction =
   | { kind: 'user-submit'; text: string }
-  | { kind: 'event'; event: GatewayEvent }
+  /** `receivedAt` (task 1.5.D1) is supplied by the dispatcher so the reducer
+   * can time the reasoning block without reading a clock itself (purity —
+   * see `ChatReasoning`). Optional: omitted in tests and by any caller that
+   * doesn't care, in which case no duration is recorded. */
+  | { kind: 'event'; event: GatewayEvent; receivedAt?: number }
   | { kind: 'approvals-resolved'; count: number }
   | { kind: 'session-loaded'; messages: HistoryMessage[] }
 
@@ -73,11 +103,71 @@ export type ChatAction =
 function inFlightIndex(items: ChatItem[]): number | undefined {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]
-    if (item.kind === 'tool') continue
+    // Tool cards and reasoning blocks (task 1.5.D1) may both sit after the
+    // in-flight bubble — skip over them rather than giving up at the first
+    // non-message item.
+    if (item.kind === 'tool' || item.kind === 'reasoning') continue
     if (item.role === 'assistant' && item.status === 'streaming') return i
     break
   }
   return undefined
+}
+
+/** Index of the turn's still-open reasoning block, if any. At most one is
+ * open at a time — it is closed by `message.complete` (or by the next user
+ * turn, as a safety net). */
+function openReasoningIndex(items: ChatItem[]): number | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.kind === 'reasoning' && item.status === 'streaming') return i
+  }
+  return undefined
+}
+
+/** Closes an open reasoning block, stamping `endedAt` when the dispatcher
+ * gave us a timestamp. Returns `items` unchanged when nothing is open. */
+function closeReasoning(items: ChatItem[], receivedAt?: number): ChatItem[] {
+  const index = openReasoningIndex(items)
+  if (index === undefined) return items
+  const next = [...items]
+  const current = next[index] as ChatReasoning
+  next[index] = {
+    ...current,
+    status: 'complete',
+    ...(receivedAt !== undefined ? { endedAt: receivedAt } : {})
+  }
+  return next
+}
+
+/** Feeds one reasoning chunk into the turn's block, creating it if this is
+ * the first chunk of the turn. A chunk arriving when the block is no longer
+ * the last item means reasoning resumed after a tool call / answer chunk —
+ * that bumps `segments` and separates the text with a blank line. */
+function appendReasoning(state: ChatState, text: string, receivedAt?: number): ChatState {
+  if (text === '') return state
+  const index = openReasoningIndex(state.items)
+
+  if (index === undefined) {
+    const block: ChatReasoning = {
+      kind: 'reasoning',
+      id: state.nextId,
+      text,
+      segments: 1,
+      status: 'streaming',
+      ...(receivedAt !== undefined ? { startedAt: receivedAt } : {})
+    }
+    return { ...state, items: [...state.items, block], nextId: state.nextId + 1 }
+  }
+
+  const items = [...state.items]
+  const current = items[index] as ChatReasoning
+  const resumed = index !== items.length - 1
+  items[index] = {
+    ...current,
+    text: resumed ? `${current.text}\n\n${text}` : current.text + text,
+    segments: resumed ? current.segments + 1 : current.segments
+  }
+  return { ...state, items }
 }
 
 /** Normalizes a `tool.complete` result into a display string: an object is
@@ -166,7 +256,10 @@ function mapHistoryMessage(message: HistoryMessage, index: number): ChatItem | u
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.kind === 'user-submit') {
     const { message, nextId } = createMessage(state.nextId, { role: 'user', text: action.text })
-    return { ...state, items: [...state.items, message], nextId }
+    // Safety net (task 1.5.D1): a new user turn closes any reasoning block
+    // left open by a turn that never delivered `message.complete`.
+    const items = closeReasoning(state.items)
+    return { ...state, items: [...items, message], nextId }
   }
 
   if (action.kind === 'approvals-resolved') {
@@ -222,6 +315,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     const index = inFlightIndex(state.items)
     const finalText =
       event.payload.text || (index !== undefined ? (state.items[index] as ChatMessage).text : '')
+    // The turn is over — seal its reasoning block (task 1.5.D1). Replaces in
+    // place, so `index` from above stays valid.
+    const closed = closeReasoning(state.items, action.receivedAt)
     if (index === undefined) {
       // Implicit start: a complete arrived with no prior message.start/delta.
       const { message, nextId } = createMessage(state.nextId, {
@@ -229,9 +325,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         text: finalText,
         status: event.payload.status
       })
-      return { ...state, items: [...state.items, message], nextId, streaming: false }
+      return { ...state, items: [...closed, message], nextId, streaming: false }
     }
-    const items = [...state.items]
+    const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: finalText, status: event.payload.status }
     return { ...state, items, streaming: false }
@@ -239,6 +335,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
   if (isGatewayEventOfType(event, 'error')) {
     const index = inFlightIndex(state.items)
+    // An errored turn is still a finished turn — seal its reasoning block.
+    const closed = closeReasoning(state.items, action.receivedAt)
     if (index === undefined) {
       const { message, nextId } = createMessage(state.nextId, {
         role: 'assistant',
@@ -247,15 +345,24 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       })
       return {
         ...state,
-        items: [...state.items, message],
+        items: [...closed, message],
         nextId,
         streaming: false
       }
     }
-    const items = [...state.items]
+    const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: current.text || event.payload.message, status: 'error' }
     return { ...state, items, streaming: false }
+  }
+
+  // Task 1.5.D1: all three reasoning-ish events feed one block per turn.
+  if (
+    isGatewayEventOfType(event, 'thinking.delta') ||
+    isGatewayEventOfType(event, 'reasoning.delta') ||
+    isGatewayEventOfType(event, 'reasoning.available')
+  ) {
+    return appendReasoning(state, event.payload.text, action.receivedAt)
   }
 
   if (isGatewayEventOfType(event, 'tool.start') || isGatewayEventOfType(event, 'tool.started')) {

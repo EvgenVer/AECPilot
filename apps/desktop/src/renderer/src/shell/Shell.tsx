@@ -64,7 +64,9 @@ export default function Shell() {
     let mounted = true
     let gotLiveState = false
     const unsubscribeEvent = window.aecpilot.onChatEvent((event) => {
-      dispatch({ kind: 'event', event })
+      // `receivedAt` (task 1.5.D1) times the reasoning block here, at the
+      // edge, so the reducer itself never reads a clock and stays pure.
+      dispatch({ kind: 'event', event, receivedAt: Date.now() })
     })
     const unsubscribeState = window.aecpilot.onGatewayState((s) => {
       gotLiveState = true

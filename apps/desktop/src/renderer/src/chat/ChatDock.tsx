@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { Dispatch } from 'react'
 import type { ChatAction, ChatState } from './chat-state'
 import ToolCallCard from './ToolCallCard'
+import ReasoningCard from './ReasoningCard'
 import ApprovalCard from './ApprovalCard'
 import SessionMenu from './SessionMenu'
 import { AttachIcon, SendIcon } from '../shell/icons'
@@ -80,6 +81,8 @@ export default function ChatDock({
         {state.items.map((item) =>
           item.kind === 'tool' ? (
             <ToolCallCard key={item.toolId} call={item} />
+          ) : item.kind === 'reasoning' ? (
+            <ReasoningCard key={`r${item.id}`} block={item} />
           ) : (
             <div
               key={item.id}

@@ -1446,6 +1446,85 @@ body.resizing-col * {
 
 /* ============ Tool call card ============ */
 
+/* ============ Reasoning card (task 1.5.D1, design Chat.html §5.9) ============ */
+
+.reasoning-card {
+  align-self: stretch;
+  border-radius: var(--r-card);
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  overflow: hidden;
+}
+
+.reasoning-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-2);
+}
+
+.reasoning-card__icon {
+  display: inline-flex;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.reasoning-card__title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  flex: 0 0 auto;
+}
+
+.reasoning-card__live {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+
+.reasoning-card__meta {
+  font-size: 11px;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.reasoning-card__spacer {
+  flex: 1;
+}
+
+.reasoning-card__chevron {
+  display: inline-flex;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.reasoning-card__body {
+  padding: 0 11px 10px 33px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.55;
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Collapsed: a short taste of the trace, never a wall of text. */
+.reasoning-card__body--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .tool-card {
   align-self: flex-start;
   max-width: 100%;
