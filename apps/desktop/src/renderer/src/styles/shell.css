@@ -1446,6 +1446,134 @@ body.resizing-col * {
 
 /* ============ Tool call card ============ */
 
+/* ============ Clarify card (task 1.5.D1, design Chat.html §5.9) ============
+   Pinned above the composer like the approval card: the agent is blocked
+   until this is answered, and the feed does not auto-scroll. */
+
+.clarify-card {
+  flex: 0 0 auto;
+  margin: 0 12px 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-app);
+}
+
+.clarify-card__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.clarify-card__icon {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.clarify-card__title {
+  font-weight: 600;
+  font-size: var(--fs-body);
+  color: var(--text-1);
+}
+
+.clarify-card__question {
+  font-size: var(--fs-body);
+  color: var(--text-1);
+  line-height: var(--lh-body);
+  margin-bottom: 10px;
+}
+
+.clarify-card__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clarify-card__choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-1);
+  text-align: left;
+}
+
+.clarify-card__choice:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.clarify-card__choice:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.clarify-card__radio {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  flex: 0 0 auto;
+}
+
+.clarify-card__choice-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.clarify-card__form {
+  display: flex;
+  gap: 8px;
+}
+
+.clarify-card__input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h);
+  box-sizing: border-box;
+  padding: 0 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-body);
+}
+
+.clarify-card__submit {
+  flex: 0 0 auto;
+  height: var(--control-h);
+  padding: 0 13px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-ctl);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.clarify-card__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.clarify-card__error {
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+
 /* ============ Reasoning card (task 1.5.D1, design Chat.html §5.9) ============ */
 
 .reasoning-card {

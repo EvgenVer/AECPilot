@@ -4,6 +4,7 @@ import type { ChatAction, ChatState } from './chat-state'
 import ToolCallCard from './ToolCallCard'
 import ReasoningCard from './ReasoningCard'
 import ApprovalCard from './ApprovalCard'
+import ClarifyCard from './ClarifyCard'
 import SessionMenu from './SessionMenu'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
@@ -34,6 +35,8 @@ export default function ChatDock({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const awaitingApproval = state.approvals.length > 0
+  // The oldest clarify question we can actually answer today (task 1.5.D1).
+  const pendingClarify = state.interactive.find((r) => r.kind === 'clarify')
   const canSend =
     draft.trim().length > 0 && !state.streaming && connectionState === 'ready' && !awaitingApproval
 
@@ -104,6 +107,17 @@ export default function ChatDock({
           request={state.approvals[0]}
           queueLength={state.approvals.length}
           onResolved={(resolved) => dispatch({ kind: 'approvals-resolved', count: resolved })}
+        />
+      )}
+
+      {/* Task 1.5.D1: a blocking clarify question, pinned here (not in the
+          feed) because the agent is stopped until it is answered and the feed
+          does not auto-scroll. Secret/sudo requests stay queued until their
+          cards land in D1.8. */}
+      {pendingClarify && (
+        <ClarifyCard
+          request={pendingClarify}
+          onResolved={(requestId) => dispatch({ kind: 'interactive-resolved', requestId })}
         />
       )}
 
