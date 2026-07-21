@@ -32,16 +32,20 @@ Conformance к утверждённому дизайну и SPEC/PLAN (Б):
 Discovered (инфра, из прогона 1.5.10):
 - [x] 1.5.11 e2e teardown надёжный — verified: исполнитель прогнал e2e 2/2 подряд зелёные; координатор подтвердил эмпирически (после прогонов Get-Process electron/python пусто, порт 18790 свободен) + полный vitest+lint exit 0 + tsc чист + инлайн-ревью diff. Реализация: getFreePort() (OS-assigned свободный порт вместо захардкоженного 18790 → нет коллизий bind при параллельных/остаточных прогонах); killProcessTree() (Windows taskkill /pid /t /f — child_process.kill сигналит только сам процесс, не дерево Chromium); afterAll: Promise.race(app.close(), 90с grace) → форс-кил electron-PID + mock-PID + подметание осиротевших electron.exe, появившихся за прогон (preExistingElectronPids-гард от убийства чужих); playwright timeout 60→120с. Ревью: инлайн-координатор (test-инфра, не продакшн; эмпирика + diff). Снят координационный запрет «не гонять e2e параллельно»
 
+### Задача 1.5.D1 — Складка чата: рассуждение + инструменты (спека: specs/agent-chat.md)
+<!-- Взята в работу 2026-07-20 по команде владельца (после закрытия батча 1.5), через
+     планировочный гейт. Реализует подмножество утверждённого макета Chat.html §5.9
+     (рассуждение + инструмент); поглощает бывшую 1.5.2. Остальные карточки §5.9
+     (субагент/уточнение/секрет/sudo/MoA/рестайл approvals/ошибка инструмента) — НЕ здесь,
+     см. §Non-goals спеки. Делаю последовательно сам (Builder), без оркестрации. -->
+- [ ] D1.1 Типизировать reasoning-события: `ReasoningDeltaEvent` (`reasoning.delta` {text, verbose?}) и `ReasoningAvailableEvent` (`reasoning.available` {text, verbose?}) + добавить в union `GatewayEvent` (`thinking.delta` уже типизирован) — files: apps/desktop/src/shared/gateway/types.ts, events-parsing.test.ts · verify: vitest (парсинг всех трёх событий, неизвестные поля не ломают) · dep: — · parallel: no
+- [ ] D1.2 Накопление рассуждения в редьюсере: новый `ChatItem{kind:'reasoning'}` (turnId, text, segments, startedAt/endedAt); создаётся на первом reasoning/thinking-событии хода (в т.ч. без предшествующего message.start), дополняется дельтами, закрывается на message.complete; порядок элементов ленты не нарушается — files: chat-state.ts, chat-state.test.ts · verify: vitest (накопление, порядок, tool.complete без start, смена хода, сброс сессии) · dep: D1.1 · parallel: no
+- [ ] D1.3 Компонент `ReasoningCard` по §5.9: свёрнут по умолчанию (иконка, «Рассуждение», мета, шеврон), разворот — полный текст; мета «N шагов · X с» ТОЛЬКО из реальных сигналов, при их отсутствии опускается (чистый модуль + тесты, прецедент 1.5.5 «не подделывали данные») — files: chat/ReasoningCard.tsx, chat/reasoning-meta-pure.ts(+test), styles/shell.css · verify: vitest на мету, ручной прогон обеих тем · dep: D1.2 · parallel: no
+- [ ] D1.4 Редизайн `ToolCallCard` по §5.9 (ЗАКРЫВАЕТ бывшую 1.5.2): во всю ширину (align-self:stretch), спиннер при running / иконка при complete, mono-имя, контекст с усечением, бейдж статуса (выполняется…/ok), шеврон, разворот с args+result; ГАРАНТИЯ — при пустом/отсутствующем имени карточка получает запасную читаемую подпись и НЕ выглядит пустым безымянным прямоугольником — files: chat/ToolCallCard.tsx, chat/tool-label-pure.ts(+test), styles/shell.css · verify: vitest на запасную подпись (пустое/пробельное/undefined имя), ручной прогон · dep: D1.2 · parallel: no
+- [ ] D1.5 Интеграция в ленту `ChatDock` + сквозной прогон: рендер reasoning-карточки в общем порядке items, проверка обеих тем, полный verify (vitest+lint+format+build+e2e) — files: chat/ChatDock.tsx, styles/shell.css · verify: полный прогон + ручной прогон владельца на реальном ходе с MCP-вызовами · dep: D1.3, D1.4 · parallel: no
+
 Отложено с пометкой (НЕ в этом батче — по команде владельца позже):
-<!-- 1.5.D1 Складка чата: tool-вызовы + ход рассуждений (thinking/reasoning-события gateway
-     есть в инвентаре PLAN §Data/API) в разворачиваемом блоке — паритет с Hermes Desktop
-     (G4/UR4); recon по событиям + редизайн ToolCallCard; делать когда дозреет Agent-hub.
-     ВКЛЮЧАЕТ 1.5.2 (свёрнута сюда 2026-07-20): «пустые прямоугольники» = tool-карточки
-     MCP-вызовов; текущий вид — тесные моно-бары с сырыми mcp_aec_sources_* и пустым
-     context (hermes не строит preview для MCP). Складка их заменяет: человекочитаемая
-     подпись/иконка на свёрнутом виде + args/result/reasoning в развороте. Не рисовать
-     «голый» узкий значок при пустом имени/контексте (страховка на любой upstream-shape).
-     1.5.D2 Ревью и утверждение содержимого шаблона runtime/templates/AGENTS.md с владельцем
+<!-- 1.5.D2 Ревью и утверждение содержимого шаблона runtime/templates/AGENTS.md с владельцем
      (обсуждение) — перед Phase 3 (wiki): половина правил шаблона про вики/память. -->
 
 ### Phase 2 — Ingest & RAG, эталонный сценарий (спека: specs/qa-over-sources.md)
