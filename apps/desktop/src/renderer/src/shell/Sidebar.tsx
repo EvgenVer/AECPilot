@@ -927,7 +927,14 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
 
   function selectVaultNode(nodes: NodeApi<VaultTreeNode>[]): void {
     setSelected(nodes[0] ?? null)
-    setSelectedSource(null)
+    // Only a real vault selection clears the source one. An EMPTY selection
+    // must not: react-arborist's `deselectAll()` fires `onSelect` with `[]`
+    // ("setSelection fires onSelect", tree-api.js), and `selectSourceEntry`
+    // below calls it right after setting `selectedSource` — so clearing here
+    // unconditionally wiped the source that was just selected, leaving both
+    // context-menu commands with nothing to act on. They then returned
+    // silently, which is the "кнопки не работают" report from the manual run.
+    if (nodes.length > 0) setSelectedSource(null)
   }
 
   function selectSourceEntry(entry: SelectedSourceEntry): void {
