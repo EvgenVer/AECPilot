@@ -20,6 +20,53 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Tells Chromium which palette to paint its own UA surfaces with — scrollbars
+   above all, but also the pre-paint canvas and native form controls. Without
+   it the dark theme kept light scrollbar tracks/thumbs and flashed a light
+   strip at the window edge, because a CSS `background` on <body> does not
+   reach UA-rendered chrome. Keyed off the same [data-theme] attribute
+   tokens.css uses, so the theme toggle switches both at once. */
+:root {
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Explicit scrollbar skin on top of color-scheme: the UA dark default is a
+   flat grey that reads as foreign against --bg-sidebar. Firefox/standards
+   path first, then the WebKit pseudo-elements Chromium actually uses. */
+* {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 button {
   font-family: inherit;
 }
