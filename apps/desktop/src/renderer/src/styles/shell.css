@@ -2948,3 +2948,50 @@ body.resizing-row * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Цвета ANSI в выводе инструментов (задача 1.6.11). Палитра — на наших
+   токенах там, где они есть; для остального взяты спокойные оттенки, читаемые
+   в обеих темах, вместо ярких терминальных. Фон терминала не воспроизводим:
+   у карточки своя поверхность. */
+.ansi--bold {
+  font-weight: 600;
+}
+
+.ansi--red,
+.ansi--bright-red {
+  color: var(--danger);
+}
+
+.ansi--green,
+.ansi--bright-green {
+  color: var(--success);
+}
+
+.ansi--yellow,
+.ansi--bright-yellow {
+  color: var(--warning);
+}
+
+.ansi--blue,
+.ansi--bright-blue,
+.ansi--cyan,
+.ansi--bright-cyan {
+  color: var(--accent);
+}
+
+.ansi--magenta,
+.ansi--bright-magenta {
+  color: color-mix(in srgb, var(--accent) 70%, var(--danger));
+}
+
+/* Чёрный и белый в выводе означают «основной цвет текста», а не буквальный
+   цвет: буквальный был бы невидим в одной из тем. */
+.ansi--black,
+.ansi--white,
+.ansi--bright-white {
+  color: var(--text-1);
+}
+
+.ansi--bright-black {
+  color: var(--text-3);
+}

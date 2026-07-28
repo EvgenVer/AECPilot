@@ -1,7 +1,30 @@
 import { useState } from 'react'
+import type { JSX } from 'react'
 import type { ChatToolCall } from './chat-state'
 import { hasToolDetails, toolDisplayName } from './tool-label-pure'
 import { formatElapsed, useElapsedSeconds } from './vendor/hermes/activity-timer'
+import { hasAnsiCodes, parseAnsi } from './vendor/hermes/ansi-pure'
+
+/** Terminal output as the terminal meant it (task 1.6.11): colours become
+ * spans, escape sequences disappear. Plain output skips the parser entirely —
+ * most tool results have no codes at all. */
+function ToolResultText({ text }: { text: string }): JSX.Element {
+  if (!hasAnsiCodes(text)) return <>{text}</>
+  return (
+    <>
+      {parseAnsi(text).map((segment, index) => (
+        <span
+          key={index}
+          className={`ansi${segment.fg ? ` ansi--${segment.fg}` : ''}${
+            segment.bold ? ' ansi--bold' : ''
+          }`}
+        >
+          {segment.text}
+        </span>
+      ))}
+    </>
+  )
+}
 
 const RESULT_PREVIEW_LIMIT = 4000
 
@@ -169,7 +192,7 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
             <section className="tool-card__section">
               <h4 className="tool-card__section-title">Результат</h4>
               <pre className="tool-card__pre">
-                {displayedResult}
+                <ToolResultText text={displayedResult} />
                 {!showFullResult && resultIsTruncated && '…'}
               </pre>
               {resultIsTruncated && (
