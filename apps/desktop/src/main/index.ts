@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
+import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { GatewayClient } from '../shared/gateway/client'
 import type { GatewayConnectionState, GatewayEvent } from '../shared/gateway/types'
 import {
@@ -386,6 +387,26 @@ function createWindow(): void {
     }
   })
 
+  // Task 1.6.4a — the window itself must never leave the app. Since task 1.6.4
+  // the transcript renders agent-authored markdown, so a link in that text is
+  // content we did not write; a navigation would carry our preload API onto a
+  // foreign page. Both escape routes are closed here, and a legitimate web
+  // link is handed to the OS browser instead of being followed in place.
+  const ownUrl = process.env.ELECTRON_RENDERER_URL ?? rendererFileUrl()
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const decision = decideExternalLink(url)
+    if (decision.allowed) void shell.openExternal(decision.url)
+    return { action: 'deny' }
+  })
+
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isOwnRendererUrl(url, ownUrl)) return
+    event.preventDefault()
+    const decision = decideExternalLink(url)
+    if (decision.allowed) void shell.openExternal(decision.url)
+  })
+
   if (process.env.AEC_SMOKE === '1') {
     win.webContents.once('did-finish-load', () => {
       console.log('aecpilot: smoke ok')
@@ -404,6 +425,28 @@ function createWindow(): void {
     void win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
+
+/** The packaged entry point as a URL, so `will-navigate` can tell "our own
+ * page" from anywhere else in the same `file:` scheme. */
+function rendererFileUrl(): string {
+  return pathToFileURL(join(__dirname, '../renderer/index.html')).toString()
+}
+
+/** Opens a link from the transcript in the OS browser (task 1.6.4a). The
+ * renderer asks; the decision is made here, because the renderer is the side
+ * that displays untrusted text. */
+ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
+  const url =
+    typeof payload === 'object' && payload !== null ? (payload as { url?: unknown }).url : undefined
+  const decision = decideExternalLink(url)
+  if (!decision.allowed) return { ok: false, error: decision.reason }
+  try {
+    await shell.openExternal(decision.url)
+    return { ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
 
 ipcMain.handle('chat:submit', async (_event, text: string) => {
   const activeSessionId = await ensureSession()

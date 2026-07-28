@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MarkdownTextContent } from './markdown-text'
 
@@ -59,15 +59,25 @@ test('инлайновый код остаётся инлайновым', async 
   expect(container.querySelector('pre')).toBeNull()
 })
 
-test('ссылка показывается, но не является переходом', async () => {
-  const container = renderMarkdown('см. [спеку](https://example.com/spec)')
+test('клик по ссылке уходит в системный браузер, а не в окно приложения', async () => {
+  const openExternalLink = vi.fn().mockResolvedValue({ ok: true })
+  vi.stubGlobal('aecpilot', { openExternalLink })
 
+  const container = renderMarkdown('см. [спеку](https://example.com/spec)')
   await waitFor(() => expect(screen.queryByText('спеку')).not.toBeNull())
-  // Никакого `<a href>`: агентский текст не должен уметь увести окно
-  // рендерера, у которого есть preload-API (задача 1.6.4a добавит открытие
-  // через системный браузер и защиту окна).
-  expect(container.querySelector('a')).toBeNull()
-  expect(screen.getByText('спеку').getAttribute('title')).toBe('https://example.com/spec')
+
+  const link = container.querySelector('a')
+  expect(link?.getAttribute('href')).toBe('https://example.com/spec')
+
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+  link?.dispatchEvent(event)
+
+  // Переход отменён — окно рендерера с его preload-API никуда не уходит
+  // (вторая линия обороны — guard'ы окна в main, задача 1.6.4a).
+  expect(event.defaultPrevented).toBe(true)
+  expect(openExternalLink).toHaveBeenCalledWith('https://example.com/spec')
+
+  vi.unstubAllGlobals()
 })
 
 test('недописанная разметка на стриме не показывает сырые символы', async () => {

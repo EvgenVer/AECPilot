@@ -198,3 +198,34 @@ test('separators take keyboard control after a click (both axes)', async () => {
   await page.keyboard.press('ArrowDown')
   expect((await bottomPanel.boundingBox())!.height).toBeLessThan(bottomBox.height)
 })
+
+// Regression for task 1.6.4a. Since task 1.6.4 the transcript renders
+// agent-authored markdown, so a link in it is content we did not write; if the
+// window followed one, our preload API would travel onto a foreign page. The
+// policy itself is unit-tested (main/external-link-policy.test.ts) — what only
+// the real app can show is that the guard is actually wired to the window.
+// The probe navigates to a `file:` URL on purpose: it exercises the same
+// `will-navigate` path as a web link while being refused by the policy, so the
+// test never launches a real browser on the machine running it.
+test('the window refuses to navigate away from the app', async () => {
+  const page = await app.firstWindow()
+  const before = page.url()
+
+  // Guard 1 — `setWindowOpenHandler`: a target=_blank link, a middle click or
+  // window.open must not spawn a second window carrying the preload API.
+  await page.evaluate(() => {
+    window.open('file:///C:/Windows/System32/drivers/etc/hosts')
+  })
+  await page.waitForTimeout(500)
+  expect(app.windows()).toHaveLength(1)
+
+  // Guard 2 — `will-navigate`: the window itself may not leave its own page.
+  // Asserted on `page.url()` alone, and last: Chromium leaves a cancelled
+  // navigation pending in the renderer, which would stall any later locator
+  // or evaluate call in this test rather than fail it.
+  await page.evaluate(() => {
+    window.location.href = 'file:///C:/Windows/System32/drivers/etc/hosts'
+  })
+  await page.waitForTimeout(1500)
+  expect(page.url()).toBe(before)
+})

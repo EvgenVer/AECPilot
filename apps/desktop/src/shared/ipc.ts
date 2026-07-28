@@ -300,6 +300,11 @@ export interface AecpilotApi {
    * `''` targets the source's own root. Read-only, never modifies the
    * source. */
   showSourceEntryInExplorer(sourceId: string, rel: string): Promise<VaultOpResult>
+  /** Opens a link from the agent's answer in the OS browser (task 1.6.4a).
+   * The renderer never navigates to it itself — main decides whether the URL
+   * is allowed at all (`http`/`https`/`mailto` only) and returns why not, so
+   * the chat can show the refusal instead of failing silently. */
+  openExternalLink(url: string): Promise<VaultOpResult>
   /** Resolves a connected source's entry to its absolute path (task 1.5.5)
    * — backs "Копировать путь": the renderer copies the returned `path` to
    * the clipboard itself, never concatenating `rootPath`/`rel` on its own

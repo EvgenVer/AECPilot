@@ -41,19 +41,27 @@ import { useMemo, type ComponentProps, type JSX } from 'react'
  *   tokens; this is the "repaint" of task 1.6.10 for this one surface.
  */
 
-/** Their `MarkdownLink` hands external URLs to the OS browser through their
- * desktop bridge. We have no such bridge, and a live `<a href>` here would let
- * agent-authored text navigate the renderer itself — which still carries the
- * preload API. So a link renders as its own text, non-navigating, with the
- * target in the tooltip. Opening links for real needs main-process work
- * (`setWindowOpenHandler` deny + `will-navigate` guard + `shell.openExternal`
- * with a protocol allowlist) — filed as a separate task, not smuggled in
- * here. */
-function InertLink({ children, href }: ComponentProps<'a'>): JSX.Element {
+/** Same job as their `MarkdownLink`: a link in an answer opens in the OS
+ * browser, never in this window. The `href` stays on the element (so the
+ * target is visible in the tooltip and copyable), but the click is always
+ * cancelled — main decides whether the URL may be opened at all, because the
+ * renderer is the side displaying text it did not author. Whatever slips
+ * past this handler (middle click, keyboard "open in new window") is caught
+ * by the window guards in main (task 1.6.4a). */
+function ExternalLink({ children, href, ...props }: ComponentProps<'a'>): JSX.Element {
   return (
-    <span className="chat-markdown__link" title={href}>
+    <a
+      {...props}
+      className="chat-markdown__link"
+      href={href}
+      title={href}
+      onClick={(event) => {
+        event.preventDefault()
+        if (href) void window.aecpilot.openExternalLink(href)
+      }}
+    >
       {children}
-    </span>
+    </a>
   )
 }
 
@@ -81,7 +89,7 @@ export function MarkdownTextContent({
   isRunning: boolean
 }): JSX.Element {
   const components = useMemo(
-    () => ({ a: InertLink, table: ScrollableTable }) as StreamdownTextComponents,
+    () => ({ a: ExternalLink, table: ScrollableTable }) as StreamdownTextComponents,
     []
   )
   const plugins = useMemo(() => ({ code }), [])
