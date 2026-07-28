@@ -2288,6 +2288,21 @@ body.resizing-row * {
   gap: 6px;
 }
 
+/* Task 1.6.7: labelled sections inside an expanded tool card, following the
+   split their `DisclosureRow` makes between the call and its answer. */
+.tool-card__section + .tool-card__section {
+  margin-top: 8px;
+}
+
+.tool-card__section-title {
+  margin: 0 0 3px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .tool-card__pre {
   margin: 0;
   white-space: pre-wrap;

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatToolCall } from './chat-state'
 import { hasToolDetails, toolDisplayName } from './tool-label-pure'
+import { formatElapsed, useElapsedSeconds } from './vendor/hermes/activity-timer'
 
 const RESULT_PREVIEW_LIMIT = 4000
 
@@ -96,6 +97,11 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
   const label = toolDisplayName(call.name)
   const running = call.status === 'running'
   const expandable = hasToolDetails(call)
+  // Task 1.6.7, taken from their card: a running tool counts seconds out loud.
+  // A silent «выполняется…» is exactly the "агент молча простаивает" complaint
+  // — a moving number is the difference between "работает" and "завис". Keyed
+  // by the call id so the count survives the card remounting.
+  const elapsed = useElapsedSeconds(running, call.toolId)
 
   const result = call.result ?? ''
   const resultIsTruncated = result.length > RESULT_PREVIEW_LIMIT
@@ -114,7 +120,9 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
         {call.context}
       </span>
       {running ? (
-        <span className="tool-card__status tool-card__status--running">выполняется…</span>
+        <span className="tool-card__status tool-card__status--running">
+          выполняется… {formatElapsed(elapsed)}
+        </span>
       ) : (
         <span className="tool-card__status tool-card__status--ok">
           <CheckIcon />
@@ -147,12 +155,19 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
       )}
 
       {expanded && expandable && (
+        // Task 1.6.7: args and result are LABELLED sections, the way their
+        // `DisclosureRow` splits them — an unlabeled pair of blobs left the
+        // reader guessing which half was the call and which the answer.
         <div className="tool-card__body">
           {call.args !== undefined && (
-            <pre className="tool-card__pre">{JSON.stringify(call.args, null, 2)}</pre>
+            <section className="tool-card__section">
+              <h4 className="tool-card__section-title">Аргументы</h4>
+              <pre className="tool-card__pre">{JSON.stringify(call.args, null, 2)}</pre>
+            </section>
           )}
           {call.result !== undefined && (
-            <>
+            <section className="tool-card__section">
+              <h4 className="tool-card__section-title">Результат</h4>
               <pre className="tool-card__pre">
                 {displayedResult}
                 {!showFullResult && resultIsTruncated && '…'}
@@ -166,7 +181,7 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
                   {showFullResult ? 'свернуть' : 'показать полностью'}
                 </button>
               )}
-            </>
+            </section>
           )}
         </div>
       )}
