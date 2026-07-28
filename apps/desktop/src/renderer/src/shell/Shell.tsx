@@ -9,10 +9,7 @@ import CreateProjectDialog from './CreateProjectDialog'
 import ScanNotification from './ScanNotification'
 import PanelResizer from './PanelResizer'
 import {
-  CHAT_MAX,
-  CHAT_MIN,
-  SIDEBAR_MAX,
-  SIDEBAR_MIN,
+  PANEL_BOUNDS,
   persistPanelSizes,
   readStoredPanelSizes,
   type PanelSizes
@@ -43,16 +40,20 @@ export default function Shell() {
   const [connectionState, setConnectionState] = useState<GatewayConnectionState>('closed')
   const [currentProject, setCurrentProject] = useState<OpenProject | null>(null)
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
-  // Task 1.5.9: resizable sidebar + chat dock, restored from localStorage.
-  // `sizesRef` mirrors the state so the drag-end persist (PanelResizer's
-  // onCommit) reads the width the last live `onResize` just set, without the
-  // persist call itself becoming a side effect inside a setState updater.
+  // Task 1.5.9 (sidebar + chat dock) and batch L of Phase 1.6 (sources
+  // section + bottom panel): every panel border is resizable, sizes restored
+  // from localStorage. All four dimensions are owned here, in one record, so
+  // the shell has a single writer for the storage key and one place that
+  // renders their CSS vars. `sizesRef` mirrors the state so the drag-end
+  // persist (PanelResizer's onCommit) reads the size the last live `onResize`
+  // just set, without the persist call itself becoming a side effect inside a
+  // setState updater.
   const [panelSizes, setPanelSizes] = useState<PanelSizes>(() =>
     readStoredPanelSizes(window.localStorage)
   )
   const sizesRef = useRef(panelSizes)
-  function resizePanel(key: keyof PanelSizes, width: number): void {
-    const next = { ...sizesRef.current, [key]: width }
+  function resizePanel(key: keyof PanelSizes, size: number): void {
+    const next = { ...sizesRef.current, [key]: size }
     sizesRef.current = next
     setPanelSizes(next)
   }
@@ -133,27 +134,42 @@ export default function Shell() {
         style={
           {
             '--sidebar-w': `${panelSizes.sidebar}px`,
-            '--chat-dock-w': `${panelSizes.chat}px`
+            '--chat-dock-w': `${panelSizes.chat}px`,
+            '--sources-h': `${panelSizes.sources}px`,
+            '--bottom-panel-h': `${panelSizes.bottom}px`
           } as CSSProperties
         }
       >
         <Rail active={activity} onSelect={setActivity} onSettings={() => setSettingsOpen(true)} />
-        <Sidebar active={activity} currentProject={currentProject} />
+        <Sidebar
+          active={activity}
+          currentProject={currentProject}
+          sourcesHeight={panelSizes.sources}
+          onResizeSources={(h) => resizePanel('sources', h)}
+          onCommitSizes={persistPanels}
+        />
         <PanelResizer
           label="Изменить ширину боковой панели"
-          width={panelSizes.sidebar}
-          min={SIDEBAR_MIN}
-          max={SIDEBAR_MAX}
+          size={panelSizes.sidebar}
+          min={PANEL_BOUNDS.sidebar.min}
+          max={PANEL_BOUNDS.sidebar.max}
+          defaultSize={PANEL_BOUNDS.sidebar.default}
           direction={1}
           onResize={(w) => resizePanel('sidebar', w)}
           onCommit={persistPanels}
         />
-        <CenterArea active={activity} />
+        <CenterArea
+          active={activity}
+          bottomHeight={panelSizes.bottom}
+          onResizeBottom={(h) => resizePanel('bottom', h)}
+          onCommitSizes={persistPanels}
+        />
         <PanelResizer
           label="Изменить ширину панели чата"
-          width={panelSizes.chat}
-          min={CHAT_MIN}
-          max={CHAT_MAX}
+          size={panelSizes.chat}
+          min={PANEL_BOUNDS.chat.min}
+          max={PANEL_BOUNDS.chat.max}
+          defaultSize={PANEL_BOUNDS.chat.default}
           direction={-1}
           onResize={(w) => resizePanel('chat', w)}
           onCommit={persistPanels}

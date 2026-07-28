@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { ChevronDownIcon } from './icons'
+import PanelResizer from './PanelResizer'
+import { PANEL_BOUNDS } from './panel-sizes-pure'
 
 type BottomTab = 'indexing' | 'changes' | 'log'
 
@@ -16,8 +18,20 @@ const TAB_EMPTY_HINT: Record<BottomTab, string> = {
 }
 
 /** Bottom panel (task 1.0): a collapsible stub for indexing/changes/log —
- * real content lands in Phase 2/1.15. */
-export default function BottomPanel() {
+ * real content lands in Phase 2/1.15. Its height is draggable while expanded
+ * (task 1.6.L2); the value itself lives in Shell with the other panel sizes,
+ * so it is persisted and reset the same way. Collapsed, there is nothing to
+ * resize — the panel is then just its header — so the separator is not
+ * rendered at all. */
+export default function BottomPanel({
+  height,
+  onResize,
+  onCommit
+}: {
+  height: number
+  onResize: (height: number) => void
+  onCommit: () => void
+}) {
   const [collapsed, setCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState<BottomTab>('indexing')
 
@@ -27,6 +41,19 @@ export default function BottomPanel() {
         collapsed ? 'bottom-panel bottom-panel--collapsed' : 'bottom-panel bottom-panel--expanded'
       }
     >
+      {!collapsed && (
+        <PanelResizer
+          label="Изменить высоту нижней панели"
+          orientation="horizontal"
+          size={height}
+          min={PANEL_BOUNDS.bottom.min}
+          max={PANEL_BOUNDS.bottom.max}
+          defaultSize={PANEL_BOUNDS.bottom.default}
+          direction={-1}
+          onResize={onResize}
+          onCommit={onCommit}
+        />
+      )}
       <div className="bottom-panel__header">
         {TABS.map((tab) => (
           <button

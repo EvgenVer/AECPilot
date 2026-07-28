@@ -12,8 +12,20 @@ const CENTER_EMPTY_HINT: Record<ActivityId, string> = {
 }
 
 /** Center column (task 1.0): an empty tab strip (no open documents yet —
- * viewers/editor land in Phase 1/3) plus the collapsible bottom panel. */
-export default function CenterArea({ active }: { active: ActivityId }) {
+ * viewers/editor land in Phase 1/3) plus the collapsible bottom panel. The
+ * bottom panel's height (task 1.6.L2) is owned by Shell with the other panel
+ * sizes and passed straight through. */
+export default function CenterArea({
+  active,
+  bottomHeight,
+  onResizeBottom,
+  onCommitSizes
+}: {
+  active: ActivityId
+  bottomHeight: number
+  onResizeBottom: (height: number) => void
+  onCommitSizes: () => void
+}) {
   const activity = ACTIVITIES.find((item) => item.id === active)
   return (
     <div className="center">
@@ -24,7 +36,7 @@ export default function CenterArea({ active }: { active: ActivityId }) {
           <span>{CENTER_EMPTY_HINT[active]}</span>
         </div>
       </div>
-      <BottomPanel />
+      <BottomPanel height={bottomHeight} onResize={onResizeBottom} onCommit={onCommitSizes} />
     </div>
   )
 }

@@ -16,6 +16,8 @@ import {
   TrashIcon
 } from './icons'
 import { mergeScanStatuses, type SourceStatus } from './source-status-pure'
+import PanelResizer from './PanelResizer'
+import { PANEL_BOUNDS } from './panel-sizes-pure'
 import {
   matchesSearchQuery,
   splitBySearchQuery,
@@ -872,7 +874,18 @@ function ExplorerContextMenu({
  * matches); the hand-rolled sources section reimplements the same rule
  * itself — see `ExplorerSourceRoot`'s and `ExplorerSourceRow`'s own doc
  * comments. */
-function ExplorerActivity({ currentProject }: { currentProject: OpenProject | null }) {
+function ExplorerActivity({
+  currentProject,
+  sourcesHeight,
+  onResizeSources,
+  onCommitSizes
+}: {
+  currentProject: OpenProject | null
+  /** Height of the "Источники" section, px — owned by Shell (task 1.6.L1). */
+  sourcesHeight: number
+  onResizeSources: (height: number) => void
+  onCommitSizes: () => void
+}) {
   const treeRef = useRef<TreeApi<VaultTreeNode> | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
@@ -1255,6 +1268,18 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
         )}
       </div>
 
+      <PanelResizer
+        label="Изменить высоту секции «Источники»"
+        orientation="horizontal"
+        size={sourcesHeight}
+        min={PANEL_BOUNDS.sources.min}
+        max={PANEL_BOUNDS.sources.max}
+        defaultSize={PANEL_BOUNDS.sources.default}
+        direction={-1}
+        onResize={onResizeSources}
+        onCommit={onCommitSizes}
+      />
+
       <div className="explorer-panel__sources">
         <div className="explorer-panel__sources-header">Источники</div>
         {sources.length === 0 ? (
@@ -1294,10 +1319,16 @@ function ExplorerActivity({ currentProject }: { currentProject: OpenProject | nu
  * coordinator's Phase-1 scope decision. */
 export default function Sidebar({
   active,
-  currentProject
+  currentProject,
+  sourcesHeight,
+  onResizeSources,
+  onCommitSizes
 }: {
   active: ActivityId
   currentProject: OpenProject | null
+  sourcesHeight: number
+  onResizeSources: (height: number) => void
+  onCommitSizes: () => void
 }) {
   const activity = ACTIVITIES.find((item) => item.id === active)
   return (
@@ -1306,7 +1337,12 @@ export default function Sidebar({
       {active === 'sources' ? (
         <SourcesActivity currentProject={currentProject} />
       ) : active === 'explorer' ? (
-        <ExplorerActivity currentProject={currentProject} />
+        <ExplorerActivity
+          currentProject={currentProject}
+          sourcesHeight={sourcesHeight}
+          onResizeSources={onResizeSources}
+          onCommitSizes={onCommitSizes}
+        />
       ) : (
         <div className="sidebar__empty">{SIDEBAR_EMPTY_HINT[active]}</div>
       )}
