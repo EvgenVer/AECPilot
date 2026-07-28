@@ -1,6 +1,6 @@
 ---
 name: dependency-vetting
-description: Vet a dependency before adding it — verify the package actually exists in the registry (anti-slopsquatting), is necessary, maintained, and the right type. Use before adding or upgrading any package. Do NOT use for already-vendored code or for standard-library/built-in solutions.
+description: Vet an approved dependency immediately before adding or upgrading it — verify the package exists in the registry (anti-slopsquatting), is necessary, maintained, and the right type. Do NOT run during planning-only work, read-only inspection, for already-vendored code, or when the standard library/an existing dependency is sufficient.
 ---
 
 # Skill: dependency-vetting
@@ -9,6 +9,8 @@ Hallucinated / typosquatted packages are a real supply-chain risk. Never add a p
 have not confirmed exists.
 
 ## Procedure
+Confirm the dependency change is planned and approved before doing the work below.
+
 1. **Exists?** — confirm the exact name exists in the real registry (npm / PyPI / etc.).
    Do not trust a remembered name; verify it.
 2. **Necessary?** — can the standard library or an existing dependency do it instead?
@@ -17,14 +19,7 @@ have not confirmed exists.
 5. **Record** — add to `PLAN.md` "Selected dependencies" with the reason. Never install
    globally unless the approved setup requires it.
 
-## Use when (positive triggers)
-- "Let's add <package> for this."
-- A plan introduces a new runtime / build dependency.
-- Upgrading a dependency across a major version.
-
-## Do NOT use when (negative triggers)
-- The capability is in the standard library / already a dependency.
-- Read-only inspection with no install.
-- Code is already vendored and unchanged.
+If planning introduces a dependency, record a pending vetting task in PLAN/TASKS and stop
+with the rest of the plan. Load this skill later, immediately before the approved change.
 
 Threat-model context: `docs/SECURITY.md` (dependency trust).

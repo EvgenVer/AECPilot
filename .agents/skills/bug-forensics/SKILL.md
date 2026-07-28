@@ -1,6 +1,6 @@
 ---
 name: bug-forensics
-description: Evidence-first debugging — reproduce a bug before fixing, isolate the root cause, and leave a regression test. Use when diagnosing a defect, a crash, a failing test, or behavior that diverges from expected. Do NOT use for new features, planned refactors, or style changes.
+description: Evidence-first debugging — reproduce a bug before fixing, isolate the root cause, and leave a regression test. Use when diagnosing or fixing a defect, crash, failing test, or behavior that diverges from expected. Do NOT use for new features, planned refactors, style changes, or general review. A routine low-risk fix uses this skill plus the lightweight final check; do not automatically chain code-review.
 ---
 
 # Skill: bug-forensics  (Forensic Mode)
@@ -8,26 +8,21 @@ description: Evidence-first debugging — reproduce a bug before fixing, isolate
 Fix causes, not symptoms. No fix lands before the bug is reproduced.
 
 ## Procedure
-1. **Reproduce** — get a deterministic repro (command, input, or failing test). If you
-   can't reproduce, gather evidence (logs, stack traces) until you can — do not guess-fix.
-2. **Failing test** — capture the bug as an automated failing test where possible.
-3. **Isolate** — narrow to the root cause (bisect, logging, minimal repro). Separate root
-   cause from symptom.
-4. **Fix the root cause only** — smallest change; do not mix in refactors or unrelated fixes.
-5. **Regression test** — keep the now-passing test so the bug cannot silently return.
-6. **Verify** — the repro is gone; nearby behavior is intact.
-7. **Distill** — if the root cause is a reusable lesson (environment quirk, recurring
-   pattern), record it in `MEMORY.md` using the existing entry format
-   (fact · source · date · confidence). Skip one-off trivia — keep MEMORY high-signal.
+Use at most five command/tool rounds after loading this skill. Combine independent
+searches/reads, and combine post-fix targeted/full checks plus final diff where safe.
 
-## Use when (positive triggers)
-- "This throws / crashes / returns the wrong value …"
-- "Works in staging but not in prod."
-- "A test started failing after the last change."
+1. In one context batch, inspect the target implementation/tests and reproduce once. If
+   it does not reproduce, gather evidence instead of guessing.
+2. Add or identify a failing regression test where practical; isolate the root cause.
+3. Apply the smallest root-cause fix without refactoring unrelated code.
+4. Run the targeted regression check once after the fix. Run one full suite only when
+   blast radius warrants it.
+5. In one final batch, inspect diff/scope and validation evidence. Do not load
+   `code-review` unless its independent large/risky trigger holds.
+6. Record a reusable environment fact in MEMORY only when it is stable and likely to
+   recur. Routine bugfixes do not create `AGENT_RUNS.md`.
 
-## Do NOT use when (negative triggers)
-- Building a new feature (use `planning` / Builder).
-- A planned refactor with green tests (no defect).
-- A cosmetic / style change with no behavior bug.
+Do not repeat a passing check without a subsequent relevant change. Do not load security
+policy/docs unless the defect touches a security/data/auth/external-I/O boundary.
 
 Risk classification of repro steps (e.g. tests touching a DB): `docs/SECURITY.md`.

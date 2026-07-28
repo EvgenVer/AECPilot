@@ -1,8 +1,8 @@
 # CODE_REVIEW — checklist + risk-summary format
 
-Detail behind `AGENTS.md` §10 and the `code-review` skill. Used for self-review before
-"done" and for explicit review requests (Reviewer Mode: findings-first, no edits unless
-asked).
+Detail behind `AGENTS.md` §10 and the `code-review` skill. Used for triggered full
+self-review and explicit concrete diff/PR review (Reviewer Mode: findings-first, no edits
+unless asked).
 
 ## Review checklist
 - **Spec alignment** — change matches SPECIFICATION / specs / PLAN / TASKS; no scope creep.

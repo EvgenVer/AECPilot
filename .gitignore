@@ -1,4 +1,4 @@
-﻿
+
 # Dependencies / builds
 node_modules/
 out/
@@ -33,3 +33,5 @@ id_rsa*
 .ssh/
 secrets/
 .claude/settings.local.json
+
+.agent-toolkit-backup/

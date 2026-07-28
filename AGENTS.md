@@ -60,10 +60,11 @@ belong in `AGENTS.md` (with approval), never in lower docs.
 Pick one per request (Stage 0). Each is a behavioral contract:
 - **Architect** — design/plan; no production code; produce SPEC/PLAN/TASKS. (→ `grill`, `planning`)
 - **Builder** — implement an approved plan; match existing style; show diffs.
-- **Orchestrator** — coordinate an approved TASKS.md via executor/reviewer subagents; no
+- **Orchestrator** — run eligible approved tasks in bounded parallel executor waves; no
   direct production edits; **explicit opt-in only** (`/orchestrate`). (→ `orchestration`)
 - **Forensic** — debug; reproduce before fixing; fix only the root cause. (→ `bug-forensics`)
-- **Reviewer** — review only; findings-first, risk-ranked; **no edits unless asked**. (→ `code-review`)
+- **Reviewer** — review a concrete diff/PR; findings-first, risk-ranked; **no edits unless
+  asked**. (→ `code-review`)
 - **Author** — write docs/prose; no behavior change. (→ `docs-maintenance`)
 - **Librarian** — organize/retrieve knowledge; no behavior change.
 - default **Discussion** — refine, compare, advise; no edits, no installs.
@@ -75,15 +76,17 @@ Pick one per request (Stage 0). Each is a behavioral contract:
 2. **Planning gate** (§6) — if triggered, plan and stop for approval.
 3. **Risk gate** (§7) — classify the action; Vibe Diff + stop for high-risk.
 4. **Implement in small batches** — ≤3–5 files per step; don't mix refactor and fix;
-   don't weaken tests; sensitive values via placeholders `[[...]]`. **Commit each logical
-   block** as soon as it lands and validates — proactively, no reminder needed (one
-   coherent change per commit, clear message); never commit secrets or a broken state.
-5. **Validate** (§9) — tests + evals + security + intent.
-6. **Self-review** (§10) — via `code-review`.
-7. **Track & report** (§10–§11) — update TASKS / MEMORY / NOTES; conditional Agent Run
-   Log; evidence-based final report.
+   don't weaken tests; sensitive values via placeholders `[[...]]`.
+5. **Validate once per code state** (§9).
+6. **Review proportionally** (§10).
+7. **Track & report** (§10–§11).
 
 Full modes + parallel-subagent rules: `docs/AGENT_WORKFLOWS.md`.
+
+**Fast path.** Discussion/read-only/trivial work loads no workflow skill, checklist, run
+log, or VCS history unless explicitly requested or risk-triggered; trivial work is locate
+once → edit once → one check. Load at most one primary skill per phase; add another only
+when its own trigger applies now. General project suggestions are Discussion, not review.
 
 ## 6. Planning Gate
 **Stop and get explicit approval before implementing** when the request changes any of:
@@ -91,8 +94,9 @@ requirements · architecture · business logic · dependencies · data handling 
 security / privacy / auth / payments · AI/agent behavior · or expands beyond approved
 scope.
 
-Procedure: run the `planning` skill → create/update SPECIFICATION (+ `specs/<feature>`
-with BDD) → PLAN → TASKS → consistency check → **STOP, wait for approval**.
+Procedure: run the `planning` skill → create/update SPECIFICATION → add
+`specs/<feature>` only for a non-trivial behavior contract / public API / schema / edge
+cases → PLAN → TASKS → consistency check → **STOP, wait for approval**.
 
 **Bootstrap:** if `DESCRIPTION.md` is missing and the task is non-trivial, run the
 `grill` skill to elicit `DESCRIPTION` (structured interview) before planning — no planning
@@ -120,8 +124,9 @@ Tests are not automatically low-risk: project-approved local tests are normally 
 but tests that touch a DB, network, external services, or destructive fixtures require
 risk classification (treat as medium/high).
 
-**VCS:** committing validated, in-scope work locally is routine — do it at each logical
-checkpoint, proactively (no reminder needed), following the project's branch convention.
+**VCS:** commit only on a direct user/repository instruction; never by default for
+Discussion, planning, or review. Commit one validated coherent change; don't retry if
+the repository is not writable.
 `git push`, force-push, and history rewrites (`reset --hard`, `branch -D`, rebase of
 shared history) stay high-risk → Vibe Diff + STOP.
 
@@ -141,7 +146,9 @@ threat model: `docs/SECURITY.md`. Tool/MCP registry (allowed/denied, auth, schem
 - Never install globally unless the approved setup requires it.
 
 ## 9. Validation
-- **Tests** for deterministic behavior. Fix failures caused by your changes before moving on.
+- **Tests** for deterministic behavior. A routine fix gets one reproduction, one post-fix
+  targeted check, and at most one full suite when blast radius warrants it. Re-run a
+  passing command only after a relevant file or environment change.
 - **Bounded retries:** after 2–3 failures of the *same* check, stop tweaking — reflect on
   why the approach is wrong; if the problem is at plan level, reopen the planning gate (§6)
   instead of patching symptoms. Detail: `docs/AGENT_WORKFLOWS.md` (Stage 5).
@@ -160,38 +167,35 @@ threat model: `docs/SECURITY.md`. Tool/MCP registry (allowed/denied, auth, schem
 - **Intent & Outcome**: does it solve the real task; are non-goals intact; any hidden
   UX / security / cost risk?
 
-## 10. Self-Review & Final Report
-- Self-review via `code-review` before done; risk summary for large changes. When
-  subagents are available, run the self-review in a **fresh-context subagent** (diff +
-  checklist + relevant SPEC/TASKS only, findings-only); otherwise review in the current
-  context.
-- **Evidence-based final report:** exact commands and their output, changed files,
-  dependency changes, residual risks, manual verification steps. State failures plainly.
+## 10. Review & Final Report
+- **Lightweight review for every write:** inspect the final diff, confirm scope, and
+  check relevant validation evidence. This does not load `code-review`.
+- Run full `code-review` only when asked or for shared/public contracts, dependencies,
+  §7-sensitive boundaries, or >3 production files. Use a fresh reviewer only for a
+  large/risky orchestration/change or an explicit independent review.
+- **Concise evidence-based final:** changed files, checks + status, dependency changes,
+  and residual risks. Do not repeat raw successful output unless asked; state failures.
 
 ## 11. Agent Run Log (conditional)
-For non-trivial / risky / multi-file / dependency / security / AI-eval / external-tool
-work, record a run in `AGENT_RUNS.md`: append if the project already has one, otherwise
-create it from the template (`.agents/skills/planning/assets/AGENT_RUNS.template.md`)
-only when traceability is needed. One terse block per run (intent, risk class, files,
-validation, outcome). Skip trivial tasks — keep the log high-signal.
+Record `AGENT_RUNS.md` only for executed orchestration, migration/deploy/external writes,
+security/auth/data work, an applied dependency change, or an AI-eval. Never for planning,
+read-only/trivial work, or a routine bugfix. Append if present; otherwise use
+`.agents/skills/planning/assets/AGENT_RUNS.template.md`. Keep one terse block per run.
 
 ## 12. Skills Catalog (router / index)
-Skill bodies live in `.agents/skills/<name>/SKILL.md` — **auto-discovered natively** by Codex
-and Antigravity; Claude Code reads `.claude/skills/` (the installer generates it). This catalog
-is the tool-independent index and backstop: it lists what exists and when to use it, so skills
-are known even to an agent that only reads `AGENTS.md`, or where native discovery is absent.
-Keep it in sync when you add a skill.
+Skills live in `.agents/skills/<name>/SKILL.md`; the installer copies them to
+`.claude/skills/`. Keep this tool-independent backstop synced.
 
 | Skill | Use when |
 |-------|----------|
 | `planning` | Any planning-gate trigger (§6): writing/updating SPEC/PLAN/TASKS/specs; NOTES closeout |
 | `grill` | Interview/brainstorm to elicit or augment DESCRIPTION/SPEC (bootstrap, or on request / `/grill`); hands off to `planning` |
 | `bug-forensics` | A bug/defect to diagnose and fix (Forensic Mode) |
-| `code-review` | Reviewing a change, or self-reviewing before done |
-| `dependency-vetting` | Before adding/changing a dependency |
+| `code-review` | Explicit diff/PR review, or full review of a large/risky change |
+| `dependency-vetting` | Immediately before an approved dependency add/upgrade |
 | `ai-eval-design` | Designing evals for an AI/agentic change |
 | `docs-maintenance` | Updating README/CHANGELOG/user docs |
-| `orchestration` | **Explicit user request only** (`/orchestrate` or explicit phrase): execute approved TASKS.md via executor/reviewer subagents |
+| `orchestration` | **Explicit user request only**: run eligible approved tasks in bounded parallel waves; otherwise return `ORCHESTRATION_NOT_BENEFICIAL` |
 | `security-review` | Secret-scan / dep-vuln / SAST pass on risky changes |
 
 ## 13. Docs Map
