@@ -99,3 +99,16 @@ test('таблица едет в своём контейнере с прокру
   expect(container.querySelector('.chat-markdown__table table')).not.toBeNull()
   expect(container.querySelectorAll('td')).toHaveLength(2)
 })
+
+test('подписи кнопок блока кода — на русском (задача 1.6.10)', async () => {
+  const container = renderMarkdown(['```python', 'x = 1', '```', ''].join('\n'))
+
+  await waitFor(() =>
+    expect(container.querySelector('[data-streamdown="code-block"]')).not.toBeNull()
+  )
+  const titles = [...container.querySelectorAll('button')].map((b) => b.getAttribute('title'))
+  expect(titles).toContain('Копировать код')
+  expect(titles).toContain('Скачать файл')
+  // Ни одного англоязычного ярлыка на перенесённой поверхности.
+  expect(titles.join(' ')).not.toMatch(/Copy|Download/)
+})

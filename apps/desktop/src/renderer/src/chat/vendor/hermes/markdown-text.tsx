@@ -81,6 +81,22 @@ function ScrollableTable({ node, ...props }: ComponentProps<'table'> & { node?: 
   )
 }
 
+/** Task 1.6.10: streamdown ships its own English labels for the controls it
+ * renders (the copy/download buttons on a code block, the table menu). They
+ * are tooltips, so they are easy to miss — and just as easy to translate,
+ * since the library takes a `translations` override. Only the keys for
+ * surfaces we actually render are listed; anything not listed keeps their
+ * default, which is correct for features we do not enable (mermaid, images). */
+const RU_TRANSLATIONS = {
+  copyCode: 'Копировать код',
+  downloadFile: 'Скачать файл',
+  copyTable: 'Копировать таблицу',
+  copyTableAsMarkdown: 'Копировать таблицу как Markdown',
+  copyTableAsCsv: 'Копировать таблицу как CSV',
+  copyTableAsTsv: 'Копировать таблицу как TSV',
+  copyLink: 'Копировать ссылку'
+}
+
 export function MarkdownTextContent({
   text,
   isRunning
@@ -101,6 +117,7 @@ export function MarkdownTextContent({
         containerClassName="chat-markdown"
         lineNumbers={false}
         plugins={plugins}
+        translations={RU_TRANSLATIONS}
       />
     </TextMessagePartProvider>
   )
