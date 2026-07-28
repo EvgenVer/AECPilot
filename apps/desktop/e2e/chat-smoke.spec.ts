@@ -168,3 +168,33 @@ test('chat panel connects to the mock gateway and streams a reply', async () => 
   await expect(page.getByText('ping')).toBeVisible()
   await expect(page.getByText('PONG')).toBeVisible({ timeout: 15000 })
 })
+
+// Regression for task 1.6.L4: clicking a separator has to focus it, or the
+// arrow-key control required by UR12 never receives a key. The defect was
+// invisible to unit tests (the maths was fine — the element simply never had
+// focus), and there is no component-test environment in the project yet, so
+// the real app is the only place this can be pinned down. Both axes are
+// covered: the sidebar separator is vertical, the bottom panel's horizontal.
+// A separator takes no layout size — its hit area is a ::before straddling the
+// border — so it is clicked the way a user does it, by coordinate on the
+// border itself. Playwright's own `locator.click()` refuses a zero-size box.
+test('separators take keyboard control after a click (both axes)', async () => {
+  const page = await app.firstWindow()
+
+  const sidebar = page.locator('.sidebar')
+  const sidebarResizer = page.getByRole('separator', { name: 'Изменить ширину боковой панели' })
+  const sidebarBox = (await sidebar.boundingBox())!
+  await page.mouse.click(sidebarBox.x + sidebarBox.width, sidebarBox.y + sidebarBox.height / 2)
+  await expect(sidebarResizer).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  expect((await sidebar.boundingBox())!.width).toBeGreaterThan(sidebarBox.width)
+
+  const bottomPanel = page.locator('.bottom-panel')
+  const bottomResizer = page.getByRole('separator', { name: 'Изменить высоту нижней панели' })
+  const bottomBox = (await bottomPanel.boundingBox())!
+  await page.mouse.click(bottomBox.x + bottomBox.width / 2, bottomBox.y)
+  await expect(bottomResizer).toBeFocused()
+  // Down shrinks a panel that lives below its separator (direction -1).
+  await page.keyboard.press('ArrowDown')
+  expect((await bottomPanel.boundingBox())!.height).toBeLessThan(bottomBox.height)
+})

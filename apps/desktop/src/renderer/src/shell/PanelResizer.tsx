@@ -59,8 +59,14 @@ export default function PanelResizer({
     return isVertical ? event.clientX : event.clientY
   }
 
-  function handleMouseDown(event: ReactMouseEvent): void {
+  function handleMouseDown(event: ReactMouseEvent<HTMLDivElement>): void {
     event.preventDefault()
+    // `preventDefault` above suppresses the drag's text selection — and, in
+    // Chromium, the default focus along with it. Without this explicit focus
+    // a click never focuses the separator, so `handleKeyDown` below never
+    // receives anything and the keyboard control of UR12 is dead on arrival
+    // (task 1.6.L4; the defect shipped with 1.5.9 and survived to batch L).
+    event.currentTarget.focus()
     dragStart.current = { pos: axisPos(event), size }
     document.body.classList.add(draggingClass)
 
