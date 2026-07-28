@@ -25,3 +25,12 @@
 - Validation: consistency-review (SPEC↔specs↔PLAN↔TASKS↔бриф) — pass; код не менялся.
 - Skipped checks / waivers: none.
 - Outcome: комплект v3 утверждён; владелец генерит дизайн в Claude Design по брифу; оркестрация продолжается (0.12/0.16), перекладка UI в shell — задача 1.0.
+
+## 2026-07-28 — задача 1.6.1: dependency-vetting + Vibe Diff набора чата (батч 1 фазы 1.6)
+- Intent: разблокировать вендоринг чат-ленты Hermes — проверить и поставить `@assistant-ui/react`, `@assistant-ui/react-streamdown`, `streamdown`, `@streamdown/code` и среду компонентных тестов (jsdom + testing-library).
+- Risk class: **high** (изменение зависимостей) · approvals: Vibe Diff предъявлен с измерениями → явное «go» владельца ✔ вариант A (линия донора, точные пины; `@streamdown/code` сейчас, `shiki`/`react-shiki` — в 1.6.11; jsdom 29.1.1).
+- Changed files: apps/desktop/package.json, pnpm-lock.yaml, pnpm-workspace.yaml (pnpm сам дописал `minimumReleaseAgeExclude`), PLAN.md (§Selected dependencies + §Phase 1.6 измерения/поправка 1/риск), TASKS.md (1.6.1 закрыта, уточнена 1.6.11), AGENT_RUNS.md.
+- Dependencies: runtime `@assistant-ui/react@0.14.29`, `@assistant-ui/react-streamdown@0.3.7`, `streamdown@2.5.0`, `@streamdown/code@1.1.1`; dev `jsdom@29.1.1`, `@testing-library/react@16.3.2`, `@testing-library/dom@10.4.1`. Все точными пинами (`pnpm add -E`).
+- Validation: реестр+провенанс (репозитории соответствуют владельцам), транзитивный скан лицензий (331 пакет дерева чата + 58 тест-среды — все permissive, C3 ✔), `npm audit` 0 уязвимостей, установочных скриптов нет, вес на диске и в бандле измерен на изолированных пробах; после установки — vitest 453/453, eslint+tsc+prettier чисто, build чист.
+- Skipped checks / waivers: полный `security-review` не запускался — веттинг покрыл его предмет для этого изменения (секретов и внешнего I/O не добавлено, аудит и лицензии проверены); кода на новых пакетах ещё нет.
+- Outcome: гейт закрыт, задачи 1.6.3–1.6.7 разблокированы. Residual: (1) `mermaid` 80 МБ в node_modules как неимпортируемая зависимость `streamdown` (в бандле нет); (2) 7 пакетов семейства assistant-ui опубликованы в день установки → записаны в pnpm-карантин `minimumReleaseAgeExclude`; (3) `assistant-cloud` в дереве — в бандле вытряхнут, контроль грепом повторить в 1.6.4; (4) высокий churn assistant-ui — апгрейд только парой.
