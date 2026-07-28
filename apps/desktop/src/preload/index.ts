@@ -11,6 +11,7 @@ const api: AecpilotApi = {
   respondSecret: (requestId, value) => ipcRenderer.invoke('chat:respond-secret', requestId, value),
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
+  completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   listSessions: () => ipcRenderer.invoke('sessions:list'),
   newSession: () => ipcRenderer.invoke('sessions:new'),
   switchSession: (id) => ipcRenderer.invoke('sessions:switch', id),

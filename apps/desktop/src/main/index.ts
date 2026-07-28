@@ -454,6 +454,20 @@ ipcMain.handle('chat:submit', async (_event, text: string) => {
   await gateway.request('prompt.submit', { session_id: activeSessionId, text })
 })
 
+// Slash-command completions for the composer (task 1.6.8). Read-only and
+// best-effort by design: this fires on every keystroke after "/", so a
+// disconnected gateway or a slow answer must degrade to "no suggestions"
+// rather than surface an error over the composer.
+ipcMain.handle('chat:complete-slash', async (_event, text: unknown) => {
+  if (typeof text !== 'string' || !gateway) return { items: [] }
+  try {
+    return await gateway.request('complete.slash', { text })
+  } catch (error: unknown) {
+    console.error('aecpilot: complete.slash failed', error)
+    return { items: [] }
+  }
+})
+
 const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
 type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
 function isApprovalChoice(value: string): value is ApprovalChoice {

@@ -197,6 +197,29 @@ export interface GatewayMethodMap {
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
   'reload.mcp': { params: ReloadMcpParams; result: ReloadMcpResult }
+  'complete.slash': { params: CompleteSlashParams; result: CompleteSlashResult }
+}
+
+/** `complete.slash` (task 1.6.8) — the gateway's own completion list for a
+ * slash command being typed. Contract read off `tui_gateway/server.py`: it
+ * returns an empty list unless `text` starts with "/", and caps the list at 30
+ * entries. `display` and `meta` arrive already flattened to plain strings on
+ * their side. */
+export interface CompleteSlashParams {
+  text: string
+}
+
+export interface SlashCompletionItem {
+  /** What to put in the composer when this row is chosen. */
+  text: string
+  /** What to show in the row — usually the same as `text`. */
+  display: string
+  /** One-line description shown next to it; may be empty. */
+  meta: string
+}
+
+export interface CompleteSlashResult {
+  items: SlashCompletionItem[]
 }
 
 /** Answer to a `clarify.request` (task 1.5.D1). `request_id` must echo the

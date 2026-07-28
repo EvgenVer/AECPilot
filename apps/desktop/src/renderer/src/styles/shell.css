@@ -1634,6 +1634,8 @@ body.resizing-row * {
   border-radius: 9px;
   background: var(--bg-surface);
   padding: 9px 10px 8px;
+  /* Anchor for the slash-command list, which hangs above the field (1.6.8). */
+  position: relative;
 }
 
 .composer__input {
@@ -2849,4 +2851,100 @@ body.resizing-row * {
 .scan-notification__action-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Очередь сообщений композера (задача 1.6.8): то, что набрано, пока агент
+   занят. Стоит над полем ввода, каждая строка правится и убирается. */
+.composer-queue {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-queue__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-chip);
+  background: var(--bg-raised);
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+
+.composer-queue__text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-queue__btn {
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--r-chip);
+}
+
+.composer-queue__btn:hover {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+/* Подсказка слэш-команд (задача 1.6.8): список приходит из шлюза
+   (`complete.slash`), поэтому в нём ровно те команды, что есть в этой сборке. */
+.composer-slash {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-popover);
+}
+
+.composer-slash__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--r-chip);
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+
+.composer-slash__item--active {
+  background: var(--accent-soft);
+}
+
+.composer-slash__name {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.composer-slash__meta {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

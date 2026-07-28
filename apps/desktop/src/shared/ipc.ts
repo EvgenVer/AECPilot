@@ -6,7 +6,8 @@ import type {
   GatewayConnectionState,
   GatewayEvent,
   HistoryMessage,
-  SessionSummary
+  SessionSummary,
+  SlashCompletionItem
 } from './gateway/types'
 
 /** The currently-open project (tasks 1.3/1.4) — set by `createProject` or
@@ -305,6 +306,11 @@ export interface AecpilotApi {
    * is allowed at all (`http`/`https`/`mailto` only) and returns why not, so
    * the chat can show the refusal instead of failing silently. */
   openExternalLink(url: string): Promise<VaultOpResult>
+  /** Slash-command completions for what is being typed (task 1.6.8). Never
+   * rejects: a disconnected gateway or a failed call comes back as an empty
+   * list, because this runs on every keystroke and must not put an error over
+   * the composer. */
+  completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
   /** Resolves a connected source's entry to its absolute path (task 1.5.5)
    * — backs "Копировать путь": the renderer copies the returned `path` to
    * the clipboard itself, never concatenating `rootPath`/`rel` on its own

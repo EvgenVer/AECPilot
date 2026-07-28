@@ -191,6 +191,13 @@ test('separators take keyboard control after a click (both axes)', async () => {
 
   const bottomPanel = page.locator('.bottom-panel')
   const bottomResizer = page.getByRole('separator', { name: 'Изменить высоту нижней панели' })
+  // Reset to the default size first (the app's own double-click affordance):
+  // panel sizes persist to localStorage, and the userData dir survives between
+  // e2e runs — so without this the arrow press below walks the panel one step
+  // closer to its minimum on every run, and the assertion eventually fails on
+  // a panel that simply cannot shrink any further. Found exactly that way.
+  const initialBox = (await bottomPanel.boundingBox())!
+  await page.mouse.dblclick(initialBox.x + initialBox.width / 2, initialBox.y)
   const bottomBox = (await bottomPanel.boundingBox())!
   await page.mouse.click(bottomBox.x + bottomBox.width / 2, bottomBox.y)
   await expect(bottomResizer).toBeFocused()
