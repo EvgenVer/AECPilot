@@ -137,6 +137,30 @@ export function isUnknownGatewayEvent(type: string): boolean {
   return !KNOWN_EVENTS.has(type)
 }
 
+/** How many items of each kind the transcript holds (task 1.6.2).
+ *
+ * This is the instrument that separates the two candidate explanations of
+ * "карточки хода пропадают после ответа": if the census still counts the
+ * cards after `message.complete`, the state kept them and the problem is in
+ * what the user SEES (scroll position, clipping); if the count drops, an
+ * event we do not yet understand is removing them. Counts only — never text,
+ * never ids of content, so it is safe to log (specs/agent-chat.md §Security). */
+export function transcriptCensus(items: ChatItem[]): {
+  messages: number
+  tools: number
+  reasoning: number
+} {
+  let messages = 0
+  let tools = 0
+  let reasoning = 0
+  for (const item of items) {
+    if (item.kind === 'message') messages++
+    else if (item.kind === 'tool') tools++
+    else reasoning++
+  }
+  return { messages, tools, reasoning }
+}
+
 export type ChatAction =
   | { kind: 'user-submit'; text: string }
   /** `receivedAt` (task 1.5.D1) is supplied by the dispatcher so the reducer

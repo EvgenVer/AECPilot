@@ -199,6 +199,36 @@ test('separators take keyboard control after a click (both axes)', async () => {
   expect((await bottomPanel.boundingBox())!.height).toBeLessThan(bottomBox.height)
 })
 
+// Task 1.6.2 — the owner's manual run of 2026-07-26 reported that the turn's
+// cards vanish once the answer arrives. The reducer, the render and the React
+// keys were already ruled out by inspection, and the plan called for a live
+// run with a real model to get the event log. This drives the same sequence
+// through the mock gateway instead: reasoning, a tool call, then the answer —
+// payload shapes taken from the real `_on_tool_start`/`_on_tool_complete`.
+// Deterministic, no model, no API key.
+test('the turn cards survive the answer, and the next turn (block J)', async () => {
+  const page = await app.firstWindow()
+  const input = page.getByPlaceholder('Спросите про проект…')
+
+  await input.fill('turn1')
+  await input.press('Enter')
+
+  await expect(page.getByText('расхождение найдено (turn1)')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('Рассуждение')).toBeVisible()
+  await expect(page.getByText('read_file')).toBeVisible()
+
+  // Second turn in the same session must not erase the first one's cards.
+  await input.fill('turn2')
+  await input.press('Enter')
+
+  await expect(page.getByText('расхождение найдено (turn2)')).toBeVisible({ timeout: 15000 })
+  expect(await page.getByText('Рассуждение').count()).toBe(2)
+  expect(await page.getByText('read_file').count()).toBe(2)
+  await expect(page.getByText('расхождение найдено (turn1)')).toBeVisible()
+})
+
+// Kept LAST on purpose: a cancelled navigation stays pending in the
+// renderer, which stalls any locator call in a test that runs after it.
 // Regression for task 1.6.4a. Since task 1.6.4 the transcript renders
 // agent-authored markdown, so a link in it is content we did not write; if the
 // window followed one, our preload API would travel onto a foreign page. The

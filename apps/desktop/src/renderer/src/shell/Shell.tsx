@@ -16,7 +16,12 @@ import {
 } from './panel-sizes-pure'
 import type { ActivityId } from './activities'
 import ChatDock from '../chat/ChatDock'
-import { chatReducer, initialChatState, isUnknownGatewayEvent } from '../chat/chat-state'
+import {
+  chatReducer,
+  initialChatState,
+  isUnknownGatewayEvent,
+  transcriptCensus
+} from '../chat/chat-state'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 import type { OpenProject } from '../../../shared/ipc'
 
@@ -61,6 +66,18 @@ export default function Shell() {
     persistPanelSizes(window.localStorage, sizesRef.current)
   }
 
+  // Task 1.6.2: after every change to the transcript, print what it HOLDS.
+  // Read together with the event trace above, this answers the question the
+  // owner's run could not: if the counts stay while the cards are gone from
+  // the screen, nothing removed them — the view did.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const { messages, tools, reasoning } = transcriptCensus(chatState.items)
+    console.debug(
+      `[aecpilot] лента: сообщений ${messages}, инструментов ${tools}, рассуждений ${reasoning}`
+    )
+  }, [chatState.items])
+
   useEffect(() => {
     let mounted = true
     let gotLiveState = false
@@ -71,6 +88,17 @@ export default function Shell() {
       // and, for secret.request, secrets (specs/agent-chat.md §Security).
       if (import.meta.env.DEV && isUnknownGatewayEvent(event.type)) {
         console.warn(`[aecpilot] gateway event not handled by the chat: ${event.type}`)
+      }
+      // Task 1.6.2: the event TRACE for the "карточки хода пропадают" defect.
+      // Type plus the tool id only — never a payload, which carries user text
+      // and, for secret.request, secrets (specs/agent-chat.md §Security). The
+      // tool id is what tells "the same card was updated" from "a second card
+      // was created", which is the whole question for a disappearing card.
+      if (import.meta.env.DEV) {
+        const toolId = (event as { payload?: { tool_id?: unknown } }).payload?.tool_id
+        console.debug(
+          `[aecpilot] evt ${event.type}${typeof toolId === 'string' ? ` #${toolId}` : ''}`
+        )
       }
       // `receivedAt` (task 1.5.D1) times the reasoning block here, at the
       // edge, so the reducer itself never reads a clock and stays pure.

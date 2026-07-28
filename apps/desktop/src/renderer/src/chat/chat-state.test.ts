@@ -9,6 +9,8 @@ import {
   chatReducer,
   initialChatState,
   isUnknownGatewayEvent,
+  transcriptCensus,
+  type ChatItem,
   type ChatMessage,
   type ChatState
 } from './chat-state'
@@ -862,5 +864,25 @@ describe('chatReducer', () => {
       { kind: 'message', id: 1, role: 'assistant', text: 'y', status: 'complete' }
     ])
     expect(state.nextId).toBe(2)
+  })
+})
+
+// Task 1.6.2 — the census that instruments the "карточки хода пропадают"
+// defect. Trivial arithmetic, but it is the thing the diagnosis leans on, so
+// it gets pinned: it must count what is there and nothing else.
+describe('transcriptCensus', () => {
+  it('считает элементы каждого вида и не путает их', () => {
+    const items: ChatItem[] = [
+      { kind: 'message', id: 0, role: 'user', text: 'привет' },
+      { kind: 'reasoning', id: 1, text: 'думаю', segments: 1, status: 'complete' },
+      { kind: 'tool', toolId: 't1', name: 'read_file', context: '', status: 'complete' },
+      { kind: 'tool', toolId: 't2', name: 'grep', context: '', status: 'running' },
+      { kind: 'message', id: 2, role: 'assistant', text: 'ответ', status: 'complete' }
+    ]
+    expect(transcriptCensus(items)).toEqual({ messages: 2, tools: 2, reasoning: 1 })
+  })
+
+  it('на пустой ленте даёт нули, а не undefined', () => {
+    expect(transcriptCensus([])).toEqual({ messages: 0, tools: 0, reasoning: 0 })
   })
 })
