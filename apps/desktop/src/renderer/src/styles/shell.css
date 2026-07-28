@@ -2133,8 +2133,35 @@ body.resizing-row * {
   color: var(--text-3);
   line-height: 1.55;
   font-style: italic;
-  white-space: pre-wrap;
+  /* No `white-space: pre-wrap` since task 1.6.5: the reasoning is markdown and
+     comes back as real blocks, spaced by the rules below. */
   overflow-wrap: anywhere;
+}
+
+/* The reasoning card reuses the answer's markdown renderer, one size down:
+   this is a preview inside a card, so a `##` in the trace must not out-shout
+   the card's own title. Only the deltas from `.chat-markdown` live here. */
+.reasoning-card__body .chat-markdown p,
+.reasoning-card__body .chat-markdown ul,
+.reasoning-card__body .chat-markdown ol {
+  margin: 0 0 6px;
+}
+
+.reasoning-card__body .chat-markdown h1,
+.reasoning-card__body .chat-markdown h2,
+.reasoning-card__body .chat-markdown h3,
+.reasoning-card__body .chat-markdown h4 {
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+  font-style: normal;
+  color: var(--text-2);
+}
+
+/* Code inside a train of thought stays upright — italic monospace is barely
+   readable at this size. */
+.reasoning-card__body .chat-markdown [data-streamdown='inline-code'],
+.reasoning-card__body .chat-markdown [data-streamdown='code-block-body'] {
+  font-style: normal;
 }
 
 /* Collapsed: a short taste of the trace, never a wall of text. */

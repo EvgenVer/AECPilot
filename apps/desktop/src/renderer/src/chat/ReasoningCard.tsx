@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatReasoning } from './chat-state'
 import { reasoningMeta } from './reasoning-meta-pure'
+import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 
 /** Brain outline — design/screens/Chat.html §5.9's reasoning card icon. */
 function BrainIcon() {
@@ -71,8 +72,13 @@ export default function ReasoningCard({ block }: { block: ChatReasoning }) {
           <ChevronIcon open={expanded} />
         </span>
       </button>
+      {/* Task 1.6.5, a defect the owner's manual run proved: reasoning arrives
+          as markdown (`**Responding in Russian**\n\n…`) and we printed it raw,
+          so the asterisks showed and the paragraphs collapsed into one line.
+          It goes through the same renderer as an answer — same vendored
+          component, sized down by CSS. */}
       <div className={`reasoning-card__body${expanded ? '' : ' reasoning-card__body--clamped'}`}>
-        {block.text}
+        <MarkdownTextContent text={block.text} isRunning={streaming} />
       </div>
     </div>
   )
