@@ -8,6 +8,7 @@ import ClarifyCard from './ClarifyCard'
 import SecretCard from './SecretCard'
 import SudoCard from './SudoCard'
 import SessionMenu from './SessionMenu'
+import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 import type { OpenProject } from '../../../shared/ipc'
@@ -96,7 +97,11 @@ export default function ChatDock({
                 item.role === 'user' ? 'message message--user' : 'message message--assistant'
               }
             >
-              {item.text}
+              {item.role === 'assistant' ? (
+                <MarkdownTextContent text={item.text} isRunning={item.status === 'streaming'} />
+              ) : (
+                item.text
+              )}
               {item.status === 'error' && <div className="message__error">ошибка</div>}
             </div>
           )
