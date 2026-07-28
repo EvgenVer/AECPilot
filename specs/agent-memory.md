@@ -1,4 +1,4 @@
-# specs/agent-memory — Подключаемая память (MCP aec-memory, Mem0)
+# specs/agent-memory — Память агента (два слоя: записка ядра + провайдер Mem0)
 <!-- Behavior contract for ONE feature. References SPECIFICATION, never copies it. -->
 
 > **УСТАРЕЛА ЧАСТИЧНО — переработка задачей 4.0.** Решение владельца 2026-07-28 (grill по
