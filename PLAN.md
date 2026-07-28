@@ -169,7 +169,8 @@ hermes показал: в pip-пакете UI — это терминал (`herm
 | Их файл (`apps/desktop/src/`) | Что даёт | Наша задача |
 |---|---|---|
 | `assistant-ui/markdown-text.tsx` (+ streamdown) | markdown в ответах и рассуждении | 1.6.4, 1.6.5 |
-| `assistant-ui/thread/timeline.tsx`, `timeline-data.ts`, `message-parts.tsx` | модель транскрипта (порядок и сохранность элементов хода) | 1.6.6 |
+| ~~`assistant-ui/thread/timeline.tsx`, `timeline-data.ts`~~ | **ошибка чтения, исправлено 2026-07-28 (задача 1.6.6):** это НЕ модель транскрипта, а мини-карта промптов для навигации (popover со списком своих вопросов). Модели там нет | вне объёма батча 1 |
+| `@assistant-ui/react` (сама библиотека) | настоящая модель транскрипта донора: `thread/list.tsx`, `assistant-message.tsx`, `message-parts.tsx` читают её состояние через `useAuiState`/`ThreadPrimitive`, своей модели не держат | 1.6.6 — решение владельца |
 | `assistant-ui/tool/fallback.tsx` | карточка неизвестного инструмента | 1.6.7 |
 | `chat/expandable-block.tsx`, `disclosure-row.tsx`, `activity-timer.ts` | складка и длительность | 1.6.7 |
 | `app/chat/composer/*` | история, очередь, вложения, слэш-команды, `@`-ссылки | 1.6.8, 1.6.A3, 1.6.A4 |
