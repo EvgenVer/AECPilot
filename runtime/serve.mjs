@@ -14,6 +14,15 @@
 // comment: "The desktop shell mints the token and injects it via
 // HERMES_DASHBOARD_SESSION_TOKEN so its main process can authenticate").
 //
+// Checkpoints (UR14, specs/checkpoints-rollback.md): the tui_gateway path
+// does NOT read `checkpoints:` from config.yaml — that key is only consulted
+// by their interactive CLI (cli.py). tui_gateway gates on the
+// HERMES_TUI_CHECKPOINTS env var instead (tui_gateway/server.py:
+// `checkpoints_enabled=is_truthy_value(os.environ.get("HERMES_TUI_CHECKPOINTS"))`;
+// truthy strings "1"/"true"/"yes"/"on", case-insensitive — utils.py
+// TRUTHY_STRINGS). We set it unconditionally below so every `hermes serve`
+// we launch snapshots before file writes/destructive commands.
+//
 // Usage: node runtime/serve.mjs smoke
 
 import { spawn, spawnSync } from "node:child_process";
@@ -83,6 +92,9 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
         ...process.env,
         HERMES_HOME: HERMES_HOME_DIR,
         HERMES_DASHBOARD_SESSION_TOKEN: token,
+        // See header comment "Checkpoints" — extraEnv can still override
+        // this if a future caller ever needs to opt out.
+        HERMES_TUI_CHECKPOINTS: "1",
         ...extraEnv,
       },
       stdio: ["ignore", "pipe", "pipe"],
