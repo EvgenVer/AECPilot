@@ -198,6 +198,88 @@ export interface GatewayMethodMap {
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
   'reload.mcp': { params: ReloadMcpParams; result: ReloadMcpResult }
   'complete.slash': { params: CompleteSlashParams; result: CompleteSlashResult }
+  'model.options': { params: ModelOptionsParams; result: ModelOptionsResult }
+  'config.set': { params: ConfigSetParams; result: ConfigSetResult }
+}
+
+/** `model.options` (task 1.6.9) — the provider/model catalogue behind the
+ * composer's picker. Contract read off `tui_gateway/server.py`: the handler
+ * layers the live agent's provider/model on top of disk config, and asks for
+ * `include_unconfigured` + `picker_hints` + `capabilities`, so the answer
+ * lists providers the user has NOT set up yet (with `authenticated: false`)
+ * alongside configured ones.
+ *
+ * `refresh` busts their per-provider model-id disk cache AND lets saved custom
+ * endpoints run live discovery. Their own comment says to leave it false on a
+ * normal picker open, because a slow or offline local endpoint would otherwise
+ * block the dialog — so it is wired only to an explicit "обновить список". */
+export interface ModelOptionsParams {
+  session_id?: string
+  refresh?: boolean
+}
+
+/** Per-model gate for the picker's own controls: offering a "fast" toggle on a
+ * model whose backend rejects it would produce an error the user never asked
+ * for, so the control is hidden instead. */
+export interface ModelCapabilities {
+  fast?: boolean
+  reasoning?: boolean
+}
+
+export interface ModelOptionProvider {
+  slug: string
+  name: string
+  models?: string[]
+  is_current?: boolean
+  /** False for providers surfaced only so the picker can show the whole
+   * universe — the user has no usable credentials for them yet. */
+  authenticated?: boolean
+  /** How an unconfigured provider would be activated. Only `api_key` can be
+   * done inline; everything else needs their CLI/OAuth flow, which is out of
+   * this app's scope. */
+  auth_type?: string
+  /** Env var an `api_key` provider's key would go into — shown as the reason
+   * its models are not selectable, never collected by this app. */
+  key_env?: string
+  warning?: string
+  capabilities?: Record<string, ModelCapabilities>
+  /** Models the current account may not select (their free-tier gating). */
+  unavailable_models?: string[]
+}
+
+export interface ModelOptionsResult {
+  model?: string
+  provider?: string
+  providers?: ModelOptionProvider[]
+}
+
+/** `config.set` (task 1.6.9) — one setter keyed by `key`. We use exactly three
+ * of its keys and no others; the rest belong to screens outside this task.
+ *
+ * Scope, read off their handler and worth stating because it is not obvious:
+ * `model` and `reasoning` are applied to the LIVE session (their comment says
+ * writing config.yaml here would let every picker click rewrite the user's
+ * global default), while `fast` also writes `agent.service_tier` globally. */
+export type ConfigSetKey = 'model' | 'reasoning' | 'fast'
+
+export interface ConfigSetParams {
+  key: ConfigSetKey
+  value: string
+  session_id?: string
+  /** Only meaningful for `key: 'model'`: re-sends a switch their side asked to
+   * confirm because the model is expensive. */
+  confirm_expensive_model?: boolean
+}
+
+export interface ConfigSetResult {
+  key: string
+  value: string
+  /** Non-fatal note about the switch that happened anyway. */
+  warning?: string
+  /** Their side refused to switch until the user confirms the cost; re-send
+   * with `confirm_expensive_model: true`. */
+  confirm_required?: boolean
+  confirm_message?: string
 }
 
 /** `complete.slash` (task 1.6.8) — the gateway's own completion list for a
@@ -478,8 +560,31 @@ export interface MoaAggregatingEvent {
   payload: { aggregator: string }
 }
 
+/** What the agent is running with, emitted whenever their side changes it
+ * (task 1.6.9). Every field is optional because the payload is assembled from
+ * live agent attributes that may not exist yet on a session whose agent is
+ * still being built.
+ *
+ * `reasoning_effort` has three meaningful states, not two: a level name,
+ * `'none'` (thinking explicitly off) and `''` (provider default). Their own
+ * comment records that reporting `''` for "off" once made their desktop wipe
+ * the user's sticky choice, so the distinction is load-bearing. */
+export interface SessionInfoEvent {
+  type: 'session.info'
+  session_id?: string
+  payload?: {
+    model?: string
+    provider?: string
+    reasoning_effort?: string
+    service_tier?: string
+    fast?: boolean
+    yolo?: boolean
+  }
+}
+
 export type GatewayEvent =
   | GatewayReadyEvent
+  | SessionInfoEvent
   | MessageStartEvent
   | MessageDeltaEvent
   | ThinkingDeltaEvent

@@ -9,6 +9,7 @@ import SecretCard from './SecretCard'
 import SudoCard from './SudoCard'
 import SessionMenu from './SessionMenu'
 import SubagentCard, { MoaCard } from './SubagentCard'
+import ModelPicker from './ModelPicker'
 import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import {
   applySlashCompletion,
@@ -376,6 +377,15 @@ export default function ChatDock({
             >
               <AttachIcon width={16} height={16} />
             </button>
+            {/* Task 1.6.9. Sits next to the send button because it changes what
+                the next message will be answered BY — their model switch is
+                refused mid-turn, so the control reports that instead of
+                letting the click fail. */}
+            <ModelPicker
+              runtime={state.runtime}
+              streaming={state.streaming}
+              connected={connectionState === 'ready'}
+            />
             <div style={{ flex: 1 }} />
             <button
               type="button"

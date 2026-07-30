@@ -3,9 +3,11 @@
 // these methods, contextBridge-exposed as `window.aecpilot`.
 
 import type {
+  ConfigSetResult,
   GatewayConnectionState,
   GatewayEvent,
   HistoryMessage,
+  ModelOptionsResult,
   SessionSummary,
   SlashCompletionItem
 } from './gateway/types'
@@ -311,6 +313,19 @@ export interface AecpilotApi {
    * list, because this runs on every keystroke and must not put an error over
    * the composer. */
   completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
+  /** The provider/model catalogue for the composer's picker (task 1.6.9).
+   * `refresh` re-fetches every provider's live list and probes custom
+   * endpoints — slow, so it is only for an explicit "обновить". */
+  getModelOptions(refresh?: boolean): Promise<ModelOptionsResult>
+  /** Applies one of the three picker settings (task 1.6.9). `model` and
+   * `reasoning` are per-session on their side; `fast` also writes their global
+   * `agent.service_tier`. Rejects during an in-flight turn (their guard), so
+   * callers must surface the failure rather than assume it took. */
+  setModelConfig(
+    key: 'model' | 'reasoning' | 'fast',
+    value: string,
+    confirmExpensive?: boolean
+  ): Promise<ConfigSetResult>
   /** Resolves a connected source's entry to its absolute path (task 1.5.5)
    * — backs "Копировать путь": the renderer copies the returned `path` to
    * the clipboard itself, never concatenating `rootPath`/`rel` on its own

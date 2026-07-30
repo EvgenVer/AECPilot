@@ -32,7 +32,12 @@ function QuestionIcon() {
  *
  * The gateway matches the reply by `request_id` and answers 4009 once that
  * request is gone (typically it timed out), so a failure is surfaced and the
- * card stays put rather than silently pretending it was delivered. */
+ * card stays put rather than silently pretending it was delivered.
+ *
+ * Parity pass 1.6.12 (their `clarify-tool.tsx`, see docs/parity-approvals.md):
+ * the offered options never trap the user — a free-text answer is available
+ * next to them, picking an option selects rather than sends, and "Пропустить"
+ * sends the empty answer their core treats as "no preference". */
 export default function ClarifyCard({
   request,
   onResolved
@@ -43,6 +48,7 @@ export default function ClarifyCard({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [draft, setDraft] = useState('')
+  const [selected, setSelected] = useState<string | undefined>(undefined)
 
   async function respond(answer: string): Promise<void> {
     setPending(true)
@@ -57,6 +63,9 @@ export default function ClarifyCard({
   }
 
   const hasChoices = request.choices.length > 0
+  // Picking an option and typing are mutually exclusive answers — whichever
+  // the user touched last is the one that will be sent.
+  const answer = selected ?? (draft.trim() || undefined)
 
   return (
     <div className="clarify-card">
@@ -69,48 +78,64 @@ export default function ClarifyCard({
 
       {request.question && <div className="clarify-card__question">{request.question}</div>}
 
-      {hasChoices ? (
-        <div className="clarify-card__choices">
+      {hasChoices && (
+        <div className="clarify-card__choices" role="group">
           {request.choices.map((choice, index) => (
             <button
               key={`${index}:${choice}`}
               type="button"
-              className="clarify-card__choice"
+              className={
+                selected === choice
+                  ? 'clarify-card__choice clarify-card__choice--selected'
+                  : 'clarify-card__choice'
+              }
+              aria-pressed={selected === choice}
               disabled={pending}
-              onClick={() => void respond(choice)}
+              onClick={() => {
+                setDraft('')
+                setSelected(choice)
+              }}
             >
               <span className="clarify-card__radio" aria-hidden="true" />
               <span className="clarify-card__choice-label">{choice}</span>
             </button>
           ))}
         </div>
-      ) : (
-        // No preset options — the agent asked an open question, so it needs a
-        // free-text answer rather than a dead card.
-        <form
-          className="clarify-card__form"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!pending && draft.trim() !== '') void respond(draft.trim())
-          }}
-        >
-          <input
-            className="clarify-card__input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ваш ответ…"
-            disabled={pending}
-            aria-label="Ответ на уточняющий вопрос"
-          />
-          <button
-            type="submit"
-            className="clarify-card__submit"
-            disabled={pending || draft.trim() === ''}
-          >
-            Ответить
-          </button>
-        </form>
       )}
+
+      <form
+        className="clarify-card__form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!pending && answer !== undefined) void respond(answer)
+        }}
+      >
+        <input
+          className="clarify-card__input"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            if (e.target.value.trim() !== '') setSelected(undefined)
+          }}
+          placeholder={hasChoices ? 'Другой ответ…' : 'Ваш ответ…'}
+          disabled={pending}
+          aria-label="Ответ на уточняющий вопрос"
+        />
+        <button type="submit" className="clarify-card__submit" disabled={pending || !answer}>
+          Ответить
+        </button>
+        {/* Empty answer: their core documents it as a legitimate "no
+            preference" (the same thing a timeout sends), so the agent resumes
+            instead of standing still for 300 s. */}
+        <button
+          type="button"
+          className="clarify-card__skip"
+          disabled={pending}
+          onClick={() => void respond('')}
+        >
+          Пропустить
+        </button>
+      </form>
 
       {error && <div className="clarify-card__error">{error}</div>}
     </div>

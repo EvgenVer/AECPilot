@@ -468,6 +468,46 @@ ipcMain.handle('chat:complete-slash', async (_event, text: unknown) => {
   }
 })
 
+// --- Model / effort / fast picker (task 1.6.9) -----------------------------
+// The catalogue. `refresh` is passed through only when the renderer explicitly
+// asks for it: their handler treats it as "re-fetch every provider's live
+// catalog and probe custom endpoints", which can block on a slow or offline
+// local endpoint, so a normal picker open must not set it.
+ipcMain.handle('model:options', async (_event, refresh: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const activeSessionId = await ensureSession()
+  return gateway.request('model.options', {
+    session_id: activeSessionId,
+    ...(refresh === true ? { refresh: true } : {})
+  })
+})
+
+// The three `config.set` keys this app writes. The allowlist is the point:
+// `config.set` also reaches yolo, approvals and display settings, and the
+// composer must not become a way to reach those by passing a different key.
+const PICKER_CONFIG_KEYS = ['model', 'reasoning', 'fast'] as const
+type PickerConfigKey = (typeof PICKER_CONFIG_KEYS)[number]
+function isPickerConfigKey(value: unknown): value is PickerConfigKey {
+  return typeof value === 'string' && (PICKER_CONFIG_KEYS as readonly string[]).includes(value)
+}
+
+ipcMain.handle('model:set-config', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { key, value, confirmExpensive } =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { key?: unknown; value?: unknown; confirmExpensive?: unknown })
+      : {}
+  if (!isPickerConfigKey(key)) throw new Error('invalid config key')
+  if (typeof value !== 'string') throw new Error('invalid config value')
+  const activeSessionId = await ensureSession()
+  return gateway.request('config.set', {
+    key,
+    value,
+    session_id: activeSessionId,
+    ...(key === 'model' && confirmExpensive === true ? { confirm_expensive_model: true } : {})
+  })
+})
+
 const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
 type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
 function isApprovalChoice(value: string): value is ApprovalChoice {

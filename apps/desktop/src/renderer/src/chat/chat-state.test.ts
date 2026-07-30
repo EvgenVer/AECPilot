@@ -723,6 +723,63 @@ describe('chatReducer', () => {
     expect(state.approvals).toHaveLength(1)
   })
 
+  // --- task 1.6.12: a finished turn drops what nobody waits on any more ---
+
+  it('message.complete drops a pending approval (it expired core-side, nothing waits on it)', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'cmd', description: 'd', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    expect(state.approvals).toHaveLength(1)
+
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: 'done', status: 'complete' } })
+    )
+
+    expect(state.approvals).toEqual([])
+  })
+
+  it('message.complete drops a pending interactive request', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(
+      state,
+      ev({ type: 'clarify.request', payload: { request_id: 'r1', question: 'q', choices: [] } })
+    )
+    expect(state.interactive).toHaveLength(1)
+
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: 'done', status: 'complete' } })
+    )
+
+    expect(state.interactive).toEqual([])
+  })
+
+  it('an errored turn drops pending approvals and interactive requests too', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(
+      state,
+      ev({
+        type: 'approval.request',
+        payload: { command: 'cmd', description: 'd', pattern_keys: [], allow_permanent: false }
+      })
+    )
+    state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'sudo-1' } }))
+
+    state = chatReducer(state, ev({ type: 'error', payload: { message: 'boom' } }))
+
+    expect(state.approvals).toEqual([])
+    expect(state.interactive).toEqual([])
+  })
+
   // --- task 0.14: session-loaded (list/create/switch sessions) ----------
 
   it('session-loaded maps user/assistant/tool history entries with correct statuses and hist-N toolIds', () => {
@@ -863,6 +920,54 @@ describe('chatReducer', () => {
       { kind: 'message', id: 1, role: 'assistant', text: 'y', status: 'complete' }
     ])
     expect(state.nextId).toBe(2)
+  })
+})
+
+// Task 1.6.9 — the runtime the picker displays. It must come from the gateway,
+// not from what was clicked.
+describe('session runtime', () => {
+  it('adopts the model/effort/fast the gateway reports', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({
+        type: 'session.info',
+        payload: { model: 'opus', provider: 'anthropic', reasoning_effort: 'high', fast: true }
+      })
+    )
+    expect(state.runtime).toEqual({
+      model: 'opus',
+      provider: 'anthropic',
+      reasoningEffort: 'high',
+      fast: true
+    })
+  })
+
+  it('keeps fields a later event does not repeat', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'session.info', payload: { model: 'opus', reasoning_effort: 'high' } })
+    )
+    state = chatReducer(state, ev({ type: 'session.info', payload: { fast: true } }))
+    expect(state.runtime).toMatchObject({ model: 'opus', reasoningEffort: 'high', fast: true })
+  })
+
+  it('keeps "thinking off" distinct from "provider default"', () => {
+    // Their own comment records why: reporting '' for "off" once made a
+    // desktop wipe the user's explicit choice.
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'session.info', payload: { reasoning_effort: 'none' } }))
+    expect(state.runtime.reasoningEffort).toBe('none')
+    state = chatReducer(state, ev({ type: 'session.info', payload: { reasoning_effort: '' } }))
+    expect(state.runtime.reasoningEffort).toBe('')
+  })
+
+  it('does not put anything in the transcript', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'session.info', payload: { model: 'opus' } })
+    )
+    expect(state.items).toHaveLength(0)
   })
 })
 

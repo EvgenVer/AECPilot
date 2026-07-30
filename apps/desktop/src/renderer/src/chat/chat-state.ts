@@ -116,6 +116,30 @@ export type InteractiveRequest =
   | { kind: 'secret'; requestId: string; prompt: string; envVar: string }
   | { kind: 'sudo'; requestId: string }
 
+/** What the agent is actually running with right now (task 1.6.9).
+ *
+ * The composer's picker must not show what the user last clicked — it must
+ * show what took effect. Their `config.set` can answer "switched" and still
+ * leave the live agent on the old model (an unauthenticated provider, a
+ * cost confirmation), so this is filled ONLY from their `session.info`
+ * event, which reports the agent's own attributes. */
+export interface SessionRuntime {
+  model: string
+  provider: string
+  /** '' means "provider default"; 'none' means thinking is off — their side
+   * distinguishes the two deliberately, and collapsing them here would make
+   * the picker forget an explicit "off". */
+  reasoningEffort: string
+  fast: boolean
+}
+
+export const emptySessionRuntime: SessionRuntime = {
+  model: '',
+  provider: '',
+  reasoningEffort: '',
+  fast: false
+}
+
 export interface ChatState {
   items: ChatItem[]
   streaming: boolean
@@ -124,6 +148,8 @@ export interface ChatState {
   interactive: InteractiveRequest[]
   /** Next id to assign to a newly-created `ChatMessage` (see `ChatMessage.id`). */
   nextId: number
+  /** Live model/effort/fast, as last reported by the gateway. */
+  runtime: SessionRuntime
 }
 
 export const initialChatState: ChatState = {
@@ -131,7 +157,8 @@ export const initialChatState: ChatState = {
   streaming: false,
   approvals: [],
   interactive: [],
-  nextId: 0
+  nextId: 0,
+  runtime: emptySessionRuntime
 }
 
 // --- Hermes parity ledger (task 1.5.D1 / D1.9) -----------------------------
@@ -166,11 +193,12 @@ export const HANDLED_GATEWAY_EVENTS = [
   'subagent.complete',
   'subagent.interrupt',
   'moa.reference',
-  'moa.aggregating'
+  'moa.aggregating',
+  'session.info'
 ] as const
 
 /** Events we knowingly ignore — no warning, they are not a parity gap. */
-export const IGNORED_GATEWAY_EVENTS = ['gateway.ready', 'status.update', 'session.info'] as const
+export const IGNORED_GATEWAY_EVENTS = ['gateway.ready', 'status.update'] as const
 
 const KNOWN_EVENTS = new Set<string>([...HANDLED_GATEWAY_EVENTS, ...IGNORED_GATEWAY_EVENTS])
 
@@ -390,6 +418,21 @@ function isSubagentEvent(event: GatewayEvent): event is SubagentEvent {
   return event.type.startsWith('subagent.')
 }
 
+/** What a finished turn resets (task 1.6.12, parity with hermes desktop
+ * `gateway-event.ts`, which calls `clearAllPrompts(sessionId)` on both
+ * `message.complete` and `error`).
+ *
+ * The agent core blocks the turn while it waits on an approval / clarify /
+ * secret / sudo request, so once the turn is over NOTHING is waiting on those
+ * answers any more: the request either was resolved, or it expired on the core
+ * side (approval fails closed — "silence is not consent" — and clarify/secret
+ * give up with an empty answer). Keeping the card pinned after that would wedge
+ * the dock: the composer is disabled while an approval is up, so an expired
+ * request the gateway has already forgotten would lock the input for good. */
+function endedTurn(): Pick<ChatState, 'streaming' | 'approvals' | 'interactive'> {
+  return { streaming: false, approvals: [], interactive: [] }
+}
+
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.kind === 'user-submit') {
     const { message, nextId } = createMessage(state.nextId, { role: 'user', text: action.text })
@@ -417,8 +460,19 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     let nextId = 0
     const items = mapped.map((item) => (item.kind === 'message' ? { ...item, id: nextId++ } : item))
     // Switching/reloading a session abandons any outstanding blocking
-    // request along with the transcript (task 1.5.D1).
-    return { items, approvals: [], interactive: [], streaming: false, nextId }
+    // request along with the transcript (task 1.5.D1). The runtime goes too
+    // (task 1.6.9): the new session has its own agent, and keeping the old
+    // model in the picker would misname who is answering. Their gateway
+    // emits `session.info` right after it builds the agent, so the blank is
+    // momentary rather than permanent.
+    return {
+      items,
+      approvals: [],
+      interactive: [],
+      streaming: false,
+      nextId,
+      runtime: emptySessionRuntime
+    }
   }
 
   const { event } = action
@@ -470,12 +524,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         text: finalText,
         status: event.payload.status
       })
-      return { ...state, items: [...closed, message], nextId, streaming: false }
+      return { ...state, ...endedTurn(), items: [...closed, message], nextId }
     }
     const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: finalText, status: event.payload.status }
-    return { ...state, items, streaming: false }
+    return { ...state, ...endedTurn(), items }
   }
 
   if (isGatewayEventOfType(event, 'error')) {
@@ -490,15 +544,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       })
       return {
         ...state,
+        ...endedTurn(),
         items: [...closed, message],
-        nextId,
-        streaming: false
+        nextId
       }
     }
     const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: current.text || event.payload.message, status: 'error' }
-    return { ...state, items, streaming: false }
+    return { ...state, ...endedTurn(), items }
   }
 
   // Task 1.5.D1: all three reasoning-ish events feed one block per turn.
@@ -552,6 +606,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       status: 'complete'
     }
     return { ...state, items }
+  }
+
+  // --- What the agent is actually running with (task 1.6.9) ----------------
+  // The picker reads THIS, never the last click: their `config.set` can report
+  // a switch the live agent did not take. Fields absent from the payload keep
+  // their previous value — this event is emitted on every runtime change, not
+  // only on a full one.
+  if (isGatewayEventOfType(event, 'session.info')) {
+    const payload = event.payload ?? {}
+    const runtime: SessionRuntime = {
+      model: payload.model ?? state.runtime.model,
+      provider: payload.provider ?? state.runtime.provider,
+      reasoningEffort: payload.reasoning_effort ?? state.runtime.reasoningEffort,
+      fast: payload.fast ?? state.runtime.fast
+    }
+    return { ...state, runtime }
   }
 
   // --- Delegated child agents (task 1.6.A1) --------------------------------
