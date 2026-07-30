@@ -201,6 +201,26 @@ export interface GatewayMethodMap {
   'model.options': { params: ModelOptionsParams; result: ModelOptionsResult }
   'config.set': { params: ConfigSetParams; result: ConfigSetResult }
   'command.dispatch': { params: CommandDispatchParams; result: CommandDispatchResult }
+  'complete.path': { params: CompletePathParams; result: CompleteSlashResult }
+}
+
+/** `complete.path` (task 1.6.A3) — completions for an `@`-reference being
+ * typed. Same item shape as `complete.slash`.
+ *
+ * Contract read off their handler: `word` is the whole token including the
+ * leading `@`; a bare `@` returns their six static hints (`@diff`, `@staged`,
+ * `@file:`, `@folder:`, `@url:`, `@git:`); a bare name with no `/` and at
+ * least two characters is fuzzy-matched against repo basenames; anything
+ * path-ish lists a directory. The list is capped at 30 either way.
+ *
+ * The chosen text goes into the message as-is. Expanding it into file contents
+ * is THEIR job and already happens on our path: `_run_prompt_submit` runs
+ * `preprocess_context_references` before the agent sees the text. This app
+ * must therefore not read the file itself — doing so would duplicate their
+ * expansion and, more importantly, bypass the redaction they do there. */
+export interface CompletePathParams {
+  word: string
+  session_id?: string
 }
 
 /** `command.dispatch` (task 1.6.A5) — runs one slash command by name. We use

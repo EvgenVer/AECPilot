@@ -468,6 +468,22 @@ ipcMain.handle('chat:complete-slash', async (_event, text: unknown) => {
   }
 })
 
+// `@`-reference completions (task 1.6.A3). Same best-effort contract as the
+// slash completions above, and for the same reason. `session_id` is what binds
+// the search to the open project's directory — their `_completion_cwd` reads
+// the session's cwd, so without it the listing would come from whatever
+// directory the gateway process happens to be in.
+ipcMain.handle('chat:complete-path', async (_event, word: unknown) => {
+  if (typeof word !== 'string' || !gateway) return { items: [] }
+  try {
+    const activeSessionId = await ensureSession()
+    return await gateway.request('complete.path', { word, session_id: activeSessionId })
+  } catch (error: unknown) {
+    console.error('aecpilot: complete.path failed', error)
+    return { items: [] }
+  }
+})
+
 // --- Model / effort / fast picker (task 1.6.9) -----------------------------
 // The catalogue. `refresh` is passed through only when the renderer explicitly
 // asks for it: their handler treats it as "re-fetch every provider's live

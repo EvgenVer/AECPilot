@@ -13,8 +13,10 @@ import ModelPicker from './ModelPicker'
 import GoalBadge from './GoalBadge'
 import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import {
+  applyReferenceCompletion,
   applySlashCompletion,
   enqueuePrompt,
+  referenceQuery,
   moveSelection,
   navigateHistory,
   rememberPrompt,
@@ -60,6 +62,13 @@ export default function ChatDock({
   const [queueNextId, setQueueNextId] = useState(1)
   const [slashItems, setSlashItems] = useState<SlashCompletionItem[]>([])
   const [slashIndex, setSlashIndex] = useState(0)
+  // Task 1.6.A3. Which of the two completion sources the current list came
+  // from — the two share one popup and one keyboard, but insert differently.
+  const [completionKind, setCompletionKind] = useState<'slash' | 'reference'>('slash')
+  // An `@`-reference can sit anywhere in the text, so unlike a slash command
+  // it cannot be located from the draft alone; the caret is what says which
+  // token is being typed.
+  const [caret, setCaret] = useState(0)
 
   const awaitingApproval = state.approvals.length > 0
   // The oldest outstanding blocking request (task 1.5.D1). All three kinds
@@ -68,9 +77,13 @@ export default function ChatDock({
   const busy = state.streaming || awaitingApproval
   const canSend = draft.trim().length > 0 && connectionState === 'ready'
   // Derived, not cleared: the moment the draft stops being a bare "/command"
-  // the list is closed, with no state write to do it (and no synchronous
-  // setState inside an effect, which the lint rules forbid for good reason).
-  const slashOpen = slashQuery(draft) !== undefined && slashItems.length > 0
+  // (or an `@`-reference) the list is closed, with no state write to do it
+  // (and no synchronous setState inside an effect, which the lint rules forbid
+  // for good reason).
+  const refRange = referenceQuery(draft, caret)
+  const slashOpen =
+    slashItems.length > 0 &&
+    (completionKind === 'slash' ? slashQuery(draft) !== undefined : refRange !== undefined)
 
   /** Sends `text` for real. Everything that decides WHETHER to send (busy,
    * queued, blank) is settled by the callers. */
@@ -106,21 +119,37 @@ export default function ChatDock({
     }
   }, [busy, connectionState, queue, send])
 
-  // Slash completions come from the gateway itself (`complete.slash`), so the
-  // list is always the commands this build actually has — including skills.
+  // Both completion lists come from the gateway itself (`complete.slash`,
+  // `complete.path`), so they always describe this build and this project —
+  // the commands it actually has, the files that actually exist.
   useEffect(() => {
-    const query = slashQuery(draft)
-    if (query === undefined) return
+    const slash = slashQuery(draft)
+    const reference = referenceQuery(draft, caret)
+    // A slash command wins: it can only occur at position 0, so the two never
+    // genuinely compete except on "/что-то @…", where the command is the
+    // thing being completed only while there is no space — and by then
+    // `slashQuery` has already given up.
+    const source =
+      slash !== undefined
+        ? { kind: 'slash' as const, fetch: () => window.aecpilot.completeSlash(slash) }
+        : reference !== undefined
+          ? {
+              kind: 'reference' as const,
+              fetch: () => window.aecpilot.completePath(reference.word)
+            }
+          : undefined
+    if (!source) return
     let cancelled = false
-    void window.aecpilot.completeSlash(query).then((result) => {
+    void source.fetch().then((result) => {
       if (cancelled) return
+      setCompletionKind(source.kind)
       setSlashItems(result.items)
       setSlashIndex(0)
     })
     return () => {
       cancelled = true
     }
-  }, [draft])
+  }, [draft, caret])
 
   function resetHistoryWalk(): void {
     setHistoryCursor(undefined)
@@ -144,6 +173,19 @@ export default function ChatDock({
   }
 
   function applyCompletion(item: SlashCompletionItem): void {
+    if (completionKind === 'reference' && refRange) {
+      const { text, caret: nextCaret } = applyReferenceCompletion(draft, refRange, item.text)
+      setDraft(text)
+      setCaret(nextCaret)
+      setSlashItems([])
+      // The caret must land inside the reference that was just inserted, not
+      // at the end of the whole draft — a reference edited mid-sentence would
+      // otherwise throw the user to the end of it.
+      const el = textareaRef.current
+      el?.focus()
+      requestAnimationFrame(() => el?.setSelectionRange(nextCaret, nextCaret))
+      return
+    }
     setDraft(applySlashCompletion(item.text))
     setSlashItems([])
     textareaRef.current?.focus()
@@ -209,6 +251,7 @@ export default function ChatDock({
 
   function handleDraftChange(event: React.ChangeEvent<HTMLTextAreaElement>): void {
     setDraft(event.target.value)
+    setCaret(event.target.selectionStart)
     const el = textareaRef.current
     if (el) {
       el.style.height = 'auto'
@@ -363,6 +406,10 @@ export default function ChatDock({
             value={draft}
             onChange={handleDraftChange}
             onKeyDown={handleKeyDown}
+            // Task 1.6.A3: moving the caret with the mouse or the arrows
+            // changes which `@`-reference is being typed, without changing a
+            // character of the draft.
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
             placeholder="Спросите про проект…"
             // Task 1.6.8: typing is no longer blocked while the agent works —
             // what you write goes to the queue and leaves by itself. Blocking

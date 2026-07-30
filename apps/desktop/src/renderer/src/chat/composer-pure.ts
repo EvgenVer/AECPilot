@@ -116,6 +116,61 @@ export function applySlashCompletion(completion: string): string {
   return `${completion} `
 }
 
+/**
+ * The `@`-reference being typed, and where it sits in the draft (task 1.6.A3).
+ *
+ * Unlike a slash command, a reference is valid anywhere in the text — "посмотри
+ * @file:src/main.ts и скажи" is the normal case — so this finds the LAST `@`
+ * that still belongs to the word under the caret.
+ *
+ * A reference ends at whitespace. That is their rule too: `@folder:src/` is one
+ * token, and the space after it is what tells the gateway the reference is
+ * finished. An `@` immediately after a non-space character is not a reference
+ * (an e-mail address is the everyday case), so it is skipped.
+ */
+export function referenceQuery(
+  draft: string,
+  caret: number
+): { word: string; start: number; end: number } | undefined {
+  const upToCaret = draft.slice(0, caret)
+  const at = upToCaret.lastIndexOf('@')
+  if (at === -1) return undefined
+
+  const before = at === 0 ? '' : draft[at - 1]
+  if (before !== '' && !/\s/.test(before)) return undefined
+
+  // Whitespace between the `@` and the caret means the reference already ended.
+  const word = upToCaret.slice(at)
+  if (/\s/.test(word)) return undefined
+
+  // The token may continue past the caret if the user went back to edit it.
+  let end = caret
+  while (end < draft.length && !/\s/.test(draft[end] as string)) end += 1
+  return { word, start: at, end }
+}
+
+/** Puts a chosen reference into the draft, replacing the token being typed.
+ *
+ * No trailing space is added for a completion that is itself a prefix (their
+ * `@file:` / `@folder:` hints, and any directory, which they mark with a
+ * trailing `/`): the user's next keystroke continues the same reference, and a
+ * space there would have ended it. */
+export function applyReferenceCompletion(
+  draft: string,
+  range: { start: number; end: number },
+  completion: string
+): { text: string; caret: number } {
+  const continues = completion.endsWith(':') || completion.endsWith('/')
+  // Don't add a space in front of one that is already there — completing a
+  // reference in the middle of a sentence would otherwise leave a double gap.
+  const spaceFollows = /\s/.test(draft[range.end] ?? '')
+  const inserted = continues || spaceFollows ? completion : `${completion} `
+  return {
+    text: draft.slice(0, range.start) + inserted + draft.slice(range.end),
+    caret: range.start + inserted.length
+  }
+}
+
 /** Moves the highlighted row in an open completion list, wrapping at both
  * ends — a short list is faster to cycle than to walk. */
 export function moveSelection(count: number, index: number, direction: 1 | -1): number {

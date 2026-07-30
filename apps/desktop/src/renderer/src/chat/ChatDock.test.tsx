@@ -14,14 +14,17 @@ const completeSlash = vi.fn()
 // without this. Empty output is their "no goal", which keeps the badge off
 // screen and leaves these tests about the composer.
 const dispatchGoal = vi.fn()
+const completePath = vi.fn()
 
 beforeEach(() => {
   submitPrompt.mockResolvedValue(undefined)
   completeSlash.mockResolvedValue({ items: [] })
+  completePath.mockResolvedValue({ items: [] })
   dispatchGoal.mockResolvedValue({ output: '' })
   window.aecpilot = {
     submitPrompt,
     completeSlash,
+    completePath,
     dispatchGoal,
     onChatEvent: () => () => {},
     listSessions: async () => ({ sessions: [] })
@@ -121,4 +124,38 @@ test('после пробела подсказки закрываются', asyn
 
   fireEvent.change(input, { target: { value: '/model gpt' } })
   await waitFor(() => expect(screen.queryByLabelText('Команды')).toBeNull())
+})
+
+// Задача 1.6.A3 — `@`-ссылки на файлы и папки в композере.
+test('собака в середине текста открывает список путей от шлюза', async () => {
+  completePath.mockResolvedValue({
+    items: [{ text: '@file:src/main.ts', display: 'main.ts', meta: 'src' }]
+  })
+  const input = renderDock()
+
+  fireEvent.change(input, { target: { value: 'посмотри @ma', selectionStart: 12 } })
+  await waitFor(() => expect(completePath).toHaveBeenCalledWith('@ma'))
+  expect(await screen.findByText('main.ts')).toBeTruthy()
+})
+
+test('выбор пути подставляется на место набранного, остальной текст цел', async () => {
+  completePath.mockResolvedValue({
+    items: [{ text: '@file:src/main.ts', display: 'main.ts', meta: 'src' }]
+  })
+  const input = renderDock()
+
+  fireEvent.change(input, { target: { value: 'посмотри @ma и скажи', selectionStart: 12 } })
+  const row = await screen.findByText('main.ts')
+  fireEvent.click(row)
+
+  expect(input.value).toBe('посмотри @file:src/main.ts и скажи')
+})
+
+test('почтовый адрес списком путей не считается', async () => {
+  const input = renderDock()
+  fireEvent.change(input, {
+    target: { value: 'пиши на ivan@example.com', selectionStart: 24 }
+  })
+  await waitFor(() => expect(completeSlash).not.toHaveBeenCalled())
+  expect(completePath).not.toHaveBeenCalled()
 })

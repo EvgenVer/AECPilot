@@ -313,6 +313,9 @@ export interface AecpilotApi {
    * list, because this runs on every keystroke and must not put an error over
    * the composer. */
   completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
+  /** Completions for an `@`-reference being typed (task 1.6.A3). Never
+   * rejects, for the same reason as `completeSlash`: it runs per keystroke. */
+  completePath(word: string): Promise<{ items: SlashCompletionItem[] }>
   /** Reads or controls the standing goal (task 1.6.A5). Never rejects: the
    * badge polls this, and a gateway without the goals module must not put an
    * error over the chat — it comes back as an empty `output`, which reads as
