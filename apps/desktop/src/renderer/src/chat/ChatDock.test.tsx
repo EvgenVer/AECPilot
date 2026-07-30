@@ -15,17 +15,26 @@ const completeSlash = vi.fn()
 // screen and leaves these tests about the composer.
 const dispatchGoal = vi.fn()
 const completePath = vi.fn()
+const pickAttachments = vi.fn()
+const detachAttachment = vi.fn()
+const pasteAttachment = vi.fn()
 
 beforeEach(() => {
   submitPrompt.mockResolvedValue(undefined)
   completeSlash.mockResolvedValue({ items: [] })
   completePath.mockResolvedValue({ items: [] })
   dispatchGoal.mockResolvedValue({ output: '' })
+  pickAttachments.mockResolvedValue([])
+  detachAttachment.mockResolvedValue({ count: 0 })
+  pasteAttachment.mockResolvedValue({ ok: false, error: 'нет картинки' })
   window.aecpilot = {
     submitPrompt,
     completeSlash,
     completePath,
     dispatchGoal,
+    pickAttachments,
+    detachAttachment,
+    pasteAttachment,
     onChatEvent: () => () => {},
     listSessions: async () => ({ sessions: [] })
   } as unknown as typeof window.aecpilot
@@ -158,4 +167,41 @@ test('почтовый адрес списком путей не считает�
   })
   await waitFor(() => expect(completeSlash).not.toHaveBeenCalled())
   expect(completePath).not.toHaveBeenCalled()
+})
+
+// Задача 1.6.A4 — вложения.
+test('прикреплённый файл виден чипом и снимается крестиком', async () => {
+  pickAttachments.mockResolvedValue([{ ok: true, path: 'C:\\pics\\план.png', count: 1 }])
+  renderDock()
+
+  fireEvent.click(screen.getByLabelText('Прикрепить файл'))
+  expect(await screen.findByText('план.png')).toBeTruthy()
+
+  fireEvent.click(screen.getByLabelText('Убрать вложение: план.png'))
+  await waitFor(() => expect(screen.queryByText('план.png')).toBeNull())
+  expect(detachAttachment).toHaveBeenCalledWith('C:\\pics\\план.png')
+})
+
+test('отказ шлюза объясняется, а не проглатывается', async () => {
+  pickAttachments.mockResolvedValue([
+    { ok: false, error: 'pdftoppm not installed (poppler-utils package required)' }
+  ])
+  renderDock()
+
+  fireEvent.click(screen.getByLabelText('Прикрепить файл'))
+  expect(await screen.findByText(/poppler/)).toBeTruthy()
+})
+
+test('вложения уходят вместе с сообщением, а не остаются висеть', async () => {
+  pickAttachments.mockResolvedValue([{ ok: true, path: 'C:\\pics\\план.png', count: 1 }])
+  const input = renderDock()
+
+  fireEvent.click(screen.getByLabelText('Прикрепить файл'))
+  await screen.findByText('план.png')
+
+  fireEvent.change(input, { target: { value: 'что тут' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+
+  await waitFor(() => expect(submitPrompt).toHaveBeenCalledWith('что тут'))
+  expect(screen.queryByText('план.png')).toBeNull()
 })

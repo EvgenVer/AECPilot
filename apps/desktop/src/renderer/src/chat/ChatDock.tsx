@@ -28,7 +28,12 @@ import {
 } from './composer-pure'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState, SlashCompletionItem } from '../../../shared/gateway/types'
-import type { OpenProject } from '../../../shared/ipc'
+import type { AttachmentOutcome, OpenProject } from '../../../shared/ipc'
+import {
+  attachmentErrorMessage,
+  attachmentLabel,
+  attachmentSummary
+} from '../../../shared/attachments'
 
 /** Right-hand chat dock (task 1.0): the Phase 0 chat panel (0.11–0.17),
  * restyled to sit in the workspace shell's chat dock region per
@@ -69,6 +74,10 @@ export default function ChatDock({
   // it cannot be located from the draft alone; the caret is what says which
   // token is being typed.
   const [caret, setCaret] = useState(0)
+  // Task 1.6.A4. Paths only — the gateway session owns the real list, this is
+  // what to draw and what to detach by.
+  const [attachments, setAttachments] = useState<string[]>([])
+  const [attachError, setAttachError] = useState<string | undefined>(undefined)
 
   const awaitingApproval = state.approvals.length > 0
   // The oldest outstanding blocking request (task 1.5.D1). All three kinds
@@ -90,6 +99,12 @@ export default function ChatDock({
   const send = useCallback(
     async (text: string): Promise<void> => {
       setSubmitError(undefined)
+      // Task 1.6.A4: their `prompt.submit` folds the session's attachments
+      // into this message and empties the list, so the chips go here — at the
+      // actual send — and not when a message is merely queued, which would
+      // claim files had left while they are still waiting with the queue.
+      setAttachments([])
+      setAttachError(undefined)
       dispatch({ kind: 'user-submit', text })
       try {
         await window.aecpilot.submitPrompt(text)
@@ -150,6 +165,39 @@ export default function ChatDock({
       cancelled = true
     }
   }, [draft, caret])
+
+  // --- Attachments (task 1.6.A4) -------------------------------------------
+  // Their `prompt.submit` folds the session's attachments into the message and
+  // clears them, so the chips clear on send too — leaving them would claim the
+  // next message carries files it does not.
+  function absorbOutcomes(outcomes: AttachmentOutcome[]): void {
+    const failed = outcomes.filter((o) => !o.ok)
+    setAttachError(
+      failed.length === 0
+        ? undefined
+        : attachmentErrorMessage(failed.map((o) => (o.ok ? '' : o.error)).join('; '))
+    )
+    const added = outcomes.flatMap((o) => (o.ok && o.path ? [o.path] : []))
+    if (added.length > 0) setAttachments((prev) => [...prev, ...added])
+  }
+
+  async function handleAttach(): Promise<void> {
+    absorbOutcomes(await window.aecpilot.pickAttachments())
+  }
+
+  async function handlePasteAttachment(): Promise<boolean> {
+    const outcome = await window.aecpilot.pasteAttachment()
+    // A paste with no image in the clipboard is not an error worth showing —
+    // it is the ordinary case of pasting text, which the textarea handles.
+    if (!outcome.ok) return false
+    absorbOutcomes([outcome])
+    return true
+  }
+
+  async function handleDetach(path: string): Promise<void> {
+    await window.aecpilot.detachAttachment(path)
+    setAttachments((prev) => prev.filter((p) => p !== path))
+  }
 
   function resetHistoryWalk(): void {
     setHistoryCursor(undefined)
@@ -345,6 +393,31 @@ export default function ChatDock({
         {/* Task 1.6.A5: why the agent keeps taking turns nobody typed. */}
         <GoalBadge />
 
+        {/* Task 1.6.A4: what will travel with the next message. */}
+        {attachments.length > 0 && (
+          <ul className="composer-attachments" aria-label="Вложения">
+            {attachments.map((path) => (
+              <li className="composer-attachments__item" key={path}>
+                <span className="composer-attachments__name" title={path}>
+                  {attachmentLabel(path)}
+                </span>
+                <button
+                  type="button"
+                  className="composer-attachments__btn"
+                  aria-label={`Убрать вложение: ${attachmentLabel(path)}`}
+                  onClick={() => void handleDetach(path)}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+            <li className="composer-attachments__summary">
+              {attachmentSummary(attachments.length)}
+            </li>
+          </ul>
+        )}
+        {attachError && <p className="composer-attachments__error">{attachError}</p>}
+
         {/* Task 1.6.8: what was typed while the agent was busy. Editable and
             removable right up until it leaves — a queued message is still the
             user's, not something already said. */}
@@ -410,6 +483,16 @@ export default function ChatDock({
             // changes which `@`-reference is being typed, without changing a
             // character of the draft.
             onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+            // Task 1.6.A4: an image in the clipboard becomes an attachment;
+            // anything else falls through to the textarea's own paste, which
+            // is why the default is only prevented once an image is confirmed
+            // to have been taken.
+            onPaste={(event) => {
+              if (!Array.from(event.clipboardData.items).some((i) => i.type.startsWith('image/')))
+                return
+              event.preventDefault()
+              void handlePasteAttachment()
+            }}
             placeholder="Спросите про проект…"
             // Task 1.6.8: typing is no longer blocked while the agent works —
             // what you write goes to the queue and leaves by itself. Blocking
@@ -422,8 +505,8 @@ export default function ChatDock({
             <button
               type="button"
               className="composer__icon-btn"
-              disabled
-              title="Вложения — Phase 2+"
+              onClick={() => void handleAttach()}
+              title="Прикрепить картинку или PDF"
               aria-label="Прикрепить файл"
             >
               <AttachIcon width={16} height={16} />

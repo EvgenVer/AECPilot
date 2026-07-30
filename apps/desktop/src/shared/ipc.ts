@@ -12,6 +12,12 @@ import type {
   SlashCompletionItem
 } from './gateway/types'
 
+/** What happened to one file the user tried to attach (task 1.6.A4). A
+ * refusal is a normal outcome here — no poppler for a PDF, an unsupported
+ * type — so it is a value, not an exception. */
+export type AttachmentOutcome =
+  { ok: true; path?: string; count: number } | { ok: false; error: string }
+
 /** The currently-open project (tasks 1.3/1.4) — set by `createProject` or
  * `openProject`. */
 export interface OpenProject {
@@ -313,6 +319,17 @@ export interface AecpilotApi {
    * list, because this runs on every keystroke and must not put an error over
    * the composer. */
   completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
+  /** Attachments (task 1.6.A4). The list lives in the gateway's session and is
+   * folded into the next message by `prompt.submit`, so `count` from these
+   * calls is the truth and the composer only mirrors it.
+   *
+   * A PDF becomes one attachment PER PAGE — their side renders pages to images
+   * because the model pipeline takes images, not PDFs. */
+  pickAttachments(): Promise<AttachmentOutcome[]>
+  /** Attaches the image in the OS clipboard, if there is one. A refusal
+   * ("нет картинки") comes back as `ok: false`, not as a rejection. */
+  pasteAttachment(): Promise<AttachmentOutcome>
+  detachAttachment(path: string): Promise<{ count: number }>
   /** Completions for an `@`-reference being typed (task 1.6.A3). Never
    * rejects, for the same reason as `completeSlash`: it runs per keystroke. */
   completePath(word: string): Promise<{ items: SlashCompletionItem[] }>

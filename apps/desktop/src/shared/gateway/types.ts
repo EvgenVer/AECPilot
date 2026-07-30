@@ -202,6 +202,47 @@ export interface GatewayMethodMap {
   'config.set': { params: ConfigSetParams; result: ConfigSetResult }
   'command.dispatch': { params: CommandDispatchParams; result: CommandDispatchResult }
   'complete.path': { params: CompletePathParams; result: CompleteSlashResult }
+  'clipboard.paste': { params: AttachSessionParams; result: AttachResult }
+  'image.attach': { params: AttachPathParams; result: AttachResult }
+  'pdf.attach': { params: AttachPathParams; result: AttachResult }
+  'image.detach': { params: AttachPathParams; result: DetachResult }
+}
+
+/** Attachments (task 1.6.A4).
+ *
+ * The attachment list lives in the GATEWAY's session (`attached_images`), not
+ * here: `prompt.submit` folds it into the next message and clears it. So this
+ * app mirrors their count, it does not own it — which is why every call below
+ * returns `count` and the UI trusts that over anything it tracked itself.
+ *
+ * A PDF is not attached as a PDF: their handler renders each page to PNG via
+ * `pdftoppm` and queues the pages as images (50 MB / 25 pages per call). One
+ * chosen file therefore becomes many attachments. */
+export interface AttachSessionParams {
+  session_id: string
+}
+
+export interface AttachPathParams {
+  session_id: string
+  path: string
+}
+
+export interface AttachResult {
+  attached: boolean
+  path?: string
+  count?: number
+  /** Present on a refusal their side reports as success — `clipboard.paste`
+   * answers `{attached: false, message}` when there is no image, rather than
+   * raising. */
+  message?: string
+  /** `image.attach` suggests this as the message text when the user dropped a
+   * path with no words around it. */
+  text?: string
+}
+
+export interface DetachResult {
+  detached: boolean
+  count: number
 }
 
 /** `complete.path` (task 1.6.A3) — completions for an `@`-reference being

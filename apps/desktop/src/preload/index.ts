@@ -13,6 +13,9 @@ const api: AecpilotApi = {
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   completePath: (word) => ipcRenderer.invoke('chat:complete-path', word),
+  pickAttachments: () => ipcRenderer.invoke('attach:pick'),
+  pasteAttachment: () => ipcRenderer.invoke('attach:paste'),
+  detachAttachment: (path) => ipcRenderer.invoke('attach:detach', path),
   dispatchGoal: (action) => ipcRenderer.invoke('goal:dispatch', action),
   getModelOptions: (refresh) => ipcRenderer.invoke('model:options', refresh === true),
   setModelConfig: (key, value, confirmExpensive) =>

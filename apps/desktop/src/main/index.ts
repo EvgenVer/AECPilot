@@ -1,9 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { basename, isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
 import type { GatewayConnectionState, GatewayEvent } from '../shared/gateway/types'
 import {
@@ -465,6 +466,85 @@ ipcMain.handle('chat:complete-slash', async (_event, text: unknown) => {
   } catch (error: unknown) {
     console.error('aecpilot: complete.slash failed', error)
     return { items: [] }
+  }
+})
+
+// --- Attachments (task 1.6.A4) ---------------------------------------------
+// The list itself lives in the gateway session; these calls only add to and
+// remove from it, and report the count back so the composer mirrors the truth
+// rather than keeping a second copy that could drift.
+//
+// Errors are returned, not thrown: attaching is one of the places where a
+// refusal is normal and informative (no image in the clipboard, no poppler for
+// a PDF), and a rejected IPC call would surface as a bare stack trace.
+type AttachOutcome = { ok: true; path?: string; count: number } | { ok: false; error: string }
+
+async function attachViaGateway(method: 'image.attach' | 'pdf.attach', path: string) {
+  if (!gateway) return { ok: false as const, error: 'нет связи со шлюзом' }
+  const activeSessionId = await ensureSession()
+  try {
+    const result = await gateway.request(method, { session_id: activeSessionId, path })
+    if (!result.attached) {
+      return { ok: false as const, error: result.message ?? 'вложение не принято' }
+    }
+    return { ok: true as const, path: result.path, count: result.count ?? 0 }
+  } catch (error: unknown) {
+    return { ok: false as const, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/** Opens the OS picker and attaches what was chosen. The picker runs here
+ * because the renderer must never be handed a filesystem path it did not get
+ * from the user through a trusted dialog. */
+ipcMain.handle('attach:pick', async (event): Promise<AttachOutcome[]> => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  if (!window) return [{ ok: false, error: 'нет окна' }]
+  const picked = await dialog.showOpenDialog(window, {
+    title: 'Прикрепить к сообщению',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Картинки и PDF', extensions: [...IMAGE_DIALOG_EXTENSIONS, 'pdf'] },
+      { name: 'Все файлы', extensions: ['*'] }
+    ]
+  })
+  if (picked.canceled) return []
+  const outcomes: AttachOutcome[] = []
+  for (const filePath of picked.filePaths) {
+    const kind = classifyAttachment(filePath)
+    if (kind === 'unsupported') {
+      outcomes.push({ ok: false, error: `не поддерживается: ${basename(filePath)}` })
+      continue
+    }
+    outcomes.push(await attachViaGateway(kind === 'pdf' ? 'pdf.attach' : 'image.attach', filePath))
+  }
+  return outcomes
+})
+
+/** Attaches the image sitting in the OS clipboard. Their handler reads the
+ * clipboard on the GATEWAY's host — which is this machine, because this app
+ * spawns its own gateway (runtime/serve.mjs). It would be the wrong call for a
+ * remote gateway; there their `image.attach_bytes` is the path. */
+ipcMain.handle('attach:paste', async (): Promise<AttachOutcome> => {
+  if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
+  const activeSessionId = await ensureSession()
+  try {
+    const result = await gateway.request('clipboard.paste', { session_id: activeSessionId })
+    if (!result.attached) return { ok: false, error: result.message ?? 'в буфере нет картинки' }
+    return { ok: true, path: result.path, count: result.count ?? 0 }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('attach:detach', async (_event, path: unknown): Promise<{ count: number }> => {
+  if (typeof path !== 'string' || !gateway) return { count: 0 }
+  const activeSessionId = await ensureSession()
+  try {
+    const result = await gateway.request('image.detach', { session_id: activeSessionId, path })
+    return { count: result.count }
+  } catch (error: unknown) {
+    console.error('aecpilot: image.detach failed', error)
+    return { count: 0 }
   }
 })
 
