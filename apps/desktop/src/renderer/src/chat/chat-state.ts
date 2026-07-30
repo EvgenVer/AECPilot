@@ -5,7 +5,8 @@
 import {
   isGatewayEventOfType,
   type GatewayEvent,
-  type HistoryMessage
+  type HistoryMessage,
+  type SubagentEvent
 } from '../../../shared/gateway/types'
 
 export interface ChatMessage {
@@ -57,7 +58,42 @@ export interface ChatReasoning {
   endedAt?: number
 }
 
-export type ChatItem = ChatMessage | ChatToolCall | ChatReasoning
+/** A delegated child agent (task 1.6.A1). One card per child, updated in
+ * place by its own `subagent.*` events. `parentId`/`depth` carry their spawn
+ * tree so a child of a child renders nested rather than flat — both are
+ * optional in the protocol, and their own comment says an emitter that omits
+ * them is meant to render flat. */
+export interface ChatSubagent {
+  kind: 'subagent'
+  /** Stable React key: their `subagent_id` when present, else a synthesized
+   * one — the transcript must never key on the array index. */
+  id: string
+  goal: string
+  model?: string
+  parentId?: string
+  depth: number
+  taskIndex: number
+  taskCount: number
+  /** Last thing it was seen doing — its thinking preview or a tool preview. */
+  activity?: string
+  toolCount: number
+  status: 'running' | 'complete' | 'interrupted'
+  summary?: string
+  durationS?: number
+}
+
+/** A Mixture-of-Agents turn (task 1.6.A2): several models are consulted and
+ * one aggregates them. One card per turn, listing who was asked. */
+export interface ChatMoa {
+  kind: 'moa'
+  id: number
+  models: string[]
+  expected?: number
+  aggregator?: string
+  status: 'consulting' | 'aggregating'
+}
+
+export type ChatItem = ChatMessage | ChatToolCall | ChatReasoning | ChatSubagent | ChatMoa
 
 /** A pending `approval.request` from the agent. Approvals form a FIFO queue
  * per session (no request id) and are rendered pinned above the input, not
@@ -123,7 +159,14 @@ export const HANDLED_GATEWAY_EVENTS = [
   'approval.request',
   'clarify.request',
   'secret.request',
-  'sudo.request'
+  'sudo.request',
+  'subagent.start',
+  'subagent.thinking',
+  'subagent.tool',
+  'subagent.complete',
+  'subagent.interrupt',
+  'moa.reference',
+  'moa.aggregating'
 ] as const
 
 /** Events we knowingly ignore — no warning, they are not a parity gap. */
@@ -149,16 +192,22 @@ export function transcriptCensus(items: ChatItem[]): {
   messages: number
   tools: number
   reasoning: number
+  subagents: number
+  moa: number
 } {
   let messages = 0
   let tools = 0
   let reasoning = 0
+  let subagents = 0
+  let moa = 0
   for (const item of items) {
     if (item.kind === 'message') messages++
     else if (item.kind === 'tool') tools++
-    else reasoning++
+    else if (item.kind === 'reasoning') reasoning++
+    else if (item.kind === 'subagent') subagents++
+    else moa++
   }
-  return { messages, tools, reasoning }
+  return { messages, tools, reasoning, subagents, moa }
 }
 
 export type ChatAction =
@@ -182,10 +231,10 @@ export type ChatAction =
 function inFlightIndex(items: ChatItem[]): number | undefined {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]
-    // Tool cards and reasoning blocks (task 1.5.D1) may both sit after the
-    // in-flight bubble — skip over them rather than giving up at the first
-    // non-message item.
-    if (item.kind === 'tool' || item.kind === 'reasoning') continue
+    // Tool cards, reasoning blocks (task 1.5.D1) and — since 1.6.A1/A2 —
+    // subagent and MoA cards may all sit after the in-flight bubble; skip
+    // over them rather than giving up at the first non-message item.
+    if (item.kind !== 'message') continue
     if (item.role === 'assistant' && item.status === 'streaming') return i
     break
   }
@@ -330,6 +379,15 @@ function mapHistoryMessage(message: HistoryMessage, index: number): ChatItem | u
     }
   }
   return undefined
+}
+
+/** All five `subagent.*` events share one payload shape, so one predicate
+ * narrows them together. A chain of five `isGatewayEventOfType` calls would
+ * not: each `||` operand is checked with the previous one negated, and since
+ * every branch narrows to the same `SubagentEvent`, the last one would be
+ * `never`. */
+function isSubagentEvent(event: GatewayEvent): event is SubagentEvent {
+  return event.type.startsWith('subagent.')
 }
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
@@ -492,6 +550,109 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       durationS: duration_s,
       result: resultText,
       status: 'complete'
+    }
+    return { ...state, items }
+  }
+
+  // --- Delegated child agents (task 1.6.A1) --------------------------------
+  // Five events reach the PARENT session, not six: `subagent.text` (the
+  // child's reply tokens) is deliberately not emitted here — see
+  // `SubagentEvent`'s doc comment. All of them carry the same payload shape,
+  // so one upsert serves them all.
+  if (isSubagentEvent(event)) {
+    const payload = event.payload ?? ({} as (typeof event)['payload'])
+    // Identity is optional in their protocol. Without it every child of one
+    // turn would collapse into a single card, so fall back to the goal, which
+    // is what actually distinguishes two children of the same parent.
+    const id = payload.subagent_id ?? `goal:${payload.goal ?? ''}`
+    const index = state.items.findIndex((item) => item.kind === 'subagent' && item.id === id)
+
+    const status: ChatSubagent['status'] =
+      event.type === 'subagent.complete'
+        ? 'complete'
+        : event.type === 'subagent.interrupt'
+          ? 'interrupted'
+          : 'running'
+
+    if (index === -1) {
+      const card: ChatSubagent = {
+        kind: 'subagent',
+        id,
+        goal: payload.goal ?? '',
+        model: payload.model,
+        parentId: payload.parent_id,
+        depth: payload.depth ?? 0,
+        taskIndex: payload.task_index ?? 0,
+        taskCount: payload.task_count ?? 1,
+        activity: payload.text,
+        toolCount: event.type === 'subagent.tool' ? 1 : 0,
+        status,
+        summary: payload.summary,
+        durationS: payload.duration_seconds
+      }
+      return { ...state, items: [...state.items, card] }
+    }
+
+    const items = [...state.items]
+    const current = items[index] as ChatSubagent
+    items[index] = {
+      ...current,
+      // A later event may carry fields the first one lacked; it must never
+      // blank a field it simply does not repeat.
+      goal: payload.goal || current.goal,
+      model: payload.model ?? current.model,
+      activity: payload.text ?? current.activity,
+      toolCount: event.type === 'subagent.tool' ? current.toolCount + 1 : current.toolCount,
+      status,
+      summary: payload.summary ?? current.summary,
+      durationS: payload.duration_seconds ?? current.durationS
+    }
+    return { ...state, items }
+  }
+
+  // --- Mixture of Agents (task 1.6.A2) -------------------------------------
+  // One card per turn: `moa.reference` names each model consulted,
+  // `moa.aggregating` says who merges them. Both fold into the last MoA card
+  // of the transcript, creating it if this is the first signal of the turn.
+  if (
+    isGatewayEventOfType(event, 'moa.reference') ||
+    isGatewayEventOfType(event, 'moa.aggregating')
+  ) {
+    const payload = event.payload ?? ({} as (typeof event)['payload'])
+    let index = -1
+    for (let i = state.items.length - 1; i >= 0; i -= 1) {
+      if (state.items[i]?.kind === 'moa') {
+        index = i
+        break
+      }
+    }
+    const aggregating = isGatewayEventOfType(event, 'moa.aggregating')
+    const model = aggregating ? undefined : (payload as { model?: string }).model
+    const expected = aggregating ? undefined : (payload as { count?: number }).count
+    const aggregator = aggregating ? (payload as { aggregator?: string }).aggregator : undefined
+
+    if (index === -1) {
+      const card: ChatMoa = {
+        kind: 'moa',
+        id: state.nextId,
+        models: model ? [model] : [],
+        expected,
+        aggregator,
+        status: aggregating ? 'aggregating' : 'consulting'
+      }
+      return { ...state, items: [...state.items, card], nextId: state.nextId + 1 }
+    }
+
+    const items = [...state.items]
+    const current = items[index] as ChatMoa
+    items[index] = {
+      ...current,
+      // A model consulted twice is still one model in the list.
+      models:
+        model && !current.models.includes(model) ? [...current.models, model] : current.models,
+      expected: expected ?? current.expected,
+      aggregator: aggregator ?? current.aggregator,
+      status: aggregating ? 'aggregating' : current.status
     }
     return { ...state, items }
   }

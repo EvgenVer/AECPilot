@@ -8,6 +8,7 @@ import ClarifyCard from './ClarifyCard'
 import SecretCard from './SecretCard'
 import SudoCard from './SudoCard'
 import SessionMenu from './SessionMenu'
+import SubagentCard, { MoaCard } from './SubagentCard'
 import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import {
   applySlashCompletion,
@@ -230,6 +231,10 @@ export default function ChatDock({
             <ToolCallCard key={item.toolId} call={item} />
           ) : item.kind === 'reasoning' ? (
             <ReasoningCard key={`r${item.id}`} block={item} />
+          ) : item.kind === 'subagent' ? (
+            <SubagentCard key={`s${item.id}`} agent={item} />
+          ) : item.kind === 'moa' ? (
+            <MoaCard key={`m${item.id}`} moa={item} />
           ) : (
             <div
               key={item.id}

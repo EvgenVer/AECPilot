@@ -423,6 +423,61 @@ export interface UnknownGatewayEvent {
   payload?: unknown
 }
 
+/** A delegated child agent's activity, relayed on the PARENT session (task
+ * 1.6.A1). Contract read off `tui_gateway/server.py`'s `subagent.*` branch:
+ * every event of the family carries `goal`/`task_count`/`task_index`, and the
+ * identity fields are all optional — an older emitter that omits them is meant
+ * to render flat rather than as a tree.
+ *
+ * NOTE, measured in the source rather than assumed: `subagent.text` (the
+ * child's reply tokens) is deliberately NOT emitted on the parent session —
+ * `if event_type != "subagent.text": _emit(...)`. It only reaches a window
+ * opened on the child's own session. So the parent transcript sees five
+ * events, not the six the family suggests. */
+export interface SubagentEvent {
+  type:
+    | 'subagent.start'
+    | 'subagent.thinking'
+    | 'subagent.tool'
+    | 'subagent.complete'
+    | 'subagent.interrupt'
+  session_id?: string
+  payload: {
+    goal: string
+    task_count: number
+    task_index: number
+    subagent_id?: string
+    parent_id?: string
+    child_session_id?: string
+    depth?: number
+    model?: string
+    tool_count?: number
+    toolsets?: string[]
+    /** Preview text: the child's thinking, or a tool preview. */
+    text?: string
+    tool_name?: string
+    status?: string
+    summary?: string
+    duration_seconds?: number
+    input_tokens?: number
+    output_tokens?: number
+  }
+}
+
+/** One model consulted by a Mixture-of-Agents turn (task 1.6.A2). */
+export interface MoaReferenceEvent {
+  type: 'moa.reference'
+  session_id?: string
+  payload: { model?: string; index?: number; count?: number }
+}
+
+/** The aggregator has started merging the consulted models' answers. */
+export interface MoaAggregatingEvent {
+  type: 'moa.aggregating'
+  session_id?: string
+  payload: { aggregator: string }
+}
+
 export type GatewayEvent =
   | GatewayReadyEvent
   | MessageStartEvent
@@ -441,6 +496,9 @@ export type GatewayEvent =
   | ClarifyRequestEvent
   | SecretRequestEvent
   | SudoRequestEvent
+  | SubagentEvent
+  | MoaReferenceEvent
+  | MoaAggregatingEvent
   | UnknownGatewayEvent
 
 /** Narrows a `GatewayEvent` to the known variant matching `type`, if any.

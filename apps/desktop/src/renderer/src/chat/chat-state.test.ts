@@ -173,7 +173,6 @@ describe('chatReducer', () => {
     })
 
     it('flags an event nobody has taught the chat about', () => {
-      expect(isUnknownGatewayEvent('subagent.start')).toBe(true)
       expect(isUnknownGatewayEvent('notification.show')).toBe(true)
       expect(isUnknownGatewayEvent('something.invented.later')).toBe(true)
     })
@@ -867,6 +866,112 @@ describe('chatReducer', () => {
   })
 })
 
+// Task 1.6.A1 — delegated child agents. Five events reach the parent session,
+// not six: the child's own reply tokens (`subagent.text`) are deliberately not
+// emitted here, so the card is the ONLY window into that work.
+describe('subagent cards', () => {
+  it('keeps one card per child and updates it in place', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'subagent.start',
+        payload: { subagent_id: 'a', goal: 'найти утечку', model: 'opus' }
+      })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'subagent.thinking', payload: { subagent_id: 'a', text: 'смотрю логи' } })
+    )
+
+    const cards = state.items.filter((i) => i.kind === 'subagent')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({
+      id: 'a',
+      goal: 'найти утечку',
+      model: 'opus',
+      activity: 'смотрю логи',
+      status: 'running',
+      toolCount: 0
+    })
+  })
+
+  it('counts the child tool calls and does not blank fields a later event omits', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'subagent.start', payload: { subagent_id: 'a', goal: 'цель', model: 'opus' } })
+    )
+    state = chatReducer(state, ev({ type: 'subagent.tool', payload: { subagent_id: 'a' } }))
+    state = chatReducer(state, ev({ type: 'subagent.tool', payload: { subagent_id: 'a' } }))
+
+    expect(state.items[0]).toMatchObject({ toolCount: 2, goal: 'цель', model: 'opus' })
+  })
+
+  it('closes the card on complete and on interrupt', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'subagent.start', payload: { subagent_id: 'a' } }))
+    state = chatReducer(
+      state,
+      ev({
+        type: 'subagent.complete',
+        payload: { subagent_id: 'a', summary: 'нашёл', duration_seconds: 4.2 }
+      })
+    )
+    expect(state.items[0]).toMatchObject({ status: 'complete', summary: 'нашёл', durationS: 4.2 })
+
+    state = chatReducer(state, ev({ type: 'subagent.start', payload: { subagent_id: 'b' } }))
+    state = chatReducer(state, ev({ type: 'subagent.interrupt', payload: { subagent_id: 'b' } }))
+    expect(state.items[1]).toMatchObject({ id: 'b', status: 'interrupted' })
+  })
+
+  it('does not collapse two identity-less children of one turn into one card', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'subagent.start', payload: { goal: 'первая' } }))
+    state = chatReducer(state, ev({ type: 'subagent.start', payload: { goal: 'вторая' } }))
+    expect(state.items.filter((i) => i.kind === 'subagent')).toHaveLength(2)
+  })
+})
+
+// Task 1.6.A2 — one Mixture-of-Agents card per turn.
+describe('MoA card', () => {
+  it('collects the consulted models into one card, without repeats', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'moa.reference', payload: { model: 'opus', count: 3 } }))
+    state = chatReducer(state, ev({ type: 'moa.reference', payload: { model: 'sonnet' } }))
+    state = chatReducer(state, ev({ type: 'moa.reference', payload: { model: 'opus' } }))
+
+    const cards = state.items.filter((i) => i.kind === 'moa')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({
+      models: ['opus', 'sonnet'],
+      expected: 3,
+      status: 'consulting'
+    })
+  })
+
+  it('switches to aggregating and remembers who merges the answers', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'moa.reference', payload: { model: 'opus' } }))
+    state = chatReducer(state, ev({ type: 'moa.aggregating', payload: { aggregator: 'opus' } }))
+
+    expect(state.items[0]).toMatchObject({
+      status: 'aggregating',
+      aggregator: 'opus',
+      models: ['opus']
+    })
+  })
+
+  it('starts a card even when aggregating is the first signal of the turn', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'moa.aggregating', payload: { aggregator: 'opus' } })
+    )
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0]).toMatchObject({ kind: 'moa', status: 'aggregating', models: [] })
+  })
+})
+
 // Task 1.6.2 — the census that instruments the "карточки хода пропадают"
 // defect. Trivial arithmetic, but it is the thing the diagnosis leans on, so
 // it gets pinned: it must count what is there and nothing else.
@@ -879,10 +984,22 @@ describe('transcriptCensus', () => {
       { kind: 'tool', toolId: 't2', name: 'grep', context: '', status: 'running' },
       { kind: 'message', id: 2, role: 'assistant', text: 'ответ', status: 'complete' }
     ]
-    expect(transcriptCensus(items)).toEqual({ messages: 2, tools: 2, reasoning: 1 })
+    expect(transcriptCensus(items)).toEqual({
+      messages: 2,
+      tools: 2,
+      reasoning: 1,
+      subagents: 0,
+      moa: 0
+    })
   })
 
   it('на пустой ленте даёт нули, а не undefined', () => {
-    expect(transcriptCensus([])).toEqual({ messages: 0, tools: 0, reasoning: 0 })
+    expect(transcriptCensus([])).toEqual({
+      messages: 0,
+      tools: 0,
+      reasoning: 0,
+      subagents: 0,
+      moa: 0
+    })
   })
 })

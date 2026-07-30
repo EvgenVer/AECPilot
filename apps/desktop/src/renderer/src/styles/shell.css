@@ -2995,3 +2995,87 @@ body.resizing-row * {
 .ansi--bright-black {
   color: var(--text-3);
 }
+
+/* Карточка подагента и «совета моделей» (задачи 1.6.A1, 1.6.A2). Отличается
+   от карточки инструмента намеренно: инструмент — это действие агента, а
+   подагент — отдельный работник, поэтому у него своя рамка и отступ по
+   глубине порождения. */
+.subagent-card {
+  align-self: stretch;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-inline-start: 2px solid var(--accent);
+  border-radius: var(--r-card);
+  background: var(--bg-raised);
+  padding: 7px 10px;
+  font-size: var(--fs-small);
+}
+
+.subagent-card--complete {
+  border-inline-start-color: var(--success);
+}
+
+.subagent-card--interrupted {
+  border-inline-start-color: var(--warning);
+}
+
+.subagent-card--moa {
+  border-inline-start-color: var(--text-3);
+}
+
+.subagent-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subagent-card__icon {
+  color: var(--text-3);
+  display: inline-flex;
+}
+
+.subagent-card__goal {
+  color: var(--text-1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-card__meta,
+.subagent-card__tools {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.subagent-card__spacer {
+  flex: 1;
+}
+
+.subagent-card__status {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.subagent-card__status--running {
+  color: var(--accent);
+}
+
+.subagent-card__status--complete {
+  color: var(--success);
+}
+
+.subagent-card__status--interrupted {
+  color: var(--warning);
+}
+
+.subagent-card__body {
+  margin-top: 4px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.subagent-card__tools {
+  margin-top: 3px;
+}
