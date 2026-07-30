@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { basename, isAbsolute, join } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
@@ -34,6 +35,11 @@ import {
   removeSourceFromProject,
   type OpenProject
 } from './project-manager'
+import {
+  CHECKPOINT_MARKERS,
+  resolveCheckpointScope,
+  type CheckpointScope
+} from './checkpoint-scope-pure'
 import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
@@ -634,6 +640,88 @@ ipcMain.handle('goal:dispatch', async (_event, action: unknown) => {
     console.error('aecpilot: goal dispatch failed', error)
     return { output: '' }
   }
+})
+
+// --- Checkpoints / rollback (task 1.6.C2) ----------------------------------
+// Contract: specs/checkpoints-rollback.md. Everything below addresses the
+// session's cwd (= the open vault) because the gateway offers no directory
+// parameter; `checkpointScope()` is what lets the screen explain an empty
+// list instead of just showing one.
+
+function checkpointScope(): CheckpointScope | { kind: 'unknown' } {
+  if (!currentProject) return { kind: 'unknown' }
+  try {
+    return resolveCheckpointScope(
+      resolve(currentProject.vaultPath),
+      homedir(),
+      (dir) => CHECKPOINT_MARKERS.some((marker) => existsSync(join(dir, marker))),
+      dirname
+    )
+  } catch (error: unknown) {
+    // An unreadable/removed vault root must not take the screen down — the
+    // list itself may still be answerable.
+    console.error('aecpilot: checkpoint scope probe failed', error)
+    return { kind: 'unknown' }
+  }
+}
+
+/** Same shape their `_validate_commit_hash` accepts (4–64 hex). Checking it
+ * here means a malformed id never reaches the gateway, and in particular that
+ * a plain integer can never get through — their `_resolve_checkpoint_hash`
+ * would silently reinterpret one as a 1-based position in the list. */
+function isCheckpointHash(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-fA-F]{4,64}$/.test(value)
+}
+
+/** A vault-relative path, mirroring their `_validate_file_path`: non-empty,
+ * not absolute, no `..` segment. */
+function isRestorableRelPath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.trim() === '') return false
+  if (isAbsolute(value) || /^[a-zA-Z]:/.test(value)) return false
+  return !value.split(/[/\\]/).includes('..')
+}
+
+ipcMain.handle('rollback:list', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  const activeSessionId = await ensureSession()
+  const result = await gateway.request('rollback.list', { session_id: activeSessionId })
+  return {
+    enabled: result.enabled === true,
+    checkpoints: Array.isArray(result.checkpoints) ? result.checkpoints : [],
+    scope: checkpointScope()
+  }
+})
+
+ipcMain.handle('rollback:diff', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { hash } = (payload ?? {}) as { hash?: unknown }
+  if (!isCheckpointHash(hash)) throw new Error('invalid checkpoint hash')
+  const activeSessionId = await ensureSession()
+  return gateway.request('rollback.diff', { session_id: activeSessionId, hash })
+})
+
+// DESTRUCTIVE: overwrites files in the user's vault. `confirmed` is required
+// and is checked here rather than only in the renderer, so there is no way to
+// reach a restore without the screen's explicit confirmation step having been
+// taken — a bug or a stray call in the renderer cannot skip it.
+ipcMain.handle('rollback:restore', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { hash, filePath, confirmed } = (payload ?? {}) as {
+    hash?: unknown
+    filePath?: unknown
+    confirmed?: unknown
+  }
+  if (confirmed !== true) throw new Error('rollback.restore requires explicit confirmation')
+  if (!isCheckpointHash(hash)) throw new Error('invalid checkpoint hash')
+  if (filePath !== undefined && !isRestorableRelPath(filePath)) {
+    throw new Error('invalid file path')
+  }
+  const activeSessionId = await ensureSession()
+  return gateway.request('rollback.restore', {
+    session_id: activeSessionId,
+    hash,
+    ...(filePath === undefined ? {} : { file_path: filePath })
+  })
 })
 
 const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const

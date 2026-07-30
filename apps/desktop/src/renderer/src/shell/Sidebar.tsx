@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
+import RollbackPanel from './RollbackPanel'
 import {
   ClearIcon,
   CopyIcon,
@@ -30,12 +31,11 @@ import {
 } from './explorer-context-menu-pure'
 import type { OpenProject, ProjectSource, SourceTreeNode, VaultTreeNode } from '../../../shared/ipc'
 
-const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer'>, string> = {
+const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer' | 'agent'>, string> = {
   qa: 'Поиск по проекту появится здесь (Phase 2).',
   wiki: 'Дерево страниц вики появится здесь (Phase 3).',
   memory: 'Записи памяти появятся здесь (Phase 4).',
-  documents: 'Мастер генерации документов появится здесь (Phase 4).',
-  agent: 'Персона, скиллы, MCP-серверы агента появятся здесь (Phase 4).'
+  documents: 'Мастер генерации документов появится здесь (Phase 4).'
 }
 
 const STATUS_PILL: Record<SourceStatus, { label: string; modifier: string }> = {
@@ -1343,6 +1343,14 @@ export default function Sidebar({
           onResizeSources={onResizeSources}
           onCommitSizes={onCommitSizes}
         />
+      ) : active === 'agent' ? (
+        // Task 1.6.C2. The hub gets its first real section: the rollback
+        // screen. Persona/skills/MCP join it in later batches (PLAN §Phase 1.6,
+        // "Карта размещения экранов" — everything agent-related lives here).
+        <div className="sidebar__scroll">
+          <div className="sidebar__section-title">Откат изменений</div>
+          <RollbackPanel />
+        </div>
       ) : (
         <div className="sidebar__empty">{SIDEBAR_EMPTY_HINT[active]}</div>
       )}

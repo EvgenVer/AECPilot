@@ -206,6 +206,9 @@ export interface GatewayMethodMap {
   'image.attach': { params: AttachPathParams; result: AttachResult }
   'pdf.attach': { params: AttachPathParams; result: AttachResult }
   'image.detach': { params: AttachPathParams; result: DetachResult }
+  'rollback.list': { params: RollbackListParams; result: RollbackListResult }
+  'rollback.diff': { params: RollbackDiffParams; result: RollbackDiffResult }
+  'rollback.restore': { params: RollbackRestoreParams; result: RollbackRestoreResult }
 }
 
 /** Attachments (task 1.6.A4).
@@ -389,6 +392,91 @@ export interface SlashCompletionItem {
 
 export interface CompleteSlashResult {
   items: SlashCompletionItem[]
+}
+
+/** Checkpoints and rollback (task 1.6.C2, contract:
+ * specs/checkpoints-rollback.md).
+ *
+ * The one thing to know before reading the shapes below: none of the three
+ * methods takes a directory. They all operate on the SESSION's cwd
+ * (`_with_checkpoints`, tui_gateway/server.py), while hermes files each
+ * snapshot under whatever directory `get_working_dir_for_path` picked for the
+ * edited file — see `main/checkpoint-scope-pure.ts` for why that makes an
+ * empty list ambiguous and how this app diagnoses it.
+ *
+ * The gateway also loses data the core has: `list_checkpoints` returns the
+ * snapshot's reason as `reason` plus `short_hash`/`files_changed`/
+ * `insertions`/`deletions`, but the handler copies `c.get("message", "")` and
+ * drops the rest — so `message` is ALWAYS empty here and there is no change
+ * count to show. Nothing in the UI may pretend otherwise. */
+export interface RollbackListParams {
+  session_id: string
+}
+
+export interface RollbackCheckpoint {
+  /** Full 40-char hash — the id to pass back to diff/restore. */
+  hash: string
+  /** ISO 8601 with offset (git `%aI`). */
+  timestamp: string
+  /** Always the empty string on this path; see the note above. */
+  message?: string
+}
+
+/** `enabled` is the core's `CheckpointManager.enabled` — under our integration
+ * it comes from the `HERMES_TUI_CHECKPOINTS` env var, NOT `checkpoints.enabled`
+ * in config.yaml (task 1.6.C1). When false the handler answers an empty list
+ * without touching the store, so "off" and "nothing recorded" are only
+ * distinguishable by this flag. */
+export interface RollbackListResult {
+  enabled: boolean
+  checkpoints: RollbackCheckpoint[]
+}
+
+export interface RollbackDiffParams {
+  session_id: string
+  hash: string
+}
+
+/** Diff of the snapshot against the CURRENT working tree.
+ *
+ * Two server-side quirks the UI has to live with: `diff` is sliced to 4000
+ * characters with no truncation marker, and a failed `mgr.diff()` (unknown or
+ * pruned hash, no store yet) is NOT propagated — the handler reads the missing
+ * `stat`/`diff` keys and answers two empty strings, indistinguishable from "no
+ * changes". `rendered` is an ANSI rendering sized for their terminal; this app
+ * ignores it. */
+export interface RollbackDiffResult {
+  stat: string
+  diff: string
+  rendered?: string
+}
+
+/** `file_path` must be relative to the working directory (their
+ * `_validate_file_path` rejects absolute paths and `..` traversal). Omitting
+ * it means a FULL restore, which also truncates the session history — and is
+ * refused with JSON-RPC 4009 while a turn is running; a file-scoped restore is
+ * allowed at any time. */
+export interface RollbackRestoreParams {
+  session_id: string
+  hash: string
+  file_path?: string
+}
+
+/** Unlike `rollback.diff`, this one passes the manager's result through whole,
+ * so `success: false` + `error` is a normal, expected answer that arrives as a
+ * successful RPC response. */
+export interface RollbackRestoreResult {
+  success: boolean
+  error?: string
+  /** Short (8-char) hash of the snapshot restored to. */
+  restored_to?: string
+  /** The snapshot's reason — the only path on which this app ever learns it. */
+  reason?: string
+  directory?: string
+  file?: string
+  /** Full restores only: how many trailing messages were dropped from the
+   * session history so the agent's context matches the restored files. */
+  history_removed?: number
 }
 
 /** Answer to a `clarify.request` (task 1.5.D1). `request_id` must echo the

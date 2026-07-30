@@ -8,6 +8,9 @@ import type {
   GatewayEvent,
   HistoryMessage,
   ModelOptionsResult,
+  RollbackCheckpoint,
+  RollbackDiffResult,
+  RollbackRestoreResult,
   SessionSummary,
   SlashCompletionItem
 } from './gateway/types'
@@ -145,6 +148,25 @@ export interface ScanReport {
 export interface ScanReportEnvelope {
   vaultPath: string
   report: ScanReport
+}
+
+/** Why an empty snapshot list may not mean "the agent changed nothing" (task
+ * 1.6.C2) — computed in main by replaying hermes's own working-directory
+ * search over the vault root; see `main/checkpoint-scope-pure.ts`.
+ * `unknown` means no project is open (or the vault root couldn't be read), so
+ * nothing can be said either way. */
+export type CheckpointScopeInfo =
+  | { kind: 'vault' }
+  | { kind: 'ancestor'; dir: string }
+  | { kind: 'blocked'; dir: string }
+  | { kind: 'unmarked' }
+  | { kind: 'unknown' }
+
+/** `rollback.list`'s answer plus the local diagnosis above. */
+export interface RollbackListing {
+  enabled: boolean
+  checkpoints: RollbackCheckpoint[]
+  scope: CheckpointScopeInfo
 }
 
 export interface AecpilotApi {
@@ -388,6 +410,33 @@ export interface AecpilotApi {
    * clipboard itself, never concatenating the vault root with `rel` on its
    * own (anti-traversal resolution stays a main-process concern). */
   getVaultEntryPath(rel: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Checkpoints and rollback (task 1.6.C2, contract
+   * specs/checkpoints-rollback.md). All three address the agent session's
+   * working directory — the open vault — because the gateway takes no
+   * directory parameter.
+   *
+   * Snapshots, most recent first. `enabled: false` is "checkpoints are off",
+   * which is a different thing from an empty list; `scope` explains an empty
+   * list that is NOT the agent's inactivity. Rejects when the gateway is
+   * unreachable — this screen is opened deliberately, so a failure is worth
+   * showing rather than swallowing. */
+  listCheckpoints(): Promise<RollbackListing>
+  /** Diff of one snapshot against the vault's current state. Two empty
+   * strings is an ambiguous answer their handler cannot disambiguate: it means
+   * "no changes" OR "no such snapshot" (see `RollbackDiffResult`). */
+  diffCheckpoint(hash: string): Promise<RollbackDiffResult>
+  /** DESTRUCTIVE — overwrites files in the vault. `confirmed` must be `true`;
+   * main rejects the call otherwise, so the screen's confirmation step cannot
+   * be bypassed. `filePath` (vault-relative) restores just that one file and
+   * leaves the chat history alone; omitting it is a full restore, which also
+   * drops the last turn from the session history and is refused by the gateway
+   * while a turn is running. A refusal from hermes arrives as a resolved
+   * `{ success: false, error }`, not a rejection. */
+  restoreCheckpoint(payload: {
+    hash: string
+    filePath?: string
+    confirmed: true
+  }): Promise<RollbackRestoreResult>
   /** Reads the scan scheduler's current state (task 1.14): whether a scan is
    * in flight right now, and the most recent completed report (`null` if no
    * scan has finished yet this session, or the project was switched since —
