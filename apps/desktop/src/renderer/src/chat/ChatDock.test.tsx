@@ -10,13 +10,20 @@ import { initialChatState, type ChatState } from './chat-state'
 
 const submitPrompt = vi.fn()
 const completeSlash = vi.fn()
+// Task 1.6.A5: the goal badge polls on mount, so the dock cannot be rendered
+// without this. Empty output is their "no goal", which keeps the badge off
+// screen and leaves these tests about the composer.
+const dispatchGoal = vi.fn()
 
 beforeEach(() => {
   submitPrompt.mockResolvedValue(undefined)
   completeSlash.mockResolvedValue({ items: [] })
+  dispatchGoal.mockResolvedValue({ output: '' })
   window.aecpilot = {
     submitPrompt,
     completeSlash,
+    dispatchGoal,
+    onChatEvent: () => () => {},
     listSessions: async () => ({ sessions: [] })
   } as unknown as typeof window.aecpilot
 })

@@ -313,6 +313,12 @@ export interface AecpilotApi {
    * list, because this runs on every keystroke and must not put an error over
    * the composer. */
   completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
+  /** Reads or controls the standing goal (task 1.6.A5). Never rejects: the
+   * badge polls this, and a gateway without the goals module must not put an
+   * error over the chat — it comes back as an empty `output`, which reads as
+   * "no goal". Setting a goal is not here: `/goal <text>` in the composer is
+   * the one way in. */
+  dispatchGoal(action: 'status' | 'pause' | 'resume' | 'clear'): Promise<{ output: string }>
   /** The provider/model catalogue for the composer's picker (task 1.6.9).
    * `refresh` re-fetches every provider's live list and probes custom
    * endpoints — slow, so it is only for an explicit "обновить". */

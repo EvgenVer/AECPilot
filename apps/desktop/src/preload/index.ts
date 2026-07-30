@@ -12,6 +12,7 @@ const api: AecpilotApi = {
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
+  dispatchGoal: (action) => ipcRenderer.invoke('goal:dispatch', action),
   getModelOptions: (refresh) => ipcRenderer.invoke('model:options', refresh === true),
   setModelConfig: (key, value, confirmExpensive) =>
     ipcRenderer.invoke('model:set-config', { key, value, confirmExpensive }),

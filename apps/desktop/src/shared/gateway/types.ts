@@ -200,6 +200,32 @@ export interface GatewayMethodMap {
   'complete.slash': { params: CompleteSlashParams; result: CompleteSlashResult }
   'model.options': { params: ModelOptionsParams; result: ModelOptionsResult }
   'config.set': { params: ConfigSetParams; result: ConfigSetResult }
+  'command.dispatch': { params: CommandDispatchParams; result: CommandDispatchResult }
+}
+
+/** `command.dispatch` (task 1.6.A5) — runs one slash command by name. We use
+ * it for `goal` only.
+ *
+ * Why this and not `slash.exec`: their `slash.exec` recognises `goal` as a
+ * `_PENDING_INPUT_COMMANDS` entry and forwards it straight here, because the
+ * slash worker subprocess has no reader for the queue those commands write to.
+ * Calling the destination directly removes a hop that exists only for their
+ * TUI's benefit. */
+export interface CommandDispatchParams {
+  name: string
+  arg: string
+  session_id?: string
+}
+
+/** Two shapes, discriminated by `type`: `exec` is output to display, `send` is
+ * a prompt their side wants submitted as a user turn (with `notice` shown
+ * first). `/goal <text>` returns `send` — setting a goal immediately kicks it
+ * off — while status/pause/resume/clear return `exec`. */
+export interface CommandDispatchResult {
+  type: 'exec' | 'send'
+  output?: string
+  notice?: string
+  message?: string
 }
 
 /** `model.options` (task 1.6.9) — the provider/model catalogue behind the

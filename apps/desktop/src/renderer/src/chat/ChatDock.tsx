@@ -10,6 +10,7 @@ import SudoCard from './SudoCard'
 import SessionMenu from './SessionMenu'
 import SubagentCard, { MoaCard } from './SubagentCard'
 import ModelPicker from './ModelPicker'
+import GoalBadge from './GoalBadge'
 import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import {
   applySlashCompletion,
@@ -298,6 +299,9 @@ export default function ChatDock({
       )}
 
       <div className="chat-dock__composer">
+        {/* Task 1.6.A5: why the agent keeps taking turns nobody typed. */}
+        <GoalBadge />
+
         {/* Task 1.6.8: what was typed while the agent was busy. Editable and
             removable right up until it leaves — a queued message is still the
             user's, not something already said. */}

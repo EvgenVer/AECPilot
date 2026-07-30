@@ -2999,6 +2999,54 @@ body.resizing-row * {
   white-space: nowrap;
 }
 
+/* Индикатор активной цели (задача 1.6.A5). Стоит над композером, потому что
+   объясняет ходы, которых пользователь не просил, — их видно сразу над лентой,
+   а не в статус-баре на другом краю окна. */
+.goal-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--accent-soft);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.goal-badge--paused {
+  background: none;
+}
+
+.goal-badge__label {
+  white-space: nowrap;
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.goal-badge__text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-badge button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.goal-badge button:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
 /* Выбор модели / глубины рассуждений / быстрого режима (задача 1.6.9).
    Кнопка компактная: в композере она соседствует с отправкой, а не спорит
    с ней за внимание. */

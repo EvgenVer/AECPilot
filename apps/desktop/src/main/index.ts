@@ -508,6 +508,38 @@ ipcMain.handle('model:set-config', async (_event, payload: unknown) => {
   })
 })
 
+// --- The standing goal (task 1.6.A5) ---------------------------------------
+// Only the four read/control actions. Setting a goal is NOT here: `/goal
+// <text>` returns a `send` directive their side expects to be submitted as a
+// user turn, which is what typing `/goal …` in the composer already does. A
+// second path to it would be a second, divergent implementation of the same
+// thing.
+const GOAL_ACTIONS = ['status', 'pause', 'resume', 'clear'] as const
+type GoalAction = (typeof GOAL_ACTIONS)[number]
+function isGoalAction(value: unknown): value is GoalAction {
+  return typeof value === 'string' && (GOAL_ACTIONS as readonly string[]).includes(value)
+}
+
+ipcMain.handle('goal:dispatch', async (_event, action: unknown) => {
+  if (!isGoalAction(action)) throw new Error('invalid goal action')
+  // Best-effort like the slash completions: the badge polls this, and a
+  // gateway that is down or has no goals module must leave the chat alone
+  // rather than raise over it.
+  if (!gateway) return { output: '' }
+  try {
+    const activeSessionId = await ensureSession()
+    const result = await gateway.request('command.dispatch', {
+      name: 'goal',
+      arg: action,
+      session_id: activeSessionId
+    })
+    return { output: result.output ?? '' }
+  } catch (error: unknown) {
+    console.error('aecpilot: goal dispatch failed', error)
+    return { output: '' }
+  }
+})
+
 const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
 type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
 function isApprovalChoice(value: string): value is ApprovalChoice {
