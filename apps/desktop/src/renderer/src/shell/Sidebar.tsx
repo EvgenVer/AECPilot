@@ -3,6 +3,8 @@ import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
 import RollbackPanel from './RollbackPanel'
+import SkillsPanel from './SkillsPanel'
+import LearningPanel from './LearningPanel'
 import {
   ClearIcon,
   CopyIcon,
@@ -1344,10 +1346,14 @@ export default function Sidebar({
           onCommitSizes={onCommitSizes}
         />
       ) : active === 'agent' ? (
-        // Task 1.6.C2. The hub gets its first real section: the rollback
-        // screen. Persona/skills/MCP join it in later batches (PLAN §Phase 1.6,
-        // "Карта размещения экранов" — everything agent-related lives here).
+        // Tasks 1.6.C2 (rollback) and 1.6.B3.3–B3.13 (skills, learning). Every
+        // agent-related surface lives here per PLAN §Phase 1.6, "Карта
+        // размещения экранов"; sessions and persona join in batch 5.
         <div className="sidebar__scroll">
+          <div className="sidebar__section-title">Скилы</div>
+          <SkillsPanel />
+          <div className="sidebar__section-title">Обучение</div>
+          <LearningPanel />
           <div className="sidebar__section-title">Откат изменений</div>
           <RollbackPanel />
         </div>

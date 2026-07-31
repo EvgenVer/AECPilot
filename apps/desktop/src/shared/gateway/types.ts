@@ -218,6 +218,86 @@ export interface GatewayMethodMap {
   'process.kill': { params: ProcessKillParams; result: ProcessKillResult }
   'agents.list': { params: AgentsListParams; result: AgentsListResult }
   'setup.runtime_check': { params: RuntimeCheckParams; result: RuntimeCheckResult }
+  'skills.manage': { params: SkillsManageParams; result: SkillsManageResult }
+  'skills.reload': { params: SkillsReloadParams; result: SkillsReloadResult }
+  'learning.detail': { params: LearningNodeParams; result: LearningDetailResult }
+  'learning.edit': { params: LearningEditParams; result: LearningMutationResult }
+  'learning.delete': { params: LearningNodeParams; result: LearningMutationResult }
+}
+
+// ---------------------------------------------------------------------------
+// Skills and learning (batch 3, contract: specs/agent-skills.md)
+//
+// `learning.frames` is DELIBERATELY ABSENT from the map above. It is the RPC
+// this batch was planned around, and it does not work on this platform:
+// measured error 5000 "Invalid format string", because
+// `agent/learning_graph_render.py:_period_label` calls `strftime("%-d %b")`
+// and `%-d` is a glibc extension Windows' CRT does not have. The same graph
+// arrives structurally over REST (`GET /api/learning/graph`), which never
+// formats a date — see `LearningGraph` in shared/ipc.ts.
+// ---------------------------------------------------------------------------
+
+/** `skills.manage` — this app uses `list` only. The hub actions (`search`,
+ * `browse`, `install`, `inspect`) exist and work (measured), but installing
+ * third-party executable code with one click is deferred to Phase 4+ (owner
+ * decision B3-3), so no caller for them exists here.
+ *
+ * Errors: 4017 (unknown action), 5024. */
+export interface SkillsManageParams {
+  action: 'list'
+}
+
+/** Category → skill names. That is the whole answer: no descriptions, no
+ * enabled flag, no paths. `GET /api/skills` carries all three, which is why
+ * the screen reads the list from there and keeps this for the reload path. */
+export interface SkillsManageResult {
+  skills: Record<string, string[]>
+}
+
+export type SkillsReloadParams = Record<string, never>
+
+/** `skills.reload` re-scans the skill directories. `output` is their
+ * pre-rendered terminal text; `result` is the structured half this app uses.
+ *
+ * Errors: 5025. */
+export interface SkillsReloadResult {
+  output?: string
+  result?: {
+    added?: { name?: string }[]
+    removed?: { name?: string }[]
+    total?: number
+  }
+}
+
+/** A journey node id. Two shapes, and they behave differently everywhere:
+ * a bare skill name, or `memory:<source>:<index>`
+ * (`agent/learning_mutations.py`'s `parse_node_kind`). */
+export interface LearningNodeParams {
+  id: string
+}
+
+export interface LearningEditParams {
+  id: string
+  content: string
+}
+
+/** Their mutations never raise for a bad id — `agent/learning_mutations.py`
+ * catches `ValueError`/`IndexError` and answers `{ok: false, message}` as a
+ * SUCCESSFUL RPC result (measured on a missing skill and a missing memory
+ * node). Every caller must read `ok`; the absence of an error means nothing. */
+export interface LearningMutationResult {
+  ok: boolean
+  message?: string
+}
+
+export interface LearningDetailResult {
+  ok: boolean
+  message?: string
+  kind?: 'skill' | 'memory'
+  id?: string
+  label?: string
+  /** Full SKILL.md text, or the raw memory chunk. */
+  content?: string
 }
 
 // ---------------------------------------------------------------------------

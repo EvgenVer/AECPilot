@@ -1108,3 +1108,46 @@ describe('transcriptCensus', () => {
     })
   })
 })
+
+describe('review.summary (задача 1.6.B3.12)', () => {
+  it('добавляет в ленту постоянное системное сообщение', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({
+        type: 'review.summary',
+        payload: { text: '💾 Self-improvement review: saved skill dwg' }
+      })
+    )
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0]).toMatchObject({
+      kind: 'notice',
+      text: '💾 Self-improvement review: saved skill dwg'
+    })
+  })
+
+  // Это единственное уведомление о том, что агент изменил САМ СЕБЯ; тост
+  // истёк бы, и узнать, чему он научился пять минут назад, было бы негде.
+  it('сообщение не исчезает после конца хода', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, { kind: 'user-submit', text: 'go' })
+    state = chatReducer(state, ev({ type: 'message.start' }))
+    state = chatReducer(state, ev({ type: 'review.summary', payload: { text: 'сохранил память' } }))
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: 'готово', status: 'complete' } })
+    )
+    expect(state.items.some((item) => item.kind === 'notice')).toBe(true)
+  })
+
+  it('пустой текст игнорируется — пустая плашка хуже отсутствия плашки', () => {
+    let state: ChatState = initialChatState
+    state = chatReducer(state, ev({ type: 'review.summary', payload: { text: '   ' } }))
+    state = chatReducer(state, ev({ type: 'review.summary', payload: {} }))
+    expect(state.items).toEqual([])
+  })
+
+  it('событие больше не считается неизвестным', () => {
+    expect(isUnknownGatewayEvent('review.summary')).toBe(false)
+  })
+})

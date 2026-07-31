@@ -6,7 +6,13 @@ import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { hermesRest, type RestTarget } from './hermes-rest'
-import type { McpLiveStatus, McpServerSummary } from '../shared/ipc'
+import type {
+  CuratorStatus,
+  LearningGraph,
+  McpLiveStatus,
+  McpServerSummary,
+  SkillRow
+} from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
 import type {
@@ -731,6 +737,88 @@ ipcMain.handle('rollback:restore', async (_event, payload: unknown) => {
     session_id: activeSessionId,
     hash,
     ...(filePath === undefined ? {} : { file_path: filePath })
+  })
+})
+
+// --- Skills and learning, batch 3 (contract: specs/agent-skills.md) --------
+// Split across both transports on purpose, and both choices are measured
+// rather than assumed (probe `runtime/skills-probe.mjs`, task 1.6.B3.1):
+//   - the skill LIST and the learning GRAPH come over REST, because the RPC
+//     list carries only names and `learning.frames` raises on Windows
+//     ("Invalid format string" — their `%-d` strftime);
+//   - reload, node detail and the two mutations stay on RPC, which is where
+//     they work.
+
+ipcMain.handle('skills:list', async () => {
+  return hermesRest<SkillRow[]>(restTarget(), '/api/skills')
+})
+
+ipcMain.handle('skills:reload', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  const result = await gateway.request('skills.reload', {})
+  const inner = result.result ?? {}
+  return {
+    added: (inner.added ?? []).map((item) => item.name ?? '').filter((name) => name !== ''),
+    removed: (inner.removed ?? []).map((item) => item.name ?? '').filter((name) => name !== ''),
+    total: typeof inner.total === 'number' ? inner.total : 0
+  }
+})
+
+function isLearningNodeId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '' && value.length <= 512
+}
+
+ipcMain.handle('learning:detail', async (_event, id: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (!isLearningNodeId(id)) throw new Error('invalid node id')
+  return gateway.request('learning.detail', { id })
+})
+
+// Both mutations check `confirmed` here rather than only in the renderer —
+// same rule as `rollback:restore`. Editing overwrites a file the agent reads
+// as instructions; deleting either archives a skill or removes a memory chunk
+// for good.
+ipcMain.handle('learning:edit', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { id, content, confirmed } = (payload ?? {}) as {
+    id?: unknown
+    content?: unknown
+    confirmed?: unknown
+  }
+  if (confirmed !== true) throw new Error('learning.edit requires explicit confirmation')
+  if (!isLearningNodeId(id)) throw new Error('invalid node id')
+  if (typeof content !== 'string') throw new Error('invalid content')
+  return gateway.request('learning.edit', { id, content })
+})
+
+ipcMain.handle('learning:delete', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { id, confirmed } = (payload ?? {}) as { id?: unknown; confirmed?: unknown }
+  if (confirmed !== true) throw new Error('learning.delete requires explicit confirmation')
+  if (!isLearningNodeId(id)) throw new Error('invalid node id')
+  return gateway.request('learning.delete', { id })
+})
+
+ipcMain.handle('learning:graph', async () => {
+  return hermesRest<LearningGraph>(restTarget(), '/api/learning/graph')
+})
+
+ipcMain.handle('curator:status', async () => {
+  return hermesRest<CuratorStatus>(restTarget(), '/api/curator')
+})
+
+// `/learn <тема>` — the same dispatch path the composer uses for `/goal`. The
+// answer is returned verbatim: deciding what to do with a `type` other than
+// `send` belongs to the caller, and quietly submitting an unexpected shape as
+// a user turn is exactly the failure to avoid.
+ipcMain.handle('learn:dispatch', async (_event, topic: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (typeof topic !== 'string' || topic.trim() === '') throw new Error('invalid topic')
+  const activeSessionId = await ensureSession()
+  return gateway.request('command.dispatch', {
+    name: 'learn',
+    arg: topic,
+    session_id: activeSessionId
   })
 })
 

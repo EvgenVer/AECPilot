@@ -211,6 +211,60 @@ export interface McpLiveStatus {
   error?: string
 }
 
+/** One skill as `GET /api/skills` describes it (task 1.6.B3.3). Richer than
+ * the `skills.manage list` RPC, which answers with bare names by category —
+ * measured, and the reason this list comes over REST (owner decision R1: REST
+ * only where RPC does not reach). */
+export interface SkillRow {
+  name: string
+  description?: string
+  category?: string
+  /** From their `skills.disabled` config. Shown, never written — owner
+   * decision B3-2. */
+  enabled?: boolean
+}
+
+/** One node of the learning graph (`GET /api/learning/graph`). `timestamp` is
+ * a raw epoch number, not a formatted date — this endpoint does no date
+ * formatting at all, which is exactly why it works where `learning.frames`
+ * does not (see the note in shared/gateway/types.ts). */
+export interface LearningNode {
+  id: string
+  label?: string
+  kind?: string
+  timestamp?: number
+  category?: string
+  useCount?: number
+  state?: string
+  createdBy?: string
+  pinned?: boolean
+}
+
+/** A memory chunk as the graph carries it — `body` is the text itself, so a
+ * memory node opens with no further call. */
+export interface LearningMemoryCard {
+  source?: string
+  body?: string
+}
+
+export interface LearningGraph {
+  nodes: LearningNode[]
+  memory: LearningMemoryCard[]
+  stats?: Record<string, unknown>
+}
+
+/** `GET /api/curator`. Every field may be absent — their handler reads them
+ * through `_safe_call` and falls back. */
+export interface CuratorStatus {
+  enabled?: boolean
+  paused?: boolean
+  interval_hours?: number | null
+  last_run_at?: string | null
+  min_idle_hours?: number | null
+  stale_after_days?: number | null
+  archive_after_days?: number | null
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -573,6 +627,50 @@ export interface AecpilotApi {
     encryptionAvailable: boolean
     keys: { envVar: string; hasKey: boolean; envOverrides: boolean }[]
   }>
+  // --- Skills and learning, batch 3 (contract: specs/agent-skills.md) -----
+
+  /** Installed skills with description, category and enabled state (task
+   * 1.6.B3.3). Over REST because the RPC answers with bare names. */
+  listSkills(): Promise<SkillRow[]>
+  /** Re-scans the skill directories (task 1.6.B3.4). Returns what changed —
+   * added/removed names and the new total. */
+  reloadSkills(): Promise<{ added: string[]; removed: string[]; total: number }>
+  /** The content of one journey node (task 1.6.B3.5): a skill's SKILL.md or a
+   * memory chunk. `ok: false` arrives as a resolved value, not a rejection —
+   * their mutations module answers that way for a missing id. */
+  getLearningNode(id: string): Promise<{
+    ok: boolean
+    message?: string
+    kind?: string
+    label?: string
+    content?: string
+  }>
+  /** Rewrites a node's content (task 1.6.B3.6). `confirmed` is checked in
+   * main, so the screen's confirmation step cannot be skipped. */
+  editLearningNode(payload: {
+    id: string
+    content: string
+    confirmed: true
+  }): Promise<{ ok: boolean; message?: string }>
+  /** Archives a skill or deletes a memory chunk (task 1.6.B3.7) — the two have
+   * different consequences and the caller is expected to have said which in
+   * its confirmation. `confirmed` is checked in main. */
+  deleteLearningNode(payload: {
+    id: string
+    confirmed: true
+  }): Promise<{ ok: boolean; message?: string }>
+  /** The learning graph (task 1.6.B3.10). Over REST because the RPC that was
+   * meant for this (`learning.frames`) raises on Windows — see the note in
+   * shared/gateway/types.ts. */
+  getLearningGraph(): Promise<LearningGraph>
+  /** Curator state (task 1.6.B3.9). Over REST because `command.dispatch
+   * {name:'curator'}` answers 4018 — measured. */
+  getCuratorStatus(): Promise<CuratorStatus>
+  /** `/learn <тема>` from the UI (task 1.6.B3.13). Returns their dispatch
+   * result verbatim: `{type:'send', message}` is a prompt to submit as a
+   * normal turn, anything else is not sent anywhere. */
+  dispatchLearn(topic: string): Promise<{ type?: string; message?: string; output?: string }>
+
   /** The open project's own settings (tasks 1.6.B2.17–B2.19): wiki language,
    * scan interval, embedding model. They live in `project.json` because they
    * belong to the vault and travel with it. `null` when no project is open. */

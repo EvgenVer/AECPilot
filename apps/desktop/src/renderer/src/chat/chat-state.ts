@@ -93,7 +93,23 @@ export interface ChatMoa {
   status: 'consulting' | 'aggregating'
 }
 
-export type ChatItem = ChatMessage | ChatToolCall | ChatReasoning | ChatSubagent | ChatMoa
+/** The agent saved a skill or a memory (task 1.6.B3.12).
+ *
+ * Emitted as `review.summary` by their background review — the gateway wires
+ * `agent.background_review_callback` to it (`tui_gateway/server.py`), so the
+ * text is already the human-facing summary their CLI would print.
+ *
+ * A permanent transcript item rather than a toast, and deliberately so: this
+ * is the only notification that the agent CHANGED ITSELF. A toast that expires
+ * would leave the user unable to find out what was learned five minutes ago. */
+export interface ChatNotice {
+  kind: 'notice'
+  id: number
+  text: string
+}
+
+export type ChatItem =
+  ChatMessage | ChatToolCall | ChatReasoning | ChatSubagent | ChatMoa | ChatNotice
 
 /** A pending `approval.request` from the agent. Approvals form a FIFO queue
  * per session (no request id) and are rendered pinned above the input, not
@@ -194,7 +210,8 @@ export const HANDLED_GATEWAY_EVENTS = [
   'subagent.interrupt',
   'moa.reference',
   'moa.aggregating',
-  'session.info'
+  'session.info',
+  'review.summary'
 ] as const
 
 /** Events we knowingly ignore — no warning, they are not a parity gap. */
@@ -725,6 +742,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       status: aggregating ? 'aggregating' : current.status
     }
     return { ...state, items }
+  }
+
+  // The agent saved a skill or a memory. Appended to the transcript, where it
+  // stays — nothing in the reducer removes notices, which is the point (task
+  // 1.6.B3.12).
+  if (event.type === 'review.summary') {
+    const text = String((event.payload as { text?: unknown } | undefined)?.text ?? '').trim()
+    if (text === '') return state
+    const notice: ChatNotice = { kind: 'notice', id: state.nextId, text }
+    return { ...state, items: [...state.items, notice], nextId: state.nextId + 1 }
   }
 
   if (isGatewayEventOfType(event, 'approval.request')) {

@@ -16,7 +16,12 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          exclude: [...exclude, '**/*.test.tsx']
+          exclude: [...exclude, '**/*.test.tsx'],
+          // The two projects have different worker limits (see 'dom' below),
+          // and vitest refuses to schedule differing limits in one group — so
+          // they run as two groups: the fast node suite first, then the DOM
+          // one on its own.
+          sequence: { groupOrder: 0 }
         }
       },
       {
@@ -24,7 +29,20 @@ export default defineConfig({
           name: 'dom',
           environment: 'jsdom',
           include: ['**/*.test.tsx'],
-          exclude
+          exclude,
+          // Component files grew from 1 to 12 in batches 2–3, and each one
+          // pays for its own jsdom instance. Run at most four at a time: on a
+          // loaded machine the unbounded pool starved workers badly enough
+          // that files failed to start at all (vitest's worker-start limit is
+          // a hard 60 s) and `waitFor`'s 1 s default expired on renders that
+          // are instant when the machine is idle. Measured: the same files
+          // pass in isolation and fail only in a full parallel run.
+          maxWorkers: 4,
+          sequence: { groupOrder: 1 },
+          // Same reason: the assertions wait for a promise chain to settle,
+          // not for a timer, so a longer ceiling costs nothing when things are
+          // fast and stops a green suite from turning red under load.
+          testTimeout: 15000
         }
       }
     ]

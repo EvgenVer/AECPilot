@@ -328,6 +328,15 @@ export default function ChatDock({
             <SubagentCard key={`s${item.id}`} agent={item} />
           ) : item.kind === 'moa' ? (
             <MoaCard key={`m${item.id}`} moa={item} />
+          ) : item.kind === 'notice' ? (
+            // The agent changed itself (task 1.6.B3.12). Stays in the
+            // transcript — a toast would expire and leave no way back to it.
+            <div key={`n${item.id}`} className="chat-notice" role="status">
+              <span className="chat-notice__glyph" aria-hidden="true">
+                💾
+              </span>
+              {item.text}
+            </div>
           ) : (
             <div
               key={item.id}

@@ -4186,3 +4186,156 @@ body.resizing-row * {
   max-height: 220px;
   overflow-y: auto;
 }
+
+/* Скилы и обучение в hub «Агент» (батч 3) */
+.skills-panel,
+.learning-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skill-list,
+.learning-timeline,
+.learning-day__nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.skill-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skill-row__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skill-row__name {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.skill-row__state {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  flex: none;
+}
+
+.skill-row__desc {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+
+.skill-row__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-row__detail textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  resize: vertical;
+}
+
+.learning-day {
+  border-inline-start: 2px solid var(--border);
+  padding-inline-start: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.learning-day__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.learning-day__date {
+  font-weight: 600;
+  font-size: var(--fs-small);
+}
+
+.learning-day__counts {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.learning-node__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.learning-node__glyph {
+  color: var(--accent);
+  flex: none;
+}
+
+.learning-node__body {
+  margin: 2px 0 6px;
+  padding: 6px 8px;
+  background: var(--bg-surface);
+  border-radius: var(--r-ctl);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* Системное сообщение «агент сохранил скил/память» (1.6.B3.12) */
+.chat-notice {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+
+.chat-notice__glyph {
+  flex: none;
+}
