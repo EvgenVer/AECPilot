@@ -215,6 +215,73 @@ export function envVarIsDefined(dotenvText: string, envVarName: string): boolean
   return re.test(dotenvText)
 }
 
+// --- Provider keys, one per env var (task 1.6.B2.5) ------------------------
+// Owner decision R2: keys stay in OUR encrypted store (safeStorage). Their
+// `model.save_key` RPC and `PUT /api/env` both persist the key as PLAINTEXT
+// into the profile's `.env` — the rule set in task 0.15 forbids that, and a
+// screen covering several providers does not change the reason.
+//
+// The map is keyed by ENV VAR NAME, not by provider slug, because the env var
+// is what actually gets injected into the `hermes serve` child process. Two
+// providers that read the same var are then one entry, which is the truth.
+
+/** Env var names accepted into the store. The store's values become the child
+ * process's environment, so an unconstrained key would be an injection point
+ * into that env — a name with `=` or a space could smuggle a second
+ * assignment past any naive consumer. Their own credential vars are all
+ * SCREAMING_SNAKE, so nothing legitimate is excluded. */
+export function isCredentialEnvVarName(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(value)
+}
+
+/** Ciphertext per credential env var. Values are base64 of
+ * `safeStorage.encryptString` — never plaintext, and never sent to the
+ * renderer in any form. */
+export type ProviderKeyMap = Record<string, string>
+
+/** Folds the task-0.15 single-key shape into the multi-provider map.
+ *
+ * The old file had one `encryptedKey` and an implicit provider (openai-api).
+ * Dropping it on upgrade would silently log the user out of their model, so it
+ * is migrated to its env var's slot — unless that slot is already taken, in
+ * which case the newer explicit entry wins. Idempotent: running it on an
+ * already-migrated file changes nothing. */
+export function migrateProviderKeys(
+  raw: { encryptedKey?: string; providerKeys?: unknown },
+  legacyEnvVar: string
+): ProviderKeyMap {
+  const keys: ProviderKeyMap = {}
+  const stored = raw.providerKeys
+  if (typeof stored === 'object' && stored !== null) {
+    for (const [name, value] of Object.entries(stored as Record<string, unknown>)) {
+      if (isCredentialEnvVarName(name) && typeof value === 'string' && value !== '') {
+        keys[name] = value
+      }
+    }
+  }
+  if (raw.encryptedKey && !keys[legacyEnvVar]) keys[legacyEnvVar] = raw.encryptedKey
+  return keys
+}
+
+/** Builds the spawn-env override from the stored map.
+ *
+ * `decrypt` is injected so this stays testable without electron; in main it is
+ * `safeStorage.decryptString`. An entry that fails to decrypt (safeStorage
+ * unavailable, ciphertext from another machine) is SKIPPED rather than passed
+ * through — handing the child process a base64 blob as its API key would
+ * produce an authentication error that looks like the user's key is wrong. */
+export function buildProviderEnv(
+  keys: ProviderKeyMap,
+  decrypt: (ciphertext: string) => string | undefined
+): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [name, ciphertext] of Object.entries(keys)) {
+    const value = decrypt(ciphertext)
+    if (value) env[name] = value
+  }
+  return env
+}
+
 /** Payload accepted by the `settings:save` IPC handler. `key: string` sets a
  * new key, `key: null` clears it, `key: undefined` (or omitted) leaves it
  * untouched. Validated here at the IPC boundary before anything touches

@@ -27,8 +27,16 @@ describe('resolveSettingsSection', () => {
 })
 
 describe('SETTINGS_SECTIONS', () => {
-  it('starts with the two surfaces the popover held', () => {
-    expect(SETTINGS_SECTIONS.map((s) => s.id)).toEqual(['appearance', 'llm'])
+  it('still opens on the two surfaces the popover held', () => {
+    // Batch 2 appends sections; these two must keep leading, because the
+    // screen replaced a popover that held exactly them and users look for
+    // them where they were.
+    expect(SETTINGS_SECTIONS.slice(0, 2).map((s) => s.id)).toEqual(['appearance', 'llm'])
+  })
+
+  it('has no duplicate ids', () => {
+    const ids = SETTINGS_SECTIONS.map((s) => s.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('has a Russian label for every section', () => {

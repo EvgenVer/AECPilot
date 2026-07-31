@@ -209,6 +209,238 @@ export interface GatewayMethodMap {
   'rollback.list': { params: RollbackListParams; result: RollbackListResult }
   'rollback.diff': { params: RollbackDiffParams; result: RollbackDiffResult }
   'rollback.restore': { params: RollbackRestoreParams; result: RollbackRestoreResult }
+  'config.get': { params: ConfigGetParams; result: ConfigGetResult }
+  'config.show': { params: ConfigShowParams; result: ConfigShowResult }
+  'tools.list': { params: ToolsListParams; result: ToolsListResult }
+  'tools.configure': { params: ToolsConfigureParams; result: ToolsConfigureResult }
+  'plugins.manage': { params: PluginsManageParams; result: PluginsManageResult }
+  'process.list': { params: ProcessListParams; result: ProcessListResult }
+  'process.kill': { params: ProcessKillParams; result: ProcessKillResult }
+  'agents.list': { params: AgentsListParams; result: AgentsListResult }
+  'setup.runtime_check': { params: RuntimeCheckParams; result: RuntimeCheckResult }
+}
+
+// ---------------------------------------------------------------------------
+// Settings, tools, plugins and background processes (batch 2 / 2a, task
+// 1.6.B2.2). Every shape below was read off the installed gateway's
+// `tui_gateway/server.py`, not off their React code — the desktop donor uses
+// their REST dashboard for most of this, and the two surfaces do not agree
+// field for field.
+//
+// `process.stop` is DELIBERATELY ABSENT from the method map above: it is
+// `kill_all()` across every session of the gateway process, and owner decision
+// R8 (docs/decisions-phase-1.6-batches.md) is "no such button — one at a time,
+// within our own session". Adding the type would be the first half of building
+// the button.
+// ---------------------------------------------------------------------------
+
+/** The `config.get` keys this app reads. `full` is deliberately not among
+ * them: it answers with the WHOLE config.yaml, api key included and
+ * unmasked — the settings summary uses `config.show` instead, which masks it
+ * server-side (see `ConfigShowResult`).
+ *
+ * Errors: unknown key → 4002. */
+export type ConfigGetKey = 'reasoning' | 'fast' | 'busy' | 'prompt'
+
+export interface ConfigGetParams {
+  key: ConfigGetKey
+  session_id?: string
+}
+
+/** One result type for every key, because the gateway keys its answer shape by
+ * `key` rather than by method. Which field is populated:
+ * - `reasoning` → `value` (effort name) + `display` ('show' | 'hide')
+ * - `fast` → `value`: 'fast' | 'normal'
+ * - `busy` → `value`: 'queue' | 'steer' | 'interrupt'
+ * - `prompt` → `prompt` (the custom system prompt; '' when unset) */
+export interface ConfigGetResult {
+  value?: string
+  display?: string
+  prompt?: string
+}
+
+export type ConfigShowParams = Record<string, never>
+
+/** Pre-rendered, pre-masked config summary — their handler builds the sections
+ * and masks the API key as `****last4` itself. We render what it sends and add
+ * nothing: any "helpful" enrichment here would mean fetching the raw config. */
+export interface ConfigShowSection {
+  title: string
+  /** `[label, value]` pairs, in display order. */
+  rows: string[][]
+}
+
+export interface ConfigShowResult {
+  sections: ConfigShowSection[]
+}
+
+/** `tools.list` — toolsets with their resolved tool names. `enabled` is already
+ * computed server-side against the live session's agent (or disk config when no
+ * session is passed), including their `name in enabled if enabled else True`
+ * rule: an EMPTY enabled-set means "everything is on", not "nothing is".
+ *
+ * Errors: 5031 (their toolset registry raised). */
+export interface ToolsListParams {
+  session_id?: string
+}
+
+export interface ToolsetInfo {
+  name: string
+  description: string
+  tool_count: number
+  enabled: boolean
+  tools: string[]
+}
+
+export interface ToolsListResult {
+  toolsets: ToolsetInfo[]
+}
+
+/** `tools.configure` — enable/disable whole toolsets (and, with a `server:tool`
+ * name, individual MCP tools). Writes config.yaml AND, when `session_id` names
+ * a live session, REBUILDS that session's agent.
+ *
+ * Errors: 4017 (unknown action), 4018 (empty `names`), 5035 (write failed). */
+export interface ToolsConfigureParams {
+  action: 'enable' | 'disable'
+  names: string[]
+  session_id?: string
+}
+
+/** Three different outcomes arrive in one payload and must not be collapsed:
+ * `changed` is what actually took effect, `unknown` is names their registry
+ * does not know, and `missing_servers` is MCP servers that are configured but
+ * not currently connected. `reset: true` means the live agent was rebuilt. */
+export interface ToolsConfigureResult {
+  changed: string[]
+  enabled_toolsets: string[]
+  missing_servers: string[]
+  unknown: string[]
+  reset: boolean
+  info?: unknown
+}
+
+/** `plugins.manage` — list or toggle. Measured, not assumed (probe
+ * `runtime/plugins-probe.mjs`, task 1.6.B2a.1): `status` has THREE values —
+ * `enabled`, `disabled` (turned off explicitly) and `not enabled` (never
+ * touched) — so a screen that compares against two of them mislabels the
+ * third.
+ *
+ * Errors: 4019 (toggle without `name`), 4017 (unknown action), 5026 (their
+ * enable/disable primitive failed). */
+export interface PluginsManageParams {
+  action: 'list' | 'toggle'
+  name?: string
+  enable?: boolean
+}
+
+export interface PluginRow {
+  name: string
+  version: string
+  description: string
+  /** 'bundled' for plugins shipped with hermes; anything else is a user
+   * plugin — i.e. third-party code that runs inside the gateway process. */
+  source: string
+  status: string
+}
+
+export interface PluginsManageResult {
+  /** `action: 'list'` only. */
+  plugins?: PluginRow[]
+  user_count?: number
+  bundled_count?: number
+  /** `action: 'toggle'` only. `unchanged` means it was already in the
+   * requested state — a success, but not a change. `plugin` is the refreshed
+   * row and is the only thing the UI may believe about the new state. */
+  ok?: boolean
+  unchanged?: boolean
+  name?: string
+  plugin?: PluginRow | null
+}
+
+/** `process.list` — background processes owned by THIS session (their
+ * `_session_processes` filters the registry by `session_key`). `output_tail`
+ * is added by the gateway on top of the registry's 200-char
+ * `output_preview` — up to 4000 characters.
+ *
+ * Errors: the usual session errors (4007 unknown session), 5010. */
+export interface ProcessListParams {
+  session_id: string
+}
+
+export interface ProcessEntry {
+  /** The process id — confusingly named `session_id` by their registry; it is
+   * NOT a chat session id. Pass it back as `process_id` to `process.kill`. */
+  session_id: string
+  command: string
+  cwd?: string
+  pid?: number
+  started_at?: string
+  uptime_seconds?: number
+  status?: string
+  output_preview?: string
+  output_tail?: string
+  exit_code?: number | null
+  detached?: boolean
+}
+
+export interface ProcessListResult {
+  processes: ProcessEntry[]
+}
+
+/** `process.kill` — one process, and only one owned by the calling session:
+ * their handler compares `session_key` and answers 4044 otherwise, so a window
+ * cannot reap another session's work. */
+export interface ProcessKillParams {
+  session_id: string
+  process_id: string
+}
+
+/** Not an error union: `not_found` / `already_exited` / `killed` all arrive as
+ * a successful RPC result and mean different things to the user. */
+export interface ProcessKillResult {
+  status: string
+  error?: string
+  exit_code?: number | null
+  session_id?: string
+  completion_reason?: string
+  termination_source?: string
+}
+
+/** `agents.list` — the same registry, unscoped: every session's processes,
+ * with only four fields. Observation only; there is no cross-session kill on
+ * our side (decision R8).
+ *
+ * Errors: 5033. */
+export type AgentsListParams = Record<string, never>
+
+export interface AgentProcessEntry {
+  session_id: string
+  /** Truncated to 80 characters by their handler (vs 200 in `process.list`). */
+  command: string
+  status: string
+  uptime: number
+}
+
+export interface AgentsListResult {
+  processes: AgentProcessEntry[]
+}
+
+/** `setup.runtime_check` — "would a prompt sent right now actually reach a
+ * model?". Distinct from `setup.status`, which only asks whether ANY provider
+ * looks configured. Never raises: a failure comes back as `ok: false` with a
+ * human-readable `error`. */
+export interface RuntimeCheckParams {
+  provider?: string
+}
+
+export interface RuntimeCheckResult {
+  ok: boolean
+  provider?: string
+  model?: string
+  /** Where the credential came from (env var, keyring, IAM role, …). */
+  source?: string
+  error?: string
 }
 
 /** Attachments (task 1.6.A4).
@@ -343,14 +575,29 @@ export interface ModelOptionsResult {
   providers?: ModelOptionProvider[]
 }
 
-/** `config.set` (task 1.6.9) — one setter keyed by `key`. We use exactly three
- * of its keys and no others; the rest belong to screens outside this task.
+/** `config.set` (task 1.6.9) — one setter keyed by `key`.
  *
  * Scope, read off their handler and worth stating because it is not obvious:
  * `model` and `reasoning` are applied to the LIVE session (their comment says
  * writing config.yaml here would let every picker click rewrite the user's
- * global default), while `fast` also writes `agent.service_tier` globally. */
-export type ConfigSetKey = 'model' | 'reasoning' | 'fast'
+ * global default), while `fast` also writes `agent.service_tier` globally.
+ *
+ * The first three are the composer's picker (task 1.6.9); `verbose`, `prompt`
+ * and `busy` were added for the settings screen's "Поведение агента" (task
+ * 1.6.B2.13). Each caller keeps its OWN allowlist in main — the composer must
+ * not become a path to the system prompt, and the settings screen must not
+ * become a path to keys this app deliberately does not expose (their TUI-only
+ * display keys, decision R6).
+ *
+ * Values their handler accepts, per key:
+ * - `reasoning`: an effort name, or `show`/`hide` to control whether the
+ *   reasoning trace is displayed (two different settings behind one key)
+ * - `fast`: `fast` | `normal` (also `on`/`off`/`toggle`/`status`)
+ * - `verbose`: `off` | `new` | `all` | `verbose` — this is `display.tool_progress`,
+ *   the same setting that decides whether tool cards appear at all
+ * - `busy`: `queue` | `steer` | `interrupt`
+ * - `prompt`: the custom system prompt; the literal `clear` removes it */
+export type ConfigSetKey = 'model' | 'reasoning' | 'fast' | 'verbose' | 'prompt' | 'busy'
 
 export interface ConfigSetParams {
   key: ConfigSetKey

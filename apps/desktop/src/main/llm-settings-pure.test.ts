@@ -3,13 +3,107 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  buildProviderEnv,
   envVarIsDefined,
   isApprovalMode,
+  isCredentialEnvVarName,
   mergeApprovalsModeIntoConfigYaml,
   mergeModelIntoConfigYaml,
+  migrateProviderKeys,
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
+
+describe('provider keys (task 1.6.B2.5)', () => {
+  describe('migrateProviderKeys', () => {
+    it('carries the task-0.15 single key into its env var slot', () => {
+      expect(migrateProviderKeys({ encryptedKey: 'CIPHER' }, 'OPENAI_API_KEY')).toEqual({
+        OPENAI_API_KEY: 'CIPHER'
+      })
+    })
+
+    it('is idempotent — a migrated file migrates to itself', () => {
+      const once = migrateProviderKeys({ encryptedKey: 'CIPHER' }, 'OPENAI_API_KEY')
+      expect(migrateProviderKeys({ providerKeys: once }, 'OPENAI_API_KEY')).toEqual(once)
+    })
+
+    it('lets an explicit entry win over the legacy field', () => {
+      expect(
+        migrateProviderKeys(
+          { encryptedKey: 'OLD', providerKeys: { OPENAI_API_KEY: 'NEW' } },
+          'OPENAI_API_KEY'
+        )
+      ).toEqual({ OPENAI_API_KEY: 'NEW' })
+    })
+
+    it('keeps other providers untouched while migrating', () => {
+      expect(
+        migrateProviderKeys(
+          { encryptedKey: 'LEGACY', providerKeys: { XAI_API_KEY: 'X' } },
+          'OPENAI_API_KEY'
+        )
+      ).toEqual({ XAI_API_KEY: 'X', OPENAI_API_KEY: 'LEGACY' })
+    })
+
+    it('drops entries that are not a valid env var name or not a string', () => {
+      expect(
+        migrateProviderKeys(
+          {
+            providerKeys: {
+              'BAD NAME': 'x',
+              'PATH=INJECT': 'x',
+              lowercase: 'x',
+              GOOD_KEY: 'ok',
+              EMPTY_KEY: '',
+              NUMERIC: 7 as unknown as string
+            }
+          },
+          'OPENAI_API_KEY'
+        )
+      ).toEqual({ GOOD_KEY: 'ok' })
+    })
+
+    it('reads a corrupt providerKeys value as no keys at all', () => {
+      expect(migrateProviderKeys({ providerKeys: 'nope' }, 'OPENAI_API_KEY')).toEqual({})
+      expect(migrateProviderKeys({}, 'OPENAI_API_KEY')).toEqual({})
+    })
+  })
+
+  describe('buildProviderEnv', () => {
+    it('decrypts every stored provider into the spawn env', () => {
+      expect(
+        buildProviderEnv({ OPENAI_API_KEY: 'a', XAI_API_KEY: 'b' }, (c) => `plain-${c}`)
+      ).toEqual({ OPENAI_API_KEY: 'plain-a', XAI_API_KEY: 'plain-b' })
+    })
+
+    // Passing the ciphertext through would look like a wrong key to the
+    // provider — a confusing failure a long way from its cause.
+    it('skips an entry that fails to decrypt rather than passing the ciphertext on', () => {
+      expect(
+        buildProviderEnv({ OK_KEY: 'a', BROKEN_KEY: 'b' }, (c) => (c === 'a' ? 'plain' : undefined))
+      ).toEqual({ OK_KEY: 'plain' })
+    })
+
+    it('is empty for an empty store', () => {
+      expect(buildProviderEnv({}, () => 'x')).toEqual({})
+    })
+  })
+
+  describe('isCredentialEnvVarName', () => {
+    it('accepts the SCREAMING_SNAKE names providers actually use', () => {
+      expect(isCredentialEnvVarName('OPENAI_API_KEY')).toBe(true)
+      expect(isCredentialEnvVarName('XAI_API_KEY')).toBe(true)
+    })
+
+    it('rejects anything that could smuggle a second assignment into the env', () => {
+      for (const bad of ['PATH=x', 'A B', 'lower_case', '', 'AB', '1ABC', 'A'.repeat(65)]) {
+        expect(isCredentialEnvVarName(bad)).toBe(false)
+      }
+      expect(isCredentialEnvVarName(undefined)).toBe(false)
+      expect(isCredentialEnvVarName(42)).toBe(false)
+    })
+  })
+})
 
 const SAMPLE_CONFIG = `# Dev-profile config for the isolated hermes runtime (task 0.8).
 # Main model: OpenAI, cheap default (gpt-5-mini). Key lives in .env, not here.

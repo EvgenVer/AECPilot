@@ -7,18 +7,24 @@ import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
-import type { GatewayConnectionState, GatewayEvent } from '../shared/gateway/types'
+import type {
+  AgentProcessEntry,
+  GatewayConnectionState,
+  GatewayEvent
+} from '../shared/gateway/types'
 import {
+  buildProviderKeyEnv,
   encryptKey,
-  getDecryptedKey,
   isEncryptionAvailable,
   keyEnvVarStatus,
   loadLlmSettings,
-  PROVIDER_API_KEY_ENV_VAR,
-  saveLlmSettings
+  saveLlmSettings,
+  setProviderKey,
+  storedProviderKeyNames
 } from './llm-settings'
 import {
   isApprovalMode,
+  isCredentialEnvVarName,
   mergeApprovalsModeIntoConfigYaml,
   mergeModelIntoConfigYaml,
   parseApprovalsMode,
@@ -334,14 +340,13 @@ function applyModelConfigOverride(
   }
 }
 
-/** Builds the spawn-env override for `startServe` (task 0.15): only the
- * provider's credential env var, only when a key is actually stored and
- * decryptable. SECURITY: the decrypted value lives in this object only long
+/** Builds the spawn-env override for `startServe` (task 0.15, extended to a
+ * provider map by 1.6.B2.5): every stored credential env var that decrypts on
+ * this machine. SECURITY: the decrypted values live in this object only long
  * enough to be handed to `startServe`'s child_process spawn — never logged,
  * never returned from here to anything but that call. */
 function buildExtraEnv(): Record<string, string> {
-  const key = getDecryptedKey()
-  return key ? { [PROVIDER_API_KEY_ENV_VAR]: key } : {}
+  return buildProviderKeyEnv()
 }
 
 /** Lazily creates the initial chat session (task 0.11) and caches its id.
@@ -724,6 +729,174 @@ ipcMain.handle('rollback:restore', async (_event, payload: unknown) => {
   })
 })
 
+// --- Settings screen: agent behaviour, toolsets, plugins, processes --------
+// (batch 2 / 2a, task 1.6.B2.2). Contracts read off the installed gateway's
+// `tui_gateway/server.py`; see shared/gateway/types.ts for the per-method
+// notes and error codes.
+
+// The `config.get`/`config.set` keys the SETTINGS screen may reach. Two
+// allowlists exist on purpose (this one and PICKER_CONFIG_KEYS above): the
+// composer must not be able to rewrite the system prompt, and this screen must
+// not be able to switch the model behind the picker's back. `full` — which
+// answers with the entire config.yaml, api key and all — is reachable from
+// neither.
+const AGENT_CONFIG_READ_KEYS = ['reasoning', 'fast', 'busy', 'prompt'] as const
+type AgentConfigReadKey = (typeof AGENT_CONFIG_READ_KEYS)[number]
+const AGENT_CONFIG_WRITE_KEYS = ['reasoning', 'fast', 'busy', 'prompt', 'verbose'] as const
+type AgentConfigWriteKey = (typeof AGENT_CONFIG_WRITE_KEYS)[number]
+
+function isAgentConfigReadKey(value: unknown): value is AgentConfigReadKey {
+  return typeof value === 'string' && (AGENT_CONFIG_READ_KEYS as readonly string[]).includes(value)
+}
+function isAgentConfigWriteKey(value: unknown): value is AgentConfigWriteKey {
+  return typeof value === 'string' && (AGENT_CONFIG_WRITE_KEYS as readonly string[]).includes(value)
+}
+
+ipcMain.handle('agent-config:get', async (_event, key: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  if (!isAgentConfigReadKey(key)) throw new Error('invalid config key')
+  const activeSessionId = await ensureSession()
+  return gateway.request('config.get', { key, session_id: activeSessionId })
+})
+
+ipcMain.handle('agent-config:set', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { key, value } = (payload ?? {}) as { key?: unknown; value?: unknown }
+  if (!isAgentConfigWriteKey(key)) throw new Error('invalid config key')
+  if (typeof value !== 'string') throw new Error('invalid config value')
+  const activeSessionId = await ensureSession()
+  return gateway.request('config.set', { key, value, session_id: activeSessionId })
+})
+
+// `config.show`, not `config.get {key:'full'}` — their handler masks the API
+// key (`****last4`) and pre-renders the sections. Asking for the full config
+// and formatting it here would put an unmasked key in the renderer for the
+// sake of the same three sections.
+ipcMain.handle('config:show', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  return gateway.request('config.show', {})
+})
+
+ipcMain.handle('tools:list', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  const activeSessionId = await ensureSession()
+  return gateway.request('tools.list', { session_id: activeSessionId })
+})
+
+ipcMain.handle('tools:configure', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { action, names } = (payload ?? {}) as { action?: unknown; names?: unknown }
+  if (action !== 'enable' && action !== 'disable') throw new Error('invalid tools action')
+  if (!Array.isArray(names) || names.some((name) => typeof name !== 'string')) {
+    throw new Error('invalid toolset names')
+  }
+  if (names.length === 0) throw new Error('no toolsets given')
+  const activeSessionId = await ensureSession()
+  return gateway.request('tools.configure', {
+    action,
+    names: names as string[],
+    session_id: activeSessionId
+  })
+})
+
+ipcMain.handle('plugins:list', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  const result = await gateway.request('plugins.manage', { action: 'list' })
+  return {
+    plugins: Array.isArray(result.plugins) ? result.plugins : [],
+    userCount: typeof result.user_count === 'number' ? result.user_count : 0,
+    bundledCount: typeof result.bundled_count === 'number' ? result.bundled_count : 0
+  }
+})
+
+// Enabling a NON-bundled plugin runs third-party code inside the gateway
+// process, so it takes an explicit confirmation — and the check is here, not
+// in the renderer: `source` is re-read from the gateway's own list rather than
+// trusted from the caller, so a renderer bug cannot mislabel a user plugin as
+// bundled to skip the gate. Disabling never needs confirmation (it only ever
+// removes capability).
+ipcMain.handle('plugins:toggle', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { name, enable, confirmed } = (payload ?? {}) as {
+    name?: unknown
+    enable?: unknown
+    confirmed?: unknown
+  }
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid plugin name')
+  if (typeof enable !== 'boolean') throw new Error('invalid plugin state')
+
+  if (enable) {
+    const listing = await gateway.request('plugins.manage', { action: 'list' })
+    const row = (listing.plugins ?? []).find((plugin) => plugin.name === name)
+    if (row && row.source !== 'bundled' && confirmed !== true) {
+      throw new Error('enabling a user plugin requires explicit confirmation')
+    }
+  }
+
+  const result = await gateway.request('plugins.manage', { action: 'toggle', name, enable })
+  return {
+    ok: result.ok === true,
+    unchanged: result.unchanged === true,
+    plugin: result.plugin ?? null
+  }
+})
+
+// Two sources, deliberately kept apart in the result: `process.list` is
+// session-scoped and killable, `agents.list` is every session's processes and
+// is observation only (their `process.kill` answers 4044 for a process owned
+// by another session).
+ipcMain.handle('processes:list', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  const activeSessionId = await ensureSession()
+  const own = await gateway.request('process.list', { session_id: activeSessionId })
+  let others: AgentProcessEntry[] = []
+  try {
+    const all = await gateway.request('agents.list', {})
+    others = Array.isArray(all.processes) ? all.processes : []
+  } catch (error: unknown) {
+    // The cross-session view is extra context, not the point of the tab —
+    // losing it must not empty the list of the user's own processes.
+    console.error('aecpilot: agents.list failed', error)
+  }
+  const ownIds = new Set((own.processes ?? []).map((entry) => entry.session_id))
+  return {
+    own: Array.isArray(own.processes) ? own.processes : [],
+    others: others.filter((entry) => !ownIds.has(entry.session_id))
+  }
+})
+
+// Stops one process. `confirmed` is checked here for the same reason as
+// `rollback:restore`: the confirmation step must not be skippable from the
+// renderer. There is no "stop everything" channel — `process.stop` is
+// `kill_all()` across every session of the gateway (decision R8).
+ipcMain.handle('processes:kill', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { processId, confirmed } = (payload ?? {}) as {
+    processId?: unknown
+    confirmed?: unknown
+  }
+  if (confirmed !== true) throw new Error('process.kill requires explicit confirmation')
+  if (typeof processId !== 'string' || processId.trim() === '') {
+    throw new Error('invalid process id')
+  }
+  const activeSessionId = await ensureSession()
+  return gateway.request('process.kill', {
+    session_id: activeSessionId,
+    process_id: processId
+  })
+})
+
+// Never rejects on a provider problem: "no usable credentials" IS the answer
+// this screen exists to show.
+ipcMain.handle('setup:runtime-check', async () => {
+  if (!gateway) throw new Error('no gateway connection')
+  try {
+    return await gateway.request('setup.runtime_check', {})
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
 type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
 function isApprovalChoice(value: string): value is ApprovalChoice {
@@ -866,6 +1039,22 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
   }
   saveLlmSettings(next)
 
+  return restartBackend(next)
+})
+
+/** Stops the hermes backend, applies `configOverride` to the profile's
+ * config.yaml if given, and starts it again with the current credential env.
+ *
+ * Extracted from `settings:save` (task 1.6.B2.5) because saving a provider key
+ * in the new "Доступы" section needs exactly the same sequence: keys are
+ * injected into the child process's environment at spawn time, so a key that
+ * arrives later only takes effect on the next start. One implementation means
+ * the two paths cannot drift into leaving the app connected to a backend
+ * running with stale credentials. */
+async function restartBackend(configOverride?: {
+  model?: string
+  baseUrl?: string
+}): Promise<{ ok: boolean; restarted: boolean; error?: string }> {
   // AEC_GATEWAY_URL (task 0.16 e2e mode): no hermes serve process is running
   // to restart — settings are saved, but nothing to reconnect.
   if (process.env.AEC_GATEWAY_URL) {
@@ -881,7 +1070,7 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
       await stopServeFn(oldHandle)
     }
 
-    applyModelConfigOverride(HERMES_HOME_DIR, next)
+    if (configOverride) applyModelConfigOverride(HERMES_HOME_DIR, configOverride)
     serveHandle = await startServe({ extraEnv: buildExtraEnv() })
     stopServeFn = stopServe
     await waitHealthy(serveHandle, 30000)
@@ -896,13 +1085,62 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
 
     return { ok: true, restarted: true }
   } catch (error: unknown) {
-    console.error('aecpilot: backend restart FAIL after settings save', error)
+    console.error('aecpilot: backend restart FAIL', error)
     return {
       ok: false,
       restarted: false,
       error: error instanceof Error ? error.message : 'backend restart failed'
     }
   }
+}
+
+// --- Provider keys, "Доступы" (task 1.6.B2.5) ------------------------------
+// Owner decision R2: our own encrypted store, never their plaintext `.env`.
+// The renderer learns exactly three things per credential env var — whether a
+// key is stored, whether the profile's dev `.env` would override it, and
+// whether this machine can encrypt at all. No value, and no mask of a value,
+// crosses this boundary in either direction except the key being SET.
+
+ipcMain.handle('keys:list', async (_event, envVars: unknown) => {
+  const names = Array.isArray(envVars) ? envVars.filter(isCredentialEnvVarName) : []
+  const stored = new Set(storedProviderKeyNames())
+  let profileDir: string | undefined
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch (error: unknown) {
+    console.error('aecpilot: could not locate the hermes profile for .env checks', error)
+  }
+  // Names with a stored key are always listed, even if the catalogue no longer
+  // mentions them: a key the user can no longer see is a key they cannot
+  // delete.
+  const allNames = [...new Set([...names, ...stored])].sort()
+  return {
+    encryptionAvailable: isEncryptionAvailable(),
+    keys: allNames.map((envVar) => ({
+      envVar,
+      hasKey: stored.has(envVar),
+      envOverrides: profileDir ? keyEnvVarStatus(profileDir, envVar) : false
+    }))
+  }
+})
+
+ipcMain.handle('keys:save', async (_event, payload: unknown) => {
+  const { envVar, key } = (payload ?? {}) as { envVar?: unknown; key?: unknown }
+  if (!isCredentialEnvVarName(envVar)) throw new Error('invalid credential env var name')
+  if (key !== null && typeof key !== 'string') throw new Error('invalid key')
+  const value = key === null ? null : key.trim()
+  if (value !== null && value === '') throw new Error('empty key')
+
+  if (!setProviderKey(envVar, value)) {
+    return {
+      ok: false,
+      restarted: false,
+      error: 'safeStorage недоступен на этой машине — ключ не сохранён (в открытом виде не пишем)'
+    }
+  }
+  // A key only reaches hermes through the child process's environment, so it
+  // takes effect on the next start and not before.
+  return restartBackend()
 })
 
 ipcMain.handle('approvals:get-mode', async () => {

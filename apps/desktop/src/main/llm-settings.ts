@@ -20,7 +20,12 @@
 import { app, safeStorage } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { envVarIsDefined } from './llm-settings-pure'
+import {
+  buildProviderEnv,
+  envVarIsDefined,
+  migrateProviderKeys,
+  type ProviderKeyMap
+} from './llm-settings-pure'
 
 // Confirmed from hermes_cli/auth.py's PROVIDER_REGISTRY["openai-api"]
 // (pinned hermes 0.18.0): api_key_env_vars=("OPENAI_API_KEY",),
@@ -32,8 +37,13 @@ export const PROVIDER_API_KEY_ENV_VAR = 'OPENAI_API_KEY'
 export interface LlmSettings {
   model?: string
   baseUrl?: string
-  /** Base64 of `safeStorage.encryptString(key)`. Never the plaintext key. */
+  /** Base64 of `safeStorage.encryptString(key)`. Never the plaintext key.
+   * Task-0.15 shape, kept for the one provider the LLM section manages;
+   * `providerKeys` (task 1.6.B2.5) is the general form and the legacy value is
+   * migrated into it on read. */
   encryptedKey?: string
+  /** Credential env var name → base64 ciphertext (task 1.6.B2.5). */
+  providerKeys?: ProviderKeyMap
 }
 
 function settingsPath(): string {
@@ -48,11 +58,18 @@ export function loadLlmSettings(): LlmSettings {
     const raw = readFileSync(settingsPath(), 'utf-8')
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { model, baseUrl, encryptedKey } = parsed as Record<string, unknown>
+    const { model, baseUrl, encryptedKey, providerKeys } = parsed as Record<string, unknown>
     return {
       model: typeof model === 'string' ? model : undefined,
       baseUrl: typeof baseUrl === 'string' ? baseUrl : undefined,
-      encryptedKey: typeof encryptedKey === 'string' ? encryptedKey : undefined
+      encryptedKey: typeof encryptedKey === 'string' ? encryptedKey : undefined,
+      providerKeys: migrateProviderKeys(
+        {
+          encryptedKey: typeof encryptedKey === 'string' ? encryptedKey : undefined,
+          providerKeys
+        },
+        PROVIDER_API_KEY_ENV_VAR
+      )
     }
   } catch {
     return {}
@@ -102,18 +119,68 @@ export function encryptKey(key: string): string | undefined {
   return safeStorage.encryptString(key).toString('base64')
 }
 
-/** Checks whether `PROVIDER_API_KEY_ENV_VAR` is *assigned* in the hermes
- * profile's `.env` (dev override) — never reads or returns its value. hermes
- * resolves that var preferring `.env` over the spawn env
+/** Checks whether `envVar` (default: `PROVIDER_API_KEY_ENV_VAR`) is *assigned*
+ * in the hermes profile's `.env` (dev override) — never reads or returns its
+ * value. hermes resolves that var preferring `.env` over the spawn env
  * (`get_env_value_prefer_dotenv` in hermes_cli/config.py), so when this is
  * true, a key saved via the Settings UI will be silently ignored by the
  * backend; the UI surfaces that as a notice. Missing `.env` (no dev
  * override present) is treated the same as "not defined". */
-export function keyEnvVarStatus(profileDir: string): boolean {
+export function keyEnvVarStatus(
+  profileDir: string,
+  envVar: string = PROVIDER_API_KEY_ENV_VAR
+): boolean {
   try {
     const contents = readFileSync(join(profileDir, '.env'), 'utf-8')
-    return envVarIsDefined(contents, PROVIDER_API_KEY_ENV_VAR)
+    return envVarIsDefined(contents, envVar)
   } catch {
     return false
   }
+}
+
+/** The whole stored map, decrypted, as a spawn-env override (task 1.6.B2.5).
+ *
+ * SECURITY: same rule as `getDecryptedKey` — the returned object exists only
+ * to be handed to `startServe`'s child_process spawn. It must never be
+ * logged, returned over IPC, or spread into an object that is. */
+export function buildProviderKeyEnv(): Record<string, string> {
+  if (!safeStorage.isEncryptionAvailable()) return {}
+  return buildProviderEnv(loadLlmSettings().providerKeys ?? {}, (ciphertext) => {
+    try {
+      return safeStorage.decryptString(Buffer.from(ciphertext, 'base64'))
+    } catch {
+      return undefined
+    }
+  })
+}
+
+/** Which credential env vars have a key stored — names only, never values.
+ * This is the whole vocabulary the renderer is given about keys. */
+export function storedProviderKeyNames(): string[] {
+  return Object.keys(loadLlmSettings().providerKeys ?? {}).sort()
+}
+
+/** Stores or clears one provider's key. `key: null` removes the entry.
+ * Returns false when encryption is unavailable and a key was to be stored —
+ * writing plaintext is not an option, so the caller must tell the user rather
+ * than silently keeping nothing. */
+export function setProviderKey(envVar: string, key: string | null): boolean {
+  const settings = loadLlmSettings()
+  const keys: ProviderKeyMap = { ...(settings.providerKeys ?? {}) }
+  if (key === null) {
+    delete keys[envVar]
+  } else {
+    if (!safeStorage.isEncryptionAvailable()) return false
+    keys[envVar] = safeStorage.encryptString(key).toString('base64')
+  }
+  // The legacy single-key field is kept in sync so a downgrade (or the LLM
+  // section, which still reads it) does not lose the provider it manages.
+  const legacy = keys[PROVIDER_API_KEY_ENV_VAR]
+  saveLlmSettings({
+    model: settings.model,
+    baseUrl: settings.baseUrl,
+    ...(legacy ? { encryptedKey: legacy } : {}),
+    providerKeys: keys
+  })
+  return true
 }

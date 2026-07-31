@@ -3,16 +3,24 @@
 // these methods, contextBridge-exposed as `window.aecpilot`.
 
 import type {
+  AgentProcessEntry,
   ConfigSetResult,
+  ConfigShowSection,
   GatewayConnectionState,
   GatewayEvent,
   HistoryMessage,
   ModelOptionsResult,
+  PluginRow,
+  ProcessEntry,
+  ProcessKillResult,
   RollbackCheckpoint,
   RollbackDiffResult,
   RollbackRestoreResult,
+  RuntimeCheckResult,
   SessionSummary,
-  SlashCompletionItem
+  SlashCompletionItem,
+  ToolsConfigureResult,
+  ToolsetInfo
 } from './gateway/types'
 
 /** What happened to one file the user tried to attach (task 1.6.A4). A
@@ -460,4 +468,84 @@ export interface AecpilotApi {
    * away from must be checked against the currently-open project before
    * use. Returns an unsubscribe function. */
   onScanReport(cb: (envelope: ScanReportEnvelope) => void): () => void
+
+  // --- Settings screen, batch 2 (task 1.6.B2.2) ----------------------------
+  // Every call below is a settings surface: the renderer opens it deliberately,
+  // so a failure is worth showing rather than swallowing, and these reject
+  // instead of returning a neutral empty value (unlike the per-keystroke
+  // completions above).
+  //
+  // None of them carries a secret VALUE in either direction. `hasKey`, a
+  // `****last4` mask produced by the gateway, and the presence/absence of an
+  // env var name are the whole vocabulary — see `getProviderKeys`.
+
+  /** Reads one agent-behaviour setting (task 1.6.B2.13). The four readable
+   * keys are the four this app writes; the gateway's own `full` key (which
+   * would answer with the entire config.yaml, api key included) is not
+   * reachable from here by construction. */
+  getAgentConfig(
+    key: 'reasoning' | 'fast' | 'busy' | 'prompt'
+  ): Promise<{ value?: string; display?: string; prompt?: string }>
+  /** Writes one agent-behaviour setting. Rejects for any key outside the four
+   * above — in particular for `model`, which belongs to the composer's picker,
+   * and for their TUI-only display keys (decision R6). */
+  setAgentConfig(
+    key: 'reasoning' | 'fast' | 'busy' | 'prompt' | 'verbose',
+    value: string
+  ): Promise<ConfigSetResult>
+  /** The read-only "как настроено" summary (task 1.6.B2.15). The sections
+   * arrive pre-rendered and pre-masked from the gateway; this app adds
+   * nothing, precisely so that no unmasked config ever has to be fetched. */
+  getConfigSummary(): Promise<{ sections: ConfigShowSection[] }>
+  /** Toolsets with their tool names and current enabled state (task 1.6.B2.6). */
+  listToolsets(): Promise<{ toolsets: ToolsetInfo[] }>
+  /** Enables/disables whole toolsets (task 1.6.B2.7). The three outcome lists
+   * in the result mean different things and must not be merged — see
+   * `ToolsConfigureResult`. */
+  configureToolsets(action: 'enable' | 'disable', names: string[]): Promise<ToolsConfigureResult>
+  /** Installed plugins with activation state (task 1.6.B2a.2). */
+  listPlugins(): Promise<{ plugins: PluginRow[]; userCount: number; bundledCount: number }>
+  /** Turns one plugin on/off (task 1.6.B2a.3). `confirmed` is required when
+   * enabling a plugin whose `source` is not `bundled`: that is third-party
+   * code being switched on inside the gateway process, and main refuses the
+   * call without it. `unchanged: true` means it was already in that state. */
+  togglePlugin(payload: {
+    name: string
+    enable: boolean
+    confirmed?: boolean
+  }): Promise<{ ok: boolean; unchanged: boolean; plugin: PluginRow | null }>
+  /** Background processes (task 1.6.B2a.4): `own` are this session's, killable;
+   * `others` come from `agents.list` and are observation-only — the gateway
+   * refuses a cross-session kill (4044) and this app offers no button for it
+   * (decision R8). */
+  listProcesses(): Promise<{ own: ProcessEntry[]; others: AgentProcessEntry[] }>
+  /** Stops one background process of the current session (task 1.6.B2a.5).
+   * `confirmed` is checked in main. `status` distinguishes `killed` /
+   * `already_exited` / `not_found`, all of which resolve rather than reject. */
+  killProcess(payload: { processId: string; confirmed: true }): Promise<ProcessKillResult>
+  /** "Would a prompt sent right now reach a model?" (task 1.6.B2.4). Never
+   * rejects on a provider problem — that is the answer, not an error. */
+  checkRuntime(): Promise<RuntimeCheckResult>
+  /** Which credential env vars have a key stored (task 1.6.B2.5, owner
+   * decision R2 — our encrypted store, never their plaintext `.env`).
+   *
+   * `envVars` are the candidates the catalogue named (`key_env` per provider);
+   * anything already holding a key is returned too, so a key can always be
+   * deleted even after its provider leaves the catalogue. The answer carries
+   * NO key value and no mask of one: `hasKey` is the entire vocabulary.
+   * `envOverrides` warns that the dev profile's `.env` assigns the same
+   * variable, which hermes prefers over the spawn env. */
+  getProviderKeys(envVars: string[]): Promise<{
+    encryptionAvailable: boolean
+    keys: { envVar: string; hasKey: boolean; envOverrides: boolean }[]
+  }>
+  /** Stores (`key: string`) or removes (`key: null`) one provider's key and
+   * restarts the backend, because a key reaches hermes through the child
+   * process's environment and therefore only applies from the next start.
+   * `ok: false` with a message when this machine cannot encrypt — the key is
+   * NOT written in plaintext as a fallback. */
+  saveProviderKey(payload: {
+    envVar: string
+    key: string | null
+  }): Promise<{ ok: boolean; restarted: boolean; error?: string }>
 }

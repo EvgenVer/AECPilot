@@ -6,16 +6,34 @@
 // rest of batch 2 adds its own by extending SECTIONS, and nothing else has to
 // change — which is the point of keeping this list in one place.
 
-export type SettingsSectionId = 'appearance' | 'llm'
+export type SettingsSectionId =
+  | 'appearance'
+  | 'llm'
+  | 'providers'
+  | 'keys'
+  | 'tools'
+  | 'mcp'
+  | 'plugins'
+  | 'agent'
+  | 'gateway'
+  | 'language'
+  | 'indexing'
+  | 'embeddings'
+  | 'summary'
 
 export interface SettingsSection {
   id: SettingsSectionId
   label: string
 }
 
+// Order is the reading order of the screen, not the order the sections were
+// built in: what the app looks like, then what it talks to, then what the
+// agent may do, then the read-only summary.
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: 'appearance', label: 'Оформление' },
-  { id: 'llm', label: 'Подключение к модели' }
+  { id: 'llm', label: 'Подключение к модели' },
+  { id: 'providers', label: 'Провайдеры и модели' },
+  { id: 'keys', label: 'Доступы' }
 ]
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'appearance'
