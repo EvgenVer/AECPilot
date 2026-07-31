@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Rail from './Rail'
+import SettingsScreen from './SettingsScreen'
 import Sidebar from './Sidebar'
 import CenterArea from './CenterArea'
 import StatusBar from './StatusBar'
@@ -150,13 +151,20 @@ export default function Shell() {
     <div className="app-shell">
       <TopBar
         settingsOpen={settingsOpen}
-        settingsDisabled={busy}
         onToggleSettings={() => setSettingsOpen((open) => !open)}
-        onCloseSettings={() => setSettingsOpen(false)}
-        onSettingsRestarted={() => dispatch({ kind: 'session-loaded', messages: [] })}
         currentProject={currentProject}
         onOpenCreateProject={() => setCreateProjectOpen(true)}
       />
+      {/* Task 1.6.B2.1: settings became a screen over the shell rather than a
+          popover under the gear — batch 2 fills it with providers, tools, MCP
+          servers and plugins, none of which fit a popover. */}
+      {settingsOpen && (
+        <SettingsScreen
+          disabled={busy}
+          onClose={() => setSettingsOpen(false)}
+          onRestarted={() => dispatch({ kind: 'session-loaded', messages: [] })}
+        />
+      )}
       <div
         className="app-shell__body"
         style={

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ScanIcon, SearchIcon, SettingsIcon } from './icons'
 import ProjectMenu from './ProjectMenu'
-import SettingsPanel from '../chat/SettingsPanel'
 import type { OpenProject } from '../../../shared/ipc'
 
 /** Top bar (task 1.0): app identity + inert placeholders matching the
@@ -20,21 +19,17 @@ import type { OpenProject } from '../../../shared/ipc'
  * popover from Phase 0, anchored here (a `position: relative` wrapper around
  * this gear button) even though the rail's bottom settings icon can also
  * open it — both triggers share the one `settingsOpen` state lifted to
- * Shell. */
+ * Shell. Task 1.6.B2.1: the settings surface itself is no longer anchored
+ * here — it became a screen (`SettingsScreen`, rendered by Shell), so this
+ * button only toggles it. */
 export default function TopBar({
   settingsOpen,
-  settingsDisabled,
   onToggleSettings,
-  onCloseSettings,
-  onSettingsRestarted,
   currentProject,
   onOpenCreateProject
 }: {
   settingsOpen: boolean
-  settingsDisabled: boolean
   onToggleSettings: () => void
-  onCloseSettings: () => void
-  onSettingsRestarted: () => void
   currentProject: OpenProject | null
   onOpenCreateProject: () => void
 }) {
@@ -83,24 +78,16 @@ export default function TopBar({
 
       <div className="topbar__spacer" />
 
-      <div style={{ position: 'relative' }}>
-        <button
-          type="button"
-          className="topbar__icon-btn"
-          title="Настройки"
-          aria-label="Настройки"
-          onClick={onToggleSettings}
-        >
-          <SettingsIcon width={16} height={16} />
-        </button>
-        {settingsOpen && (
-          <SettingsPanel
-            disabled={settingsDisabled}
-            onClose={onCloseSettings}
-            onRestarted={onSettingsRestarted}
-          />
-        )}
-      </div>
+      <button
+        type="button"
+        className="topbar__icon-btn"
+        title="Настройки"
+        aria-label="Настройки"
+        aria-expanded={settingsOpen}
+        onClick={onToggleSettings}
+      >
+        <SettingsIcon width={16} height={16} />
+      </button>
     </header>
   )
 }
