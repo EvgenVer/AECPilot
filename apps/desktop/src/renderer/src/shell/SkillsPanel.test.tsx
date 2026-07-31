@@ -13,14 +13,19 @@ const editLearningNode = vi.fn()
 const deleteLearningNode = vi.fn()
 const getCuratorStatus = vi.fn()
 const dispatchLearn = vi.fn()
+const toggleSkill = vi.fn()
 const submitPrompt = vi.fn()
 
 /** The archive button of a named skill's own row. The list is sorted
  * alphabetically, so positional lookup would silently target another skill. */
-function archiveButton(skillName: string): HTMLElement {
+function rowButton(skillName: string, label: string): HTMLElement {
   const row = screen.getByText(skillName).closest('li')
   if (!row) throw new Error(`no row for ${skillName}`)
-  return within(row as HTMLElement).getByRole('button', { name: 'В архив' })
+  return within(row as HTMLElement).getByRole('button', { name: label })
+}
+
+function archiveButton(skillName: string): HTMLElement {
+  return rowButton(skillName, 'В архив')
 }
 
 function setInputValue(element: HTMLInputElement | HTMLTextAreaElement, next: string): void {
@@ -43,6 +48,7 @@ beforeEach(() => {
   deleteLearningNode.mockResolvedValue({ ok: true, message: "archived 'x'" })
   getCuratorStatus.mockResolvedValue({ enabled: true, archive_after_days: 90 })
   dispatchLearn.mockResolvedValue({ type: 'send', message: '/learn тема' })
+  toggleSkill.mockResolvedValue({ ok: true })
   submitPrompt.mockResolvedValue(undefined)
   window.aecpilot = {
     listSkills,
@@ -52,6 +58,7 @@ beforeEach(() => {
     deleteLearningNode,
     getCuratorStatus,
     dispatchLearn,
+    toggleSkill,
     submitPrompt
   } as unknown as typeof window.aecpilot
 })
@@ -69,10 +76,40 @@ describe('SkillsPanel', () => {
     expect(screen.getByText('Скилов: 2')).toBeTruthy()
   })
 
-  it('shows a disabled skill as disabled and offers no toggle', async () => {
+  it('shows a disabled skill as disabled', async () => {
     render(<SkillsPanel />)
     await waitFor(() => expect(screen.getByText('выключен')).toBeTruthy())
-    expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  // Task 1.6.B3.17 — the owner reversed decision B3-2 once the premise it
+  // rested on turned out to be wrong (PUT /api/skills/toggle exists).
+  it('turns a skill off through their own toggle route', async () => {
+    render(<SkillsPanel />)
+    await waitFor(() => expect(screen.getByText('sources-management')).toBeTruthy())
+    await act(async () => {
+      rowButton('sources-management', 'Выключить').click()
+    })
+    expect(toggleSkill).toHaveBeenCalledWith({ name: 'sources-management', enabled: false })
+    await waitFor(() => expect(screen.getByText(/следующая сессия агента/)).toBeTruthy())
+  })
+
+  it('turns a disabled skill back on', async () => {
+    render(<SkillsPanel />)
+    await waitFor(() => expect(screen.getByText('off-skill')).toBeTruthy())
+    await act(async () => {
+      rowButton('off-skill', 'Включить').click()
+    })
+    expect(toggleSkill).toHaveBeenCalledWith({ name: 'off-skill', enabled: true })
+  })
+
+  it('shows the core message when a toggle is refused', async () => {
+    toggleSkill.mockRejectedValue(new Error('Не найдено: skill'))
+    render(<SkillsPanel />)
+    await waitFor(() => expect(screen.getByText('sources-management')).toBeTruthy())
+    await act(async () => {
+      rowButton('sources-management', 'Выключить').click()
+    })
+    await waitFor(() => expect(screen.getByText('Не найдено: skill')).toBeTruthy())
   })
 
   it('explains an empty list instead of showing a blank block', async () => {

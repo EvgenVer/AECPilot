@@ -62,6 +62,7 @@ const api: AecpilotApi = {
   checkRuntime: () => ipcRenderer.invoke('setup:runtime-check'),
   listSkills: () => ipcRenderer.invoke('skills:list'),
   reloadSkills: () => ipcRenderer.invoke('skills:reload'),
+  toggleSkill: (payload) => ipcRenderer.invoke('skills:toggle', payload),
   getLearningNode: (id) => ipcRenderer.invoke('learning:detail', id),
   editLearningNode: (payload) => ipcRenderer.invoke('learning:edit', payload),
   deleteLearningNode: (payload) => ipcRenderer.invoke('learning:delete', payload),

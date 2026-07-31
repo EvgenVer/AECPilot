@@ -635,6 +635,11 @@ export interface AecpilotApi {
   /** Re-scans the skill directories (task 1.6.B3.4). Returns what changed —
    * added/removed names and the new total. */
   reloadSkills(): Promise<{ added: string[]; removed: string[]; total: number }>
+  /** Turns one skill on or off (task 1.6.B3.17). Writes their own
+   * `skills.disabled` through `PUT /api/skills/toggle` — not by editing
+   * config.yaml, which rule R3 forbids and which the earlier decision assumed
+   * was the only option. Takes effect for the next session the agent builds. */
+  toggleSkill(payload: { name: string; enabled: boolean }): Promise<unknown>
   /** The content of one journey node (task 1.6.B3.5): a skill's SKILL.md or a
    * memory chunk. `ok: false` arrives as a resolved value, not a rejection —
    * their mutations module answers that way for a missing id. */

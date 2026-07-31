@@ -753,6 +753,36 @@ ipcMain.handle('skills:list', async () => {
   return hermesRest<SkillRow[]>(restTarget(), '/api/skills')
 })
 
+// Enabling/disabling one skill (task 1.6.B3.17, owner decision 2026-07-31).
+//
+// Over REST, and that is the whole reason this exists: decision B3-2 said "do
+// not write skills.disabled" on the premise that the only way would be editing
+// their config.yaml by hand, which rule R3 forbids. The premise was wrong —
+// `PUT /api/skills/toggle` is their own supported path and writes the same
+// key through their own code. The owner reversed the decision once measured.
+ipcMain.handle('skills:toggle', async (_event, payload: unknown) => {
+  const { name, enabled } = (payload ?? {}) as { name?: unknown; enabled?: unknown }
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid skill name')
+  if (typeof enabled !== 'boolean') throw new Error('invalid enabled flag')
+  const result = await hermesRest<{ ok?: boolean }>(restTarget(), '/api/skills/toggle', {
+    method: 'PUT',
+    body: { name, enabled }
+  })
+  // Their toggle writes config and stops there. `skills.reload` re-scans the
+  // directories so the slash-command map matches — best-effort, because the
+  // config write already succeeded and a reload failure must not be reported
+  // as the toggle having failed. Their own comment records that reload does
+  // NOT drop the prompt cache, so this costs nothing beyond the re-scan.
+  if (gateway) {
+    try {
+      await gateway.request('skills.reload', {})
+    } catch (error: unknown) {
+      console.error('aecpilot: skills.reload after a toggle failed', error)
+    }
+  }
+  return result
+})
+
 ipcMain.handle('skills:reload', async () => {
   if (!gateway) throw new Error('no gateway connection')
   const result = await gateway.request('skills.reload', {})

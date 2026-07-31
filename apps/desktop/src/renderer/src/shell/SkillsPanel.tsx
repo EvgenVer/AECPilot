@@ -143,6 +143,25 @@ export default function SkillsPanel() {
     }
   }
 
+  /** Turning a skill off removes it from what the agent can call. No
+   * confirmation: it takes capability away and is one click to undo — the
+   * same reasoning as disabling a toolset in the settings screen. */
+  async function toggle(name: string, enabled: boolean): Promise<void> {
+    setBusy(true)
+    setError(undefined)
+    try {
+      await window.aecpilot.toggleSkill({ name, enabled })
+      setNotice(
+        `Скил «${name}» ${enabled ? 'включён' : 'выключен'}. Изменение подхватит следующая сессия агента.`
+      )
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function reload(): Promise<void> {
     setBusy(true)
     setError(undefined)
@@ -247,6 +266,14 @@ export default function SkillsPanel() {
                     {skill.name}
                   </button>
                   {skill.enabled === false && <span className="skill-row__state">выключен</span>}
+                  <button
+                    type="button"
+                    className="settings-popover__link-btn"
+                    onClick={() => void toggle(skill.name, skill.enabled === false)}
+                    disabled={busy}
+                  >
+                    {skill.enabled === false ? 'Включить' : 'Выключить'}
+                  </button>
                   <button
                     type="button"
                     className="settings-popover__link-btn"
