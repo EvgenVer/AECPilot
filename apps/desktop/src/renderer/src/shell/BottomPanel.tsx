@@ -2,19 +2,22 @@ import { useState } from 'react'
 import { ChevronDownIcon } from './icons'
 import PanelResizer from './PanelResizer'
 import { PANEL_BOUNDS } from './panel-sizes-pure'
+import ProcessesTab from './ProcessesTab'
 
-type BottomTab = 'indexing' | 'changes' | 'log'
+type BottomTab = 'indexing' | 'changes' | 'log' | 'processes'
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: 'indexing', label: 'Индексация' },
   { id: 'changes', label: 'Изменения' },
-  { id: 'log', label: 'Журнал' }
+  { id: 'log', label: 'Журнал' },
+  { id: 'processes', label: 'Процессы' }
 ]
 
 const TAB_EMPTY_HINT: Record<BottomTab, string> = {
   indexing: 'Индексация появится здесь (Phase 2).',
   changes: 'Обнаруженные изменения источников появятся здесь (задача 1.15).',
-  log: 'Журнал сканирований появится здесь (Phase 2).'
+  log: 'Журнал сканирований появится здесь (Phase 2).',
+  processes: ''
 }
 
 /** Bottom panel (task 1.0): a collapsible stub for indexing/changes/log —
@@ -87,7 +90,18 @@ export default function BottomPanel({
           />
         </button>
       </div>
-      {!collapsed && <div className="bottom-panel__body">{TAB_EMPTY_HINT[activeTab]}</div>}
+      {!collapsed && (
+        <div className="bottom-panel__body">
+          {activeTab === 'processes' ? (
+            // `active` gates the polling: a collapsed panel or another tab
+            // means nobody can see the list, and a timer hitting the gateway
+            // for it would be pure waste (task 1.6.B2a.4).
+            <ProcessesTab active={!collapsed && activeTab === 'processes'} />
+          ) : (
+            TAB_EMPTY_HINT[activeTab]
+          )}
+        </div>
+      )}
     </div>
   )
 }

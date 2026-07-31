@@ -4112,3 +4112,77 @@ body.resizing-row * {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* Вкладка «Процессы» нижней панели (1.6.B2a.4–B2a.6) */
+.processes-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.process-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.process-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.process-row__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.process-row__command {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.process-row__command:disabled {
+  cursor: default;
+}
+
+.process-row__meta,
+.process-row__cwd {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  flex: none;
+}
+
+.process-row__cwd {
+  overflow-wrap: anywhere;
+}
+
+.process-row__output {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--bg-surface);
+  border-radius: var(--r-ctl);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow-y: auto;
+}
