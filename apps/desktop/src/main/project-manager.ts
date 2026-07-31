@@ -22,6 +22,7 @@ import { randomUUID } from 'node:crypto'
 import { generateVault, type VaultConflict } from '../project/vault-generator'
 import {
   type ProjectConfig,
+  type ProjectSettings,
   type ProjectSource,
   validateProjectConfig
 } from '../project/project-config'
@@ -268,6 +269,45 @@ export function listProjectSources(vaultPath: string): ProjectSource[] {
 // it was just opened/created — the schema itself requires the field once the
 // config parses at all (project-config.ts's validateSettings).
 const DEFAULT_SCAN_INTERVAL_S = 300
+
+/** Reads the project's own settings block (task 1.6.B2.18/B2.19 — the
+ * "Индексация" and "Эмбеддинги" sections). These belong to the PROJECT, not
+ * to the app: a vault carries its wiki language, scan interval and embedding
+ * model with it. */
+export function getProjectSettings(vaultPath: string): ProjectSettings | undefined {
+  const result = readProjectConfigFile(vaultPath)
+  return result.ok ? result.config.settings : undefined
+}
+
+/** Writes back a subset of the project's settings, leaving everything else in
+ * `project.json` (sources included) untouched. Validation is the same one the
+ * file goes through on read, so an out-of-range interval is refused here
+ * rather than producing a config the app will later reject as corrupt. */
+export function updateProjectSettings(
+  vaultPath: string,
+  patch: Partial<ProjectSettings>
+): { ok: true; settings: ProjectSettings } | { ok: false; error: string } {
+  const result = readProjectConfigFile(vaultPath)
+  if (!result.ok) return { ok: false, error: result.error }
+
+  const settings: ProjectSettings = { ...result.config.settings, ...patch }
+  if (settings.wiki_lang.trim() === '') {
+    return { ok: false, error: 'Язык вики не может быть пустым' }
+  }
+  if (!Number.isFinite(settings.scan_interval_s) || settings.scan_interval_s <= 0) {
+    return { ok: false, error: 'Интервал сканирования должен быть больше нуля' }
+  }
+
+  try {
+    writeProjectConfigFile(vaultPath, { ...result.config, settings })
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'не удалось записать project.json'
+    }
+  }
+  return { ok: true, settings }
+}
 
 /** Reads a project's configured scan interval (task 1.14, backs the scan
  * scheduler's `start`/`restart` on project open/create). Falls back to

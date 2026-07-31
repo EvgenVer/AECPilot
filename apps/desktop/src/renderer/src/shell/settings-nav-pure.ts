@@ -33,7 +33,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: 'appearance', label: 'Оформление' },
   { id: 'llm', label: 'Подключение к модели' },
   { id: 'providers', label: 'Провайдеры и модели' },
-  { id: 'keys', label: 'Доступы' }
+  { id: 'keys', label: 'Доступы' },
+  { id: 'agent', label: 'Поведение агента' },
+  { id: 'tools', label: 'Инструменты' },
+  { id: 'mcp', label: 'MCP-серверы' },
+  { id: 'plugins', label: 'Плагины' },
+  { id: 'language', label: 'Язык' },
+  { id: 'indexing', label: 'Индексация' },
+  { id: 'embeddings', label: 'Эмбеддинги' },
+  { id: 'gateway', label: 'Шлюз' },
+  { id: 'summary', label: 'Как настроено' }
 ]
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'appearance'

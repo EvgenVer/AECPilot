@@ -5,6 +5,8 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import { hermesRest, type RestTarget } from './hermes-rest'
+import type { McpLiveStatus, McpServerSummary } from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
 import type {
@@ -33,7 +35,9 @@ import {
 import {
   addSourceToProject,
   createProject,
+  getProjectSettings,
   getScanIntervalSeconds,
+  updateProjectSettings,
   getSourceStatusResult,
   getSourceTreeResult,
   listProjectSources,
@@ -291,6 +295,7 @@ async function connectGateway(url: string): Promise<void> {
     // Only forward events for the active session, plus session-less
     // events (e.g. `gateway.ready`, which carries no session_id).
     if (event.session_id && event.session_id !== sessionId) return
+    rememberMcpStatus(event)
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
   })
   gateway.onStateChange((state) => {
@@ -727,6 +732,166 @@ ipcMain.handle('rollback:restore', async (_event, payload: unknown) => {
     hash,
     ...(filePath === undefined ? {} : { file_path: filePath })
   })
+})
+
+// --- Our own settings that live in the project (tasks 1.6.B2.17–B2.19) -----
+// Wiki language, scan interval and embedding model belong to the VAULT, not to
+// the app: they travel with the project (specs/workspace-sources.md § Data
+// schemas), so they are read from and written to `project.json`.
+
+ipcMain.handle('project:get-settings', () => {
+  if (!currentProject) return null
+  return getProjectSettings(currentProject.vaultPath) ?? null
+})
+
+ipcMain.handle('project:update-settings', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  const { wikiLang, scanIntervalS, embeddingModel } = (payload ?? {}) as {
+    wikiLang?: unknown
+    scanIntervalS?: unknown
+    embeddingModel?: unknown
+  }
+  const patch: Parameters<typeof updateProjectSettings>[1] = {}
+  if (wikiLang !== undefined) {
+    if (typeof wikiLang !== 'string') return { ok: false, error: 'язык вики должен быть строкой' }
+    patch.wiki_lang = wikiLang
+  }
+  if (scanIntervalS !== undefined) {
+    if (typeof scanIntervalS !== 'number' || !Number.isFinite(scanIntervalS)) {
+      return { ok: false, error: 'интервал должен быть числом' }
+    }
+    patch.scan_interval_s = scanIntervalS
+  }
+  if (embeddingModel !== undefined) {
+    if (typeof embeddingModel !== 'string') {
+      return { ok: false, error: 'модель эмбеддингов должна быть строкой' }
+    }
+    patch.embedding_model = embeddingModel
+  }
+
+  const result = updateProjectSettings(currentProject.vaultPath, patch)
+  // A changed interval has to reach the running scheduler, otherwise the new
+  // value sits in project.json while the old one keeps firing.
+  if (result.ok && patch.scan_interval_s !== undefined) {
+    startScanSchedulerForProject(currentProject.vaultPath)
+  }
+  return result
+})
+
+// --- MCP servers (tasks 1.6.B2.8–B2.12) ------------------------------------
+// There are NO `mcp.*` JSON-RPC methods — measured, not assumed: server CRUD
+// exists only on the REST surface of the same `hermes serve` process (owner
+// decision R1 allows REST exactly for gaps like this one).
+//
+// The live connection state is a different source: it rides along on
+// `session.info.mcp_servers`, which main already forwards to the renderer.
+// Caching it here means the settings screen gets config and liveness in one
+// call and does not have to grow a dependency on the chat's state.
+
+let lastMcpStatus: McpLiveStatus[] = []
+
+/** Keeps the newest `session.info.mcp_servers` seen on the active session. */
+function rememberMcpStatus(event: GatewayEvent): void {
+  if (event.type !== 'session.info') return
+  const servers = (event.payload as { mcp_servers?: unknown } | undefined)?.mcp_servers
+  if (Array.isArray(servers)) lastMcpStatus = servers as McpLiveStatus[]
+}
+
+function restTarget(): RestTarget | undefined {
+  return serveHandle
+    ? { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
+    : undefined
+}
+
+ipcMain.handle('mcp:list', async () => {
+  const result = await hermesRest<{ servers?: McpServerSummary[] }>(
+    restTarget(),
+    '/api/mcp/servers'
+  )
+  // `env` VALUES never leave main. Their REST layer already redacts them
+  // (`_redact_mcp_env`), but a redacted secret is still a secret's shape, and
+  // the screen has no use for either — it shows which variables a server
+  // defines, not what they hold.
+  const servers = (result.servers ?? []).map((server) => ({
+    ...server,
+    envNames: Object.keys(server.env ?? {}),
+    env: undefined
+  }))
+  return { servers, live: lastMcpStatus }
+})
+
+ipcMain.handle('mcp:set-enabled', async (_event, payload: unknown) => {
+  const { name, enabled } = (payload ?? {}) as { name?: unknown; enabled?: unknown }
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid server name')
+  if (typeof enabled !== 'boolean') throw new Error('invalid enabled flag')
+  const result = await hermesRest(
+    restTarget(),
+    `/api/mcp/servers/${encodeURIComponent(name)}/enabled`,
+    { method: 'PUT', body: { enabled } }
+  )
+  // Their toggle writes config.yaml; the running gateway keeps its cached MCP
+  // connections until told otherwise (the same caching that made task 1.20
+  // necessary), so the change is not live until this reload.
+  await reloadMcp()
+  return result
+})
+
+ipcMain.handle('mcp:add', async (_event, payload: unknown) => {
+  const body = (payload ?? {}) as Record<string, unknown>
+  if (typeof body.name !== 'string' || body.name.trim() === '') {
+    throw new Error('invalid server name')
+  }
+  if (typeof body.url !== 'string' && typeof body.command !== 'string') {
+    throw new Error('server needs a url or a command')
+  }
+  const created = await hermesRest(restTarget(), '/api/mcp/servers', { method: 'POST', body })
+  await reloadMcp()
+  return created
+})
+
+// DESTRUCTIVE: removes the server's configuration entirely (their DELETE has
+// no undo, and the env map goes with it). `confirmed` is checked here, not
+// only in the renderer — same rule as `rollback:restore`.
+ipcMain.handle('mcp:remove', async (_event, payload: unknown) => {
+  const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
+  if (confirmed !== true) throw new Error('removing an MCP server requires explicit confirmation')
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid server name')
+  const result = await hermesRest(restTarget(), `/api/mcp/servers/${encodeURIComponent(name)}`, {
+    method: 'DELETE'
+  })
+  await reloadMcp()
+  return result
+})
+
+ipcMain.handle('mcp:test', async (_event, payload: unknown) => {
+  const { name } = (payload ?? {}) as { name?: unknown }
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid server name')
+  // Their probe spawns the server and lists its tools; 60 s is their own
+  // budget for it, and a shorter one here would report a timeout for a server
+  // that was about to answer.
+  return hermesRest(restTarget(), `/api/mcp/servers/${encodeURIComponent(name)}/test`, {
+    method: 'POST',
+    timeoutMs: 60000
+  })
+})
+
+// "Перечитать серверы". The first call goes WITHOUT `confirm` on purpose: their
+// handler answers `confirm_required` with the warning about invalidating the
+// prompt cache, and the user should see that warning rather than have this app
+// suppress it. The `always` option (which silences the warning forever in
+// their config) is not offered.
+ipcMain.handle('mcp:reload', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { confirm } = (payload ?? {}) as { confirm?: unknown }
+  const activeSessionId = await ensureSession()
+  return gateway.request(
+    'reload.mcp',
+    {
+      session_id: activeSessionId,
+      ...(confirm === true ? { confirm: true } : {})
+    },
+    RELOAD_MCP_TIMEOUT_MS
+  )
 })
 
 // --- Settings screen: agent behaviour, toolsets, plugins, processes --------

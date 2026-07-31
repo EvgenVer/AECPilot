@@ -177,6 +177,40 @@ export interface RollbackListing {
   scope: CheckpointScopeInfo
 }
 
+/** One MCP server as their REST layer describes it (task 1.6.B2.8).
+ *
+ * `env` is dropped in main and replaced by `envNames`: their side already
+ * redacts the values, but a redacted secret is still a secret's shape and this
+ * screen has no use for either — it shows WHICH variables a server defines,
+ * never what they hold. */
+export interface McpServerSummary {
+  name: string
+  transport: string
+  url?: string | null
+  command?: string | null
+  args?: string[]
+  auth?: string | null
+  enabled: boolean
+  tools?: string[] | null
+  /** Present only inside main, before it is stripped. */
+  env?: Record<string, string>
+  envNames?: string[]
+}
+
+/** Live connection state of one server, from `session.info.mcp_servers`
+ * (`tools/mcp_tool.py`'s `get_mcp_status`). `status` is one of `connected`,
+ * `disabled`, `connecting`, `failed`, `configured` — five states, and the
+ * difference between `disabled` and `failed` is exactly what a user needs. */
+export interface McpLiveStatus {
+  name: string
+  transport?: string
+  tools?: number
+  connected?: boolean
+  disabled?: boolean
+  status?: string
+  error?: string
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -539,6 +573,56 @@ export interface AecpilotApi {
     encryptionAvailable: boolean
     keys: { envVar: string; hasKey: boolean; envOverrides: boolean }[]
   }>
+  /** The open project's own settings (tasks 1.6.B2.17–B2.19): wiki language,
+   * scan interval, embedding model. They live in `project.json` because they
+   * belong to the vault and travel with it. `null` when no project is open. */
+  getProjectSettings(): Promise<{
+    wiki_lang: string
+    scan_interval_s: number
+    embedding_model: string
+  } | null>
+  /** Updates any subset of them. Changing the interval also restarts the scan
+   * scheduler, so the new value is not left sitting in the file while the old
+   * one keeps firing. */
+  updateProjectSettings(patch: {
+    wikiLang?: string
+    scanIntervalS?: number
+    embeddingModel?: string
+  }): Promise<
+    | {
+        ok: true
+        settings: { wiki_lang: string; scan_interval_s: number; embedding_model: string }
+      }
+    | { ok: false; error: string }
+  >
+  /** MCP servers: their configuration (REST — there are no `mcp.*` RPC
+   * methods at all) plus the live connection state last seen on
+   * `session.info` (tasks 1.6.B2.8–B2.12). No `env` VALUE is ever included. */
+  listMcpServers(): Promise<{ servers: McpServerSummary[]; live: McpLiveStatus[] }>
+  /** Enables/disables a server and reloads the gateway's MCP layer, without
+   * which the change would sit in config.yaml unnoticed by the running
+   * process. */
+  setMcpServerEnabled(payload: { name: string; enabled: boolean }): Promise<unknown>
+  /** Adds a server. Their core validates the command/args and refuses a
+   * suspicious configuration with a 400 — that refusal is a security decision
+   * and is shown as such, not as a crash. */
+  addMcpServer(payload: {
+    name: string
+    url?: string
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+  }): Promise<unknown>
+  /** DESTRUCTIVE — deletes the server's configuration, env map included.
+   * `confirmed` is verified in main. */
+  removeMcpServer(payload: { name: string; confirmed: true }): Promise<unknown>
+  /** Connects to the server, lists its tools, disconnects. Slow by nature
+   * (60 s budget) — the row shows a "проверяю" state meanwhile. */
+  testMcpServer(name: string): Promise<{ ok: boolean; error?: string; tools?: unknown[] }>
+  /** Re-reads every MCP server. Called first WITHOUT `confirm` so the
+   * gateway's own "this invalidates the prompt cache" warning reaches the
+   * user; repeat with `confirm: true` after they agree. */
+  reloadMcpServers(confirm?: boolean): Promise<{ status: string; message?: string }>
   /** Stores (`key: string`) or removes (`key: null`) one provider's key and
    * restarts the backend, because a key reaches hermes through the child
    * process's environment and therefore only applies from the next start.

@@ -8,6 +8,17 @@ import {
 import { AppearanceSection, LlmSection } from '../chat/SettingsPanel'
 import ProvidersSection from '../settings/ProvidersSection'
 import KeysSection from '../settings/KeysSection'
+import AgentSection from '../settings/AgentSection'
+import ToolsetsSection from '../settings/ToolsetsSection'
+import McpSection from '../settings/McpSection'
+import PluginsSection from '../settings/PluginsSection'
+import GatewaySection from '../settings/GatewaySection'
+import SummarySection from '../settings/SummarySection'
+import {
+  EmbeddingsSection,
+  IndexingSection,
+  LanguageSection
+} from '../settings/ProjectSettingsSections'
 
 /** The settings screen (task 1.6.B2.1).
  *
@@ -99,6 +110,17 @@ export default function SettingsScreen({
             {section === 'keys' && (
               <KeysSection candidates={keyEnvVars} disabled={disabled} onRestarted={onRestarted} />
             )}
+            {section === 'agent' && <AgentSection disabled={disabled} />}
+            {section === 'tools' && <ToolsetsSection disabled={disabled} />}
+            {section === 'mcp' && <McpSection disabled={disabled} />}
+            {section === 'plugins' && <PluginsSection disabled={disabled} />}
+            {section === 'language' && <LanguageSection />}
+            {section === 'indexing' && <IndexingSection disabled={disabled} />}
+            {section === 'embeddings' && <EmbeddingsSection disabled={disabled} />}
+            {section === 'gateway' && (
+              <GatewaySection disabled={disabled} onRestarted={onRestarted} />
+            )}
+            {section === 'summary' && <SummarySection />}
           </div>
         </div>
       </div>
