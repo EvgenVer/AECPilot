@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateProjectConfig } from './project-config'
-import { generateVault } from './vault-generator'
+import { ensureCheckpointMarker, generateVault } from './vault-generator'
 
 // Real `fs.writeFileSync` behind a `vi.fn` wrapper, so the "partial-state
 // cleanup" test below can make a specific call throw while every other test
@@ -494,5 +494,69 @@ describe('generateVault — real runtime/templates/AGENTS.md guard', () => {
 
     const content = fs.readFileSync(templatePath, 'utf-8')
     expect(content.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('ensureCheckpointMarker (задача 1.6.C1)', () => {
+  function tempDir(): string {
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'aec-marker-'))
+  }
+
+  it('кладёт маркер в новый vault', () => {
+    const dir = tempDir()
+    try {
+      generateVault({
+        vaultPath: path.join(dir, 'v'),
+        projectName: 'П',
+        agentsTemplate: '# {{PROJECT_NAME}}'
+      })
+      expect(fs.existsSync(path.join(dir, 'v', 'Makefile'))).toBe(true)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('объясняет в самом файле, зачем он нужен — иначе он выглядит мусором', () => {
+    const dir = tempDir()
+    try {
+      ensureCheckpointMarker(dir)
+      const text = fs.readFileSync(path.join(dir, 'Makefile'), 'utf-8')
+      expect(text).toMatch(/снимк/i)
+      expect(text).toMatch(/AECPilot/)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // Второй маркер ничего не добавил бы: поиск ядра и так останавливается на
+  // этой папке. А перезапись чужого файла была бы порчей данных пользователя.
+  it('не трогает папку, где уже есть любой из девяти маркеров', () => {
+    for (const marker of ['package.json', '.git', 'Cargo.toml', 'Gemfile']) {
+      const dir = tempDir()
+      try {
+        if (marker === '.git') fs.mkdirSync(path.join(dir, marker))
+        else fs.writeFileSync(path.join(dir, marker), 'чужое содержимое')
+
+        expect(ensureCheckpointMarker(dir)).toBe(false)
+        expect(fs.existsSync(path.join(dir, 'Makefile'))).toBe(false)
+        if (marker !== '.git') {
+          expect(fs.readFileSync(path.join(dir, marker), 'utf-8')).toBe('чужое содержимое')
+        }
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  })
+
+  it('не перезаписывает свой же маркер при повторном вызове', () => {
+    const dir = tempDir()
+    try {
+      expect(ensureCheckpointMarker(dir)).toBe(true)
+      fs.writeFileSync(path.join(dir, 'Makefile'), 'правка пользователя')
+      expect(ensureCheckpointMarker(dir)).toBe(false)
+      expect(fs.readFileSync(path.join(dir, 'Makefile'), 'utf-8')).toBe('правка пользователя')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

@@ -19,7 +19,11 @@ import {
 } from 'node:fs'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { generateVault, type VaultConflict } from '../project/vault-generator'
+import {
+  ensureCheckpointMarker,
+  generateVault,
+  type VaultConflict
+} from '../project/vault-generator'
 import {
   type ProjectConfig,
   type ProjectSettings,
@@ -196,6 +200,19 @@ export function openProject(vaultPath: string): OpenProjectResult {
       .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
       .join('; ')
     return { ok: false, error: `Некорректный project.json: ${details}` }
+  }
+
+  // Task 1.6.C1 (owner decision 2026-07-31): a vault created before that
+  // decision has no checkpoint marker, and without one hermes files snapshots
+  // somewhere else — or, when the search reaches the home directory, takes
+  // none at all and says nothing. Adding it on open is what makes existing
+  // vaults work; it only ever CREATES a file that is missing, and does
+  // nothing at all if the folder already carries any of the nine markers.
+  // Best-effort: a read-only vault must still open.
+  try {
+    ensureCheckpointMarker(vaultPath)
+  } catch (error: unknown) {
+    console.error('aecpilot: could not place the checkpoint marker', error)
   }
 
   return { ok: true, project: { name: validated.value.name, vaultPath } }

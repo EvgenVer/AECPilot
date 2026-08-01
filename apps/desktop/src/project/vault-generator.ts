@@ -19,6 +19,41 @@ const VAULT_SUBDIRS = ['wiki', 'workspace', 'templates', '.aecpilot']
 
 const PROJECT_NAME_PLACEHOLDER = '{{PROJECT_NAME}}'
 
+/** Checkpoint marker (task 1.6.C1, owner decision 2026-07-31).
+ *
+ * hermes decides which directory a snapshot covers by walking UP from the
+ * edited file until it finds one of nine hard-coded markers — `.git`,
+ * `pyproject.toml`, `package.json`, `Cargo.toml`, `go.mod`, `Makefile`,
+ * `pom.xml`, `.hg`, `Gemfile` (`CheckpointManager.get_working_dir_for_path`).
+ * There is no way to override that list. A vault with no marker sends the
+ * search past its own root; on a machine whose home directory has a `.git`
+ * (measured on the owner's), the search lands there and hermes's own
+ * "too broad" guard then refuses the snapshot ENTIRELY and silently — so
+ * rollback does not merely look empty, it never records anything.
+ *
+ * `Makefile` is the one chosen out of the nine because it is inert: no
+ * package manager, editor or language server scans for it and acts on its
+ * own, and `make` only ever runs when invoked deliberately. `package.json`
+ * and `pyproject.toml` would make Node/Python tooling treat a notes vault as
+ * a code project; `.git`/`.hg` would mean fabricating a repository the user
+ * did not ask for. The file explains itself so nobody has to guess later. */
+const CHECKPOINT_MARKER_FILE = 'Makefile'
+
+const CHECKPOINT_MARKER_CONTENT = `# Технический файл AECPilot — не сборка проекта.
+#
+# Он существует ради снимков файлов (откат изменений агента). Ядро hermes
+# определяет, для какой папки делать снимок, поднимаясь вверх до первого из
+# девяти маркеров; Makefile — один из них, и самый безобидный: его никто не
+# запускает сам по себе.
+#
+# Без этого файла снимки уходят в вышестоящую папку либо не делаются вовсе —
+# молча. Удалить его можно; ценой будет неработающий откат.
+
+.PHONY: help
+help:
+\t@echo "Это не проект сборки. Файл нужен AECPilot для снимков файлов."
+`
+
 export interface GenerateVaultOptions {
   vaultPath: string
   projectName: string
@@ -104,6 +139,8 @@ function createMissingVaultEntries(
     fs.writeFileSync(agentsPath, agentsContent)
   }
 
+  ensureCheckpointMarker(vaultPath)
+
   const projectJsonPath = path.join(vaultPath, '.aecpilot', 'project.json')
   if (!fs.existsSync(projectJsonPath)) {
     const projectConfig: ProjectConfig = {
@@ -115,6 +152,33 @@ function createMissingVaultEntries(
     }
     fs.writeFileSync(projectJsonPath, `${JSON.stringify(projectConfig, null, 2)}\n`)
   }
+}
+
+/** Makes sure the vault root carries a checkpoint marker (task 1.6.C1).
+ *
+ * Returns true when it wrote one. Never overwrites: if ANY of the nine markers
+ * is already there — the user's own `package.json`, a real `.git`, or our
+ * `Makefile` from a previous run — nothing happens, because the search already
+ * stops at this directory and a second marker would add nothing.
+ *
+ * Called on vault creation and on every project open (`openProject`), so a
+ * vault created before this task gains the marker the first time it is opened
+ * rather than staying silently unprotected. */
+export function ensureCheckpointMarker(vaultPath: string): boolean {
+  const existing = [
+    '.git',
+    'pyproject.toml',
+    'package.json',
+    'Cargo.toml',
+    'go.mod',
+    'Makefile',
+    'pom.xml',
+    '.hg',
+    'Gemfile'
+  ].some((marker) => fs.existsSync(path.join(vaultPath, marker)))
+  if (existing) return false
+  fs.writeFileSync(path.join(vaultPath, CHECKPOINT_MARKER_FILE), CHECKPOINT_MARKER_CONTENT)
+  return true
 }
 
 /** Generates or completes a vault's directory structure and starter files
