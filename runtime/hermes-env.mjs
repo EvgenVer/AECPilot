@@ -7,7 +7,7 @@ import path from "node:path";
 export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // Pins — must match PLAN.md § Stack & package managers.
-export const HERMES_VERSION = "0.18.0";
+export const HERMES_VERSION = "0.19.0";
 export const PYTHON_VERSION = "3.12.13";
 
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root

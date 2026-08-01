@@ -211,11 +211,31 @@ export const HANDLED_GATEWAY_EVENTS = [
   'moa.reference',
   'moa.aggregating',
   'session.info',
-  'review.summary'
+  'review.summary',
+  'secret.expire',
+  'sudo.expire'
 ] as const
 
-/** Events we knowingly ignore — no warning, they are not a parity gap. */
-export const IGNORED_GATEWAY_EVENTS = ['gateway.ready', 'status.update'] as const
+/** Events we knowingly ignore — no warning, they are not a parity gap.
+ *
+ * The last three arrived with hermes 0.19.0 and are listed so the upgrade does
+ * not fill the console with "unknown event" noise. Each has a reason:
+ * - `message.interim` — a provisional answer their side later replaces; the
+ *   final one arrives as `message.delta`/`message.complete` anyway, and
+ *   rendering both would show the answer twice
+ * - `reaction` — their emoji-reaction feature, which this app has no surface
+ *   for
+ * - `tool.output_risk` — a heuristic warning about a tool's output. Ignored
+ *   for now rather than shown, because a warning with no explanation of what
+ *   to do is worse than none; §Discovered in TASKS records it as a candidate
+ *   for the tool card. */
+export const IGNORED_GATEWAY_EVENTS = [
+  'gateway.ready',
+  'status.update',
+  'message.interim',
+  'reaction',
+  'tool.output_risk'
+] as const
 
 const KNOWN_EVENTS = new Set<string>([...HANDLED_GATEWAY_EVENTS, ...IGNORED_GATEWAY_EVENTS])
 
@@ -797,6 +817,28 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       request = { kind: 'sudo', requestId }
     }
     return { ...state, interactive: [...state.interactive, request] }
+  }
+
+  // The gateway says a blocking request timed out (hermes 0.19.0). Before
+  // this, a card whose 300 s / 120 s window had expired stayed on screen until
+  // the turn ended — the user could still type into it, and the answer went
+  // nowhere (error 4009). Removing it by id is what their own UI does.
+  //
+  // Matched by id, never "clear the queue": a second request may have arrived
+  // while the first was waiting, and dropping it would take a live prompt off
+  // the screen while the agent still blocks on it.
+  if (event.type === 'secret.expire' || event.type === 'sudo.expire') {
+    const requestId = (event.payload as { request_id?: unknown } | undefined)?.request_id
+    if (typeof requestId !== 'string' || requestId === '') return state
+    const kind = event.type === 'secret.expire' ? 'secret' : 'sudo'
+    const remaining = state.interactive.filter(
+      (request) => !(request.requestId === requestId && request.kind === kind)
+    )
+    // Identity is preserved when nothing matched, so an expiry for a request
+    // this window never saw causes no re-render.
+    return remaining.length === state.interactive.length
+      ? state
+      : { ...state, interactive: remaining }
   }
 
   // 'status.update' / 'gateway.ready' / anything unknown are ignored.

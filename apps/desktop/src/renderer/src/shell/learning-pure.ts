@@ -1,10 +1,13 @@
 // Pure logic behind the "Обучение" screen (tasks 1.6.B3.10/B3.11).
 //
 // Source: `GET /api/learning/graph`, NOT the `learning.frames` RPC this was
-// planned around — that one raises on Windows ("Invalid format string": their
-// `_period_label` calls `strftime("%-d %b")`, a glibc extension). The graph
-// endpoint does no date formatting at all, so the grouping into days happens
-// here, from raw epoch timestamps.
+// planned around. On hermes 0.18.0 that RPC raised on Windows ("Invalid format
+// string": their `_period_label` called `strftime("%-d %b")`, a glibc
+// extension); 0.19.0 fixed it, and this module stays on the graph anyway. The
+// task only ever wanted the structural half — their ASCII renderer was to be
+// ignored — and the graph endpoint formats no dates at all, so nothing here
+// depends on how they choose to print one. The grouping into days happens
+// below, from raw epoch timestamps.
 
 import type { LearningGraph, LearningMemoryCard, LearningNode } from '../../../shared/ipc'
 

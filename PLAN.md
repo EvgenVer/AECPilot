@@ -38,7 +38,7 @@ specs/             # поведенческие контракты (этот р�
 
 | Инструмент | Пин | Основание |
 |---|---|---|
-| hermes-agent | 0.18.0 (PyPI, MIT, Nous Research; requires-python >=3.11,<3.14; provenance ✔) | реестр PyPI |
+| hermes-agent | **0.19.0** (PyPI, MIT, Nous Research; requires-python >=3.11,<3.14; provenance ✔) — обновлено 2026-07-31 с 0.18.0, решение владельца; разбор изменений и их последствия — §«Обновление ядра до 0.19.0» | реестр PyPI |
 | Python | 3.12.13 (security-поддержка до окт. 2028; 3.14 несовместим с hermes-agent) | endoflife.date |
 | uv | 0.11.x, ≥0.11.26 (MIT/Apache-2.0, Astral) | PyPI |
 | Node.js | 24 LTS, ≥24.18.0 (Active LTS; security до апр. 2028; совпадает с Node внутри Electron 43) | endoflife.date |
@@ -51,7 +51,7 @@ specs/             # поведенческие контракты (этот р�
 | Пакет | Зачем | Тип | Лицензия |
 |---|---|---|---|
 | hermes-agent | агентное ядро | runtime (py) | MIT |
-| hermes-agent[mcp] extra | MCP-*клиент* внутри hermes (нужен, чтобы hermes мог подключаться к нашим MCP-серверам, напр. aec-sources; task 1.12); тянет mcp==1.26.0 + starlette==1.0.1 — пины hermes-agent 0.18.0, установлены в изолированном `runtime/.hermes-venv`, НЕ в корневом `.venv` (там mcp==1.28.1 — SDK для наших MCP-серверов, отдельная версия) | runtime (py) | MIT |
+| hermes-agent[mcp] extra | MCP-*клиент* внутри hermes (нужен, чтобы hermes мог подключаться к нашим MCP-серверам, напр. aec-sources; task 1.12); тянет mcp==1.26.0 + starlette==1.0.1 — пины hermes-agent 0.19.0 (при обновлении с 0.18.0 **не изменились**: диф `Requires-Dist` по базовым зависимостям и по extra `mcp` пуст), установлены в изолированном `runtime/.hermes-venv`, НЕ в корневом `.venv` (там mcp==1.28.1 — SDK для наших MCP-серверов, отдельная версия) | runtime (py) | MIT |
 | lightrag-hku | RAG-движок (graph+vector) | runtime (py) | MIT |
 | docling | парсинг PDF/DOCX/XLSX/сканов, OCR | runtime (py) | MIT |
 | mem0ai | расширенная память — ставится как **провайдер памяти Hermes**, не как наш сервер (решение 2026-07-28); берётся в объём только после замера веса и стоимости в задаче 4.1 | runtime (py) | Apache-2.0 |
@@ -85,6 +85,48 @@ peerDependencies`.
 - **Данные проекта** — specs/workspace-sources.md §Data schemas (`project.json`, `index.db`, `lancedb/`).
 - **LLM** — OpenAI-совместимые endpoint (chat + embeddings) из настроек; MVP — облачные (решение владельца: в контуре моделей пока нет; при переходе — re-ingest).
 - **Approvals-режимы (UR11)** — hermes-нативные, 3 значения `approvals.mode` в `config.yaml` профиля: `manual` (гейтит рискованное/опасное), `smart` (LLM авто-решает), `off` (bypass/YOLO). hermes перечитывает approval-конфиг **на каждой команде** → смена режима применяется живо без рестарта (в отличие от смены модели, 0.15). Наш слой: чтение/запись `approvals.mode` в config.yaml (машинерия line-merge из 0.15, обобщённая) + индикатор режима (в статус-баре по дизайну; в Phase 0 — в шапке чата). Нативный live-тумблер `config.set {key:'yolo', scope:'session'|'global'}` (off↔manual) — доступен как альтернатива/быстрый Shift+Tab-переключатель.
+- **Обновление ядра 0.18.0 → 0.19.0** (2026-07-31, решение владельца после предъявленного
+  разбора). Проверено скачиванием колеса 0.19.0 и построчным сравнением с установленным
+  0.18.0, затем живыми пробами после установки.
+  - **Зависимости не изменились ни одной строкой** — ни базовые, ни extra `mcp`. Менялись
+    только extras, которые мы не ставим (slack, feishu, honcho, nemo-relay). Новых пакетов
+    в дереве нет.
+  - **Починен их баг, из-за которого `learning.frames` не работал на Windows**: `%-d` в
+    `strftime` заменён на конструкцию без него. Проверено пробой: метод отвечает
+    (`count`, `buckets`, `nodes`). Наш экран «Обучение» построен на `GET
+    /api/learning/graph` и от этого не зависит — переделывать его обратно смысла нет,
+    источник структурно тот же, а зависимость от их форматирования дат меньше.
+  - **СЛОМАЛОСЬ БЫ МОЛЧА: `model.options`.** До 0.18.0 их обработчик сам форсировал
+    `include_unconfigured=True`; в 0.19.0 это параметр со значением по умолчанию `false`.
+    **Измерено на живом 0.19.0:** без флага ответ содержит 3 провайдера, с флагом — 41
+    (38 неподключённых, 28 с именем переменной ключа). Без правки экран «Провайдеры и
+    модели» перестал бы показывать, чего не хватает, не выдав ни одной ошибки. Флаг
+    добавлен в `model:options`.
+  - **`prompt.submit` больше не отвергает ход во время хода.** Появился режим
+    `display.busy_input_mode` с тремя значениями — `interrupt` (их дефолт), `queue`,
+    `steer` — и ответ теперь может быть `queued`/`steered`, а не только `streaming`. Это
+    ровно то, что задача 1.6.B5.24 собиралась строить на нашей стороне: теперь она сводится
+    к тому, чтобы перестать держать очередь локально и показывать статус ответа. Типы
+    расширены; переработка композера — в батче 5.
+  - **`prompt.submit` получил `truncate_before_user_ordinal`** — правка своего сообщения с
+    перезапуском хода обычным RPC. Это подтверждает решение по 1.6.6 (не переезжать на
+    runtime их библиотеки ради этой возможности) и удешевляет батч 5.
+  - **Новые события:** `message.interim`, `reaction`, `tool.output_risk` — внесены в
+    `IGNORED_GATEWAY_EVENTS` с причиной у каждого; `tool.output_risk` записан кандидатом в
+    карточку инструмента (§Discovered).
+  - **RPC:** +6 методов (`subscription.*`, `usage.bars`), −1 (`credits.view`) — ничего из
+    этого мы не используем. Обработчики всех методов, на которых стоят батчи 1–3, кроме
+    перечисленных выше, побайтово не изменились.
+  - **REST:** все маршруты, на которых мы стоим, на месте. Добавлены OAuth-подключение
+    MCP-серверов и `PUT /api/mcp/servers` (замена всей карты целиком); **пер-серверного
+    `PUT` по-прежнему нет**, поэтому «изменить сервер = удалить и добавить» остаётся в силе.
+  - **Не изменилось:** девять маркеров чекпойнтов (наш `Makefile` продолжает работать),
+    `HERMES_TUI_CHECKPOINTS`, поля `session.info`, эмиссия `review.summary`, отсутствие
+    `cwd` в `session.list` (наша привязка сессий к проекту нужна и дальше), недостижимость
+    `curator` через `command.dispatch` (архив скилов остаётся невыполнимым — 1.6.B3.8).
+  - **Откат:** `HERMES_VERSION` в `runtime/hermes-env.mjs` вернуть на `0.18.0` и
+    перезапустить `node runtime/setup.mjs`; venv изолирован, глобальных установок нет.
+
 - **Инвентарь tui_gateway 0.18.0** (снят 2026-07-08 по установленному пакету; основание G4/UR10): ~170 методов/событий. Группы: `session.*` (create/close/list/resume/branch/compress/history/usage/undo/steer/interrupt…), `prompt.submit|background`, стрим-события (message/thinking/reasoning/tool/subagent/moa), интерактивы (`approval.*`, `clarify.*`, `sudo.*`, `secret.*`, `input.request`), `model.*` + `agent.*` (system_prompt/reasoning_effort/thinking), `skills.manage|reload`, `plugins.*`, `tools.*`/`toolsets.list`, `config.get|set|show`, `cron.manage`, `reload.mcp|env`, `rollback.list|diff|restore`, вложения (`image.*`/`pdf.attach`/`file.attach`), `voice.*`, `process/terminal/shell`, `projects.*` (собственные проекты hermes). Кандидаты «не переносим»: `billing.*`/`credits` (облако Nous), `pet.*` (игрушка), `display.*` (TUI-специфика), `learning.*` — утверждаются владельцем при детализации Agent-hub. Памяти и хуков в gateway-API нет — это файлы профиля (+slash-команды). Маппинг «группа → экран → фаза» — `design/DESIGN_BRIEF.md`.
 
 ## Validation strategy

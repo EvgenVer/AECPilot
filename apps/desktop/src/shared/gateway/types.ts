@@ -78,8 +78,22 @@ export interface PromptSubmitParams {
   text: string
 }
 
+/** Three outcomes since hermes 0.19.0, where one used to be enough.
+ *
+ * Up to 0.18.0 a prompt sent mid-turn was REJECTED ("session busy") and every
+ * client had to queue it itself — which is what this app's composer does
+ * (task 1.6.8). 0.19.0 replaced the rejection with a policy driven by their
+ * `display.busy_input_mode` key (the same one the settings screen writes,
+ * task 1.6.B2.13):
+ * - `interrupt` (their default) — queue it AND wind the live turn down
+ * - `queue` — queue it, let the turn finish
+ * - `steer` — inject it into the running turn if the agent accepts, else queue
+ *
+ * So `queued` and `steered` are SUCCESS, not failure, and a caller that treats
+ * anything but `streaming` as an error would report a message that was
+ * accepted as one that was lost. */
 export interface PromptSubmitResult {
-  status: 'streaming'
+  status: 'streaming' | 'queued' | 'steered'
 }
 
 export interface SessionCloseParams {
@@ -229,12 +243,14 @@ export interface GatewayMethodMap {
 // Skills and learning (batch 3, contract: specs/agent-skills.md)
 //
 // `learning.frames` is DELIBERATELY ABSENT from the map above. It is the RPC
-// this batch was planned around, and it does not work on this platform:
-// measured error 5000 "Invalid format string", because
-// `agent/learning_graph_render.py:_period_label` calls `strftime("%-d %b")`
-// and `%-d` is a glibc extension Windows' CRT does not have. The same graph
-// arrives structurally over REST (`GET /api/learning/graph`), which never
-// formats a date — see `LearningGraph` in shared/ipc.ts.
+// this batch was planned around, and on hermes 0.18.0 it did not work on this
+// platform at all: measured error 5000 "Invalid format string", because
+// `agent/learning_graph_render.py:_period_label` called `strftime("%-d %b")`
+// and `%-d` is a glibc extension Windows' CRT lacks. hermes 0.19.0 fixed that
+// (measured: the method answers), and the screen still does not use it — `GET
+// /api/learning/graph` carries the same graph without their ASCII renderer,
+// which is what the task asked for anyway, and formats no dates, so nothing of
+// ours rides on their date handling. See `LearningGraph` in shared/ipc.ts.
 // ---------------------------------------------------------------------------
 
 /** `skills.manage` — this app uses `list` only. The hub actions (`search`,
@@ -618,6 +634,15 @@ export interface CommandDispatchResult {
 export interface ModelOptionsParams {
   session_id?: string
   refresh?: boolean
+  /** Include providers the user has NOT set up yet, each with
+   * `authenticated: false` and the env var its key would go into.
+   *
+   * Load-bearing since hermes 0.19.0 and easy to miss: up to 0.18.0 their
+   * handler forced this on and there was no parameter. 0.19.0 made it a
+   * parameter defaulting to FALSE — measured on the upgrade, the same call
+   * went from 41 providers to 3. Nothing errors when it is omitted; the
+   * catalogue just silently shrinks to what is already configured. */
+  include_unconfigured?: boolean
 }
 
 /** Per-model gate for the picker's own controls: offering a "fast" toggle on a
@@ -999,6 +1024,18 @@ export interface SudoRequestEvent {
   payload: { request_id: string }
 }
 
+/** A blocking request's window closed before it was answered (hermes 0.19.0).
+ *
+ * Until this existed, an expired card stayed on screen and still accepted
+ * input — which then failed with 4009, because the gateway had already
+ * discarded the pending entry. The event names the id, so the matching card
+ * (and only that one) can go. */
+export interface InteractiveExpireEvent {
+  type: 'secret.expire' | 'sudo.expire'
+  session_id?: string
+  payload: { request_id: string }
+}
+
 /** Any event whose `type` this client does not recognize — kept typed rather
  * than silently dropped so callers can decide whether to ignore it. */
 export interface UnknownGatewayEvent {
@@ -1103,6 +1140,7 @@ export type GatewayEvent =
   | ClarifyRequestEvent
   | SecretRequestEvent
   | SudoRequestEvent
+  | InteractiveExpireEvent
   | SubagentEvent
   | MoaReferenceEvent
   | MoaAggregatingEvent

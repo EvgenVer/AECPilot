@@ -2,9 +2,10 @@
 
 > Контракт поведения для батча 3 фазы 1.6. Ссылается на `SPECIFICATION.md`
 > (UR10 — hub «Агент»), не копирует его. Каждый факт о поведении ядра подписан
-> источником: файл + функция установленного пакета hermes 0.18.0, а факты,
-> помеченные **ИЗМЕРЕНО**, сняты живой пробой `runtime/skills-probe.mjs`
-> (задача 1.6.B3.1), а не чтением кода.
+> источником: файл + функция установленного пакета hermes, а факты, помеченные
+> **ИЗМЕРЕНО**, сняты живой пробой `runtime/skills-probe.mjs` (задача 1.6.B3.1),
+> а не чтением кода. Пробы прогнаны на 0.18.0 и **перепрогнаны на 0.19.0**
+> после обновления ядра 2026-07-31 — расхождения отмечены по месту.
 
 ## Что это за экраны
 
@@ -28,12 +29,14 @@
    признака «включён», ни пути. **ИЗМЕРЕНО:** ключ ответа один — `skills`.
    Богаче отвечает REST того же процесса: `GET /api/skills`
    (`hermes_cli/web_server.py:get_skills`) — **ИЗМЕРЕНО:** массив со списком
-   полей `name, description, category, enabled`. Экран берёт список оттуда;
+   полей `name, description, category, enabled` (на 0.19.0 добавились `usage` и
+   `provenance` — мы их не используем). Экран берёт список оттуда;
    решение R1 разрешает REST ровно там, где RPC не дотягивается.
 
 2. **Куратор недостижим через `command.dispatch`.** **ИЗМЕРЕНО:**
    `command.dispatch {name:'curator', arg:'status'}` → ошибка 4018 «not a
-   quick/plugin/skill command: curator». Их `_handle_curator_command` живёт в
+   quick/plugin/skill command: curator» (на 0.19.0 текст стал
+   «quick/plugin/bundle/skill», поведение то же). Их `_handle_curator_command` живёт в
    CLI-миксине (`hermes_cli/cli_commands_mixin.py`), диспетчер шлюза его не
    резолвит. Состояние куратора приходит из `GET /api/curator` — **ИЗМЕРЕНО:**
    `enabled, paused, interval_hours, last_run_at, min_idle_hours,
@@ -45,15 +48,16 @@
    архивирование честно говорит, чем восстанавливать (`hermes curator restore
    <name>`) — см. §Non-goals.
 
-4. **`learning.frames` на Windows не работает.** **ИЗМЕРЕНО:** ошибка 5000
-   «learning.frames failed: Invalid format string». Корень найден по коду:
-   `agent/learning_graph_render.py:_period_label` зовёт `strftime("%-d %b")`, а
-   `%-d` — расширение glibc, которого нет в Windows CRT; в `format_date` эта
-   ошибка поймана, в `_period_label` — нет. Структурные данные того же графа
-   отдаёт `GET /api/learning/graph` (`build_learning_graph`, без единого
-   `strftime`) — **ИЗМЕРЕНО:** 200 и ключи `nodes, edges, clusters, memory,
-   stats`. Экран «Обучение» строится на нём. Это совпадает с исходным замыслом
-   задачи 1.6.B3.10 («ASCII-часть игнорируется»), просто источник другой.
+4. **`learning.frames` на Windows не работал на 0.18.0 — на 0.19.0 починен ими.**
+   На 0.18.0 **ИЗМЕРЕНО:** ошибка 5000 «learning.frames failed: Invalid format
+   string»; корень — `agent/learning_graph_render.py:_period_label` звал
+   `strftime("%-d %b")`, а `%-d` есть только в glibc. На 0.19.0 **ИЗМЕРЕНО:**
+   метод отвечает (`count`, `buckets`, `nodes`) — они заменили `%-d`.
+   **Экран остаётся на `GET /api/learning/graph`** и переписываться обратно не
+   будет: это тот же граф, только без их ASCII-рендерера (чего исходно и
+   требовала задача 1.6.B3.10), и он не зависит от того, как они форматируют
+   даты. Данные эндпойнта **ИЗМЕРЕНО** на обеих версиях: 200, ключи `nodes,
+   edges, clusters, memory, stats`.
 
 5. **`learning.detail`/`edit`/`delete` не бросают на ошибку.**
    `agent/learning_mutations.py` ловит `ValueError`/`IndexError` и возвращает

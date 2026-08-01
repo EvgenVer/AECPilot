@@ -596,6 +596,15 @@ ipcMain.handle('model:options', async (_event, refresh: unknown) => {
   const activeSessionId = await ensureSession()
   return gateway.request('model.options', {
     session_id: activeSessionId,
+    // REQUIRED since hermes 0.19.0, and silently so. Up to 0.18.0 their
+    // handler forced `include_unconfigured=True` itself; 0.19.0 turned it into
+    // a parameter that defaults to FALSE. Measured on the upgrade: without
+    // this flag the answer carries 3 providers, with it 41 (38 of them not yet
+    // configured, 28 naming the env var their key would go into). Dropping it
+    // does not break anything loudly — the provider screen just quietly stops
+    // being able to say "нужен ключ XAI_API_KEY", and the picker stops showing
+    // the models you could switch to after setting one up.
+    include_unconfigured: true,
     ...(refresh === true ? { refresh: true } : {})
   })
 })

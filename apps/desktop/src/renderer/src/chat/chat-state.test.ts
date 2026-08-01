@@ -1151,3 +1151,64 @@ describe('review.summary (задача 1.6.B3.12)', () => {
     expect(isUnknownGatewayEvent('review.summary')).toBe(false)
   })
 })
+
+describe('secret.expire / sudo.expire (ядро 0.19.0)', () => {
+  function withTwoRequests(): ChatState {
+    let state: ChatState = initialChatState
+    state = chatReducer(
+      state,
+      ev({ type: 'secret.request', payload: { request_id: 'r1', env_var: 'TOKEN' } })
+    )
+    state = chatReducer(state, ev({ type: 'sudo.request', payload: { request_id: 'r2' } }))
+    return state
+  }
+
+  it('снимает именно ту карточку, чей запрос истёк', () => {
+    const state = chatReducer(
+      withTwoRequests(),
+      ev({ type: 'secret.expire', payload: { request_id: 'r1' } })
+    )
+    expect(state.interactive.map((r) => r.requestId)).toEqual(['r2'])
+  })
+
+  // Вторая карточка могла прийти, пока ждала первая; чистка очереди целиком
+  // убрала бы с экрана живой запрос, на котором агент всё ещё стоит.
+  it('не трогает соседей и не чистит очередь целиком', () => {
+    const state = chatReducer(
+      withTwoRequests(),
+      ev({ type: 'sudo.expire', payload: { request_id: 'r2' } })
+    )
+    expect(state.interactive).toHaveLength(1)
+    expect(state.interactive[0].kind).toBe('secret')
+  })
+
+  it('истечение чужого вида не снимает карточку с тем же id', () => {
+    const state = chatReducer(
+      withTwoRequests(),
+      ev({ type: 'sudo.expire', payload: { request_id: 'r1' } })
+    )
+    expect(state.interactive).toHaveLength(2)
+  })
+
+  it('истечение неизвестного id не вызывает перерисовку', () => {
+    const before = withTwoRequests()
+    const after = chatReducer(before, ev({ type: 'secret.expire', payload: { request_id: 'нет' } }))
+    expect(after).toBe(before)
+  })
+
+  it('событие без id игнорируется', () => {
+    const before = withTwoRequests()
+    expect(chatReducer(before, ev({ type: 'secret.expire', payload: {} }))).toBe(before)
+  })
+
+  it('оба события больше не считаются неизвестными', () => {
+    expect(isUnknownGatewayEvent('secret.expire')).toBe(false)
+    expect(isUnknownGatewayEvent('sudo.expire')).toBe(false)
+  })
+
+  it('события 0.19.0, которые мы намеренно игнорируем, не шумят', () => {
+    for (const type of ['message.interim', 'reaction', 'tool.output_risk']) {
+      expect(isUnknownGatewayEvent(type)).toBe(false)
+    }
+  })
+})
