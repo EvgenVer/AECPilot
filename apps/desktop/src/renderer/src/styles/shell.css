@@ -4590,3 +4590,22 @@ body.resizing-row * {
   color: var(--text-1);
   font: inherit;
 }
+
+/* Правка своего сообщения (1.6.B5.27) */
+.message__edit,
+.composer-notice__cancel {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-inline-start: 6px;
+  font: inherit;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.message__edit:hover,
+.composer-notice__cancel:hover {
+  color: var(--text-1);
+}

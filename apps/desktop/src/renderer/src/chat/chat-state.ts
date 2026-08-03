@@ -220,7 +220,6 @@ export const HANDLED_GATEWAY_EVENTS = [
   'reasoning.delta',
   'reasoning.available',
   'tool.start',
-  'tool.started',
   'tool.generating',
   'tool.complete',
   'approval.request',
@@ -231,14 +230,21 @@ export const HANDLED_GATEWAY_EVENTS = [
   'subagent.thinking',
   'subagent.tool',
   'subagent.complete',
-  'subagent.interrupt',
+  // Emitted by their delegation tool and folded into the same card by the
+  // subagent branch below — listed so the dev warning stays quiet about
+  // events this app genuinely acts on (task 1.6.B5.28).
+  'subagent.progress',
+  'subagent.spawn_requested',
   'moa.reference',
   'moa.aggregating',
   'session.info',
   // Handled outside the reducer — see the note above (task 1.6.B5.8).
   'session.title',
-  // Task 1.6.B5.14: only two of its `kind`s mean anything to this app
-  // (`compressing`, `compacting`); the rest change nothing, deliberately.
+  // Task 1.6.B5.14: only two of its kinds mean anything to this app —
+  // manual compression and their automatic compaction; the rest change
+  // nothing, deliberately. (No quoted names in this comment on purpose:
+  // runtime/hermes-event-diff.mjs parses every quoted string between these
+  // brackets, so one would become a phantom entry in the ledger.)
   'status.update',
   'review.summary',
   'secret.expire',
@@ -262,7 +268,28 @@ export const IGNORED_GATEWAY_EVENTS = [
   'gateway.ready',
   'message.interim',
   'reaction',
-  'tool.output_risk'
+  'tool.output_risk',
+  // --- task 1.6.B5.28: events that are not a parity gap ------------------
+  // Each of these is emitted by the gateway and has no surface here, for a
+  // reason that is written down rather than assumed. Anything NOT listed keeps
+  // showing up as "unknown" in dev, which is the point of the ledger.
+  //
+  // Their TUI's own cosmetics — this app has no skin and no pet:
+  'skin.changed',
+  'pet.generate.progress',
+  'pet.hatch.progress',
+  // The webview preview was dropped by owner decision 2 of block 5, and voice
+  // input by decision 3 — so nothing here restarts a preview or transcribes
+  // anything:
+  'preview.restart.progress',
+  'preview.restart.complete',
+  'voice.status',
+  'voice.transcript',
+  // MEASURED in their source, not assumed: a child's reply tokens are
+  // deliberately NOT relayed to the parent session — their _on_tool_progress
+  // skips this one event type before emitting (tui_gateway/server.py) — so a
+  // window on the parent can never receive one.
+  'subagent.text'
 ] as const
 
 const KNOWN_EVENTS = new Set<string>([...HANDLED_GATEWAY_EVENTS, ...IGNORED_GATEWAY_EVENTS])
@@ -317,6 +344,13 @@ export type ChatAction =
   /** `session.undo` succeeded and their side removed `removed` history
    * entries (task 1.6.B5.15). */
   | { kind: 'turn-undone'; removed: number }
+  /** An edited user message was accepted by the gateway (task 1.6.B5.27):
+   * everything from the `ordinal`-th user message onward is gone from their
+   * history, replaced by `text`. Dispatched only AFTER `prompt.submit`
+   * resolves — their handler rejects an out-of-range ordinal (4018), and a
+   * transcript trimmed before that answer would be showing a truncation that
+   * never happened. */
+  | { kind: 'user-resubmit'; ordinal: number; text: string }
 
 /** The in-flight assistant message, if any, is always the last *message*
  * item while it carries status 'streaming' — tool cards may sit after it in
@@ -505,6 +539,38 @@ function endedTurn(): Pick<ChatState, 'streaming' | 'approvals' | 'interactive' 
   return { streaming: false, approvals: [], interactive: [], compacting: false }
 }
 
+/** Index of the `ordinal`-th USER message in the transcript, or `undefined`
+ * when there is no such message (task 1.6.B5.27).
+ *
+ * Their `truncate_before_user_ordinal` counts user turns only — not transcript
+ * entries — so this is the one mapping between what the user clicked and what
+ * their handler will do with it. */
+export function userMessageIndex(items: ChatItem[], ordinal: number): number | undefined {
+  if (ordinal < 0) return undefined
+  let seen = 0
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i]
+    if (item?.kind === 'message' && item.role === 'user') {
+      if (seen === ordinal) return i
+      seen += 1
+    }
+  }
+  return undefined
+}
+
+/** Which user turn a transcript message is, counting user messages only —
+ * the number `prompt.submit` wants. `undefined` for anything that is not a
+ * user message. */
+export function userOrdinalOf(items: ChatItem[], id: number): number | undefined {
+  let seen = 0
+  for (const item of items) {
+    if (item.kind !== 'message' || item.role !== 'user') continue
+    if (item.id === id) return seen
+    seen += 1
+  }
+  return undefined
+}
+
 /** Drops the last `removed` TRANSCRIPT ENTRIES for `session.undo` (task
  * 1.6.B5.15).
  *
@@ -549,6 +615,19 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     const interactive = state.interactive.filter((r) => r.requestId !== action.requestId)
     // Answering something already gone is a no-op, not a state churn.
     return interactive.length === state.interactive.length ? state : { ...state, interactive }
+  }
+
+  if (action.kind === 'user-resubmit') {
+    const index = userMessageIndex(state.items, action.ordinal)
+    // No such turn on screen: keep the transcript rather than guess. The
+    // gateway has already accepted the edit at this point, so the next
+    // session load will reconcile — inventing a cut here would not.
+    if (index === undefined) return state
+    const { message, nextId } = createMessage(state.nextId, {
+      role: 'user',
+      text: action.text
+    })
+    return { ...state, items: [...state.items.slice(0, index), message], nextId }
   }
 
   if (action.kind === 'turn-undone') {
@@ -669,6 +748,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     return appendReasoning(state, event.payload.text, action.receivedAt)
   }
 
+  // `tool.started` is handled here but is NOT in the ledger above (task
+  // 1.6.B5.28): their `_on_tool_progress` returns before emitting it, with a
+  // comment explaining that `tool.start` is the authoritative one and a second
+  // id-less row would make a live view diverge from hydrated history. So it
+  // cannot arrive today — and if an upgrade starts sending it, the dev warning
+  // will say so while this branch quietly does the right thing.
   if (isGatewayEventOfType(event, 'tool.start') || isGatewayEventOfType(event, 'tool.started')) {
     return { ...state, items: upsertRunningToolCard(state.items, event.payload) }
   }

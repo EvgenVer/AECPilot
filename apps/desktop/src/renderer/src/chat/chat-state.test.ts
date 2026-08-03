@@ -10,6 +10,7 @@ import {
   initialChatState,
   isUnknownGatewayEvent,
   transcriptCensus,
+  userOrdinalOf,
   type ChatItem,
   type ChatMessage,
   type ChatState
@@ -1368,5 +1369,102 @@ describe('отмена хода', () => {
       { kind: 'turn-undone', removed: 99 }
     )
     expect(state.items).toHaveLength(0)
+  })
+})
+
+// --- task 1.6.B5.27: an edited message re-runs the turn --------------------
+describe('правка своего сообщения', () => {
+  function conversation(): ChatItem[] {
+    return [
+      { kind: 'message', id: 0, role: 'user', text: 'первый' },
+      { kind: 'message', id: 1, role: 'assistant', text: 'ответ', status: 'complete' },
+      { kind: 'tool', toolId: 't1', name: 'calc', context: '', status: 'complete' },
+      { kind: 'message', id: 2, role: 'user', text: 'второй' },
+      { kind: 'message', id: 3, role: 'assistant', text: 'ещё ответ', status: 'complete' }
+    ]
+  }
+
+  it('порядковый номер считается по ходам ПОЛЬЗОВАТЕЛЯ, а не по элементам ленты', () => {
+    // В ленте «второй» стоит четвёртым элементом, а для их
+    // `truncate_before_user_ordinal` он первый — на этом различии всё и держится.
+    expect(userOrdinalOf(conversation(), 2)).toBe(1)
+    expect(userOrdinalOf(conversation(), 0)).toBe(0)
+  })
+
+  it('ordinal сообщения агента не определён — править можно только своё', () => {
+    expect(userOrdinalOf(conversation(), 1)).toBeUndefined()
+  })
+
+  it('обрезает ленту до правленого сообщения и ставит новое', () => {
+    const state = chatReducer(
+      { ...initialChatState, items: conversation(), nextId: 4 },
+      { kind: 'user-resubmit', ordinal: 1, text: 'второй, но иначе' }
+    )
+    expect(state.items.map((item) => (item.kind === 'message' ? item.text : item.kind))).toEqual([
+      'первый',
+      'ответ',
+      'tool',
+      'второй, но иначе'
+    ])
+  })
+
+  it('несуществующий ordinal ленту не трогает', () => {
+    // Шлюз к этому моменту уже принял правку; выдуманная обрезка не помогла бы,
+    // а следующая загрузка сессии всё равно всё согласует.
+    const before = { ...initialChatState, items: conversation(), nextId: 4 }
+    expect(chatReducer(before, { kind: 'user-resubmit', ordinal: 9, text: 'x' })).toBe(before)
+    expect(chatReducer(before, { kind: 'user-resubmit', ordinal: -1, text: 'x' })).toBe(before)
+  })
+})
+
+// --- task 1.6.B5.28: the ledger says what it means -------------------------
+describe('гигиена «неизвестных» событий', () => {
+  it('перечисляет поимённо всё, что молча игнорируется', () => {
+    // Список перечислен здесь целиком нарочно: расширить его молча — значит
+    // перестать замечать пропущенную возможность после обновления ядра.
+    expect([...IGNORED_GATEWAY_EVENTS].sort()).toEqual(
+      [
+        'gateway.ready',
+        'message.interim',
+        'pet.generate.progress',
+        'pet.hatch.progress',
+        'preview.restart.complete',
+        'preview.restart.progress',
+        'reaction',
+        'skin.changed',
+        'subagent.text',
+        'tool.output_risk',
+        'voice.status',
+        'voice.transcript'
+      ].sort()
+    )
+  })
+
+  it('мёртвые записи убраны из HANDLED', () => {
+    const handled = new Set<string>(HANDLED_GATEWAY_EVENTS)
+    // `tool.started` их обработчик намеренно НЕ эмитит (`_on_tool_progress`
+    // возвращается раньше), а `subagent.interrupt` — вообще не событие, а имя
+    // RPC-метода (`@method("subagent.interrupt")`).
+    expect(handled.has('tool.started')).toBe(false)
+    expect(handled.has('subagent.interrupt')).toBe(false)
+  })
+
+  it('оставшиеся без обработки события остаются видимыми', () => {
+    // Батч 6 планирует именно их — записать их в «игнорируем» значило бы
+    // спрятать запланированную работу.
+    for (const type of ['notification.show', 'notification.clear', 'browser.progress']) {
+      expect(isUnknownGatewayEvent(type)).toBe(true)
+    }
+  })
+
+  it('карточку инструмента всё ещё соберёт и `tool.started`, если он вернётся', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({
+        type: 'tool.started',
+        payload: { tool_id: 't1', name: 'calc', context: 'считаю' }
+      })
+    )
+    expect(state.items).toHaveLength(1)
   })
 })

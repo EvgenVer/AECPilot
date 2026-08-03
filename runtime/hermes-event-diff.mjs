@@ -68,6 +68,19 @@ function readListFromSource(source, name) {
   return [...match[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((m) => m[1])
 }
 
+/** Names that LOOK like events in their bundle but are not inbound events, so
+ * counting them as parity gaps produces a warning that can never be resolved
+ * (task 1.6.B5.28). Each is checked in their source, not guessed:
+ *
+ * - `subagent.interrupt` — an RPC method (`@method("subagent.interrupt")` in
+ *   tui_gateway/server.py), i.e. something a client CALLS;
+ * - `tool.progress` — the name of an internal core callback
+ *   (`_on_tool_progress`), which translates it into the events we do handle
+ *   (reasoning.available / moa.* / subagent.*) and emits nothing under this
+ *   name at all.
+ */
+const NOT_INBOUND_EVENTS = new Set(['subagent.interrupt', 'tool.progress'])
+
 /** Event-shaped string literals in the hermes bundle (it is minified with
  * backticks, so all three quote styles are accepted). */
 function readHermesEvents(bundle) {
@@ -76,6 +89,7 @@ function readHermesEvents(bundle) {
     // `*.respond` is an outgoing RPC method we CALL, not an inbound event to
     // handle — counting it as a gap would be pure noise.
     if (m[2] === 'respond') continue
+    if (NOT_INBOUND_EVENTS.has(`${m[1]}.${m[2]}`)) continue
     if (EVENT_FAMILIES.has(m[1])) found.add(`${m[1]}.${m[2]}`)
   }
   return found

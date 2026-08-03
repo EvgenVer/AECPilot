@@ -267,3 +267,90 @@ test('вложения уходят вместе с сообщением, а н�
   await waitFor(() => expect(submitPrompt).toHaveBeenCalledWith('что тут'))
   expect(screen.queryByText('план.png')).toBeNull()
 })
+
+// --- task 1.6.B5.27: editing a message and running the turn again -----------
+
+test('правка сообщения обрезает историю до него и переспрашивает', async () => {
+  const dispatch = vi.fn()
+  render(
+    <ChatDock
+      state={{
+        ...initialChatState,
+        items: [
+          { kind: 'message', id: 0, role: 'user', text: 'первый' },
+          { kind: 'message', id: 1, role: 'assistant', text: 'ответ', status: 'complete' },
+          { kind: 'message', id: 2, role: 'user', text: 'второй' }
+        ],
+        nextId: 3
+      }}
+      dispatch={dispatch}
+      connectionState="ready"
+      currentProject={null}
+    />
+  )
+
+  // Правим ПЕРВОЕ сообщение пользователя — его порядковый номер среди
+  // сообщений пользователя равен 0, а в ленте оно стоит нулевым лишь по
+  // совпадению; их `truncate_before_user_ordinal` считает только ходы.
+  fireEvent.click(screen.getAllByTitle('Изменить это сообщение и переспросить')[0] as HTMLElement)
+  const input = screen.getByPlaceholderText('Спросите про проект…') as HTMLTextAreaElement
+  expect(input.value).toBe('первый')
+
+  fireEvent.change(input, { target: { value: 'первый, но иначе' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+
+  await waitFor(() => expect(submitPrompt).toHaveBeenCalledWith('первый, но иначе', 0))
+  expect(dispatch).toHaveBeenCalledWith({
+    kind: 'user-resubmit',
+    ordinal: 0,
+    text: 'первый, но иначе'
+  })
+})
+
+test('отказ 4018 показывается, а лента не трогается', async () => {
+  submitPrompt.mockRejectedValue(
+    new Error('4018: target user message is no longer in session history')
+  )
+  const dispatch = vi.fn()
+  render(
+    <ChatDock
+      state={{
+        ...initialChatState,
+        items: [{ kind: 'message', id: 0, role: 'user', text: 'первый' }],
+        nextId: 1
+      }}
+      dispatch={dispatch}
+      connectionState="ready"
+      currentProject={null}
+    />
+  )
+
+  fireEvent.click(screen.getByTitle('Изменить это сообщение и переспросить'))
+  const input = screen.getByPlaceholderText('Спросите про проект…') as HTMLTextAreaElement
+  fireEvent.change(input, { target: { value: 'другое' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+
+  await waitFor(() => expect(screen.getByText(/4018/)).toBeDefined())
+  // Ничего не обрезано: их обработчик отверг ordinal, и обрезка, сделанная до
+  // ответа, показывала бы то, чего не произошло.
+  expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'user-resubmit' }))
+})
+
+test('во время хода править сообщение не предлагается', () => {
+  render(
+    <ChatDock
+      state={{
+        ...initialChatState,
+        items: [{ kind: 'message', id: 0, role: 'user', text: 'первый' }],
+        nextId: 1,
+        streaming: true
+      }}
+      dispatch={() => {}}
+      connectionState="ready"
+      currentProject={null}
+    />
+  )
+  // Их обработчик переписывает историю сессии — не то, что делают, пока агент
+  // её читает.
+  expect(screen.queryByTitle('Изменить это сообщение и переспросить')).toBeNull()
+})

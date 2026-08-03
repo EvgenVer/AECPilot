@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch } from 'react'
 import type { ChatAction, ChatState } from './chat-state'
+import { userOrdinalOf } from './chat-state'
 import ToolCallCard from './ToolCallCard'
 import ReasoningCard from './ReasoningCard'
 import ApprovalCard from './ApprovalCard'
@@ -70,6 +71,10 @@ export default function ChatDock({
   // for the life of the session — so the control retires instead of failing on
   // every press.
   const [steerUnsupported, setSteerUnsupported] = useState(false)
+  // Task 1.6.B5.27: which of the user's own messages is being rewritten, by
+  // its USER-TURN ordinal — the number their `truncate_before_user_ordinal`
+  // counts, not a transcript index.
+  const [editing, setEditing] = useState<number | undefined>(undefined)
   const [slashItems, setSlashItems] = useState<SlashCompletionItem[]>([])
   const [slashIndex, setSlashIndex] = useState(0)
   // Task 1.6.A3. Which of the two completion sources the current list came
@@ -192,9 +197,34 @@ export default function ChatDock({
     setHistoryCursor(undefined)
   }
 
+  /** Re-runs the conversation from an edited message (task 1.6.B5.27).
+   *
+   * The transcript is trimmed only AFTER the gateway accepts: their handler
+   * rejects an out-of-range ordinal with 4018 — deliberately, because Python's
+   * negative indexing would otherwise truncate the session to its last turn —
+   * and a transcript cut before that answer would be showing a truncation that
+   * did not happen. */
+  async function handleResubmit(ordinal: number, text: string): Promise<void> {
+    setSubmitError(undefined)
+    setSendNotice(undefined)
+    try {
+      await window.aecpilot.submitPrompt(text, ordinal)
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : String(error))
+      return
+    }
+    setEditing(undefined)
+    setDraft('')
+    dispatch({ kind: 'user-resubmit', ordinal, text })
+  }
+
   async function handleSend(): Promise<void> {
     const text = draft.trim()
     if (!text || connectionState !== 'ready') return
+    if (editing !== undefined) {
+      await handleResubmit(editing, text)
+      return
+    }
     setDraft('')
     resetHistoryWalk()
     setHistory((prev) => rememberPrompt(prev, text))
@@ -360,6 +390,26 @@ export default function ChatDock({
               ) : (
                 item.text
               )}
+              {/* Task 1.6.B5.27: rewriting a question and running the
+                  conversation again from there. Offered only outside a turn —
+                  their handler rewrites the session's history, which is not a
+                  thing to do while the agent is reading it. */}
+              {item.role === 'user' && !state.streaming && (
+                <button
+                  type="button"
+                  className="message__edit"
+                  title="Изменить это сообщение и переспросить"
+                  onClick={() => {
+                    const ordinal = userOrdinalOf(state.items, item.id)
+                    if (ordinal === undefined) return
+                    setEditing(ordinal)
+                    setDraft(item.text)
+                    textareaRef.current?.focus()
+                  }}
+                >
+                  Изменить
+                </button>
+              )}
               {item.status === 'error' && <div className="message__error">ошибка</div>}
             </div>
           )
@@ -444,6 +494,22 @@ export default function ChatDock({
         {sendNotice && (
           <p className="composer-notice" role="status">
             {sendNotice}
+          </p>
+        )}
+
+        {editing !== undefined && (
+          <p className="composer-notice" role="status">
+            Правка сообщения: всё, что было после него, будет отброшено и ход пойдёт заново.{' '}
+            <button
+              type="button"
+              className="composer-notice__cancel"
+              onClick={() => {
+                setEditing(undefined)
+                setDraft('')
+              }}
+            >
+              Отменить правку
+            </button>
           </p>
         )}
 
