@@ -22,11 +22,16 @@ function dotClassName(state: GatewayConnectionState): string {
 export default function StatusBar({
   connectionState,
   approvalsDisabled,
-  onApprovalsError
+  onApprovalsError,
+  compacting
 }: {
   connectionState: GatewayConnectionState
   approvalsDisabled: boolean
   onApprovalsError: (message: string) => void
+  /** The core is compressing the context (task 1.6.B5.14) — manually or on its
+   * own mid-turn. Without this the agent looks stalled: nothing streams while
+   * a compaction runs. */
+  compacting: boolean
 }) {
   return (
     <div className="statusbar">
@@ -34,6 +39,15 @@ export default function StatusBar({
         <span className={dotClassName(connectionState)} />
         {CONNECTION_LABEL[connectionState]}
       </div>
+      {compacting && (
+        <>
+          <div className="statusbar__sep" />
+          <div className="statusbar__item" role="status">
+            <span className="statusbar__dot statusbar__dot--pending" />
+            Сжимаю контекст…
+          </div>
+        </>
+      )}
       <div className="statusbar__sep" />
       <div className="statusbar__item">
         <ApprovalsModeSelect disabled={approvalsDisabled} onError={onApprovalsError} />

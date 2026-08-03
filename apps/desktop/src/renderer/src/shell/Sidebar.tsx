@@ -3,6 +3,7 @@ import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
 import RollbackPanel from './RollbackPanel'
+import SessionDetails from './SessionDetails'
 import SessionsPanel from './SessionsPanel'
 import SkillsPanel from './SkillsPanel'
 import LearningPanel from './LearningPanel'
@@ -1328,7 +1329,8 @@ export default function Sidebar({
   onResizeSources,
   onCommitSizes,
   chatStreaming,
-  onSessionLoaded
+  onSessionLoaded,
+  onTurnUndone
 }: {
   active: ActivityId
   currentProject: OpenProject | null
@@ -1339,10 +1341,12 @@ export default function Sidebar({
    * gateway refuses several of its actions mid-turn, and a disabled control
    * says so better than a failed click. */
   chatStreaming: boolean
-  /** Redraws the transcript after a session switch/activate (batch 5) — the
-   * same channel `SessionMenu` uses, so there is one way for the feed to be
-   * replaced rather than two. */
+  /** Redraws the transcript after a session switch/activate/compress (batch
+   * 5) — the same channel `SessionMenu` uses, so there is one way for the feed
+   * to be replaced rather than two. */
   onSessionLoaded: (messages: HistoryMessage[]) => void
+  /** `session.undo` removed `removed` history entries (task 1.6.B5.15). */
+  onTurnUndone: (removed: number) => void
 }) {
   const activity = ACTIVITIES.find((item) => item.id === active)
   return (
@@ -1364,6 +1368,11 @@ export default function Sidebar({
         <div className="sidebar__scroll">
           <div className="sidebar__section-title">Сессии</div>
           <SessionsPanel streaming={chatStreaming} onSessionLoaded={onSessionLoaded} />
+          <SessionDetails
+            streaming={chatStreaming}
+            onSessionLoaded={onSessionLoaded}
+            onTurnUndone={onTurnUndone}
+          />
           <div className="sidebar__section-title">Скилы</div>
           <SkillsPanel />
           <div className="sidebar__section-title">Обучение</div>

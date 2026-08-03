@@ -71,6 +71,7 @@ function renderSidebar(): void {
       onCommitSizes={() => {}}
       chatStreaming={false}
       onSessionLoaded={() => {}}
+      onTurnUndone={() => {}}
     />
   )
 }

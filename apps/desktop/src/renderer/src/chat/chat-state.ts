@@ -166,6 +166,11 @@ export interface ChatState {
   nextId: number
   /** Live model/effort/fast, as last reported by the gateway. */
   runtime: SessionRuntime
+  /** The context is being compressed right now (task 1.6.B5.14) — either
+   * because the user asked (`/compress`, `kind: "compressing"`) or because
+   * the core compacted mid-turn on its own (`kind: "compacting"`). Both look
+   * like a stall from the outside, which is the whole reason to show it. */
+  compacting: boolean
 }
 
 export const initialChatState: ChatState = {
@@ -174,7 +179,8 @@ export const initialChatState: ChatState = {
   approvals: [],
   interactive: [],
   nextId: 0,
-  runtime: emptySessionRuntime
+  runtime: emptySessionRuntime,
+  compacting: false
 }
 
 // --- Hermes parity ledger (task 1.5.D1 / D1.9) -----------------------------
@@ -217,6 +223,9 @@ export const HANDLED_GATEWAY_EVENTS = [
   'session.info',
   // Handled outside the reducer — see the note above (task 1.6.B5.8).
   'session.title',
+  // Task 1.6.B5.14: only two of its `kind`s mean anything to this app
+  // (`compressing`, `compacting`); the rest change nothing, deliberately.
+  'status.update',
   'review.summary',
   'secret.expire',
   'sudo.expire'
@@ -237,7 +246,6 @@ export const HANDLED_GATEWAY_EVENTS = [
  *   for the tool card. */
 export const IGNORED_GATEWAY_EVENTS = [
   'gateway.ready',
-  'status.update',
   'message.interim',
   'reaction',
   'tool.output_risk'
@@ -292,6 +300,9 @@ export type ChatAction =
   /** Drops an answered (or expired) interactive request by its id. */
   | { kind: 'interactive-resolved'; requestId: string }
   | { kind: 'session-loaded'; messages: HistoryMessage[] }
+  /** `session.undo` succeeded and their side removed `removed` history
+   * entries (task 1.6.B5.15). */
+  | { kind: 'turn-undone'; removed: number }
 
 /** The in-flight assistant message, if any, is always the last *message*
  * item while it carries status 'streaming' — tool cards may sit after it in
@@ -472,8 +483,38 @@ function isSubagentEvent(event: GatewayEvent): event is SubagentEvent {
  * give up with an empty answer). Keeping the card pinned after that would wedge
  * the dock: the composer is disabled while an approval is up, so an expired
  * request the gateway has already forgotten would lock the input for good. */
-function endedTurn(): Pick<ChatState, 'streaming' | 'approvals' | 'interactive'> {
-  return { streaming: false, approvals: [], interactive: [] }
+function endedTurn(): Pick<ChatState, 'streaming' | 'approvals' | 'interactive' | 'compacting'> {
+  // `compacting` goes with them (task 1.6.B5.14): their manual-compress path
+  // clears the indicator with a `ready` status in a `finally`, but an
+  // auto-compaction mid-turn has no such closing event — the turn ending IS
+  // its end, and without this the indicator would stay lit until the next one.
+  return { streaming: false, approvals: [], interactive: [], compacting: false }
+}
+
+/** Drops the last `removed` TRANSCRIPT ENTRIES for `session.undo` (task
+ * 1.6.B5.15).
+ *
+ * `removed` is their count, and it counts the things THEIR history holds:
+ * user/assistant messages and tool results. This transcript also holds cards
+ * that exist only here — reasoning, subagent and MoA — which have no entry in
+ * their history and must not be counted, but do belong to the turn being
+ * undone. So the cut point is found by counting only messages and tool cards
+ * backwards, and everything from there on goes, auxiliary cards included.
+ * Counting items blindly would leave a stray "Рассуждения" card floating above
+ * a turn that no longer exists. */
+export function undoLastEntries(items: ChatItem[], removed: number): ChatItem[] {
+  if (removed <= 0) return items
+  let remaining = removed
+  let cut = items.length
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i]
+    if (item?.kind === 'message' || item?.kind === 'tool') {
+      remaining -= 1
+      cut = i
+      if (remaining === 0) break
+    }
+  }
+  return items.slice(0, cut)
 }
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
@@ -496,6 +537,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     return interactive.length === state.interactive.length ? state : { ...state, interactive }
   }
 
+  if (action.kind === 'turn-undone') {
+    const items = undoLastEntries(state.items, action.removed)
+    return items === state.items ? state : { ...state, items }
+  }
+
   if (action.kind === 'session-loaded') {
     const mapped = action.messages
       .map(mapHistoryMessage)
@@ -514,7 +560,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       interactive: [],
       streaming: false,
       nextId,
-      runtime: emptySessionRuntime
+      runtime: emptySessionRuntime,
+      compacting: false
     }
   }
 
@@ -665,6 +712,27 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       fast: payload.fast ?? state.runtime.fast
     }
     return { ...state, runtime }
+  }
+
+  // --- Context compression (task 1.6.B5.14) --------------------------------
+  // Two `kind`s, not one, and the task was named after the second: manual
+  // `/compress` emits `compressing` (their `session.compress` handler), while
+  // an automatic mid-turn compaction arrives as `lifecycle` and is re-tagged
+  // to `compacting` by their own `_status_update`. Both look like the agent
+  // has stalled, so both light the indicator.
+  //
+  // Their manual path clears it with a plain `{kind:"status", text:"ready"}` in
+  // a `finally`; every other kind (`process`, …) changes nothing here — the
+  // status bar is not a log.
+  if (isGatewayEventOfType(event, 'status.update')) {
+    const kind = event.payload?.kind
+    if (kind === 'compressing' || kind === 'compacting') {
+      return state.compacting ? state : { ...state, compacting: true }
+    }
+    if (kind === 'status') {
+      return state.compacting ? { ...state, compacting: false } : state
+    }
+    return state
   }
 
   // --- Delegated child agents (task 1.6.A1) --------------------------------

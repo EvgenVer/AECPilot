@@ -1247,6 +1247,14 @@ export interface ReasoningAvailableEvent {
   payload: { text: string; verbose?: boolean }
 }
 
+/** A one-line status from the core. `kind` is the whole contract and it has
+ * more values than it looks (task 1.6.B5.14, read off `_status_update`):
+ * - `compressing` — a MANUAL `/compress` is running (`session.compress`)
+ * - `compacting` — an AUTOMATIC mid-turn compaction; arrives from the core as
+ *   `lifecycle` and is re-tagged by their own handler so a driver can show it
+ * - `status` — their generic bucket, used for the `ready` that ends a manual
+ *   compression
+ * - `process`, `goal`, … — everything else, which this app ignores */
 export interface StatusUpdateEvent {
   type: 'status.update'
   session_id?: string

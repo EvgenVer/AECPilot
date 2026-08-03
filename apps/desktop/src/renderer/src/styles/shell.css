@@ -4405,3 +4405,84 @@ body.resizing-row * {
   font-size: var(--fs-caption);
   color: var(--text-3);
 }
+
+/* Детали сессии (батч 5) */
+.session-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-grid {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.usage-grid__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-small);
+}
+
+.usage-grid__row dt {
+  color: var(--text-2);
+}
+
+.usage-grid__row dd {
+  margin: 0;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.breakdown-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px auto;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.breakdown-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breakdown-row__bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.breakdown-row__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent, var(--text-3));
+}
+
+.breakdown-row__value {
+  font-variant-numeric: tabular-nums;
+}

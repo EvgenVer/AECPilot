@@ -380,8 +380,9 @@ describe('chatReducer', () => {
 
   // Superseded by task 1.5.D1: `thinking.delta` used to be ignored (0.11) and
   // now feeds the reasoning block — see the "reasoning block" suite above.
-  // `status.update` is still ignored.
-  it('status.update is ignored (state unchanged)', () => {
+  // `status.update` is now read for two of its kinds only (task 1.6.B5.14);
+  // every other kind still changes nothing, which is what this pins.
+  it('status.update of an unrelated kind is ignored (state unchanged)', () => {
     let state: ChatState = initialChatState
     state = chatReducer(state, ev({ type: 'message.start' }))
     const before = state
@@ -1210,5 +1211,126 @@ describe('secret.expire / sudo.expire (ядро 0.19.0)', () => {
     for (const type of ['message.interim', 'reaction', 'tool.output_risk']) {
       expect(isUnknownGatewayEvent(type)).toBe(false)
     }
+  })
+})
+
+// --- task 1.6.B5.14: the compression indicator ------------------------
+describe('индикатор сжатия контекста', () => {
+  it('ручное сжатие зажигает индикатор', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'status.update', payload: { kind: 'compressing', text: '⠋ compressing 40…' } })
+    )
+    expect(state.compacting).toBe(true)
+  })
+
+  it('автоматическая компакция мид-хода тоже зажигает его', () => {
+    // Их `_status_update` перетегивает `lifecycle` в `compacting` — это
+    // РАЗНЫЙ kind, и задача названа именно по нему.
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'status.update', payload: { kind: 'compacting', text: 'Summarizing…' } })
+    )
+    expect(state.compacting).toBe(true)
+  })
+
+  it('их `ready` снимает индикатор', () => {
+    let state = chatReducer(
+      initialChatState,
+      ev({ type: 'status.update', payload: { kind: 'compressing', text: '…' } })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'status.update', payload: { kind: 'status', text: 'ready' } })
+    )
+    expect(state.compacting).toBe(false)
+  })
+
+  it('конец хода снимает индикатор, даже если `ready` не пришёл', () => {
+    // У автоматической компакции закрывающего события нет вовсе — без
+    // этого индикатор горел бы до следующего сжатия.
+    let state = chatReducer(
+      initialChatState,
+      ev({ type: 'status.update', payload: { kind: 'compacting', text: '…' } })
+    )
+    state = chatReducer(
+      state,
+      ev({ type: 'message.complete', payload: { text: 'готово', status: 'complete' } })
+    )
+    expect(state.compacting).toBe(false)
+  })
+
+  it('kind:"process" по-прежнему не меняет ничего', () => {
+    const before = chatReducer(initialChatState, ev({ type: 'message.start' }))
+    const after = chatReducer(
+      before,
+      ev({ type: 'status.update', payload: { kind: 'process', text: 'npm run dev' } })
+    )
+    expect(after).toBe(before)
+  })
+
+  it('повторное сжатие не вызывает лишнюю перерисовку', () => {
+    const lit = chatReducer(
+      initialChatState,
+      ev({ type: 'status.update', payload: { kind: 'compressing', text: '…' } })
+    )
+    expect(
+      chatReducer(lit, ev({ type: 'status.update', payload: { kind: 'compressing', text: '…' } }))
+    ).toBe(lit)
+  })
+
+  it('событие больше не считается неизвестным', () => {
+    expect(isUnknownGatewayEvent('status.update')).toBe(false)
+  })
+})
+
+// --- task 1.6.B5.15: undoing a turn -----------------------------------
+describe('отмена хода', () => {
+  /** Лента одного хода: вопрос → рассуждение → инструмент → ответ.
+   * В истории ШЛЮЗА это три записи (user, tool, assistant) — карточки
+   * рассуждений у них нет вовсе. */
+  function turnItems(): ChatItem[] {
+    return [
+      { kind: 'message', id: 0, role: 'user', text: 'посчитай' },
+      { kind: 'reasoning', id: 1, text: 'думаю', segments: 1, status: 'complete' },
+      { kind: 'tool', toolId: 't1', name: 'calc', context: '', status: 'complete' },
+      { kind: 'message', id: 2, role: 'assistant', text: '42', status: 'complete' }
+    ]
+  }
+
+  it('снимает ровно `removed` записей истории, считая карточки инструментов', () => {
+    const state = chatReducer(
+      { ...initialChatState, items: turnItems(), nextId: 3 },
+      { kind: 'turn-undone', removed: 3 }
+    )
+    // Ушёл весь ход целиком — вместе с карточкой рассуждений, которой в их
+    // истории не было, но которая принадлежит снятому ходу.
+    expect(state.items).toHaveLength(0)
+  })
+
+  it('оставляет предыдущие ходы на месте', () => {
+    const items: ChatItem[] = [
+      { kind: 'message', id: 0, role: 'user', text: 'первый' },
+      { kind: 'message', id: 1, role: 'assistant', text: 'ответ', status: 'complete' },
+      ...turnItems()
+    ]
+    const state = chatReducer(
+      { ...initialChatState, items, nextId: 6 },
+      { kind: 'turn-undone', removed: 3 }
+    )
+    expect(state.items.map((item) => item.kind)).toEqual(['message', 'message'])
+  })
+
+  it('`removed: 0` не трогает ленту и не вызывает перерисовку', () => {
+    const before = { ...initialChatState, items: turnItems(), nextId: 3 }
+    expect(chatReducer(before, { kind: 'turn-undone', removed: 0 })).toBe(before)
+  })
+
+  it('`removed` больше длины ленты просто очищает её', () => {
+    const state = chatReducer(
+      { ...initialChatState, items: turnItems(), nextId: 3 },
+      { kind: 'turn-undone', removed: 99 }
+    )
+    expect(state.items).toHaveLength(0)
   })
 })

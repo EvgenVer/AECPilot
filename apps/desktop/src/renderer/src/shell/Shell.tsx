@@ -185,6 +185,7 @@ export default function Shell() {
           onCommitSizes={persistPanels}
           chatStreaming={chatState.streaming}
           onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
+          onTurnUndone={(removed) => dispatch({ kind: 'turn-undone', removed })}
         />
         <PanelResizer
           label="Изменить ширину боковой панели"
@@ -222,6 +223,7 @@ export default function Shell() {
       <StatusBar
         connectionState={connectionState}
         approvalsDisabled={busy}
+        compacting={chatState.compacting}
         onApprovalsError={() => {
           /* surfaced inline by ApprovalsModeSelect itself; nothing else to
            * do at the shell level for task 1.0. */
