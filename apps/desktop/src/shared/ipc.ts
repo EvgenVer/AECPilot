@@ -31,6 +31,22 @@ import type {
   ToolsetInfo
 } from './gateway/types'
 
+/** One profile as this app shows it (task 1.6.B5.23) — mirrors what
+ * `main/profiles-pure.ts` parses out of `GET /api/profiles`, declared here for
+ * the same reason as `ProjectSource` above: the renderer must not import a
+ * main-only module. Their row carries fourteen fields (MEASURED by
+ * `runtime/profiles-probe.mjs`); the rest describe their distribution channel
+ * and shell wrappers, neither of which exists here. */
+export interface ProfileRow {
+  name: string
+  path: string
+  isDefault: boolean
+  model?: string
+  provider?: string
+  description?: string
+  skillCount?: number
+}
+
 /** What a manual compression achieved (task 1.6.B5.13).
  *
  * `messages` is NOT `session.compress`'s own `messages` field — that one is the
@@ -824,6 +840,29 @@ export interface AecpilotApi {
    * `scope`, so `approvals.mode` in config.yaml is never touched and the app's
    * own approvals selector stays the only owner of the persistent setting. */
   setYolo(enabled: boolean): Promise<ConfigSetResult>
+  /** Profiles (task 1.6.B5.23) — the batch's one REST surface (owner decision
+   * B5-1=C, allowed by rule R1: the gateway has no `profile.*` methods at all).
+   *
+   * `current` is what sessions are built against right now; `launched` is what
+   * the gateway process itself was started with; `active` is their sticky
+   * default for future CLI runs, shown but never written by this app. */
+  listProfiles(): Promise<{
+    profiles: ProfileRow[]
+    current: string
+    launched: string
+    active: string
+  }>
+  createProfile(name: string): Promise<unknown>
+  /** DESTRUCTIVE — removes the profile's directory, keys and session history
+   * included. `confirmed` is checked in main, which also refuses the profile
+   * the gateway runs as and `default`. */
+  deleteProfile(payload: { name: string; confirmed: true }): Promise<unknown>
+  /** Points new and resumed sessions at `name` (the `profile` parameter of
+   * `session.create`/`session.resume`, measured accepted). Their sticky
+   * `POST /api/profiles/active` is deliberately NOT called: it changes which
+   * profile the user's own CLI picks up next, and by their own comment it does
+   * not retarget a running process anyway. */
+  useProfile(name: string): Promise<{ ok: boolean; current: string }>
   /** Stores (`key: string`) or removes (`key: null`) one provider's key and
    * restarts the backend, because a key reaches hermes through the child
    * process's environment and therefore only applies from the next start.

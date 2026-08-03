@@ -4572,3 +4572,21 @@ body.resizing-row * {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Профили в hub «Агент» (батч 5) */
+.profiles-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profiles-panel input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-1);
+  font: inherit;
+}

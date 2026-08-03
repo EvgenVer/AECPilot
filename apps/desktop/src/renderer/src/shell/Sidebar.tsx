@@ -3,6 +3,7 @@ import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
 import RollbackPanel from './RollbackPanel'
+import ProfilesPanel from './ProfilesPanel'
 import SessionDetails from './SessionDetails'
 import SessionsPanel from './SessionsPanel'
 import SkillsPanel from './SkillsPanel'
@@ -1373,6 +1374,8 @@ export default function Sidebar({
             onSessionLoaded={onSessionLoaded}
             onTurnUndone={onTurnUndone}
           />
+          <div className="sidebar__section-title">Профили</div>
+          <ProfilesPanel onSessionLoaded={onSessionLoaded} />
           <div className="sidebar__section-title">Скилы</div>
           <SkillsPanel />
           <div className="sidebar__section-title">Обучение</div>

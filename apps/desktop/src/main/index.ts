@@ -56,6 +56,12 @@ import {
   resolveCheckpointScope,
   type CheckpointScope
 } from './checkpoint-scope-pure'
+import {
+  isValidProfileName,
+  parseActiveProfile,
+  parseProfileList,
+  refuseProfileDeletion
+} from './profiles-pure'
 import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
@@ -1525,6 +1531,71 @@ ipcMain.handle('commands:dispatch', async (_event, payload: unknown) => {
 //     session of the process.
 // `value` is an explicit '1'/'0' — any other value, empty string included,
 // makes their handler invert the current state instead.
+// --- Profiles (task 1.6.B5.23) ---------------------------------------------
+// The batch's one REST surface, and the reason is not preference: there are no
+// `profile.*` methods in the gateway at all (owner decision B5-1=C, rule R1).
+// Every route below was measured by `runtime/profiles-probe.mjs` against a live
+// process before this was written.
+//
+// What this app deliberately does NOT call: `POST /api/profiles/active`. It
+// writes a sticky preference that changes which profile the user's own CLI
+// picks up next time, and their handler's comment says it does not retarget a
+// running process anyway. Switching a chat is done the way that actually works
+// — the `profile` parameter on `session.create`/`session.resume`, measured
+// accepted by the probe.
+
+ipcMain.handle('profiles:list', async () => {
+  const target = restTarget()
+  const [listed, active] = await Promise.all([
+    hermesRest<unknown>(target, '/api/profiles'),
+    hermesRest<unknown>(target, '/api/profiles/active')
+  ])
+  const { current, active: sticky } = parseActiveProfile(active)
+  return {
+    profiles: parseProfileList(listed),
+    // What sessions are actually built against right now: the profile the user
+    // picked in this app, or the one the gateway was launched with.
+    current: sessionProfile ?? current,
+    launched: current,
+    active: sticky
+  }
+})
+
+ipcMain.handle('profiles:create', async (_event, payload: unknown) => {
+  const { name } = (payload ?? {}) as { name?: unknown }
+  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  return hermesRest(restTarget(), '/api/profiles', { method: 'POST', body: { name } })
+})
+
+// DESTRUCTIVE — removes the profile's whole directory: its config, keys, skills
+// and session history. Three checks live here rather than in the renderer:
+// the confirmation, the name (it goes into a URL path segment), and the two
+// profiles that must never be deleted.
+ipcMain.handle('profiles:delete', async (_event, payload: unknown) => {
+  const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
+  if (confirmed !== true) throw new Error('удаление профиля требует подтверждения')
+  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  const target = restTarget()
+  const { current } = parseActiveProfile(await hermesRest<unknown>(target, '/api/profiles/active'))
+  const refusal = refuseProfileDeletion(name, sessionProfile ?? current)
+  if (refusal) throw new Error(refusal)
+  return hermesRest(target, `/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' })
+})
+
+// Points new and resumed sessions at another profile. The active session is
+// abandoned the same way a project switch abandons it (task 1.20): the next
+// send builds a session under the new profile, and the renderer clears the
+// transcript to match.
+ipcMain.handle('profiles:use', async (_event, payload: unknown) => {
+  const { name } = (payload ?? {}) as { name?: unknown }
+  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  const target = restTarget()
+  const { current } = parseActiveProfile(await hermesRest<unknown>(target, '/api/profiles/active'))
+  sessionProfile = name === current ? undefined : name
+  resetActiveSessionForProjectSwitch()
+  return { ok: true, current: sessionProfile ?? current }
+})
+
 ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
   if (!gateway) throw new Error('gateway is not connected')
   if (typeof enabled !== 'boolean') throw new Error('invalid yolo flag')
