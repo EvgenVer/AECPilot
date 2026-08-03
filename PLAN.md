@@ -126,6 +126,18 @@ peerDependencies`.
     `curator` через `command.dispatch` (архив скилов остаётся невыполнимым — 1.6.B3.8).
   - **Откат:** `HERMES_VERSION` в `runtime/hermes-env.mjs` вернуть на `0.18.0` и
     перезапустить `node runtime/setup.mjs`; venv изолирован, глобальных установок нет.
+- **0.19.1 существует, но не в реестре** (разобрано 2026-07-31). В репозитории есть тег
+  `v2026.7.30` с `pyproject.version = 0.19.1`; **на PyPI её нет** — последняя
+  опубликованная 0.19.0. Наш источник зафиксирован как реестр PyPI, установка из git-тега
+  меняла бы цепочку поставки, поэтому переход отложен до публикации (задача 1.6.U5).
+  Разбор по репозиторию достоверен: файл шлюза из тега `v2026.7.20` побайтово идентичен
+  установленному 0.19.0. Содержание 0.19.1: крупный внутренний рефакторинг (шлюз разрезан
+  на `methods_*.py`, веб-сервер — на `web_routers/`), ни один из 122 методов не потерян,
+  добавлено 8 (`session.redirect`, `message.react`, `system.battery`, `wake.*`) и 4 события
+  (`moa.phase`, `moa.progress`, `voice.interrupted`, `wake.detected`). Наша правка
+  `include_unconfigured` остаётся верной. **Следствие для будущего перехода:** ссылки вида
+  `tui_gateway/server.py:NNNN` в спеках и комментариях после разреза указывают в никуда и
+  требуют перенаправления.
 
 - **Инвентарь tui_gateway 0.18.0** (снят 2026-07-08 по установленному пакету; основание G4/UR10): ~170 методов/событий. Группы: `session.*` (create/close/list/resume/branch/compress/history/usage/undo/steer/interrupt…), `prompt.submit|background`, стрим-события (message/thinking/reasoning/tool/subagent/moa), интерактивы (`approval.*`, `clarify.*`, `sudo.*`, `secret.*`, `input.request`), `model.*` + `agent.*` (system_prompt/reasoning_effort/thinking), `skills.manage|reload`, `plugins.*`, `tools.*`/`toolsets.list`, `config.get|set|show`, `cron.manage`, `reload.mcp|env`, `rollback.list|diff|restore`, вложения (`image.*`/`pdf.attach`/`file.attach`), `voice.*`, `process/terminal/shell`, `projects.*` (собственные проекты hermes). Кандидаты «не переносим»: `billing.*`/`credits` (облако Nous), `pet.*` (игрушка), `display.*` (TUI-специфика), `learning.*` — утверждаются владельцем при детализации Agent-hub. Памяти и хуков в gateway-API нет — это файлы профиля (+slash-команды). Маппинг «группа → экран → фаза» — `design/DESIGN_BRIEF.md`.
 
