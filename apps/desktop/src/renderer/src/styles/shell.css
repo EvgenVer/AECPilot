@@ -4807,3 +4807,345 @@ body.resizing-row * {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* ============ Center tabs (batch 7) ============ */
+
+.center__tab {
+  display: flex;
+  align-items: center;
+  border-inline-end: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+.center__tab--active {
+  background: var(--bg-surface);
+}
+
+.center__tab-label {
+  height: 100%;
+  padding: 0 6px 0 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.center__tab--active .center__tab-label {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.center__tab-close {
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.center__tab-close:hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+.center__openers {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.center__opener,
+.artifacts__btn {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-surface);
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.center__opener:hover,
+.artifacts__btn:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.artifacts__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.artifacts__icon-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.artifacts__icon-btn:hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+/* ============ Artifacts tab (tasks 1.6.B7.4/B7.5) ============ */
+
+.artifacts {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.artifacts__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.artifacts__filters {
+  display: flex;
+  gap: 4px;
+}
+
+.artifacts__filter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.artifacts__filter--active {
+  background: var(--bg-active);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.artifacts__count {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.artifacts__search {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-app);
+  color: var(--text-3);
+}
+
+.artifacts__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  outline: none;
+}
+
+.artifacts__state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-body);
+}
+
+.artifacts__state--error strong {
+  color: var(--text-1);
+}
+
+.artifacts__warning,
+.artifacts__notice {
+  padding: 6px 12px;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.artifacts__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.artifacts__list {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.artifacts__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--r-ctl);
+  padding-inline-end: 4px;
+}
+
+.artifacts__row:hover,
+.artifacts__row--active {
+  background: var(--bg-active);
+}
+
+.artifacts__pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.artifacts__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.artifacts__missing {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--danger);
+}
+
+.artifacts__meta {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.artifacts__path {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.artifacts__actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.artifact-preview {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-inline-start: 1px solid var(--border);
+  background: var(--bg-app);
+}
+
+.artifact-preview__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.artifact-preview__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-preview__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.artifact-preview__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.artifact-preview__note {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--text-3);
+  text-align: center;
+}
+
+.artifact-preview__note--error {
+  color: var(--danger);
+}
+
+.artifact-preview__path {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}

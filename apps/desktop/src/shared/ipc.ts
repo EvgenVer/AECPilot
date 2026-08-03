@@ -832,6 +832,40 @@ export interface AecpilotApi {
    * exact lines. Rows come through untouched — shaping them is
    * `artifact-source.ts`'s job, and the artifacts tab is the only caller. */
   getSessionMessages(storedId: StoredSessionId): Promise<{ messages: StoredMessageRow[] }>
+  // --- Artifacts on disk (tasks 1.6.B7.4/B7.5) ----------------------------
+  //
+  // An artifact path is a string the MODEL wrote, so these three grant
+  // deliberately different amounts: `stat` reads metadata, `reveal` highlights
+  // the file in the OS file manager (selects — never launches), `preview`
+  // reads bytes and is fenced to the open project. There is no "open with the
+  // default application": `shell.openPath` on a model-authored path is an
+  // arbitrary-file-open primitive, the same reason `file:` is missing from
+  // `decideExternalLink`'s allow-list. A LINK artifact goes through
+  // `openExternalLink`.
+
+  /** Whether the artifact is on disk and where it sits relative to the
+   * project. A missing file resolves as `{ok: true, exists: false}` — an
+   * answer, not a failure: the row is marked rather than hidden. */
+  statArtifact(value: string): Promise<
+    | {
+        ok: true
+        exists: boolean
+        isFile: boolean
+        size: number
+        insideProject: boolean
+        previewable: boolean
+      }
+    | { ok: false; error: string }
+  >
+  /** Highlights the file in the OS file manager. Allowed outside the project;
+   * refused when the file is gone, with an explanation. */
+  revealArtifact(value: string): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Reads a raster image into a data-URL. Inside the project only (symlinks
+   * resolved), size-capped, and `svg` is excluded on purpose — it is markup
+   * with script capability. */
+  previewArtifact(
+    value: string
+  ): Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>
   /** Renames a session (task 1.6.B5.7). A session that is not currently live
    * cannot be renamed directly — main resumes it first, because their
    * `session.title` resolves a LIVE sid. `pending: true` means the name will

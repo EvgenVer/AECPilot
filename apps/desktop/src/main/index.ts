@@ -1,10 +1,19 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import {
+  imageMime,
+  isInside,
+  isPreviewableImage,
+  PREVIEW_MAX_BYTES,
+  PREVIEW_OUTSIDE_PROJECT_ERROR,
+  resolveArtifactPath
+} from './artifact-files-pure'
 import { hermesRest, type RestTarget } from './hermes-rest'
 import type {
   CuratorStatus,
@@ -481,6 +490,97 @@ ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
     return { ok: true }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// --- Artifacts: files on disk (tasks 1.6.B7.4/B7.5) -------------------------
+//
+// An artifact path is a string a language model wrote, so the three handlers
+// below are deliberately unequal in what they grant:
+//
+//   `artifacts:stat`    — does it exist, is it inside the project. Read-only.
+//   `artifacts:reveal`  — highlights it in the OS file manager. Selects; does
+//                         not launch. Allowed outside the project too — the
+//                         user asked to be shown where a file is.
+//   `artifacts:preview` — reads BYTES and hands them to the window. Fenced to
+//                         the project, capped in size, raster formats only.
+//
+// What is deliberately NOT here is "open with the OS default application".
+// `shell.openPath` on a model-authored path is an arbitrary-file-open — and,
+// for anything executable, arbitrary code execution — primitive; the same
+// reasoning already keeps `file:` out of `decideExternalLink`'s allow-list, and
+// the explorer this app already ships offers reveal, not launch. A LINK
+// artifact opens through `shell:open-external`, which validates the scheme.
+
+ipcMain.handle('artifacts:stat', async (_event, value: unknown) => {
+  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  if (!resolved.ok) return { ok: false, error: resolved.error }
+  try {
+    const info = await fs.promises.stat(resolved.absPath)
+    return {
+      ok: true,
+      exists: true,
+      isFile: info.isFile(),
+      size: info.size,
+      insideProject: resolved.insideProject,
+      previewable: resolved.insideProject && info.isFile() && isPreviewableImage(resolved.absPath)
+    }
+  } catch {
+    // A missing file is an ANSWER here, not a failure: the tab marks the row
+    // rather than hiding it, so the user learns the agent's file is gone.
+    return {
+      ok: true,
+      exists: false,
+      isFile: false,
+      size: 0,
+      insideProject: resolved.insideProject,
+      previewable: false
+    }
+  }
+})
+
+ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
+  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  if (!resolved.ok) return { ok: false, error: resolved.error }
+  try {
+    await fs.promises.stat(resolved.absPath)
+  } catch {
+    return { ok: false, error: 'Файла нет на диске — возможно, он был удалён или переименован' }
+  }
+  shell.showItemInFolder(resolved.absPath)
+  return { ok: true }
+})
+
+ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
+  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  if (!resolved.ok) return { ok: false, error: resolved.error }
+  if (!resolved.insideProject) return { ok: false, error: PREVIEW_OUTSIDE_PROJECT_ERROR }
+  if (!isPreviewableImage(resolved.absPath)) {
+    return { ok: false, error: 'Предпросмотр умеет только растровые картинки' }
+  }
+  try {
+    // The containment check above is lexical; `realpath` closes the symlink
+    // hole — a link inside the vault pointing anywhere on disk would otherwise
+    // read those bytes into the window. Same layering as `vault-fs.ts`.
+    const realPath = await fs.promises.realpath(resolved.absPath)
+    if (!isInside(currentProject?.vaultPath, realPath)) {
+      return { ok: false, error: PREVIEW_OUTSIDE_PROJECT_ERROR }
+    }
+    const info = await fs.promises.stat(realPath)
+    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+    if (info.size > PREVIEW_MAX_BYTES) {
+      return {
+        ok: false,
+        error: `Картинка больше ${Math.round(PREVIEW_MAX_BYTES / (1024 * 1024))} МБ — откройте её в проводнике`
+      }
+    }
+    const bytes = await fs.promises.readFile(realPath)
+    return { ok: true, dataUrl: `data:${imageMime(realPath)};base64,${bytes.toString('base64')}` }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
+    }
   }
 })
 
