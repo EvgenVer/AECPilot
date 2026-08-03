@@ -6,6 +6,7 @@ import Sidebar from './Sidebar'
 import CenterArea from './CenterArea'
 import StatusBar from './StatusBar'
 import TopBar from './TopBar'
+import CommandPalette from './CommandPalette'
 import CreateProjectDialog from './CreateProjectDialog'
 import ScanNotification from './ScanNotification'
 import PanelResizer from './PanelResizer'
@@ -230,6 +231,13 @@ export default function Shell() {
         }}
       />
       {createProjectOpen && <CreateProjectDialog onClose={() => setCreateProjectOpen(false)} />}
+      {/* Task 1.6.B5.17: one global overlay, mounted always but rendering
+          nothing until Ctrl+K — its only standing cost is one keydown
+          listener. */}
+      <CommandPalette
+        onSelectActivity={setActivity}
+        onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
+      />
       <ScanNotification currentProject={currentProject} />
     </div>
   )

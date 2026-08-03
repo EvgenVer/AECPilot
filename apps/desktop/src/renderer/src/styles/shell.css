@@ -4464,3 +4464,81 @@ body.resizing-row * {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Палитра команд Ctrl+K (батч 5) */
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  z-index: 50;
+}
+
+.palette {
+  width: min(680px, 90vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-card);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.palette__input {
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+}
+
+.palette__list {
+  overflow-y: auto;
+}
+
+.palette__group {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.palette__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  border-radius: var(--r-ctl);
+  font: inherit;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.palette__item--active {
+  background: var(--bg-hover);
+}
+
+.palette__label {
+  flex: none;
+}
+
+.palette__hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
