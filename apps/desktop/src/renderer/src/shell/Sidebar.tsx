@@ -3,6 +3,7 @@ import type { JSX, MouseEvent as ReactMouseEvent, SVGProps } from 'react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import { ACTIVITIES, type ActivityId } from './activities'
 import RollbackPanel from './RollbackPanel'
+import SessionsPanel from './SessionsPanel'
 import SkillsPanel from './SkillsPanel'
 import LearningPanel from './LearningPanel'
 import {
@@ -31,6 +32,7 @@ import {
   type ContextMenuAction,
   type ExplorerNodeKind
 } from './explorer-context-menu-pure'
+import type { HistoryMessage } from '../../../shared/gateway/types'
 import type { OpenProject, ProjectSource, SourceTreeNode, VaultTreeNode } from '../../../shared/ipc'
 
 const SIDEBAR_EMPTY_HINT: Record<Exclude<ActivityId, 'sources' | 'explorer' | 'agent'>, string> = {
@@ -1324,13 +1326,23 @@ export default function Sidebar({
   currentProject,
   sourcesHeight,
   onResizeSources,
-  onCommitSizes
+  onCommitSizes,
+  chatStreaming,
+  onSessionLoaded
 }: {
   active: ActivityId
   currentProject: OpenProject | null
   sourcesHeight: number
   onResizeSources: (height: number) => void
   onCommitSizes: () => void
+  /** Batch 5: the sessions section needs to know a turn is in flight — the
+   * gateway refuses several of its actions mid-turn, and a disabled control
+   * says so better than a failed click. */
+  chatStreaming: boolean
+  /** Redraws the transcript after a session switch/activate (batch 5) — the
+   * same channel `SessionMenu` uses, so there is one way for the feed to be
+   * replaced rather than two. */
+  onSessionLoaded: (messages: HistoryMessage[]) => void
 }) {
   const activity = ACTIVITIES.find((item) => item.id === active)
   return (
@@ -1346,10 +1358,12 @@ export default function Sidebar({
           onCommitSizes={onCommitSizes}
         />
       ) : active === 'agent' ? (
-        // Tasks 1.6.C2 (rollback) and 1.6.B3.3–B3.13 (skills, learning). Every
-        // agent-related surface lives here per PLAN §Phase 1.6, "Карта
-        // размещения экранов"; sessions and persona join in batch 5.
+        // Tasks 1.6.C2 (rollback), 1.6.B3.3–B3.13 (skills, learning) and
+        // 1.6.B5.3–B5.10 (sessions). Every agent-related surface lives here per
+        // PLAN §Phase 1.6, "Карта размещения экранов".
         <div className="sidebar__scroll">
+          <div className="sidebar__section-title">Сессии</div>
+          <SessionsPanel streaming={chatStreaming} onSessionLoaded={onSessionLoaded} />
           <div className="sidebar__section-title">Скилы</div>
           <SkillsPanel />
           <div className="sidebar__section-title">Обучение</div>

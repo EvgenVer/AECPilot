@@ -69,6 +69,8 @@ function renderSidebar(): void {
       sourcesHeight={150}
       onResizeSources={() => {}}
       onCommitSizes={() => {}}
+      chatStreaming={false}
+      onSessionLoaded={() => {}}
     />
   )
 }

@@ -186,7 +186,11 @@ export const initialChatState: ChatState = {
 //      against the event names found in the installed hermes TUI bundle.
 // Keep both lists in sync with the reducer below when adding a branch.
 
-/** Events the reducer acts on. */
+/** Events the app acts on. The reducer below handles all of them except where
+ * a comment says otherwise — `session.title` is consumed by the sessions list
+ * (`shell/SessionsPanel.tsx`), which is the only surface that has anything to
+ * rename; routing it through the transcript reducer would mean keeping session
+ * titles in chat state, which nothing there needs. */
 export const HANDLED_GATEWAY_EVENTS = [
   'message.start',
   'message.delta',
@@ -211,6 +215,8 @@ export const HANDLED_GATEWAY_EVENTS = [
   'moa.reference',
   'moa.aggregating',
   'session.info',
+  // Handled outside the reducer — see the note above (task 1.6.B5.8).
+  'session.title',
   'review.summary',
   'secret.expire',
   'sudo.expire'

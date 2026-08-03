@@ -183,6 +183,8 @@ export default function Shell() {
           sourcesHeight={panelSizes.sources}
           onResizeSources={(h) => resizePanel('sources', h)}
           onCommitSizes={persistPanels}
+          chatStreaming={chatState.streaming}
+          onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
         />
         <PanelResizer
           label="Изменить ширину боковой панели"
