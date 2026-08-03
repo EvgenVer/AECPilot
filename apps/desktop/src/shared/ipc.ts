@@ -293,6 +293,22 @@ export interface LearningGraph {
   stats?: Record<string, unknown>
 }
 
+/** One raw row of a stored session's transcript, as
+ * `GET /api/sessions/{id}/messages` hands it over — the columns of their
+ * `messages` table (`hermes_state.py:812`), not the shaped `HistoryMessage`
+ * the RPC history returns.
+ *
+ * `content` is `unknown` on purpose: their `_decode_content` returns a plain
+ * string for an ordinary message and a decoded JSON structure for a multimodal
+ * one. `timestamp` is epoch SECONDS. */
+export interface StoredMessageRow {
+  role?: string
+  content?: unknown
+  tool_calls?: unknown
+  tool_name?: string
+  timestamp?: number
+}
+
 /** `GET /api/curator`. Every field may be absent — their handler reads them
  * through `_safe_call` and falls back. */
 export interface CuratorStatus {
@@ -809,6 +825,13 @@ export interface AecpilotApi {
   deleteSession(payload: { storedId: StoredSessionId; confirmed: true }): Promise<{
     deleted: string
   }>
+  /** The raw transcript of a STORED session (task 1.6.B7.3). Over REST, and
+   * both halves of the reason are measured: `session.history` resolves a LIVE
+   * sid and answers 4001 for a stored id, and even when it does answer it has
+   * already thrown the tool arguments away. See the handler in main for the
+   * exact lines. Rows come through untouched — shaping them is
+   * `artifact-source.ts`'s job, and the artifacts tab is the only caller. */
+  getSessionMessages(storedId: StoredSessionId): Promise<{ messages: StoredMessageRow[] }>
   /** Renames a session (task 1.6.B5.7). A session that is not currently live
    * cannot be renamed directly — main resumes it first, because their
    * `session.title` resolves a LIVE sid. `pending: true` means the name will

@@ -1404,6 +1404,33 @@ ipcMain.handle('sessions:delete', async (_event, payload: unknown) => {
   return gateway.request('session.delete', { session_id: storedId })
 })
 
+// The transcript of a STORED session (task 1.6.B7.3, the artifacts tab).
+//
+// Over REST, and rule R1 ("REST only where RPC does not reach") is satisfied
+// twice over — both halves MEASURED in hermes 0.19.0:
+//   1. `session.history` resolves a LIVE sid (`_sess_nowait`, server.py:1727)
+//      and answers 4001 for a stored id, so a finished session is unreadable
+//      through it at all.
+//   2. Even for a live one it strips the tool arguments: `_history_to_messages`
+//      (server.py:5447) parses `tool_calls`, throws them away and keeps an
+//      80-character label — which is not enough to recover a path.
+// `GET /api/sessions/{id}/messages` (web_server.py:10962) returns the raw rows
+// of their `messages` table instead: `content`, parsed `tool_calls`, and a
+// `timestamp` per message.
+//
+// `limit` is the core's own cap (500 max, its clamp); asking for the tail of a
+// long session is not possible there — `offset` counts from the start — so the
+// cap is left generous and the scan simply reads what it gets.
+ipcMain.handle('sessions:messages', async (_event, storedId: unknown) => {
+  if (typeof storedId !== 'string' || storedId === '') throw new Error('invalid session id')
+  const result = await hermesRest<{ messages?: unknown[] }>(
+    restTarget(),
+    `/api/sessions/${encodeURIComponent(storedId)}/messages`,
+    { query: { limit: '500' } }
+  )
+  return { messages: Array.isArray(result.messages) ? result.messages : [] }
+})
+
 /** The live sid of `storedId` if the gateway is holding that session open, else
  * `undefined`. `session.active_list` is the only place the two ids appear
  * side by side (`id` + `session_key`). */

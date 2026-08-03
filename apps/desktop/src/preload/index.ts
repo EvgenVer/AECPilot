@@ -83,6 +83,7 @@ const api: AecpilotApi = {
   listActiveSessions: () => ipcRenderer.invoke('sessions:list-active'),
   activateSession: (liveId) => ipcRenderer.invoke('sessions:activate', liveId),
   deleteSession: (payload) => ipcRenderer.invoke('sessions:delete', payload),
+  getSessionMessages: (storedId) => ipcRenderer.invoke('sessions:messages', storedId),
   renameSession: (payload) => ipcRenderer.invoke('sessions:rename', payload),
   branchSession: (name) => ipcRenderer.invoke('sessions:branch', { name }),
   getSessionUsage: () => ipcRenderer.invoke('session:usage'),
