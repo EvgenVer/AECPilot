@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { act } from 'react'
 import YoloToggle from './YoloToggle'
 import StatusBar from './StatusBar'
+import { emptyNotificationState } from './notifications-pure'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -99,6 +100,8 @@ describe('YoloToggle', () => {
         compacting={false}
         yolo={false}
         hasSession={true}
+        notifications={emptyNotificationState}
+        notificationsDispatch={() => {}}
       />
     )
     await waitFor(() => expect(getApprovalsMode).toHaveBeenCalled())

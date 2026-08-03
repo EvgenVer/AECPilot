@@ -9,6 +9,12 @@ import TopBar from './TopBar'
 import CommandPalette from './CommandPalette'
 import CreateProjectDialog from './CreateProjectDialog'
 import ScanNotification from './ScanNotification'
+import Toasts from './Toasts'
+import {
+  emptyNotificationState,
+  notificationFromEvent,
+  notificationsReducer
+} from './notifications-pure'
 import PanelResizer from './PanelResizer'
 import {
   PANEL_BOUNDS,
@@ -24,7 +30,7 @@ import {
   isUnknownGatewayEvent,
   transcriptCensus
 } from '../chat/chat-state'
-import type { GatewayConnectionState } from '../../../shared/gateway/types'
+import { isGatewayEventOfType, type GatewayConnectionState } from '../../../shared/gateway/types'
 import type { OpenProject } from '../../../shared/ipc'
 
 /** Workspace shell (task 1.0): rail + contextual sidebar + center + chat
@@ -44,6 +50,13 @@ export default function Shell() {
   const [activity, setActivity] = useState<ActivityId>('explorer')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [chatState, dispatch] = useReducer(chatReducer, initialChatState)
+  // Notifications live beside the transcript, not inside it (task 1.6.B6.5):
+  // a notice outlives the turn that raised it and must survive the
+  // `session-loaded` reset that clears the chat.
+  const [notifications, notificationsDispatch] = useReducer(
+    notificationsReducer,
+    emptyNotificationState
+  )
   const [connectionState, setConnectionState] = useState<GatewayConnectionState>('closed')
   const [currentProject, setCurrentProject] = useState<OpenProject | null>(null)
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
@@ -104,7 +117,18 @@ export default function Shell() {
       }
       // `receivedAt` (task 1.5.D1) times the reasoning block here, at the
       // edge, so the reducer itself never reads a clock and stays pure.
-      dispatch({ kind: 'event', event, receivedAt: Date.now() })
+      const receivedAt = Date.now()
+      dispatch({ kind: 'event', event, receivedAt })
+      // Notifications (tasks 1.6.B6.4–B6.7, B6.10) come off the SAME event
+      // stream but into their own queue — `notificationFromEvent` decides
+      // which events are notices at all, and answers `undefined` for the rest.
+      if (isGatewayEventOfType(event, 'notification.clear')) {
+        const key = event.payload?.key
+        if (typeof key === 'string' && key) notificationsDispatch({ kind: 'clear', key })
+      } else {
+        const notice = notificationFromEvent(event)
+        if (notice) notificationsDispatch({ kind: 'show', input: notice, receivedAt })
+      }
     })
     const unsubscribeState = window.aecpilot.onGatewayState((s) => {
       gotLiveState = true
@@ -227,6 +251,8 @@ export default function Shell() {
         compacting={chatState.compacting}
         yolo={chatState.runtime.yolo}
         hasSession={chatState.runtimeKnown}
+        notifications={notifications}
+        notificationsDispatch={notificationsDispatch}
         onApprovalsError={() => {
           /* surfaced inline by ApprovalsModeSelect itself; nothing else to
            * do at the shell level for task 1.0. */
@@ -241,6 +267,9 @@ export default function Shell() {
         onSessionLoaded={(messages) => dispatch({ kind: 'session-loaded', messages })}
       />
       <ScanNotification currentProject={currentProject} />
+      {/* Task 1.6.B6.6: the toast stack sits above the status bar; the queue
+          behind it is shared with the status bar's counter and journal. */}
+      <Toasts state={notifications} dispatch={notificationsDispatch} />
     </div>
   )
 }

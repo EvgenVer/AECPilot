@@ -4609,3 +4609,147 @@ body.resizing-row * {
 .composer-notice__cancel:hover {
   color: var(--text-1);
 }
+
+/* ============ Toasts + journal (задачи 1.6.B6.6, B6.7) ============ */
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--status-h) + 12px);
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 45;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-3);
+  border-radius: var(--r-modal);
+  box-shadow: var(--shadow-modal);
+  font-size: var(--fs-body);
+  color: var(--text-1);
+}
+
+.toast--warn {
+  border-left-color: var(--warning);
+}
+
+.toast--error {
+  border-left-color: var(--danger);
+}
+
+.toast--success {
+  border-left-color: var(--success);
+}
+
+.toast__text {
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.toast__close {
+  font: inherit;
+  font-size: var(--fs-h2);
+  line-height: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.toast__close:hover {
+  color: var(--text-1);
+}
+
+.statusbar__notifications {
+  font: inherit;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+
+.statusbar__notifications:hover {
+  color: var(--text-1);
+}
+
+.statusbar__badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+
+.notification-journal {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--status-h) + 12px);
+  width: 340px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-modal);
+  box-shadow: var(--shadow-modal);
+  z-index: 46;
+  font-size: var(--fs-body);
+  color: var(--text-1);
+}
+
+.notification-journal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 8px 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.notification-journal__list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+}
+
+.notification-journal__row {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-left: 3px solid transparent;
+}
+
+.notification-journal__row--warn {
+  border-left-color: var(--warning);
+}
+
+.notification-journal__row--error {
+  border-left-color: var(--danger);
+}
+
+.notification-journal__row--success {
+  border-left-color: var(--success);
+}
+
+.notification-journal__empty {
+  padding: 12px;
+  color: var(--text-3);
+}

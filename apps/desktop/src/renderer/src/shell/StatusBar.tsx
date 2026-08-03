@@ -1,5 +1,7 @@
+import { useState, type Dispatch } from 'react'
 import ApprovalsModeSelect from '../chat/ApprovalsModeSelect'
 import YoloToggle from './YoloToggle'
+import type { NotificationAction, NotificationState } from './notifications-pure'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const CONNECTION_LABEL: Record<GatewayConnectionState, string> = {
@@ -26,7 +28,9 @@ export default function StatusBar({
   onApprovalsError,
   compacting,
   yolo,
-  hasSession
+  hasSession,
+  notifications,
+  notificationsDispatch
 }: {
   connectionState: GatewayConnectionState
   approvalsDisabled: boolean
@@ -41,7 +45,22 @@ export default function StatusBar({
   /** A live session exists — see `YoloToggle` for why the zap must not be
    * pressable without one. */
   hasSession: boolean
+  /** Notification queue (task 1.6.B6.7). The counter and the journal read the
+   * same state the toasts do — a toast that expired on its own is still in the
+   * journal, which is the whole point of having one. */
+  notifications: NotificationState
+  notificationsDispatch: Dispatch<NotificationAction>
 }) {
+  const [journalOpen, setJournalOpen] = useState(false)
+
+  function toggleJournal(): void {
+    const next = !journalOpen
+    setJournalOpen(next)
+    // Unread zeroes on OPEN, not on a toast disappearing: a notice nobody
+    // looked at has not been read just because its ttl ran out.
+    if (next) notificationsDispatch({ kind: 'journal-opened' })
+  }
+
   return (
     <div className="statusbar">
       <div className="statusbar__item">
@@ -70,9 +89,58 @@ export default function StatusBar({
         <YoloToggle yolo={yolo} hasSession={hasSession} onError={onApprovalsError} />
       </div>
       <div className="statusbar__spacer" />
+      <div className="statusbar__item">
+        <button
+          type="button"
+          className="statusbar__notifications"
+          aria-expanded={journalOpen}
+          onClick={toggleJournal}
+          title="Журнал уведомлений"
+        >
+          Уведомления
+          {notifications.unread > 0 && (
+            <span
+              className="statusbar__badge"
+              aria-label={`непрочитанных: ${notifications.unread}`}
+            >
+              {notifications.unread}
+            </span>
+          )}
+        </button>
+      </div>
+      <div className="statusbar__sep" />
       <div className="statusbar__item" title="Язык интерфейса (en/ru — Phase 4)">
         RU
       </div>
+      {journalOpen && (
+        <div className="notification-journal" role="dialog" aria-label="Журнал уведомлений">
+          <div className="notification-journal__head">
+            Журнал уведомлений
+            <button
+              type="button"
+              className="scan-notification__close"
+              aria-label="Закрыть журнал"
+              onClick={() => setJournalOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          {notifications.journal.length === 0 ? (
+            <div className="notification-journal__empty">Уведомлений пока не было.</div>
+          ) : (
+            <ul className="notification-journal__list">
+              {notifications.journal.map((item) => (
+                <li
+                  key={item.id}
+                  className={`notification-journal__row notification-journal__row--${item.level}`}
+                >
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }

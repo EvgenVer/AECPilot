@@ -49,9 +49,20 @@ export default function ProcessesTab({ active }: { active: boolean }) {
 
     void load()
     const timer = setInterval(() => void load(), REFRESH_MS)
+    // Task 1.6.B6.4: their notification poller announces a finished (or
+    // watch-matched) background process as `status.update {kind:"process"}`
+    // (`server.py:9745`) — refresh on it instead of leaving the list up to
+    // four seconds stale. Subscribed here rather than plumbed down from the
+    // shell: the same self-contained pattern as ScanNotification, and it costs
+    // one listener that only exists while the tab is visible.
+    const unsubscribe = window.aecpilot.onChatEvent((event) => {
+      const payload = (event as { payload?: { kind?: unknown } }).payload
+      if (event.type === 'status.update' && payload?.kind === 'process') void load()
+    })
     return () => {
       mounted = false
       clearInterval(timer)
+      unsubscribe()
     }
   }, [active])
 

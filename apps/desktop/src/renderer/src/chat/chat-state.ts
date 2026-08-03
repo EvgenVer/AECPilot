@@ -823,8 +823,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   // has stalled, so both light the indicator.
   //
   // Their manual path clears it with a plain `{kind:"status", text:"ready"}` in
-  // a `finally`; every other kind (`process`, …) changes nothing here — the
-  // status bar is not a log.
+  // a `finally`; every other kind changes nothing HERE — the transcript is not
+  // a log.
+  //
+  // Task 1.6.B6.4: `process` is not ignored any more, it is just not the
+  // transcript's business. It goes to the notification queue
+  // (`shell/notifications-pure.ts`) and re-triggers the processes tab, both off
+  // the same event stream. `goal` is named by that task but does not exist:
+  // hermes 0.19.0 emits five kinds and that is not one of them
+  // (specs/workbench-panels.md fact 9) — the goal badge asks
+  // `command.dispatch {name:'goal'}` instead.
   if (isGatewayEventOfType(event, 'status.update')) {
     const kind = event.payload?.kind
     if (kind === 'compressing' || kind === 'compacting') {

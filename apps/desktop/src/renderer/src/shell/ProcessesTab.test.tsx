@@ -9,6 +9,15 @@ import ProcessesTab from './ProcessesTab'
 
 const listProcesses = vi.fn()
 const killProcess = vi.fn()
+/** Captures the tab's own event subscription (task 1.6.B6.4) so a test can
+ * push a gateway event at it. */
+let emitChatEvent: ((event: { type: string; payload?: unknown }) => void) | undefined
+const onChatEvent = vi.fn((cb: (event: { type: string; payload?: unknown }) => void) => {
+  emitChatEvent = cb
+  return () => {
+    emitChatEvent = undefined
+  }
+})
 
 beforeEach(() => {
   listProcesses.mockResolvedValue({
@@ -26,7 +35,11 @@ beforeEach(() => {
     others: [{ session_id: 'p2', command: 'sleep 999', status: 'running', uptime: 5 }]
   })
   killProcess.mockResolvedValue({ status: 'killed' })
-  window.aecpilot = { listProcesses, killProcess } as unknown as typeof window.aecpilot
+  window.aecpilot = {
+    listProcesses,
+    killProcess,
+    onChatEvent
+  } as unknown as typeof window.aecpilot
 })
 
 afterEach(() => {
@@ -108,6 +121,26 @@ describe('ProcessesTab', () => {
     expect(screen.getByText('ready')).toBeTruthy()
     expect(document.body.textContent).not.toContain('[32m')
     expect(screen.getByText(/только хвост вывода/)).toBeTruthy()
+  })
+
+  // Task 1.6.B6.4: their poller announces a finished background process as
+  // `status.update {kind:"process"}`; the list must not wait out its 4-second
+  // timer to notice.
+  it('refreshes on status.update {kind:"process"} and ignores other kinds', async () => {
+    render(<ProcessesTab active={true} />)
+    await waitFor(() => expect(screen.getByText('npm run dev')).toBeTruthy())
+    expect(listProcesses).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      emitChatEvent?.({ type: 'status.update', payload: { kind: 'process', text: 'готово' } })
+    })
+    expect(listProcesses).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      emitChatEvent?.({ type: 'status.update', payload: { kind: 'compacting', text: 'сжимаю' } })
+      emitChatEvent?.({ type: 'message.delta', payload: { text: 'привет' } })
+    })
+    expect(listProcesses).toHaveBeenCalledTimes(2)
   })
 
   it('explains an empty list', async () => {
