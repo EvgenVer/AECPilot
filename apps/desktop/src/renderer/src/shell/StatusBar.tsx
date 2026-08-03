@@ -1,4 +1,5 @@
 import ApprovalsModeSelect from '../chat/ApprovalsModeSelect'
+import YoloToggle from './YoloToggle'
 import type { GatewayConnectionState } from '../../../shared/gateway/types'
 
 const CONNECTION_LABEL: Record<GatewayConnectionState, string> = {
@@ -23,7 +24,9 @@ export default function StatusBar({
   connectionState,
   approvalsDisabled,
   onApprovalsError,
-  compacting
+  compacting,
+  yolo,
+  hasSession
 }: {
   connectionState: GatewayConnectionState
   approvalsDisabled: boolean
@@ -32,6 +35,12 @@ export default function StatusBar({
    * own mid-turn. Without this the agent looks stalled: nothing streams while
    * a compaction runs. */
   compacting: boolean
+  /** Approval bypass of the CURRENT session, as `session.info` reports it
+   * (task 1.6.B5.21). */
+  yolo: boolean
+  /** A live session exists — see `YoloToggle` for why the zap must not be
+   * pressable without one. */
+  hasSession: boolean
 }) {
   return (
     <div className="statusbar">
@@ -50,7 +59,15 @@ export default function StatusBar({
       )}
       <div className="statusbar__sep" />
       <div className="statusbar__item">
+        {/* Two different settings side by side, and deliberately so: the
+            selector owns the PERSISTENT approvals mode (task 0.17, three
+            modes including "умный"), the zap owns THIS session only. Their
+            global-scope zap would have collapsed both into two states. */}
         <ApprovalsModeSelect disabled={approvalsDisabled} onError={onApprovalsError} />
+      </div>
+      <div className="statusbar__sep" />
+      <div className="statusbar__item">
+        <YoloToggle yolo={yolo} hasSession={hasSession} onError={onApprovalsError} />
       </div>
       <div className="statusbar__spacer" />
       <div className="statusbar__item" title="Язык интерфейса (en/ru — Phase 4)">

@@ -147,13 +147,18 @@ export interface SessionRuntime {
    * the picker forget an explicit "off". */
   reasoningEffort: string
   fast: boolean
+  /** Approval bypass for THIS session (task 1.6.B5.21). Like everything else
+   * here it is what the agent reports, never what the user last clicked: the
+   * zap has no local "on" of its own. */
+  yolo: boolean
 }
 
 export const emptySessionRuntime: SessionRuntime = {
   model: '',
   provider: '',
   reasoningEffort: '',
-  fast: false
+  fast: false,
+  yolo: false
 }
 
 export interface ChatState {
@@ -164,8 +169,16 @@ export interface ChatState {
   interactive: InteractiveRequest[]
   /** Next id to assign to a newly-created `ChatMessage` (see `ChatMessage.id`). */
   nextId: number
-  /** Live model/effort/fast, as last reported by the gateway. */
+  /** Live model/effort/fast/yolo, as last reported by the gateway. */
   runtime: SessionRuntime
+  /** A `session.info` has arrived, i.e. the gateway has a live session with a
+   * built agent for this window (task 1.6.B5.21).
+   *
+   * The YOLO zap needs this and not merely "are we connected": with no live
+   * session their `config.set {key:"yolo"}` falls through to
+   * `HERMES_YOLO_MODE` in the gateway's OWN environment, flipping approvals
+   * for every session of the process. */
+  runtimeKnown: boolean
   /** The context is being compressed right now (task 1.6.B5.14) — either
    * because the user asked (`/compress`, `kind: "compressing"`) or because
    * the core compacted mid-turn on its own (`kind: "compacting"`). Both look
@@ -180,6 +193,7 @@ export const initialChatState: ChatState = {
   interactive: [],
   nextId: 0,
   runtime: emptySessionRuntime,
+  runtimeKnown: false,
   compacting: false
 }
 
@@ -561,6 +575,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       streaming: false,
       nextId,
       runtime: emptySessionRuntime,
+      runtimeKnown: false,
       compacting: false
     }
   }
@@ -709,9 +724,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       model: payload.model ?? state.runtime.model,
       provider: payload.provider ?? state.runtime.provider,
       reasoningEffort: payload.reasoning_effort ?? state.runtime.reasoningEffort,
-      fast: payload.fast ?? state.runtime.fast
+      fast: payload.fast ?? state.runtime.fast,
+      yolo: payload.yolo ?? state.runtime.yolo
     }
-    return { ...state, runtime }
+    return { ...state, runtime, runtimeKnown: true }
   }
 
   // --- Context compression (task 1.6.B5.14) --------------------------------

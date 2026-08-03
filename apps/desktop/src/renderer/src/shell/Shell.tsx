@@ -225,6 +225,8 @@ export default function Shell() {
         connectionState={connectionState}
         approvalsDisabled={busy}
         compacting={chatState.compacting}
+        yolo={chatState.runtime.yolo}
+        hasSession={chatState.runtimeKnown}
         onApprovalsError={() => {
           /* surfaced inline by ApprovalsModeSelect itself; nothing else to
            * do at the shell level for task 1.0. */

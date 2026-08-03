@@ -4542,3 +4542,33 @@ body.resizing-row * {
   font-size: var(--fs-caption);
   color: var(--text-3);
 }
+
+/* Молния YOLO в статус-баре (батч 5) */
+.yolo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-chip);
+  padding: 0 6px;
+  font: inherit;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.yolo-toggle:hover:not(:disabled) {
+  color: var(--text-1);
+  border-color: var(--border);
+}
+
+.yolo-toggle--on {
+  color: var(--warning, var(--text-1));
+  border-color: var(--border-strong);
+}
+
+.yolo-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -939,8 +939,44 @@ describe('session runtime', () => {
       model: 'opus',
       provider: 'anthropic',
       reasoningEffort: 'high',
-      fast: true
+      fast: true,
+      yolo: false
     })
+  })
+
+  // --- task 1.6.B5.21: the YOLO zap reads the same source ----------------
+  it('берёт состояние YOLO из session.info, а не из нажатия', () => {
+    const state = chatReducer(
+      initialChatState,
+      ev({ type: 'session.info', payload: { model: 'opus', yolo: true } })
+    )
+    expect(state.runtime.yolo).toBe(true)
+  })
+
+  it('событие без `yolo` не гасит уже включённый обход одобрений', () => {
+    let state: ChatState = chatReducer(
+      initialChatState,
+      ev({ type: 'session.info', payload: { yolo: true } })
+    )
+    state = chatReducer(state, ev({ type: 'session.info', payload: { model: 'opus' } }))
+    expect(state.runtime.yolo).toBe(true)
+  })
+
+  it('до первого session.info живой сессии для молнии нет', () => {
+    // Молния опирается именно на это: без живой сессии их обработчик
+    // переключил бы `HERMES_YOLO_MODE` всего процесса шлюза.
+    expect(initialChatState.runtimeKnown).toBe(false)
+    const state = chatReducer(initialChatState, ev({ type: 'session.info', payload: {} }))
+    expect(state.runtimeKnown).toBe(true)
+  })
+
+  it('переключение сессии снова делает состояние неизвестным', () => {
+    const state = chatReducer(
+      chatReducer(initialChatState, ev({ type: 'session.info', payload: { yolo: true } })),
+      { kind: 'session-loaded', messages: [] }
+    )
+    expect(state.runtimeKnown).toBe(false)
+    expect(state.runtime.yolo).toBe(false)
   })
 
   it('keeps fields a later event does not repeat', () => {
