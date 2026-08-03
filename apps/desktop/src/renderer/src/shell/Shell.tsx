@@ -15,6 +15,8 @@ import {
   notificationFromEvent,
   notificationsReducer
 } from './notifications-pure'
+import { respondToTerminalRead } from './terminal-read-pure'
+import { forgetAgentTerminal, writeAgentTerminalChunk } from './vendor/hermes/agent-terminal-stream'
 import PanelResizer from './PanelResizer'
 import {
   PANEL_BOUNDS,
@@ -128,6 +130,28 @@ export default function Shell() {
       } else {
         const notice = notificationFromEvent(event)
         if (notice) notificationsDispatch({ kind: 'show', input: notice, receivedAt })
+      }
+
+      // --- The agent's terminal (tasks 1.6.B6.11–B6.16) --------------------
+      // Buffered HERE and not in the panel: the shell is mounted for the life
+      // of the window, so output keeps accumulating while the bottom panel is
+      // collapsed or showing another tab, and a tab opened later replays it.
+      if (isGatewayEventOfType(event, 'agent.terminal.output')) {
+        writeAgentTerminalChunk(event.payload?.process_id ?? '', event.payload?.chunk ?? '')
+      }
+      if (isGatewayEventOfType(event, 'terminal.close')) {
+        // The tab goes (the panel drops it on the same event); the buffer goes
+        // with it so a closed tab stops holding up to 256 KB. The PROCESS is
+        // untouched — no `process.kill` is sent here, deliberately.
+        forgetAgentTerminal(event.payload?.process_id ?? '')
+      }
+      if (isGatewayEventOfType(event, 'terminal.read.request')) {
+        // Their `read_terminal` tool is BLOCKED on this answer for up to 30 s,
+        // so it is answered unconditionally and synchronously — with an empty
+        // buffer when no terminal is on screen, never with silence.
+        respondToTerminalRead(event.payload, (requestId, text) => {
+          void window.aecpilot.respondTerminalRead(requestId, text)
+        })
       }
     })
     const unsubscribeState = window.aecpilot.onGatewayState((s) => {

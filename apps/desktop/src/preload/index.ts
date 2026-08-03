@@ -60,6 +60,8 @@ const api: AecpilotApi = {
   togglePlugin: (payload) => ipcRenderer.invoke('plugins:toggle', payload),
   listProcesses: () => ipcRenderer.invoke('processes:list'),
   killProcess: (payload) => ipcRenderer.invoke('processes:kill', payload),
+  respondTerminalRead: (requestId, text) =>
+    ipcRenderer.invoke('terminal:read-respond', { requestId, text }),
   checkRuntime: () => ipcRenderer.invoke('setup:runtime-check'),
   listSkills: () => ipcRenderer.invoke('skills:list'),
   reloadSkills: () => ipcRenderer.invoke('skills:reload'),

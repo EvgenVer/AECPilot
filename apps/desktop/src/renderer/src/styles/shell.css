@@ -4753,3 +4753,57 @@ body.resizing-row * {
   padding: 12px;
   color: var(--text-3);
 }
+
+/* ============ Вкладка «Терминал» (задачи 1.6.B6.12, B6.13) ============ */
+
+.terminal-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 6px;
+}
+
+.terminal-tab__strip {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.terminal-tab__proc {
+  font: inherit;
+  font-size: var(--fs-caption);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.terminal-tab__proc--active {
+  background: var(--bg-raised);
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.terminal-view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

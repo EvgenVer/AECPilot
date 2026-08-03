@@ -3,21 +3,24 @@ import { ChevronDownIcon } from './icons'
 import PanelResizer from './PanelResizer'
 import { PANEL_BOUNDS } from './panel-sizes-pure'
 import ProcessesTab from './ProcessesTab'
+import TerminalTab from './TerminalTab'
 
-type BottomTab = 'indexing' | 'changes' | 'log' | 'processes'
+type BottomTab = 'indexing' | 'changes' | 'log' | 'processes' | 'terminal'
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: 'indexing', label: 'Индексация' },
   { id: 'changes', label: 'Изменения' },
   { id: 'log', label: 'Журнал' },
-  { id: 'processes', label: 'Процессы' }
+  { id: 'processes', label: 'Процессы' },
+  { id: 'terminal', label: 'Терминал' }
 ]
 
 const TAB_EMPTY_HINT: Record<BottomTab, string> = {
   indexing: 'Индексация появится здесь (Phase 2).',
   changes: 'Обнаруженные изменения источников появятся здесь (задача 1.15).',
   log: 'Журнал сканирований появится здесь (Phase 2).',
-  processes: ''
+  processes: '',
+  terminal: ''
 }
 
 /** Bottom panel (task 1.0): a collapsible stub for indexing/changes/log —
@@ -97,6 +100,11 @@ export default function BottomPanel({
             // means nobody can see the list, and a timer hitting the gateway
             // for it would be pure waste (task 1.6.B2a.4).
             <ProcessesTab active={!collapsed && activeTab === 'processes'} />
+          ) : activeTab === 'terminal' ? (
+            // Task 1.6.B6.12. The output itself is buffered by the shell, not
+            // here — this only shows it, so a hidden tab costs nothing and
+            // loses nothing.
+            <TerminalTab active={!collapsed && activeTab === 'terminal'} />
           ) : (
             TAB_EMPTY_HINT[activeTab]
           )}

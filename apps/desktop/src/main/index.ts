@@ -1219,6 +1219,26 @@ ipcMain.handle('processes:kill', async (_event, payload: unknown) => {
   })
 })
 
+// Answers the agent's blocking `read_terminal` (task 1.6.B6.16). The renderer
+// serializes the visible terminal buffer; this only forwards it.
+//
+// Never rejects on 4009: that code means the request expired (their bridge
+// gave up after 30 s) and there is nothing left to answer — surfacing it as a
+// failed IPC call would turn a race into an error the user cannot act on.
+ipcMain.handle('terminal:read-respond', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('no gateway connection')
+  const { requestId, text } = (payload ?? {}) as { requestId?: unknown; text?: unknown }
+  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
+  if (typeof text !== 'string') throw new Error('invalid terminal payload')
+  try {
+    return await gateway.request('terminal.read.respond', { request_id: requestId, text })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('4009')) return { status: 'expired' }
+    throw error
+  }
+})
+
 // Never rejects on a provider problem: "no usable credentials" IS the answer
 // this screen exists to show.
 ipcMain.handle('setup:runtime-check', async () => {

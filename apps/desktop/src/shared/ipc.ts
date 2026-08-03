@@ -660,6 +660,15 @@ export interface AecpilotApi {
    * `confirmed` is checked in main. `status` distinguishes `killed` /
    * `already_exited` / `not_found`, all of which resolve rather than reject. */
   killProcess(payload: { processId: string; confirmed: true }): Promise<ProcessKillResult>
+  /** Answers the agent's `read_terminal` (task 1.6.B6.16). `text` is a JSON
+   * STRING of `TerminalReadPayload` — their handler passes it through to the
+   * tool untouched.
+   *
+   * Their bridge holds the agent's turn for 30 s waiting for this, so the
+   * renderer answers every request, empty buffer included. A 4009 back means
+   * the request had already expired: nothing left to answer, nothing to
+   * report. */
+  respondTerminalRead(requestId: string, text: string): Promise<{ status: string }>
   /** "Would a prompt sent right now reach a model?" (task 1.6.B2.4). Never
    * rejects on a provider problem — that is the answer, not an error. */
   checkRuntime(): Promise<RuntimeCheckResult>
