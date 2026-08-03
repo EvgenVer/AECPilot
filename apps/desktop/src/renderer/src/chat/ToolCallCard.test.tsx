@@ -85,3 +85,20 @@ describe('содержимое развёрнутой карточки', () => {
     expect(container.querySelector('.tool-card__head--static')).not.toBeNull()
   })
 })
+
+// Task 1.6.B6.9 — the phase before the call exists.
+describe('фаза «готовит вызов»', () => {
+  test('карточка в статусе generating говорит «готовит вызов», а не «выполняется»', () => {
+    render(<ToolCallCard call={call({ status: 'generating', context: '' })} />)
+
+    expect(screen.getByText(/готовит вызов/)).toBeTruthy()
+    expect(screen.queryByText(/выполняется/)).toBeNull()
+  })
+
+  test('счётчика секунд в этой фазе нет — считать ещё нечего', () => {
+    render(<ToolCallCard call={call({ status: 'generating', context: '' })} />)
+
+    // «выполняется… 0:03» рисует время; «готовит вызов…» — нет.
+    expect(document.body.textContent).not.toMatch(/\d+:\d\d/)
+  })
+})

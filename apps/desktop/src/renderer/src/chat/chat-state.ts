@@ -29,7 +29,14 @@ export interface ChatToolCall {
   args?: unknown
   durationS?: number
   result?: string
-  status: 'running' | 'complete'
+  /** `generating` is the phase BEFORE the call exists (task 1.6.B6.9): the
+   * model is still writing its arguments and `tool.start` has not arrived. A
+   * card in this state has no real `toolId` yet — see `generatingToolId`. */
+  status: 'generating' | 'running' | 'complete'
+  /** When the `generating` phase started, from the dispatcher's `receivedAt`.
+   * Only set while `status === 'generating'`, and only so a placeholder that
+   * never turns into a call can be swept — see `dropStaleGenerating`. */
+  generatingSince?: number
 }
 
 /** The agent's reasoning trace for one turn (task 1.5.D1), rendered as a
@@ -456,12 +463,64 @@ function toolCardIndex(items: ChatItem[], toolId: string): number | undefined {
   return index === -1 ? undefined : index
 }
 
+/** The placeholder id a `generating` card carries until `tool.start` brings
+ * the real one (task 1.6.B6.9). Prefixed so it cannot collide with a gateway
+ * tool id, and derived from the name because the name is the ONLY thing
+ * `tool.generating` sends. */
+function generatingToolId(name: string): string {
+  return `generating:${name}`
+}
+
+/** How long a `generating` placeholder may stand before it is swept.
+ *
+ * A card raised by `tool.generating` normally becomes a real one within
+ * seconds. But the model can abandon a tool call mid-argument and answer in
+ * text instead, and then `tool.start` never comes — without this the reader
+ * would be left with a card that says «готовит вызов» forever. Generous on
+ * purpose: sweeping a call that WAS about to start would only mean the real
+ * `tool.start` draws a fresh card, which is harmless; sweeping too eagerly
+ * would make a slow-but-honest generation flicker. */
+export const GENERATING_STALE_MS = 30_000
+
+/** Drops `generating` placeholders older than `GENERATING_STALE_MS`. Returns
+ * the SAME array when nothing is stale — this runs on every event, and a new
+ * array each time would re-render the transcript for nothing. */
+function dropStaleGenerating(items: ChatItem[], now: number): ChatItem[] {
+  const stale = (item: ChatItem): boolean =>
+    item.kind === 'tool' &&
+    item.status === 'generating' &&
+    item.generatingSince !== undefined &&
+    now - item.generatingSince > GENERATING_STALE_MS
+  return items.some(stale) ? items.filter((item) => !stale(item)) : items
+}
+
+/** Drops every standing `generating` placeholder — used when the turn ends.
+ * A call whose arguments were still being written when the answer completed
+ * was abandoned by the model, and a card that says «готовит вызов» under a
+ * finished answer is a lie about what is happening. */
+function dropGeneratingCards(items: ChatItem[]): ChatItem[] {
+  const generating = (item: ChatItem): boolean =>
+    item.kind === 'tool' && item.status === 'generating'
+  return items.some(generating) ? items.filter((item) => !generating(item)) : items
+}
+
+/** Index of the `generating` placeholder for `name`, if one is standing. */
+function generatingCardIndex(items: ChatItem[], name: string): number | undefined {
+  const index = items.findIndex(
+    (item) => item.kind === 'tool' && item.status === 'generating' && item.name === name
+  )
+  return index === -1 ? undefined : index
+}
+
 /** Upserts a running tool card for `payload`: if a card with this toolId
  * already exists, the item list is returned unchanged (no duplication,
- * `tool.start` and `tool.started` are equivalent). Otherwise a new running
- * card is inserted immediately before the in-flight streaming assistant
- * message if its text is still empty (tools render above the answer),
- * otherwise appended at the end. */
+ * `tool.start` and `tool.started` are equivalent). If a `generating`
+ * placeholder for the same tool NAME is standing, it is promoted in place
+ * rather than joined by a second card (task 1.6.B6.9) — the two events
+ * describe one call, and `tool.generating` has no id to match on. Otherwise a
+ * new running card is inserted immediately before the in-flight streaming
+ * assistant message if its text is still empty (tools render above the
+ * answer), otherwise appended at the end. */
 function upsertRunningToolCard(
   items: ChatItem[],
   payload: { tool_id: string; name: string; context: string }
@@ -474,6 +533,13 @@ function upsertRunningToolCard(
     name: payload.name,
     context: payload.context,
     status: 'running'
+  }
+
+  const generatingIndex = generatingCardIndex(items, payload.name)
+  if (generatingIndex !== undefined) {
+    const promoted = [...items]
+    promoted[generatingIndex] = card
+    return promoted
   }
 
   const flightIndex = inFlightIndex(items)
@@ -661,6 +727,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
   const { event } = action
 
+  // Task 1.6.B6.9: before anything else, sweep `generating` placeholders that
+  // never became calls. Done here rather than on a timer because the reducer
+  // must stay pure — any event carrying a clock reading is enough, and during
+  // a turn they arrive constantly. The recursion runs exactly once: the second
+  // pass finds nothing stale and falls through.
+  if (action.receivedAt !== undefined) {
+    const swept = dropStaleGenerating(state.items, action.receivedAt)
+    if (swept !== state.items) return chatReducer({ ...state, items: swept }, action)
+  }
+
   // A plain `switch (event.type)` does not narrow `event.payload` here for
   // the same reason documented on `isGatewayEventOfType` in types.ts:
   // `UnknownGatewayEvent.type` is `string`, so TypeScript can't rule it out
@@ -708,12 +784,17 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         text: finalText,
         status: event.payload.status
       })
-      return { ...state, ...endedTurn(), items: [...closed, message], nextId }
+      return {
+        ...state,
+        ...endedTurn(),
+        items: dropGeneratingCards([...closed, message]),
+        nextId
+      }
     }
     const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: finalText, status: event.payload.status }
-    return { ...state, ...endedTurn(), items }
+    return { ...state, ...endedTurn(), items: dropGeneratingCards(items) }
   }
 
   if (isGatewayEventOfType(event, 'error')) {
@@ -729,14 +810,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...state,
         ...endedTurn(),
-        items: [...closed, message],
+        items: dropGeneratingCards([...closed, message]),
         nextId
       }
     }
     const items = [...closed]
     const current = items[index] as ChatMessage
     items[index] = { ...current, text: current.text || event.payload.message, status: 'error' }
-    return { ...state, ...endedTurn(), items }
+    return { ...state, ...endedTurn(), items: dropGeneratingCards(items) }
   }
 
   // Task 1.5.D1: all three reasoning-ish events feed one block per turn.
@@ -758,14 +839,30 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     return { ...state, items: upsertRunningToolCard(state.items, event.payload) }
   }
 
+  // The model is writing a tool call's arguments; the call itself does not
+  // exist yet (task 1.6.B6.9). Their payload is `{name}` and nothing more, so
+  // the placeholder is keyed by name and promoted by the matching `tool.start`
+  // — see `upsertRunningToolCard`.
   if (isGatewayEventOfType(event, 'tool.generating')) {
-    const toolId = event.payload?.tool_id
-    const text = event.payload?.text ?? event.payload?.context
-    if (toolId === undefined || typeof text !== 'string') return state
-    const index = toolCardIndex(state.items, toolId)
-    if (index === undefined) return state
-    const items = [...state.items]
-    items[index] = { ...(items[index] as ChatToolCall), context: text }
+    const name = event.payload?.name
+    if (typeof name !== 'string' || name === '') return state
+    // A repeat for the same tool is the same call still being written — one
+    // card, not one per chunk.
+    if (generatingCardIndex(state.items, name) !== undefined) return state
+
+    const card: ChatToolCall = {
+      kind: 'tool',
+      toolId: generatingToolId(name),
+      name,
+      context: '',
+      status: 'generating',
+      generatingSince: action.receivedAt
+    }
+    const flightIndex = inFlightIndex(state.items)
+    const items =
+      flightIndex !== undefined && (state.items[flightIndex] as ChatMessage).text === ''
+        ? [...state.items.slice(0, flightIndex), card, ...state.items.slice(flightIndex)]
+        : [...state.items, card]
     return { ...state, items }
   }
 

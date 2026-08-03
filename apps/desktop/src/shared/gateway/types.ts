@@ -1341,13 +1341,22 @@ export interface ToolStartedEvent {
   payload: { tool_id: string; name: string; context: string }
 }
 
-/** An in-progress status update for a running tool call. Only known to be
- * carried in gateway source, not captured live — payload may or may not
- * include an updated context/text string. */
+/** The model has started writing a tool call's ARGUMENTS — the phase before
+ * the call exists at all (task 1.6.B6.9).
+ *
+ * The payload is `{name}` and nothing else: their `tool_gen_callback` is
+ * `lambda name: ... _emit("tool.generating", sid, {"name": name})`
+ * (`server.py:4336`). No `tool_id` — the id is minted later, with `tool.start`
+ * — so a card raised by this event can only be matched to its `tool.start` BY
+ * NAME. An earlier version of this type claimed a `tool_id` and a text; both
+ * were wrong.
+ *
+ * Suppressed together with the rest of the tool-progress channel when
+ * `display.tool_progress` is off. */
 export interface ToolGeneratingEvent {
   type: 'tool.generating'
   session_id?: string
-  payload?: { tool_id: string; text?: string; context?: string }
+  payload?: { name?: string }
 }
 
 /** A tool invocation has finished. `result` is EITHER a JSON string OR an

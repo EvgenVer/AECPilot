@@ -119,6 +119,11 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
 
   const label = toolDisplayName(call.name)
   const running = call.status === 'running'
+  // Task 1.6.B6.9: the model is still writing this call's arguments — the call
+  // does not exist yet. Shown as its own phase rather than as «выполняется…»,
+  // which would claim work that has not started; there is no elapsed counter
+  // either, because there is nothing running to count.
+  const generating = call.status === 'generating'
   const expandable = hasToolDetails(call)
   // Task 1.6.7, taken from their card: a running tool counts seconds out loud.
   // A silent «выполняется…» is exactly the "агент молча простаивает" complaint
@@ -133,8 +138,10 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
 
   const head = (
     <>
-      <span className={`tool-card__icon${running ? ' tool-card__icon--running' : ''}`}>
-        {running ? <RunningIcon /> : <ToolIcon />}
+      <span
+        className={`tool-card__icon${running || generating ? ' tool-card__icon--running' : ''}`}
+      >
+        {running || generating ? <RunningIcon /> : <ToolIcon />}
       </span>
       <span className="tool-card__name" title={label}>
         {label}
@@ -142,7 +149,9 @@ export default function ToolCallCard({ call }: { call: ChatToolCall }) {
       <span className="tool-card__context" title={call.context || undefined}>
         {call.context}
       </span>
-      {running ? (
+      {generating ? (
+        <span className="tool-card__status tool-card__status--running">готовит вызов…</span>
+      ) : running ? (
         <span className="tool-card__status tool-card__status--running">
           выполняется… {formatElapsed(elapsed)}
         </span>

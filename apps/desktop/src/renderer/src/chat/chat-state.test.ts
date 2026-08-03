@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  GENERATING_STALE_MS,
   HANDLED_GATEWAY_EVENTS,
   IGNORED_GATEWAY_EVENTS,
   chatReducer,
@@ -581,21 +582,141 @@ describe('chatReducer', () => {
     expect((plainStringState.items[0] as { result: string }).result).toBe('just text')
   })
 
-  it('tool.generating with a text payload updates the card context; unknown tool.* types are a no-op', () => {
+  it('unknown tool.* types are a no-op', () => {
     let state: ChatState = initialChatState
     state = chatReducer(
       state,
       ev({ type: 'tool.start', payload: { tool_id: 't1', name: 'tool_a', context: 'starting' } })
     )
-    state = chatReducer(
-      state,
-      ev({ type: 'tool.generating', payload: { tool_id: 't1', text: 'still going' } })
-    )
-    expect(state.items[0]).toMatchObject({ context: 'still going' })
-
     const beforeUnknown = state
     state = chatReducer(state, ev({ type: 'tool.mystery', payload: { tool_id: 't1' } }))
     expect(state).toEqual(beforeUnknown)
+  })
+
+  // --- task 1.6.B6.9: the phase before the call exists -------------------
+  // Their payload is `{name}` and nothing else (`server.py:4336`) — no tool
+  // id, no text. The tests below pin exactly that; an earlier test in this
+  // file asserted a `{tool_id, text}` payload the gateway never sends, and was
+  // rewritten rather than kept passing against a fiction.
+  describe('tool.generating', () => {
+    it('raises a card in the generating phase, not a running one', () => {
+      const state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+
+      expect(state.items).toHaveLength(1)
+      expect(state.items[0]).toMatchObject({
+        kind: 'tool',
+        name: 'read_file',
+        status: 'generating',
+        generatingSince: 1000
+      })
+    })
+
+    it('does not raise a second card while the same call is still being written', () => {
+      let state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1200)
+      )
+
+      expect(state.items).toHaveLength(1)
+    })
+
+    it('promotes the placeholder in place when tool.start arrives for the same name', () => {
+      let state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt(
+          {
+            type: 'tool.start',
+            payload: { tool_id: 't1', name: 'read_file', context: 'читаю README' }
+          },
+          1500
+        )
+      )
+
+      // One card, now a real one — matched by NAME, because tool.generating
+      // never carried an id to match by.
+      expect(state.items).toHaveLength(1)
+      expect(state.items[0]).toMatchObject({
+        kind: 'tool',
+        toolId: 't1',
+        name: 'read_file',
+        context: 'читаю README',
+        status: 'running'
+      })
+      expect((state.items[0] as { generatingSince?: number }).generatingSince).toBeUndefined()
+    })
+
+    it('leaves a placeholder alone when a different tool starts', () => {
+      let state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt(
+          { type: 'tool.start', payload: { tool_id: 't1', name: 'run_shell', context: 'ls' } },
+          1500
+        )
+      )
+
+      expect(state.items).toHaveLength(2)
+      expect(state.items.map((item) => (item as { status: string }).status).sort()).toEqual([
+        'generating',
+        'running'
+      ])
+    })
+
+    // The model can abandon a call mid-argument and answer in text instead —
+    // then tool.start never comes and the card must not hang in «готовит».
+    it('sweeps a placeholder that never became a call', () => {
+      let state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt({ type: 'message.delta', payload: { text: 'ещё думаю' } }, 1000 + 5_000)
+      )
+      expect(state.items.some((item) => item.kind === 'tool')).toBe(true)
+
+      state = chatReducer(
+        state,
+        evAt({ type: 'message.delta', payload: { text: ' и ещё' } }, 1000 + GENERATING_STALE_MS + 1)
+      )
+      expect(state.items.some((item) => item.kind === 'tool')).toBe(false)
+    })
+
+    it('drops a standing placeholder when the turn ends', () => {
+      let state = chatReducer(
+        initialChatState,
+        evAt({ type: 'tool.generating', payload: { name: 'read_file' } }, 1000)
+      )
+      state = chatReducer(
+        state,
+        evAt({ type: 'message.complete', payload: { text: 'готово', status: 'complete' } }, 1100)
+      )
+
+      expect(state.items.some((item) => item.kind === 'tool')).toBe(false)
+      expect(state.items.some((item) => item.kind === 'message')).toBe(true)
+    })
+
+    it('ignores a payload without a name', () => {
+      const before = initialChatState
+      expect(chatReducer(before, ev({ type: 'tool.generating', payload: {} }))).toBe(before)
+      expect(chatReducer(before, ev({ type: 'tool.generating', payload: { name: '' } }))).toBe(
+        before
+      )
+    })
   })
 
   // --- task 0.13: approvals ---------------------------------------------
