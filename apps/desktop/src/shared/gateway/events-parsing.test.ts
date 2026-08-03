@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GatewayClient } from './client'
-import { isGatewayEventOfType, type GatewayEvent } from './types'
+import { isGatewayEventOfType, type GatewayEvent, type GatewayMethodMap } from './types'
 
 type Listener = (event: { data: string }) => void
 
@@ -459,5 +459,140 @@ describe('GatewayClient reconnect/backoff', () => {
 
     await vi.advanceTimersByTimeAsync(1)
     expect(FakeWebSocket.instances).toHaveLength(3) // floor delay elapsed -> new socket
+  })
+})
+
+// --- Batch 6 events (task 1.6.B6.2) ----------------------------------------
+// Contract: specs/workbench-panels.md. Every field asserted here is the
+// donor's own name — these tests fail if a rename ever slips in, which is the
+// point: the payloads are parsed, not re-derived.
+describe('batch 6 events: terminal, processes, notifications', () => {
+  const originalWebSocket = globalThis.WebSocket
+
+  afterEach(() => {
+    globalThis.WebSocket = originalWebSocket
+    FakeWebSocket.instances = []
+  })
+
+  function makeReady(): { client: GatewayClient; socket: FakeWebSocket } {
+    // @ts-expect-error — fake transport is intentionally not a full WebSocket
+    globalThis.WebSocket = FakeWebSocket
+    const client = new GatewayClient({ url: 'ws://fixture' })
+    void client.connect()
+    const socket = FakeWebSocket.instances[0]
+    socket.emit(frame('gateway.ready'))
+    return { client, socket }
+  }
+
+  function collect(client: GatewayClient): GatewayEvent[] {
+    const events: GatewayEvent[] = []
+    client.onEvent((e) => events.push(e))
+    return events
+  }
+
+  it('dispatches agent.terminal.output with process_id and chunk', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(frame('agent.terminal.output', { process_id: 'proc-1', chunk: 'hello\r\n' }))
+
+    const evt = events.find((e) => e.type === 'agent.terminal.output')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'agent.terminal.output')) {
+      expect(evt.payload.process_id).toBe('proc-1')
+      expect(evt.payload.chunk).toBe('hello\r\n')
+    }
+  })
+
+  it('dispatches terminal.close naming only the process', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(frame('terminal.close', { process_id: 'proc-1' }))
+
+    const evt = events.find((e) => e.type === 'terminal.close')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'terminal.close')) {
+      expect(evt.payload.process_id).toBe('proc-1')
+    }
+  })
+
+  it('dispatches terminal.read.request with request_id and optional window', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(frame('terminal.read.request', { request_id: 'r1', start: 10, count: 5 }))
+    // Their lambda only forwards the parameters the tool supplied, so a bare
+    // request is the normal case, not a malformed one.
+    socket.emit(frame('terminal.read.request', { request_id: 'r2' }))
+
+    const [first, second] = events.filter((e) => e.type === 'terminal.read.request')
+    if (isGatewayEventOfType(first, 'terminal.read.request')) {
+      expect(first.payload.request_id).toBe('r1')
+      expect(first.payload.start).toBe(10)
+      expect(first.payload.count).toBe(5)
+    }
+    if (isGatewayEventOfType(second, 'terminal.read.request')) {
+      expect(second.payload.start).toBeUndefined()
+      expect(second.payload.count).toBeUndefined()
+    }
+  })
+
+  it('dispatches notification.show with the AgentNotice fields', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(
+      frame('notification.show', {
+        text: 'Кредиты закончились',
+        level: 'error',
+        kind: 'ttl',
+        ttl_ms: 5000,
+        key: 'credits',
+        id: 'n-1'
+      })
+    )
+
+    const evt = events.find((e) => e.type === 'notification.show')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'notification.show')) {
+      expect(evt.payload.text).toBe('Кредиты закончились')
+      expect(evt.payload.level).toBe('error')
+      expect(evt.payload.kind).toBe('ttl')
+      expect(evt.payload.ttl_ms).toBe(5000)
+      expect(evt.payload.key).toBe('credits')
+    }
+  })
+
+  it('dispatches notification.clear addressed by key', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(frame('notification.clear', { key: 'credits' }))
+
+    const evt = events.find((e) => e.type === 'notification.clear')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'notification.clear')) {
+      expect(evt.payload.key).toBe('credits')
+    }
+  })
+
+  it('dispatches browser.progress with message and level', () => {
+    const { client, socket } = makeReady()
+    const events = collect(client)
+    socket.emit(frame('browser.progress', { message: 'Подключаюсь к браузеру', level: 'info' }))
+
+    const evt = events.find((e) => e.type === 'browser.progress')
+    expect(evt).toBeDefined()
+    if (isGatewayEventOfType(evt, 'browser.progress')) {
+      expect(evt.payload.message).toBe('Подключаюсь к браузеру')
+      expect(evt.payload.level).toBe('info')
+    }
+  })
+
+  // Task 1.6.B6.3, owner decision R8. A type-level pin, checked by `tsc
+  // --noEmit`, not by this assertion: the moment `process.stop` is added to
+  // GatewayMethodMap, `StopIsAbsent` becomes `never` and the line below stops
+  // compiling. Their handler calls the registry's `kill_all()`, which reaps
+  // every session's background processes — not just this window's.
+  it('keeps process.stop out of the method map (decision R8)', () => {
+    type StopIsAbsent = 'process.stop' extends keyof GatewayMethodMap ? never : true
+    const absent: StopIsAbsent = true
+    expect(absent).toBe(true)
   })
 })

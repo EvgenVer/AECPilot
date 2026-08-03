@@ -287,7 +287,16 @@ export interface GatewayMethodMap {
   'session.undo': { params: SessionScopedParams; result: SessionUndoResult }
   'session.steer': { params: SessionSteerParams; result: SessionSteerResult }
   'commands.catalog': { params: CommandsCatalogParams; result: CommandsCatalogResult }
+  'terminal.read.respond': { params: TerminalReadRespondParams; result: InteractiveRespondResult }
 }
+
+// `process.stop` is DELIBERATELY absent from the map above (owner decision R8,
+// task 1.6.B6.3). It is not a bulk version of `process.kill` scoped to this
+// window: their handler calls the registry's `kill_all()`, which reaps the
+// background processes of EVERY session of the gateway — another window's
+// build included. Nothing in this app may be one typo away from that, so the
+// method has no type, and `stopAllProcesses` has no IPC channel either.
+// `chat-state.test.ts` pins this: the name must not appear in the map.
 
 // ---------------------------------------------------------------------------
 // Sessions, details and the command palette (batch 5, contract:
@@ -799,7 +808,12 @@ export interface ProcessListResult {
 
 /** `process.kill` — one process, and only one owned by the calling session:
  * their handler compares `session_key` and answers 4044 otherwise, so a window
- * cannot reap another session's work. */
+ * cannot reap another session's work.
+ *
+ * Errors, read off `server.py:12634` (task 1.6.B6.3): 4012 — `process_id`
+ * missing or empty; 4044 — no such process, INCLUDING one that exists but
+ * belongs to another session; 5010 — registry failure. Plus the usual session
+ * errors (4007). */
 export interface ProcessKillParams {
   session_id: string
   process_id: string
@@ -1173,6 +1187,40 @@ export interface ClarifyRespondParams {
   answer: string
 }
 
+/** Answer to a `terminal.read.request` (task 1.6.B6.16, `server.py:11281`).
+ *
+ * `text` is a JSON **string**, not an object: their handler forwards it
+ * verbatim to the blocked tool, which parses it itself. Serialize
+ * `TerminalReadPayload` into it — the donor's field names
+ * (`apps/desktop/.../terminal/buffer.ts`) are the contract with the tool.
+ *
+ * An empty string is the documented "nothing to read" answer and must still be
+ * sent: their bridge blocks the agent's turn for 30 s waiting for it.
+ *
+ * Errors: 4009 — no pending request under this id (it already timed out, or
+ * something else answered it). Not a failure to report loudly: there is
+ * nothing left to answer. */
+export interface TerminalReadRespondParams {
+  request_id: string
+  text: string
+}
+
+/** What gets serialized into `TerminalReadRespondParams.text`. Field names are
+ * the donor's, kept pofamilno so their `read_terminal` tool can page with
+ * `start`/`count` against `total_lines`.
+ *
+ * `viewport_rows` and `cursor_row` are honest derivations, not hardware
+ * values: this app renders the buffer as text, not through xterm, so there is
+ * no real viewport or cursor (specs/workbench-panels.md, fact 6). */
+export interface TerminalReadPayload {
+  total_lines: number
+  start: number
+  end: number
+  viewport_rows: number
+  cursor_row: number
+  text: string
+}
+
 /** Answer to a `secret.request` (task 1.5.D1). `value` is the secret itself —
  * it exists only in transit: never logged, never stored in chat state, never
  * written to the transcript (specs/agent-chat.md §Security). An empty string
@@ -1378,6 +1426,100 @@ export interface InteractiveExpireEvent {
   payload: { request_id: string }
 }
 
+// ---------------------------------------------------------------------------
+// Batch 6 events: the agent's terminal, its background processes and the
+// core's out-of-band notices (contract: specs/workbench-panels.md). Every
+// field name below is the donor's, taken from `tui_gateway/server.py` 0.19.0 at
+// the line quoted on each type — none of these were renamed on the way in.
+//
+// `voice.*` and `preview.*` are DELIBERATELY ABSENT: both surfaces were dropped
+// by owner decisions 2 and 3 of block 5, and their events are listed among the
+// knowingly-ignored ones in chat-state.ts instead of being typed here.
+// ---------------------------------------------------------------------------
+
+/** A chunk of live output from a background process the agent started
+ * (`server.py:9882`). Only two fields, and neither says WHAT is running:
+ * the command, cwd and status come from `process.list` alone.
+ *
+ * `process_id` is their process registry's `session.id` — the same value
+ * `process.list` returns under the name `session_id` (see `ProcessEntry`), NOT
+ * a chat session id.
+ *
+ * The stream only exists once a session's notification poller has started
+ * (`_wire_agent_terminal_output`, `server.py:9856`, called from
+ * `_start_notification_poller`, `:9903`) — before the first session there is
+ * nothing to receive, which is why an empty terminal tab is normal. */
+export interface AgentTerminalOutputEvent {
+  type: 'agent.terminal.output'
+  session_id?: string
+  payload: { process_id: string; chunk: string }
+}
+
+/** The agent closed its own read-only terminal TAB (`server.py:9889`) — their
+ * comment: "the process is untouched — this only drops the view". Answering
+ * this with `process.kill` would kill a running command on a "hide the view"
+ * signal, so the tab goes and nothing else happens. */
+export interface TerminalCloseEvent {
+  type: 'terminal.close'
+  session_id?: string
+  payload: { process_id: string }
+}
+
+/** The agent's `read_terminal` tool wants the visible terminal buffer
+ * (`server.py:4370`). This one BLOCKS the agent's turn: it rides their
+ * `_block` bridge with `timeout=30` (`server.py:2346`), so silence costs half
+ * a minute of a stalled turn — an answer must always be sent, empty included.
+ *
+ * `start`/`count` are absolute line indices into the buffer, both optional
+ * (their lambda only forwards the ones the tool supplied). */
+export interface TerminalReadRequestEvent {
+  type: 'terminal.read.request'
+  session_id?: string
+  payload: { request_id: string; start?: number; count?: number }
+}
+
+/** An out-of-band notice from the core (`server.py:4349`) — the fields are
+ * their `AgentNotice`'s (`agent/credits_tracker.py:178`), not ours.
+ *
+ * Two traps in the shape: `ttl_ms` is honoured ONLY when `kind` is `'ttl'`
+ * (their comment; a `sticky` notice with a ttl still lives until it is
+ * cleared), and `key` is the dedupe identity — a second `show` with the same
+ * key REPLACES the first rather than stacking. `id` is theirs and is not used
+ * for addressing anything: `notification.clear` names the key. */
+export interface NotificationShowEvent {
+  type: 'notification.show'
+  session_id?: string
+  payload: {
+    text: string
+    level?: 'info' | 'warn' | 'error' | 'success'
+    kind?: 'sticky' | 'ttl'
+    ttl_ms?: number | null
+    key?: string | null
+    id?: string | null
+  }
+}
+
+/** The core withdraws a notice it raised (`server.py:4364`). Addressed by
+ * `key`, never by `id`; a key that was never shown is a no-op. */
+export interface NotificationClearEvent {
+  type: 'notification.clear'
+  session_id?: string
+  payload: { key?: string | null }
+}
+
+/** Progress of connecting to a browser over CDP (`server.py:15256`).
+ *
+ * NOT a tool event, despite the name: the only emitter is the `browser` RPC
+ * with `action: "connect"`, and the payload carries no `tool_id` and no tool
+ * name. This app never calls that method, so the event cannot currently
+ * arrive — it is typed so the one place that would have to decide what to do
+ * with it says so explicitly instead of guessing. */
+export interface BrowserProgressEvent {
+  type: 'browser.progress'
+  session_id?: string
+  payload: { message: string; level?: string }
+}
+
 /** Any event whose `type` this client does not recognize — kept typed rather
  * than silently dropped so callers can decide whether to ignore it. */
 export interface UnknownGatewayEvent {
@@ -1500,6 +1642,12 @@ export type GatewayEvent =
   | SubagentEvent
   | MoaReferenceEvent
   | MoaAggregatingEvent
+  | AgentTerminalOutputEvent
+  | TerminalCloseEvent
+  | TerminalReadRequestEvent
+  | NotificationShowEvent
+  | NotificationClearEvent
+  | BrowserProgressEvent
   | UnknownGatewayEvent
 
 /** Narrows a `GatewayEvent` to the known variant matching `type`, if any.
