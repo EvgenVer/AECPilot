@@ -218,6 +218,12 @@ let currentProject: OpenProject | undefined
 // not overwrite the newer sessionId with its own stale result.
 let sessionEpoch = 0
 let ensureSessionPromise: Promise<string> | undefined
+// Task 1.6.B5.23: the profile new/resumed sessions are built against. Undefined
+// means the profile `hermes serve` was launched with, which is the only
+// behaviour before batch 5. Their `POST /api/profiles/active` does NOT retarget
+// a running process (their own comment says so) — passing `profile` on
+// session.create/resume is what actually moves a chat to another profile.
+let sessionProfile: string | undefined
 
 // Task 1.14: the last completed scan's report, if any — read by
 // `scan:get-state` so a renderer that mounts after a scan already finished
@@ -378,7 +384,8 @@ async function ensureSession(): Promise<string> {
         // = vault"): only sent when a project is open, so a Phase 0-style
         // chat with no project keeps falling back to the gateway's own
         // launch cwd, unchanged.
-        ...(project ? { cwd: project.vaultPath } : {})
+        ...(project ? { cwd: project.vaultPath } : {}),
+        ...(sessionProfile ? { profile: sessionProfile } : {})
       })
       .then((result) => {
         if (sessionEpoch !== epoch) {
@@ -471,10 +478,38 @@ ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
   }
 })
 
-ipcMain.handle('chat:submit', async (_event, text: string) => {
+// The composer's one way in. Since hermes 0.19.0 the answer matters: a prompt
+// sent mid-turn is no longer refused but QUEUED (or steered), and the caller is
+// the one that tells the user which happened (task 1.6.B5.26).
+//
+// `truncateBeforeUserOrdinal` (task 1.6.B5.27) re-runs from an edited message.
+// It is validated as a non-negative integer here rather than passed through:
+// their handler rejects a negative value with 4018 precisely because Python's
+// negative indexing would otherwise truncate the session to its last turn, and
+// this app should not be the thing that gets close to that.
+ipcMain.handle('chat:submit', async (_event, payload: unknown) => {
+  const raw =
+    typeof payload === 'string'
+      ? { text: payload }
+      : ((payload ?? {}) as {
+          text?: unknown
+          truncateBeforeUserOrdinal?: unknown
+        })
+  const text = raw.text
+  if (typeof text !== 'string') throw new Error('invalid prompt text')
+  const ordinal = raw.truncateBeforeUserOrdinal
+  if (ordinal !== undefined && ordinal !== null) {
+    if (typeof ordinal !== 'number' || !Number.isInteger(ordinal) || ordinal < 0) {
+      throw new Error('invalid message ordinal')
+    }
+  }
   const activeSessionId = await ensureSession()
   if (!gateway) throw new Error('cannot submit prompt — gateway is not connected')
-  await gateway.request('prompt.submit', { session_id: activeSessionId, text })
+  return gateway.request('prompt.submit', {
+    session_id: activeSessionId,
+    text,
+    ...(typeof ordinal === 'number' ? { truncate_before_user_ordinal: ordinal } : {})
+  })
 })
 
 // Slash-command completions for the composer (task 1.6.8). Read-only and
@@ -1265,7 +1300,8 @@ ipcMain.handle('sessions:new', async () => {
   const epoch = sessionEpoch
   const result = await gateway.request('session.create', {
     source: 'aecpilot-desktop',
-    ...(project ? { cwd: project.vaultPath } : {})
+    ...(project ? { cwd: project.vaultPath } : {}),
+    ...(sessionProfile ? { profile: sessionProfile } : {})
   })
   // Tag regardless of whether this call wins the race below — even a
   // superseded session still belongs to `project` (captured above) and
@@ -1290,11 +1326,214 @@ ipcMain.handle('sessions:new', async () => {
 ipcMain.handle('sessions:switch', async (_event, id: string) => {
   if (!gateway) throw new Error('gateway is not connected')
   if (typeof id !== 'string' || id.length === 0) throw new Error('invalid session id')
-  const result = await gateway.request('session.resume', { session_id: id })
+  const result = await gateway.request('session.resume', {
+    session_id: id,
+    ...(sessionProfile ? { profile: sessionProfile } : {})
+  })
   sessionId = result.session_id
   sessionEpoch += 1
   ensureSessionPromise = undefined
   return { sessionId: result.session_id, messages: result.messages ?? [] }
+})
+
+// --- Sessions, details, palette, YOLO: batch 5 ------------------------------
+// Contract: specs/agent-sessions.md. The one rule that runs through all of it:
+// a LIVE sid and a STORED id are different things (see `LiveSessionId` /
+// `StoredSessionId` in shared/gateway/types.ts). `session.list`/`resume`/
+// `delete` take the stored one; everything else here takes the live one.
+
+/** Live sessions of the gateway process, with `current` resolved against the
+ * session THIS window is attached to (task 1.6.B5.9). A different question from
+ * `sessions:list`, which reads the database — hence a separate channel rather
+ * than a flag on that one. */
+ipcMain.handle('sessions:list-active', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('session.active_list', {
+    ...(sessionId ? { current_session_id: sessionId } : {})
+  })
+})
+
+// Attaching to another live session (task 1.6.B5.9). Their handler deliberately
+// does NOT close the one we were on, so both stay in the live list — that is
+// what makes these sessions parallel rather than a switch.
+ipcMain.handle('sessions:activate', async (_event, liveId: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  if (typeof liveId !== 'string' || liveId === '') throw new Error('invalid session id')
+  const result = await gateway.request('session.activate', { session_id: liveId })
+  sessionId = result.session_id
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+  return { sessionId: result.session_id, messages: result.messages ?? [] }
+})
+
+// DESTRUCTIVE and irreversible: their handler removes the DB row AND the
+// on-disk transcript files. `confirmed` is checked here, not only in the
+// renderer, for the same reason as `rollback:restore` — a stray call in the
+// renderer must not be able to reach it.
+ipcMain.handle('sessions:delete', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const { storedId, confirmed } = (payload ?? {}) as { storedId?: unknown; confirmed?: unknown }
+  if (confirmed !== true) throw new Error('session.delete requires explicit confirmation')
+  if (typeof storedId !== 'string' || storedId === '') throw new Error('invalid session id')
+  return gateway.request('session.delete', { session_id: storedId })
+})
+
+/** The live sid of `storedId` if the gateway is holding that session open, else
+ * `undefined`. `session.active_list` is the only place the two ids appear
+ * side by side (`id` + `session_key`). */
+async function liveSidForStored(storedId: string): Promise<string | undefined> {
+  if (!gateway) return undefined
+  const { sessions } = await gateway.request('session.active_list', {
+    ...(sessionId ? { current_session_id: sessionId } : {})
+  })
+  return sessions.find((row) => row.session_key === storedId)?.id
+}
+
+// Renaming (task 1.6.B5.7). `session.title` resolves a LIVE sid, so a session
+// that is only a database row has to be resumed first — that is a property of
+// their handler, not a choice here.
+//
+// Resuming for a rename does NOT switch this window to that session: `sessionId`
+// is left alone, and the resumed session simply becomes one more live session in
+// the gateway. Renaming something in a list should not move the user out of the
+// conversation they are in.
+ipcMain.handle('sessions:rename', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const { storedId, title } = (payload ?? {}) as { storedId?: unknown; title?: unknown }
+  if (typeof storedId !== 'string' || storedId === '') throw new Error('invalid session id')
+  if (typeof title !== 'string' || title.trim() === '') throw new Error('invalid session title')
+
+  let liveId = await liveSidForStored(storedId)
+  if (!liveId) {
+    const resumed = await gateway.request('session.resume', {
+      session_id: storedId,
+      ...(sessionProfile ? { profile: sessionProfile } : {})
+    })
+    liveId = resumed.session_id
+  }
+  const result = await gateway.request('session.title', { session_id: liveId, title: title.trim() })
+  return { title: result.title ?? title.trim(), pending: result.pending === true }
+})
+
+// Branching (task 1.6.B5.10). Two things their answer does not give us and this
+// handler recovers: the branch's STORED key (needed to tag it against the
+// project — read back from `session.active_list`) and its history (unchanged
+// from the parent's, which the renderer already shows).
+ipcMain.handle('sessions:branch', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const { name } = (payload ?? {}) as { name?: unknown }
+  const activeSessionId = await ensureSession()
+  const project = currentProject
+  const result = await gateway.request('session.branch', {
+    session_id: activeSessionId,
+    ...(typeof name === 'string' && name.trim() !== '' ? { name: name.trim() } : {})
+  })
+  sessionId = result.session_id
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+  if (project) {
+    // Best-effort: an untagged branch would simply not show up in this
+    // project's list until it is renamed/reopened — worth trying, never worth
+    // failing the branch over.
+    try {
+      const { sessions } = await gateway.request('session.active_list', {
+        current_session_id: result.session_id
+      })
+      const stored = sessions.find((row) => row.id === result.session_id)?.session_key
+      if (stored) tagSessionProject(stored, project.vaultPath)
+    } catch (error: unknown) {
+      console.error('aecpilot: could not tag the new branch against the project', error)
+    }
+  }
+  return { sessionId: result.session_id, title: result.title }
+})
+
+ipcMain.handle('session:usage', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('session.usage', { session_id: await ensureSession() })
+})
+
+ipcMain.handle('session:context-breakdown', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('session.context_breakdown', { session_id: await ensureSession() })
+})
+
+// Manual compression (task 1.6.B5.13). The transcript is redrawn from
+// `session.history`, NOT from `session.compress`'s own `messages`: that field
+// carries the agent's raw history (`content`, `tool_calls`), not the
+// `{role, text}` shape every other path in this app speaks, so rendering it
+// would produce empty bubbles. See `SessionCompressResult`.
+ipcMain.handle('session:compress', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const { focusTopic } = (payload ?? {}) as { focusTopic?: unknown }
+  const activeSessionId = await ensureSession()
+  const result = await gateway.request('session.compress', {
+    session_id: activeSessionId,
+    ...(typeof focusTopic === 'string' && focusTopic.trim() !== ''
+      ? { focus_topic: focusTopic.trim() }
+      : {})
+  })
+  const history = await gateway.request('session.history', { session_id: activeSessionId })
+  return {
+    status: result.status ?? '',
+    beforeMessages: result.before_messages ?? 0,
+    afterMessages: result.after_messages ?? 0,
+    beforeTokens: result.before_tokens ?? 0,
+    afterTokens: result.after_tokens ?? 0,
+    messages: history.messages ?? []
+  }
+})
+
+ipcMain.handle('session:undo', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('session.undo', { session_id: await ensureSession() })
+})
+
+ipcMain.handle('session:steer', async (_event, text: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  if (typeof text !== 'string' || text.trim() === '') throw new Error('invalid steer text')
+  return gateway.request('session.steer', {
+    session_id: await ensureSession(),
+    text: text.trim()
+  })
+})
+
+ipcMain.handle('commands:catalog', async () => {
+  if (!gateway) throw new Error('gateway is not connected')
+  return gateway.request('commands.catalog', {})
+})
+
+ipcMain.handle('commands:dispatch', async (_event, payload: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  const { name, arg } = (payload ?? {}) as { name?: unknown; arg?: unknown }
+  if (typeof name !== 'string' || name.trim() === '') throw new Error('invalid command name')
+  return gateway.request('command.dispatch', {
+    name: name.trim(),
+    arg: typeof arg === 'string' ? arg : '',
+    session_id: await ensureSession()
+  })
+})
+
+// The YOLO zap (tasks 1.6.B5.21/B5.22). Two guarantees live here rather than in
+// the renderer, because both protect something outside this window:
+//   - no `scope` is ever sent, so their global branch (which rewrites
+//     `approvals.mode` in config.yaml and would destroy this app's `smart`
+//     mode) is unreachable from the UI. The type has no 'global' member either.
+//   - a session is REQUIRED and is never created for this: with no live
+//     session their handler falls through to `HERMES_YOLO_MODE` in the
+//     gateway's own environment, i.e. it would flip approvals for every
+//     session of the process.
+// `value` is an explicit '1'/'0' — any other value, empty string included,
+// makes their handler invert the current state instead.
+ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
+  if (!gateway) throw new Error('gateway is not connected')
+  if (typeof enabled !== 'boolean') throw new Error('invalid yolo flag')
+  if (!sessionId) throw new Error('нет живой сессии — YOLO переключается только в её пределах')
+  return gateway.request('config.set', {
+    key: 'yolo',
+    value: enabled ? '1' : '0',
+    session_id: sessionId
+  })
 })
 
 ipcMain.handle('gateway:get-state', () => gatewayState)

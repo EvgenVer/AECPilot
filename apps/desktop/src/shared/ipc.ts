@@ -4,24 +4,48 @@
 
 import type {
   AgentProcessEntry,
+  CommandDispatchResult,
+  CommandsCatalogResult,
   ConfigSetResult,
   ConfigShowSection,
+  ContextBreakdownResult,
   GatewayConnectionState,
   GatewayEvent,
   HistoryMessage,
+  LiveSessionId,
+  LiveSessionSummary,
   ModelOptionsResult,
   PluginRow,
   ProcessEntry,
   ProcessKillResult,
+  PromptSubmitResult,
   RollbackCheckpoint,
   RollbackDiffResult,
   RollbackRestoreResult,
   RuntimeCheckResult,
   SessionSummary,
+  SessionUsageResult,
   SlashCompletionItem,
+  StoredSessionId,
   ToolsConfigureResult,
   ToolsetInfo
 } from './gateway/types'
+
+/** What a manual compression achieved (task 1.6.B5.13).
+ *
+ * `messages` is NOT `session.compress`'s own `messages` field — that one is the
+ * agent's raw history and would render as empty bubbles (see
+ * `SessionCompressResult`). Main re-reads `session.history` after a successful
+ * compress and returns that instead, so the renderer gets the same shape a
+ * session switch gives it. */
+export interface CompressOutcome {
+  status: string
+  beforeMessages: number
+  afterMessages: number
+  beforeTokens: number
+  afterTokens: number
+  messages: HistoryMessage[]
+}
 
 /** What happened to one file the user tried to attach (task 1.6.A4). A
  * refusal is a normal outcome here — no poppler for a PDF, an unsupported
@@ -272,9 +296,18 @@ export interface AecpilotApi {
    * this is a dev-only flag to preview the Welcome screen; the normal
    * autostart-into-shell flow (and e2e) is unaffected when it's unset. */
   showWelcome: boolean
-  /** Submits a prompt to the (lazily created) chat session. Resolves once
-   * the gateway has accepted it for streaming; rejects on failure. */
-  submitPrompt(text: string): Promise<void>
+  /** Submits a prompt to the (lazily created) chat session. Resolves once the
+   * gateway has accepted it; rejects on failure.
+   *
+   * Since hermes 0.19.0 (task 1.6.B5.26) acceptance has three shapes and only
+   * one of them means "streaming now": `queued` (runs as the next turn) and
+   * `steered` (folded into the running turn) are ALSO successes. The composer
+   * shows which one happened instead of keeping a queue of its own.
+   *
+   * `truncateBeforeUserOrdinal` (task 1.6.B5.27) re-runs from an edited user
+   * message: it counts USER messages only, and the gateway rejects an
+   * out-of-range value with 4018 rather than truncating to something else. */
+  submitPrompt(text: string, truncateBeforeUserOrdinal?: number): Promise<PromptSubmitResult>
   /** Subscribes to streamed gateway events for the active chat session.
    * Returns an unsubscribe function. */
   onChatEvent(cb: (event: GatewayEvent) => void): () => void
@@ -726,6 +759,71 @@ export interface AecpilotApi {
    * gateway's own "this invalidates the prompt cache" warning reaches the
    * user; repeat with `confirm: true` after they agree. */
   reloadMcpServers(confirm?: boolean): Promise<{ status: string; message?: string }>
+  // --- Sessions, details, palette, YOLO, profiles: batch 5 ------------------
+  // Contract: specs/agent-sessions.md. Every call below is opened deliberately
+  // by the user, so a failure is shown rather than swallowed.
+  //
+  // Two ids travel here and they are NOT interchangeable — see `LiveSessionId`
+  // / `StoredSessionId` in shared/gateway/types.ts. The rule in this API: a
+  // parameter named `storedId` addresses a database row, `liveId` addresses a
+  // session this gateway process is holding open right now.
+
+  /** Live sessions of the gateway process (task 1.6.B5.9) — a different
+   * question from `listSessions`, which reads the database. `current` marks the
+   * one this window is attached to. */
+  listActiveSessions(): Promise<{ sessions: LiveSessionSummary[] }>
+  /** Attaches to another LIVE session without closing the current one (task
+   * 1.6.B5.9). */
+  activateSession(liveId: LiveSessionId): Promise<{
+    sessionId: LiveSessionId
+    messages: HistoryMessage[]
+  }>
+  /** DESTRUCTIVE and irreversible — drops the row and its transcript files
+   * (task 1.6.B5.4). `confirmed` is checked in main. A live session is refused
+   * by the gateway with 4023, which arrives as a rejection carrying its text. */
+  deleteSession(payload: { storedId: StoredSessionId; confirmed: true }): Promise<{
+    deleted: string
+  }>
+  /** Renames a session (task 1.6.B5.7). A session that is not currently live
+   * cannot be renamed directly — main resumes it first, because their
+   * `session.title` resolves a LIVE sid. `pending: true` means the name will
+   * apply once the session has its first message; that is a success. */
+  renameSession(payload: { storedId: StoredSessionId; title: string }): Promise<{
+    title: string
+    pending: boolean
+  }>
+  /** Forks the current session (task 1.6.B5.10). Refused by the gateway (4008)
+   * when the session has no turns yet, so the caller disables the control
+   * instead. The new session becomes the active one and is tagged against the
+   * open project. */
+  branchSession(name?: string): Promise<{ sessionId: LiveSessionId; title: string }>
+  /** Token spend of the active session (task 1.6.B5.11). Missing
+   * `context_used`/`context_max` means "unknown", never 0 %. */
+  getSessionUsage(): Promise<SessionUsageResult>
+  /** What is filling the context window (task 1.6.B5.12). Their `color` field
+   * is ignored — see `ContextBreakdownCategory`. */
+  getContextBreakdown(): Promise<ContextBreakdownResult>
+  /** Compresses the active session's context (task 1.6.B5.13). Refused by the
+   * gateway mid-turn (4009), so the caller disables the control. */
+  compressSession(focusTopic?: string): Promise<CompressOutcome>
+  /** Drops the last turn from the gateway's in-memory history (task
+   * 1.6.B5.15). The transcript in the database keeps it — the turn comes back
+   * on the next resume, and the UI says so. Refused mid-turn (4009). */
+  undoTurn(): Promise<{ removed: number }>
+  /** Injects a note into the RUNNING turn (task 1.6.B5.16). `rejected` is a
+   * normal answer: the agent declined it. Error 4010 means this agent has no
+   * steering at all. */
+  steerSession(text: string): Promise<{ status: string }>
+  /** The slash-command registry behind the palette (task 1.6.B5.18). */
+  getCommandCatalog(): Promise<CommandsCatalogResult>
+  /** Runs one command by name (task 1.6.B5.19). The five `type`s mean five
+   * different things and an unknown one is reported, never guessed. */
+  dispatchCommand(name: string, arg: string): Promise<CommandDispatchResult>
+  /** Approval bypass for the CURRENT session only (task 1.6.B5.21/B5.22).
+   * There is no way to reach their global scope from here — `setYolo` sends no
+   * `scope`, so `approvals.mode` in config.yaml is never touched and the app's
+   * own approvals selector stays the only owner of the persistent setting. */
+  setYolo(enabled: boolean): Promise<ConfigSetResult>
   /** Stores (`key: string`) or removes (`key: null`) one provider's key and
    * restarts the backend, because a key reaches hermes through the child
    * process's environment and therefore only applies from the next start.

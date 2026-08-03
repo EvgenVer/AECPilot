@@ -3,7 +3,8 @@ import type { AecpilotApi } from '../shared/ipc'
 
 const api: AecpilotApi = {
   showWelcome: process.env.AEC_SHOW_WELCOME === '1',
-  submitPrompt: (text) => ipcRenderer.invoke('chat:submit', text),
+  submitPrompt: (text, truncateBeforeUserOrdinal) =>
+    ipcRenderer.invoke('chat:submit', { text, truncateBeforeUserOrdinal }),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),
   respondClarify: (requestId, answer) =>
@@ -77,6 +78,19 @@ const api: AecpilotApi = {
   removeMcpServer: (payload) => ipcRenderer.invoke('mcp:remove', payload),
   testMcpServer: (name) => ipcRenderer.invoke('mcp:test', { name }),
   reloadMcpServers: (confirm) => ipcRenderer.invoke('mcp:reload', { confirm }),
+  listActiveSessions: () => ipcRenderer.invoke('sessions:list-active'),
+  activateSession: (liveId) => ipcRenderer.invoke('sessions:activate', liveId),
+  deleteSession: (payload) => ipcRenderer.invoke('sessions:delete', payload),
+  renameSession: (payload) => ipcRenderer.invoke('sessions:rename', payload),
+  branchSession: (name) => ipcRenderer.invoke('sessions:branch', { name }),
+  getSessionUsage: () => ipcRenderer.invoke('session:usage'),
+  getContextBreakdown: () => ipcRenderer.invoke('session:context-breakdown'),
+  compressSession: (focusTopic) => ipcRenderer.invoke('session:compress', { focusTopic }),
+  undoTurn: () => ipcRenderer.invoke('session:undo'),
+  steerSession: (text) => ipcRenderer.invoke('session:steer', text),
+  getCommandCatalog: () => ipcRenderer.invoke('commands:catalog'),
+  dispatchCommand: (name, arg) => ipcRenderer.invoke('commands:dispatch', { name, arg }),
+  setYolo: (enabled) => ipcRenderer.invoke('yolo:set', enabled),
   getProviderKeys: (envVars) => ipcRenderer.invoke('keys:list', envVars),
   saveProviderKey: (payload) => ipcRenderer.invoke('keys:save', payload),
   listCheckpoints: () => ipcRenderer.invoke('rollback:list'),

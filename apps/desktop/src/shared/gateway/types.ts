@@ -58,6 +58,10 @@ export interface SessionCreateParams {
   source: string
   cwd?: string
   model?: string
+  /** Build this session against another local profile's home/state.db (task
+   * 1.6.B5.23). Omitted means the profile the gateway was launched with —
+   * their `_profile_home(None)` — which is the only behaviour before batch 5. */
+  profile?: string
 }
 
 export interface SessionCreateResult {
@@ -73,9 +77,37 @@ export interface SessionCreateResult {
   info: unknown
 }
 
+/** A LIVE session id: the ephemeral handle for a session that this gateway
+ * process currently holds in memory (`_sessions`). Every streaming RPC —
+ * `prompt.submit`, `session.usage`, `session.title`, `session.steer` — takes
+ * THIS one, and it changes on every resume.
+ *
+ * Purely documentary (both aliases are `string`): TypeScript cannot stop a
+ * mix-up, but naming the two makes a wrong call visible at the call site
+ * instead of at runtime, where the gateway answers 4007 "session not found"
+ * for a stored id passed where a live one belongs. */
+export type LiveSessionId = string
+
+/** A STORED session id (their `session_key`): the row in `state.db` that
+ * `session.list` enumerates, `session.resume`/`session.delete` address, and
+ * this app tags against a project vault (`main/session-projects.ts`).
+ * Survives restarts; a live sid does not. */
+export type StoredSessionId = string
+
 export interface PromptSubmitParams {
-  session_id: string
+  session_id: LiveSessionId
   text: string
+  /** Re-run from an edited user message (task 1.6.B5.27, hermes 0.19.0):
+   * truncate the history right before the N-th USER message — the ordinal
+   * counts user turns only, not transcript entries — then submit `text` as the
+   * new N-th turn. Their handler also rewrites the DB (`db.replace_messages`),
+   * so this is not a display-only trim.
+   *
+   * They reject an out-of-range ordinal on BOTH ends with 4018, negative
+   * included, and their own comment says why: Python's negative indexing would
+   * otherwise resolve `-1` to the LAST user turn and silently truncate the
+   * whole session to it. */
+  truncate_before_user_ordinal?: number
 }
 
 /** Three outcomes since hermes 0.19.0, where one used to be enough.
@@ -122,7 +154,11 @@ export interface ApprovalRespondResult {
 /** One entry in `session.list`'s result — the gateway already filters out
  * internal 'tool' sub-agent sessions. */
 export interface SessionSummary {
-  id: string
+  /** A STORED id — this list reads the database, not live sessions. MEASURED
+   * (probe 1.6.B5.1): the row has exactly six fields and `cwd` is NOT among
+   * them, which is why sessions are scoped to a project by this app's own
+   * tagging (`main/session-projects.ts`) and not by the gateway. */
+  id: StoredSessionId
   title: string
   preview: string
   started_at: number
@@ -179,14 +215,17 @@ export interface ReloadMcpResult {
 }
 
 export interface SessionResumeParams {
-  session_id: string
+  session_id: StoredSessionId
+  /** Resume a session that lives in another profile's `state.db` (task
+   * 1.6.B5.23) — same meaning as on `session.create`. */
+  profile?: string
 }
 
 /** The `session_id` returned here is a NEW live sid — NOT the one passed in
  * `params.session_id` — the gateway may reuse a live session under a
  * different id. Callers must adopt `result.session_id` as the active sid. */
 export interface SessionResumeResult {
-  session_id: string
+  session_id: LiveSessionId
   resumed: string
   message_count: number
   messages: HistoryMessage[]
@@ -237,6 +276,280 @@ export interface GatewayMethodMap {
   'learning.detail': { params: LearningNodeParams; result: LearningDetailResult }
   'learning.edit': { params: LearningEditParams; result: LearningMutationResult }
   'learning.delete': { params: LearningNodeParams; result: LearningMutationResult }
+  'session.delete': { params: SessionDeleteParams; result: SessionDeleteResult }
+  'session.title': { params: SessionTitleParams; result: SessionTitleResult }
+  'session.active_list': { params: SessionActiveListParams; result: SessionActiveListResult }
+  'session.activate': { params: SessionActivateParams; result: LiveSessionPayload }
+  'session.branch': { params: SessionBranchParams; result: SessionBranchResult }
+  'session.usage': { params: SessionScopedParams; result: SessionUsageResult }
+  'session.context_breakdown': { params: SessionScopedParams; result: ContextBreakdownResult }
+  'session.compress': { params: SessionCompressParams; result: SessionCompressResult }
+  'session.undo': { params: SessionScopedParams; result: SessionUndoResult }
+  'session.steer': { params: SessionSteerParams; result: SessionSteerResult }
+  'commands.catalog': { params: CommandsCatalogParams; result: CommandsCatalogResult }
+}
+
+// ---------------------------------------------------------------------------
+// Sessions, details and the command palette (batch 5, contract:
+// specs/agent-sessions.md). Every shape below was read off the installed
+// gateway's `tui_gateway/server.py`; the ones marked MEASURED were confirmed by
+// `runtime/sessions-probe.mjs` (task 1.6.B5.1).
+//
+// `session.archive` and any search parameter are DELIBERATELY ABSENT: neither
+// exists in the gateway at all (owner decision B5-2 on the first, measured
+// absence on the second — `session.list` takes `limit` and nothing else). The
+// screen filters the list it already has and says so.
+// ---------------------------------------------------------------------------
+
+/** Most session methods take nothing but the live sid. */
+export interface SessionScopedParams {
+  session_id: LiveSessionId
+}
+
+/** `session.delete` — irreversible: it drops the DB row AND the on-disk
+ * transcript files.
+ *
+ * Errors: 4023 (the session is live in this gateway process — refused by
+ * `session_key` across ALL sessions, not just ours), 4007 (no such row), 5036. */
+export interface SessionDeleteParams {
+  session_id: StoredSessionId
+}
+
+export interface SessionDeleteResult {
+  deleted: string
+}
+
+/** `session.title` — read (omit `title`) or set the session's name.
+ *
+ * Takes a LIVE sid: their handler resolves the session through `_sess_nowait`,
+ * so a session that is only a row in the DB cannot be renamed until it is
+ * resumed. That is why the rename path in this app is resume-then-title.
+ *
+ * Errors: 4021 (empty title), 4022, 5007. */
+export interface SessionTitleParams {
+  session_id: LiveSessionId
+  title?: string
+}
+
+/** `pending: true` means the DB row does not exist yet (their write is deferred
+ * to the first prompt) and the name will be applied then — a success, not a
+ * failure. */
+export interface SessionTitleResult {
+  title: string
+  pending?: boolean
+  session_key?: StoredSessionId
+}
+
+/** `session.active_list` — live sessions of THIS gateway process, which is a
+ * different question from `session.list`'s "what is in the database".
+ *
+ * MEASURED (probe 1.6.B5.1): rows carry `current`, `id`, `last_active`,
+ * `message_count`, `model`, `preview`, `session_key`, `started_at`, `status`,
+ * `title` — four of which `session.list` does not have. This is the only source
+ * for "which session is the current one" and for a live session's `session_key`
+ * (needed after `session.branch`, which does not return it).
+ *
+ * Errors: 5036. */
+export interface SessionActiveListParams {
+  current_session_id?: LiveSessionId
+}
+
+export interface LiveSessionSummary {
+  /** The LIVE sid — pass it to `session.activate`, not to `session.resume`. */
+  id: LiveSessionId
+  /** The stored id — pass THIS one to `session.delete`, and tag it against a
+   * project. */
+  session_key: StoredSessionId
+  title: string
+  preview: string
+  model: string
+  status: string
+  current: boolean
+  message_count: number
+  started_at: number
+  last_active: number
+}
+
+export interface SessionActiveListResult {
+  sessions: LiveSessionSummary[]
+}
+
+/** `session.activate` — attach to an already-live session. Deliberately does
+ * NOT close the previously focused one (their comment says so), which is what
+ * makes parallel sessions parallel.
+ *
+ * Errors: 4007. */
+export interface SessionActivateParams {
+  session_id: LiveSessionId
+}
+
+/** Shared answer of `session.activate` (their `_live_session_payload`).
+ * `messages` is in the same shape `session.resume` returns — unlike
+ * `session.compress`, see `SessionCompressResult`. */
+export interface LiveSessionPayload {
+  session_id: LiveSessionId
+  session_key: StoredSessionId
+  messages: HistoryMessage[]
+  message_count: number
+  running: boolean
+  started_at: number
+  status: string
+  info?: unknown
+  inflight?: unknown
+  queued?: unknown
+}
+
+/** `session.branch` — fork the current conversation into a new session that
+ * starts with a copy of its history.
+ *
+ * Errors: 4008 ("nothing to branch — send a message first", MEASURED on an
+ * empty session), 4090 (session limit), 5008, 5000. */
+export interface SessionBranchParams {
+  session_id: LiveSessionId
+  name?: string
+}
+
+/** The new session's STORED id is not here — `session_id` is its live sid and
+ * `parent` is the PARENT's stored key. To tag the branch against a project this
+ * app reads its `session_key` back from `session.active_list`. */
+export interface SessionBranchResult {
+  session_id: LiveSessionId
+  title: string
+  parent: StoredSessionId
+}
+
+/** `session.usage` — cumulative token spend of this session.
+ *
+ * `context_used`/`context_max`/`context_percent` are OMITTED when the core does
+ * not know the current window occupancy (their comment: "leave it unknown
+ * otherwise" — they deliberately do not fabricate a 0). A UI that renders a
+ * missing field as 0 % would invent a reading. */
+export interface SessionUsageResult {
+  model?: string
+  input?: number
+  output?: number
+  reasoning?: number
+  prompt?: number
+  completion?: number
+  total?: number
+  calls?: number
+  context_used?: number
+  context_max?: number
+  context_percent?: number
+  compressions?: number
+  active_subagents?: number
+  /** Pre-rendered Nous credit lines; absent unless logged into their portal. */
+  credits_lines?: string[]
+}
+
+/** `session.context_breakdown` — what is filling the context window.
+ *
+ * `color` is one of THEIR CSS variables (`var(--ui-text-tertiary)` and friends,
+ * `agent/context_breakdown.py`). It is typed here so its presence is not a
+ * surprise, and never used: our palette is our own.
+ *
+ * An empty `categories` is the "no agent built yet" answer, not an error. */
+export interface ContextBreakdownCategory {
+  id: string
+  label: string
+  tokens: number
+  color?: string
+}
+
+export interface ContextBreakdownResult {
+  categories: ContextBreakdownCategory[]
+  context_used?: number
+  context_max?: number
+  context_percent?: number
+  estimated_total?: number
+  model?: string
+}
+
+/** `session.compress` — manual context compression.
+ *
+ * Errors: 4009 while a turn is running, 5005, 5019.
+ *
+ * THE TRAP: `messages` here is the agent's RAW history (`{role, content,
+ * tool_calls}`), NOT the `{role, text, name, context}` shape `session.resume`
+ * and `session.history` return — their handler copies `session["history"]`
+ * without running `_history_to_messages` over it. Redrawing the transcript from
+ * it produces empty bubbles, so this app re-reads `session.history` after a
+ * successful compress and takes only the counters from here. */
+export interface SessionCompressParams {
+  session_id: LiveSessionId
+  focus_topic?: string
+}
+
+export interface SessionCompressResult {
+  status: string
+  removed?: number
+  before_messages?: number
+  after_messages?: number
+  before_tokens?: number
+  after_tokens?: number
+  summary?: unknown
+  usage?: unknown
+  info?: unknown
+  /** Raw history — see the note above. Typed as `unknown[]` on purpose: it is
+   * not `HistoryMessage[]`, and calling it that is how the bug gets written. */
+  messages?: unknown[]
+}
+
+/** `session.undo` — drops the last turn from the gateway's IN-MEMORY history.
+ *
+ * `removed` counts transcript entries, tool results included: their loop pops
+ * every trailing `assistant`/`tool` entry and then one `user`.
+ *
+ * The DB is NOT rewritten (no `replace_messages` call in the handler), so the
+ * undone turn comes back on the next resume. Read in their code; the probe
+ * could not confirm it live (an empty session has nothing to undo), so the UI
+ * says so rather than promising a permanent removal.
+ *
+ * Errors: 4009 while a turn is running. */
+export interface SessionUndoResult {
+  removed: number
+}
+
+/** `session.steer` — inject a note into the RUNNING turn without interrupting
+ * it; it lands on the next tool result.
+ *
+ * Errors: 4002 (empty text, MEASURED), 4010 (this agent has no `steer`), 5000. */
+export interface SessionSteerParams {
+  session_id: LiveSessionId
+  text: string
+}
+
+/** `rejected` is a normal answer, not a failure: the agent declined the note
+ * (usually because there is no tool boundary left to attach it to). */
+export interface SessionSteerResult {
+  status: 'queued' | 'rejected'
+  text?: string
+}
+
+/** `commands.catalog` — the slash-command registry behind the command palette.
+ *
+ * Their handler builds it from `COMMAND_REGISTRY` plus the profile's
+ * `quick_commands` and any skill commands, and reports a partial failure in
+ * `warning` rather than raising — so an empty section with a filled `warning`
+ * is a meaningful state and must not be swallowed.
+ *
+ * Errors: 5020. */
+export type CommandsCatalogParams = Record<string, never>
+
+export interface CommandCategory {
+  name: string
+  /** `[name, description]` pairs, in their order. */
+  pairs: string[][]
+}
+
+export interface CommandsCatalogResult {
+  pairs: string[][]
+  categories: CommandCategory[]
+  /** Lowercased alias → canonical `/name`. Includes every command's own name. */
+  canon: Record<string, string>
+  sub?: Record<string, string[]>
+  skill_count?: number
+  warning?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -609,15 +922,25 @@ export interface CommandDispatchParams {
   session_id?: string
 }
 
-/** Two shapes, discriminated by `type`: `exec` is output to display, `send` is
- * a prompt their side wants submitted as a user turn (with `notice` shown
- * first). `/goal <text>` returns `send` — setting a goal immediately kicks it
- * off — while status/pause/resume/clear return `exec`. */
+/** Five shapes, discriminated by `type` (all five read off their dispatcher):
+ * - `exec` — a quick command's captured output, in `output`
+ * - `plugin` — a plugin command's output, also in `output`
+ * - `send` — a prompt their side wants submitted as a user turn, in `message`,
+ *   with `notice` shown first (`/goal <text>`, `/learn`, skill bundles)
+ * - `skill` — a skill invocation message, in `message`, with the skill's
+ *   display `name`
+ * - `alias` — the command is an alias; `target` names what to run instead
+ *
+ * `/goal <text>` returns `send` — setting a goal immediately kicks it off —
+ * while status/pause/resume/clear return `exec`. A `type` outside these five is
+ * not guessed at by any caller: it is reported and nothing is sent. */
 export interface CommandDispatchResult {
-  type: 'exec' | 'send'
+  type: 'exec' | 'send' | 'plugin' | 'skill' | 'alias'
   output?: string
   notice?: string
   message?: string
+  name?: string
+  target?: string
 }
 
 /** `model.options` (task 1.6.9) — the provider/model catalogue behind the
@@ -701,13 +1024,24 @@ export interface ModelOptionsResult {
  * - `verbose`: `off` | `new` | `all` | `verbose` — this is `display.tool_progress`,
  *   the same setting that decides whether tool cards appear at all
  * - `busy`: `queue` | `steer` | `interrupt`
- * - `prompt`: the custom system prompt; the literal `clear` removes it */
-export type ConfigSetKey = 'model' | 'reasoning' | 'fast' | 'verbose' | 'prompt' | 'busy'
+ * - `prompt`: the custom system prompt; the literal `clear` removes it
+ * - `yolo`: `1`/`0` (also `on`/`off`); ANY other value, empty string included,
+ *   makes their handler INVERT the current state — so this app always sends an
+ *   explicit `'1'`/`'0'` (task 1.6.B5.21) */
+export type ConfigSetKey = 'model' | 'reasoning' | 'fast' | 'verbose' | 'prompt' | 'busy' | 'yolo'
 
 export interface ConfigSetParams {
   key: ConfigSetKey
   value: string
-  session_id?: string
+  session_id?: LiveSessionId
+  /** `yolo` only, and `'session'` ONLY — the type has no `'global'` member on
+   * purpose (owner decision B5-5=A). Their global scope rewrites
+   * `approvals.mode` in config.yaml to `off`/`manual`, which would bypass this
+   * app's own approvals selector (task 0.17) and destroy its `smart` mode,
+   * since their zap only knows two states. Omitting it also means a call
+   * without a live session is impossible to write by accident — that path
+   * flips `HERMES_YOLO_MODE` for the whole gateway process. */
+  scope?: 'session'
   /** Only meaningful for `key: 'model'`: re-sends a switch their side asked to
    * confirm because the model is expensive. */
   confirm_expensive_model?: boolean
@@ -1121,9 +1455,23 @@ export interface SessionInfoEvent {
   }
 }
 
+/** The gateway renamed a session by itself (task 1.6.B5.8): their auto-titler
+ * runs asynchronously after a turn and pushes the name it invented.
+ *
+ * A trap worth naming: the envelope's `session_id` is the LIVE sid (the frame
+ * is routed like any other event), while `payload.session_id` is the STORED
+ * key — their `title_callback` passes `_title_key`. A list keyed by stored ids
+ * must read the payload, not the envelope. */
+export interface SessionTitleEvent {
+  type: 'session.title'
+  session_id?: LiveSessionId
+  payload?: { session_id?: StoredSessionId; title?: string }
+}
+
 export type GatewayEvent =
   | GatewayReadyEvent
   | SessionInfoEvent
+  | SessionTitleEvent
   | MessageStartEvent
   | MessageDeltaEvent
   | ThinkingDeltaEvent
