@@ -1,15 +1,16 @@
 /** Composer logic that has nothing to do with the DOM (task 1.6.8): prompt
- * history, the send queue, and the slash-command trigger. Kept pure so the
- * rules are pinned by node tests, and the component stays a thin shell over
- * them — same split the rest of this chat already uses
- * (`tool-label-pure`, `reasoning-meta-pure`). */
-
-/** One message waiting for the agent to free up. `id` is stable so editing or
- * removing one entry never disturbs its neighbours. */
-export interface QueuedPrompt {
-  id: number
-  text: string
-}
+ * history, the slash-command trigger, and how the gateway's answers read.
+ * Kept pure so the rules are pinned by node tests, and the component stays a
+ * thin shell over them — same split the rest of this chat already uses
+ * (`tool-label-pure`, `reasoning-meta-pure`).
+ *
+ * THE SEND QUEUE USED TO LIVE HERE and is gone since task 1.6.B5.26. Up to
+ * hermes 0.18.0 a prompt sent mid-turn was rejected ("session busy") and every
+ * client had to hold it itself. 0.19.0 replaced that with a policy the CORE
+ * applies (`display.busy_input_mode`: queue / steer / interrupt), so a queue on
+ * this side would be a second mechanism stacked on the first — two places
+ * deciding when a message leaves, disagreeing under load. What is left is
+ * reading their answer out loud. */
 
 /** Where history navigation currently sits: `undefined` = not in history, the
  * user is looking at their own draft. `0` is the most recent sent prompt. */
@@ -54,44 +55,6 @@ export function rememberPrompt(history: readonly string[], text: string): string
   if (trimmed.length === 0) return [...history]
   if (history[history.length - 1] === trimmed) return [...history]
   return [...history, trimmed]
-}
-
-/** Adds a prompt to the send queue. Blank text is refused (returns the queue
- * unchanged), so an accidental Enter cannot enqueue an empty turn. */
-export function enqueuePrompt(
-  queue: readonly QueuedPrompt[],
-  nextId: number,
-  text: string
-): { queue: QueuedPrompt[]; nextId: number } {
-  const trimmed = text.trim()
-  if (trimmed.length === 0) return { queue: [...queue], nextId }
-  return { queue: [...queue, { id: nextId, text: trimmed }], nextId: nextId + 1 }
-}
-
-/** Rewrites one queued prompt in place. An edit that empties it removes it —
- * clearing the text is how a user cancels something already queued. */
-export function editQueued(
-  queue: readonly QueuedPrompt[],
-  id: number,
-  text: string
-): QueuedPrompt[] {
-  const trimmed = text.trim()
-  if (trimmed.length === 0) return queue.filter((item) => item.id !== id)
-  return queue.map((item) => (item.id === id ? { ...item, text: trimmed } : item))
-}
-
-/** Removes one queued prompt. */
-export function removeQueued(queue: readonly QueuedPrompt[], id: number): QueuedPrompt[] {
-  return queue.filter((item) => item.id !== id)
-}
-
-/** Pops the head of the queue for sending. */
-export function takeNextQueued(queue: readonly QueuedPrompt[]): {
-  next: QueuedPrompt | undefined
-  queue: QueuedPrompt[]
-} {
-  const [next, ...rest] = queue
-  return { next, queue: rest }
 }
 
 /**
@@ -176,4 +139,36 @@ export function applyReferenceCompletion(
 export function moveSelection(count: number, index: number, direction: 1 | -1): number {
   if (count === 0) return 0
   return (index + direction + count) % count
+}
+
+/** How to report what `prompt.submit` did with the message (task 1.6.B5.26).
+ *
+ * Three answers, and two of them are easy to mistake for failures. `queued`
+ * and `steered` mean the message was ACCEPTED — the core applied the user's own
+ * `display.busy_input_mode` policy — so saying nothing (as for `streaming`)
+ * would leave the user watching a message that appears to have gone nowhere,
+ * while an error would be a lie. */
+export function describeSubmitOutcome(status: string | undefined): string | undefined {
+  if (status === 'queued') return 'Сообщение принято — уйдёт следующим ходом.'
+  if (status === 'steered')
+    return 'Сообщение влито в идущий ход — агент увидит его на следующем шаге.'
+  return undefined
+}
+
+/** How to report `session.steer`'s answer (task 1.6.B5.16). `rejected` is not
+ * an error: the agent declined the note, usually because there is no tool
+ * boundary left in this turn to attach it to. */
+export function describeSteerOutcome(status: string | undefined): string {
+  if (status === 'queued') return 'Подсказка принята — агент увидит её на следующем шаге.'
+  if (status === 'rejected') return 'Агент не принял подсказку — сейчас её некуда вставить.'
+  return `Шлюз ответил непонятным статусом: ${status ?? 'пусто'}`
+}
+
+/** True for the gateway's 4010 — this agent has no `steer` at all.
+ *
+ * Worth telling apart from every other failure: it will not change for the
+ * life of the session, so the control is retired rather than left to fail on
+ * each press. */
+export function isSteerUnsupported(message: string): boolean {
+  return /4010|does not support steer/i.test(message)
 }

@@ -3,12 +3,19 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import ChatDock from './ChatDock'
 import { initialChatState, type ChatState } from './chat-state'
 
-/** Task 1.6.8 — the composer's three new behaviours, each tested through the
- * real component because the point of every one of them is a keyboard
- * interaction: history on the arrows, the queue while the agent is busy, and
- * slash completions from the gateway. */
+/** Task 1.6.8 — the composer's behaviours, each tested through the real
+ * component because the point of every one of them is a keyboard interaction:
+ * history on the arrows, what happens to a message typed mid-turn, and slash
+ * completions from the gateway.
+ *
+ * The mid-turn tests changed shape in task 1.6.B5.26: up to hermes 0.18.0 the
+ * gateway REFUSED a prompt sent during a turn and this composer held a queue of
+ * its own; 0.19.0 accepts it and applies the user's `display.busy_input_mode`
+ * policy itself. The behaviour under test is therefore no longer "it is held
+ * here" but "it leaves immediately and the answer is reported honestly". */
 
 const submitPrompt = vi.fn()
+const steerSession = vi.fn()
 const completeSlash = vi.fn()
 // Task 1.6.A5: the goal badge polls on mount, so the dock cannot be rendered
 // without this. Empty output is their "no goal", which keeps the badge off
@@ -20,7 +27,8 @@ const detachAttachment = vi.fn()
 const pasteAttachment = vi.fn()
 
 beforeEach(() => {
-  submitPrompt.mockResolvedValue(undefined)
+  submitPrompt.mockResolvedValue({ status: 'streaming' })
+  steerSession.mockResolvedValue({ status: 'queued' })
   completeSlash.mockResolvedValue({ items: [] })
   completePath.mockResolvedValue({ items: [] })
   dispatchGoal.mockResolvedValue({ output: '' })
@@ -29,6 +37,7 @@ beforeEach(() => {
   pasteAttachment.mockResolvedValue({ ok: false, error: 'нет картинки' })
   window.aecpilot = {
     submitPrompt,
+    steerSession,
     completeSlash,
     completePath,
     dispatchGoal,
@@ -75,27 +84,80 @@ test('стрелка вверх поднимает отправленное, в�
   expect(input.value).toBe('недописанное')
 })
 
-test('пока агент занят, сообщение уходит в очередь, а не теряется', async () => {
+test('во время хода сообщение уходит сразу, а не копится у нас (1.6.B5.26)', async () => {
+  submitPrompt.mockResolvedValue({ status: 'queued' })
   const input = renderDock({ streaming: true })
 
   fireEvent.change(input, { target: { value: 'подожди, ещё вопрос' } })
   fireEvent.keyDown(input, { key: 'Enter' })
 
-  // Не отправлено, но и не пропало: видно в очереди, поле очищено.
-  expect(submitPrompt).not.toHaveBeenCalled()
-  expect(screen.getByText('подожди, ещё вопрос')).toBeDefined()
+  // Уходит немедленно: политику «очередь / подрулить / прервать» применяет
+  // ядро по `display.busy_input_mode`, а не мы.
+  await waitFor(() => expect(submitPrompt).toHaveBeenCalledWith('подожди, ещё вопрос'))
   expect(input.value).toBe('')
+  // Локальной очереди больше нет вовсе.
+  expect(screen.queryByLabelText('Очередь сообщений')).toBeNull()
 })
 
-test('очередь можно поправить до отправки', async () => {
+test('ответ queued показывается как принятое, а не как отказ', async () => {
+  submitPrompt.mockResolvedValue({ status: 'queued' })
   const input = renderDock({ streaming: true })
-  fireEvent.change(input, { target: { value: 'с опечаткай' } })
+
+  fireEvent.change(input, { target: { value: 'ещё вопрос' } })
   fireEvent.keyDown(input, { key: 'Enter' })
 
-  fireEvent.click(screen.getByTitle('Изменить'))
-  // Вернулось в поле для правки и ушло из очереди.
-  expect(input.value).toBe('с опечаткай')
-  expect(screen.queryByLabelText('Очередь сообщений')).toBeNull()
+  await waitFor(() => expect(screen.getByText(/уйдёт следующим ходом/)).toBeDefined())
+})
+
+test('ответ steered показывается как влитое в идущий ход', async () => {
+  submitPrompt.mockResolvedValue({ status: 'steered' })
+  const input = renderDock({ streaming: true })
+
+  fireEvent.change(input, { target: { value: 'учти ещё вот что' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+
+  await waitFor(() => expect(screen.getByText(/влито в идущий ход/)).toBeDefined())
+})
+
+test('обычная отправка ничего не подтверждает — подтверждать нечего', async () => {
+  const input = renderDock()
+  fireEvent.change(input, { target: { value: 'вопрос' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  await waitFor(() => expect(submitPrompt).toHaveBeenCalled())
+  expect(screen.queryByText(/уйдёт следующим ходом/)).toBeNull()
+})
+
+test('подрулить можно только во время хода (1.6.B5.16)', () => {
+  renderDock()
+  expect(screen.queryByText('Подрулить')).toBeNull()
+
+  cleanup()
+  const input = renderDock({ streaming: true })
+  fireEvent.change(input, { target: { value: 'смотри в другую сторону' } })
+  expect(screen.getByText('Подрулить')).toBeDefined()
+})
+
+test('отклонённая подсказка — это ответ агента, а не сбой', async () => {
+  steerSession.mockResolvedValue({ status: 'rejected' })
+  const input = renderDock({ streaming: true })
+  fireEvent.change(input, { target: { value: 'подсказка' } })
+  fireEvent.click(screen.getByText('Подрулить'))
+
+  await waitFor(() => expect(screen.getByText(/не принял подсказку/)).toBeDefined())
+  expect(screen.queryByText(/^Ошибка/)).toBeNull()
+})
+
+test('4010 гасит кнопку до конца сессии и говорит об этом один раз', async () => {
+  steerSession.mockRejectedValue(new Error('4010: agent does not support steer'))
+  const input = renderDock({ streaming: true })
+  fireEvent.change(input, { target: { value: 'подсказка' } })
+  fireEvent.click(screen.getByText('Подрулить'))
+
+  await waitFor(() => expect(screen.getByText(/не умеет принимать подсказки/)).toBeDefined())
+  // Кнопки больше нет — повторять один и тот же отказ на каждое нажатие
+  // бессмысленно.
+  expect(screen.queryByText('Подрулить')).toBeNull()
+  expect(steerSession).toHaveBeenCalledTimes(1)
 })
 
 test('поле ввода не блокируется во время ответа агента', () => {

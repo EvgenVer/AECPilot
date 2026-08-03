@@ -2,20 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   applyReferenceCompletion,
   applySlashCompletion,
-  editQueued,
-  enqueuePrompt,
+  describeSteerOutcome,
+  describeSubmitOutcome,
+  isSteerUnsupported,
   moveSelection,
   navigateHistory,
   referenceQuery,
   rememberPrompt,
-  removeQueued,
-  slashQuery,
-  takeNextQueued,
-  type QueuedPrompt
+  slashQuery
 } from './composer-pure'
 
-// Task 1.6.8. History and the queue are the two places where a wrong rule
-// silently eats what the user typed, so the edges get pinned here.
+// Task 1.6.8. History is the place where a wrong rule silently eats what the
+// user typed, so its edges get pinned here. (The send queue used to live here
+// too; task 1.6.B5.26 handed that job back to the core — see composer-pure.ts.)
 
 const HISTORY = ['первый', 'второй', 'третий']
 
@@ -62,45 +61,6 @@ describe('rememberPrompt', () => {
 
   it('пустое и пробельное не запоминает', () => {
     expect(rememberPrompt(['а'], '   ')).toEqual(['а'])
-  })
-})
-
-describe('очередь сообщений', () => {
-  const queue: QueuedPrompt[] = [
-    { id: 1, text: 'раз' },
-    { id: 2, text: 'два' }
-  ]
-
-  it('добавляет с обрезкой пробелов и растущим id', () => {
-    const r = enqueuePrompt(queue, 7, '  три  ')
-    expect(r.queue).toHaveLength(3)
-    expect(r.queue[2]).toEqual({ id: 7, text: 'три' })
-    expect(r.nextId).toBe(8)
-  })
-
-  it('пустое в очередь не попадает и id не тратит', () => {
-    const r = enqueuePrompt(queue, 7, '   ')
-    expect(r.queue).toEqual(queue)
-    expect(r.nextId).toBe(7)
-  })
-
-  it('правка меняет только свой элемент', () => {
-    expect(editQueued(queue, 1, 'раз-два')).toEqual([
-      { id: 1, text: 'раз-два' },
-      { id: 2, text: 'два' }
-    ])
-  })
-
-  it('правка в пустоту удаляет элемент — это способ отменить', () => {
-    expect(editQueued(queue, 1, '  ')).toEqual([{ id: 2, text: 'два' }])
-  })
-
-  it('удаление и снятие с головы', () => {
-    expect(removeQueued(queue, 2)).toEqual([{ id: 1, text: 'раз' }])
-    const taken = takeNextQueued(queue)
-    expect(taken.next).toEqual({ id: 1, text: 'раз' })
-    expect(taken.queue).toEqual([{ id: 2, text: 'два' }])
-    expect(takeNextQueued([]).next).toBeUndefined()
   })
 })
 
@@ -189,5 +149,42 @@ describe('applyReferenceCompletion', () => {
     expect(applyReferenceCompletion('@a', { start: 0, end: 2 }, '@file:a.ts').text).toBe(
       '@file:a.ts '
     )
+  })
+})
+
+// --- task 1.6.B5.26 / B5.16: reading the gateway's answers ------------------
+
+describe('describeSubmitOutcome', () => {
+  it('называет очередь и подруливание принятыми, а не отказом', () => {
+    expect(describeSubmitOutcome('queued')).toContain('уйдёт следующим ходом')
+    expect(describeSubmitOutcome('steered')).toContain('влито в идущий ход')
+  })
+
+  it('на обычной отправке молчит', () => {
+    // `streaming` — это норма, и подтверждать её строкой значило бы шуметь на
+    // каждое сообщение.
+    expect(describeSubmitOutcome('streaming')).toBeUndefined()
+    expect(describeSubmitOutcome(undefined)).toBeUndefined()
+  })
+})
+
+describe('describeSteerOutcome', () => {
+  it('разводит принятую подсказку и отклонённую', () => {
+    expect(describeSteerOutcome('queued')).toContain('принята')
+    expect(describeSteerOutcome('rejected')).toContain('не принял')
+  })
+
+  it('незнакомый статус показывает как есть, а не выдаёт за успех', () => {
+    expect(describeSteerOutcome('maybe')).toContain('maybe')
+  })
+})
+
+describe('isSteerUnsupported', () => {
+  it('узнаёт 4010 — эта неспособность не изменится до конца сессии', () => {
+    expect(isSteerUnsupported('4010: agent does not support steer')).toBe(true)
+  })
+
+  it('обычную ошибку за неё не принимает', () => {
+    expect(isSteerUnsupported('5000: steer failed: boom')).toBe(false)
   })
 })

@@ -2903,51 +2903,6 @@ body.resizing-row * {
   cursor: default;
 }
 
-/* Очередь сообщений композера (задача 1.6.8): то, что набрано, пока агент
-   занят. Стоит над полем ввода, каждая строка правится и убирается. */
-.composer-queue {
-  list-style: none;
-  margin: 0 0 6px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.composer-queue__item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-chip);
-  background: var(--bg-raised);
-  font-size: var(--fs-small);
-  color: var(--text-2);
-}
-
-.composer-queue__text {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-queue__btn {
-  border: 0;
-  background: none;
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: var(--r-chip);
-}
-
-.composer-queue__btn:hover {
-  color: var(--text-1);
-  background: var(--bg-hover);
-}
-
 /* Подсказка слэш-команд (задача 1.6.8): список приходит из шлюза
    (`complete.slash`), поэтому в нём ровно те команды, что есть в этой сборке. */
 .composer-slash {
@@ -4485,4 +4440,27 @@ body.resizing-row * {
 
 .breakdown-row__value {
   font-variant-numeric: tabular-nums;
+}
+
+/* Подтверждение приёма сообщения и подруливание (батч 5) */
+.composer-notice {
+  margin: 0 0 4px;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.composer__steer {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 2px 8px;
+  font: inherit;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.composer__steer:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

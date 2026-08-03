@@ -15,16 +15,15 @@ import { MarkdownTextContent } from './vendor/hermes/markdown-text'
 import {
   applyReferenceCompletion,
   applySlashCompletion,
-  enqueuePrompt,
+  describeSteerOutcome,
+  describeSubmitOutcome,
+  isSteerUnsupported,
   referenceQuery,
   moveSelection,
   navigateHistory,
   rememberPrompt,
-  removeQueued,
-  takeNextQueued,
   slashQuery,
-  type HistoryCursor,
-  type QueuedPrompt
+  type HistoryCursor
 } from './composer-pure'
 import { AttachIcon, SendIcon } from '../shell/icons'
 import type { GatewayConnectionState, SlashCompletionItem } from '../../../shared/gateway/types'
@@ -63,8 +62,14 @@ export default function ChatDock({
   const [history, setHistory] = useState<string[]>([])
   const [historyCursor, setHistoryCursor] = useState<HistoryCursor>(undefined)
   const [stashedDraft, setStashedDraft] = useState('')
-  const [queue, setQueue] = useState<QueuedPrompt[]>([])
-  const [queueNextId, setQueueNextId] = useState(1)
+  // Task 1.6.B5.26/B5.16: what the gateway did with the last message
+  // ("queued"/"steered") and what steering answered. Both are transient
+  // acknowledgements, not errors — see `describeSubmitOutcome`.
+  const [sendNotice, setSendNotice] = useState<string | undefined>(undefined)
+  // Their 4010 says this agent has no `steer` at all, which will not change
+  // for the life of the session — so the control retires instead of failing on
+  // every press.
+  const [steerUnsupported, setSteerUnsupported] = useState(false)
   const [slashItems, setSlashItems] = useState<SlashCompletionItem[]>([])
   const [slashIndex, setSlashIndex] = useState(0)
   // Task 1.6.A3. Which of the two completion sources the current list came
@@ -83,7 +88,6 @@ export default function ChatDock({
   // The oldest outstanding blocking request (task 1.5.D1). All three kinds
   // are answerable now, so the head of the queue is always what to show.
   const pendingInteractive = state.interactive[0]
-  const busy = state.streaming || awaitingApproval
   const canSend = draft.trim().length > 0 && connectionState === 'ready'
   // Derived, not cleared: the moment the draft stops being a bare "/command"
   // (or an `@`-reference) the list is closed, with no state write to do it
@@ -99,40 +103,25 @@ export default function ChatDock({
   const send = useCallback(
     async (text: string): Promise<void> => {
       setSubmitError(undefined)
+      setSendNotice(undefined)
       // Task 1.6.A4: their `prompt.submit` folds the session's attachments
-      // into this message and empties the list, so the chips go here — at the
-      // actual send — and not when a message is merely queued, which would
-      // claim files had left while they are still waiting with the queue.
+      // into this message and empties the list, so the chips go here, at the
+      // actual send.
       setAttachments([])
       setAttachError(undefined)
       dispatch({ kind: 'user-submit', text })
       try {
-        await window.aecpilot.submitPrompt(text)
+        const result = await window.aecpilot.submitPrompt(text)
+        // Task 1.6.B5.26: `queued` and `steered` are acceptances, not
+        // failures — the core applied the user's own busy-input policy. Saying
+        // nothing about them would leave a message looking lost.
+        setSendNotice(describeSubmitOutcome(result?.status))
       } catch (error) {
         setSubmitError(error instanceof Error ? error.message : String(error))
       }
     },
     [dispatch]
   )
-
-  // Task 1.6.8: the queue drains itself the moment the agent is free again.
-  // The pop happens on the next microtask, not in the effect body — a
-  // synchronous setState there would cascade renders (`react-hooks/
-  // set-state-in-effect`), and one microtask is invisible to the user.
-  useEffect(() => {
-    if (busy || connectionState !== 'ready' || queue.length === 0) return
-    let cancelled = false
-    void Promise.resolve().then(() => {
-      if (cancelled) return
-      const { next, queue: rest } = takeNextQueued(queue)
-      if (!next) return
-      setQueue(rest)
-      void send(next.text)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [busy, connectionState, queue, send])
 
   // Both completion lists come from the gateway itself (`complete.slash`,
   // `complete.path`), so they always describe this build and this project —
@@ -209,15 +198,37 @@ export default function ChatDock({
     setDraft('')
     resetHistoryWalk()
     setHistory((prev) => rememberPrompt(prev, text))
-    // Busy is not a reason to lose what was typed: it goes to the queue and
-    // leaves on its own (see the effect above).
-    if (busy) {
-      const { queue: next, nextId } = enqueuePrompt(queue, queueNextId, text)
-      setQueue(next)
-      setQueueNextId(nextId)
-      return
-    }
+    // Task 1.6.B5.26: no branch on `busy` any more. Since hermes 0.19.0 the
+    // gateway itself decides what a mid-turn message does — queue it, steer it
+    // into the running turn, or interrupt — according to
+    // `display.busy_input_mode`, which the user sets in "Поведение агента".
+    // Deciding it here as well would mean two mechanisms racing to own the
+    // same message.
     await send(text)
+  }
+
+  /** Task 1.6.B5.16: a note for the RUNNING turn, deliberately separate from
+   * sending. It lands on the next tool result and never becomes a user turn,
+   * which is exactly what makes it useful mid-answer — and why it is offered
+   * only while the agent is streaming. */
+  async function handleSteer(): Promise<void> {
+    const text = draft.trim()
+    if (!text || !state.streaming || steerUnsupported) return
+    setSubmitError(undefined)
+    try {
+      const result = await window.aecpilot.steerSession(text)
+      setDraft('')
+      resetHistoryWalk()
+      setSendNotice(describeSteerOutcome(result?.status))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (isSteerUnsupported(message)) {
+        setSteerUnsupported(true)
+        setSendNotice('Этот агент не умеет принимать подсказки на ходу.')
+        return
+      }
+      setSubmitError(message)
+    }
   }
 
   function applyCompletion(item: SlashCompletionItem): void {
@@ -427,38 +438,13 @@ export default function ChatDock({
         )}
         {attachError && <p className="composer-attachments__error">{attachError}</p>}
 
-        {/* Task 1.6.8: what was typed while the agent was busy. Editable and
-            removable right up until it leaves — a queued message is still the
-            user's, not something already said. */}
-        {queue.length > 0 && (
-          <ul className="composer-queue" aria-label="Очередь сообщений">
-            {queue.map((item) => (
-              <li className="composer-queue__item" key={item.id}>
-                <span className="composer-queue__text">{item.text}</span>
-                <button
-                  type="button"
-                  className="composer-queue__btn"
-                  title="Изменить"
-                  onClick={() => {
-                    setQueue(removeQueued(queue, item.id))
-                    setDraft(item.text)
-                    textareaRef.current?.focus()
-                  }}
-                >
-                  Изменить
-                </button>
-                <button
-                  type="button"
-                  className="composer-queue__btn"
-                  title="Убрать из очереди"
-                  aria-label={`Убрать из очереди: ${item.text}`}
-                  onClick={() => setQueue(removeQueued(queue, item.id))}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+        {/* Task 1.6.B5.26: what the gateway did with the message. The queue
+            that used to be drawn here belonged to a protocol that no longer
+            exists — the core holds the message now, and this says so. */}
+        {sendNotice && (
+          <p className="composer-notice" role="status">
+            {sendNotice}
+          </p>
         )}
 
         <div className="composer">
@@ -530,6 +516,19 @@ export default function ChatDock({
               connected={connectionState === 'ready'}
             />
             <div style={{ flex: 1 }} />
+            {/* Task 1.6.B5.16. Only while a turn is running: outside one there
+                is nothing to steer, and their handler would answer 4002. */}
+            {state.streaming && !steerUnsupported && (
+              <button
+                type="button"
+                className="composer__steer"
+                onClick={() => void handleSteer()}
+                disabled={draft.trim().length === 0 || connectionState !== 'ready'}
+                title="Подсказать агенту, не прерывая ход"
+              >
+                Подрулить
+              </button>
+            )}
             <button
               type="button"
               className="composer__send"
