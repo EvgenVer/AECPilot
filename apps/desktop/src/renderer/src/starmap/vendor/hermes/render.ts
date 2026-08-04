@@ -157,7 +157,8 @@ function sphereFill(
   ctx.drawImage(sprite, x - drawSize / 2, y - drawSize / 2, drawSize, drawSize)
 }
 
-const rectsOverlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+const rectsOverlap = (a: Rect, b: Rect) =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 
 // Paint a full frame of the star map. Pure given its inputs (draws to the
 // canvas + advances the fade buckets); returns whether it's still animating and
@@ -310,7 +311,7 @@ export function drawScene(scene: Scene): DrawResult {
   // Opacity envelope that stays near-full through most of the grow/shrink and
   // only fades in the final stretch — so the radius TRAVEL is visible (the ring
   // shrinks back into place) instead of just dimming out where it stands.
-  const ringVis = ringAppear.map(a => clamp(a / 0.55, 0, 1))
+  const ringVis = ringAppear.map((a) => clamp(a / 0.55, 0, 1))
 
   // Inter-ring bands: a theme-tinted wash sliver at the outer edge; the lit
   // date's band flattens to an even wash.
@@ -373,7 +374,8 @@ export function drawScene(scene: Scene): DrawResult {
     // The core ring (i 0) fades in from reveal 0 so the scramble orb starts
     // un-enclosed (no outline boxing it in) and the shell appears as it plays.
     const coreFade = i === 0 ? clamp(reveal / 0.08, 0, 1) : 1
-    const ringAlphaNow = fadeAlpha(fades.rings, String(i), emphasisAlpha, emphasized) * (ringVis[i] ?? 1) * coreFade
+    const ringAlphaNow =
+      fadeAlpha(fades.rings, String(i), emphasisAlpha, emphasized) * (ringVis[i] ?? 1) * coreFade
 
     if (ringAlphaNow < 0.004) {
       return
@@ -411,7 +413,9 @@ export function drawScene(scene: Scene): DrawResult {
     const lit =
       revealed &&
       !!focusId &&
-      (s.id === focusId || t.id === focusId || (!!focusSet && focusSet.has(s.id) && focusSet.has(t.id)))
+      (s.id === focusId ||
+        t.id === focusId ||
+        (!!focusSet && focusSet.has(s.id) && focusSet.has(t.id)))
 
     let x1 = projX(s.x)
     let y1 = projY(s.y)
@@ -488,7 +492,17 @@ export function drawScene(scene: Scene): DrawResult {
     // while t≈0 spore-zoom no longer inflates nodes into bubbles.
     const r = nodeRadius(n) * nodeK * ageScale
 
-    const baseAlpha = nodeHigh ? 1 : ring ? (inRing ? (focusId ? 0.55 : 1) : 0.16) : focusId ? 0.16 : recencyInk(er)
+    const baseAlpha = nodeHigh
+      ? 1
+      : ring
+        ? inRing
+          ? focusId
+            ? 0.55
+            : 1
+          : 0.16
+        : focusId
+          ? 0.16
+          : recencyInk(er)
     const alpha = fadeAlpha(fades.nodes, n.id, revealed ? baseAlpha : 0, nodeHigh || inRing)
 
     // Birth fade + warp rise are coupled (slow rates) so a star grows in instead
@@ -602,7 +616,10 @@ export function drawScene(scene: Scene): DrawResult {
 
     const badges = metaBadges(tip)
     const use = countLabel(tip)
-    const titleText = tip.kind === 'memory' ? memById.get(tip.id)?.body.split('\n')[0]?.trim() || tip.label : tip.label
+    const titleText =
+      tip.kind === 'memory'
+        ? memById.get(tip.id)?.body.split('\n')[0]?.trim() || tip.label
+        : tip.label
 
     const badgeW = badges.map((b, i) => {
       ctx.font = badgeFontFor(i)
@@ -618,7 +635,7 @@ export function drawScene(scene: Scene): DrawResult {
     ctx.font = titleFont
     const maxTitleW = Math.min(380, w - 16) - PADX * 2
     const titleLines = wrapText(ctx, titleText, maxTitleW)
-    const titleW = Math.max(0, ...titleLines.map(l => ctx.measureText(l).width))
+    const titleW = Math.max(0, ...titleLines.map((l) => ctx.measureText(l).width))
     const titleBgW = titleW + PADX * 2
     const titleBgH = titleLines.length * LINE_H + PADY * 2
 
@@ -629,7 +646,11 @@ export function drawScene(scene: Scene): DrawResult {
     const totalW = Math.max(metaW, footerW, titleBgW)
     const totalH = BADGE_H + ROW_GAP + titleBgH + (footerText ? ROW_GAP + FOOTER_H : 0)
     const bx = clamp(projX(tip.x) - totalW / 2, 4, Math.max(4, w - totalW - 4))
-    const by = clamp(projY(tip.y) - (nodeRadius(tip) * nodeK + 8) - totalH, 4, Math.max(4, h - totalH - 4))
+    const by = clamp(
+      projY(tip.y) - (nodeRadius(tip) * nodeK + 8) - totalH,
+      4,
+      Math.max(4, h - totalH - 4)
+    )
     tipRect = { h: totalH, w: totalW, x: bx, y: by }
 
     ctx.textAlign = 'left'
@@ -676,7 +697,7 @@ export function drawScene(scene: Scene): DrawResult {
   ctx.textAlign = 'center'
   const LBL_M = 6
   const LBL_H = 15
-  const placed: Rect[] = ringLabelRects.map(r => ({ h: r.h, w: r.w, x: r.x, y: r.y }))
+  const placed: Rect[] = ringLabelRects.map((r) => ({ h: r.h, w: r.w, x: r.x, y: r.y }))
 
   if (tipRect) {
     placed.push(tipRect)
@@ -707,7 +728,7 @@ export function drawScene(scene: Scene): DrawResult {
       for (const dy of k === 0 ? [0] : [-k * step, k * step]) {
         const cand = { h: LBL_H, w: bw, x, y: clampY(top + dy) }
 
-        if (!placed.some(p => rectsOverlap(cand, p))) {
+        if (!placed.some((p) => rectsOverlap(cand, p))) {
           y = cand.y
 
           break

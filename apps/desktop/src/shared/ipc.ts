@@ -287,9 +287,25 @@ export interface LearningMemoryCard {
   body?: string
 }
 
+/** A declared `related_skills` link, or a memory↔skill overlap. Both endpoints
+ * are node ids (`agent/learning_graph.py:311`). Present in the payload since
+ * before batch 3; typed here only in batch 7, when the map became the first
+ * screen to draw them — the journey timeline never needed them. */
+export interface LearningEdge {
+  source: string
+  target: string
+}
+
+export interface LearningCluster {
+  category: string
+  count: number
+}
+
 export interface LearningGraph {
   nodes: LearningNode[]
   memory: LearningMemoryCard[]
+  edges?: LearningEdge[]
+  clusters?: LearningCluster[]
   stats?: Record<string, unknown>
 }
 

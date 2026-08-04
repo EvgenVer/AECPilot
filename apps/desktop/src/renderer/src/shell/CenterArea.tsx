@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ACTIVITIES, type ActivityId } from './activities'
 import BottomPanel from './BottomPanel'
 import ArtifactsTab from '../artifacts/ArtifactsTab'
+import StarmapTab from '../starmap/StarmapTab'
 
 const CENTER_EMPTY_HINT: Record<ActivityId, string> = {
   explorer: 'Откройте файл в проводнике, чтобы увидеть его здесь.',
@@ -19,9 +20,12 @@ const CENTER_EMPTY_HINT: Record<ActivityId, string> = {
  * They open and close like a document tab, and both start closed: neither is
  * something the user is in the middle of, and an app that opens two panels
  * before being asked is an app that scans the session database at startup. */
-export type CenterTabId = 'artifacts'
+export type CenterTabId = 'artifacts' | 'starmap'
 
-const CENTER_TABS: { id: CenterTabId; label: string }[] = [{ id: 'artifacts', label: 'Артефакты' }]
+const CENTER_TABS: { id: CenterTabId; label: string }[] = [
+  { id: 'artifacts', label: 'Артефакты' },
+  { id: 'starmap', label: 'Карта обучения' }
+]
 
 /** Center column (task 1.0): the tab strip (empty until something is opened —
  * viewers/editor land in Phase 1/3) plus the collapsible bottom panel. The
@@ -91,6 +95,8 @@ export default function CenterArea({
       <div className="center__body">
         {activeTab === 'artifacts' ? (
           <ArtifactsTab />
+        ) : activeTab === 'starmap' ? (
+          <StarmapTab />
         ) : (
           <div className="center__empty">
             <strong>{activity?.label}</strong>
