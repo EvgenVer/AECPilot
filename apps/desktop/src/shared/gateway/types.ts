@@ -647,9 +647,8 @@ export interface LearningDetailResult {
 //
 // `process.stop` is DELIBERATELY ABSENT from the method map above: it is
 // `kill_all()` across every session of the gateway process, and owner decision
-// R8 (docs/decisions-phase-1.6-batches.md) is "no such button — one at a time,
-// within our own session". Adding the type would be the first half of building
-// the button.
+// R8 of phase 1.6 is "no such button — one at a time, within our own session".
+// Adding the type would be the first half of building the button.
 // ---------------------------------------------------------------------------
 
 /** The `config.get` keys this app reads. `full` is deliberately not among

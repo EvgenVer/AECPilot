@@ -4,7 +4,7 @@ import type { ApprovalRequest } from './chat-state'
 type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 
 /** Pinned approval request (task 0.13; parity pass 1.6.12 against their
- * `tool/approval.tsx` — see docs/parity-approvals.md).
+ * `tool/approval.tsx`).
  *
  * Keyboard mirrors theirs: Ctrl/⌘+Enter allows once, Esc denies. The composer
  * is disabled while an approval is up, so these listeners cannot steal a

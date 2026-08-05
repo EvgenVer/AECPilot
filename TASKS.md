@@ -34,8 +34,8 @@
 - [x] 1.7.8 Проверить ловушку кэша MCP: в 0.20.0 серверы стартуют лениво из кэша схем по fingerprint — остаётся ли обязательным `reload.mcp confirm:true` при смене проекта — files: apps/desktop/src/main, MEMORY.md · verify: замер на двух проектах с разными источниками: агент не видит источники прежнего проекта · dep: 1.7.2 · parallel: no
 - [x] 1.7.9 Свести версии `mcp` и `starlette` между ядром (0.20.0 пиннит `mcp==1.28.1`, `starlette==1.3.1` из-за CVE-2026-48710) и корневым uv-workspace наших MCP-серверов — files: pyproject.toml, uv.lock · verify: в обоих окружениях `starlette` ≥ 1.0.1; расхождение версий осознано и записано · dep: 1.7.2 · parallel: yes
 - [x] 1.7.10 Перенаправить ссылки вида `tui_gateway/server.py:NNNN` в specs, MEMORY и комментариях на адресацию «модуль + имя метода» — files: specs/*, MEMORY.md, apps/desktop · verify: `grep -r "server.py:[0-9]"` по репозиторию пуст · dep: 1.7.4 · parallel: yes
-- [ ] 1.7.11 Удалить отработавшие планировочные артефакты: `docs/decisions-phase-1.6-batches.md`, `docs/parity-approvals.md` — files: docs/ · verify: файлы удалены; ни один документ на них не ссылается · dep: — · parallel: yes
-- [ ] 1.7.12 Удалить слепок `runtime/contracts/hermes-0.19.0.json` после разбора диффа — files: runtime/contracts · verify: остался только слепок 0.20.0 · dep: 1.7.6 · parallel: no
+- [x] 1.7.11 Удалить отработавшие планировочные артефакты: `docs/decisions-phase-1.6-batches.md`, `docs/parity-approvals.md` — files: docs/ · verify: файлы удалены; ни один документ на них не ссылается · dep: — · parallel: yes
+- [x] 1.7.12 Удалить слепок `runtime/contracts/hermes-0.19.0.json` после разбора диффа — files: runtime/contracts · verify: остался только слепок 0.20.0 · dep: 1.7.6 · parallel: no
 - [x] 1.7.13 Прогнать полный набор проверок на обновлённом ядре и зафиксировать — files: — · verify: vitest, e2e, pytest, lint/tsc/prettier/ruff зелёные · dep: 1.7.6, 1.7.7 · parallel: no
   <!-- Прогон 2026-08-05 на ядре 0.20.0: vitest 1242 в 84 файлах (было 1230 — +12 тестов
        сравнивателя слепков), pytest 131 passed / 3 skipped (было 129 — +2 теста floor'а

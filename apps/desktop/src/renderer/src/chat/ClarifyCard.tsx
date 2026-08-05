@@ -34,7 +34,7 @@ function QuestionIcon() {
  * request is gone (typically it timed out), so a failure is surfaced and the
  * card stays put rather than silently pretending it was delivered.
  *
- * Parity pass 1.6.12 (their `clarify-tool.tsx`, see docs/parity-approvals.md):
+ * Parity pass 1.6.12 (their `clarify-tool.tsx`):
  * the offered options never trap the user — a free-text answer is available
  * next to them, picking an option selects rather than sends, and "Пропустить"
  * sends the empty answer their core treats as "no preference". */
