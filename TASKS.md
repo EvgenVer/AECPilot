@@ -102,7 +102,11 @@
 ### Phase 1.8 — Миграция рендерера на стек донора (PLAN §Слой донора, решения D2/D3/D5)
 
 **Фундамент**
-- [ ] 1.8.1 ⚠️ ГЕЙТ ЗАВИСИМОСТЕЙ: провести `dependency-vetting` по `tailwindcss` v4, `@tailwindcss/vite`, `clsx`, `class-variance-authority`, `tailwind-merge`, `nanostores`, `@nanostores/react`, `@tanstack/react-query`, `@vscode/codicons` (реестр, репозиторий, сопровождение, лицензия, установочные скрипты, вес) и оформить Vibe Diff → **STOP до «go» владельца** — files: PLAN.md §Selected dependencies · verify: отчёт по каждому пакету; ни одна установка не выполнена до «go» · dep: — · parallel: no
+- [~] 1.8.1 ⚠️ ГЕЙТ ЗАВИСИМОСТЕЙ: провести `dependency-vetting` по `tailwindcss` v4, `@tailwindcss/vite`, `clsx`, `class-variance-authority`, `tailwind-merge`, `nanostores`, `@nanostores/react`, `@tanstack/react-query`, `@vscode/codicons` (реестр, репозиторий, сопровождение, лицензия, установочные скрипты, вес) и оформить Vibe Diff → **STOP до «go» владельца** — files: PLAN.md §Selected dependencies · verify: отчёт по каждому пакету; ни одна установка не выполнена до «go» · dep: — · parallel: no
+  <!-- Веттинг проведён 2026-08-05, отчёт — `PLAN.md` §Selected dependencies; установок не
+       делалось. Ждёт двух ответов владельца: (1) «go» на установку, (2) решение по
+       CC-BY-4.0 у `@vscode/codicons` относительно правила C3. Отметить [x] после «go». -->
+
 - [ ] 1.8.2 Установить утверждённый стек точными версиями; Radix-примитивы **не ставить пачкой** — по одному при первом использовании — files: apps/desktop/package.json, pnpm-lock.yaml · verify: `pnpm build` проходит; `npm audit` чист; лицензии permissive (C3) · dep: 1.8.1 · parallel: no
 - [x] 1.8.3 Зафиксировать точку съёмки донора: `DONOR_SHA` + версия их десктопа; перевести локальный клон `D:\my program\Hermes\hermes-agent` на этот коммит (read-only) — files: runtime/donor-env.mjs · verify: константа записана; `git -C <клон> rev-parse HEAD` совпадает · dep: — · parallel: yes
   <!-- Вторая половина задачи снята как ненужная: установка ядра уже держит detached-чекаут
