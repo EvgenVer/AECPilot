@@ -107,7 +107,7 @@ Vault (создаётся при создании проекта):
     index.db       # SQLite: files(source_id, rel_path, size, mtime, sha256,
                    #   status: ok|changed|deleted|detached, indexed_at) + FTS5 по извлечённому тексту
     lancedb/       # векторное хранилище (появляется в Phase 2)
-    memory/        # память проекта Mem0 (появляется в Phase 4, specs/agent-memory.md)
+    memory/        # память проекта Mem0 (появляется в Phase 5, specs/agent-memory.md)
     logs/          # журнал операций и отклонённых попыток записи
 ```
 

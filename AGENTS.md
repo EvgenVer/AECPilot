@@ -208,6 +208,10 @@ Skills live in `.agents/skills/<name>/SKILL.md`; the installer copies them to
 | `docs/CODE_REVIEW.md` | Review checklist + risk-summary format |
 
 ## Conventions
+- **Live work is only what stands in `TASKS.md`.** Task IDs of closed phases (`0.x`, `1.x`,
+  `1.5.x`, `1.6.x`) still appear inside `specs/` as **provenance** — "this fact was measured
+  by that task" — and are not pointers to work you can look up. The current course lives in
+  `PLAN.md` §"Смена курса"; anything older that contradicts it is void.
 - All toolkit files are written in **English** (this file, docs, skills, templates).
 - Markdown for prose; YAML for nested structures/config; optimize the concrete format
   for the primary tool.

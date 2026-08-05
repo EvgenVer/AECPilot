@@ -2,7 +2,7 @@
 <!-- Behavior contract for ONE feature. References SPECIFICATION, never copies it. -->
 
 ## Overview & requirement link
-Ref: SPECIFICATION.md — G2; UR6; AC3; N7 (изменения только по команде); C7 (язык вики — настройка проекта).
+Ref: SPECIFICATION.md — G2; UR6 (агент обновляет вики только по команде); AC3; C7 (язык вики — настройка проекта).
 Базис: бандловый скилл Hermes `research-llm-wiki` (операции ingest/query/lint/update; слои raw → wiki → SCHEMA), адаптированный под AEC-домен.
 
 ## Behavior (BDD / Gherkin)

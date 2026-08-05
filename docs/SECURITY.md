@@ -67,6 +67,28 @@ Detail: the `dependency-vetting` skill.
 When project tooling exists, run it before marking risky work done: secret-scan,
 dependency-vulnerability check, light SAST. Detail: the `security-review` skill.
 
+## Project-specific threat notes (AECPilot)
+Added 2026-08-05 with the course change; full risk register lives in `SPECIFICATION.md`.
+
+- **Core plugin directory is a code-execution path (R11).** Hermes loads any ESM file from
+  `$HERMES_HOME/desktop-plugins/<id>/plugin.js` into its renderer with gateway RPC access,
+  and the agent can write files. The directory exists whether or not we use it. We ship no
+  loader of our own (SPEC HX5), keep that directory outside the agent's working folder, and
+  inspect its contents on every core upgrade.
+- **External channels move project data outward (R10).** Messaging, A2A, and outbound
+  webhooks (UR19) make an agent that can read project files reachable from outside. They
+  ship **disabled by default**; enabling one is an explicit user action that first lists
+  what leaves the machine (AC10). Outbound payloads are signed.
+- **Provider keys never touch plaintext.** Keys live only in our `safeStorage` and reach
+  the core through spawn-env. `model.save_key` (writes plaintext to `.env`) and
+  `POST /api/env/reveal` (returns the key in clear) are never called. `config.get
+  {key:"full"}` returns MCP env unmasked — prefer the REST equivalent, which redacts.
+- **Renderer never opens a socket to the gateway** (SPEC C9). Donor components are adapted
+  to our IPC bridge; `contextIsolation` and `sandbox` stay on, including for the artifact
+  preview sandbox (UR22).
+- **Core is pinned by commit SHA, never by tag** (SPEC C1). PyPI publication ended in
+  0.20.0; a tag can be moved by its author, a SHA cannot. No auto-update of the core.
+
 ## Out of scope for now (adopt only when needed)
 Production policy servers (OPA), SPIFFE/mTLS, SLSA/Cosign supply-chain attestation, SIEM.
 For local development, Protected Files + Risk Classes + Vibe Diff + HITL are sufficient.
