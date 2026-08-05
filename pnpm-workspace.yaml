@@ -1,6 +1,13 @@
 packages:
   - apps/*
 
+# `unicode-animations` ships a postinstall that prints a spinner demo to
+# /dev/tty for three seconds. Harmless (read the script: no network, no writes)
+# and useless to us, so it stays unbuilt — recorded here rather than left as a
+# warning, because a standing warning is a decision nobody made.
+allowBuilds:
+  unicode-animations: false
+
 minimumReleaseAgeExclude:
   - '@assistant-ui/core@0.2.23'
   - '@assistant-ui/react@0.14.29'

@@ -40,17 +40,8 @@ export {
 export {
   GatewayBridge as JsonRpcGatewayClient,
   type DonorConnectionState as ConnectionState,
+  type DonorGatewayEvent as GatewayEvent,
   type GatewayClientOptions
 } from '../gateway-bridge'
-
-/** Their event envelope. Declared here rather than re-exported from our
- * `shared/gateway/types` because theirs carries `profile` (their multi-backend
- * tag) and a widened `type`, and their components read both. */
-export interface GatewayEvent<P = unknown> {
-  payload?: P
-  profile?: string
-  session_id?: string
-  type: string
-}
 
 export type GatewayEventName = string

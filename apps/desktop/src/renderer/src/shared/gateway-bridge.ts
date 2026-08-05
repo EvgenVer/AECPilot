@@ -21,6 +21,16 @@
 
 import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
 
+/** Their event envelope. Generic in the payload because their code annotates
+ * per-subscription (`on<{ done?: string }>('pet.hatch.progress', …)`), and
+ * carrying `profile` because their multi-backend registry tags events with it. */
+export interface DonorGatewayEvent<P = unknown> {
+  payload?: P
+  profile?: string
+  session_id?: string
+  type: string
+}
+
 /** Their state vocabulary, which their components switch on. */
 export type DonorConnectionState = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
 
@@ -58,7 +68,7 @@ export function toDonorState(state: GatewayConnectionState): DonorConnectionStat
   }
 }
 
-type EventHandler = (event: GatewayEvent) => void
+type EventHandler = (event: DonorGatewayEvent) => void
 
 const ANY = '*'
 
@@ -78,8 +88,8 @@ export class GatewayBridge {
         : window.aecpilot
 
     this.disposers.push(
-      this.api.onChatEvent((event) => {
-        this.dispatch(event)
+      this.api.onChatEvent((event: GatewayEvent) => {
+        this.dispatch(event as DonorGatewayEvent)
       }),
       this.api.onGatewayState((state) => {
         this.setState(state)
@@ -129,12 +139,12 @@ export class GatewayBridge {
   }
 
   /** Subscribes to one event type. Returns an unsubscribe function. */
-  on(type: string, handler: EventHandler): () => void {
+  on<P = unknown>(type: string, handler: (event: DonorGatewayEvent<P>) => void): () => void {
     const set = this.handlers.get(type) ?? new Set<EventHandler>()
-    set.add(handler)
+    set.add(handler as EventHandler)
     this.handlers.set(type, set)
     return () => {
-      set.delete(handler)
+      set.delete(handler as EventHandler)
     }
   }
 
@@ -178,7 +188,7 @@ export class GatewayBridge {
     for (const handler of this.stateHandlers) handler(mapped)
   }
 
-  private dispatch(event: GatewayEvent): void {
+  private dispatch(event: DonorGatewayEvent): void {
     for (const handler of this.handlers.get(event.type) ?? []) handler(event)
     for (const handler of this.handlers.get(ANY) ?? []) handler(event)
   }
