@@ -2376,7 +2376,19 @@ app
           // GatewayClient does not retry a failed *initial* connect (auto-reconnect
           // only engages after the first successful 'ready'), so connecting too
           // early leaves the app permanently disconnected.
-          await waitHealthy(serveHandle, 30000)
+          //
+          // Four minutes rather than the 30 s this used to allow. The budget is
+          // for the FIRST launch after an install, and 30 s turned out to be
+          // thin: measured on this machine, a warm start is 2.1 s, a start with
+          // the core's bytecode cache wiped is 8.5 s — and the one run that
+          // actually blew the limit was the first launch after writing the
+          // core's 217 MB to disk, which no measurement here reproduces (a
+          // virus scanner reading a freshly written tree is the standing
+          // suspect). Waiting costs nothing when the gateway is quick; giving
+          // up early costs the user a window that never connects, with only a
+          // console line to say why. Surfacing the wait in the UI belongs to
+          // the migrated shell (task 1.8.15), not to a screen we are replacing.
+          await waitHealthy(serveHandle, 240000)
 
           // SECURITY: serveHandle.wsUrl embeds the gateway auth token
           // (?token=…). It stays in the main process only — never send it over
