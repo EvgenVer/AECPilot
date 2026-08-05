@@ -1,4 +1,5 @@
 import { defineConfig, configDefaults } from 'vitest/config'
+import { donorAliases } from './electron.vite.config'
 
 // e2e/** is Playwright's test suite (task 0.16), not vitest's — its own
 // config (playwright.config.ts) runs it via `pnpm e2e`.
@@ -10,9 +11,13 @@ const exclude = [...configDefaults.exclude, 'e2e/**']
 // and gets jsdom, `*.test.ts` stays on node — so a test file declares its own
 // environment by what it is, with nothing to keep in sync here.
 export default defineConfig({
+  // Same aliases the renderer build uses, so a vendored donor file resolves
+  // identically under vitest and under vite.
+  resolve: { alias: donorAliases },
   test: {
     projects: [
       {
+        resolve: { alias: donorAliases },
         test: {
           name: 'node',
           environment: 'node',
@@ -25,6 +30,7 @@ export default defineConfig({
         }
       },
       {
+        resolve: { alias: donorAliases },
         test: {
           name: 'dom',
           environment: 'jsdom',

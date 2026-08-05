@@ -1,26 +1,40 @@
 // The one seam the donor's code is always edited at (PLAN §Слой донора, edit
 // kind 1): their gateway client opens a WebSocket from the renderer and holds
 // the session token to do it. SPEC C9 says our renderer does neither — main
-// owns the socket, the host, the port and the token — so their client is
-// replaced by this adapter, which presents the same surface over our IPC
-// bridge. Their ~200 typed wrappers (`hermes.ts`) then work unedited.
+// owns the socket, the host, the port and the token — so their client class is
+// replaced by this one, which presents the SAME surface over our IPC bridge.
+// Their ~200 typed wrappers (`donor/hermes.ts`) then work unedited, and the
+// alias `@hermes/shared` (electron.vite.config.ts) is what swaps the class in.
 //
-// Their surface, as their code uses it:
-//   request(method, params, { timeoutMs, signal })
-//   on(eventName, handler) / onAny / onEvent / onState
-//   connect(url) / close() / state
-// `connect` and `close` are no-ops here on purpose: the connection is main's,
-// it is already up (or reconnecting) before the window exists, and nothing in
-// the renderer is allowed to decide otherwise.
+// Their surface, matched member for member and signature for signature:
+//   request(method, params?, timeoutMs?, signal?)
+//   on(type, handler) / onAny / onEvent / onState
+//   connect(wsUrl) / close() / connectionState
+//
+// `connect` and `close` are no-ops on purpose: the connection is main's, it is
+// already up (or reconnecting) before the window exists, and no renderer is
+// allowed to decide otherwise. One consequence to know about: their
+// multi-profile socket pool (`donor/store/gateway.ts`) opens one client per
+// profile, but every instance here listens to main's single event stream. It
+// stays correct only because the pool asks `hermesDesktop.getConnection()`
+// first, and our shim answers null for secondaries — see hermes-desktop-shim.
 
 import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
 
 /** Their state vocabulary, which their components switch on. */
 export type DonorConnectionState = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
 
-export interface GatewayRequestOptions {
-  timeoutMs?: number
-  signal?: AbortSignal
+/** Their client's constructor options. Every one of them describes socket
+ * behavior we do not have here; accepted and ignored so their subclass
+ * (`HermesGateway`) constructs unedited. */
+export interface GatewayClientOptions {
+  closedErrorMessage?: string
+  connectErrorMessage?: string
+  connectTimeoutMs?: number
+  createRequestId?: (nextId: number) => number | string
+  notConnectedErrorMessage?: string
+  requestIdPrefix?: string
+  requestTimeoutMs?: number
 }
 
 export interface RestOptions {
@@ -53,35 +67,39 @@ export class GatewayBridge {
   private readonly handlers = new Map<string, Set<EventHandler>>()
   private readonly stateHandlers = new Set<(state: DonorConnectionState) => void>()
   private readonly disposers: (() => void)[] = []
+  private readonly api: Window['aecpilot']
 
-  constructor(private readonly api: Window['aecpilot'] = window.aecpilot) {
+  constructor(optionsOrApi?: GatewayClientOptions | Window['aecpilot']) {
+    // Their subclass passes options; our tests pass a stub API. Telling them
+    // apart by a member no options object has keeps both call sites honest.
+    this.api =
+      optionsOrApi && 'gatewayRpc' in optionsOrApi
+        ? (optionsOrApi as Window['aecpilot'])
+        : window.aecpilot
+
     this.disposers.push(
       this.api.onChatEvent((event) => {
         this.dispatch(event)
       }),
       this.api.onGatewayState((state) => {
-        this.state = state
-        const mapped = toDonorState(state)
-        for (const handler of this.stateHandlers) handler(mapped)
+        this.setState(state)
       })
     )
     // Main can reach 'ready' before this renderer mounts, so the push channel
     // alone would leave every consumer stuck at 'closed'.
     void this.api.getGatewayState().then((state) => {
-      this.state = state
-      const mapped = toDonorState(state)
-      for (const handler of this.stateHandlers) handler(mapped)
+      this.setState(state)
     })
   }
 
-  /** Their client's read-only state, in their vocabulary. */
   get connectionState(): DonorConnectionState {
     return toDonorState(this.state)
   }
 
-  /** No-op: main owns the connection. Kept so their boot code, which calls
-   * `connect(url)` and awaits it, runs unedited. */
-  async connect(): Promise<void> {}
+  /** No-op: main owns the connection. Kept async and argument-taking so their
+   * boot and pool code, which awaits `connect(wsUrl)`, runs unedited — the URL
+   * is theirs to compute and ours to ignore. */
+  async connect(_wsUrl?: string): Promise<void> {}
 
   /** No-op, for the same reason — a renderer closing main's socket would take
    * the connection away from every other window. */
@@ -89,29 +107,25 @@ export class GatewayBridge {
 
   request<T = unknown>(
     method: string,
-    params: unknown = {},
-    options: GatewayRequestOptions = {}
+    params: Record<string, unknown> = {},
+    timeoutMs?: number,
+    signal?: AbortSignal
   ): Promise<T> {
-    if (options.signal?.aborted) {
+    if (signal?.aborted) {
       return Promise.reject(new DOMException('Aborted', 'AbortError'))
     }
 
-    const call = this.api.gatewayRpc<T>(method, params, options.timeoutMs)
-    if (!options.signal) return call
+    const call = this.api.gatewayRpc<T>(method, params, timeoutMs)
+    if (!signal) return call
 
     // The IPC call itself cannot be cancelled — main will finish it and drop
     // the result. Abort only settles the promise the caller is waiting on,
     // which is all their callers use it for (a component unmounting).
-    const signal = options.signal
     return new Promise<T>((resolve, reject) => {
       const onAbort = (): void => reject(new DOMException('Aborted', 'AbortError'))
       signal.addEventListener('abort', onAbort, { once: true })
       call.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
     })
-  }
-
-  rest<T = unknown>(path: string, options: RestOptions = {}): Promise<T> {
-    return this.api.gatewayRest<T>(path, options)
   }
 
   /** Subscribes to one event type. Returns an unsubscribe function. */
@@ -144,11 +158,24 @@ export class GatewayBridge {
     }
   }
 
+  /** One REST call against the same process, for the routes JSON-RPC does not
+   * cover. Not part of their client's surface — their REST goes through
+   * `window.hermesDesktop.api`, which our shim routes here. */
+  rest<T = unknown>(path: string, options: RestOptions = {}): Promise<T> {
+    return this.api.gatewayRest<T>(path, options)
+  }
+
   /** Drops every IPC subscription this bridge holds. */
   dispose(): void {
     for (const dispose of this.disposers.splice(0)) dispose()
     this.handlers.clear()
     this.stateHandlers.clear()
+  }
+
+  private setState(state: GatewayConnectionState): void {
+    this.state = state
+    const mapped = toDonorState(state)
+    for (const handler of this.stateHandlers) handler(mapped)
   }
 
   private dispatch(event: GatewayEvent): void {

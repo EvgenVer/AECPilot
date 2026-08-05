@@ -214,7 +214,9 @@ MIT. Rules — full text in `donor/README.md`, policy in `PLAN.md` §«Слой 
 1. Every vendored file carries a provenance header: source path, commit, license, and the
    list of edits made to it. A file copied unchanged says `Edits: none`.
 2. **Exactly four edits are allowed**: (1) their gateway client → our IPC bridge;
-   (2) their i18n → our catalog; (3) removing a contribution that lands in SPEC §Non-Goals;
+   (2) their i18n → our catalog; (3) registration tables — dropping a contribution that
+   lands in SPEC §Non-Goals or registering one of ours (a locale, a surface) in the same
+   table;
    (4) dropping imports we do not have (their cloud, brand, telemetry). Anything else means
    the file is a rewrite and does not belong in this zone.
 3. **Never patch a vendored file toward a newer upstream version** — re-copy it from the new

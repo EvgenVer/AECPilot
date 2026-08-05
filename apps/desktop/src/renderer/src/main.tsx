@@ -4,6 +4,8 @@ import './styles/tokens.css'
 import './styles/shell.css'
 import App from './App'
 import { applyTheme, readStoredTheme } from './theme'
+import { AecI18nProvider } from './shared/i18n'
+import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
 // Task 1.5.10: apply the persisted theme before the first render — done here
 // rather than in an App/Shell effect so tokens.css's [data-theme="dark"]
@@ -11,8 +13,15 @@ import { applyTheme, readStoredTheme } from './theme'
 // flash).
 applyTheme(document.documentElement, readStoredTheme(window.localStorage))
 
+// Vendored donor code reaches the backend through `window.hermesDesktop`
+// (task 1.8.5/1.8.6). Installed before the first render because their stores
+// read it at module load, not from an effect.
+installHermesDesktopBridge()
+
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    <AecI18nProvider>
+      <App />
+    </AecI18nProvider>
   </StrictMode>
 )

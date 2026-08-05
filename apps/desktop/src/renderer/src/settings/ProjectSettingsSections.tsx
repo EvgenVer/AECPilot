@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { readStoredUiLanguage, persistUiLanguage, type UiLanguage } from '../ui-language'
+import { useAecT, useI18n, UI_LOCALES } from '../shared/i18n'
 
 interface ProjectSettingsState {
   wiki_lang: string
@@ -70,14 +70,15 @@ function NoProject() {
  * INTERFACE language is the user's, and the WIKI language is the project's
  * (it travels with the vault, see specs/workspace-sources.md § Data schemas).
  *
- * The interface switch stores a preference and says plainly that the interface
- * is still Russian-only. That is the honest state: translating it is a body of
- * work of its own (and a dependency decision), and a switch that silently does
- * nothing would be worse than one that says what it does. */
+ * The interface switch is live: it writes the choice through the i18n
+ * provider's config client and every screen re-renders in the new language.
+ * What is NOT yet complete is the coverage — the donor's screens arrive across
+ * tasks 1.8.9–1.8.15 and their Russian strings arrive with them (task 6.7), so
+ * an untranslated key falls back to English rather than to a blank. The hint
+ * below says exactly that. */
 export function LanguageSection() {
-  const [uiLanguage, setUiLanguage] = useState<UiLanguage>(() =>
-    readStoredUiLanguage(window.localStorage)
-  )
+  const t = useAecT()
+  const { locale, setLocale } = useI18n()
   const { settings, error, save, saving } = useProjectSettings()
 
   return (
@@ -85,30 +86,24 @@ export function LanguageSection() {
       {error && <div className="settings-popover__error">{error}</div>}
 
       <div className="settings-popover__field">
-        <span>Язык интерфейса</span>
-        <div className="theme-switch" role="group" aria-label="Язык интерфейса">
-          {(['ru', 'en'] as const).map((lang) => (
+        <span>{t('settings.languageLabel')}</span>
+        <div className="theme-switch" role="group" aria-label={t('settings.languageLabel')}>
+          {UI_LOCALES.map((option) => (
             <button
-              key={lang}
+              key={option.id}
               type="button"
               className={`theme-switch__option${
-                uiLanguage === lang ? ' theme-switch__option--active' : ''
+                locale === option.id ? ' theme-switch__option--active' : ''
               }`}
-              aria-pressed={uiLanguage === lang}
-              onClick={() => {
-                persistUiLanguage(window.localStorage, lang)
-                setUiLanguage(lang)
-              }}
+              aria-pressed={locale === option.id}
+              onClick={() => void setLocale(option.id).catch(() => undefined)}
             >
-              {lang === 'ru' ? 'Русский' : 'English'}
+              {option.name}
             </button>
           ))}
         </div>
       </div>
-      <div className="settings-section__hint">
-        Выбор сохраняется, но сам интерфейс пока только на русском: перевод строк — отдельная
-        работа, и делать вид, что переключатель уже что-то меняет, мы не будем.
-      </div>
+      <div className="settings-section__hint">{t('settings.languageHint')}</div>
 
       {settings === null && <NoProject />}
       {settings && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FilesIcon } from './icons'
+import { useAecT } from '../shared/i18n'
 import CreateProjectDialog from './CreateProjectDialog'
 import type { RecentProject } from '../../../shared/ipc'
 
@@ -15,6 +16,7 @@ import type { RecentProject } from '../../../shared/ipc'
  * same create-project dialog, pre-filled with that folder and a suggested
  * name, so the user can initialize a project there instead. */
 export default function Welcome() {
+  const t = useAecT()
   // `dirPath`/`name` pre-fill CreateProjectDialog — `{}` for the plain
   // "Создать проект" button (nothing pre-filled), `{ dirPath, name }` for the
   // "this folder isn't a project yet" flow below.
@@ -74,16 +76,14 @@ export default function Welcome() {
             </div>
             <div>
               <div className="welcome__name">AECPilot</div>
-              <div className="welcome__tagline">IDE для проектной документации</div>
+              <div className="welcome__tagline">{t('welcome.tagline')}</div>
             </div>
           </div>
 
           <div className="welcome__actions">
             <button type="button" className="welcome__action" onClick={() => setProjectDialog({})}>
-              <div className="welcome__action-title">Создать проект</div>
-              <div className="welcome__action-desc">
-                Папка (может быть непустой) → структура vault
-              </div>
+              <div className="welcome__action-title">{t('welcome.create')}</div>
+              <div className="welcome__action-desc">{t('welcome.createHint')}</div>
             </button>
             <button
               type="button"
@@ -91,8 +91,8 @@ export default function Welcome() {
               onClick={() => void handlePickAndOpen()}
               disabled={opening}
             >
-              <div className="welcome__action-title">Открыть проект</div>
-              <div className="welcome__action-desc">Папка с .aecpilot/</div>
+              <div className="welcome__action-title">{t('welcome.open')}</div>
+              <div className="welcome__action-desc">{t('welcome.openHint')}</div>
             </button>
           </div>
 
@@ -100,11 +100,9 @@ export default function Welcome() {
             <div className="welcome__recent-error">{openError.message}</div>
           )}
 
-          <div className="welcome__section-title">Недавние проекты</div>
+          <div className="welcome__section-title">{t('welcome.recentTitle')}</div>
           {recents.length === 0 ? (
-            <div className="welcome__empty">
-              Пока нет недавних проектов — они появятся здесь после первого создания или открытия.
-            </div>
+            <div className="welcome__empty">{t('welcome.recentEmpty')}</div>
           ) : (
             <ul className="welcome__recents">
               {recents.map((project) => (

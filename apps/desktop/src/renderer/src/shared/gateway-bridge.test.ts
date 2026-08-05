@@ -59,14 +59,14 @@ describe('GatewayBridge', () => {
   })
 
   it('passes a per-call timeout through', async () => {
-    await bridge.request('prompt.submit', { text: 'hi' }, { timeoutMs: 1_800_000 })
+    await bridge.request('prompt.submit', { text: 'hi' }, 1_800_000)
     expect(stub.rpc).toHaveBeenCalledWith('prompt.submit', { text: 'hi' }, 1_800_000)
   })
 
   it('rejects immediately on an already-aborted signal', async () => {
     const controller = new AbortController()
     controller.abort()
-    await expect(bridge.request('session.list', {}, { signal: controller.signal })).rejects.toThrow(
+    await expect(bridge.request('session.list', {}, undefined, controller.signal)).rejects.toThrow(
       /Aborted/
     )
     expect(stub.rpc).not.toHaveBeenCalled()
@@ -74,7 +74,7 @@ describe('GatewayBridge', () => {
 
   it('rejects when the signal aborts mid-flight', async () => {
     const controller = new AbortController()
-    const pending = bridge.request('session.list', {}, { signal: controller.signal })
+    const pending = bridge.request('session.list', {}, undefined, controller.signal)
     controller.abort()
     await expect(pending).rejects.toThrow(/Aborted/)
   })

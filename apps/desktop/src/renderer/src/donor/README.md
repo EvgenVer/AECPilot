@@ -46,9 +46,13 @@ Anything else is not an edit — it means the file does not belong in this zone.
    (`shared/gateway-bridge`). The renderer never opens a WebSocket to the
    gateway itself (SPEC C9).
 2. **i18n** — their i18n import → our catalog. Their keys, our strings.
-3. **Non-goals** — removing a contribution that lands in SPEC § Non-Goals. The
-   _registration_ of a surface is removed, not its logic; if the logic has to be
-   understood to cut it, the file is a rewrite, not a copy.
+3. **Registration tables** — changing WHICH contributions are registered:
+   removing one that lands in SPEC § Non-Goals, or registering one of ours (a
+   locale, a surface) in the same table. The table, never the logic — if the
+   logic has to be understood to make the change, the file is a rewrite, not a
+   copy. Worked example: `i18n/{types,languages,catalog}.ts` carry a one-line
+   `ru` entry each, because SPEC C7 requires a Russian interface and the locale
+   list is exactly such a table.
 4. **Missing imports** — dropping imports we do not have: their cloud, their
    brand (`@nous-research/ui`), their telemetry.
 

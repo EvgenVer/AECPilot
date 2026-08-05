@@ -15,5 +15,14 @@ export default tseslint.config(
   js.configs.recommended,
   tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
-  eslintConfigPrettier
+  eslintConfigPrettier,
+  {
+    rules: {
+      // An `_`-prefixed argument is the standard way to say "this parameter
+      // exists for the signature, not for the body". The adapters that stand
+      // in for donor APIs need it: their callers pass a WebSocket URL we are
+      // not allowed to use, and dropping the parameter would break the call.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+    }
+  }
 )
