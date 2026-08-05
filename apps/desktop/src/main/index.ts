@@ -157,7 +157,12 @@ const RELOAD_MCP_TIMEOUT_MS = 15000
  * `ReloadMcpParams`'s doc comment in shared/gateway/types.ts for why this is
  * needed at all: hermes caches a connected MCP server by name for the life of
  * the `hermes serve` process and does NOT reconnect it just because its
- * backing data changed underneath it). Shared by `registerAecSourcesForProject`
+ * backing data changed underneath it). Still true on 0.20.0, re-measured by
+ * `runtime/mcp-project-switch-probe.mjs` (task 1.7.8): their new lazy start
+ * from an on-disk schema cache re-fingerprints when the project path in `args`
+ * changes, but that only affects the tool LIST — an already-spawned stdio
+ * child keeps serving the old project until this reload, and even a brand-new
+ * session sees the old sources. Shared by `registerAecSourcesForProject`
  * (task 1.20) and the `sources:add`/`sources:remove` IPC handlers (bugfix:
  * an added/removed source was invisible to the agent until a project switch)
  * — those two only ever rewrite project.json, never config.yaml, so
