@@ -3,13 +3,13 @@
  * Source:  apps/desktop/src/components/chat/vibe-hearts.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] hearts no longer route to the pet (HX1) — composer placement only
+ * (no other edits)
  */
 import { type CSSProperties } from 'react'
 
 import { createParticleEmitter, ParticleField, type ParticleFieldConfig } from '@/components/particles/particle-field'
-import { $petActive, flashPetActivity } from '@/store/pet'
-import { $petOverlayActive, forwardPetReaction } from '@/store/pet-overlay'
 
 /**
  * TikTok-style floating hearts — a thin skin over {@link ParticleField} (pixel
@@ -58,25 +58,13 @@ const emitter = createParticleEmitter()
 export const playVibeHearts = (count?: number) => emitter.burst(count)
 
 /**
- * Fire a vibe burst (from the core `reaction` event). Routes to where the
- * affection should land:
- *  - pet popped out  → forward to the overlay window + celebrate (mirrored)
- *  - pet in-window   → play here (on the pet) + celebrate
- *  - no pet          → play here (composer)
+ * Fire a vibe burst (from the core `reaction` event).
+ *
+ * EDIT [3]: their version routed the burst to the pet (in-window or popped
+ * out) when one was present; the pet is HX1, so the composer is the only
+ * placement left and this is a straight play.
  */
-export const burstVibeHearts = (count?: number) => {
-  const overlay = $petOverlayActive.get()
-
-  if (overlay || $petActive.get()) {
-    flashPetActivity({ celebrate: true })
-  }
-
-  if (overlay) {
-    forwardPetReaction('vibe')
-  } else {
-    playVibeHearts(count)
-  }
-}
+export const burstVibeHearts = (count?: number) => playVibeHearts(count)
 
 export interface HeartFieldProps {
   config?: Partial<ParticleFieldConfig>

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/command-palette/index.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the pet page and the two pet commands (HX1)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
@@ -74,7 +76,6 @@ import {
 } from '@/store/command-palette'
 import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, filterVisibleProjects } from '@/store/layout'
-import { openPetGenerate } from '@/store/pet-generate'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
 import { $connection } from '@/store/session'
 import { runGatewayRestart } from '@/store/system-actions'
@@ -111,7 +112,8 @@ import { prettyName } from '../settings/helpers'
 
 import { usePaletteContributions } from './contrib'
 import { MarketplaceThemePage } from './marketplace-theme-page'
-import { PetInlineToggle, PetPalettePage } from './pet-palette-page'
+// EDIT [3]: the pet palette page, its inline toggle and the two pet commands
+// are HX1.
 
 interface PaletteItem {
   /** Keybind action id — its live combo renders as a hotkey hint. */
@@ -907,20 +909,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             keywords: ['appearance', 'color mode', 'brightness', 'dark', 'light', 'system'],
             label: cc.changeColorMode,
             to: 'color-mode'
-          },
-          {
-            icon: PawPrint,
-            id: 'appearance-pets',
-            keywords: ['pet', 'petdex', 'mascot', 'pets', '/pet', 'paw'],
-            label: cc.pets.title,
-            to: 'pets'
-          },
-          {
-            icon: Egg,
-            id: 'appearance-generate-pet',
-            keywords: ['pet', 'generate', 'create', 'make', 'new pet', 'mascot', 'hatch', 'ai'],
-            label: cc.generatePet.title,
-            run: () => openPetGenerate()
           }
         ]
       },
@@ -1331,20 +1319,11 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             }}
             onValueChange={setSearch}
             placeholder={placeholder}
-            right={page === 'pets' ? <PetInlineToggle /> : undefined}
             value={search}
           />
           <CommandList className="dt-portal-scrollbar max-h-[min(20rem,56vh)]">
             {/* Server-driven pages render their own list; the rest show groups. */}
-            {page === 'pets' ? (
-              <PetPalettePage
-                onGenerate={() => {
-                  closeCommandPalette()
-                  openPetGenerate()
-                }}
-                search={search}
-              />
-            ) : page === 'install-theme' ? (
+            {page === 'install-theme' ? (
               <MarketplaceThemePage onPickTheme={setTheme} search={search} />
             ) : (
               <PaletteGroups

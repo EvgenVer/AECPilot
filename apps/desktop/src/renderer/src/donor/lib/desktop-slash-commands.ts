@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/lib/desktop-slash-commands.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the /pet and /hatch command registrations (HX1)
+ * (no other edits)
  */
 export interface CommandsCatalogSection {
   name: string
@@ -55,11 +57,9 @@ export type DesktopActionId =
   | 'browser'
   | 'compress'
   | 'handoff'
-  | 'hatch'
   | 'help'
   | 'journey'
   | 'new'
-  | 'pet'
   | 'profile'
   | 'skin'
   | 'title'
@@ -279,18 +279,7 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     surface: exec(),
     argumentMode: 'options'
   },
-  {
-    name: '/pet',
-    description: 'Toggle or adopt a petdex mascot (/pet, /pet list, /pet boba)',
-    surface: action('pet'),
-    argumentMode: 'options'
-  },
-  {
-    name: '/hatch',
-    description: 'Generate a new pet (opens the pet generator)',
-    aliases: ['/generate-pet'],
-    surface: action('hatch')
-  },
+  // EDIT [3]: /pet and /hatch are gone with the pet surface (HX1).
   {
     name: '/queue',
     description: 'Queue a prompt for the next turn',

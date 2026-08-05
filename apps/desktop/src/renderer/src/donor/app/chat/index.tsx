@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/chat/index.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the pet surface (HX1)
+ * (no other edits)
  */
 import { type AppendMessage, AssistantRuntimeProvider, type ThreadMessage } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
@@ -33,8 +35,6 @@ import { cn } from '@/lib/utils'
 import { migrateSessionDraft } from '@/store/composer'
 import { migrateQueuedPrompts, parkQueuedPrompts } from '@/store/composer-queue'
 import { $pinnedSessionIds } from '@/store/layout'
-import { $petActive } from '@/store/pet'
-import { $petOverlayActive } from '@/store/pet-overlay'
 import { $activeGatewayProfile, $gatewaySwapTarget, $profiles } from '@/store/profile'
 import {
   $contextSuggestions,
@@ -299,10 +299,9 @@ export const ChatView = memo(function ChatView({
   const currentCwd = useStore(view.$cwd)
   const currentModel = useStore(view.$model)
   const currentProvider = useStore(view.$provider)
-  // A pet anywhere (in-window or popped out) owns the hearts; composer only when none.
-  const petActive = useStore($petActive)
-  const petOverlayActive = useStore($petOverlayActive)
-  const petPresent = petActive || petOverlayActive
+  // EDIT [3]: their pet (HX1) owned the hearts whenever it was out; with no pet
+  // the composer is the only placement, so the condition is gone rather than
+  // pinned to a constant.
   const freshDraftReady = useStore($freshDraftReady)
   const gatewayState = useStore($gatewayState)
   const gatewaySwapTarget = useStore($gatewaySwapTarget)
@@ -550,9 +549,8 @@ export const ChatView = memo(function ChatView({
             </div>
           )}
           {showChatBar && <ScrollToBottomButton />}
-          {/* Vibe hearts rise from the composer only when no pet is out (else
-              they play on the pet). Fired by the core `reaction` event. */}
-          {!petPresent && (
+          {/* Vibe hearts rise from the composer. Fired by the core `reaction` event. */}
+          {(
             <HeartField
               className="absolute inset-x-0 z-30"
               config={COMPOSER_HEART_CONFIG}

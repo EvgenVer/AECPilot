@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the pet settings section (HX1)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
@@ -32,7 +34,6 @@ import type { DesktopTheme } from '@/themes/types'
 import { $marketplaceInstalls, isUserTheme, removeUserTheme } from '@/themes/user-themes'
 
 import { MODE_OPTIONS } from './constants'
-import { PetSettings } from './pet-settings'
 import { ListRow, SectionHeading, SettingsContent } from './primitives'
 import { TerminalFontSetting } from './terminal-font-setting'
 
@@ -549,7 +550,7 @@ export function AppearanceSettings() {
       </div>
 
       <div className="mt-6">
-        <PetSettings />
+        {/* EDIT [3]: the pet settings section is HX1. */}
       </div>
     </SettingsContent>
   )
