@@ -4,13 +4,20 @@
 // chat does not. Run it after every hermes upgrade — a new event family is
 // how a Hermes feature silently fails to exist in our app.
 //
-// Why parse their bundle instead of probing a live gateway: hermes ships its
-// real UI as a built Ink/React bundle (hermes_cli/tui_dist/entry.js — their
-// "desktop" is a shell around that terminal UI, see hermes_cli/web_dist,
-// which just embeds it via xterm.js). The event names survive minification as
-// plain string literals, so a static read is deterministic and instant, while
-// provoking a live clarify/secret/sudo round-trip would need a real model and
-// would be flaky.
+// Why read their UI statically instead of probing a live gateway: hermes ships
+// its real UI as an Ink/React app (their "desktop" is a shell around that
+// terminal UI, see hermes_cli/web_dist, which just embeds it via xterm.js).
+// The event names are plain string literals, so a static read is deterministic
+// and instant, while provoking a live clarify/secret/sudo round-trip would need
+// a real model and would be flaky.
+//
+// Two places that UI can be read from, in order:
+//   1. `ui-tui/src` in the core checkout — the source. Since 0.20.0 the install
+//      is editable (their build backend refuses to build a wheel), so this is
+//      what we actually have, and it is the more readable of the two.
+//   2. `hermes_cli/tui_dist/entry.js` — the built bundle a packaged install
+//      carried. Kept as a fallback for the day a normal install works again;
+//      the names survive minification.
 //
 // Usage:  node runtime/hermes-event-diff.mjs
 // Exit code is always 0 — this is an informational report, not a gate.
@@ -18,19 +25,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { HERMES_SRC_DIR, VENV_DIR } from './hermes-env.mjs'
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(RUNTIME_DIR, '..')
 
-const TUI_BUNDLE = path.join(
-  RUNTIME_DIR,
-  '.hermes-venv',
-  'Lib',
-  'site-packages',
-  'hermes_cli',
-  'tui_dist',
-  'entry.js'
-)
+const TUI_SOURCE_DIR = path.join(HERMES_SRC_DIR, 'ui-tui', 'src')
+const TUI_BUNDLE = path.join(VENV_DIR, 'Lib', 'site-packages', 'hermes_cli', 'tui_dist', 'entry.js')
 const CHAT_STATE = path.join(
   REPO_ROOT,
   'apps',
@@ -95,21 +96,41 @@ function readHermesEvents(bundle) {
   return found
 }
 
-if (!fs.existsSync(TUI_BUNDLE)) {
-  console.error(`hermes TUI bundle not found: ${TUI_BUNDLE}`)
-  console.error('Is the hermes venv installed? (runtime/.hermes-venv)')
+/** Every .ts/.tsx file under their TUI source, concatenated. */
+function readTuiSource(dir) {
+  const parts = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) parts.push(readTuiSource(full))
+    else if (/\.tsx?$/.test(entry.name)) parts.push(fs.readFileSync(full, 'utf8'))
+  }
+  return parts.join('\n')
+}
+
+let theirUi
+let readFrom
+if (fs.existsSync(TUI_SOURCE_DIR)) {
+  theirUi = readTuiSource(TUI_SOURCE_DIR)
+  readFrom = path.relative(REPO_ROOT, TUI_SOURCE_DIR)
+} else if (fs.existsSync(TUI_BUNDLE)) {
+  theirUi = fs.readFileSync(TUI_BUNDLE, 'utf8')
+  readFrom = path.relative(REPO_ROOT, TUI_BUNDLE)
+} else {
+  console.error(`hermes TUI not found — looked for:\n  ${TUI_SOURCE_DIR}\n  ${TUI_BUNDLE}`)
+  console.error('Is the core installed? (run `node runtime/setup.mjs`)')
   process.exit(0)
 }
 
 const source = fs.readFileSync(CHAT_STATE, 'utf8')
 const handled = new Set(readListFromSource(source, 'HANDLED_GATEWAY_EVENTS'))
 const ignored = new Set(readListFromSource(source, 'IGNORED_GATEWAY_EVENTS'))
-const theirs = readHermesEvents(fs.readFileSync(TUI_BUNDLE, 'utf8'))
+const theirs = readHermesEvents(theirUi)
 
 const missing = [...theirs].filter((e) => !handled.has(e) && !ignored.has(e)).sort()
 const ours = [...handled].sort()
 const notInTheirs = ours.filter((e) => !theirs.has(e))
 
+console.log(`read from               : ${readFrom}`)
 console.log(`hermes TUI events found : ${theirs.size}`)
 console.log(`handled by our chat     : ${handled.size}`)
 console.log(`deliberately ignored    : ${ignored.size}`)
