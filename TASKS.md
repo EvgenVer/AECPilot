@@ -18,8 +18,14 @@
 
 ### Phase 1.7 — Ядро Hermes 0.20.0 (PLAN §Stack, решение D1)
 <!-- Идёт первой: компоненты донора написаны против контрактов 0.20.0. -->
-- [ ] 1.7.1 Определить SHA коммита тега `v2026.8.3` и проверить, что тег указывает именно на него; записать `HERMES_SHA` (40 символов) рядом с `HERMES_VERSION="0.20.0"` — files: runtime/hermes-env.mjs · verify: `git ls-remote --tags` даёт тот же SHA; обе константы в файле · dep: — · parallel: no
-- [ ] 1.7.2 Переписать установку ядра на `uv pip install "hermes-agent[mcp] @ git+https://github.com/NousResearch/hermes-agent@<HERMES_SHA>"` с сохранением изолированных venv и HERMES_HOME; понятная ошибка, если в PATH нет git — files: runtime/setup.mjs · verify: установка в пустой venv проходит, `hermes --version` → 0.20.0; повторный запуск идемпотентен · dep: 1.7.1 · parallel: no
+- [x] 1.7.1 Определить SHA коммита тега `v2026.8.3` и проверить, что тег указывает именно на него; записать `HERMES_SHA` (40 символов) рядом с `HERMES_VERSION="0.20.0"` — files: runtime/hermes-env.mjs · verify: `git ls-remote --tags` даёт тот же SHA; обе константы в файле · dep: — · parallel: no
+- [x] 1.7.2 Переписать установку ядра на клон по `HERMES_SHA` + editable-установку с сохранением изолированных venv и HERMES_HOME; понятная ошибка, если в PATH нет git — files: runtime/setup.mjs · verify: установка проходит, `hermes --version` → `v0.20.0 (2026.8.3)`; повторный запуск идемпотентен · dep: 1.7.1 · parallel: no
+  <!-- Формулировка задачи (`uv pip install "…@ git+…"`) не сработала: их build-backend
+       отказывается собирать wheel/sdist в принципе ("Hermes is distributed via the shell
+       installer, Docker image, or Nix") и предлагает только `-e`. Сделано так, как описано
+       в PLAN §D1: shallow-клон ровно нужного коммита в `runtime/.hermes-src` (gitignored)
+       + `uv pip install -e`. -->
+
 - [ ] 1.7.3 Выяснить, нужен ли ядру Node 26 в рантайме (релиз-ноты требуют его для их установщика/heal/upgrade, которыми мы не пользуемся): проверить запуск `hermes serve`, наши MCP-серверы и скилы на Node 24 — files: PLAN.md §Stack · verify: письменный вывод «нужен/не нужен»; при «нужен» — пин Node поднят и обосновано · dep: 1.7.2 · parallel: no
 - [ ] 1.7.4 Расширить снимальщик контракта на разрезанный шлюз (`tui_gateway/methods_{complete,config,prompt,session,tools}.py` + `server.py`) и на `hermes_cli/web_routers/*` вдобавок к монолиту `web_server.py`; снять слепок 0.20.0 — files: runtime/contract-snapshot.mjs, runtime/contracts/hermes-0.20.0.json · verify: в слепке число `@method` ≥ 123 и все пять модулей представлены; маршруты из `web_routers` присутствуют · dep: 1.7.2 · parallel: no
 - [ ] 1.7.5 Написать сравниватель слепков: три раздела — «сломалось», «появилось», «**молча сменило умолчание**» (значение параметра по умолчанию изменилось при неизменной сигнатуре) — files: runtime/contract-diff.mjs, тест · verify: юнит-тест на синтетической паре слепков ловит все три категории; прогон 0.19.0→0.20.0 даёт отчёт · dep: 1.7.4 · parallel: no

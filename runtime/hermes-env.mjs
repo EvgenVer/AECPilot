@@ -7,12 +7,33 @@ import path from "node:path";
 export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // Pins — must match PLAN.md § Stack & package managers.
-export const HERMES_VERSION = "0.19.0";
+export const HERMES_VERSION = "0.20.0";
 export const PYTHON_VERSION = "3.12.13";
+
+// The core is installed from git, not from PyPI: the author stopped publishing
+// wheels (PLAN.md, decision D1). A git tag can be moved; a commit id cannot, so
+// the pin is the commit — the tag is only how we found it and how we re-check it.
+//
+// `git ls-remote --tags <repo>` on 2026-08-05 gave, for release 0.20.0:
+//   7de39e700d2c329e15d32eb0b96e2f7cdd9fbdb2  refs/tags/v2026.8.3      (tag object)
+//   3c27eb6234bf91b8ceee9e9071591b31e9b148cb  refs/tags/v2026.8.3^{}   (the commit)
+// It is an annotated tag, so the commit is the `^{}` line — the first line is the
+// tag object itself and installing from it would fail.
+export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
+export const HERMES_TAG = "v2026.8.3";
+export const HERMES_SHA = "3c27eb6234bf91b8ceee9e9071591b31e9b148cb";
 
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.
 export const VENV_DIR = path.join(RUNTIME_DIR, ".hermes-venv");
+
+// Source checkout of the core at HERMES_SHA. It exists because upstream's build
+// backend refuses to build a wheel or sdist at all ("Hermes is distributed via
+// the shell installer, Docker image, or Nix") and offers only an editable
+// install — so the install is `-e <this dir>` and this dir must stay put for the
+// venv to keep working. Not a working copy: detached at the pinned commit, never
+// edited, gitignored.
+export const HERMES_SRC_DIR = path.join(RUNTIME_DIR, ".hermes-src");
 
 // Isolated HERMES_HOME: keeps the dev profile out of the user's home
 // directory, so it never touches an existing personal Hermes install/profile.
@@ -35,6 +56,7 @@ const isMain =
 if (isMain) {
   // Printed for humans / shells that want to `eval` the exports.
   console.log(`HERMES_VERSION=${HERMES_VERSION}`);
+  console.log(`HERMES_SHA=${HERMES_SHA}`);
   console.log(`PYTHON_VERSION=${PYTHON_VERSION}`);
   console.log(`VENV_DIR=${VENV_DIR}`);
   console.log(`HERMES_HOME_DIR=${HERMES_HOME_DIR}`);

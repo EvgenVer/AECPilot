@@ -131,6 +131,15 @@ specs/                   # поведенческие контракты
 git-тег автор может передвинуть. SHA фиксирует содержимое криптографически — это не слабее
 хэша колеса. При установке проверяем, что тег релиза указывает на этот SHA.
 
+**Почему установка editable, а не из git-URL** (измерено задачей 1.7.2). Их `setup.py`
+отказывается собирать wheel или sdist в принципе — любой `pip install <git-url>` падает с
+`RuntimeError: Building wheels or sdists for hermes-agent is not supported`, и единственный
+предложенный путь — `uv pip install -e .`. Поэтому `runtime/setup.mjs` делает shallow-fetch
+ровно нужного коммита в `runtime/.hermes-src` (detached, gitignored, не рабочая копия) и
+ставит оттуда editable. Следствия: каталог исходников — часть установки и не удаляется;
+`site-packages` не содержит их модулей, поэтому всё, что читает ядро с диска (снимальщик
+контракта), адресует `HERMES_SRC_DIR`, а не `site-packages`.
+
 ## Selected dependencies
 
 Все зависимости проходят `dependency-vetting` перед установкой; версии пиннятся в
