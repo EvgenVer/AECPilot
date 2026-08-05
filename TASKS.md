@@ -112,7 +112,10 @@
        не тронут: правка чужого дерева вне воркспейса запрещена AGENTS §2.6.
        `node runtime/donor-env.mjs` сверяет SHA, версию их десктопа и наличие их LICENSE. -->
 
-- [ ] 1.8.4 Завести зону `renderer/src/donor/` и записать правила переноса в `AGENTS.md`: заголовок происхождения (путь + `DONOR_SHA` + MIT + перечень правок) и **ровно четыре разрешённые правки** — files: apps/desktop/src/renderer/src/donor/README.md, AGENTS.md · verify: правила читаемы; шаблон заголовка приведён · dep: 1.8.3 · parallel: yes
+- [x] 1.8.4 Завести зону `renderer/src/donor/` и записать правила переноса в `AGENTS.md`: заголовок происхождения (путь + `DONOR_SHA` + MIT + перечень правок) и **ровно четыре разрешённые правки** — files: apps/desktop/src/renderer/src/donor/README.md, AGENTS.md · verify: правила читаемы; шаблон заголовка приведён · dep: 1.8.3 · parallel: yes
+  <!-- Заодно положен `donor/LICENSE.donor` (копия их MIT) — требование PLAN §«Слой донора»
+       «файл LICENSE донора сохраняется в поставке»; подхват в инсталлятор — фаза 6. -->
+
 - [ ] 1.8.5 Реализовать адаптер их клиента шлюза (`@/hermes`) на наш IPC-мост, не открывая WebSocket из рендерера (SPEC C9) — files: apps/desktop/src/renderer/src/shared/gateway-bridge.ts · verify: компонентный тест: вызов RPC уходит в мост; в бандле рендерера нет `new WebSocket` к шлюзу · dep: 1.8.2 · parallel: no
 - [ ] 1.8.6 Перевести локализацию на их форму (каталоги `en`/`ru` + `useI18n`), снять `i18next` — files: apps/desktop/src/renderer/src/shared/i18n/* · verify: переключение языка работает на двух экранах; `i18next` отсутствует в зависимостях · dep: 1.8.2 · parallel: no
 - [ ] 1.8.7 Подключить их тему как есть (Tailwind v4 + их CSS-переменные + Codicon) — files: apps/desktop/src/renderer/src/shared/theme/* · verify: светлая и тёмная темы переключаются; `color-scheme` следует теме (иначе Chromium рисует хромировку из светлой палитры) · dep: 1.8.2 · parallel: no

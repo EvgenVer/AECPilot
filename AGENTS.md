@@ -207,6 +207,20 @@ Skills live in `.agents/skills/<name>/SKILL.md`; the installer copies them to
 | `docs/TOOLS.md` | Registry of concrete tools/MCP |
 | `docs/CODE_REVIEW.md` | Review checklist + risk-summary format |
 
+## 14. Donor Zone (vendored Hermes Desktop code)
+`apps/desktop/src/renderer/src/donor/**` holds **their** files, copied verbatim from
+`runtime/.hermes-src/apps/desktop/src/**` at `DONOR_SHA` (`runtime/donor-env.mjs`), under
+MIT. Rules — full text in `donor/README.md`, policy in `PLAN.md` §«Слой донора»:
+1. Every vendored file carries a provenance header: source path, commit, license, and the
+   list of edits made to it. A file copied unchanged says `Edits: none`.
+2. **Exactly four edits are allowed**: (1) their gateway client → our IPC bridge;
+   (2) their i18n → our catalog; (3) removing a contribution that lands in SPEC §Non-Goals;
+   (4) dropping imports we do not have (their cloud, brand, telemetry). Anything else means
+   the file is a rewrite and does not belong in this zone.
+3. **Never patch a vendored file toward a newer upstream version** — re-copy it from the new
+   `DONOR_SHA` and re-apply the edits its header lists.
+4. Our own surfaces live in `renderer/src/aec/**`, use the same stack, and carry no header.
+
 ## Conventions
 - **Live work is only what stands in `TASKS.md`.** Task IDs of closed phases (`0.x`, `1.x`,
   `1.5.x`, `1.6.x`) still appear inside `specs/` as **provenance** — "this fact was measured
