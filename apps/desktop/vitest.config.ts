@@ -44,6 +44,21 @@ export default defineConfig({
           // fast and stops a green suite from turning red under load.
           testTimeout: 15000
         }
+      },
+      {
+        // runtime/ holds the core-watching tools (task 1.7.5): plain .mjs, no
+        // Electron, no DOM. They live outside this app because the app is only
+        // one of their callers, but `pnpm test` is the only test runner this
+        // repo has — a tool nobody runs is a tool nobody trusts. Its own root
+        // keeps the app's globs from reaching into the vendored core checkout
+        // under runtime/.hermes-src.
+        test: {
+          name: 'runtime',
+          root: '../../runtime',
+          environment: 'node',
+          include: ['*.test.mjs'],
+          sequence: { groupOrder: 0 }
+        }
       }
     ]
   }
