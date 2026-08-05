@@ -104,7 +104,14 @@
 **Фундамент**
 - [ ] 1.8.1 ⚠️ ГЕЙТ ЗАВИСИМОСТЕЙ: провести `dependency-vetting` по `tailwindcss` v4, `@tailwindcss/vite`, `clsx`, `class-variance-authority`, `tailwind-merge`, `nanostores`, `@nanostores/react`, `@tanstack/react-query`, `@vscode/codicons` (реестр, репозиторий, сопровождение, лицензия, установочные скрипты, вес) и оформить Vibe Diff → **STOP до «go» владельца** — files: PLAN.md §Selected dependencies · verify: отчёт по каждому пакету; ни одна установка не выполнена до «go» · dep: — · parallel: no
 - [ ] 1.8.2 Установить утверждённый стек точными версиями; Radix-примитивы **не ставить пачкой** — по одному при первом использовании — files: apps/desktop/package.json, pnpm-lock.yaml · verify: `pnpm build` проходит; `npm audit` чист; лицензии permissive (C3) · dep: 1.8.1 · parallel: no
-- [ ] 1.8.3 Зафиксировать точку съёмки донора: `DONOR_SHA` + версия их десктопа; перевести локальный клон `D:\my program\Hermes\hermes-agent` на этот коммит (read-only) — files: runtime/donor-env.mjs · verify: константа записана; `git -C <клон> rev-parse HEAD` совпадает · dep: — · parallel: yes
+- [x] 1.8.3 Зафиксировать точку съёмки донора: `DONOR_SHA` + версия их десктопа; перевести локальный клон `D:\my program\Hermes\hermes-agent` на этот коммит (read-only) — files: runtime/donor-env.mjs · verify: константа записана; `git -C <клон> rev-parse HEAD` совпадает · dep: — · parallel: yes
+  <!-- Вторая половина задачи снята как ненужная: установка ядра уже держит detached-чекаут
+       того же репозитория ровно на `HERMES_SHA` в `runtime/.hermes-src`, и читать донора
+       оттуда строго лучше — это внутри воркспейса и гарантированно тот же коммит.
+       Внешний клон (был на июльском `beaa1a08`, с несохранённой правкой в рабочей копии)
+       не тронут: правка чужого дерева вне воркспейса запрещена AGENTS §2.6.
+       `node runtime/donor-env.mjs` сверяет SHA, версию их десктопа и наличие их LICENSE. -->
+
 - [ ] 1.8.4 Завести зону `renderer/src/donor/` и записать правила переноса в `AGENTS.md`: заголовок происхождения (путь + `DONOR_SHA` + MIT + перечень правок) и **ровно четыре разрешённые правки** — files: apps/desktop/src/renderer/src/donor/README.md, AGENTS.md · verify: правила читаемы; шаблон заголовка приведён · dep: 1.8.3 · parallel: yes
 - [ ] 1.8.5 Реализовать адаптер их клиента шлюза (`@/hermes`) на наш IPC-мост, не открывая WebSocket из рендерера (SPEC C9) — files: apps/desktop/src/renderer/src/shared/gateway-bridge.ts · verify: компонентный тест: вызов RPC уходит в мост; в бандле рендерера нет `new WebSocket` к шлюзу · dep: 1.8.2 · parallel: no
 - [ ] 1.8.6 Перевести локализацию на их форму (каталоги `en`/`ru` + `useI18n`), снять `i18next` — files: apps/desktop/src/renderer/src/shared/i18n/* · verify: переключение языка работает на двух экранах; `i18next` отсутствует в зависимостях · dep: 1.8.2 · parallel: no
