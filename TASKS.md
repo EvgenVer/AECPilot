@@ -131,7 +131,22 @@
   <!-- Заодно положен `donor/LICENSE.donor` (копия их MIT) — требование PLAN §«Слой донора»
        «файл LICENSE донора сохраняется в поставке»; подхват в инсталлятор — фаза 6. -->
 
-- [ ] 1.8.5 Реализовать адаптер их клиента шлюза (`@/hermes`) на наш IPC-мост, не открывая WebSocket из рендерера (SPEC C9) — files: apps/desktop/src/renderer/src/shared/gateway-bridge.ts · verify: компонентный тест: вызов RPC уходит в мост; в бандле рендерера нет `new WebSocket` к шлюзу · dep: 1.8.2 · parallel: no
+- [x] 1.8.5 Реализовать адаптер их клиента шлюза (`@/hermes`) на наш IPC-мост, не открывая WebSocket из рендерера (SPEC C9) — files: apps/desktop/src/renderer/src/shared/gateway-bridge.ts · verify: компонентный тест: вызов RPC уходит в мост; в бандле рендерера нет `new WebSocket` к шлюзу · dep: 1.8.2 · parallel: no
+  <!-- Замер, определивший форму адаптера: их `hermes.ts` — это ~200 типизированных
+       обёрток над ОДНИМ `request(method, params)` плюс REST того же вида. Поэтому в main
+       заведены две родовые двери (`gateway:rpc`, `gateway:rest`), а не 200 именованных
+       каналов: иначе пришлось бы править каждую их обёртку — пятый вид правки.
+       Цена, названная явно: скомпрометированный рендерер теперь может назвать любой метод
+       шлюза, а не только ~120 операций, которые main отдавал поимённо. Удержано тем, что
+       токен, хост и порт остаются в main, сокета в рендерере нет, а два запрещённых
+       правилом R2 хода (`model.save_key`, `POST /api/env/reveal`) закрыты списком в
+       `main/gateway-passthrough-pure.ts` (11 тестов).
+       Проверка «нет WebSocket» сделана постоянной: `renderer-socket-guard.test.ts` обходит
+       дерево рендерера — он поймает и их `pluginSocket`, который кладёт токен в query.
+       Собранный бандл проверен разово: вхождений `new WebSocket` — ноль.
+       Заодно зона донора выведена из-под нашего prettier и eslint (их конфиг — не наш,
+       единственный законный ответ на находку в их файле — оставить как есть). -->
+
 - [ ] 1.8.6 Перевести локализацию на их форму (каталоги `en`/`ru` + `useI18n`), снять `i18next` — files: apps/desktop/src/renderer/src/shared/i18n/* · verify: переключение языка работает на двух экранах; `i18next` отсутствует в зависимостях · dep: 1.8.2 · parallel: no
 - [ ] 1.8.7 Подключить их тему как есть (Tailwind v4 + их CSS-переменные + Codicon) — files: apps/desktop/src/renderer/src/shared/theme/* · verify: светлая и тёмная темы переключаются; `color-scheme` следует теме (иначе Chromium рисует хромировку из светлой палитры) · dep: 1.8.2 · parallel: no
 - [ ] 1.8.8 Удалить наш дизайн-слой: `design/screens/*`, `design/tokens.css`, `design/tokens.json`, `design/DESIGN_BRIEF.md` — files: design/ · verify: каталог удалён; ни один документ и ни один импорт на него не ссылается · dep: 1.8.7 · parallel: no

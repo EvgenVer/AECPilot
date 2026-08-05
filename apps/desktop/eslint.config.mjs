@@ -5,7 +5,12 @@ import eslintConfigPrettier from 'eslint-config-prettier'
 
 export default tseslint.config(
   {
-    ignores: ['out/**']
+    // Vendored donor code is linted by THEIR config upstream, not ours: a rule
+    // of ours firing inside their file has only one legal outcome — leave it —
+    // so the finding would be noise. What still guards that code: the
+    // provenance header, the four allowed edits (AGENTS §14), the renderer
+    // socket guard (SPEC C9), and the tests that come with the file.
+    ignores: ['out/**', 'src/renderer/src/donor/**/*.{ts,tsx}']
   },
   js.configs.recommended,
   tseslint.configs.recommended,

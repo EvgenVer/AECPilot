@@ -47,7 +47,7 @@ Anything else is not an edit — it means the file does not belong in this zone.
    gateway itself (SPEC C9).
 2. **i18n** — their i18n import → our catalog. Their keys, our strings.
 3. **Non-goals** — removing a contribution that lands in SPEC § Non-Goals. The
-   *registration* of a surface is removed, not its logic; if the logic has to be
+   _registration_ of a surface is removed, not its logic; if the logic has to be
    understood to cut it, the file is a rewrite, not a copy.
 4. **Missing imports** — dropping imports we do not have: their cloud, their
    brand (`@nous-research/ui`), their telemetry.
@@ -55,6 +55,23 @@ Anything else is not an edit — it means the file does not belong in this zone.
 Not allowed, and not negotiable per-file: renaming, reformatting, restyling,
 "while I'm here" fixes, adapting to our lint preferences, or replacing their
 state atoms with ours.
+
+Our formatter and linter therefore skip `*.ts`/`*.tsx`/`*.css` in this
+directory (`.prettierignore`, `eslint.config.mjs`) — their config is not ours,
+and the only legal response to a finding inside their file is to leave it. What
+still guards this code: the provenance header, the four edits above, the
+renderer socket guard (`shared/renderer-socket-guard.test.ts`, SPEC C9), and
+the tests that come with the file.
+
+## Edit kind 1 in practice — the gateway seam
+
+Their client (`@/hermes`) opens a WebSocket from the renderer and holds the
+session token to do it; SPEC C9 says ours does neither. `shared/gateway-bridge`
+presents the same surface — `request`, `on`/`onAny`/`onEvent`/`onState`,
+`connect`/`close` — over our IPC bridge, so their ~200 typed wrappers work
+unedited. `connect` and `close` are deliberately no-ops: main owns the
+connection. Their `pluginSocket` (a raw WebSocket with the token in the query
+string) has no counterpart and must not be vendored as-is.
 
 ## Updating to a newer donor commit
 

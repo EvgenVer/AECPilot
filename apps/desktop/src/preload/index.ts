@@ -6,6 +6,15 @@ const api: AecpilotApi = {
   submitPrompt: (text, truncateBeforeUserOrdinal) =>
     ipcRenderer.invoke('chat:submit', { text, truncateBeforeUserOrdinal }),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
+  gatewayRpc: (method, params, timeoutMs) =>
+    ipcRenderer.invoke('gateway:rpc', { method, params, timeoutMs }),
+  gatewayRest: (path, options) =>
+    ipcRenderer.invoke('gateway:rest', {
+      path,
+      method: options?.method,
+      body: options?.body,
+      timeoutMs: options?.timeoutMs
+    }),
   respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),
   respondClarify: (requestId, answer) =>
     ipcRenderer.invoke('chat:respond-clarify', requestId, answer),

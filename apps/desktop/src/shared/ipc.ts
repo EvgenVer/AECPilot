@@ -367,6 +367,22 @@ export interface AecpilotApi {
    * connects the gateway before the window exists), so the renderer hydrates
    * from this on mount instead of waiting for the next change event. */
   getGatewayState(): Promise<GatewayConnectionState>
+  /** Sends one JSON-RPC request to the gateway and resolves with its result
+   * (task 1.8.5). The generic door the donor's client adapter rides on — see
+   * `renderer/src/shared/gateway-bridge.ts` for who calls it and
+   * `main/gateway-passthrough-pure.ts` for what it refuses to forward.
+   *
+   * Prefer the purpose-built methods on this API where one exists: they carry
+   * our own rules (session scoping, redaction, project binding) that a raw
+   * method name does not. */
+  gatewayRpc<T = unknown>(method: string, params?: unknown, timeoutMs?: number): Promise<T>
+  /** One REST call against the same process as the gateway, for the routes
+   * JSON-RPC does not cover (profiles, MCP CRUD, stored sessions, learning
+   * graph). Same door, same rules, same caveat as `gatewayRpc`. */
+  gatewayRest<T = unknown>(
+    path: string,
+    options?: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown; timeoutMs?: number }
+  ): Promise<T>
   /** Responds to the oldest pending `approval.request` for the active
    * session (or all of them, with `all: true`). `choice` must only be
    * 'always' when the matching request's `allow_permanent` was true. */

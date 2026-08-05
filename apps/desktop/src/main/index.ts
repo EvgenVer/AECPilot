@@ -24,6 +24,7 @@ import type {
 } from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
+import { checkRestCall, checkRpcCall } from './gateway-passthrough-pure'
 import type {
   AgentProcessEntry,
   GatewayConnectionState,
@@ -1760,6 +1761,37 @@ ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
 })
 
 ipcMain.handle('gateway:get-state', () => gatewayState)
+
+// The two generic doors the donor's gateway client rides on (task 1.8.5).
+// Their ~200 typed wrappers all funnel into one `request(method, params)` and
+// one REST call, so these two handlers replace what would otherwise have been
+// 200 edits to their files. Rules — including the two surfaces rule R2 forbids
+// — live in `gateway-passthrough-pure.ts`; the token and the socket stay here.
+ipcMain.handle(
+  'gateway:rpc',
+  async (_event, payload: { method?: unknown; params?: unknown; timeoutMs?: unknown }) => {
+    if (!gateway) throw new Error('gateway is not connected')
+    const method = checkRpcCall(payload?.method)
+    const params = (payload?.params ?? {}) as never
+    const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
+    return gateway.request(method as never, params, timeoutMs)
+  }
+)
+
+ipcMain.handle(
+  'gateway:rest',
+  async (
+    _event,
+    payload: { path?: unknown; method?: unknown; body?: unknown; timeoutMs?: unknown }
+  ) => {
+    const { method, path } = checkRestCall(payload?.method, payload?.path)
+    return hermesRest(restTarget(), path, {
+      method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+      ...(payload?.body === undefined ? {} : { body: payload.body }),
+      ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
+    })
+  }
+)
 
 ipcMain.handle('settings:get', async () => {
   const settings = loadLlmSettings()
