@@ -594,7 +594,7 @@ describe('chatReducer', () => {
   })
 
   // --- task 1.6.B6.9: the phase before the call exists -------------------
-  // Their payload is `{name}` and nothing else (`server.py:4336`) — no tool
+  // Their payload is `{name}` and nothing else (`server.py::_agent_cbs`) — no tool
   // id, no text. The tests below pin exactly that; an earlier test in this
   // file asserted a `{tool_id, text}` payload the gateway never sends, and was
   // rewritten rather than kept passing against a fiction.

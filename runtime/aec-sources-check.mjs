@@ -6,8 +6,7 @@
 //
 // Reuses the session.create / prompt.submit / session.close protocol from
 // runtime/gateway-smoke.mjs (task 0.8), extended with tool.start/tool.complete
-// event tracking — see runtime/.hermes-venv/Lib/site-packages/tui_gateway/
-// server.py's _on_tool_start/_on_tool_complete (`_emit("tool.start"|
+// event tracking — see `tui_gateway/server.py`'s _on_tool_start/_on_tool_complete (`_emit("tool.start"|
 // "tool.complete", session_id, {tool_id, name, args, result, ...})`), on by
 // default (`tool_progress_mode` defaults to "all", off only if a session
 // explicitly disables it).

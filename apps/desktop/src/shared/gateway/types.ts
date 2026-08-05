@@ -810,7 +810,7 @@ export interface ProcessListResult {
  * their handler compares `session_key` and answers 4044 otherwise, so a window
  * cannot reap another session's work.
  *
- * Errors, read off `server.py:12634` (task 1.6.B6.3): 4012 — `process_id`
+ * Errors, read off `methods_tools.py`, `@method("process.kill")` (task 1.6.B6.3): 4012 — `process_id`
  * missing or empty; 4044 — no such process, INCLUDING one that exists but
  * belongs to another session; 5010 — registry failure. Plus the usual session
  * errors (4007). */
@@ -1187,7 +1187,7 @@ export interface ClarifyRespondParams {
   answer: string
 }
 
-/** Answer to a `terminal.read.request` (task 1.6.B6.16, `server.py:11281`).
+/** Answer to a `terminal.read.request` (task 1.6.B6.16, `methods_prompt.py`, `@method("terminal.read.respond")`).
  *
  * `text` is a JSON **string**, not an object: their handler forwards it
  * verbatim to the blocked tool, which parses it itself. Serialize
@@ -1346,7 +1346,7 @@ export interface ToolStartedEvent {
  *
  * The payload is `{name}` and nothing else: their `tool_gen_callback` is
  * `lambda name: ... _emit("tool.generating", sid, {"name": name})`
- * (`server.py:4336`). No `tool_id` — the id is minted later, with `tool.start`
+ * (`server.py::_agent_cbs`). No `tool_id` — the id is minted later, with `tool.start`
  * — so a card raised by this event can only be matched to its `tool.start` BY
  * NAME. An earlier version of this type claimed a `tool_id` and a text; both
  * were wrong.
@@ -1447,7 +1447,7 @@ export interface InteractiveExpireEvent {
 // ---------------------------------------------------------------------------
 
 /** A chunk of live output from a background process the agent started
- * (`server.py:9882`). Only two fields, and neither says WHAT is running:
+ * (`server.py::_emit_agent_terminal_output`). Only two fields, and neither says WHAT is running:
  * the command, cwd and status come from `process.list` alone.
  *
  * `process_id` is their process registry's `session.id` — the same value
@@ -1455,8 +1455,8 @@ export interface InteractiveExpireEvent {
  * a chat session id.
  *
  * The stream only exists once a session's notification poller has started
- * (`_wire_agent_terminal_output`, `server.py:9856`, called from
- * `_start_notification_poller`, `:9903`) — before the first session there is
+ * (`server.py::_wire_agent_terminal_output`, called from
+ * `::_start_notification_poller`) — before the first session there is
  * nothing to receive, which is why an empty terminal tab is normal. */
 export interface AgentTerminalOutputEvent {
   type: 'agent.terminal.output'
@@ -1464,7 +1464,7 @@ export interface AgentTerminalOutputEvent {
   payload: { process_id: string; chunk: string }
 }
 
-/** The agent closed its own read-only terminal TAB (`server.py:9889`) — their
+/** The agent closed its own read-only terminal TAB (`server.py::_emit_agent_terminal_close`) — their
  * comment: "the process is untouched — this only drops the view". Answering
  * this with `process.kill` would kill a running command on a "hide the view"
  * signal, so the tab goes and nothing else happens. */
@@ -1475,8 +1475,8 @@ export interface TerminalCloseEvent {
 }
 
 /** The agent's `read_terminal` tool wants the visible terminal buffer
- * (`server.py:4370`). This one BLOCKS the agent's turn: it rides their
- * `_block` bridge with `timeout=30` (`server.py:2346`), so silence costs half
+ * (registered in `server.py::_agent_cbs`). This one BLOCKS the agent's turn:
+ * it rides their `_block` bridge with `timeout=30` (`server.py::_block`), so silence costs half
  * a minute of a stalled turn — an answer must always be sent, empty included.
  *
  * `start`/`count` are absolute line indices into the buffer, both optional
@@ -1487,7 +1487,7 @@ export interface TerminalReadRequestEvent {
   payload: { request_id: string; start?: number; count?: number }
 }
 
-/** An out-of-band notice from the core (`server.py:4349`) — the fields are
+/** An out-of-band notice from the core (`server.py::_agent_cbs`) — the fields are
  * their `AgentNotice`'s (`agent/credits_tracker.py:178`), not ours.
  *
  * Two traps in the shape: `ttl_ms` is honoured ONLY when `kind` is `'ttl'`
@@ -1508,7 +1508,7 @@ export interface NotificationShowEvent {
   }
 }
 
-/** The core withdraws a notice it raised (`server.py:4364`). Addressed by
+/** The core withdraws a notice it raised (`server.py::_agent_cbs`). Addressed by
  * `key`, never by `id`; a key that was never shown is a no-op. */
 export interface NotificationClearEvent {
   type: 'notification.clear'
@@ -1516,7 +1516,7 @@ export interface NotificationClearEvent {
   payload: { key?: string | null }
 }
 
-/** Progress of connecting to a browser over CDP (`server.py:15256`).
+/** Progress of connecting to a browser over CDP (`server.py`, `@method("browser")`).
  *
  * NOT a tool event, despite the name: the only emitter is the `browser` RPC
  * with `action: "connect"`, and the payload carries no `tool_id` and no tool

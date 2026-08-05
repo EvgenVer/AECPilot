@@ -51,7 +51,7 @@ export default function ProcessesTab({ active }: { active: boolean }) {
     const timer = setInterval(() => void load(), REFRESH_MS)
     // Task 1.6.B6.4: their notification poller announces a finished (or
     // watch-matched) background process as `status.update {kind:"process"}`
-    // (`server.py:9745`) — refresh on it instead of leaving the list up to
+    // (`server.py::_notification_poller_loop`) — refresh on it instead of leaving the list up to
     // four seconds stale. Subscribed here rather than plumbed down from the
     // shell: the same self-contained pattern as ScanNotification, and it costs
     // one listener that only exists while the tab is visible.

@@ -33,29 +33,29 @@
 сценариев.
 
 1. **Поток терминала включается вместе с поллером уведомлений сессии.**
-   `_wire_agent_terminal_output` (`tui_gateway/server.py:9856`) вызывается из
-   `_start_notification_poller` (`:9903`), то есть до первой созданной сессии
+   `tui_gateway/server.py::_wire_agent_terminal_output` вызывается из
+   `::_start_notification_poller`, то есть до первой созданной сессии
    ни одного `agent.terminal.output` не будет. Пустая вкладка при живом шлюзе —
    норма, а не поломка.
 
 2. **`agent.terminal.output` несёт `{process_id, chunk}`**
-   (`server.py:9882`). `process_id` — это `session.id` их реестра процессов, то
+   (`server.py::_emit_agent_terminal_output`). `process_id` — это `session.id` их реестра процессов, то
    же поле, которое `process.list` отдаёт под именем `session_id` (ловушка
    именования зафиксирована в типах шлюза ещё батчем 2a). Ни имени команды, ни
    рабочей папки в событии нет — их даёт только `process.list`.
 
-3. **`terminal.close` закрывает ВКЛАДКУ, а не процесс** (`server.py:9889`,
+3. **`terminal.close` закрывает ВКЛАДКУ, а не процесс** (`server.py::_emit_agent_terminal_close`,
    их комментарий: «the process is untouched — this only drops the view»).
    Событие приходит, когда агент сам вызвал свой инструмент `close_terminal`.
    Значит на него нельзя отвечать `process.kill`: это было бы убийством
    работающей команды по сигналу «убери вкладку».
 
 4. **`terminal.read.request` останавливает ход агента на 30 секунд.**
-   Обработчик `read_terminal` идёт через блокирующий мост
-   `_block(..., timeout=30)` (`server.py:4370`; сам `_block` — `:2346`).
+   Коллбэк `read_terminal` регистрируется в `server.py::_agent_cbs` и идёт через
+   блокирующий мост `_block(..., timeout=30)` (`server.py::_block`).
    Молчание окна — это полминуты простоя хода, поэтому отвечать надо ВСЕГДА,
    в том числе когда показывать нечего. Ответ — `terminal.read.respond
-   {request_id, text}` (`server.py:11281`), где `text` это **JSON-строка**, а не
+   {request_id, text}` (`methods_prompt.py`, `@method("terminal.read.respond")`), где `text` это **JSON-строка**, а не
    объект.
 
 5. **Форма ответа задана донором, а не нами.** Их сериализатор
@@ -73,22 +73,23 @@
    уровне буфера; (б) `viewport_rows` и `cursor_row` у нас не аппаратные, а
    производные от буфера, и это записано в самом ответе, а не выдумано.
 
-7. **`notification.show` — это поля их `AgentNotice`** (`server.py:4349` ←
+7. **`notification.show` — это поля их `AgentNotice`** (`server.py::_agent_cbs` ←
    `agent/credits_tracker.py:178`): `text`, `level` = `info|warn|error|success`,
    `kind` = `sticky|ttl`, `ttl_ms`, `key`, `id`. **`ttl_ms` учитывается только
    при `kind:"ttl"`** — их собственный комментарий; `sticky` живёт до ручного
    закрытия или до `notification.clear`.
 
 8. **`notification.clear` адресуется по `key`, а не по `id`**
-   (`server.py:4364`). Ключ же служит и дедупом: повторный `show` с тем же
+   (`server.py::_agent_cbs`). Ключ же служит и дедупом: повторный `show` с тем же
    ключом — это ЗАМЕНА, а не второе уведомление (их назначение ключа:
    «dedupe / fired-once-latch / clear key»).
 
 9. **`status.update` знает пять `kind`, и `goal` среди них нет.**
-   `lifecycle` и `warn` приходят из `status_callback` (`run_agent.py:911`
-   и `:928`), `compacting` — перетегованный `lifecycle` (`server.py:1418`),
-   `status` — закрывающий «ready» (`:8907`), `process` — сообщения поллера о
-   фоновых процессах (`:9745`, `:9821`). Задача 1.6.B6.4 просила развести
+   `lifecycle` и `warn` приходят из `status_callback` (`run_agent.py`),
+   `compacting` — перетегованный `lifecycle` (`server.py::_status_update`),
+   `status` — закрывающий «ready» (там же: `_status_update` без `text` отдаёт
+   `kind:"status"`), `process` — сообщения поллера о фоновых процессах
+   (`server.py::_notification_poller_loop`). Задача 1.6.B6.4 просила развести
    `process` и `goal`; второго кода в ядре 0.19.0 не существует, и цель живёт
    не событием, а строкой `GoalManager.status_line()` через
    `command.dispatch {name:'goal'}` (задача 1.6.A5). Поэтому «`goal` не
@@ -97,7 +98,8 @@
 
 10. **`browser.progress` не имеет отношения к инструменту браузера.**
     Единственный эмиттер — RPC-метод `browser` с `action:"connect"`
-    (`server.py:15256`), полезная нагрузка `{message, level}`: ни `tool_id`, ни
+    (`server.py`, `@method("browser")` → его внутренний `announce`),
+    полезная нагрузка `{message, level}`: ни `tool_id`, ни
     имени инструмента. Строкой в карточке инструмента он быть не может, и пока
     приложение не вызывает `browser.connect`, событие не приходит вовсе.
 
@@ -259,7 +261,7 @@
   терминала здесь нужна, чтобы ЧИТАТЬ вывод агента, а команды пользователь
   запускает в своей оболочке. Следствие для контракта: `terminal.resize` не
   вызывается (он и не про PTY — ставит `session["cols"]` их рендера,
-  `server.py:9378`), ввод во вкладке невозможен, и это сказано в пустом
+  `methods_session.py`, `@method("terminal.resize")`), ввод во вкладке невозможен, и это сказано в пустом
   состоянии.
 - ~~**Предпросмотр через `<webview>`**~~ — **ВОЗВРАЩЁН в объём 2026-08-05** как песочница
   артефактов (SPEC UR22, задача 1.9.4). Требование безопасности сохраняется: защита окна

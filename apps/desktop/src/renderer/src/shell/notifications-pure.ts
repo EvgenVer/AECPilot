@@ -90,7 +90,7 @@ export function ttlFromNotice(kind: unknown, ttlMs: unknown): number | undefined
  *
  * - `notification.show` — the core's own out-of-band notice;
  * - `status.update {kind:"process"}` — their notification poller announcing a
- *   background process (`server.py:9745`). The other four kinds are not
+ *   background process (`server.py::_notification_poller_loop`). The other four kinds are not
  *   notifications: `compressing`/`compacting`/`status` drive the compaction
  *   indicator (task 1.6.B5.14) and `lifecycle`/`warn` are recorded in
  *   §Discovered as a separate question;
@@ -133,7 +133,7 @@ export function notificationFromEvent(event: GatewayEvent): NotificationInput | 
  *
  * The task asked for a line inside the browser tool's card. That is not
  * possible and the reason is in the payload: their only emitter is the RPC
- * `browser` with `action:"connect"` (`server.py:15256`), and it sends
+ * `browser` with `action:"connect"` (`server.py`, `@method("browser")`), and it sends
  * `{message, level}` — no `tool_id`, no tool name. Attaching it to a card
  * would mean attaching it to an arbitrary card.
  *

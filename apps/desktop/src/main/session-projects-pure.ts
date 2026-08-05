@@ -4,8 +4,7 @@
 // recents.ts / recents-pure.ts (task 1.3).
 //
 // Why this exists: the gateway persists a `cwd` on every session row (see
-// runtime/.hermes-venv/Lib/site-packages/tui_gateway/server.py's
-// `_ensure_session_db_row`), but its `session.list` RPC doesn't surface that
+// `tui_gateway/server.py::_ensure_session_db_row` in the core checkout), but its `session.list` RPC doesn't surface that
 // field — only id/title/preview/started_at/message_count/source. So the
 // desktop keeps its own record of which persisted session ids (the
 // gateway's `stored_session_id`) it created against which vault, to scope

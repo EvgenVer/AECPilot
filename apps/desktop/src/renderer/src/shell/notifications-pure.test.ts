@@ -185,7 +185,7 @@ describe('gateway events → notifications', () => {
     expect(notificationFromEvent(event('notification.show', { text: '   ' }))).toBeUndefined()
   })
 
-  // Task 1.6.B6.4 — their notification poller, server.py:9745.
+  // Task 1.6.B6.4 — their notification poller, server.py::_notification_poller_loop.
   it('turns status.update {kind:"process"} into a notification with a ttl', () => {
     const input = notificationFromEvent(
       event('status.update', { kind: 'process', text: 'npm test завершён (код 0)' })
@@ -210,7 +210,7 @@ describe('gateway events → notifications', () => {
     }
   })
 
-  // Task 1.6.B6.10 — server.py:15256 sends {message, level} and no tool id.
+  // Task 1.6.B6.10 — server.py's `browser` RPC sends {message, level} and no tool id.
   it('turns browser.progress into a keyed toast so lines replace each other', () => {
     const first = notificationFromEvent(
       event('browser.progress', { message: 'Ищу Chrome', level: 'info' })

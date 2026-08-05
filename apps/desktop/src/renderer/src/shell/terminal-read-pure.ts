@@ -3,7 +3,7 @@
 //
 // Pure, and node-tested: this is the one place where a mistake costs the agent
 // 30 seconds of a stalled turn (their `_block(..., timeout=30)`,
-// `tui_gateway/server.py:4370`), so its edge cases are pinned rather than
+// `tui_gateway/server.py::_agent_cbs`), so its edge cases are pinned rather than
 // tried out in the app.
 
 import { hasAnsiCodes, parseAnsi } from '../chat/vendor/hermes/ansi-pure'

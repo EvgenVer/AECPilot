@@ -39,22 +39,22 @@
    это признавать: «похоже на файл» — не то же самое, что «файл есть».
 
 2. **`session.history` адресует ЖИВУЮ сессию, а не сохранённую.**
-   `_sess_nowait` (`server.py:1727`) ищет в словаре живых сессий и отвечает
+   `server.py::_sess_nowait` ищет в словаре живых сессий и отвечает
    4001 «session not found» на любой stored-id из `session.list`. Прочитать
    историю *завершённой* сессии этим методом нельзя вовсе.
 
 3. **`session.history` не отдаёт аргументы инструментов.**
-   `_history_to_messages` (`server.py:5447`) собирает историю в форму
+   `server.py::_history_to_messages` собирает историю в форму
    `{role, text}` / `{role:'tool', name, context}`: `tool_calls` ассистента
    разбираются и **выбрасываются**, а ассистентское сообщение, у которого не было
    текста (только вызовы), пропускается целиком. От аргументов остаётся
    `context` = `build_tool_label(name, args, max_len=80)`
-   (`server.py:3902` → `agent/display.py:694`) — человеческая фраза вида
+   (`server.py::_history_to_messages` → `agent/display.py::build_tool_label`) — человеческая фраза вида
    «Reading …», **обрезанная на 80 символах** хвостом `...`
    (`display.py:182`). Путь длиннее ~77 символов приходит обрезанным.
 
 4. **Полная история сохранённой сессии есть только в REST того же процесса.**
-   `GET /api/sessions/{id}/messages` (`hermes_cli/web_server.py:10962`) отдаёт
+   `GET /api/sessions/{id}/messages` (`hermes_cli/web_routers/sessions.py`) отдаёт
    сырые строки таблицы `messages`: `role`, `content`, разобранный
    `tool_calls`, `tool_name`, `timestamp` (`hermes_state.py:4505`, схема —
    `:812`). Это ровно тот источник, которым пользуется донор. Применение
@@ -78,7 +78,8 @@
    значение пути/URL, и никогда — аргументы целиком.
 
 8. **Граф обучения — единственный источник Карты, и он уже подключён.**
-   `GET /api/learning/graph` (`web_server.py:3176` → `agent/learning_graph.py:254`)
+   `GET /api/learning/graph` (остался в монолите `hermes_cli/web_server.py` →
+   `agent/learning_graph.py::build_learning_graph`)
    отвечает 200 на живом `hermes serve` с нашими флагами (проба 30.07, задача
    1.6.B7.6). Состав ответа: `nodes`, `edges`, `clusters`, `memory`, `stats`.
    Узел — `{id, label, kind:'skill'|'memory', memorySource?, timestamp, category,

@@ -110,7 +110,7 @@ Ref: SPECIFICATION.md — UR14 (снимки и откат правок аген
 проводам“ сразу, как только включим флаг»).** В пути `tui_gateway` (наша интеграция —
 SPECIFICATION.md C1) флаг `checkpoints.enabled` из `~/.hermes/config.yaml` НЕ
 читается вовсе: включение идёт через переменную окружения `HERMES_TUI_CHECKPOINTS`
-(источник: `tui_gateway/server.py:4383`, `checkpoints_enabled` строится через
+(источник: `tui_gateway/server.py::_make_agent`, `checkpoints_enabled` строится через
 `is_truthy_value(os.environ.get("HERMES_TUI_CHECKPOINTS"))`). Три числовых лимита
 (`max_snapshots`/`max_total_size_mb`/`max_file_size_mb`) в этом пути вообще не
 прокидываются в конструктор агента и молча берутся дефолтами ядра (20/500/10) —
@@ -203,7 +203,7 @@ Scenario: В рабочей директории ещё не было ни од�
 RPC ядра tui_gateway (проверено по `tui_gateway/server.py`, коммит указан в Overview).
 Все три метода принимают идентификатор сессии (`session_id`, как и прочие
 session-scoped методы шлюза — `_sess(params, rid)`); рабочая директория для операции
-берётся ТОЛЬКО из `cwd` текущей сессии (`_session_cwd`, `server.py:1422-1425`) —
+берётся ТОЛЬКО из `cwd` текущей сессии (`server.py::_session_cwd`) —
 вызывающая сторона не может передать директорию отдельным параметром. У нас `cwd`
 сессии = корень vault (`specs/workspace-sources.md`: «working dir агента = vault») —
 с учётом «Назначение и границы» выше это прямо определяет, что реально увидит
@@ -218,7 +218,8 @@ session-scoped методы шлюза — `_sess(params, rid)`); рабочая
   **Замечание по источнику.** Поле `message` в ответе шлюза всегда пустая строка —
   обработчик берёт `c.get("message", "")`, а `CheckpointManager.list_checkpoints`
   кладёт причину снимка в поле `reason`, не `message` (несовпадение имён полей,
-  `tui_gateway/server.py:12954-12960` против `tools/checkpoint_manager.py:708-729`).
+  `tui_gateway/methods_tools.py`, `@method("rollback.list")` против
+  `tools/checkpoint_manager.py::CheckpointManager.list_checkpoints`).
   Также не прокидываются `short_hash`, `files_changed`, `insertions`, `deletions` —
   они есть у ядра (ими пользуется их CLI-форматтер `format_checkpoint_list`), но до
   RPC-ответа не доходят. Наш экран может рассчитывать только на `hash` (полный) и

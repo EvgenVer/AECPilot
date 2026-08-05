@@ -138,7 +138,7 @@ describe('respondToTerminalRead', () => {
 
     const [, text] = respond.mock.calls[0]
     // A JSON STRING, not an object: their handler forwards it verbatim to the
-    // tool, which parses it itself (`server.py:11281`).
+    // tool, which parses it itself (`methods_prompt.py`, `@method("terminal.read.respond")`).
     expect(typeof text).toBe('string')
     const payload = JSON.parse(text as string) as TerminalReadPayload
     expect(payload).toMatchObject({ total_lines: 3, start: 1, end: 2, text: 'line 1' })

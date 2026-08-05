@@ -9,7 +9,7 @@
 // anywhere it snapshots the file's own folder. Our `rollback.list/diff/
 // restore` calls, in contrast, always address the SESSION's cwd — the vault
 // root — because the gateway takes no directory parameter
-// (`_with_checkpoints`, tui_gateway/server.py:4492).
+// (`tui_gateway/server.py::_with_checkpoints`).
 //
 // So the two only line up when the vault root itself carries a marker. This
 // module reproduces that walk over the vault root so the screen can name the

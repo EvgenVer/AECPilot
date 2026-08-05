@@ -1,7 +1,7 @@
 // Idempotently registers the `aec-sources` MCP server (mcp/aec_sources) in
 // the isolated hermes dev profile's config.yaml (task 1.12).
 //
-// Mechanism (from runtime/.hermes-venv/Lib/site-packages/hermes_cli/mcp_config.py
+// Mechanism (from `hermes_cli/mcp_config.py` in the core checkout
 // + tools/mcp_tool.py — see AECPilot TASKS.md task 1.12 for the write-up):
 //   - MCP servers live under the `mcp_servers:` top-level key of
 //     ~/.hermes/config.yaml (here: runtime/dev-profile/config.yaml), one

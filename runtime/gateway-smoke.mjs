@@ -3,8 +3,7 @@
 // No npm deps: node:child_process/net (via serve.mjs) + the Node 22
 // built-in global WebSocket.
 //
-// Protocol map (from runtime/.hermes-venv/Lib/site-packages/tui_gateway/
-// server.py and ws.py — see AECPilot TASKS.md task 0.8 for the write-up):
+// Protocol map (from `tui_gateway/server.py` and `ws.py` in the core checkout — see AECPilot TASKS.md task 0.8 for the write-up):
 //   - connect                → server sends {"method":"event","params":{"type":"gateway.ready",...}}
 //   - "session.create"       → {"result":{"session_id": "...", ...}}
 //   - "prompt.submit"        → {"result":{"status":"streaming"}}, reply streams via events:
