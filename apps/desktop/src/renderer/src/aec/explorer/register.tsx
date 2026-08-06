@@ -12,6 +12,7 @@ import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { ProjectMenu } from '../project/ProjectMenu'
+import { RollbackPanel } from '../rollback/RollbackPanel'
 import { ScanWatcher } from '../scan/ScanWatcher'
 
 import { VaultExplorer } from './VaultExplorer'
@@ -21,6 +22,9 @@ import { VaultExplorer } from './VaultExplorer'
 // this case. A language switch retitles it on the next registry mutation.
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'explorer.title', [])
+
+const rollbackTitle = (): string =>
+  translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'rollback.title', [])
 
 // The project menu goes in their status bar, left side: "what am I working on"
 // has to be readable without opening anything (every file operation, scan and
@@ -42,6 +46,24 @@ registry.register({
   source: 'core',
   order: -99,
   render: () => <ScanWatcher />
+})
+
+// Checkpoints go on the right, where their own review-ish panes live. The
+// donor's git surface is excluded (HX6), so this is the only answer to "what
+// did the agent change in my files, and how do I undo it".
+registry.register({
+  id: 'aec-rollback',
+  area: 'panes',
+  source: 'core',
+  title: rollbackTitle(),
+  data: {
+    placement: 'right',
+    collapsible: true,
+    width: '320px',
+    minWidth: '260px',
+    maxWidth: '560px'
+  },
+  render: () => <RollbackPanel />
 })
 
 registry.register({

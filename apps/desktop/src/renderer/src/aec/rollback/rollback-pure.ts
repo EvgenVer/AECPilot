@@ -4,8 +4,8 @@
 // function of its arguments so the awkward cases (empty list that is not
 // really empty, truncated patch, ambiguous diff) can be pinned by unit tests.
 
-import type { CheckpointScopeInfo, RollbackListing } from '../../../shared/ipc'
-import type { RollbackCheckpoint } from '../../../shared/gateway/types'
+import type { CheckpointScopeInfo, RollbackListing } from '../../../../shared/ipc'
+import type { RollbackCheckpoint } from '../../../../shared/gateway/types'
 
 /** What the screen shows for the current listing.
  *

@@ -1,0 +1,157 @@
+// The panel is mostly a view over rollback-pure (tested separately, 20 cases).
+// What is tested here is the part that can lose a user's work: nothing is
+// overwritten without a confirmation that NAMES what will be overwritten, and
+// the empty list explains itself instead of looking broken.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+import { RollbackPanel } from './RollbackPanel'
+import { AecI18nProvider } from '../../shared/i18n'
+
+const listCheckpoints = vi.fn()
+const diffCheckpoint = vi.fn()
+const restoreCheckpoint = vi.fn()
+
+const listing = {
+  enabled: true,
+  checkpoints: [
+    { hash: 'abc123deef456', timestamp: '2026-08-06T10:00:00Z' },
+    { hash: 'fed654cba321', timestamp: '2026-08-06T09:00:00Z' }
+  ],
+  scope: { kind: 'vault' }
+}
+
+beforeEach(() => {
+  window.localStorage.clear()
+  listCheckpoints.mockResolvedValue(listing)
+  diffCheckpoint.mockResolvedValue({
+    stat: ' docs/а.md | 2 +-',
+    diff: 'diff --git a/docs/а.md b/docs/а.md\n--- a/docs/а.md\n+++ b/docs/а.md\n@@ -1 +1 @@\n-старое\n+новое\n'
+  })
+  restoreCheckpoint.mockResolvedValue({ success: true })
+  window.aecpilot = {
+    listCheckpoints,
+    diffCheckpoint,
+    restoreCheckpoint
+  } as unknown as typeof window.aecpilot
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+const renderPanel = () =>
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <AecI18nProvider>
+        <RollbackPanel />
+      </AecI18nProvider>
+    </QueryClientProvider>
+  )
+
+const click = async (name: string | RegExp) => {
+  await act(async () => {
+    screen.getByRole('button', { name }).click()
+  })
+}
+
+describe('RollbackPanel', () => {
+  it('explains an empty list instead of showing a blank panel', async () => {
+    listCheckpoints.mockResolvedValue({ enabled: true, checkpoints: [], scope: { kind: 'vault' } })
+    renderPanel()
+    await waitFor(() =>
+      expect(screen.getByText('Снимков пока нет — агент ещё ничего не правил.')).toBeTruthy()
+    )
+  })
+
+  it('says so when checkpoints are switched off entirely', async () => {
+    listCheckpoints.mockResolvedValue({ enabled: false, checkpoints: [], scope: { kind: 'vault' } })
+    renderPanel()
+    await waitFor(() =>
+      expect(
+        screen.getByText('Чекпойнты выключены — снимки правок агента не сохраняются.')
+      ).toBeTruthy()
+    )
+  })
+
+  it('shows the diff of the snapshot the user picked', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+
+    await click(/abc123de/)
+
+    await waitFor(() => expect(diffCheckpoint).toHaveBeenCalledWith('abc123deef456'))
+    expect(screen.getByText('docs/а.md')).toBeTruthy()
+  })
+
+  it('names what a whole-snapshot restore will overwrite, and only then restores', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
+
+    await click('Восстановить всё')
+
+    // The confirmation is specific: every file, this snapshot, and the turn
+    // disappearing from history.
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+    expect(screen.getByText(/Все файлы будут перезаписаны/)).toBeTruthy()
+    expect(restoreCheckpoint).not.toHaveBeenCalled()
+
+    await click('Восстановить')
+
+    expect(restoreCheckpoint).toHaveBeenCalledWith({ hash: 'abc123deef456', confirmed: true })
+  })
+
+  it('names the single file when only that file is being restored', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
+
+    await click('Восстановить файл')
+    expect(screen.getByText(/Файл docs\/а\.md будет перезаписан/)).toBeTruthy()
+
+    await click('Восстановить')
+    expect(restoreCheckpoint).toHaveBeenCalledWith({
+      hash: 'abc123deef456',
+      filePath: 'docs/а.md',
+      confirmed: true
+    })
+  })
+
+  it('reports a refusal that arrived as a successful call', async () => {
+    // Their handler passes the manager's verdict through, so a refusal is
+    // `{ success: false }` on a call that did not throw.
+    restoreCheckpoint.mockResolvedValue({ success: false, error: 'рабочая копия занята' })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
+    await click('Восстановить всё')
+    await click('Восстановить')
+
+    await waitFor(() =>
+      expect(screen.getByText('Не удалось восстановить: рабочая копия занята')).toBeTruthy()
+    )
+  })
+
+  it('backs out without touching anything', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
+    await click('Восстановить всё')
+
+    await click('Отмена')
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(restoreCheckpoint).not.toHaveBeenCalled()
+  })
+})

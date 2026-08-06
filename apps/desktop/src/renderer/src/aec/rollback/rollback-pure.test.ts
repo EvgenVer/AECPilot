@@ -13,7 +13,7 @@ import {
   parseDiffLines,
   shortHash
 } from './rollback-pure'
-import type { RollbackListing } from '../../../shared/ipc'
+import type { RollbackListing } from '../../../../shared/ipc'
 
 const CHECKPOINT = { hash: 'a'.repeat(40), timestamp: '2026-07-30T04:21:00+03:00' }
 
