@@ -17,6 +17,7 @@ import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
+import { splitBySearchQuery, subtreeMatchesSearchQuery } from './explorer-search-pure'
 import { SourcesPanel } from './SourcesPanel'
 
 /** Folders the user has opened. Collapsed is the default: a vault's top level
@@ -29,7 +30,8 @@ function TreeRow({
   expanded,
   onToggle,
   onAction,
-  busy
+  busy,
+  query
 }: {
   node: VaultTreeNode
   depth: number
@@ -37,10 +39,14 @@ function TreeRow({
   onToggle: (path: string) => void
   onAction: (action: 'newFile' | 'newDir' | 'rename' | 'delete', node: VaultTreeNode) => void
   busy: boolean
+  query: string
 }) {
   const t = useAecT()
   const isDir = node.type === 'dir'
-  const isOpen = isDir && expanded[node.path] === true
+  // While filtering, a folder is open whether or not the user opened it —
+  // otherwise the match is behind a closed door.
+  const isOpen = isDir && (query.trim() !== '' || expanded[node.path] === true)
+  const { pre, match, post } = splitBySearchQuery(node.name, query)
 
   return (
     <>
@@ -59,7 +65,11 @@ function TreeRow({
               className="text-(--ui-text-secondary)"
               name={isDir ? (isOpen ? 'chevron-down' : 'chevron-right') : 'file'}
             />
-            <span className="truncate">{node.name}</span>
+            <span className="truncate">
+              {pre}
+              {match && <mark className="bg-transparent font-semibold text-primary">{match}</mark>}
+              {post}
+            </span>
           </button>
 
           {/* Row actions stay hidden until the row is hovered or focused —
@@ -100,6 +110,15 @@ function TreeRow({
               <Codicon name="edit" />
             </Button>
             <Button
+              aria-label={t('explorer.reveal')}
+              onClick={() => void window.aecpilot.showVaultEntryInExplorer(node.path)}
+              size="icon-xs"
+              title={t('explorer.reveal')}
+              variant="ghost"
+            >
+              <Codicon name="folder-opened" />
+            </Button>
+            <Button
               aria-label={t('explorer.delete')}
               disabled={busy}
               onClick={() => onAction('delete', node)}
@@ -114,17 +133,20 @@ function TreeRow({
       </li>
 
       {isOpen &&
-        (node.children ?? []).map((child) => (
-          <TreeRow
-            busy={busy}
-            depth={depth + 1}
-            expanded={expanded}
-            key={child.path}
-            node={child}
-            onAction={onAction}
-            onToggle={onToggle}
-          />
-        ))}
+        (node.children ?? [])
+          .filter((child) => subtreeMatchesSearchQuery(child, query))
+          .map((child) => (
+            <TreeRow
+              busy={busy}
+              depth={depth + 1}
+              expanded={expanded}
+              key={child.path}
+              node={child}
+              onAction={onAction}
+              onToggle={onToggle}
+              query={query}
+            />
+          ))}
     </>
   )
 }
@@ -137,6 +159,7 @@ export function VaultExplorer() {
   const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState<Expanded>({})
   const [busy, setBusy] = useState(false)
+  const [query, setQuery] = useState('')
   const [actionError, setActionError] = useState<string | undefined>(undefined)
 
   // Server state through React Query, like every screen of theirs — our surface
@@ -213,6 +236,10 @@ export function VaultExplorer() {
     [reload, t]
   )
 
+  // Filtering keeps a folder that only CONTAINS a match, so the path down to
+  // it stays walkable (explorer-search-pure).
+  const visible = (tree ?? []).filter((node) => subtreeMatchesSearchQuery(node, query))
+
   return (
     <div className="flex h-full flex-col overflow-auto text-(--ui-text-primary)">
       <div className="flex flex-col gap-1 p-2">
@@ -246,6 +273,15 @@ export function VaultExplorer() {
           </span>
         </div>
 
+        <input
+          aria-label={t('explorer.search')}
+          className="rounded-[4px] bg-(--ui-bg-quaternary) px-2 py-1 text-xs text-(--ui-text-primary) outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('explorer.search')}
+          type="search"
+          value={query}
+        />
+
         {(actionError ?? loadError) && (
           <div className="text-xs text-destructive">
             {actionError ?? (loadError as Error).message}
@@ -256,9 +292,11 @@ export function VaultExplorer() {
           <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
         ) : tree.length === 0 ? (
           <div className="text-xs text-(--ui-text-secondary)">{t('explorer.empty')}</div>
+        ) : visible.length === 0 ? (
+          <div className="text-xs text-(--ui-text-secondary)">{t('explorer.noMatches')}</div>
         ) : (
           <ul className="flex flex-col">
-            {tree.map((node) => (
+            {visible.map((node) => (
               <TreeRow
                 busy={busy}
                 depth={0}
@@ -267,6 +305,7 @@ export function VaultExplorer() {
                 node={node}
                 onAction={runAction}
                 onToggle={toggle}
+                query={query}
               />
             ))}
           </ul>

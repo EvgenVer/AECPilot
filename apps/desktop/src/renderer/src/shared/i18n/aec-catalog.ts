@@ -55,7 +55,10 @@ export const aecLocales: PluginLocaleBundles = {
       newFilePrompt: 'File name',
       newDirPrompt: 'Folder name',
       renamePrompt: 'New name',
-      deleteConfirm: 'Delete this entry?'
+      deleteConfirm: 'Delete this entry?',
+      reveal: 'Show in Explorer',
+      search: 'Filter by name',
+      noMatches: 'Nothing matches'
     },
     sources: {
       title: 'Sources',
@@ -114,7 +117,10 @@ export const aecLocales: PluginLocaleBundles = {
       newFilePrompt: 'Имя файла',
       newDirPrompt: 'Имя папки',
       renamePrompt: 'Новое имя',
-      deleteConfirm: 'Удалить эту запись?'
+      deleteConfirm: 'Удалить эту запись?',
+      reveal: 'Показать в проводнике',
+      search: 'Фильтр по имени',
+      noMatches: 'Ничего не найдено'
     },
     sources: {
       title: 'Источники',

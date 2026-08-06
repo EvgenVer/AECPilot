@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { VaultExplorer } from './VaultExplorer'
@@ -22,6 +22,7 @@ const tree: VaultTreeNode[] = [
 ]
 
 const getVaultTree = vi.fn()
+const showVaultEntryInExplorer = vi.fn()
 const createVaultFile = vi.fn()
 const createVaultDir = vi.fn()
 const renameVaultEntry = vi.fn()
@@ -36,6 +37,7 @@ beforeEach(() => {
   deleteVaultEntry.mockResolvedValue({ ok: true })
   window.aecpilot = {
     getVaultTree,
+    showVaultEntryInExplorer,
     createVaultFile,
     createVaultDir,
     renameVaultEntry,
@@ -148,6 +150,46 @@ describe('VaultExplorer', () => {
     await clickRowAction('AGENTS.md', 'Удалить')
 
     await waitFor(() => expect(screen.getByText('файл занят другим процессом')).toBeTruthy())
+  })
+
+  it('filters by name, keeping the folder a match sits in', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    // fireEvent.change, not a raw input event: React tracks the value setter,
+    // so assigning `.value` by hand leaves its state untouched.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Фильтр по имени'), { target: { value: 'замет' } })
+    })
+
+    // The match is inside `docs`, so `docs` stays — and opens itself, or the
+    // match would sit behind a closed folder.
+    expect(screen.getByText('docs')).toBeTruthy()
+    expect(screen.getByText('замет')).toBeTruthy()
+    // A sibling that matches nothing is gone.
+    expect(screen.queryByText('AGENTS.md')).toBeNull()
+  })
+
+  it('says so when nothing matches', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Фильтр по имени'), {
+        target: { value: 'такого-нет' }
+      })
+    })
+
+    expect(screen.getByText('Ничего не найдено')).toBeTruthy()
+  })
+
+  it('reveals an entry in the OS file manager by its rel path', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await clickRowAction('AGENTS.md', 'Показать в проводнике')
+
+    expect(showVaultEntryInExplorer).toHaveBeenCalledWith('AGENTS.md')
   })
 
   it('renames through main, and not when the name is unchanged', async () => {

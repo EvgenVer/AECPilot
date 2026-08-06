@@ -14,12 +14,92 @@ import { useCallback, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
-import type { ProjectSource } from '../../../../shared/ipc'
+import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
 
 const SOURCES_KEY = ['aec', 'sources'] as const
 
 /** Reachability per source id, filled in after the list arrives. */
 type Statuses = Record<string, 'ok' | 'unavailable' | 'error'>
+
+/** One source's files, read only when the user opens it — a source can be a
+ * network share with tens of thousands of entries, and nothing about the panel
+ * needs them until someone looks. */
+function SourceTree({ sourceId }: { sourceId: string }) {
+  const t = useAecT()
+  const { data } = useQuery({
+    queryKey: [...SOURCES_KEY, 'tree', sourceId],
+    queryFn: () => window.aecpilot.getSourceTree(sourceId)
+  })
+
+  if (!data)
+    return <div className="pl-5 text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
+  if (!data.ok) return <div className="pl-5 text-xs text-destructive">{data.error}</div>
+  if (data.status === 'unavailable') {
+    return <div className="pl-5 text-xs text-destructive">{t('sources.unavailable')}</div>
+  }
+
+  return <SourceNodes depth={1} nodes={data.tree} sourceId={sourceId} />
+}
+
+function SourceNodes({
+  nodes,
+  depth,
+  sourceId
+}: {
+  nodes: SourceTreeNode[]
+  depth: number
+  sourceId: string
+}) {
+  const t = useAecT()
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+
+  return (
+    <ul className="flex flex-col">
+      {nodes.map((node) => (
+        <li key={node.path}>
+          <div
+            className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
+            style={{ paddingLeft: `${depth * 0.75}rem` }}
+          >
+            <button
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
+              onClick={() =>
+                node.type === 'dir' && setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
+              }
+              title={node.path}
+              type="button"
+            >
+              <Codicon
+                className="text-(--ui-text-secondary)"
+                name={
+                  node.type === 'dir'
+                    ? open[node.path]
+                      ? 'chevron-down'
+                      : 'chevron-right'
+                    : 'file'
+                }
+              />
+              <span className="truncate">{node.name}</span>
+            </button>
+            <Button
+              aria-label={t('explorer.reveal')}
+              className="hidden group-focus-within:flex group-hover:flex"
+              onClick={() => void window.aecpilot.showSourceEntryInExplorer(sourceId, node.path)}
+              size="icon-xs"
+              title={t('explorer.reveal')}
+              variant="ghost"
+            >
+              <Codicon name="folder-opened" />
+            </Button>
+          </div>
+          {node.type === 'dir' && open[node.path] && (
+            <SourceNodes depth={depth + 1} nodes={node.children ?? []} sourceId={sourceId} />
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function SourcesPanel() {
   const t = useAecT()
@@ -31,6 +111,7 @@ export function SourcesPanel() {
   const [confirmAdd, setConfirmAdd] = useState<
     { rootPath: string; warnings: string[] } | undefined
   >(undefined)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const { data: sources } = useQuery({
     queryKey: SOURCES_KEY,
@@ -158,36 +239,43 @@ export function SourcesPanel() {
             const status = statuses?.[source.id]
 
             return (
-              <li
-                className="group flex items-center gap-1 rounded-[4px] px-1 hover:bg-(--chrome-action-hover)"
-                key={source.id}
-              >
-                <Codicon className="text-(--ui-text-secondary)" name="folder-library" />
-                <span
-                  className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)"
-                  title={source.root_path}
-                >
-                  {source.root_path}
-                </span>
-                {status && status !== 'ok' && (
-                  // A source that has gone away is the failure this panel
-                  // exists to make visible — a moved drive, a share that is no
-                  // longer mounted.
-                  <span className="shrink-0 text-xs text-destructive">
-                    {t('sources.unavailable')}
-                  </span>
-                )}
-                <Button
-                  aria-label={t('sources.remove')}
-                  className="hidden group-focus-within:flex group-hover:flex"
-                  disabled={busy}
-                  onClick={() => void handleRemove(source)}
-                  size="icon-xs"
-                  title={t('sources.remove')}
-                  variant="ghost"
-                >
-                  <Codicon name="trash" />
-                </Button>
+              <li key={source.id}>
+                <div className="group flex items-center gap-1 rounded-[4px] px-1 hover:bg-(--chrome-action-hover)">
+                  <button
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left"
+                    onClick={() => setExpanded((c) => ({ ...c, [source.id]: !c[source.id] }))}
+                    title={source.root_path}
+                    type="button"
+                  >
+                    <Codicon
+                      className="text-(--ui-text-secondary)"
+                      name={expanded[source.id] ? 'chevron-down' : 'chevron-right'}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)">
+                      {source.root_path}
+                    </span>
+                  </button>
+                  {status && status !== 'ok' && (
+                    // A source that has gone away is the failure this panel
+                    // exists to make visible — a moved drive, a share that is no
+                    // longer mounted.
+                    <span className="shrink-0 text-xs text-destructive">
+                      {t('sources.unavailable')}
+                    </span>
+                  )}
+                  <Button
+                    aria-label={t('sources.remove')}
+                    className="hidden group-focus-within:flex group-hover:flex"
+                    disabled={busy}
+                    onClick={() => void handleRemove(source)}
+                    size="icon-xs"
+                    title={t('sources.remove')}
+                    variant="ghost"
+                  >
+                    <Codicon name="trash" />
+                  </Button>
+                </div>
+                {expanded[source.id] && <SourceTree sourceId={source.id} />}
               </li>
             )
           })}
