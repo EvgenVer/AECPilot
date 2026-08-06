@@ -24,7 +24,11 @@ import type {
 } from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
-import { checkRestCall, checkRpcCall } from './gateway-passthrough-pure'
+import {
+  checkRestCall,
+  checkRpcCall,
+  explainProfileDeleteFailure
+} from './gateway-passthrough-pure'
 import type {
   AgentProcessEntry,
   GatewayConnectionState,
@@ -1785,11 +1789,19 @@ ipcMain.handle(
     payload: { path?: unknown; method?: unknown; body?: unknown; timeoutMs?: unknown }
   ) => {
     const { method, path } = checkRestCall(payload?.method, payload?.path)
-    return hermesRest(restTarget(), path, {
-      method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
-      ...(payload?.body === undefined ? {} : { body: payload.body }),
-      ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
-    })
+    try {
+      return await hermesRest(restTarget(), path, {
+        method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+        ...(payload?.body === undefined ? {} : { body: payload.body }),
+        ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
+      })
+    } catch (error: unknown) {
+      // One known core regression gets a message the user can act on instead
+      // of a raw 500 (D-14); everything else is passed through untouched.
+      const message = error instanceof Error ? error.message : String(error)
+      const explained = explainProfileDeleteFailure(method, path, message)
+      throw explained ? new Error(explained) : error
+    }
   }
 )
 

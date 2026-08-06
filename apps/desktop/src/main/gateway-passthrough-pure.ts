@@ -79,3 +79,37 @@ export function checkRestCall(method: unknown, path: unknown): { method: string;
 
   return { method: normalized, path }
 }
+
+/** A known core regression, translated for the person reading the dialog.
+ *
+ * Measured on 0.20.0 (D-14): `DELETE /api/profiles/<name>` answers 500 and
+ * leaves the profile in place when a session was created for that profile in
+ * the SAME `hermes serve` process — its `state.db` handle is still open, and
+ * Windows refuses the unlink (WinError 32). Their `_stop_profile_backends`
+ * stops OTHER processes' backends, not its own connection.
+ *
+ * We do not restart the gateway to work around it: that would kill the live
+ * session to delete a profile, which is out of proportion. So the honest
+ * answer is the one the user can act on — close the session, or restart the
+ * app, then try again.
+ *
+ * Returns the replacement message, or null when this is some other failure and
+ * the original error should stand. */
+export function explainProfileDeleteFailure(
+  method: string,
+  path: string,
+  message: string
+): string | null {
+  if (method !== 'DELETE' || !/^\/api\/profiles\/[^/]+$/.test(path.split(/[?#]/, 1)[0])) {
+    return null
+  }
+  // Only the in-use case: anything else (unknown profile, bad name) already
+  // says something useful on its own.
+  if (!/500|WinError 32|being used by another process|in use/i.test(message)) return null
+
+  return (
+    'Профиль не удалён: ядро держит его базу открытой, пока в этом запуске ' +
+    'была сессия этого профиля. Закройте сессию и перезапустите приложение, ' +
+    'затем повторите удаление.'
+  )
+}

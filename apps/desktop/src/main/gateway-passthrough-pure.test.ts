@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { checkRestCall, checkRpcCall } from './gateway-passthrough-pure'
+import {
+  checkRestCall,
+  checkRpcCall,
+  explainProfileDeleteFailure
+} from './gateway-passthrough-pure'
 
 describe('checkRpcCall', () => {
   it('passes a gateway method through unchanged', () => {
@@ -56,5 +60,29 @@ describe('checkRestCall', () => {
 
   it('refuses an unsupported verb', () => {
     expect(() => checkRestCall('PATCH', '/api/status')).toThrow(/unsupported method/)
+  })
+})
+
+describe('explainProfileDeleteFailure', () => {
+  const busy = 'REST DELETE /api/profiles/dev failed: 500 [WinError 32] file is being used'
+
+  it('replaces the raw 500 with something the user can act on (D-14)', () => {
+    const message = explainProfileDeleteFailure('DELETE', '/api/profiles/dev', busy)
+    expect(message).toContain('Профиль не удалён')
+    expect(message).toContain('перезапустите приложение')
+  })
+
+  it('leaves every other failure alone', () => {
+    // A different route, a different verb, and a different reason must all
+    // keep the core's own words — this translation is for ONE known bug.
+    expect(explainProfileDeleteFailure('DELETE', '/api/mcp/servers/x', busy)).toBeNull()
+    expect(explainProfileDeleteFailure('GET', '/api/profiles/dev', busy)).toBeNull()
+    expect(
+      explainProfileDeleteFailure('DELETE', '/api/profiles/dev', 'profile not found (404)')
+    ).toBeNull()
+  })
+
+  it('still matches when the path carries a query string', () => {
+    expect(explainProfileDeleteFailure('DELETE', '/api/profiles/dev?force=1', busy)).not.toBeNull()
   })
 })
