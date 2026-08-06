@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/toolset-config-panel.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the reveal action — plaintext credential read-back (R2)
+ * (no other edits)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -17,7 +19,6 @@ import {
   getToolsetConfig,
   getToolsetModels,
   pollOAuthSession,
-  revealEnvVar,
   runToolsetPostSetup,
   selectToolsetModel,
   selectToolsetProvider,
@@ -142,19 +143,11 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared }: EnvVarFieldProps) {
     }
   }
 
-  async function handleReveal() {
-    if (revealed !== null) {
-      setRevealed(null)
-
-      return
-    }
-
-    try {
-      const result = await revealEnvVar(envVar.key)
-      setRevealed(result.value)
-    } catch (err) {
-      notifyError(err, copy.failedReveal(envVar.key))
-    }
+  // EDIT [3]: same as env-credentials — `POST /api/env/reveal` returns a stored
+  // credential in plaintext, which R2 forbids and our main refuses. Hiding a
+  // revealed value stays; revealing one does not.
+  function handleReveal() {
+    setRevealed(null)
   }
 
   const actionProps = {

@@ -3,11 +3,13 @@
  * Source:  apps/desktop/src/app/settings/env-credentials.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the reveal action — plaintext credential read-back (R2)
+ * (no other edits)
  */
 import { useEffect, useState } from 'react'
 
-import { deleteEnvVar, getEnvVars, revealEnvVar, setEnvVar } from '@/hermes'
+import { deleteEnvVar, getEnvVars, setEnvVar } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { type IconComponent } from '@/lib/icons'
 import { notify, notifyError } from '@/store/notifications'
@@ -163,19 +165,12 @@ export function useEnvCredentials(): UseEnvCredentials {
     }
   }
 
-  async function handleReveal(key: string) {
-    if (revealed[key]) {
-      setRevealed(c => withoutKey(c, key))
-
-      return
-    }
-
-    try {
-      const result = await revealEnvVar(key)
-      setRevealed(c => ({ ...c, [key]: result.value }))
-    } catch (err) {
-      notifyError(err, toolsets.failedReveal(key))
-    }
+  // EDIT [3]: reveal is gone. `POST /api/env/reveal` hands back a stored
+  // credential in plaintext, which rule R2 forbids outright — our main refuses
+  // the route as well, so keeping the button would only offer an action that
+  // always fails. Hiding a value stays; showing it does not.
+  function handleReveal(key: string) {
+    setRevealed(c => withoutKey(c, key))
   }
 
   return {

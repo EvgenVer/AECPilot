@@ -213,7 +213,8 @@ Skills live in `.agents/skills/<name>/SKILL.md`; the installer copies them to
 MIT. Rules — full text in `donor/README.md`, policy in `PLAN.md` §«Слой донора»:
 1. Every vendored file carries a provenance header: source path, commit, license, and the
    list of edits made to it. A file copied unchanged says `Edits: none`.
-2. **Exactly four edits are allowed**: (1) their gateway client → our IPC bridge;
+2. **Exactly four edits are allowed**: (1) their backend client → our IPC bridge
+   (their gateway client, or a single call a SPEC constraint sends elsewhere);
    (2) their i18n → our catalog; (3) registration tables — dropping a contribution that
    lands in SPEC §Non-Goals or registering one of ours (a locale, a surface) in the same
    table;

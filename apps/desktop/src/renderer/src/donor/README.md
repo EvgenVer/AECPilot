@@ -42,12 +42,17 @@ re-copied from a newer commit. A file copied unchanged says `Edits: none`.
 
 Anything else is not an edit — it means the file does not belong in this zone.
 
-1. **Gateway client** — their client import (`@/hermes`) → our IPC bridge
-   (`shared/gateway-bridge`). The renderer never opens a WebSocket to the
-   gateway itself (SPEC C9).
+1. **Backend client** — their way of reaching the backend → ours. The common
+   case is their gateway client (`@/hermes`) → `shared/gateway-bridge`, because
+   the renderer never opens a WebSocket itself (SPEC C9). The same edit covers a
+   single call that must land somewhere else to satisfy a SPEC constraint —
+   e.g. their provider-key field wrote the key into the core's env store in
+   plaintext, and rule R2 puts provider keys in our safeStorage, so that one
+   call goes to our bridge while the rest of their screen is untouched.
 2. **i18n** — their i18n import → our catalog. Their keys, our strings.
 3. **Registration tables** — changing WHICH contributions are registered:
-   removing one that lands in SPEC § Non-Goals, or registering one of ours (a
+   removing one that SPEC excludes (§ Non-Goals, or a constraint like R2 that
+   forbids the mechanism it is built on), or registering one of ours (a
    locale, a surface) in the same table. The table, never the logic — if the
    logic has to be understood to make the change, the file is a rewrite, not a
    copy. Worked example: `i18n/{types,languages,catalog}.ts` carry a one-line

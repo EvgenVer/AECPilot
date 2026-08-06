@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/model-settings.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [1] provider key → our safeStorage bridge instead of the core's env store (R2)
+ * (no other edits)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -20,7 +22,6 @@ import {
   getRecommendedDefaultModel,
   saveHermesConfig,
   saveMoaModels,
-  setEnvVar,
   setModelAssignment
 } from '@/hermes'
 import type {
@@ -558,7 +559,20 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
     setError('')
 
     try {
-      await setEnvVar(keyEnv, apiKeyDraft.trim())
+      // EDIT [1]: their `setEnvVar` wrote the provider key into the core's env
+      // store as plaintext. Rule R2 says provider keys live in our safeStorage
+      // and reach the core only through its spawn environment, so this one call
+      // goes to our bridge instead. Everything else on this screen — the
+      // provider list, the model curation below — is theirs unchanged.
+      const saved = await window.aecpilot.saveProviderKey({
+        envVar: keyEnv,
+        key: apiKeyDraft.trim()
+      })
+
+      if (!saved.ok) {
+        throw new Error(saved.error || 'could not save the API key')
+      }
+
       setApiKeyDraft('')
 
       // Pick a sensible default for the freshly-activated provider (mirrors
