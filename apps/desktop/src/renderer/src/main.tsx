@@ -3,12 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { HashRouter } from 'react-router'
 
-// Their stylesheet first, ours second: theirs opens with Tailwind's preflight
-// and their theme variables, and our remaining screens (task 1.8.17–1.8.19
-// replace them) must still be able to override it.
+// One stylesheet now: theirs. Ours went with the screens that read it — our
+// own surfaces are written in their Tailwind (task 1.8.19).
 import './donor/styles.css'
-import './styles/tokens.css'
-import './styles/shell.css'
 
 import App from './donor/app'
 import { ErrorBoundary } from './donor/components/error-boundary'
@@ -18,18 +15,11 @@ import { ThemeProvider } from './donor/themes/context'
 import { installClipboardShim } from './donor/lib/clipboard'
 import { queryClient } from './donor/lib/query-client'
 
-import { applyTheme, readStoredTheme } from './theme'
 import { ProjectGate } from './aec/project/ProjectGate'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
-
-// Task 1.5.10: apply the persisted theme before the first render — done here
-// rather than in an App/Shell effect so tokens.css's [data-theme="dark"]
-// rules are already active for React's very first paint (no light-then-dark
-// flash). Their ThemeProvider does the same for their own variables.
-applyTheme(document.documentElement, readStoredTheme(window.localStorage))
 
 // Vendored donor code reaches the backend through `window.hermesDesktop`
 // (tasks 1.8.5/1.8.6). Installed before the first render because their stores
