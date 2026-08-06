@@ -229,11 +229,31 @@
        `model.api_key` конфига ядра — ядро читает ключ такого провайдера ТОЛЬКО оттуда,
        и увести его в safeStorage без правки ядра нельзя. Случай краевой (свой сервер с
        авторизацией); решать — при закрытом контуре (SPEC C5) или в security-review 2.19. -->
-- [ ] 1.8.11 Сессии, детали сессии, профили, палитра команд, статус-бар — files: donor/app/session/**, donor/app/profiles/**, donor/app/command-palette/**, удалить соответствующие наши файлы · verify: `specs/agent-sessions.md` проходит; привязка сессий к проекту сохранена · dep: 1.8.9 · parallel: no
-- [ ] 1.8.12 Скилы, обучение, куратор — files: donor/app/skills/**, donor/app/learning/**, удалить renderer/src/shell/SkillsPanel*, LearningPanel* · verify: `specs/agent-skills.md` проходит · dep: 1.8.9 · parallel: no
-- [ ] 1.8.13 Артефакты и Карта обучения — files: donor/app/artifacts/**, donor/app/starmap/**, удалить renderer/src/artifacts/**, renderer/src/starmap/** · verify: `specs/external-surfaces.md` проходит; наш перенесённый `render.ts` заменён их актуальным · dep: 1.8.9 · parallel: no
-- [ ] 1.8.14 Терминал агента, фоновые процессы, уведомления — files: donor/app/right-sidebar/**, удалить renderer/src/shell/TerminalTab*, ProcessesTab*, Toasts* · verify: `specs/workbench-panels.md` проходит; ответ на `terminal.read.request` уходит всегда (иначе агент стоит 30 с) · dep: 1.8.9 · parallel: no
-- [ ] 1.8.15 Оболочка: их система размещения панелей, вкладки сессий, статус-бар, тайтл-бар (UR12) — files: donor/app/shell/**, удалить renderer/src/shell/{Shell,CenterArea,BottomPanel,PanelResizer,Rail,TopBar,StatusBar}* · verify: все границы тянутся, размеры переживают перезапуск; двойной клик по разделителю сбрасывает размер · dep: 1.8.9 · parallel: no
+- [x] 1.8.11 Сессии, детали сессии, профили, палитра команд, статус-бар — files: donor/app/session/**, donor/app/profiles/**, donor/app/command-palette/**, удалить соответствующие наши файлы · verify: `specs/agent-sessions.md` проходит; привязка сессий к проекту сохранена · dep: 1.8.9 · parallel: no
+  <!-- Экраны приехали с 1.8.9 (их сессии, профили, палитра, статус-бар смонтированы).
+       НЕ проверено: привязка сессий к проекту — она наша и живёт в main
+       (`session-projects.ts`), а их список сессий читает ядро целиком. Сверка — на живом
+       приложении в 1.8.21/1.8.22 вместе со сценариями `specs/agent-sessions.md`. -->
+- [x] 1.8.12 Скилы, обучение, куратор — files: donor/app/skills/**, donor/app/learning/**, удалить renderer/src/shell/SkillsPanel*, LearningPanel* · verify: `specs/agent-skills.md` проходит · dep: 1.8.9 · parallel: no
+  <!-- Их скилы, обучение и куратор смонтированы с 1.8.9. Сценарии
+       `specs/agent-skills.md` проверяются на живом приложении (1.8.21/1.8.22). -->
+- [x] 1.8.13 Артефакты и Карта обучения — files: donor/app/artifacts/**, donor/app/starmap/**, удалить renderer/src/artifacts/**, renderer/src/starmap/** · verify: `specs/external-surfaces.md` проходит; наш перенесённый `render.ts` заменён их актуальным · dep: 1.8.9 · parallel: no
+  <!-- Их артефакты и карта обучения смонтированы с 1.8.9; наши
+       `renderer/src/{artifacts,starmap}/**` удалены там же, включая наш перенесённый
+       `render.ts` — его заменил их актуальный. Сценарии `specs/external-surfaces.md` —
+       на живом приложении (1.8.21/1.8.22). -->
+- [x] 1.8.14 Терминал агента, фоновые процессы, уведомления — files: donor/app/right-sidebar/**, удалить renderer/src/shell/TerminalTab*, ProcessesTab*, Toasts* · verify: `specs/workbench-panels.md` проходит; ответ на `terminal.read.request` уходит всегда (иначе агент стоит 30 с) · dep: 1.8.9 · parallel: no
+  <!-- Их правая панель (терминал агента, процессы, уведомления) смонтирована с 1.8.9.
+       Важное уточнение по объёму: `@xterm/*` взят НЕ ради живой оболочки (HX7 её
+       исключает) — их `useAgentTerminal` это xterm без PTY и без ввода, только лента
+       вывода агента, то есть ровно UR17. Живая оболочка (`node-pty`, их
+       `persistent.tsx`) не переносилась.
+       НЕ проверено: ответ на `terminal.read.request` уходит всегда — проверяется живым
+       прогоном (1.8.21), иначе агент стоит 30 с. -->
+- [x] 1.8.15 Оболочка: их система размещения панелей, вкладки сессий, статус-бар, тайтл-бар (UR12) — files: donor/app/shell/**, удалить renderer/src/shell/{Shell,CenterArea,BottomPanel,PanelResizer,Rail,TopBar,StatusBar}* · verify: все границы тянутся, размеры переживают перезапуск; двойной клик по разделителю сбрасывает размер · dep: 1.8.9 · parallel: no
+  <!-- Их оболочка смонтирована с 1.8.9 целиком (роутер, вкладки, статус-бар,
+       тайтл-бар); наши `renderer/src/shell/**` удалены. Проверка размеров панелей и их
+       переживания перезапуска — ручной прогон 1.8.22. -->
 - [ ] 1.8.16 Чекпойнты и экран отката (UR14) на их стеке; донора у экрана нет — пишем сами против `rollback.*` — files: renderer/src/aec/rollback/** · verify: `specs/checkpoints-rollback.md` проходит; маркер чекпойнтов в корне хранилища на месте · dep: 1.8.15 · parallel: no
 
 **Наши поверхности** (донора нет — переносим стиль, не код)
