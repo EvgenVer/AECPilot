@@ -20,6 +20,8 @@ import { queryClient } from './donor/lib/query-client'
 
 import { applyTheme, readStoredTheme } from './theme'
 import { ProjectGate } from './aec/project/ProjectGate'
+// Side-effect: registers our vault explorer as a pane in their shell.
+import './aec/explorer/register'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 

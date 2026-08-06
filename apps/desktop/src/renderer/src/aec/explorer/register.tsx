@@ -1,0 +1,34 @@
+// Our surfaces enter their shell the way any contribution does — through their
+// registry, not by editing their layout. That is the whole reason PLAN keeps
+// their contribution system while dropping their plugin LOADER (HX5): the
+// architecture is useful, third-party code on disk is not.
+//
+// Importing this module registers the pane; `main.tsx` does that once.
+
+import { registry } from '../../donor/contrib/registry'
+import { translatePlugin } from '../../donor/i18n/plugin-i18n'
+import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
+import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
+
+import { VaultExplorer } from './VaultExplorer'
+
+// The pane title is read by their chrome outside React, so it cannot use the
+// hook — `translatePlugin` is their own non-reactive translator for exactly
+// this case. A language switch retitles it on the next registry mutation.
+const title = (): string =>
+  translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'explorer.title', [])
+
+registry.register({
+  id: 'aec-explorer',
+  area: 'panes',
+  source: 'core',
+  title: title(),
+  data: {
+    placement: 'left',
+    collapsible: true,
+    width: '260px',
+    minWidth: '200px',
+    maxWidth: '480px'
+  },
+  render: () => <VaultExplorer />
+})

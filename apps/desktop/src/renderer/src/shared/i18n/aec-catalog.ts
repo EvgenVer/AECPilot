@@ -16,7 +16,9 @@ export const aecLocales: PluginLocaleBundles = {
   en: {
     common: {
       cancel: 'Cancel',
-      close: 'Close'
+      close: 'Close',
+      loading: 'Loading…',
+      refresh: 'Refresh'
     },
     welcome: {
       tagline: 'An IDE for project documentation',
@@ -43,6 +45,18 @@ export const aecLocales: PluginLocaleBundles = {
       initializing: 'Initializing…',
       initAnyway: 'Initialize anyway'
     },
+    explorer: {
+      title: 'Vault',
+      empty: 'The vault is empty — the agent and you will fill it.',
+      newFile: 'New file',
+      newDir: 'New folder',
+      rename: 'Rename',
+      delete: 'Delete',
+      newFilePrompt: 'File name',
+      newDirPrompt: 'Folder name',
+      renamePrompt: 'New name',
+      deleteConfirm: 'Delete this entry?'
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -52,7 +66,9 @@ export const aecLocales: PluginLocaleBundles = {
   ru: {
     common: {
       cancel: 'Отмена',
-      close: 'Закрыть'
+      close: 'Закрыть',
+      loading: 'Загрузка…',
+      refresh: 'Обновить'
     },
     welcome: {
       tagline: 'IDE для проектной документации',
@@ -78,6 +94,18 @@ export const aecLocales: PluginLocaleBundles = {
       init: 'Инициализировать',
       initializing: 'Инициализирую…',
       initAnyway: 'Инициализировать всё равно'
+    },
+    explorer: {
+      title: 'Vault',
+      empty: 'Vault пуст — его наполните вы и агент.',
+      newFile: 'Новый файл',
+      newDir: 'Новая папка',
+      rename: 'Переименовать',
+      delete: 'Удалить',
+      newFilePrompt: 'Имя файла',
+      newDirPrompt: 'Имя папки',
+      renamePrompt: 'Новое имя',
+      deleteConfirm: 'Удалить эту запись?'
     },
     settings: {
       languageLabel: 'Язык интерфейса',

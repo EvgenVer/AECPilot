@@ -1,0 +1,165 @@
+// What matters about the explorer is not that it draws a tree — it is that
+// every action goes through main with the right arguments, and that a failed
+// one says so instead of silently doing nothing.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+import { VaultExplorer } from './VaultExplorer'
+import { AecI18nProvider } from '../../shared/i18n'
+import type { VaultTreeNode } from '../../../../shared/ipc'
+
+const tree: VaultTreeNode[] = [
+  {
+    name: 'docs',
+    path: 'docs',
+    type: 'dir',
+    children: [{ name: 'заметка.md', path: 'docs/заметка.md', type: 'file' }]
+  },
+  { name: 'AGENTS.md', path: 'AGENTS.md', type: 'file' }
+]
+
+const getVaultTree = vi.fn()
+const createVaultFile = vi.fn()
+const createVaultDir = vi.fn()
+const renameVaultEntry = vi.fn()
+const deleteVaultEntry = vi.fn()
+
+beforeEach(() => {
+  window.localStorage.clear()
+  getVaultTree.mockResolvedValue(tree)
+  createVaultFile.mockResolvedValue({ ok: true })
+  createVaultDir.mockResolvedValue({ ok: true })
+  renameVaultEntry.mockResolvedValue({ ok: true })
+  deleteVaultEntry.mockResolvedValue({ ok: true })
+  window.aecpilot = {
+    getVaultTree,
+    createVaultFile,
+    createVaultDir,
+    renameVaultEntry,
+    deleteVaultEntry,
+    onProjectOpened: () => () => {}
+  } as unknown as typeof window.aecpilot
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+// A fresh client per test: a shared cache would carry one test's tree into the
+// next, and retries would swallow the failures these tests are about.
+const renderExplorer = () =>
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <AecI18nProvider>
+        <VaultExplorer />
+      </AecI18nProvider>
+    </QueryClientProvider>
+  )
+
+async function clickRowAction(rowName: string, actionLabel: string) {
+  const row = screen.getByTitle(rowName).closest('div') as HTMLElement
+  const button = [...row.querySelectorAll('button')].find(
+    (candidate) => candidate.getAttribute('aria-label') === actionLabel
+  )
+  await act(async () => {
+    button?.click()
+  })
+}
+
+describe('VaultExplorer', () => {
+  it('lists the vault root and keeps folders closed', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+    expect(screen.getByText('AGENTS.md')).toBeTruthy()
+    // A vault's top level is its map; expanding everything on load buries it.
+    expect(screen.queryByText('заметка.md')).toBeNull()
+  })
+
+  it('expands and collapses a folder', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    await act(async () => {
+      screen.getByTitle('docs').click()
+    })
+    expect(screen.getByText('заметка.md')).toBeTruthy()
+
+    await act(async () => {
+      screen.getByTitle('docs').click()
+    })
+    expect(screen.queryByText('заметка.md')).toBeNull()
+  })
+
+  it('creates a file inside the folder it was asked from', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('новый.md')
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    await clickRowAction('docs', 'Новый файл')
+
+    expect(createVaultFile).toHaveBeenCalledWith('docs', 'новый.md')
+    // The tree is re-read rather than patched locally: main owns what the vault
+    // contains, including what it refused to create.
+    await waitFor(() => expect(getVaultTree).toHaveBeenCalledTimes(2))
+  })
+
+  it('does nothing when the name prompt is dismissed', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue(null)
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    await clickRowAction('docs', 'Новая папка')
+
+    expect(createVaultDir).not.toHaveBeenCalled()
+  })
+
+  it('asks before deleting, and skips when refused', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await clickRowAction('AGENTS.md', 'Удалить')
+
+    expect(deleteVaultEntry).not.toHaveBeenCalled()
+  })
+
+  it('deletes by path once confirmed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await clickRowAction('AGENTS.md', 'Удалить')
+
+    expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md')
+  })
+
+  it('shows what main refused instead of failing silently', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    deleteVaultEntry.mockResolvedValue({ ok: false, error: 'файл занят другим процессом' })
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await clickRowAction('AGENTS.md', 'Удалить')
+
+    await waitFor(() => expect(screen.getByText('файл занят другим процессом')).toBeTruthy())
+  })
+
+  it('renames through main, and not when the name is unchanged', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('AGENTS.md')
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await clickRowAction('AGENTS.md', 'Переименовать')
+    expect(renameVaultEntry).not.toHaveBeenCalled()
+
+    prompt.mockReturnValue('ПРАВИЛА.md')
+    await clickRowAction('AGENTS.md', 'Переименовать')
+    expect(renameVaultEntry).toHaveBeenCalledWith('AGENTS.md', 'ПРАВИЛА.md')
+  })
+})
