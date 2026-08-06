@@ -83,17 +83,45 @@ const IMPLEMENTED: Record<string, unknown> = {
 }
 
 /** Everything else answers with its own name, so an unwired capability shows up
- * as one readable failure instead of `undefined is not a function`. */
-function notBridged(member: string): () => Promise<never> {
-  return () =>
-    Promise.reject(new Error(`window.hermesDesktop.${member} is not bridged in AECPilot`))
+ * as one readable failure instead of `undefined is not a function`.
+ *
+ * Their bridge has three member shapes, and the stand-in has to answer in kind
+ * or their code breaks on the SHAPE rather than on the missing capability —
+ * both of the first boot's crashes were exactly that:
+ *   method        `getVersion()`         → a rejected promise, named
+ *   subscription  `onFoundInPage(cb)`    → a DISPOSER; a promise here tore the
+ *                                          app down with "detachListener is
+ *                                          not a function"
+ *   namespace     `zoom.get()`,          → an object whose members are again
+ *                 `zoom.onChanged(cb)`     one of these three
+ * So the stand-in is a callable proxy that reproduces itself on property
+ * access, with `then` deliberately absent — an accidental thenable would make
+ * every `await` on it hang. */
+const SUBSCRIPTION = /^on[A-Z]/
+
+function unbridged(path: string): unknown {
+  const member = path.slice(path.lastIndexOf('.') + 1)
+
+  const call = SUBSCRIPTION.test(member)
+    ? () => () => {}
+    : () => Promise.reject(new Error(`window.hermesDesktop.${path} is not bridged in AECPilot`))
+
+  return new Proxy(call, {
+    get(_target, property) {
+      // Never look like a promise, an iterable or a primitive.
+      if (typeof property === 'symbol' || property === 'then' || property === 'toJSON') {
+        return undefined
+      }
+      return unbridged(`${path}.${String(property)}`)
+    }
+  })
 }
 
 export function createHermesDesktopBridge(): HermesDesktop {
   const proxy = new Proxy(IMPLEMENTED, {
     get(target, property: string) {
       if (property in target) return target[property]
-      return notBridged(property)
+      return unbridged(property)
     },
     has() {
       return true
