@@ -11,7 +11,9 @@
 
 import { test, expect, _electron } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ElectronApplication } from 'playwright'
 
@@ -22,6 +24,7 @@ const closeGraceMs = 90000
 let mock: ChildProcessWithoutNullStreams
 let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
+let projectDir = ''
 
 function listElectronPids(): Set<number> {
   if (process.platform !== 'win32') return new Set()
@@ -125,11 +128,23 @@ test.afterAll(async () => {
     for (const pid of listElectronPids()) {
       if (!preExistingElectronPids.has(pid)) killProcessTree(pid)
     }
+    if (projectDir) rmSync(projectDir, { force: true, recursive: true })
   }
 })
 
 test('their shell paints and the composer goes live over our bridge', async () => {
   const page = await app.firstWindow()
+
+  // Their application only starts behind our project gate — the agent's working
+  // directory is the vault. So the smoke opens one first, through the same IPC
+  // path the create-project dialog uses, which makes vault creation part of
+  // what this test covers rather than something it works around.
+  projectDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  const created = await page.evaluate(
+    (dir) => window.aecpilot.createProject(dir, 'e2e', true),
+    projectDir
+  )
+  expect(created, `createProject failed: ${JSON.stringify(created)}`).toMatchObject({ ok: true })
 
   // Their composer's textbox is labelled from their own catalog, so finding it
   // also proves the i18n layer resolved (task 1.8.6) — a raw key would read
