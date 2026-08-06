@@ -212,6 +212,17 @@
        не переносились (их сторы тянут за собой их же окружение — решение по каждому файлу
        принимается в 1.8.21). -->
 - [ ] 1.8.10 Настройки: провайдеры, модели, инструменты и доступы, MCP-серверы, шлюз, плагины — files: donor/app/settings/**, удалить renderer/src/settings/** · verify: ключи по-прежнему только в safeStorage (правило R2); `POST /api/env/reveal` и `model.save_key` не вызываются нигде · dep: 1.8.9 · parallel: no
+  <!-- Перенос сделан вместе с 1.8.9 (их приложение смонтировано целиком), наш
+       `renderer/src/settings/**` удалён. НЕ ЗАКРЫТО главное — правило R2. Замер 06.08:
+       их `app/settings/env-credentials.tsx`, `model-settings.tsx` и
+       `toolset-config-panel.tsx` вводят ключи провайдеров ИХ путём (открытый текст в
+       конфиге ядра), а `hermes.ts:804` вызывает `POST /api/env/reveal`. Наш main этот
+       маршрут и `model.save_key` не пропускает (`gateway-passthrough-pure.ts`), то есть
+       утечки нет — но их экран предлагает действие, которое отвечает отказом, а наш
+       собственный экран ключей на safeStorage удалён вместе с прежним рендерером.
+       Закрывается одним из двух: (а) правка №3 — снять их поверхность ввода ключей и
+       вернуть нашу как вклад в их настройки; (б) перенаправить их поле на наш
+       safeStorage-канал. Решение — за владельцем, вариант (а) дешевле и честнее. -->
 - [ ] 1.8.11 Сессии, детали сессии, профили, палитра команд, статус-бар — files: donor/app/session/**, donor/app/profiles/**, donor/app/command-palette/**, удалить соответствующие наши файлы · verify: `specs/agent-sessions.md` проходит; привязка сессий к проекту сохранена · dep: 1.8.9 · parallel: no
 - [ ] 1.8.12 Скилы, обучение, куратор — files: donor/app/skills/**, donor/app/learning/**, удалить renderer/src/shell/SkillsPanel*, LearningPanel* · verify: `specs/agent-skills.md` проходит · dep: 1.8.9 · parallel: no
 - [ ] 1.8.13 Артефакты и Карта обучения — files: donor/app/artifacts/**, donor/app/starmap/**, удалить renderer/src/artifacts/**, renderer/src/starmap/** · verify: `specs/external-surfaces.md` проходит; наш перенесённый `render.ts` заменён их актуальным · dep: 1.8.9 · parallel: no
