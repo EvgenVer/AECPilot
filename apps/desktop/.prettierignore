@@ -8,3 +8,8 @@ test-results/
 src/renderer/src/donor/**/*.ts
 src/renderer/src/donor/**/*.tsx
 src/renderer/src/donor/**/*.css
+src/renderer/src/donor/**/*.jsonl
+# Their own docs, copied alongside their code (e.g. debug/README.md). Our own
+# files in that tree — donor/README.md, donor/fonts/README.md — are formatted
+# normally; they are ours.
+src/renderer/src/donor/*/README.md

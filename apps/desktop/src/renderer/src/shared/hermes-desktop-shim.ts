@@ -54,8 +54,19 @@ const IMPLEMENTED: Record<string, unknown> = {
     })
   },
 
-  getConnection(): Promise<never> {
-    return Promise.reject(new Error('the gateway connection stays in the main process (SPEC C9)'))
+  // Their boot flow asks for a connection descriptor, builds a ws:// URL from
+  // it and hands that to the client's `connect()`. Ours ignores the URL — main
+  // owns the socket — so the honest answer is a descriptor that names the IPC
+  // bridge and carries NO credential. Nothing dials it: their REST goes through
+  // `api` below, their plugin socket is removed, and voice is not bridged.
+  getConnection(profile?: null | string): Promise<unknown> {
+    return Promise.resolve({
+      authMode: 'token',
+      baseUrl: 'ipc://main',
+      profile: profile ?? null,
+      token: '',
+      wsUrl: 'ws://ipc/api/ws'
+    })
   },
 
   // No pool to keep warm: one backend, owned by main, alive for as long as the
