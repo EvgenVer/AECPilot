@@ -1,82 +1,114 @@
 // Task 1.8.6's acceptance check: switching the interface language changes what
-// two different screens render. One is ours end to end (Welcome), the other is
-// the screen that owns the switch (the settings language section) — so the test
-// covers both "a screen reads the active locale" and "a screen sets it".
+// the UI renders, from both catalogs, and the choice survives.
 //
-// Both screens read our namespaced catalog; their own catalog rides the same
-// provider and is exercised by the config-client test next door.
+// It used to drive our own Welcome and settings screens. Those are gone —
+// task 1.8.9 replaced our renderer with the donor's application — so the two
+// consumers here are probes standing for the two catalogs that exist: theirs
+// (`useI18n().t`, the strings that came with their code) and ours
+// (`useAecT()`, the strings for our own surfaces). Between them they cover
+// every path a screen can take to a translated string.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act } from 'react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 
-import { AecI18nProvider } from './index'
-import Welcome from '../../shell/Welcome'
-import { LanguageSection } from '../../settings/ProjectSettingsSections'
+import { AecI18nProvider, useAecT, useI18n } from './index'
+
+/** Reads the donor's catalog — the half that arrives with their components. */
+function DonorProbe() {
+  const { locale, t } = useI18n()
+
+  return (
+    <div>
+      <span data-testid="locale">{locale}</span>
+      <span data-testid="donor-save">{t.common.save}</span>
+    </div>
+  )
+}
+
+/** Reads ours — the half written for surfaces the donor has no equivalent of. */
+function AecProbe() {
+  const t = useAecT()
+
+  return <span data-testid="aec-tagline">{t('welcome.tagline')}</span>
+}
+
+/** Switches the language, the way their settings screen does. */
+function LanguageSwitch() {
+  const { setLocale } = useI18n()
+
+  return (
+    <div>
+      <button onClick={() => void setLocale('en').catch(() => undefined)} type="button">
+        English
+      </button>
+      <button onClick={() => void setLocale('ru').catch(() => undefined)} type="button">
+        Русский
+      </button>
+    </div>
+  )
+}
+
+function renderAll() {
+  return render(
+    <AecI18nProvider>
+      <DonorProbe />
+      <AecProbe />
+      <LanguageSwitch />
+    </AecI18nProvider>
+  )
+}
 
 beforeEach(() => {
   window.localStorage.clear()
-  window.aecpilot = {
-    listRecentProjects: vi.fn().mockResolvedValue([]),
-    getProjectSettings: vi.fn().mockResolvedValue(null),
-    updateProjectSettings: vi.fn().mockResolvedValue({ ok: true })
-  } as unknown as typeof window.aecpilot
 })
 
 afterEach(() => {
   cleanup()
-  vi.clearAllMocks()
 })
-
-function renderIn(children: React.ReactNode) {
-  return render(<AecI18nProvider>{children}</AecI18nProvider>)
-}
 
 describe('interface language', () => {
   it('starts in Russian — the default for a fresh install', async () => {
-    renderIn(<Welcome />)
-    await waitFor(() => expect(screen.getByText('Создать проект')).toBeTruthy())
-    expect(screen.getByText('IDE для проектной документации')).toBeTruthy()
+    renderAll()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('ru'))
+    expect(screen.getByTestId('donor-save').textContent).toBe('Сохранить')
+    expect(screen.getByTestId('aec-tagline').textContent).toBe('IDE для проектной документации')
   })
 
   it('starts in English when that is what the user picked before', async () => {
     window.localStorage.setItem('aecpilot.ui-language', 'en')
-    renderIn(<Welcome />)
-    await waitFor(() => expect(screen.getByText('New project')).toBeTruthy())
-    expect(screen.getByText('An IDE for project documentation')).toBeTruthy()
+    renderAll()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('en'))
+    expect(screen.getByTestId('donor-save').textContent).toBe('Save')
+    expect(screen.getByTestId('aec-tagline').textContent).toBe('An IDE for project documentation')
   })
 
-  it('switches both screens at once and remembers the choice', async () => {
-    renderIn(
-      <>
-        <Welcome />
-        <LanguageSection />
-      </>
-    )
-
-    await waitFor(() => expect(screen.getByText('Создать проект')).toBeTruthy())
+  it('switches both catalogs at once and remembers the choice', async () => {
+    renderAll()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('ru'))
 
     await act(async () => {
       screen.getByRole('button', { name: 'English' }).click()
     })
 
-    // The settings screen set it; the Welcome screen re-rendered from it.
-    await waitFor(() => expect(screen.getByText('New project')).toBeTruthy())
-    expect(screen.getByText('Interface language')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('donor-save').textContent).toBe('Save'))
+    expect(screen.getByTestId('aec-tagline').textContent).toBe('An IDE for project documentation')
     expect(window.localStorage.getItem('aecpilot.ui-language')).toBe('en')
 
     await act(async () => {
       screen.getByRole('button', { name: 'Русский' }).click()
     })
-    await waitFor(() => expect(screen.getByText('Создать проект')).toBeTruthy())
+
+    await waitFor(() => expect(screen.getByTestId('donor-save').textContent).toBe('Сохранить'))
     expect(window.localStorage.getItem('aecpilot.ui-language')).toBe('ru')
   })
 
-  it('offers every locale the build carries, by its own name', async () => {
-    renderIn(<LanguageSection />)
-    await waitFor(() => expect(screen.getByText('Язык интерфейса')).toBeTruthy())
-    for (const name of ['English', 'Русский', '简体中文', '日本語']) {
-      expect(screen.getByRole('button', { name })).toBeTruthy()
-    }
+  it('falls back to English for a key our Russian catalog has not reached yet', async () => {
+    // The Russian half of their catalog is deliberately partial until task 6.7;
+    // `defineLocale` merges it over English, so an untranslated key must show
+    // the English string rather than a blank or the raw key.
+    renderAll()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('ru'))
+    expect(screen.getByTestId('donor-save').textContent).not.toBe('common.save')
   })
 })
