@@ -14,6 +14,13 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '../../donor/components/ui/context-menu'
 import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
@@ -51,85 +58,125 @@ function TreeRow({
   return (
     <>
       <li>
-        <div
-          className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
-          style={{ paddingLeft: `${depth * 0.75}rem` }}
-        >
-          <button
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs text-(--ui-text-primary)"
-            onClick={() => isDir && onToggle(node.path)}
-            title={node.path}
-            type="button"
-          >
-            <Codicon
-              className="text-(--ui-text-secondary)"
-              name={isDir ? (isOpen ? 'chevron-down' : 'chevron-right') : 'file'}
-            />
-            <span className="truncate">
-              {pre}
-              {match && <mark className="bg-transparent font-semibold text-primary">{match}</mark>}
-              {post}
-            </span>
-          </button>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className="group flex items-center gap-1 rounded-[4px] pr-1 outline-none hover:bg-(--chrome-action-hover) focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+              onKeyDown={(event) => {
+                // Del on the focused row, the way a file manager behaves. The
+                // confirm still runs — this is a shortcut, not a bypass.
+                if (event.key === 'Delete' && !busy) {
+                  event.preventDefault()
+                  onAction('delete', node)
+                }
+              }}
+              style={{ paddingLeft: `${depth * 0.75}rem` }}
+              tabIndex={0}
+            >
+              <button
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs text-(--ui-text-primary)"
+                onClick={() => isDir && onToggle(node.path)}
+                title={node.path}
+                type="button"
+              >
+                <Codicon
+                  className="text-(--ui-text-secondary)"
+                  name={isDir ? (isOpen ? 'chevron-down' : 'chevron-right') : 'file'}
+                />
+                <span className="truncate">
+                  {pre}
+                  {match && (
+                    <mark className="bg-transparent font-semibold text-primary">{match}</mark>
+                  )}
+                  {post}
+                </span>
+              </button>
 
-          {/* Row actions stay hidden until the row is hovered or focused —
+              {/* Row actions stay hidden until the row is hovered or focused —
               a tree of twenty rows with four buttons each is unreadable. */}
-          <span className="hidden gap-0.5 group-focus-within:flex group-hover:flex">
+              <span className="hidden gap-0.5 group-focus-within:flex group-hover:flex">
+                {isDir && (
+                  <>
+                    <Button
+                      aria-label={t('explorer.newFile')}
+                      disabled={busy}
+                      onClick={() => onAction('newFile', node)}
+                      size="icon-xs"
+                      title={t('explorer.newFile')}
+                      variant="ghost"
+                    >
+                      <Codicon name="new-file" />
+                    </Button>
+                    <Button
+                      aria-label={t('explorer.newDir')}
+                      disabled={busy}
+                      onClick={() => onAction('newDir', node)}
+                      size="icon-xs"
+                      title={t('explorer.newDir')}
+                      variant="ghost"
+                    >
+                      <Codicon name="new-folder" />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  aria-label={t('explorer.rename')}
+                  disabled={busy}
+                  onClick={() => onAction('rename', node)}
+                  size="icon-xs"
+                  title={t('explorer.rename')}
+                  variant="ghost"
+                >
+                  <Codicon name="edit" />
+                </Button>
+                <Button
+                  aria-label={t('explorer.reveal')}
+                  onClick={() => void window.aecpilot.showVaultEntryInExplorer(node.path)}
+                  size="icon-xs"
+                  title={t('explorer.reveal')}
+                  variant="ghost"
+                >
+                  <Codicon name="folder-opened" />
+                </Button>
+                <Button
+                  aria-label={t('explorer.delete')}
+                  disabled={busy}
+                  onClick={() => onAction('delete', node)}
+                  size="icon-xs"
+                  title={t('explorer.delete')}
+                  variant="ghost"
+                >
+                  <Codicon name="trash" />
+                </Button>
+              </span>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
             {isDir && (
               <>
-                <Button
-                  aria-label={t('explorer.newFile')}
-                  disabled={busy}
-                  onClick={() => onAction('newFile', node)}
-                  size="icon-xs"
-                  title={t('explorer.newFile')}
-                  variant="ghost"
-                >
-                  <Codicon name="new-file" />
-                </Button>
-                <Button
-                  aria-label={t('explorer.newDir')}
-                  disabled={busy}
-                  onClick={() => onAction('newDir', node)}
-                  size="icon-xs"
-                  title={t('explorer.newDir')}
-                  variant="ghost"
-                >
-                  <Codicon name="new-folder" />
-                </Button>
+                <ContextMenuItem onSelect={() => onAction('newFile', node)}>
+                  {t('explorer.newFile')}
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => onAction('newDir', node)}>
+                  {t('explorer.newDir')}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
               </>
             )}
-            <Button
-              aria-label={t('explorer.rename')}
-              disabled={busy}
-              onClick={() => onAction('rename', node)}
-              size="icon-xs"
-              title={t('explorer.rename')}
-              variant="ghost"
+            <ContextMenuItem onSelect={() => onAction('rename', node)}>
+              {t('explorer.rename')}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => void window.aecpilot.showVaultEntryInExplorer(node.path)}
             >
-              <Codicon name="edit" />
-            </Button>
-            <Button
-              aria-label={t('explorer.reveal')}
-              onClick={() => void window.aecpilot.showVaultEntryInExplorer(node.path)}
-              size="icon-xs"
-              title={t('explorer.reveal')}
-              variant="ghost"
-            >
-              <Codicon name="folder-opened" />
-            </Button>
-            <Button
-              aria-label={t('explorer.delete')}
-              disabled={busy}
-              onClick={() => onAction('delete', node)}
-              size="icon-xs"
-              title={t('explorer.delete')}
-              variant="ghost"
-            >
-              <Codicon name="trash" />
-            </Button>
-          </span>
-        </div>
+              {t('explorer.reveal')}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onAction('delete', node)} variant="destructive">
+              {t('explorer.delete')}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </li>
 
       {isOpen &&

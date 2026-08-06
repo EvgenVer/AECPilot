@@ -192,6 +192,40 @@ describe('VaultExplorer', () => {
     expect(showVaultEntryInExplorer).toHaveBeenCalledWith('AGENTS.md')
   })
 
+  it('deletes the focused row on Del, still asking first', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    const row = screen.getByTitle('AGENTS.md').closest('div') as HTMLElement
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'Delete' })
+    })
+    // Del is a shortcut, not a bypass: refusing the confirm keeps the file.
+    expect(deleteVaultEntry).not.toHaveBeenCalled()
+
+    confirm.mockReturnValue(true)
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'Delete' })
+    })
+    expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md')
+  })
+
+  it('offers the same actions from the context menu', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    const row = screen.getByTitle('docs').closest('div') as HTMLElement
+    await act(async () => {
+      fireEvent.contextMenu(row)
+    })
+
+    // A folder offers creation; a file would not.
+    expect(screen.getByRole('menuitem', { name: 'Новый файл' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Показать в проводнике' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Удалить' })).toBeTruthy()
+  })
+
   it('renames through main, and not when the name is unchanged', async () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue('AGENTS.md')
     renderExplorer()
