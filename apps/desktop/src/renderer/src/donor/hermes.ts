@@ -4,6 +4,7 @@
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [3] removed `revealEnvVar` — plaintext credential read-back (R2)
  *   [3] removed `pluginSocket` (core plugin catalog is a non-goal, HX5) and the
  *       now-unused `reconnectBackoffDelayMs` import it was the only caller of
  * (no other edits)
@@ -798,14 +799,10 @@ export function deleteEnvVar(key: string): Promise<{ ok: boolean }> {
   })
 }
 
-export function revealEnvVar(key: string): Promise<{ key: string; value: string }> {
-  return window.hermesDesktop.api<{ key: string; value: string }>({
-    ...profileScoped(),
-    path: '/api/env/reveal',
-    method: 'POST',
-    body: { key }
-  })
-}
+// EDIT [3]: the `revealEnvVar` wrapper is removed with its callers. The route
+// it wrapped returns a stored credential in plaintext, which rule R2 forbids
+// and our main refuses — leaving the wrapper in place would only invite the
+// next screen to call it.
 
 export function listOAuthProviders(): Promise<OAuthProvidersResponse> {
   return window.hermesDesktop.api<OAuthProvidersResponse>({

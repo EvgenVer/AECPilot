@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/store/onboarding.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [1] onboarding provider key → our safeStorage bridge (R2)
+ * (no other edits)
  */
 import { atom } from 'nanostores'
 
@@ -781,7 +783,15 @@ export async function saveOnboardingApiKey(
   // provider probes, self-hosted endpoints). We now save the value as-is and
   // let the user proceed; an actually-bad key surfaces later at chat time.
   try {
-    await setEnvVar(envKey, trimmed)
+    // EDIT [1]: same seam as model-settings.tsx — this is a provider key, and
+    // rule R2 keeps those in our safeStorage rather than the core's .env. The
+    // rest of the onboarding flow (model confirmation below) is theirs.
+    const saved = await window.aecpilot.saveProviderKey({ envVar: envKey, key: trimmed })
+
+    if (!saved.ok) {
+      throw new Error(saved.error || 'could not save the API key')
+    }
+
     // For API-key flows we don't have a definitive provider id (the
     // user picked which API key they're entering, but the corresponding
     // backend slug — e.g. OPENROUTER_API_KEY → "openrouter" — is the
