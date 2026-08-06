@@ -17,6 +17,8 @@ import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
+import { SourcesPanel } from './SourcesPanel'
+
 /** Folders the user has opened. Collapsed is the default: a vault's top level
  * is the map, and expanding everything on load buries it. */
 type Expanded = Record<string, boolean>
@@ -212,62 +214,69 @@ export function VaultExplorer() {
   )
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-auto p-2 text-(--ui-text-primary)">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-(--ui-text-secondary)">
-          {t('explorer.title')}
-        </span>
-        <span className="flex gap-0.5">
-          <Button
-            aria-label={t('explorer.newFile')}
-            disabled={busy}
-            onClick={() =>
-              void runAction('newFile', { name: '', path: '', type: 'dir', children: [] })
-            }
-            size="icon-xs"
-            title={t('explorer.newFile')}
-            variant="ghost"
-          >
-            <Codicon name="new-file" />
-          </Button>
-          <Button
-            aria-label={t('common.refresh')}
-            disabled={busy}
-            onClick={() => void reload()}
-            size="icon-xs"
-            title={t('common.refresh')}
-            variant="ghost"
-          >
-            <Codicon name="refresh" />
-          </Button>
-        </span>
+    <div className="flex h-full flex-col overflow-auto text-(--ui-text-primary)">
+      <div className="flex flex-col gap-1 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-(--ui-text-secondary)">
+            {t('explorer.title')}
+          </span>
+          <span className="flex gap-0.5">
+            <Button
+              aria-label={t('explorer.newFile')}
+              disabled={busy}
+              onClick={() =>
+                void runAction('newFile', { name: '', path: '', type: 'dir', children: [] })
+              }
+              size="icon-xs"
+              title={t('explorer.newFile')}
+              variant="ghost"
+            >
+              <Codicon name="new-file" />
+            </Button>
+            <Button
+              aria-label={t('common.refresh')}
+              disabled={busy}
+              onClick={() => void reload()}
+              size="icon-xs"
+              title={t('common.refresh')}
+              variant="ghost"
+            >
+              <Codicon name="refresh" />
+            </Button>
+          </span>
+        </div>
+
+        {(actionError ?? loadError) && (
+          <div className="text-xs text-destructive">
+            {actionError ?? (loadError as Error).message}
+          </div>
+        )}
+
+        {tree === undefined ? (
+          <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
+        ) : tree.length === 0 ? (
+          <div className="text-xs text-(--ui-text-secondary)">{t('explorer.empty')}</div>
+        ) : (
+          <ul className="flex flex-col">
+            {tree.map((node) => (
+              <TreeRow
+                busy={busy}
+                depth={0}
+                expanded={expanded}
+                key={node.path}
+                node={node}
+                onAction={runAction}
+                onToggle={toggle}
+              />
+            ))}
+          </ul>
+        )}
       </div>
 
-      {(actionError ?? loadError) && (
-        <div className="text-xs text-destructive">
-          {actionError ?? (loadError as Error).message}
-        </div>
-      )}
-
-      {tree === undefined ? (
-        <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
-      ) : tree.length === 0 ? (
-        <div className="text-xs text-(--ui-text-secondary)">{t('explorer.empty')}</div>
-      ) : (
-        <ul className="flex flex-col">
-          {tree.map((node) => (
-            <TreeRow
-              busy={busy}
-              depth={0}
-              expanded={expanded}
-              key={node.path}
-              node={node}
-              onAction={runAction}
-              onToggle={toggle}
-            />
-          ))}
-        </ul>
-      )}
+      {/* Sources sit under the vault in the same pane on purpose: they are two
+          halves of one question — what the agent may write, and what it may
+          only read (SPEC N3). */}
+      <SourcesPanel />
     </div>
   )
 }

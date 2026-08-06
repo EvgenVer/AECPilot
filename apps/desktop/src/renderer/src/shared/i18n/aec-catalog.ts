@@ -57,6 +57,15 @@ export const aecLocales: PluginLocaleBundles = {
       renamePrompt: 'New name',
       deleteConfirm: 'Delete this entry?'
     },
+    sources: {
+      title: 'Sources',
+      empty: 'No sources connected — the agent has nothing to read yet.',
+      add: 'Connect a folder',
+      addAnyway: 'Connect anyway',
+      remove: 'Disconnect',
+      removeConfirm: 'Disconnect this source? Its files are not touched.',
+      unavailable: 'unavailable'
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -106,6 +115,15 @@ export const aecLocales: PluginLocaleBundles = {
       newDirPrompt: 'Имя папки',
       renamePrompt: 'Новое имя',
       deleteConfirm: 'Удалить эту запись?'
+    },
+    sources: {
+      title: 'Источники',
+      empty: 'Источники не подключены — агенту пока нечего читать.',
+      add: 'Подключить папку',
+      addAnyway: 'Подключить всё равно',
+      remove: 'Отключить',
+      removeConfirm: 'Отключить этот источник? Файлы останутся на месте.',
+      unavailable: 'недоступен'
     },
     settings: {
       languageLabel: 'Язык интерфейса',
