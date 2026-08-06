@@ -326,7 +326,7 @@ uv-workspace. Замер 2026-08-05: в обоих `mcp==1.28.1` и `starlette==
 |---|---|---|
 | `design/screens/*` (self-decompressing бандлы), `design/tokens.css`, `design/tokens.json`, `design/DESIGN_BRIEF.md` | ничего: решение D5 отменяет их роль; история в git | 1.8, первым шагом |
 | Наши компоненты, заменённые донорскими (`renderer/src/{chat,settings,shell,starmap,artifacts}/**`) и `renderer/src/styles/**` | измеренные контракты уже живут в `*-pure.ts` и `MEMORY.md` | 1.8, **сразу после замены каждого экрана**, не в конце фазы |
-| `docs/manual-checklist-phase-1.5.md`, `docs/manual-checklist-phase-1.6.md` | новый чек-лист приёмки пишется под мигрированный интерфейс | 1.8, после приёмки |
+| ~~`docs/manual-checklist-phase-1.5.md`, `docs/manual-checklist-phase-1.6.md`~~ — удалены 1.8.20 | заменены `docs/manual-checklist.md` под мигрированный интерфейс | сделано |
 | `docs/decisions-phase-1.6-batches.md`, `docs/parity-approvals.md` | действующие решения — в этом PLAN; отменённые не нужны | 1.7 |
 | Раздел Phase 1.6 в `TASKS.md` (~350 задач) | стабильные факты — в `MEMORY.md`; выполненная работа — в git | 1.7 |
 | `runtime/contracts/hermes-0.19.0.json` | остаётся до тех пор, пока не снят слепок 0.20.0 и не разобран дифф | 1.7, последним шагом |
