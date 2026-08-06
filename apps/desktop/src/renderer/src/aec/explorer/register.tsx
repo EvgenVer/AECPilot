@@ -6,9 +6,13 @@
 // Importing this module registers the pane; `main.tsx` does that once.
 
 import { registry } from '../../donor/contrib/registry'
+import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
 import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
+
+import { ProjectMenu } from '../project/ProjectMenu'
+import { ScanWatcher } from '../scan/ScanWatcher'
 
 import { VaultExplorer } from './VaultExplorer'
 
@@ -17,6 +21,28 @@ import { VaultExplorer } from './VaultExplorer'
 // this case. A language switch retitles it on the next registry mutation.
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'explorer.title', [])
+
+// The project menu goes in their status bar, left side: "what am I working on"
+// has to be readable without opening anything (every file operation, scan and
+// agent turn is scoped to that vault).
+registry.register({
+  id: 'aec-project',
+  area: STATUSBAR_AREAS.left,
+  source: 'core',
+  order: -100,
+  render: () => <ProjectMenu />
+})
+
+// Renders nothing — a subscription that turns our scan reports into one of
+// their notifications. Mounted through the registry so it lives exactly as long
+// as the shell does.
+registry.register({
+  id: 'aec-scan-watcher',
+  area: STATUSBAR_AREAS.left,
+  source: 'core',
+  order: -99,
+  render: () => <ScanWatcher />
+})
 
 registry.register({
   id: 'aec-explorer',

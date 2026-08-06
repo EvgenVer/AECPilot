@@ -31,6 +31,7 @@ export const aecLocales: PluginLocaleBundles = {
         'No recent projects yet — they show up here once you create or open the first one.'
     },
     project: {
+      none: 'No project',
       createTitle: 'New project',
       initTitle: 'Initialize project',
       nameLabel: 'Project name',
@@ -69,6 +70,12 @@ export const aecLocales: PluginLocaleBundles = {
       removeConfirm: 'Disconnect this source? Its files are not touched.',
       unavailable: 'unavailable'
     },
+    scan: {
+      title: 'Sources changed',
+      added: (n: number) => `${n} added`,
+      changed: (n: number) => `${n} changed`,
+      deleted: (n: number) => `${n} deleted`
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -93,6 +100,7 @@ export const aecLocales: PluginLocaleBundles = {
         'Пока нет недавних проектов — они появятся здесь после первого создания или открытия.'
     },
     project: {
+      none: 'Проект не открыт',
       createTitle: 'Создать проект',
       initTitle: 'Инициализировать проект',
       nameLabel: 'Название проекта',
@@ -130,6 +138,12 @@ export const aecLocales: PluginLocaleBundles = {
       remove: 'Отключить',
       removeConfirm: 'Отключить этот источник? Файлы останутся на месте.',
       unavailable: 'недоступен'
+    },
+    scan: {
+      title: 'Источники изменились',
+      added: (n: number) => `добавлено ${n}`,
+      changed: (n: number) => `изменено ${n}`,
+      deleted: (n: number) => `удалено ${n}`
     },
     settings: {
       languageLabel: 'Язык интерфейса',
