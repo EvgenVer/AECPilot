@@ -19,6 +19,7 @@ import { installClipboardShim } from './donor/lib/clipboard'
 import { queryClient } from './donor/lib/query-client'
 
 import { applyTheme, readStoredTheme } from './theme'
+import { ProjectGate } from './aec/project/ProjectGate'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
@@ -51,7 +52,12 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                     wraps route updates in startTransition, and under a token
                     stream those non-urgent commits get starved. */}
                 <HashRouter useTransitions={false}>
-                  <App />
+                  {/* Their application only starts once a vault is open — the
+                      agent's working directory IS the vault (SPEC), and main
+                      hands one over only after this gate. */}
+                  <ProjectGate>
+                    <App />
+                  </ProjectGate>
                 </HashRouter>
               </RootTooltipProvider>
             </HapticsProvider>

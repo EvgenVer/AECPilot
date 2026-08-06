@@ -14,6 +14,10 @@ export const AEC_I18N_NAMESPACE = 'aec'
 
 export const aecLocales: PluginLocaleBundles = {
   en: {
+    common: {
+      cancel: 'Cancel',
+      close: 'Close'
+    },
     welcome: {
       tagline: 'An IDE for project documentation',
       create: 'New project',
@@ -24,6 +28,21 @@ export const aecLocales: PluginLocaleBundles = {
       recentEmpty:
         'No recent projects yet — they show up here once you create or open the first one.'
     },
+    project: {
+      createTitle: 'New project',
+      initTitle: 'Initialize project',
+      nameLabel: 'Project name',
+      namePlaceholder: 'Site-X',
+      folderLabel: 'Project folder (it may be non-empty — only missing files are added)',
+      folderUnset: 'not chosen',
+      pick: 'Choose folder',
+      picking: 'Choosing…',
+      create: 'Create',
+      creating: 'Creating…',
+      init: 'Initialize',
+      initializing: 'Initializing…',
+      initAnyway: 'Initialize anyway'
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -31,6 +50,10 @@ export const aecLocales: PluginLocaleBundles = {
     }
   },
   ru: {
+    common: {
+      cancel: 'Отмена',
+      close: 'Закрыть'
+    },
     welcome: {
       tagline: 'IDE для проектной документации',
       create: 'Создать проект',
@@ -40,6 +63,21 @@ export const aecLocales: PluginLocaleBundles = {
       recentTitle: 'Недавние проекты',
       recentEmpty:
         'Пока нет недавних проектов — они появятся здесь после первого создания или открытия.'
+    },
+    project: {
+      createTitle: 'Создать проект',
+      initTitle: 'Инициализировать проект',
+      nameLabel: 'Название проекта',
+      namePlaceholder: 'Объект-X',
+      folderLabel: 'Папка проекта (может быть непустой — недостающие файлы будут добавлены)',
+      folderUnset: 'не выбрана',
+      pick: 'Выбрать папку',
+      picking: 'Выбор…',
+      create: 'Создать',
+      creating: 'Создаю…',
+      init: 'Инициализировать',
+      initializing: 'Инициализирую…',
+      initAnyway: 'Инициализировать всё равно'
     },
     settings: {
       languageLabel: 'Язык интерфейса',
