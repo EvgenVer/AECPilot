@@ -366,8 +366,10 @@
      параллельно фазе 1.8. UI-задачи 2.13–2.15 садятся на мигрированную оболочку. -->
 - [x] 2.1 Подключить Docling: text-PDF → markdown с постраничным locator — files: mcp/aec_rag · verify: pytest на образце (страницы в мета) · dep: — · parallel: yes
   <!-- `aec_rag/parse.py`: `build_converter()` + `parse_pdf()` → `ParsedDocument{doctype,
-       markdown, pages[ParsedPage{page_no, markdown}]}`. Страница 1-based — это то число,
-       которое человек видит во вьюере, и именно оно обязано пережить цитату.
+       markdown, segments[ParsedSegment{locator, markdown}]}`, locator страницы —
+       `{"page": n}`, 1-based: это то число, которое человек видит во вьюере, и именно оно
+       обязано пережить цитату. (Единая форма сегмента приехала задачей 2.4 — до неё был
+       `ParsedPage{page_no}`; PDF-страница и DOCX-раздел оказались одним и тем же понятием.)
        Три факта, которые стоили замера:
        1. **Docling требует C++-компилятора, если не выключить `torch.compile`.** По
           умолчанию конвертация падает на Windows без Visual Studio
@@ -389,7 +391,22 @@
 
 - [ ] 2.2 Прогнать замер OCR-движков Docling на ≥5 реальных ru-сканах, выбрать дефолт (R4) — files: eval/ocr-report.md, PLAN.md §Risks · verify: таблица результатов + решение записано · dep: 2.1 · parallel: yes
 - [ ] 2.3 Включить OCR-путь для скан-PDF с выбранным движком — files: mcp/aec_rag · verify: pytest скан-фикстура (текст+страницы) · dep: 2.2 · parallel: no
-- [ ] 2.4 Подключить DOCX → markdown (+заголовки как locator-кандидаты) — files: mcp/aec_rag · verify: pytest образец · dep: 2.1 · parallel: yes
+- [x] 2.4 Подключить DOCX → markdown (+заголовки как locator-кандидаты) — files: mcp/aec_rag · verify: pytest образец · dep: 2.1 · parallel: yes
+  <!-- `parse_docx()` + `split_by_headings()`. Замер, определивший форму: у DOCX
+       `num_pages() == 0` — разбиение на страницы это свойство того, КАК Word рисует файл,
+       а не самого файла. Значит заголовок — единственный locator, который формат даёт, и
+       спека это уже предусматривает (edge case «Locator недоступен»).
+       Поэтому `ParsedPage{page_no}` заменён на `ParsedSegment{locator, markdown}`: страница
+       PDF и раздел DOCX — одно понятие «место, на которое можно сослаться», и чанкеру 2.6
+       незачем знать три формы вместо одной.
+       Заголовок остаётся ВНУТРИ своего сегмента: чанк «0,4 кВ», не говорящий, из какого он
+       раздела, стоит меньше и для читателя, и для поиска.
+       Текст выше первого заголовка — сегмент с ПУСТЫМ locator: ссылка может назвать только
+       файл, ровно как написано в спеке.
+       Фикстура — настоящий русский DOCX (два уровня заголовков, таблица, преамбула);
+       `python-docx` объявлен в dev явно, хотя приезжает и транзитивно с docling: тест не
+       должен держаться на чужом дереве зависимостей (урок D-6). -->
+
 - [ ] 2.5 Подключить XLSX/CSV → таблицы (locator: лист/диапазон) — files: mcp/aec_rag · verify: pytest образец · dep: 2.1 · parallel: yes
 - [ ] 2.6 Реализовать чанкер поверх markdown (заголовки/размер; таблицы целиком; locator в мета) — files: mcp/aec_rag · verify: юниты на границы чанков · dep: 2.1 · parallel: yes
 - [ ] 2.7 Решить O4: формат locator и открытия места для DOCX/XLSX (мини-прототип, фиксация в спеке) — files: specs/qa-over-sources.md · verify: спека обновлена, владелец подтвердил · dep: 2.4, 2.5 · parallel: yes
