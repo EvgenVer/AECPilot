@@ -25,8 +25,7 @@ def build_text_pdf(page_lines: Sequence[Sequence[str]]) -> bytes:
     """
     objects: dict[int, bytes] = {
         1: b"<< /Type /Catalog /Pages 2 0 R >>",
-        3: b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
-        b"/Encoding /WinAnsiEncoding >>",
+        3: b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     }
 
     page_nums = [4 + 2 * i for i in range(len(page_lines))]
