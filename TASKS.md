@@ -364,7 +364,29 @@
 ### Phase 2 — Ingest & RAG, эталонный сценарий (спека: specs/qa-over-sources.md)
 <!-- Python-часть (2.1–2.12, 2.16–2.19) от миграции интерфейса не зависит и может идти
      параллельно фазе 1.8. UI-задачи 2.13–2.15 садятся на мигрированную оболочку. -->
-- [ ] 2.1 Подключить Docling: text-PDF → markdown с постраничным locator — files: mcp/aec_rag · verify: pytest на образце (страницы в мета) · dep: — · parallel: yes
+- [x] 2.1 Подключить Docling: text-PDF → markdown с постраничным locator — files: mcp/aec_rag · verify: pytest на образце (страницы в мета) · dep: — · parallel: yes
+  <!-- `aec_rag/parse.py`: `build_converter()` + `parse_pdf()` → `ParsedDocument{doctype,
+       markdown, pages[ParsedPage{page_no, markdown}]}`. Страница 1-based — это то число,
+       которое человек видит во вьюере, и именно оно обязано пережить цитату.
+       Три факта, которые стоили замера:
+       1. **Docling требует C++-компилятора, если не выключить `torch.compile`.** По
+          умолчанию конвертация падает на Windows без Visual Studio
+          (`InvalidCxxCompiler: cl is not found`) — не деградирует, а падает. Лечится их
+          же штатным флагом `settings.inference.compile_torch_models = False`. Записано
+          в PLAN §Risks как R14.
+       2. **Пустая страница остаётся в последовательности** с пустым markdown. Иначе
+          нумерация сползает и каждая цитата после пустой страницы врёт на единицу —
+          закреплено тестом.
+       3. **Импорт docling стоит ~6,5 с и около гигабайта RSS**, поэтому он лежит внутри
+          функций: `aec-rag scan` запускается на каждом тике планировщика и за парсер,
+          которым не пользуется, платить не должен.
+       OCR выключен намеренно — путь скана открывает 2.3 после замера движков в 2.2.
+       Фикстура — PDF, собираемый в памяти (`tests/pdf_fixture.py`), без бинаря в репозитории;
+       текст латиницей: стандартный Helvetica кириллицы не несёт, а встраивать TrueType с
+       ToUnicode ради «привет» — это больше фикстуры, чем теста. Кириллица проверяется там,
+       где выражается прямо: DOCX/XLSX (2.4, 2.5) и сканы (2.2, 2.3).
+       Замер: окружение 83,6 МБ → 1067 МБ; pytest 136 passed / 3 skipped (было 131/3). -->
+
 - [ ] 2.2 Прогнать замер OCR-движков Docling на ≥5 реальных ru-сканах, выбрать дефолт (R4) — files: eval/ocr-report.md, PLAN.md §Risks · verify: таблица результатов + решение записано · dep: 2.1 · parallel: yes
 - [ ] 2.3 Включить OCR-путь для скан-PDF с выбранным движком — files: mcp/aec_rag · verify: pytest скан-фикстура (текст+страницы) · dep: 2.2 · parallel: no
 - [ ] 2.4 Подключить DOCX → markdown (+заголовки как locator-кандидаты) — files: mcp/aec_rag · verify: pytest образец · dep: 2.1 · parallel: yes
