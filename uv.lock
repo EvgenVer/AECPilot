@@ -64,6 +64,7 @@ source = { virtual = "." }
 dev = [
     { name = "aec-rag" },
     { name = "aec-sources" },
+    { name = "openpyxl" },
     { name = "pytest" },
     { name = "python-docx" },
     { name = "ruff" },
@@ -75,6 +76,7 @@ dev = [
 dev = [
     { name = "aec-rag", editable = "mcp/aec_rag" },
     { name = "aec-sources", editable = "mcp/aec_sources" },
+    { name = "openpyxl", specifier = ">=3.1,<4" },
     { name = "pytest", specifier = ">=8,<10" },
     { name = "python-docx", specifier = ">=1.2,<2" },
     { name = "ruff", specifier = ">=0.12,<1" },

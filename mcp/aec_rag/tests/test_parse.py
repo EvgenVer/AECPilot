@@ -1,4 +1,4 @@
-"""Tests for the Docling parsing paths (tasks 2.1, 2.4).
+"""Tests for the Docling parsing paths (tasks 2.1, 2.4, 2.5).
 
 The format tests run the real converter — a stub would only prove that our own
 dataclasses work, and the thing worth pinning here is what Docling actually does
@@ -9,8 +9,16 @@ the layout model costs far more than the conversions themselves.
 from __future__ import annotations
 
 import docx
+import openpyxl
 import pytest
-from aec_rag.parse import ParseError, build_converter, parse_docx, parse_pdf, split_by_headings
+from aec_rag.parse import (
+    ParseError,
+    build_converter,
+    parse_docx,
+    parse_pdf,
+    parse_spreadsheet,
+    split_by_headings,
+)
 from pdf_fixture import build_text_pdf
 
 # Each page carries a marker that appears nowhere else, so "page 2's text ended
@@ -147,6 +155,63 @@ def test_docx_segment_repeats_its_own_heading(parsed_docx):
         heading = segment.locator.get("heading")
         if heading is not None:
             assert heading in segment.markdown
+
+
+@pytest.fixture(scope="session")
+def sample_xlsx(tmp_path_factory):
+    """Three sheets: one ordinary, one empty, one whose table does not start at
+    A1 — the range is only worth anything if it points at where the data is.
+    """
+    path = tmp_path_factory.mktemp("xlsx") / "ведомость.xlsx"
+    book = openpyxl.Workbook()
+    first = book.active
+    first.title = "Ведомость"
+    first.append(["Позиция", "Мощность, кВт"])
+    first.append(["Насос К-1", 55])
+    first.append(["Насос К-2", 70])
+    book.create_sheet("Пустой")
+    third = book.create_sheet("Кабели")
+    third["C5"] = "Марка"
+    third["D5"] = "Сечение"
+    third["C6"] = "ВВГнг"
+    third["D6"] = "3х50"
+    book.save(path)
+    return path
+
+
+@pytest.fixture(scope="session")
+def parsed_xlsx(converter, sample_xlsx):
+    return parse_spreadsheet(sample_xlsx, converter=converter)
+
+
+def test_xlsx_segment_names_its_sheet_and_range(parsed_xlsx):
+    assert parsed_xlsx.doctype == "xlsx"
+    assert [segment.locator for segment in parsed_xlsx.segments] == [
+        {"sheet": "Ведомость", "range": "A1:B3"},
+        {"sheet": "Кабели", "range": "C5:D6"},
+    ]
+
+
+def test_xlsx_empty_sheet_produces_no_segment(parsed_xlsx):
+    assert "Пустой" not in [segment.locator.get("sheet") for segment in parsed_xlsx.segments]
+
+
+def test_xlsx_table_content_stays_with_its_sheet(parsed_xlsx):
+    by_sheet = {segment.locator["sheet"]: segment.markdown for segment in parsed_xlsx.segments}
+    assert "Насос К-1" in by_sheet["Ведомость"]
+    assert "Насос К-1" not in by_sheet["Кабели"]
+    assert "ВВГнг" in by_sheet["Кабели"]
+
+
+def test_csv_is_one_table_the_citation_can_only_name_the_file(converter, tmp_path):
+    path = tmp_path / "нагрузки.csv"
+    path.write_text("Позиция,Мощность\nНасос К-1,55\n", encoding="utf-8")
+
+    parsed = parse_spreadsheet(path, converter=converter)
+
+    assert parsed.doctype == "csv"
+    assert [segment.locator for segment in parsed.segments] == [{}]
+    assert "Насос К-1" in parsed.segments[0].markdown
 
 
 def test_split_by_headings_returns_one_section_when_there_are_none():

@@ -36,9 +36,10 @@ class ParsedSegment:
     ``locator`` follows specs/qa-over-sources.md: ``{"page": n}`` for PDFs
     (1-based, i.e. the number a person reads in a viewer — that is what a
     citation has to survive), ``{"heading": text}`` for formats that have no
-    pages. An empty ``locator`` means the citation can only name the file, which
-    is what the spec's edge case prescribes for a DOCX preamble sitting above
-    the first heading.
+    pages, ``{"sheet": name, "range": "A1:B3"}`` for spreadsheets. An empty
+    ``locator`` means the citation can only name the file, which is what the
+    spec's edge case prescribes for a DOCX preamble sitting above the first
+    heading, and for a CSV, which is one table and nothing else.
     """
 
     locator: dict[str, int | str]
@@ -167,3 +168,68 @@ def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) 
         for heading, body in split_by_headings(markdown)
     )
     return ParsedDocument(doctype="docx", markdown=markdown, segments=segments)
+
+
+def _column_letter(index: int) -> str:
+    """0-based column index → spreadsheet column name (0 → ``A``, 26 → ``AA``)."""
+    letters = ""
+    index += 1
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def _sheet_range(bbox) -> str | None:
+    """Docling's grid bounding box → an ``A1:B3`` range, or ``None`` if empty.
+
+    The box is 0-based, top-left, and half-open on the right and bottom:
+    measured 2026-08-07, a table occupying ``C5:D6`` comes back as
+    ``l=2 t=4 r=4 b=6``.
+    """
+    left, top, right, bottom = int(bbox.l), int(bbox.t), int(bbox.r), int(bbox.b)
+    if right <= left or bottom <= top:
+        return None
+    return f"{_column_letter(left)}{top + 1}:{_column_letter(right - 1)}{bottom}"
+
+
+def parse_spreadsheet(
+    path: Path | str, *, converter: DocumentConverter | None = None
+) -> ParsedDocument:
+    """Convert an XLSX or CSV into markdown, one segment per table.
+
+    Docling turns every worksheet into a page and hangs its tables under a group
+    named after the sheet, so both halves of the locator the spec asks for —
+    sheet and range — are recoverable without opening the file a second time.
+    A sheet holding no table produces no segment: there is nothing there to cite.
+
+    A CSV is a single table with no provenance at all, so its segment carries an
+    empty locator and the citation names the file.
+    """
+    from docling_core.types.doc import TableItem
+
+    path = Path(path)
+    document = _convert(path, converter)
+    sheet_names = {group.self_ref: group.name for group in document.groups}
+
+    segments: list[ParsedSegment] = []
+    for item, _level in document.iterate_items():
+        if not isinstance(item, TableItem):
+            continue
+        locator: dict[str, int | str] = {}
+        sheet = sheet_names.get(item.parent.cref) if item.parent is not None else None
+        if sheet is not None:
+            locator["sheet"] = sheet
+        if item.prov:
+            cell_range = _sheet_range(item.prov[0].bbox)
+            if cell_range is not None:
+                locator["range"] = cell_range
+        segments.append(
+            ParsedSegment(locator=locator, markdown=item.export_to_markdown(document).strip())
+        )
+
+    return ParsedDocument(
+        doctype=path.suffix.lstrip(".").lower(),
+        markdown=document.export_to_markdown().strip(),
+        segments=tuple(segments),
+    )

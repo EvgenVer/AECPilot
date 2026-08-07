@@ -14,10 +14,17 @@ aec-sources = { workspace = true }
 aec-rag = { workspace = true }
 
 [dependency-groups]
-# python-docx builds the DOCX test fixtures. It already arrives transitively
-# with docling, but a test must not rest on somebody else's dependency tree —
-# that is the trap recorded as D-6.
-dev = ["pytest>=8,<10", "ruff>=0.12,<1", "python-docx>=1.2,<2", "aec-sources", "aec-rag"]
+# python-docx and openpyxl build the DOCX/XLSX test fixtures. Both already
+# arrive transitively with docling, but a test must not rest on somebody else's
+# dependency tree — that is the trap recorded as D-6.
+dev = [
+    "pytest>=8,<10",
+    "ruff>=0.12,<1",
+    "python-docx>=1.2,<2",
+    "openpyxl>=3.1,<4",
+    "aec-sources",
+    "aec-rag",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["mcp"]
