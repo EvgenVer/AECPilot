@@ -11,6 +11,7 @@ import { translatePlugin } from '../../donor/i18n/plugin-i18n'
 import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
+import { IndexStatus } from '../index-status/IndexStatus'
 import { DocumentViewer } from '../viewers/DocumentViewer'
 import { ProjectMenu } from '../project/ProjectMenu'
 import { RollbackPanel } from '../rollback/RollbackPanel'
@@ -44,6 +45,17 @@ registry.register({
 // Renders nothing — a subscription that turns our scan reports into one of
 // their notifications. Mounted through the registry so it lives exactly as long
 // as the shell does.
+// The index indicator sits next to the project menu: «what am I working on»
+// and «has it been read» are the two things that decide whether an answer can
+// be trusted, and both belong where they are always visible.
+registry.register({
+  id: 'aec-index-status',
+  area: STATUSBAR_AREAS.left,
+  source: 'core',
+  order: -98,
+  render: () => <IndexStatus />
+})
+
 registry.register({
   id: 'aec-scan-watcher',
   area: STATUSBAR_AREAS.left,

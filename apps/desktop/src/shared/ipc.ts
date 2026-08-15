@@ -337,6 +337,56 @@ export interface CuratorStatus {
   archive_after_days?: number | null
 }
 
+/** What the index holds — `aec-rag status`'s answer (task 2.15), the same
+ * numbers the `rag_status` MCP tool gives the agent. Read by the app directly
+ * so the indicator works whether or not an agent session is live. */
+export interface RagStatus {
+  chunks_total: number
+  files_indexed: number
+  files_total: number
+  graph: {
+    chunks: number
+    covers_whole_project: boolean
+    documents: number
+    documents_outside: number
+  }
+  graph_entries?: { added_at: string; kind: string; path: string }[]
+  /** Documents inside a marked folder that the graph does not hold yet —
+   * UR24's «ask before spending», with the size of the spend attached. */
+  graph_pending: { chunks_estimate: number; documents: number; not_indexed: number }
+  last_ingest_at: null | string
+  stale_count: number
+}
+
+/** One step of an ingest run, as the CLI reports it (task 2.15). */
+export interface IngestProgressEvent {
+  chunks: number
+  done: number
+  error: string
+  rel_path: string
+  source_id: string
+  stage: string
+  total: number
+}
+
+/** What an ingest run produced. */
+export interface IngestRunReport {
+  chunks: number
+  errors: { error: string; rel_path: string; source_id: string }[]
+  files_failed: number
+  files_ingested: number
+  files_skipped: number
+  files_total: number
+  removed_chunks: number
+}
+
+export interface IngestState {
+  error: null | string
+  lastReport: IngestRunReport | null
+  progress: IngestProgressEvent | null
+  running: boolean
+}
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -576,6 +626,14 @@ export interface AecpilotApi {
     sourceId: string,
     rel: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** What the index holds, for the indicator (task 2.15). */
+  getIndexStatus(): Promise<{ ok: true; status: RagStatus } | { error: string; ok: false }>
+  /** Starts a tier-1 ingest of everything scanned but not indexed. Returns
+   * immediately — progress arrives through `onIngestState`. `full` re-reads
+   * every file rather than only the changed ones. */
+  startIngest(full?: boolean): Promise<{ error?: string; started: boolean }>
+  getIngestState(): Promise<IngestState>
+  onIngestState(cb: (state: IngestState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a
    * connected source; omitted, the path is read from the vault. The path is
    * resolved inside that root by the main process — the renderer never builds

@@ -152,6 +152,52 @@ def run_ingest(project_arg: Path, *, mode: str) -> dict:
     return asyncio.run(run())
 
 
+def run_status(project_arg: Path) -> dict:
+    """What the index holds, for the desktop's indicator (task 2.15).
+
+    The same numbers the `rag_status` MCP tool answers with, reached without a
+    gateway: the app shows them on every project open and after every scan, and
+    routing that through the agent's tool channel would make the indicator
+    depend on a live session.
+    """
+    from aec_rag.graph_scope import estimate, graph_stats, pending_for_scope, read_scope
+    from aec_rag.store import index_stats
+
+    project_path = _resolve_project_json(project_arg)
+    index_db_path = project_path.parent / "index.db"
+    if not index_db_path.is_file():
+        return {
+            "files_total": 0,
+            "files_indexed": 0,
+            "chunks_total": 0,
+            "stale_count": 0,
+            "last_ingest_at": None,
+            "graph": {
+                "documents": 0,
+                "chunks": 0,
+                "documents_outside": 0,
+                "covers_whole_project": False,
+            },
+            "graph_pending": {"documents": 0, "chunks_estimate": 0, "not_indexed": 0},
+        }
+
+    conn = open_index(index_db_path)
+    try:
+        stats = index_stats(conn)
+        row = conn.execute("SELECT max(ingested_at) FROM ingested_files").fetchone()
+        entries = read_scope(project_path)
+        pending = pending_for_scope(conn, entries)
+        return {
+            **stats,
+            "last_ingest_at": row[0] if row else None,
+            "graph": graph_stats(conn),
+            "graph_pending": estimate(conn, pending),
+            "graph_entries": [entry.as_dict() for entry in entries],
+        }
+    finally:
+        conn.close()
+
+
 def run_serve(project_arg: Path) -> None:
     """Run the aec-rag MCP server over stdio (task 2.10)."""
     from aec_rag.server import build_server
@@ -196,6 +242,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Re-read every file, not only the ones whose content changed",
     )
 
+    status_parser = subparsers.add_parser("status", help="Print what the index holds")
+    status_parser.add_argument("--project", required=True, type=Path)
+
     serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
     serve_parser.add_argument("--project", required=True, type=Path)
 
@@ -204,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "detach":
             report = run_detach(args.project, args.source)
+        elif args.command == "status":
+            report = run_status(args.project)
         elif args.command == "ingest":
             report = run_ingest(args.project, mode="full" if args.full else "incremental")
         elif args.command == "serve":

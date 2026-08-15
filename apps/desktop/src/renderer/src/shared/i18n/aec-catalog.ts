@@ -71,6 +71,28 @@ export const aecLocales: PluginLocaleBundles = {
       removeConfirm: 'Disconnect this source? Its files are not touched.',
       unavailable: 'unavailable'
     },
+    index: {
+      title: 'Index',
+      summary: (indexed: number, total: number) => `${indexed} / ${total}`,
+      chunks: (chunks: number) => `${chunks} fragments`,
+      stale: (count: number) => `· ${count} stale`,
+      staleLong: (count: number) =>
+        `${count} file(s) changed since the last run — answers will not see the changes yet.`,
+      upToDate: 'The index is up to date.',
+      lastRun: (when: string) => `Last run: ${when}`,
+      running: (done: number, total: number) => `indexing ${done} / ${total}`,
+      runningShort: 'Indexing…',
+      run: 'Index',
+      runFull: 'Re-read everything',
+      failed: (count: number) => `${count} file(s) could not be read — see the run report.`,
+      graphTitle: 'Knowledge graph',
+      graphEmpty: 'Empty. Ask the agent to add a folder — it costs a model call per fragment.',
+      graphSummary: (documents: number, chunks: number) =>
+        `${documents} document(s), ${chunks} fragment(s)`,
+      graphPartial: (outside: number) => `${outside} document(s) are outside the graph.`,
+      graphPending: (documents: number, chunks: number) =>
+        `${documents} new document(s) in a marked folder are not in the graph — about ${chunks} fragments of work. They are already searchable.`
+    },
     viewer: {
       title: 'Document',
       empty: 'Click a reference in the agent’s answer to open the document at that place.',
@@ -181,6 +203,28 @@ export const aecLocales: PluginLocaleBundles = {
       remove: 'Отключить',
       removeConfirm: 'Отключить этот источник? Файлы останутся на месте.',
       unavailable: 'недоступен'
+    },
+    index: {
+      title: 'Индекс',
+      summary: (indexed: number, total: number) => `${indexed} / ${total}`,
+      chunks: (chunks: number) => `${chunks} фрагментов`,
+      stale: (count: number) => `· ${count} устарело`,
+      staleLong: (count: number) =>
+        `${count} файл(ов) изменились с последнего прогона — ответы их пока не видят.`,
+      upToDate: 'Индекс в актуальном состоянии.',
+      lastRun: (when: string) => `Последний прогон: ${when}`,
+      running: (done: number, total: number) => `индексация ${done} / ${total}`,
+      runningShort: 'Индексирую…',
+      run: 'Проиндексировать',
+      runFull: 'Перечитать всё',
+      failed: (count: number) => `${count} файл(ов) не прочитались — смотрите отчёт прогона.`,
+      graphTitle: 'Граф знаний',
+      graphEmpty: 'Пуст. Попросите агента добавить папку — это стоит вызова модели на каждый фрагмент.',
+      graphSummary: (documents: number, chunks: number) =>
+        `${documents} документ(ов), ${chunks} фрагмент(ов)`,
+      graphPartial: (outside: number) => `${outside} документ(ов) вне графа.`,
+      graphPending: (documents: number, chunks: number) =>
+        `${documents} новых документ(ов) в отмеченной папке не в графе — работы примерно на ${chunks} фрагментов. Поиском они уже находятся.`
     },
     viewer: {
       title: 'Документ',

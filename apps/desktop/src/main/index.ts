@@ -17,6 +17,7 @@ import {
 import { hermesRest, type RestTarget } from './hermes-rest'
 import type {
   CuratorStatus,
+  IngestState,
   LearningGraph,
   McpLiveStatus,
   McpServerSummary,
@@ -2285,6 +2286,73 @@ ipcMain.handle('sources:get-entry-path', (_event, payload: unknown) => {
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+})
+
+// Task 2.15: the index indicator and the ingest it starts.
+//
+// One run at a time, process-wide. Two concurrent ingests would race on the
+// same `index.db` rows and on the same vector store, and the second one would
+// mostly wait for SQLite anyway — «уже идёт» is a better answer than a queue
+// nobody asked for.
+let ingestState: IngestState = {
+  error: null,
+  lastReport: null,
+  progress: null,
+  running: false
+}
+
+function publishIngestState(next: Partial<IngestState>): void {
+  ingestState = { ...ingestState, ...next }
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('index:ingest-state', ingestState)
+  }
+}
+
+ipcMain.handle('index:status', async () => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  try {
+    const { runIndexStatus } = await import('./ingest-runner')
+    return { ok: true, status: await runIndexStatus(currentProject.vaultPath) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('index:ingest-state', () => ingestState)
+
+ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
+  if (!currentProject) return { started: false, error: 'Нет открытого проекта' }
+  if (ingestState.running) return { started: false, error: 'Индексация уже идёт' }
+
+  const full = typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
+  // Captured at start: the run belongs to the project it began against, and a
+  // project switch mid-run must not make its report land on somebody else's
+  // indicator (the same rule the scan runner already follows).
+  const vaultPath = currentProject.vaultPath
+  const { runIngest } = await import('./ingest-runner')
+
+  publishIngestState({ error: null, progress: null, running: true })
+
+  void runIngest(vaultPath, (progress) => {
+    if (currentProject?.vaultPath !== vaultPath) return
+    publishIngestState({ progress })
+  }, { full })
+    .then(({ report }) => {
+      if (currentProject?.vaultPath !== vaultPath) {
+        publishIngestState({ progress: null, running: false })
+        return
+      }
+      publishIngestState({ lastReport: report, progress: null, running: false })
+    })
+    .catch((error: unknown) => {
+      publishIngestState({
+        error: error instanceof Error ? error.message : String(error),
+        progress: null,
+        running: false
+      })
+    })
+
+  return { started: true }
 })
 
 // A document is opened for reading by size, not by trust: a citation names a

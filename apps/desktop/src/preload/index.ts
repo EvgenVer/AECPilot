@@ -53,6 +53,15 @@ const api: AecpilotApi = {
   getSourceEntryPath: (sourceId, rel) =>
     ipcRenderer.invoke('sources:get-entry-path', { sourceId, rel }),
   readDocument: (rel, sourceId) => ipcRenderer.invoke('viewer:read-document', { rel, sourceId }),
+  getIndexStatus: () => ipcRenderer.invoke('index:status'),
+  startIngest: (full) => ipcRenderer.invoke('index:ingest', { full }),
+  getIngestState: () => ipcRenderer.invoke('index:ingest-state'),
+  onIngestState: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
+      cb(state)
+    ipcRenderer.on('index:ingest-state', listener)
+    return () => ipcRenderer.removeListener('index:ingest-state', listener)
+  },
   getVaultTree: () => ipcRenderer.invoke('vault:tree'),
   createVaultFile: (parentRel, name) =>
     ipcRenderer.invoke('vault:create-file', { parentRel, name }),
