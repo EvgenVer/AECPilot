@@ -285,3 +285,51 @@ def test_split_by_headings_ignores_hashes_inside_a_fenced_block():
 
 def test_split_by_headings_drops_an_empty_preamble():
     assert split_by_headings("\n\n## Первый\n\nтекст") == [("Первый", "## Первый\n\nтекст")]
+
+
+class _FakeDocument:
+    """A document that counts how many times it is serialized."""
+
+    def __init__(self, pages: int, markdown: str) -> None:
+        self._pages = pages
+        self._markdown = markdown
+        self.exports = 0
+
+    def num_pages(self) -> int:
+        return self._pages
+
+    def export_to_markdown(self, **kwargs) -> str:
+        self.exports += 1
+        page_no = kwargs.get("page_no")
+        if page_no is None:
+            return self._markdown
+        return f"страница {page_no}"
+
+
+def test_pages_are_split_from_one_serialization():
+    """`export_to_markdown(page_no=n)` filters a full walk of the document, so
+    calling it per page is quadratic. Measured 2026-08-15 on a real drawing set:
+    Docling converted it in 55 minutes and this loop had not finished 45 minutes
+    after that. One pass plus a split does the same job.
+    """
+    from aec_rag.parse import _PAGE_BREAK, _split_pages
+
+    document = _FakeDocument(3, f"первая{_PAGE_BREAK}вторая{_PAGE_BREAK}третья")
+
+    assert _split_pages(document, document.export_to_markdown()) == ["первая", "вторая", "третья"]
+    assert document.exports == 1
+
+
+def test_a_split_that_does_not_line_up_falls_back_rather_than_shifting_pages():
+    """A locator off by one page sends the reader to the wrong place while
+    looking perfectly valid — worse than being slow.
+    """
+    from aec_rag.parse import _PAGE_BREAK, _split_pages
+
+    document = _FakeDocument(3, f"первая{_PAGE_BREAK}вторая")
+
+    assert _split_pages(document, document.export_to_markdown()) == [
+        "страница 1",
+        "страница 2",
+        "страница 3",
+    ]

@@ -167,21 +167,49 @@ def parse_pdf(path: Path | str, *, converter: DocumentConverter | None = None) -
     ``converter`` is accepted so a caller processing many files builds one and
     reuses it: constructing a converter loads the layout model, which is the
     expensive part (about 12 s here against 6.5 s for the conversion itself).
+
+    **One serialization, not one per page.** ``export_to_markdown(page_no=n)``
+    filters a full walk of the document, so calling it per page is quadratic in
+    the page count. Measured 2026-08-15 on a real drawing set: conversion took
+    55 minutes and this loop had not finished 45 minutes later, on a document
+    Docling had already parsed. Serializing once with a page-break marker and
+    splitting is a single pass, and the marker keeps the alignment the locators
+    depend on.
     """
     path = Path(path)
     document = _convert(path, converter)
-    segments = tuple(
-        ParsedSegment(
-            locator={"page": page_no},
-            markdown=document.export_to_markdown(page_no=page_no).strip(),
-        )
-        for page_no in range(1, document.num_pages() + 1)
-    )
+    markdown = document.export_to_markdown(page_break_placeholder=_PAGE_BREAK)
+    pages = _split_pages(document, markdown)
     return ParsedDocument(
         doctype="pdf",
-        markdown=document.export_to_markdown().strip(),
-        segments=segments,
+        markdown=markdown.replace(_PAGE_BREAK, "").strip(),
+        segments=tuple(
+            ParsedSegment(locator={"page": page_no}, markdown=text)
+            for page_no, text in enumerate(pages, start=1)
+        ),
     )
+
+
+# Not a string that can occur in a document: it is an HTML comment, and the
+# markdown serializer emits our own text verbatim.
+_PAGE_BREAK = "<!-- aec-page-break -->"
+
+
+def _split_pages(document: DoclingDocument, markdown: str) -> list[str]:
+    """One markdown per page, in page order.
+
+    Falls back to the per-page export when the split does not line up with the
+    page count. That fallback is the slow path the docstring above is about, and
+    it exists because the alternative is worse: a document whose markers do not
+    align would silently shift every locator after the first missing page, and a
+    citation off by a page is a citation that sends the reader to the wrong
+    place while looking perfectly valid.
+    """
+    total = document.num_pages()
+    parts = [part.strip() for part in markdown.split(_PAGE_BREAK)]
+    if len(parts) == total:
+        return parts
+    return [document.export_to_markdown(page_no=page_no).strip() for page_no in range(1, total + 1)]
 
 
 def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) -> ParsedDocument:
