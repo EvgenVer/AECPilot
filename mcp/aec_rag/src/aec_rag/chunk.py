@@ -5,14 +5,17 @@ Three rules, in the order they matter (specs/qa-over-sources.md, Data schemas):
 1. **A chunk never loses its locator.** It inherits the one from the segment it
    came from and gains the nearest heading when the segment has inner headings —
    a citation that cannot say *where* is not a citation.
-2. **A table is never split.** Half a table answers a question wrongly rather
-   than incompletely: the header row and the row with the number end up in
-   different chunks, and whichever one is retrieved reads as complete.
+2. **A table is never split away from its header.** Half a table answers a
+   question wrongly rather than incompletely: the header row and the row with
+   the number end up in different chunks, and whichever one is retrieved reads
+   as complete. A table that fits stays whole; one that does not is cut on row
+   boundaries with its header repeated on every piece — see `_split_table`.
 3. **Everything else is packed up to a size limit**, on paragraph boundaries.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from aec_rag.parse import ParsedDocument, split_by_headings
@@ -93,6 +96,45 @@ def _split_oversized(text: str, max_chars: int) -> list[str]:
     return [piece for piece in pieces if piece.strip()]
 
 
+_TABLE_SEPARATOR = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def _split_table(text: str, max_chars: int) -> list[str]:
+    """Cut an oversized table on row boundaries, repeating its header.
+
+    Rule 2 says a table is not split, and that rule earns its keep — but it was
+    written about a table that *can* be stored whole. Measured 2026-08-15 on a
+    real ТЗ, which Docling renders as one table of ~150 000 tokens: kept whole,
+    such a chunk exceeds the embedding window, and LightRAG then window-splits
+    it by token count behind our back, which loses both the header and our
+    chunk ids — and with the ids, every locator in the document.
+
+    Cutting it ourselves keeps what rule 2 actually protects: no row is ever
+    read without the header that says what its columns mean. A row longer than
+    the limit on its own is kept whole anyway — a truncated row is worse than a
+    large one.
+    """
+    lines = text.splitlines()
+    header: list[str] = []
+    if len(lines) >= 2 and _TABLE_SEPARATOR.match(lines[1]):
+        header = lines[:2]
+    body = lines[len(header) :]
+
+    pieces: list[str] = []
+    current: list[str] = list(header)
+    length = sum(len(line) + 1 for line in current)
+    for row in body:
+        if current and len(current) > len(header) and length + len(row) + 1 > max_chars:
+            pieces.append("\n".join(current))
+            current = list(header)
+            length = sum(len(line) + 1 for line in current)
+        current.append(row)
+        length += len(row) + 1
+    if len(current) > len(header):
+        pieces.append("\n".join(current))
+    return pieces or [text]
+
+
 def _pack(
     blocks: list[tuple[str, bool]], locator: dict[str, int | str], max_chars: int
 ) -> list[Chunk]:
@@ -114,7 +156,10 @@ def _pack(
         current, current_has_table, length = [], False, 0
 
     for text, is_table in blocks:
-        pieces = [text] if is_table else _split_oversized(text, max_chars)
+        if is_table:
+            pieces = [text] if len(text) <= max_chars else _split_table(text, max_chars)
+        else:
+            pieces = _split_oversized(text, max_chars)
         for piece in pieces:
             if current and length + len(piece) + len(_BLOCK_SEPARATOR) > max_chars:
                 flush()

@@ -141,3 +141,30 @@ async def test_index_opens_under_a_cyrillic_vault_path(tmp_path):
     await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
 
     assert index_dir(vault).is_dir()
+
+
+@pytest.mark.anyio
+async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
+    """Their `openai_embed` is itself an `EmbeddingFunc` declaring the width of
+    `text-embedding-3-small`. Called without `embedding_dim`, it validates a
+    3072-wide answer against 1536 and raises «expected 2 vectors but got 4» —
+    measured 2026-08-15, task 2.9a. No stub caught it, because every test here
+    injects its own embedding function; this one exercises the real default.
+    """
+    import lightrag.llm.openai as openai_module
+    from aec_rag import rag_index
+
+    seen: dict = {}
+
+    async def fake_embed(texts, **kwargs):
+        seen.update(kwargs)
+        return np.zeros((len(texts), kwargs["embedding_dim"]), dtype=np.float32)
+
+    monkeypatch.setattr(openai_module, "openai_embed", fake_embed)
+    monkeypatch.setenv(rag_index.API_KEY_ENV_VAR, "тест")
+
+    settings = RagSettings(embedding_model=DEFAULT_EMBEDDING_MODEL, embedding_dim=3072)
+    await rag_index._default_embedding_func(settings).func(["текст"])
+
+    assert seen["embedding_dim"] == 3072
+    assert seen["model"] == DEFAULT_EMBEDDING_MODEL

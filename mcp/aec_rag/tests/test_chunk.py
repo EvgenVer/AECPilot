@@ -66,14 +66,49 @@ def test_each_heading_section_becomes_its_own_chunk():
     assert "текст два" not in chunks[0].text
 
 
-def test_a_table_longer_than_the_limit_is_still_one_chunk():
+def test_a_table_that_fits_is_never_split():
     parsed = document(ParsedSegment(locator={"sheet": "Ведомость"}, markdown=TABLE))
 
-    chunks = chunk_document(parsed, max_chars=200)
+    chunks = chunk_document(parsed, max_chars=len(TABLE) + 10)
 
     assert len(chunks) == 1
     assert chunks[0].text == TABLE
     assert chunks[0].is_table is True
+
+
+def test_an_oversized_table_is_cut_on_rows_and_every_piece_keeps_the_header():
+    """Measured 2026-08-15: a real ТЗ is one table of ~150 000 tokens. Kept
+    whole it does not fit the embedding window, and LightRAG then window-splits
+    it by token count — losing the header AND our chunk ids, and with the ids
+    every locator in the document. Cutting it here keeps what the rule actually
+    protects: no row is read without the header that names its columns.
+    """
+    parsed = document(ParsedSegment(locator={"sheet": "Ведомость"}, markdown=TABLE))
+
+    chunks = chunk_document(parsed, max_chars=200)
+    header = TABLE.splitlines()[0]
+
+    assert len(chunks) > 1
+    assert all(chunk.text.startswith(header) for chunk in chunks)
+    assert all(chunk.is_table for chunk in chunks)
+    assert all(len(chunk.text) <= 200 for chunk in chunks)
+    # No row is lost and none is duplicated.
+    rows = [line for chunk in chunks for line in chunk.text.splitlines()[2:]]
+    assert rows == TABLE.splitlines()[2:]
+
+
+def test_a_single_row_longer_than_the_limit_is_kept_whole():
+    """A truncated row is worse than a large one: half a value read as a whole
+    value is a wrong answer, not an incomplete one.
+    """
+    long_row = "| Кабель | " + "х" * 400 + " |"
+    table = f"| Позиция | Значение |\n|---|---|\n{long_row}"
+    parsed = document(ParsedSegment(locator={"page": 4}, markdown=table))
+
+    chunks = chunk_document(parsed, max_chars=100)
+
+    assert len(chunks) == 1
+    assert long_row in chunks[0].text
 
 
 def test_a_chunk_holding_no_table_is_not_marked_as_one():

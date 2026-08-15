@@ -160,7 +160,20 @@ def _default_embedding_func(settings: RagSettings):
     from lightrag.utils import EmbeddingFunc
 
     async def embed(texts: list[str], **kwargs: Any):
-        return await openai_embed(texts, model=settings.embedding_model, api_key=api_key())
+        # ``embedding_dim`` is passed explicitly, and it is not optional.
+        # Measured 2026-08-15 (task 2.9a): their `openai_embed` is itself
+        # wrapped in an `EmbeddingFunc` that declares the width of
+        # `text-embedding-3-small`, so called without this argument it checks a
+        # 3072-wide answer against 1536 and dies with «expected 2 vectors but
+        # got 4». It also makes the API return exactly the width the index
+        # fingerprint claims, instead of whatever the model happens to default
+        # to.
+        return await openai_embed(
+            texts,
+            model=settings.embedding_model,
+            api_key=api_key(),
+            embedding_dim=settings.embedding_dim,
+        )
 
     return EmbeddingFunc(
         embedding_dim=settings.embedding_dim,
@@ -202,17 +215,25 @@ async def open_index(
     from lightrag import LightRAG
     from lightrag.kg.shared_storage import initialize_pipeline_status
 
+    from aec_rag.lightrag_bridge import ChunkRegistry
+
     check_compatible(vault, settings)
 
     directory = index_dir(vault)
     directory.mkdir(parents=True, exist_ok=True)
 
+    # The chunker is ours from the first moment the instance exists (task
+    # 2.10a): LightRAG's own chunker would re-cut our chunks by token count and
+    # take the locator with it.
+    registry = ChunkRegistry()
     rag = LightRAG(
         working_dir=str(directory),
         embedding_func=embedding_func or _default_embedding_func(settings),
         llm_model_func=llm_func or _default_llm_func(settings),
         llm_model_name=settings.extraction_model,
+        chunking_func=registry.chunk,
     )
+    rag.aec_chunk_registry = registry
     await rag.initialize_storages()
     await initialize_pipeline_status()
 
