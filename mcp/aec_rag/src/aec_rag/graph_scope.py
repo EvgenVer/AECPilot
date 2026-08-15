@@ -252,6 +252,67 @@ def pending_for_scope(
     return pending
 
 
+async def add_documents_to_graph(
+    conn: sqlite3.Connection,
+    rag,
+    files: list[PendingFile],
+    *,
+    on_progress=None,
+) -> dict[str, Any]:
+    """Tier 2: extract entities and relations from documents already indexed.
+
+    The text is not re-read from disk. The chunks are the ones tier 1 already
+    produced and stored, so the graph is built over exactly the text a citation
+    can point back at — and a document whose chunks are missing is reported as
+    such rather than quietly skipped, because «added to the graph» must never be
+    said about something that was not.
+    """
+    from aec_rag.lightrag_bridge import IndexedChunk, insert_document
+    from aec_rag.store import get_file_chunks
+
+    added = 0
+    chunks_total = 0
+    errors: list[dict[str, str]] = []
+
+    for done, file in enumerate(files, start=1):
+        stored = get_file_chunks(conn, file.source_id, file.rel_path)
+        if not stored:
+            errors.append(
+                {
+                    "source_id": file.source_id,
+                    "rel_path": file.rel_path,
+                    "error": "документ ещё не проиндексирован — сначала ingest",
+                }
+            )
+            continue
+        try:
+            await insert_document(
+                rag,
+                source_id=file.source_id,
+                rel_path=file.rel_path,
+                chunks=[IndexedChunk(chunk_id=c.chunk_id, text=c.text) for c in stored],
+                build_graph=True,
+            )
+        except Exception as exc:  # noqa: BLE001 — one document must not stop the rest
+            errors.append(
+                {"source_id": file.source_id, "rel_path": file.rel_path, "error": str(exc)}
+            )
+            continue
+
+        mark_in_graph(conn, file.source_id, file.rel_path, file.sha256, len(stored))
+        added += 1
+        chunks_total += len(stored)
+        if on_progress is not None:
+            on_progress(done, len(files), file, len(stored))
+
+    return {
+        "documents_added": added,
+        "chunks": chunks_total,
+        "failed": len(errors),
+        "errors": errors,
+    }
+
+
 def estimate(conn: sqlite3.Connection, files: list[PendingFile]) -> dict[str, int]:
     """How much work adding ``files`` to the graph would be, before doing it.
 

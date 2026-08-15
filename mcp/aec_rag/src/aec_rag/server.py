@@ -226,6 +226,105 @@ def build_server(project_json: Path) -> FastMCP:
         chunks = await search_chunks(state.db(), rag, query, top_k=top_k, filters=filters)
         return {"chunks": chunks}
 
+    @server.tool(
+        description=(
+            "What the project's knowledge graph covers: the folders and files that were "
+            "marked for it, how many documents are actually in it, and which documents "
+            "appeared in a marked folder but have not been added yet (pending). Adding "
+            "them costs a model call per chunk, so it never happens on its own."
+        )
+    )
+    def rag_graph_scope() -> dict[str, Any]:
+        from aec_rag.graph_scope import (
+            documents_in_graph,
+            estimate,
+            pending_for_scope,
+            read_scope,
+        )
+
+        conn = state.db()
+        entries = read_scope(state.project_json)
+        pending = pending_for_scope(conn, entries)
+        # `documents` is the count, as in `rag_graph_add`'s forecast; `in_graph`
+        # is the list behind it. Two names because the interface needs both and
+        # one name for both is how a count silently becomes a list.
+        return {
+            "entries": [entry.as_dict() for entry in entries],
+            "in_graph": documents_in_graph(conn),
+            "pending": [
+                {"source_id": file.source_id, "rel_path": file.rel_path} for file in pending
+            ],
+            "pending_estimate": estimate(conn, pending),
+            **graph_summary(conn),
+        }
+
+    @server.tool(
+        description=(
+            "Add folders or files to the project's knowledge graph. Each path is "
+            "'<source_id>/<relative path>'. Returns how many documents and chunks the "
+            "run covers BEFORE doing the work, plus a job_id to follow. Tier 2: this "
+            "calls the extraction model once per chunk and costs money."
+        )
+    )
+    async def rag_graph_add(
+        paths: list[str], kinds: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        from aec_rag.graph_scope import add_documents_to_graph, add_to_scope, estimate
+        from aec_rag.graph_scope import pending_for_scope as pending_of
+
+        if not paths:
+            raise ToolError("не указано, что добавлять в граф")
+
+        conn = state.db()
+        entries = add_to_scope(state.project_json, paths, kinds or {})
+        pending = pending_of(conn, entries)
+        forecast = estimate(conn, pending)
+
+        rag = await _index(state)
+        job = state.new_job("graph")
+        job.total = forecast["documents"]
+
+        async def run() -> None:
+            try:
+                def note(done: int, total: int, file, chunks: int) -> None:
+                    state.record(
+                        job,
+                        Progress(
+                            stage="graph",
+                            done=done,
+                            total=total,
+                            source_id=file.source_id,
+                            rel_path=file.rel_path,
+                            chunks=chunks,
+                        ),
+                    )
+
+                job.report = await add_documents_to_graph(conn, rag, pending, on_progress=note)
+                job.status = "done"
+            except Exception as exc:  # noqa: BLE001 — a job reports its own failure
+                job.status = "failed"
+                job.error = str(exc)
+            finally:
+                job.finished_at = _now()
+
+        job.task = asyncio.create_task(run())
+        return {"job_id": job.job_id, **forecast}
+
+    @server.tool(
+        description=(
+            "Material for an overview answer: the entities and relations the knowledge "
+            "graph holds around the question, plus the chunks behind them with the place "
+            "each came from. Returns material, never prose — the answer is yours to write. "
+            "graph_scope.covers_whole_project says whether the graph covers the whole "
+            "project; when it is false, say so before answering."
+        )
+    )
+    async def rag_overview(query: str, top_k: int = 20) -> dict[str, Any]:
+        if not query.strip():
+            raise ToolError("пустой запрос")
+        rag = await _index(state)
+        return await overview(state.db(), rag, query, top_k=top_k)
+
     return server
 
 
@@ -306,6 +405,101 @@ async def search_chunks(
         if len(results) >= wanted:
             break
     return results
+
+
+_SOURCE_SEPARATOR = "<SEP>"
+
+
+def _documents_of(conn: sqlite3.Connection, source_field: str) -> list[dict[str, str]]:
+    """Which of our documents an entity or relation was extracted from.
+
+    LightRAG records provenance as its own chunk keys joined by ``<SEP>``. Ours
+    carry our chunk id, so the same join that puts a locator on a search hit
+    puts a document on a graph node — which is what lets an overview answer
+    cite something instead of asserting it.
+    """
+    from aec_rag.lightrag_bridge import split_chunk_key
+    from aec_rag.store import get_chunks
+
+    identifiers = []
+    for key in str(source_field or "").split(_SOURCE_SEPARATOR):
+        split = split_chunk_key(key.strip())
+        if split is not None:
+            identifiers.append(split[1])
+
+    seen: list[dict[str, str]] = []
+    for chunk in get_chunks(conn, identifiers).values():
+        entry = {"source_id": chunk.source_id, "rel_path": chunk.rel_path}
+        if entry not in seen:
+            seen.append(entry)
+    return seen
+
+
+async def overview(
+    conn: sqlite3.Connection, rag: LightRAG, query: str, *, top_k: int = 20
+) -> dict[str, Any]:
+    """Graph material for an overview question (task 2.11a).
+
+    Material, not prose. Finished text from a tool would be a second author in
+    the product, with its own tone and its own language, and it does not
+    decompose back into the exact references an engineer needs
+    (specs/qa-over-sources.md).
+    """
+    from lightrag.base import QueryParam
+
+    from aec_rag.graph_scope import graph_stats
+
+    result = await rag.aquery_data(
+        query,
+        param=QueryParam(mode="mix", top_k=top_k, chunk_top_k=top_k, enable_rerank=False),
+    )
+    data = result.get("data") or {}
+
+    entities = [
+        {
+            "name": entity.get("entity_name", ""),
+            "type": entity.get("entity_type", ""),
+            "description": entity.get("description", ""),
+            "documents": _documents_of(conn, entity.get("source_id", "")),
+        }
+        for entity in data.get("entities", [])
+    ]
+    relations = [
+        {
+            "source": relation.get("src_id", ""),
+            "target": relation.get("tgt_id", ""),
+            "description": relation.get("description", ""),
+            "keywords": relation.get("keywords", ""),
+            "documents": _documents_of(conn, relation.get("source_id", "")),
+        }
+        for relation in data.get("relationships", [])
+    ]
+
+    return {
+        "entities": entities,
+        "relations": relations,
+        "chunks": _chunks_of(conn, data.get("chunks", [])),
+        "graph_scope": graph_stats(conn),
+    }
+
+
+def _chunks_of(conn: sqlite3.Connection, hits: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """LightRAG's returned chunks, joined back to their locators."""
+    from aec_rag.store import get_chunks
+
+    identifiers = chunk_ids_of([{"id": hit.get("chunk_id", "")} for hit in hits])
+    stored = get_chunks(conn, identifiers)
+    return [
+        {
+            "text": chunk.text,
+            "source_id": chunk.source_id,
+            "rel_path": chunk.rel_path,
+            "locator": chunk.locator,
+            "is_table": chunk.is_table,
+        }
+        for identifier in identifiers
+        if (chunk := stored.get(identifier)) is not None
+    ]
 
 
 def _passes(chunk, filters: dict[str, str] | None) -> bool:

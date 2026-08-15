@@ -225,6 +225,20 @@ def get_chunks(conn: sqlite3.Connection, chunk_ids: Sequence[str]) -> dict[str, 
     return {row[0]: _row_to_chunk(row) for row in rows}
 
 
+def get_file_chunks(
+    conn: sqlite3.Connection, source_id: str, rel_path: str
+) -> list[StoredChunk]:
+    """A file's chunks in their original order — what tier 2 re-reads to build
+    the graph from text that is already parsed and already stored.
+    """
+    rows = conn.execute(
+        "SELECT chunk_id, source_id, rel_path, locator, is_table, text FROM chunks "
+        "WHERE source_id = ? AND rel_path = ? ORDER BY ordinal",
+        (source_id, rel_path),
+    ).fetchall()
+    return [_row_to_chunk(row) for row in rows]
+
+
 def search_text(conn: sqlite3.Connection, query: str, *, limit: int = 20) -> list[StoredChunk]:
     """Full-text search over the ingested chunks.
 
