@@ -1,6 +1,16 @@
 packages:
   - apps/*
 
+# Security review of phase 2 (task 2.19): `mermaid` and its `dompurify` arrive
+# in the SHIPPED bundle through `@assistant-ui/react-streamdown > streamdown`,
+# and they render text an agent wrote out of somebody's documents — prototype
+# pollution, CSS injection and a DoS loop are reachable from exactly the input
+# we cannot vouch for. Pulled up to the patched versions here rather than
+# waiting for streamdown to bump its own range.
+overrides:
+  mermaid: '>=11.16.1'
+  dompurify: '>=3.4.13'
+
 # `unicode-animations` ships a postinstall that prints a spinner demo to
 # /dev/tty for three seconds. Harmless (read the script: no network, no writes)
 # and useless to us, so it stays unbuilt — recorded here rather than left as a
