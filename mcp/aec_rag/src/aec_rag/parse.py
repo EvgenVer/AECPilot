@@ -205,6 +205,27 @@ def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) 
     return ParsedDocument(doctype="docx", markdown=markdown, segments=segments)
 
 
+SUPPORTED_SUFFIXES = frozenset({".pdf", ".docx", ".xlsx", ".csv"})
+
+
+def parse_file(path: Path | str, *, converter: DocumentConverter | None = None) -> ParsedDocument:
+    """Parse ``path`` with the reader its format needs.
+
+    Anything outside :data:`SUPPORTED_SUFFIXES` raises: a project holds drawings,
+    archives and models too, and «indexed» has to mean the text was actually
+    read, not that the file was seen.
+    """
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return parse_pdf(path, converter=converter)
+    if suffix == ".docx":
+        return parse_docx(path, converter=converter)
+    if suffix in {".xlsx", ".csv"}:
+        return parse_spreadsheet(path, converter=converter)
+    raise ParseError(f"формат {suffix or '(без расширения)'} не индексируется: {path.name}")
+
+
 def _column_letter(index: int) -> str:
     """0-based column index → spreadsheet column name (0 → ``A``, 26 → ``AA``)."""
     letters = ""

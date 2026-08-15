@@ -54,6 +54,20 @@ CREATE TABLE IF NOT EXISTS ingested_files (
     ingested_at TEXT NOT NULL,
     UNIQUE (source_id, rel_path)
 );
+
+-- Which documents are in the knowledge graph, at which content (task 2.10b).
+-- Index state, not project configuration: the *choice* of folders and files
+-- lives in project.json and survives re-indexing, this table dies with the
+-- index. The difference between the two is what «new files appeared in a
+-- marked folder» means — see aec_rag.graph_scope.
+CREATE TABLE IF NOT EXISTS graph_documents (
+    source_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    added_at TEXT NOT NULL,
+    UNIQUE (source_id, rel_path)
+);
 """
 
 

@@ -27,6 +27,7 @@ from pathlib import Path
 from aec_rag.db import open_index
 from aec_rag.indexer import detach_source, scan_source
 from aec_rag.project_config import ProjectConfigError, parse_project_config
+from aec_rag.rag_index import RagIndexError
 
 
 def _resolve_project_json(project_arg: Path) -> Path:
@@ -117,6 +118,47 @@ def run_detach(project_arg: Path, source_id: str) -> dict:
     return {"source_id": source_id, "detached": detached}
 
 
+def run_ingest(project_arg: Path, *, mode: str) -> dict:
+    """Tier-1 ingest over every scanned file (task 2.10), reporting as it goes.
+
+    Progress is written to stdout as one JSON object per line while the run is
+    in flight, and the final report is the last line. That shape is what lets
+    the desktop app show a live indicator without a second channel — it is the
+    same thing `scan` already does, and the app already knows how to read it.
+    """
+    import asyncio
+
+    from aec_rag.ingest import ingest
+    from aec_rag.rag_index import load_settings
+    from aec_rag.rag_index import open_index as open_rag_index
+
+    project_path = _resolve_project_json(project_arg)
+    roots = {root.id: root.root_path for root in parse_project_config(project_path)}
+    vault = project_path.parent.parent
+    settings = load_settings(project_path)
+
+    def emit(progress) -> None:
+        print(json.dumps({"progress": progress.as_dict()}, ensure_ascii=False), flush=True)
+
+    async def run() -> dict:
+        conn = open_index(project_path.parent / "index.db")
+        try:
+            rag = await open_rag_index(vault, settings)
+            report = await ingest(conn, rag, roots, mode=mode, on_progress=emit)
+            return report.as_dict()
+        finally:
+            conn.close()
+
+    return asyncio.run(run())
+
+
+def run_serve(project_arg: Path) -> None:
+    """Run the aec-rag MCP server over stdio (task 2.10)."""
+    from aec_rag.server import build_server
+
+    build_server(_resolve_project_json(project_arg)).run()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aec-rag")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -144,14 +186,37 @@ def main(argv: list[str] | None = None) -> int:
         help="Id of the source being disconnected",
     )
 
+    ingest_parser = subparsers.add_parser(
+        "ingest", help="Parse, chunk and index every scanned document (tier 1)"
+    )
+    ingest_parser.add_argument("--project", required=True, type=Path)
+    ingest_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Re-read every file, not only the ones whose content changed",
+    )
+
+    serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
+    serve_parser.add_argument("--project", required=True, type=Path)
+
     args = parser.parse_args(argv)
 
     try:
         if args.command == "detach":
             report = run_detach(args.project, args.source)
+        elif args.command == "ingest":
+            report = run_ingest(args.project, mode="full" if args.full else "incremental")
+        elif args.command == "serve":
+            run_serve(args.project)
+            return 0
         else:
             report = run_scan(args.project)
     except ProjectConfigError as exc:
+        print(f"aec-rag: {exc}", file=sys.stderr)
+        return 1
+    except RagIndexError as exc:
+        # The index refusing to open is a configuration answer, not a crash:
+        # a changed embedding model, or a key that was never handed to us.
         print(f"aec-rag: {exc}", file=sys.stderr)
         return 1
     except sqlite3.OperationalError as exc:

@@ -12,6 +12,7 @@ is written down next to it and checked on every open (SPECIFICATION C5).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import dataclass
@@ -61,6 +62,20 @@ class RagSettings:
 
 def index_dir(vault: Path | str) -> Path:
     return Path(vault) / ".aecpilot" / "lightrag"
+
+
+def workspace_of(vault: Path | str) -> str:
+    """LightRAG's isolation key for this vault.
+
+    It is not decoration. LightRAG keeps its shared storage — pipeline status,
+    the KV stores, the document register — in **process-global** maps keyed by
+    ``(workspace, namespace)``, so two indexes opened in one process with the
+    default empty workspace share one document register. Measured 2026-08-15:
+    a file called `задание.pdf` in one project then makes `задание.pdf` in the
+    next look like a duplicate, and it is silently not indexed.
+    """
+    digest = hashlib.sha256(str(Path(vault).resolve()).encode()).hexdigest()
+    return f"aec-{digest[:16]}"
 
 
 def load_settings(project_path: Path | str) -> RagSettings:
@@ -160,15 +175,18 @@ def _default_embedding_func(settings: RagSettings):
     from lightrag.utils import EmbeddingFunc
 
     async def embed(texts: list[str], **kwargs: Any):
-        # ``embedding_dim`` is passed explicitly, and it is not optional.
-        # Measured 2026-08-15 (task 2.9a): their `openai_embed` is itself
-        # wrapped in an `EmbeddingFunc` that declares the width of
-        # `text-embedding-3-small`, so called without this argument it checks a
-        # 3072-wide answer against 1536 and dies with «expected 2 vectors but
-        # got 4». It also makes the API return exactly the width the index
-        # fingerprint claims, instead of whatever the model happens to default
-        # to.
-        return await openai_embed(
+        # ``.func``, not ``openai_embed`` itself, and ``embedding_dim`` passed
+        # explicitly. Their `openai_embed` is decorated into an `EmbeddingFunc`
+        # that declares the width of `text-embedding-3-small` and validates
+        # every answer against **that** number, whatever model was asked for:
+        # calling it from inside another `EmbeddingFunc` is the double
+        # decoration their own docstring calls out, and with our 3072-wide
+        # model it dies with «expected 10 vectors but got 20» (measured
+        # 2026-08-15, task 2.9a). `.func` is the unwrapped implementation —
+        # retries included, since `@retry` sits under the wrapper — and
+        # `embedding_dim` makes the API return exactly the width the index
+        # fingerprint claims.
+        return await openai_embed.func(
             texts,
             model=settings.embedding_model,
             api_key=api_key(),
@@ -232,6 +250,7 @@ async def open_index(
         llm_model_func=llm_func or _default_llm_func(settings),
         llm_model_name=settings.extraction_model,
         chunking_func=registry.chunk,
+        workspace=workspace_of(vault),
     )
     rag.aec_chunk_registry = registry
     await rag.initialize_storages()

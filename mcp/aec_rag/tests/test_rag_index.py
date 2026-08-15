@@ -145,10 +145,11 @@ async def test_index_opens_under_a_cyrillic_vault_path(tmp_path):
 
 @pytest.mark.anyio
 async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
-    """Their `openai_embed` is itself an `EmbeddingFunc` declaring the width of
-    `text-embedding-3-small`. Called without `embedding_dim`, it validates a
-    3072-wide answer against 1536 and raises «expected 2 vectors but got 4» —
-    measured 2026-08-15, task 2.9a. No stub caught it, because every test here
+    """Their `openai_embed` is decorated into an `EmbeddingFunc` that declares
+    the width of `text-embedding-3-small` and validates every answer against
+    that number. Called as a function from inside our own `EmbeddingFunc` it
+    dies on our 3072-wide model with «expected 10 vectors but got 20» — measured
+    2026-08-15, task 2.9a. No stub caught it, because every other test here
     injects its own embedding function; this one exercises the real default.
     """
     import lightrag.llm.openai as openai_module
@@ -160,7 +161,8 @@ async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
         seen.update(kwargs)
         return np.zeros((len(texts), kwargs["embedding_dim"]), dtype=np.float32)
 
-    monkeypatch.setattr(openai_module, "openai_embed", fake_embed)
+    wrapper = openai_module.openai_embed
+    monkeypatch.setattr(wrapper, "func", fake_embed)
     monkeypatch.setenv(rag_index.API_KEY_ENV_VAR, "тест")
 
     settings = RagSettings(embedding_model=DEFAULT_EMBEDDING_MODEL, embedding_dim=3072)
@@ -168,3 +170,7 @@ async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
 
     assert seen["embedding_dim"] == 3072
     assert seen["model"] == DEFAULT_EMBEDDING_MODEL
+    # And the call goes to the unwrapped implementation, not through their
+    # wrapper a second time — that is the double decoration their docstring
+    # warns about.
+    assert wrapper.embedding_dim != 3072

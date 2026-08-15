@@ -75,6 +75,32 @@ def chunk_key(doc_id: str, chunk_id: str) -> str:
     return chunk_id if chunk_id.startswith(f"{doc_id}-") else f"{doc_id}-{chunk_id}"
 
 
+def lightrag_file_path(source_id: str, rel_path: str) -> str:
+    """The name LightRAG files this document under — the whole path, flattened.
+
+    Their duplicate check compares ``Path(file_path).name``: the **basename**.
+    A design project has `ЭОМ/Задание.pdf`, `ОВ/Задание.pdf` and `ВК/Задание.pdf`,
+    and under that rule the second and third are «duplicates» and are silently
+    not indexed (measured 2026-08-15). Flattening the separators makes the
+    basename the full path, which is unique by construction and still readable
+    in their logs.
+    """
+    flat = rel_path.replace("\\", "/").replace("/", " › ")
+    return f"{source_id} › {flat}"
+
+
+def document_content(source_id: str, rel_path: str, chunks: Sequence[IndexedChunk]) -> str:
+    """The document text handed to LightRAG: an origin line, then our chunks.
+
+    The origin line is not cosmetic. Their second duplicate check hashes the
+    body, so two identical files — the same PDF copied into two folders, which
+    is ordinary in a design project — would collide and one of them would not be
+    indexed. Naming the file inside the text makes every document distinct.
+    """
+    body = "\n\n".join(chunk.text for chunk in chunks)
+    return f"<!-- {lightrag_file_path(source_id, rel_path)} -->\n\n{body}"
+
+
 _DOC_ID_LENGTH = len("doc-") + 32
 
 
@@ -125,15 +151,15 @@ class ChunkRegistry:
     def __init__(self) -> None:
         self._by_content: dict[str, list[IndexedChunk]] = {}
 
-    def register(self, chunks: Sequence[IndexedChunk]) -> str:
-        """Register ``chunks`` and return the document content to enqueue."""
+    def register(self, chunks: Sequence[IndexedChunk], content: str) -> str:
+        """Register ``chunks`` under ``content``; returns the text to enqueue."""
         if not chunks:
             raise BridgeError("нечего индексировать: у документа нет чанков")
-        content = _stable_sanitized("\n\n".join(chunk.text for chunk in chunks))
-        if not content:
+        stable = _stable_sanitized(content)
+        if not stable:
             raise BridgeError("нечего индексировать: текст документа пуст")
-        self._by_content[content] = list(chunks)
-        return content
+        self._by_content[stable] = list(chunks)
+        return stable
 
     def forget(self, content: str) -> None:
         self._by_content.pop(content, None)
@@ -189,8 +215,8 @@ def registry_of(rag: LightRAG) -> ChunkRegistry:
 async def insert_document(
     rag: LightRAG,
     *,
-    doc_id: str,
-    file_path: str,
+    source_id: str,
+    rel_path: str,
     chunks: Sequence[IndexedChunk],
     build_graph: bool = False,
 ) -> list[str]:
@@ -200,12 +226,22 @@ async def insert_document(
     else, not a single LLM call, which is what makes indexing everything
     affordable. ``True`` is level 2 and costs an extraction call per chunk.
 
-    An already-indexed document is deleted first. Re-ingest happens because the
-    file changed, and adding to it would leave the previous edition's paragraphs
-    in the index to be retrieved and cited as current.
+    An index that already holds exactly these chunks in exactly this mode is
+    left alone — a full re-ingest of an unchanged file must not pay for its
+    embeddings twice. Otherwise the old document is deleted before the new one
+    goes in: re-ingest happens because the file changed, and adding to it would
+    leave the previous edition's paragraphs to be retrieved and cited as
+    current.
     """
+    doc_id = document_id(source_id, rel_path)
+    options = "" if build_graph else SKIP_KG
+    keys = [chunk_key(doc_id, chunk.chunk_id) for chunk in chunks]
+
+    if await _already_holds(rag, doc_id, keys, options):
+        return keys
+
     registry = registry_of(rag)
-    content = registry.register(chunks)
+    content = registry.register(chunks, document_content(source_id, rel_path, chunks))
     try:
         existing = await rag.adelete_by_doc_id(doc_id)
         if existing.status not in ("success", "not_found"):
@@ -215,16 +251,45 @@ async def insert_document(
         await rag.apipeline_enqueue_documents(
             content,
             ids=[doc_id],
-            file_paths=[file_path],
-            process_options="" if build_graph else SKIP_KG,
+            file_paths=[lightrag_file_path(source_id, rel_path)],
+            process_options=options,
         )
         await rag.apipeline_process_enqueue_documents()
     finally:
         registry.forget(content)
 
-    keys = [chunk_key(doc_id, chunk.chunk_id) for chunk in chunks]
     await _verify_stored(rag, doc_id, keys)
     return keys
+
+
+def _record_field(record: Any, name: str, default: Any = None) -> Any:
+    if isinstance(record, dict):
+        return record.get(name, default)
+    return getattr(record, name, default)
+
+
+async def _already_holds(
+    rag: LightRAG, doc_id: str, keys: Sequence[str], options: str
+) -> bool:
+    """Is this exact document, chunk for chunk, already in the index as asked?
+
+    The chunk set has to match exactly, not merely contain ours: a shortened
+    document — a page removed from the edition — would otherwise leave the
+    dropped page in the index, still findable and still quotable.
+
+    ``options`` is part of the comparison because a document indexed at tier 1
+    holds the same chunks as one indexed with a graph; skipping on the chunks
+    alone would make «add this folder to the graph» a silent no-op.
+    """
+    record = await rag.doc_status.get_by_id(doc_id)
+    if not record:
+        return False
+    status = str(_record_field(record, "status", "")).lower().rsplit(".", 1)[-1]
+    if status != "processed":
+        return False
+    stored = _record_field(record, "chunks_list") or []
+    metadata = _record_field(record, "metadata") or {}
+    return set(stored) == set(keys) and str(metadata.get("process_options") or "") == options
 
 
 async def _verify_stored(rag: LightRAG, doc_id: str, keys: Sequence[str]) -> None:

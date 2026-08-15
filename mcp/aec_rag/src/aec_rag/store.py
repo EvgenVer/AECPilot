@@ -77,6 +77,34 @@ def pending_files(conn: sqlite3.Connection) -> list[PendingFile]:
     return [PendingFile(source_id, rel_path, sha256) for source_id, rel_path, sha256 in rows]
 
 
+def live_files(conn: sqlite3.Connection) -> list[PendingFile]:
+    """Every file the scanner currently sees, ingested or not — a full re-ingest."""
+    placeholders = ",".join("?" for _ in _LIVE_STATUSES)
+    rows = conn.execute(
+        f"""
+        SELECT source_id, rel_path, sha256 FROM files
+        WHERE status IN ({placeholders}) AND sha256 IS NOT NULL
+        ORDER BY source_id, rel_path
+        """,
+        _LIVE_STATUSES,
+    ).fetchall()
+    return [PendingFile(source_id, rel_path, sha256) for source_id, rel_path, sha256 in rows]
+
+
+def unmark_ingested(conn: sqlite3.Connection, source_id: str, rel_path: str) -> None:
+    """Forget that a file was ingested, leaving it pending again.
+
+    Used when the work after ``store_chunks`` fails — the vector store is
+    written second, and a file marked ingested without its vectors would never
+    be picked up again by an incremental run.
+    """
+    with conn:
+        conn.execute(
+            "DELETE FROM ingested_files WHERE source_id = ? AND rel_path = ?",
+            (source_id, rel_path),
+        )
+
+
 def drop_file_chunks(conn: sqlite3.Connection, source_id: str, rel_path: str) -> int:
     """Remove a file's chunks and their full-text rows. Returns how many went."""
     ids = [

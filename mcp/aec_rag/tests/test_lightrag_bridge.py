@@ -25,8 +25,10 @@ from aec_rag.lightrag_bridge import (
     IndexedChunk,
     chunk_key,
     delete_document,
+    document_content,
     document_id,
     insert_document,
+    lightrag_file_path,
     split_chunk_key,
 )
 from aec_rag.rag_index import RagSettings, open_index
@@ -111,7 +113,7 @@ def test_registry_hands_back_our_chunks_verbatim():
     registry = ChunkRegistry()
     chunks = [IndexedChunk("chunk-1", "первый абзац"), IndexedChunk("chunk-2", "второй абзац")]
 
-    content = registry.register(chunks)
+    content = registry.register(chunks, document_content("tasks", "а.pdf", chunks))
     result = registry.chunk(None, content, None, False, 0, 10)
 
     assert [entry["content"] for entry in result] == ["первый абзац", "второй абзац"]
@@ -145,7 +147,7 @@ async def test_our_chunk_comes_back_from_a_query_under_our_own_id(tmp_path):
     doc = document_id("tasks", "задание.pdf")
 
     keys = await insert_document(
-        rag, doc_id=doc, file_path="tasks/задание.pdf", chunks=entries
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries
     )
 
     assert keys == [chunk_key(doc, entry.chunk_id) for entry in entries]
@@ -171,9 +173,10 @@ async def test_chunks_are_not_re_cut_by_their_token_limit(tmp_path):
     rag = await open_stub_index(vault)
     long_text = "Ведомость нагрузок. " * 90  # ~1800 characters, well over their default
     entries = indexed([Chunk(text=long_text, locator={"page": 3})])
-    doc = document_id("tasks", "ведомость.pdf")
 
-    keys = await insert_document(rag, doc_id=doc, file_path="tasks/ведомость.pdf", chunks=entries)
+    keys = await insert_document(
+        rag, source_id="tasks", rel_path="ведомость.pdf", chunks=entries
+    )
 
     stored = await rag.text_chunks.get_by_id(keys[0])
     assert len(keys) == 1
@@ -191,8 +194,8 @@ async def test_level_one_ingest_calls_no_model_at_all(tmp_path):
 
     await insert_document(
         rag,
-        doc_id=document_id("tasks", "зад.pdf"),
-        file_path="tasks/зад.pdf",
+        source_id="tasks",
+        rel_path="зад.pdf",
         chunks=entries,
         build_graph=False,
     )
@@ -208,12 +211,15 @@ async def test_reingest_replaces_the_previous_edition(tmp_path):
     """
     vault = make_vault(tmp_path)
     rag = await open_stub_index(vault)
-    doc = document_id("tasks", "задание.pdf")
     first = indexed([Chunk(text="Установленная мощность 250 кВт.", locator={"page": 1})])
-    old_keys = await insert_document(rag, doc_id=doc, file_path="tasks/задание.pdf", chunks=first)
+    old_keys = await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=first
+    )
 
     second = indexed([Chunk(text="Установленная мощность 320 кВт.", locator={"page": 1})])
-    new_keys = await insert_document(rag, doc_id=doc, file_path="tasks/задание.pdf", chunks=second)
+    new_keys = await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=second
+    )
 
     assert old_keys != new_keys
     assert await rag.text_chunks.get_by_id(old_keys[0]) is None
@@ -227,8 +233,8 @@ async def test_deleting_a_document_reports_whether_it_was_there(tmp_path):
     doc = document_id("tasks", "задание.pdf")
     await insert_document(
         rag,
-        doc_id=doc,
-        file_path="tasks/задание.pdf",
+        source_id="tasks",
+        rel_path="задание.pdf",
         chunks=indexed([Chunk(text="Текст.", locator={"page": 1})]),
     )
 
@@ -252,10 +258,7 @@ async def test_locator_is_recovered_by_joining_the_key_back_to_index_db(tmp_path
     entries = [IndexedChunk(chunk_id=ids[0], text=chunks[0].text)]
 
     keys = await insert_document(
-        rag,
-        doc_id=document_id("tasks", "задание.pdf"),
-        file_path="tasks/задание.pdf",
-        chunks=entries,
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries
     )
 
     from aec_rag.store import get_chunks
@@ -264,3 +267,73 @@ async def test_locator_is_recovered_by_joining_the_key_back_to_index_db(tmp_path
     stored = get_chunks(index_db, [chunk_identifier])[chunk_identifier]
     assert stored.locator == {"page": 12}
     assert stored.rel_path == "задание.pdf"
+
+
+def test_two_files_with_the_same_name_are_not_one_document():
+    """A design project has ЭОМ/Задание.pdf, ОВ/Задание.pdf and ВК/Задание.pdf.
+    LightRAG's duplicate check compares basenames, so under its own naming the
+    second and third are «duplicates» and are silently not indexed.
+    """
+    first = lightrag_file_path("tasks", "ЭОМ/Задание.pdf")
+    second = lightrag_file_path("tasks", "ОВ/Задание.pdf")
+
+    from pathlib import PurePosixPath, PureWindowsPath
+
+    assert first != second
+    assert PurePosixPath(first).name == first
+    assert PureWindowsPath(first).name == first
+
+
+def test_identical_files_in_two_folders_are_distinct_documents():
+    """Their second duplicate check hashes the body: the same PDF copied into
+    two folders would collide, and one of the two would not be indexed.
+    """
+    chunks = [IndexedChunk("chunk-1", "один и тот же текст")]
+
+    assert document_content("tasks", "ЭОМ/задание.pdf", chunks) != document_content(
+        "tasks", "ОВ/задание.pdf", chunks
+    )
+
+
+@pytest.mark.anyio
+async def test_re_inserting_an_unchanged_document_does_not_pay_twice(tmp_path):
+    """A full re-ingest of a file that did not change must not re-embed it."""
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault)
+    entries = indexed([Chunk(text="Мощность 250 кВт.", locator={"page": 1})])
+    await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
+
+    calls = 0
+    original = rag.apipeline_enqueue_documents
+
+    async def counting(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    rag.apipeline_enqueue_documents = counting
+    await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
+
+    assert calls == 0
+
+
+@pytest.mark.anyio
+async def test_two_projects_in_one_process_do_not_share_a_document_register(tmp_path):
+    """LightRAG keeps its shared storage in process-global maps keyed by
+    workspace. With the default empty one, `задание.pdf` indexed in project A
+    makes `задание.pdf` in project B look like a duplicate — and it is silently
+    not indexed. Measured 2026-08-15.
+    """
+    first = await open_stub_index(make_vault(tmp_path / "первый"))
+    second = await open_stub_index(make_vault(tmp_path / "второй"))
+    entries = indexed([Chunk(text="Мощность 250 кВт.", locator={"page": 1})])
+
+    keys_a = await insert_document(
+        first, source_id="tasks", rel_path="задание.pdf", chunks=entries
+    )
+    keys_b = await insert_document(
+        second, source_id="tasks", rel_path="задание.pdf", chunks=entries
+    )
+
+    assert await first.text_chunks.get_by_id(keys_a[0]) is not None
+    assert await second.text_chunks.get_by_id(keys_b[0]) is not None
