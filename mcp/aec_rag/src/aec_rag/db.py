@@ -24,6 +24,36 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(content);
+
+-- One row per chunk produced by aec_rag.chunk (task 2.9). `id` is deliberately
+-- the rowid: `files_fts` is keyed by it, so the full-text row and the chunk it
+-- belongs to are joined without a second key and without changing the FTS
+-- table's declared shape.
+CREATE TABLE IF NOT EXISTS chunks (
+    id INTEGER PRIMARY KEY,
+    chunk_id TEXT NOT NULL UNIQUE,
+    source_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    locator TEXT NOT NULL,
+    is_table INTEGER NOT NULL,
+    text TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS chunks_by_file ON chunks (source_id, rel_path);
+
+-- What ingest has actually consumed, kept apart from `files` on purpose: that
+-- table is the scanner's view of the disk, this one is the index's view of
+-- itself, and the difference between the two sha256 values is exactly the
+-- answer to "what still needs re-ingesting".
+CREATE TABLE IF NOT EXISTS ingested_files (
+    source_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    ingested_at TEXT NOT NULL,
+    UNIQUE (source_id, rel_path)
+);
 """
 
 
