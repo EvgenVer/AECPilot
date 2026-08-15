@@ -47,3 +47,6 @@ secrets/
 .claude/settings.local.json
 
 .agent-toolkit-backup/
+
+# Throwaway vault for the eval runs (tasks 2.16-2.18).
+eval/.eval-vault/
