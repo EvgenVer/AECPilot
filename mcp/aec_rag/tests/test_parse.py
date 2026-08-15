@@ -107,6 +107,23 @@ def test_pdf_document_markdown_holds_the_whole_document(parsed_pdf):
             assert marker in parsed_pdf.markdown
 
 
+def test_pdf_under_a_cyrillic_path_is_parsed(converter, tmp_path):
+    """Docling's PDF backend cannot open a path with a non-ASCII character in
+    it — not in the file name, not in a directory above it (measured
+    2026-08-14 on the real project documents). Our users' files are named in
+    Russian and live in Russian-named folders, so this is not an edge case:
+    without the stream route most of a real project would not index at all.
+    """
+    directory = tmp_path / "проекты" / "ЖК Нагатинский"
+    directory.mkdir(parents=True)
+    path = directory / "02-ПЗ-Нагатинская 297-1.pdf"
+    path.write_bytes(build_text_pdf([["Installed power report", "125 kW"]]))
+
+    parsed = parse_pdf(path, converter=converter)
+
+    assert "125 kW" in parsed.markdown
+
+
 def test_unreadable_file_raises_parse_error(converter, tmp_path):
     broken = tmp_path / "broken.pdf"
     broken.write_bytes(b"%PDF-1.4\nthis is not a pdf\n")

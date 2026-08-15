@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -85,9 +86,29 @@ def build_converter() -> DocumentConverter:
 
 
 def _convert(path: Path, converter: DocumentConverter | None) -> DoclingDocument:
+    """Convert ``path``, handing Docling a stream rather than the path itself.
+
+    Measured 2026-08-14 on real project documents: Docling's default PDF
+    backend (``docling-parse``) fails on **any** path containing a non-ASCII
+    character — in the file name or in a directory above it — with
+    «docling-parse could not load document». Our users' files are named
+    `02-ПЗ-Нагатинская 297-1.pdf` and live in `D:\\проекты\\ЖК …`, so on the
+    path route most of a real project simply would not index.
+
+    A stream sidesteps it entirely and keeps ``docling-parse`` (its cell
+    extraction is better than the pypdfium2 fallback's). The name is still
+    passed through — Docling picks the format from its suffix, and a Cyrillic
+    name in the stream is fine; only the filesystem path was the problem.
+
+    Cost, stated plainly: the file is read into memory whole. Bounded by the
+    indexer's existing size cap (``indexer.DEFAULT_MAX_SIZE``, 200 MiB).
+    """
+    from docling.datamodel.base_models import DocumentStream
+
     converter = converter if converter is not None else build_converter()
     try:
-        return converter.convert(path).document
+        stream = DocumentStream(name=path.name, stream=BytesIO(path.read_bytes()))
+        return converter.convert(stream).document
     except Exception as exc:
         raise ParseError(f"не удалось разобрать {path}: {exc}") from exc
 
