@@ -139,6 +139,15 @@ interface RegisterAecSourcesModule {
   }
 }
 
+interface RegisterAecRagModule {
+  registerAecRag: (opts: { projectJsonPath: string }) => {
+    projectJsonPath: string
+    command: string
+    configPath: string
+    changed: boolean
+  }
+}
+
 // Same dynamic-import rationale as loadServeModule above (task 1.20): a
 // static import would let electron-vite inline runtime/register-aec-
 // sources.mjs's source into out/main/index.js, breaking its own relative
@@ -149,6 +158,14 @@ async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule>
     join(__dirname, '../../../../runtime/register-aec-sources.mjs')
   ).href
   return (await import(/* @vite-ignore */ specifier)) as RegisterAecSourcesModule
+}
+
+// Same dynamic-import rationale as the loader above (task 2.12).
+async function loadRegisterAecRagModule(): Promise<RegisterAecRagModule> {
+  const specifier = pathToFileURL(
+    join(__dirname, '../../../../runtime/register-aec-rag.mjs')
+  ).href
+  return (await import(/* @vite-ignore */ specifier)) as RegisterAecRagModule
 }
 
 // reload.mcp shuts down every configured MCP server process-wide (not just
@@ -202,16 +219,30 @@ async function reloadMcp(): Promise<void> {
  * creating a project; the agent just won't see this project's sources until
  * the condition is fixed and the project is reopened. */
 async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
-  let changed: boolean
+  const projectJsonPath = join(vaultPath, '.aecpilot', 'project.json')
+  let changed = false
   try {
     const { registerAecSources } = await loadRegisterAecSourcesModule()
-    ;({ changed } = registerAecSources({
-      projectJsonPath: join(vaultPath, '.aecpilot', 'project.json')
-    }))
+    ;({ changed } = registerAecSources({ projectJsonPath }))
   } catch (error: unknown) {
     console.error('aecpilot: could not register aec-sources for the opened project', error)
     return
   }
+
+  // `aec-rag` is registered in the same breath and for the same reason (task
+  // 2.12): without it the agent has no way to search the project's documents
+  // at all, and the `aec-qa` skill would be instructions for tools that are not
+  // there. Separately caught — a project whose sources work but whose index
+  // does not is still a usable project, and the reverse of that is a failed
+  // `uv sync`, not a broken project.
+  try {
+    const { registerAecRag } = await loadRegisterAecRagModule()
+    const rag = registerAecRag({ projectJsonPath })
+    changed = changed || rag.changed
+  } catch (error: unknown) {
+    console.error('aecpilot: could not register aec-rag for the opened project', error)
+  }
+
   if (!changed) return
   await reloadMcp()
 }

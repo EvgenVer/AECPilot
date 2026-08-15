@@ -109,11 +109,27 @@ const INDENT2_LINE_RE = /^\s{0,2}\S/; // col 0 or 2-space indent (i.e. NOT a 4+-
  * not handled by this line-based transform and must not be silently
  * clobbered.
  */
-export function mergeAecSourcesIntoConfigYaml(yamlText, { command, args, enabled = true }) {
+export function mergeAecSourcesIntoConfigYaml(yamlText, options) {
+  return mergeMcpServerIntoConfigYaml(yamlText, "aec-sources", options);
+}
+
+/** The same merge for any server name — `aec-rag` registers through it
+ * (task 2.12). Only the named sub-block is managed; every other top-level key,
+ * every other configured server and all comments/ordering survive untouched. */
+export function mergeMcpServerIntoConfigYaml(yamlText, name, { command, args, env, enabled = true }) {
+  // `env` values are written as `${env:VAR}` references by the caller, never as
+  // values: hermes filters its own environment before spawning an MCP child
+  // (`_build_safe_env`), so a server that needs a provider key must name it —
+  // and naming it as a reference keeps the secret in our safeStorage and out of
+  // config.yaml (rule R2).
+  const envLines = env
+    ? ["    env:", ...Object.entries(env).map(([key, value]) => `      ${key}: ${JSON.stringify(value)}`)]
+    : [];
   const serverLines = [
-    "  aec-sources:",
+    `  ${name}:`,
     `    command: ${JSON.stringify(command)}`,
     `    args: ${JSON.stringify(args)}`,
+    ...envLines,
     `    enabled: ${enabled ? "true" : "false"}`,
   ];
 
@@ -146,11 +162,15 @@ export function mergeAecSourcesIntoConfigYaml(yamlText, { command, args, enabled
 
   const sectionLines = lines.slice(sectionStart + 1, sectionEnd);
 
-  if (sectionLines.some((line) => /^  aec-sources:\s*[^#\s]/.test(line))) {
-    throw new Error("config.yaml has `mcp_servers.aec-sources` as a scalar, not a mapping — refusing to edit");
+  const scalarEntry = new RegExp(`^  ${name}:\\s*[^#\\s]`);
+  if (sectionLines.some((line) => scalarEntry.test(line))) {
+    throw new Error(
+      `config.yaml has \`mcp_servers.${name}\` as a scalar, not a mapping — refusing to edit`,
+    );
   }
 
-  const subStart = sectionLines.findIndex((line) => /^  aec-sources:\s*(#.*)?$/.test(line));
+  const mappingEntry = new RegExp(`^  ${name}:\\s*(#.*)?$`);
+  const subStart = sectionLines.findIndex((line) => mappingEntry.test(line));
 
   let nextSectionLines;
   if (subStart === -1) {
