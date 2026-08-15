@@ -22,8 +22,12 @@ _PAGE = re.compile(r"^p(\d+)$")
 
 # `source_id` is a single path segment, so the first slash separates it from the
 # relative path; the locator runs to the closing bracket.
+# `[` is excluded from the path and the locator on purpose: without it a
+# citation missing its closing bracket swallows the next one whole, and the
+# reader loses a reference that was written correctly (measured on the
+# renderer's twin of this grammar, task 2.13).
 _CITATION = re.compile(
-    r"\[src:\s*(?P<source>[^/\]\s][^/\]]*)/(?P<path>[^\]#]+?)(?:#(?P<loc>[^\]]*))?\]"
+    r"\[src:\s*(?P<source>[^/\]\s][^/\]]*)/(?P<path>[^\]#\[]+?)(?:#(?P<loc>[^\]\[]*))?\]"
 )
 
 # A citation is delimited by `]` and split on `#`, so neither can survive inside

@@ -52,6 +52,7 @@ const api: AecpilotApi = {
     ipcRenderer.invoke('sources:show-in-explorer', { sourceId, rel }),
   getSourceEntryPath: (sourceId, rel) =>
     ipcRenderer.invoke('sources:get-entry-path', { sourceId, rel }),
+  readDocument: (rel, sourceId) => ipcRenderer.invoke('viewer:read-document', { rel, sourceId }),
   getVaultTree: () => ipcRenderer.invoke('vault:tree'),
   createVaultFile: (parentRel, name) =>
     ipcRenderer.invoke('vault:create-file', { parentRel, name }),

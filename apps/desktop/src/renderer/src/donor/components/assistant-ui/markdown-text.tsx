@@ -3,7 +3,13 @@
  * Source:  apps/desktop/src/components/assistant-ui/markdown-text.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] MarkdownLink's href dispatch registers one more of our own surfaces —
+ *       the citation chip (task 2.13). Same shape as their three existing
+ *       branches (media / preview / session ref): a predicate and a component,
+ *       both ours, both living in aec/citations. SPEC UR3 requires a citation
+ *       to open our viewer, and this table is where a link's destination is
+ *       decided.
  */
 'use client'
 
@@ -16,6 +22,9 @@ import {
 } from '@assistant-ui/react-streamdown'
 import type { code as streamdownCode } from '@streamdown/code'
 import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
+
+import { CitationChip } from '../../../aec/citations/CitationLink'
+import { isCitationHref, parseCitationLabel } from '../../../aec/citations/citation-pure'
 
 import { ExpandableBlock } from '@/components/chat/expandable-block'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
@@ -257,6 +266,14 @@ function childrenToText(children: unknown): string {
 }
 
 function MarkdownLink({ children, className, href, ...props }: ComponentProps<'a'>) {
+  if (isCitationHref(href)) {
+    const citation = parseCitationLabel(childrenToText(children))
+
+    if (citation) {
+      return <CitationChip citation={citation} />
+    }
+  }
+
   const mediaPath = mediaPathFromMarkdownHref(href)
 
   if (mediaPath) {

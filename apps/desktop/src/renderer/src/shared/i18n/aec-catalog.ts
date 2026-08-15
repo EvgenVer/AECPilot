@@ -71,6 +71,18 @@ export const aecLocales: PluginLocaleBundles = {
       removeConfirm: 'Disconnect this source? Its files are not touched.',
       unavailable: 'unavailable'
     },
+    viewer: {
+      title: 'Document',
+      empty: 'Click a reference in the agent’s answer to open the document at that place.',
+      opening: 'Opening the document…',
+      failed: (reason: string) => `Could not open the document: ${reason}`,
+      pageOf: (page: number, pages: number) => `${page} / ${pages}`,
+      previous: 'Previous page',
+      next: 'Next page',
+      close: 'Close',
+      unsupported: 'This format will open in the built-in viewer later.',
+      showInExplorer: 'Show in file manager'
+    },
     rollback: {
       title: 'Changes',
       loading: 'Loading snapshots…',
@@ -169,6 +181,18 @@ export const aecLocales: PluginLocaleBundles = {
       remove: 'Отключить',
       removeConfirm: 'Отключить этот источник? Файлы останутся на месте.',
       unavailable: 'недоступен'
+    },
+    viewer: {
+      title: 'Документ',
+      empty: 'Кликните ссылку в ответе агента, чтобы открыть документ на нужном месте.',
+      opening: 'Открываю документ…',
+      failed: (reason: string) => `Не удалось открыть документ: ${reason}`,
+      pageOf: (page: number, pages: number) => `${page} / ${pages}`,
+      previous: 'Предыдущая страница',
+      next: 'Следующая страница',
+      close: 'Закрыть',
+      unsupported: 'Этот формат откроется во встроенном просмотрщике позже.',
+      showInExplorer: 'Показать в проводнике'
     },
     rollback: {
       title: 'Изменения',

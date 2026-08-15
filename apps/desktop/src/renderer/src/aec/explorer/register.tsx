@@ -11,6 +11,7 @@ import { translatePlugin } from '../../donor/i18n/plugin-i18n'
 import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
+import { DocumentViewer } from '../viewers/DocumentViewer'
 import { ProjectMenu } from '../project/ProjectMenu'
 import { RollbackPanel } from '../rollback/RollbackPanel'
 import { ScanWatcher } from '../scan/ScanWatcher'
@@ -25,6 +26,9 @@ const title = (): string =>
 
 const rollbackTitle = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'rollback.title', [])
+
+const viewerTitle = (): string =>
+  translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'viewer.title', [])
 
 // The project menu goes in their status bar, left side: "what am I working on"
 // has to be readable without opening anything (every file operation, scan and
@@ -79,4 +83,23 @@ registry.register({
     maxWidth: '480px'
   },
   render: () => <VaultExplorer />
+})
+
+// The document viewer sits on the right, next to checkpoints: both answer
+// «show me the thing itself» about something that just appeared in the chat.
+// It is what a citation opens (task 2.14) — the click that closes the loop
+// between an answer and the page it came from (SPEC UR3, AC1).
+registry.register({
+  id: 'aec-viewer',
+  area: 'panes',
+  source: 'core',
+  title: viewerTitle(),
+  data: {
+    placement: 'right',
+    collapsible: true,
+    width: '460px',
+    minWidth: '320px',
+    maxWidth: '900px'
+  },
+  render: () => <DocumentViewer />
 })

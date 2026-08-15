@@ -2287,6 +2287,61 @@ ipcMain.handle('sources:get-entry-path', (_event, payload: unknown) => {
   }
 })
 
+// A document is opened for reading by size, not by trust: a citation names a
+// file the agent chose, and the viewer has to load it whole into the renderer.
+// 200 MiB is the indexer's own ceiling (aec_rag.indexer.DEFAULT_MAX_SIZE) — a
+// file above it was never indexed, so no citation can legitimately point at one.
+const MAX_VIEWER_BYTES = 200 * 1024 * 1024
+
+// Task 2.14: reads a document for the viewer. `sourceId` names a connected
+// source; without it the path is read from the vault. Resolution stays here —
+// `rel` arrives from agent-authored citation text, which is exactly the input
+// class the anti-traversal helpers exist for.
+ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel, sourceId } = payload as Record<string, unknown>
+  if (typeof rel !== 'string' || rel.length === 0) {
+    return { ok: false, error: 'rel must be a non-empty string' }
+  }
+
+  let absPath: string
+  try {
+    if (typeof sourceId === 'string' && sourceId.length > 0) {
+      const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
+      if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
+      absPath = resolveSourceEntryRel(source.root_path, rel)
+    } else {
+      absPath = resolveVaultEntryRel(currentProject.vaultPath, rel)
+    }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+
+  try {
+    const stat = fs.statSync(absPath)
+    if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
+    if (stat.size > MAX_VIEWER_BYTES) {
+      return { ok: false, error: 'Файл слишком велик для просмотра' }
+    }
+    const bytes = fs.readFileSync(absPath)
+    return {
+      ok: true,
+      bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      name: basename(absPath),
+      path: absPath,
+      size: stat.size
+    }
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code
+    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
+    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 // Task 1.6: the vault explorer tree + file/folder create/rename/delete.
 // Every handler is a no-op/`ok:false` when no project is open — the sidebar
 // shows an empty-state instead of calling these, but a stale renderer call

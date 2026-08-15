@@ -576,6 +576,22 @@ export interface AecpilotApi {
     sourceId: string,
     rel: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a
+   * connected source; omitted, the path is read from the vault. The path is
+   * resolved inside that root by the main process — the renderer never builds
+   * an absolute path, and a citation is agent-authored text, so `rel` is
+   * treated as hostile input exactly like every other path from the renderer.
+   *
+   * Bytes rather than a `file://` URL: the renderer runs with
+   * `contextIsolation` and no file access (SPEC C9), and a viewer that needs
+   * the app to relax that would trade the whole sandbox for a convenience. */
+  readDocument(
+    rel: string,
+    sourceId?: string
+  ): Promise<
+    | { bytes: ArrayBuffer; name: string; ok: true; path: string; size: number }
+    | { error: string; ok: false }
+  >
   /** Reads the current project's vault file tree (task 1.6). Empty array if
    * no project is open. `.aecpilot` is always hidden; symlinks are shown as
    * a leaf, never traversed. */

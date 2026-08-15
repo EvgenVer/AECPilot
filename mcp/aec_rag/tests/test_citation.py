@@ -65,3 +65,12 @@ def test_a_broken_citation_does_not_cost_the_others():
 
 def test_an_unreadable_locator_degrades_to_the_file_itself():
     assert parse_citations("[src: tasks/файл.pdf#]") == [Citation("tasks", "файл.pdf", {})]
+
+
+def test_a_citation_missing_its_bracket_does_not_swallow_the_next_one():
+    """One broken bracket must cost the reader that reference and no other —
+    the renderer's twin of this grammar asserts the same (task 2.13).
+    """
+    text = "сначала [src: tasks/битая#p1 потом [src: tasks/целая.pdf#p3] конец"
+
+    assert [citation.rel_path for citation in parse_citations(text)] == ["целая.pdf"]

@@ -57,6 +57,7 @@
     "mermaid": "11.16.0",
     "motion": "12.42.2",
     "nanostores": "1.4.0",
+    "pdfjs-dist": "6.2.108",
     "radix-ui": "1.6.7",
     "react": "^19.1.0",
     "react-arborist": "^3.13.2",
