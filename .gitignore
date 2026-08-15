@@ -17,6 +17,12 @@ runtime/.hermes-venv/
 runtime/.hermes-src/
 runtime/dev-profile/
 
+# Real project documents used for measurement (task 2.2 and the eval set).
+# Never committed: they are somebody's design documents, and the repository is
+# not the place for them. Reports and the question set next to them are ours
+# and stay tracked — see eval/README.md.
+eval/samples/
+
 # Tooling
 *.log
 .eslintcache
