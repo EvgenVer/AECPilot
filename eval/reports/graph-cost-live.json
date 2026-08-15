@@ -1,0 +1,26 @@
+{
+  "mode": "live",
+  "document": "ТЗ на разработку РД 2-я очередь. ЖК 1-й Нагатинский (верс.4) ИТОГОВАЯ РЕДАКЦИЯ ДЛЯ ПОДПИСАНИЯ 03.03.2026.docx",
+  "document_mb": 4.51,
+  "extraction_model": "gpt-5.4-mini-2026-03-17",
+  "parse_seconds": 0.0,
+  "chunks_total": 288,
+  "chunks_measured": 40,
+  "chunk_text_tokens": 43310,
+  "llm_calls": 81,
+  "calls_per_chunk": 2.02,
+  "input_tokens": 260682,
+  "output_tokens": 38548,
+  "input_tokens_per_chunk": 6517,
+  "output_tokens_per_chunk": 964,
+  "build_seconds": 78.7,
+  "seconds_per_chunk": 1.97,
+  "entities": 339,
+  "relations": 328,
+  "projection": {
+    "chunks": 464,
+    "input_tokens": 3023911,
+    "output_tokens": 447157,
+    "minutes": 15.2
+  }
+}

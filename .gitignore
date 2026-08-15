@@ -23,6 +23,11 @@ runtime/dev-profile/
 # and stay tracked — see eval/README.md.
 eval/samples/
 
+# Working files of the graph-cost measurement (task 2.9a): a throwaway index
+# and a parse cache, both re-creatable by `uv run python eval/graph_cost.py`.
+eval/.graph-cost-vault/
+eval/.graph-cost-cache/
+
 # Tooling
 *.log
 .eslintcache
