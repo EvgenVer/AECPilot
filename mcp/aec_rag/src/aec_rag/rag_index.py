@@ -12,6 +12,7 @@ is written down next to it and checked on every open (SPECIFICATION C5).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -45,6 +46,13 @@ EMBEDDING_DIMENSIONS = {
 EXTRACTION_MODEL = "gpt-5.4-mini-2026-03-17"
 
 API_KEY_ENV_VAR = "OPENAI_API_KEY"
+
+# How patiently an embedding call waits out a rate limit. Seven attempts
+# starting at 5 s and doubling to 120 s spans about eight minutes — long
+# enough for a per-minute quota to refill several times over.
+RATE_LIMIT_ATTEMPTS = 7
+RATE_LIMIT_FIRST_WAIT_SECONDS = 5
+RATE_LIMIT_MAX_WAIT_SECONDS = 120
 
 _FINGERPRINT_NAME = "aec-index.json"
 
@@ -174,7 +182,7 @@ def _default_embedding_func(settings: RagSettings):
     from lightrag.llm.openai import openai_embed
     from lightrag.utils import EmbeddingFunc
 
-    async def embed(texts: list[str], **kwargs: Any):
+    async def embed_once(texts: list[str], **kwargs: Any):
         # ``.func``, not ``openai_embed`` itself, and ``embedding_dim`` passed
         # explicitly. Their `openai_embed` is decorated into an `EmbeddingFunc`
         # that declares the width of `text-embedding-3-small` and validates
@@ -192,6 +200,28 @@ def _default_embedding_func(settings: RagSettings):
             api_key=api_key(),
             embedding_dim=settings.embedding_dim,
         )
+
+    async def embed(texts: list[str], **kwargs: Any):
+        """The same call, but patient with a rate limit.
+
+        Their binding retries three times over about a minute. Measured
+        2026-08-15 indexing a real ТЗ: that is not enough on an ordinary account
+        — the retries ran out, LightRAG halted the pipeline, and the whole
+        document was lost, not just the batch. Indexing is a background job, so
+        waiting minutes is free; failing is not.
+        """
+        from openai import RateLimitError
+
+        delay = RATE_LIMIT_FIRST_WAIT_SECONDS
+        for attempt in range(RATE_LIMIT_ATTEMPTS):
+            try:
+                return await embed_once(texts, **kwargs)
+            except RateLimitError:
+                if attempt == RATE_LIMIT_ATTEMPTS - 1:
+                    raise
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, RATE_LIMIT_MAX_WAIT_SECONDS)
+        raise RagIndexError("недостижимо")  # pragma: no cover
 
     return EmbeddingFunc(
         embedding_dim=settings.embedding_dim,
@@ -251,6 +281,14 @@ async def open_index(
         llm_model_name=settings.extraction_model,
         chunking_func=registry.chunk,
         workspace=workspace_of(vault),
+        # Eight concurrent embedding workers is LightRAG's default and it is
+        # tuned for a generous account. Measured 2026-08-15 indexing a real ТЗ:
+        # the burst tripped the provider's rate limit, the retries ran out, and
+        # LightRAG halted the pipeline for the whole document. Indexing is a
+        # background job — a person is not sitting in front of it — so trading
+        # throughput for finishing at all is the right way round.
+        embedding_func_max_async=2,
+        embedding_batch_num=8,
     )
     rag.aec_chunk_registry = registry
     await rag.initialize_storages()
