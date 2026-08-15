@@ -337,3 +337,31 @@ async def test_two_projects_in_one_process_do_not_share_a_document_register(tmp_
 
     assert await first.text_chunks.get_by_id(keys_a[0]) is not None
     assert await second.text_chunks.get_by_id(keys_b[0]) is not None
+
+
+@pytest.mark.anyio
+async def test_a_halted_pipeline_is_not_reported_as_an_indexed_document(tmp_path, monkeypatch):
+    """Measured 2026-08-15 on a real ТЗ: the vector flush hit a rate limit,
+    LightRAG halted its pipeline and recorded the failure in its own status —
+    while the chunks sat in `text_chunks`. Without this check the file is marked
+    ingested with no vectors behind it, and that is invisible: the document
+    simply never comes back from a search, exactly as if it had nothing to say.
+    """
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault)
+    entries = indexed([Chunk(text="Мощность 250 кВт.", locator={"page": 1})])
+
+    original = rag.doc_status.get_by_id
+
+    async def halted(doc_id):
+        record = await original(doc_id)
+        if record is None:
+            return None
+        return {**record, "status": "failed"}
+
+    monkeypatch.setattr(rag.doc_status, "get_by_id", halted)
+
+    with pytest.raises(BridgeError) as excinfo:
+        await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
+
+    assert "векторов" in str(excinfo.value)

@@ -311,6 +311,20 @@ async def _verify_stored(rag: LightRAG, doc_id: str, keys: Sequence[str]) -> Non
             f"идентификаторами — locator'ы потеряны (первый: {missing[0]})"
         )
 
+    # …and that the run actually finished. Measured 2026-08-15 on a real ТЗ: the
+    # vector flush hit a rate limit, LightRAG halted the pipeline and recorded
+    # the failure in its own status — while the chunks sat in `text_chunks` and
+    # this check passed. The file was then marked ingested with no vectors
+    # behind it, which is invisible: the document simply never comes back from a
+    # search, exactly as if it had nothing to say.
+    record = await rag.doc_status.get_by_id(doc_id)
+    status = str(_record_field(record, "status", "")).lower().rsplit(".", 1)[-1] if record else ""
+    if status != "processed":
+        raise BridgeError(
+            f"документ {doc_id}: конвейер LightRAG завершился со статусом {status or 'неизвестно'} "
+            "— чанки есть, а векторов за ними нет; файл останется непроиндексированным"
+        )
+
 
 async def delete_document(rag: LightRAG, doc_id: str) -> bool:
     """Remove a document from the index. ``False`` if it was not there."""

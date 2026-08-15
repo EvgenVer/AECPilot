@@ -99,9 +99,10 @@ def test_an_oversized_table_is_cut_on_rows_and_every_piece_keeps_the_header():
 
 def test_a_single_row_longer_than_the_limit_is_kept_whole():
     """A truncated row is worse than a large one: half a value read as a whole
-    value is a wrong answer, not an incomplete one.
+    value is a wrong answer, not an incomplete one. Holds up to the ceiling —
+    see the test below for what happens past it.
     """
-    long_row = "| Кабель | " + "х" * 400 + " |"
+    long_row = "| Кабель | " + "х" * 200 + " |"
     table = f"| Позиция | Значение |\n|---|---|\n{long_row}"
     parsed = document(ParsedSegment(locator={"page": 4}, markdown=table))
 
@@ -163,3 +164,25 @@ def test_table_and_the_text_around_it_stay_in_one_chunk_when_they_fit():
     assert len(chunks) == 1
     assert chunks[0].is_table is True
     assert "Примечание." in chunks[0].text
+
+
+def test_a_row_past_the_ceiling_is_cut_rather_than_taking_the_document_down():
+    """Measured 2026-08-15 on a real ТЗ: one requirements row ran past the
+    embedding model's 8192-token window, the API refused the batch, and LightRAG
+    halted the pipeline for the WHOLE document — 288 chunks lost to one row.
+    """
+    from aec_rag.chunk import ROW_HARD_LIMIT_FACTOR
+
+    max_chars = 100
+    monster = "| Требование | " + " ".join(["слово"] * 400) + " |"
+    table = f"| Пункт | Требование |\n|---|---|\n{monster}"
+    parsed = document(ParsedSegment(locator={"page": 4}, markdown=table))
+
+    chunks = chunk_document(parsed, max_chars=max_chars)
+
+    assert len(chunks) > 1
+    assert all(len(chunk.text) <= max_chars * ROW_HARD_LIMIT_FACTOR + 40 for chunk in chunks)
+    assert all(chunk.text.startswith("| Пункт | Требование |") for chunk in chunks)
+    # Nothing of the row is lost — only its line breaks change.
+    joined = " ".join(" ".join(c.text.splitlines()[2:]) for c in chunks)
+    assert joined.count("слово") == 400

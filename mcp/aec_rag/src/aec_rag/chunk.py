@@ -98,6 +98,12 @@ def _split_oversized(text: str, max_chars: int) -> list[str]:
 
 _TABLE_SEPARATOR = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
+# How far past the chunk limit a single table row may run before it is cut
+# anyway. Four times 2000 characters stays comfortably inside the embedding
+# model's window for Russian text, and is far enough above the limit that an
+# ordinary long row still arrives whole.
+ROW_HARD_LIMIT_FACTOR = 4
+
 
 def _split_table(text: str, max_chars: int) -> list[str]:
     """Cut an oversized table on row boundaries, repeating its header.
@@ -111,8 +117,14 @@ def _split_table(text: str, max_chars: int) -> list[str]:
 
     Cutting it ourselves keeps what rule 2 actually protects: no row is ever
     read without the header that says what its columns mean. A row longer than
-    the limit on its own is kept whole anyway — a truncated row is worse than a
-    large one.
+    the limit on its own is kept whole — a truncated row is worse than a large
+    one — but only up to :data:`ROW_HARD_LIMIT_FACTOR` times the limit.
+
+    That ceiling is not tidiness. Measured 2026-08-15 on a real ТЗ: one
+    requirements row ran past the embedding model's 8192-token window, the API
+    refused the batch, and LightRAG halted the pipeline for the **whole
+    document** — 288 chunks lost to one row. An unembeddable chunk does not
+    degrade its own answer, it takes the document down with it.
     """
     lines = text.splitlines()
     header: list[str] = []
@@ -120,19 +132,44 @@ def _split_table(text: str, max_chars: int) -> list[str]:
         header = lines[:2]
     body = lines[len(header) :]
 
+    hard_limit = max_chars * ROW_HARD_LIMIT_FACTOR
     pieces: list[str] = []
     current: list[str] = list(header)
     length = sum(len(line) + 1 for line in current)
-    for row in body:
-        if current and len(current) > len(header) and length + len(row) + 1 > max_chars:
+
+    def flush() -> None:
+        nonlocal current, length
+        if len(current) > len(header):
             pieces.append("\n".join(current))
-            current = list(header)
-            length = sum(len(line) + 1 for line in current)
-        current.append(row)
-        length += len(row) + 1
-    if len(current) > len(header):
-        pieces.append("\n".join(current))
+        current = list(header)
+        length = sum(len(line) + 1 for line in current)
+
+    for row in body:
+        for part in _split_row(row, hard_limit):
+            if len(current) > len(header) and length + len(part) + 1 > max_chars:
+                flush()
+            current.append(part)
+            length += len(part) + 1
+    flush()
     return pieces or [text]
+
+
+def _split_row(row: str, hard_limit: int) -> list[str]:
+    """Cut a single row that is past the ceiling, on word boundaries."""
+    if len(row) <= hard_limit:
+        return [row]
+
+    parts: list[str] = []
+    remaining = row
+    while len(remaining) > hard_limit:
+        cut = remaining.rfind(" ", 0, hard_limit)
+        if cut <= 0:
+            cut = hard_limit
+        parts.append(remaining[:cut].rstrip())
+        remaining = remaining[cut:].lstrip()
+    if remaining:
+        parts.append(remaining)
+    return parts
 
 
 def _pack(
