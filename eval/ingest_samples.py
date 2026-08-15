@@ -37,26 +37,30 @@ SOURCE_ID = "project"
 
 
 def ensure_vault() -> Path:
-    """Create the throwaway vault and point it at the sample documents."""
+    """Create the throwaway vault and point it at both source roots.
+
+    Reconciles rather than only creating: a vault made before a source existed
+    would otherwise keep ignoring it, and that miss looks exactly like «that
+    document has nothing to say».
+    """
     project_json = VAULT / ".aecpilot" / "project.json"
     project_json.parent.mkdir(parents=True, exist_ok=True)
-    if not project_json.is_file():
-        project_json.write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "name": "eval",
-                    "sources": [
-                        {"id": SOURCE_ID, "root_path": str(SAMPLES)},
-                        {"id": "fixtures", "root_path": str(FIXTURES)},
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+    wanted = {SOURCE_ID: str(SAMPLES), "fixtures": str(FIXTURES)}
+
+    data: dict = {"schema_version": 1, "name": "eval", "sources": []}
+    if project_json.is_file():
+        data = json.loads(project_json.read_text(encoding="utf-8"))
+
+    sources = [entry for entry in data.get("sources", []) if entry.get("id") in wanted]
+    known = {entry["id"] for entry in sources}
+    for source_id, root in wanted.items():
+        if source_id not in known:
+            sources.append({"id": source_id, "root_path": root})
+    data["sources"] = sources
+
+    project_json.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     return project_json
 
 
@@ -98,7 +102,13 @@ async def run(args) -> dict:
 
         ingest_started = time.monotonic()
         report = await ingest(
-            conn, rag, roots, mode="full" if args.full else "incremental", on_progress=note
+            conn,
+            rag,
+            roots,
+            mode="full" if args.full else "incremental",
+            source_ids=args.source or None,
+            rel_paths=args.only or None,
+            on_progress=note,
         )
         elapsed = time.monotonic() - ingest_started
     finally:
@@ -113,6 +123,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ingest_samples")
     parser.add_argument("--status", action="store_true", help="Только показать состояние индекса")
     parser.add_argument("--full", action="store_true", help="Перечитать всё, а не изменившееся")
+    parser.add_argument(
+        "--source",
+        action="append",
+        help="Только этот источник (можно повторять)",
+    )
+    parser.add_argument(
+        "--only", action="append", help="Только пути с этим префиксом (можно повторять)"
+    )
     parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE))
     args = parser.parse_args(argv)
 
