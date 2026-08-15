@@ -19,7 +19,7 @@ from aec_rag.parse import (
     parse_spreadsheet,
     split_by_headings,
 )
-from pdf_fixture import build_text_pdf
+from pdf_fixture import build_scanned_pdf, build_text_pdf
 
 # Each page carries a marker that appears nowhere else, so "page 2's text ended
 # up under page 3" is a test failure and not a judgement call. Page 3 is blank
@@ -105,6 +105,43 @@ def test_pdf_document_markdown_holds_the_whole_document(parsed_pdf):
     for marker in PAGE_MARKERS:
         if marker is not None:
             assert marker in parsed_pdf.markdown
+
+
+SCAN_LINES = [
+    ["Installed power", "125 kW total"],
+    ["Cable list", "Cable A 3x50"],
+]
+
+
+@pytest.fixture(scope="session")
+def parsed_scan(converter, tmp_path_factory):
+    path = tmp_path_factory.mktemp("scan") / "scan.pdf"
+    path.write_bytes(build_scanned_pdf(SCAN_LINES))
+    return parse_pdf(path, converter=converter)
+
+
+def test_scanned_pdf_has_no_text_layer_to_begin_with(tmp_path):
+    """Guards the fixture itself: if it ever grew a text layer the OCR test
+    below would pass without OCR running at all.
+    """
+    pdfium = pytest.importorskip("pypdfium2")
+    path = tmp_path / "scan.pdf"
+    path.write_bytes(build_scanned_pdf(SCAN_LINES))
+
+    document = pdfium.PdfDocument(path)
+    try:
+        pages = [document[index] for index in range(len(document))]
+        texts = [page.get_textpage().get_text_bounded().strip() for page in pages]
+    finally:
+        document.close()
+
+    assert texts == ["", ""]
+
+
+def test_scanned_pdf_is_recognised_page_by_page(parsed_scan):
+    assert [segment.locator for segment in parsed_scan.segments] == [{"page": 1}, {"page": 2}]
+    assert "125" in parsed_scan.segments[0].markdown
+    assert "125" not in parsed_scan.segments[1].markdown
 
 
 def test_pdf_under_a_cyrillic_path_is_parsed(converter, tmp_path):

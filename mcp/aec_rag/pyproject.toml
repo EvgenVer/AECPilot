@@ -10,6 +10,11 @@ dependencies = [
     # declare it ourselves so nothing ever installs into the venv behind our
     # back — see PLAN §Risks R15.
     "openai>=2,<3",
+    # OCR backend chosen by the measurement in task 2.2 (PLAN §Risks R4):
+    # RapidOCR's `eslav` model runs on onnxruntime. Declared directly rather
+    # than through docling's `onnxruntime` extra — on Windows that extra
+    # resolves to `onnxruntime-gpu`, which wants CUDA.
+    "onnxruntime>=1.7,<1.24",
 ]
 
 [project.scripts]

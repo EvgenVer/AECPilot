@@ -17,18 +17,18 @@ aec-rag = { workspace = true }
 # python-docx and openpyxl build the DOCX/XLSX test fixtures. Both already
 # arrive transitively with docling, but a test must not rest on somebody else's
 # dependency tree — that is the trap recorded as D-6.
-# onnxruntime and easyocr exist for the OCR engine measurement (task 2.2) and
-# nothing else. Whichever engine wins is promoted to a runtime dependency of
-# aec-rag in 2.3; the losers are dropped from here.
-# `onnxruntime` is declared directly rather than via docling's `onnxruntime`
-# extra: on Windows that extra resolves to `onnxruntime-gpu`, which wants CUDA.
+# python-docx, openpyxl and pillow build the test fixtures. All three arrive
+# transitively with docling, but a test must not rest on somebody else's
+# dependency tree — that is the trap recorded as D-6.
+# `easyocr` is deliberately NOT here: it lost the measurement in 2.2 and costs
+# a few hundred megabytes. To reproduce its row of eval/ocr-report.md, install
+# it for the run — `uv run --with easyocr python eval/ocr_bench.py`.
 dev = [
     "pytest>=8,<10",
     "ruff>=0.12,<1",
     "python-docx>=1.2,<2",
     "openpyxl>=3.1,<4",
-    "onnxruntime>=1.7,<1.24",
-    "easyocr>=1.7,<2",
+    "pillow>=10,<13",
     "aec-sources",
     "aec-rag",
 ]

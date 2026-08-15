@@ -54,11 +54,11 @@ class ParsedDocument:
     segments: tuple[ParsedSegment, ...]
 
 
-def build_converter() -> DocumentConverter:
+def build_converter(*, ocr: bool = True) -> DocumentConverter:
     """Build a Docling converter. It serves every format Docling handles; only
     the PDF pipeline needs options of ours.
 
-    Two settings are deliberate, not defaults:
+    Three settings are deliberate, not defaults:
 
     * ``compile_torch_models = False``. Docling compiles the layout model with
       ``torch.compile`` by default, which needs a C++ toolchain — on Windows,
@@ -66,19 +66,33 @@ def build_converter() -> DocumentConverter:
       dies with ``InductorError: InvalidCxxCompiler: Compiler: cl is not
       found``. Our users are engineers, not developers; a Visual Studio install
       cannot be a precondition for opening a PDF.
-    * ``do_ocr = False``. Scanned PDFs are task 2.3, after the engine
-      measurement in 2.2 picks a default. Until then a scan simply yields no
-      text rather than silently going through whichever engine Docling ships.
+    * **The OCR engine is named, not defaulted.** RapidOCR's own default is a
+      Chinese model, and Docling's is `lang=["chinese"]` on the onnxruntime
+      backend. `eslav` (East Slavic, PP-OCRv5) is the measurement's winner —
+      see `eval/ocr-report.md` and PLAN §Risks R4. The measured alternative
+      that ships without any extra install, `cyrillic` on the torch backend,
+      returns Latin/Cyrillic mush on Russian technical text and is not an
+      acceptable fallback.
+    * ``force_full_page_ocr`` stays off. A page that already has a text layer
+      keeps it — its own text beats anything OCR can reconstruct — and a page
+      that is nothing but a bitmap gets recognised because there is no text
+      covering it. Turning it on would re-recognise good text and pay for the
+      privilege.
+
+    ``ocr=False`` exists for callers that know they are handling text-layer
+    documents and would rather not load the recognition models.
     """
     from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
     from docling.datamodel.settings import settings as docling_settings
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
     docling_settings.inference.compile_torch_models = False
 
     pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = False
+    pipeline_options.do_ocr = ocr
+    if ocr:
+        pipeline_options.ocr_options = RapidOcrOptions(lang=["eslav"], backend="onnxruntime")
 
     return DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
