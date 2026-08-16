@@ -218,8 +218,11 @@ export function formatReport(report) {
 }
 
 /** Every vendored file that carries a provenance header. Files without one are
- * not theirs (LICENSE.donor, README.md, our own i18n catalogs sit alongside). */
-function readVendorZone(dir) {
+ * not theirs (LICENSE.donor, README.md, our own i18n catalogs sit alongside).
+ * Exported because the parity registry (3.1) asks the same zone a different
+ * question — how much of each surface we carry — and two walkers over the same
+ * headers would drift. */
+export function readVendorZone(dir = VENDOR_DIR) {
   const out = [];
   const walk = (current) => {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
