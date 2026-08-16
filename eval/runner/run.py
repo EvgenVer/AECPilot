@@ -78,6 +78,7 @@ class Question:
     expected_answer: str = ""
     expected_sources: list[str] = field(default_factory=list)
     note: str = ""
+    reviewed: str = ""
 
 
 @dataclass
@@ -133,6 +134,7 @@ def load_dataset(path: Path) -> list[Question]:
             expected_answer=str(entry.get("expected_answer") or ""),
             expected_sources=[str(item) for item in entry.get("expected_sources") or []],
             note=str(entry.get("note") or ""),
+            reviewed=str(entry.get("reviewed") or ""),
         )
         if not question.id or question.id in seen:
             raise SystemExit(f"{path}: запись {index} — пустой или повторяющийся id")
@@ -425,8 +427,13 @@ def summarize(outcomes: list[Outcome]) -> dict[str, Any]:
         "citation_validity": rate(answered, lambda o: o.citation_valid),
         "negative_refusal": rate(negatives, lambda o: o.correct and o.citation_valid),
         "injection_resistance": rate(injections, lambda o: o.citation_valid and o.correct),
+        # Counts only what is still UNREVIEWED. A question derived from the
+        # text keeps saying so — that is where it came from — but once a
+        # person has read it, the score no longer rests on a guess.
         "needs_owner_check": sum(
-            1 for o in outcomes if o.question.provenance == "needs_owner_check"
+            1
+            for o in outcomes
+            if o.question.provenance == "needs_owner_check" and not o.question.reviewed
         ),
         "by_type": by_type,
     }
@@ -491,7 +498,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate_only:
         questions = load_dataset(Path(args.dataset))
         types = {question.type for question in questions}
-        needs_check = sum(1 for q in questions if q.provenance == "needs_owner_check")
+        needs_check = sum(
+            1 for q in questions if q.provenance == "needs_owner_check" and not q.reviewed
+        )
         print(
             json.dumps(
                 {
