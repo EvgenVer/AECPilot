@@ -94,6 +94,40 @@ export function parseLocator(text: string): Locator {
   return range ? { range, sheet } : { sheet }
 }
 
+/** Locator keys each format can actually carry.
+ *
+ *  A DOCX has no pages — Word paints them at print time, the file has none —
+ *  so `#p94` on a `.docx` is an anchor the model invented by analogy with the
+ *  PDF citations next to it. Measured in the eval baseline (task 2.17): the
+ *  answer was right, the file was right, and the link led nowhere.
+ *
+ *  Asking the model not to do it is a request, and a request is obeyed
+ *  sometimes. Dropping what the format cannot hold is mechanical: the citation
+ *  falls back to naming the file, which is exactly what the spec prescribes
+ *  when a place cannot be named. */
+const LOCATOR_KEYS: Record<string, ReadonlyArray<keyof Locator>> = {
+  csv: [],
+  docx: ['heading'],
+  pdf: ['page', 'heading'],
+  xlsx: ['sheet', 'range']
+}
+
+export function sanitizeLocator(relPath: string, locator: Locator): Locator {
+  const extension = relPath.split('.').pop()?.toLowerCase() ?? ''
+  const allowed = LOCATOR_KEYS[extension]
+  if (!allowed) return locator
+
+  const cleaned: Locator = {}
+  for (const key of allowed) {
+    if (locator[key] !== undefined) {
+      Object.assign(cleaned, { [key]: locator[key] })
+    }
+  }
+  // A range without its sheet addresses nothing.
+  if (cleaned.range !== undefined && cleaned.sheet === undefined) delete cleaned.range
+  return cleaned
+}
+
 export function formatCitation(sourceId: string, relPath: string, locator?: Locator): string {
   const rendered = formatLocator(locator)
   const body = `${sourceId}/${relPath}`
@@ -117,7 +151,7 @@ export function parseCitations(text: string): Citation[] {
     if (relPath) {
       citations.push({
         end: match.index + match[0].length,
-        locator: parseLocator(match[3] ?? ''),
+        locator: sanitizeLocator(relPath, parseLocator(match[3] ?? '')),
         raw: match[0],
         relPath,
         sourceId: (match[1] ?? '').trim(),

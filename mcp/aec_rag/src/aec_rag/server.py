@@ -21,6 +21,7 @@ desktop app does not poll this server — it runs the same engine through
 from __future__ import annotations
 
 import asyncio
+import re
 import sqlite3
 import uuid
 from collections.abc import Sequence
@@ -210,8 +211,10 @@ def build_server(project_json: Path) -> FastMCP:
 
     @server.tool(
         description=(
-            "Search the indexed documents. Returns the matching chunks with the place "
-            "each came from — file, and page/sheet/heading — so the answer can cite it. "
+            "Search the indexed documents — vectors and full text together. Returns the "
+            "matching chunks with the place each came from (file, and page/sheet/heading) "
+            "so the answer can cite it. `score` is the vector similarity and is null for a "
+            "chunk only the full-text half found; `match` says which half found it. "
             "filters accepts source_id, path_prefix and doctype."
         )
     )
@@ -349,6 +352,34 @@ def graph_summary(conn: sqlite3.Connection) -> dict[str, Any]:
     return graph_stats(conn)
 
 
+_FTS_WORD = re.compile(r"[\w\-]{3,}", re.UNICODE)
+
+# Reciprocal rank fusion's damping constant. 60 is the value the method was
+# published with and it needs no tuning: it only decides how quickly a hit's
+# contribution falls with its rank, and nothing here is sensitive to that.
+RRF_K = 60
+
+
+def fts_query(text: str) -> str:
+    """A question turned into an FTS5 MATCH expression.
+
+    Words joined by OR rather than AND: a question rarely repeats the
+    document's wording exactly, and one missing word must not empty the result.
+    bm25 sorts it out — a word that occurs everywhere carries almost no weight.
+    """
+    words = {word.lower().replace('"', "") for word in _FTS_WORD.findall(text)}
+    return " OR ".join(f'"{word}"' for word in sorted(words) if word)
+
+
+def _fuse(ranked: list[list[str]]) -> list[str]:
+    """Reciprocal rank fusion of several ranked id lists, best first."""
+    scores: dict[str, float] = {}
+    for ids in ranked:
+        for rank, identifier in enumerate(ids, start=1):
+            scores[identifier] = scores.get(identifier, 0.0) + 1.0 / (RRF_K + rank)
+    return sorted(scores, key=lambda identifier: -scores[identifier])
+
+
 async def search_chunks(
     conn: sqlite3.Connection,
     rag: LightRAG,
@@ -357,29 +388,52 @@ async def search_chunks(
     top_k: int = 10,
     filters: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Vector search over chunks, joined back to their locators.
+    """Hybrid search over chunks, joined back to their locators.
 
-    The search runs against LightRAG's chunk vectors directly rather than
-    through ``aquery_data``: it is the same nearest-neighbour lookup, but it
-    keeps the similarity score, and a score is what tells the agent whether the
-    top hit is an answer or the least bad of a bad set.
+    Vectors alone are not enough, and the case that proved it is worth writing
+    down. «Сколько испытаний штампом 600 см² предусмотрено» has its answer in
+    one row of a table of works; that row's chunk holds twenty other rows about
+    other works, so its embedding is the average of all of them and the
+    question does not come near it — measured 2026-08-15, the right chunk was
+    **not in the top 100**. Full-text search put it first, because the question
+    and the row share exact wording: «штампом», «600», «0,5 МПа».
+
+    So both indexes are asked and their rankings fused (reciprocal rank
+    fusion). That is what `files_fts` was built for in task 2.9 — «точная
+    формулировка, марки и обозначения ищутся здесь, смысл ищется векторами» —
+    and until now nothing used it.
+
+    ``score`` stays the cosine similarity and is ``None`` for a chunk only
+    full-text search found: there is no similarity to report for it without
+    paying for another embedding call, and inventing one would break the only
+    signal the agent has for «nothing here is close».
     """
     from aec_rag.lightrag_bridge import split_chunk_key
-    from aec_rag.store import get_chunks
+    from aec_rag.store import get_chunks, search_text
 
     wanted = max(1, int(top_k))
-    fetch = wanted * FILTER_OVERFETCH if filters else wanted
-    hits = await rag.chunks_vdb.query(query, top_k=fetch)
+    fetch = wanted * FILTER_OVERFETCH if filters else wanted * 2
 
-    identifiers = []
+    vector_ids: list[str] = []
     scores: dict[str, float] = {}
-    for hit in hits:
+    for hit in await rag.chunks_vdb.query(query, top_k=fetch):
         split = split_chunk_key(str(hit.get("id", "")))
         if split is None:
             continue
-        identifiers.append(split[1])
+        vector_ids.append(split[1])
         scores[split[1]] = float(hit.get("distance", 0.0))
 
+    text_ids: list[str] = []
+    expression = fts_query(query)
+    if expression:
+        try:
+            text_ids = [chunk.chunk_id for chunk in search_text(conn, expression, limit=fetch)]
+        except sqlite3.OperationalError:
+            # A question that FTS5 cannot parse must cost the vector half
+            # nothing: half a search beats no search.
+            text_ids = []
+
+    identifiers = _fuse([vector_ids, text_ids])
     stored = get_chunks(conn, identifiers)
     results: list[dict[str, Any]] = []
     for identifier in identifiers:
@@ -392,6 +446,7 @@ async def search_chunks(
             continue
         if not _passes(chunk, filters):
             continue
+        score = scores.get(identifier)
         results.append(
             {
                 "text": chunk.text,
@@ -399,12 +454,21 @@ async def search_chunks(
                 "rel_path": chunk.rel_path,
                 "locator": chunk.locator,
                 "is_table": chunk.is_table,
-                "score": round(scores.get(identifier, 0.0), 4),
+                "score": round(score, 4) if score is not None else None,
+                "match": _match_kind(identifier, vector_ids, text_ids),
             }
         )
         if len(results) >= wanted:
             break
     return results
+
+
+def _match_kind(identifier: str, vector_ids: list[str], text_ids: list[str]) -> str:
+    in_vectors = identifier in vector_ids
+    in_text = identifier in text_ids
+    if in_vectors and in_text:
+        return "both"
+    return "vector" if in_vectors else "text"
 
 
 _SOURCE_SEPARATOR = "<SEP>"

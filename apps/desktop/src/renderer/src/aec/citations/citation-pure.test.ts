@@ -183,3 +183,31 @@ describe('citationLabel', () => {
     expect(citationLabel(plain)).toBe('данные.csv')
   })
 })
+
+describe('sanitizeLocator', () => {
+  it('drops an anchor the format cannot have', () => {
+    // Measured in the eval baseline (2.17): the model wrote `#p94` on a DOCX,
+    // which has no pages at all — right answer, right file, link to nowhere.
+    const [docx] = parseCitations('[src: project/ТЗ.docx#p94]')
+    const [sheetOnPdf] = parseCitations('[src: project/ПЗ.pdf#Ведомость!C5:D6]')
+
+    expect(docx.locator).toEqual({})
+    expect(sheetOnPdf.locator).toEqual({})
+  })
+
+  it('keeps a locator the format does have', () => {
+    const [pdf] = parseCitations('[src: project/ПЗ.pdf#p12]')
+    const [xlsx] = parseCitations('[src: project/кабели.xlsx#Ведомость!C5:D6]')
+    const [heading] = parseCitations('[src: project/ТЗ.docx#h:Кабельный журнал]')
+
+    expect(pdf.locator).toEqual({ page: 12 })
+    expect(xlsx.locator).toEqual({ range: 'C5:D6', sheet: 'Ведомость' })
+    expect(heading.locator).toEqual({ heading: 'Кабельный журнал' })
+  })
+
+  it('leaves a format it has no rule for alone', () => {
+    const [other] = parseCitations('[src: project/схема.dwg#p3]')
+
+    expect(other.locator).toEqual({ page: 3 })
+  })
+})

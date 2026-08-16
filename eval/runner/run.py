@@ -213,7 +213,11 @@ def render_context(material: dict[str, Any]) -> str:
         )
     for chunk in material.get("chunks", []):
         citation = format_citation(chunk["source_id"], chunk["rel_path"], chunk.get("locator"))
-        lines.append(f"{citation}\n{chunk['text']}")
+        # How the fragment was found is part of the material: a text-only hit
+        # matched wording, not meaning, and the skill is told to check it is
+        # about the thing being asked before using it.
+        how = chunk.get("match")
+        lines.append(f"{citation}{f' [найдено: {how}]' if how else ''}\n{chunk['text']}")
     return "\n\n".join(lines) if lines else "(поиск ничего не вернул)"
 
 
@@ -243,14 +247,17 @@ def citation_texts(conn, answer: str) -> tuple[list[str], list[str]]:
     A citation that resolves to nothing in `index.db` is the failure this check
     exists for: it looks exactly like a good one to a reader.
     """
-    from aec_rag.citation import parse_locator
+    from aec_rag.citation import parse_locator, sanitize_locator
 
     citations: list[str] = []
     texts: list[str] = []
     for match in CITATION_RE.finditer(answer):
         source_id, rel_path, locator_text = match.group(1), match.group(2).strip(), match.group(3)
         citations.append(match.group(0))
-        locator = parse_locator(locator_text or "")
+        # Sanitized exactly as the product does it (task D-25): an anchor the
+        # format cannot have is inert in the UI, so it must not fail the
+        # metric either — the citation still names the right file.
+        locator = sanitize_locator(rel_path, parse_locator(locator_text or ""))
         rows = conn.execute(
             "SELECT locator, text FROM chunks WHERE source_id = ? AND rel_path = ?",
             (source_id, rel_path),
@@ -311,24 +318,22 @@ def check_answer(question: Question, answer: str, citations: list[str], texts: l
     if unresolved:
         problems.append(f"цитата не указывает ни на что в индексе: {unresolved[0]}")
 
-    if question.expected_answer:
-        needle = _significant(question.expected_answer)
-        if needle and not any(needle.lower() in text.lower() for text in texts):
+    # Only when the expected answer has a number in it. A number is a fact the
+    # cited page either carries or does not; prose is not — «класса
+    # герметичности "В"» in the document against «класс герметичности «В»» in
+    # the expectation differ by quotes and case alone, and a literal match calls
+    # a correct citation broken. Whether a prose answer is right is the judge's
+    # question; whether its citation resolves is still checked above.
+    numbers = re.findall(r"\d+(?:[.,]\d+)?", question.expected_answer)
+    if numbers:
+        needle = numbers[0]
+        if not any(needle in text.replace(",", ".").replace(".", ",") or needle in text
+                   for text in texts):
             problems.append(
                 f"процитированное место не содержит ожидаемого значения ({needle})"
             )
 
     return not problems, problems
-
-
-def _significant(expected: str) -> str:
-    """The part of an expected answer a cited chunk has to actually contain.
-
-    A number when there is one — that is what an engineer came for and what a
-    fluent paraphrase can lose without looking wrong.
-    """
-    numbers = re.findall(r"\d+(?:[.,]\d+)?", expected)
-    return numbers[0] if numbers else expected.strip()[:40]
 
 
 JUDGE_RULES = """Ты проверяешь ответ поисковой системы по проектной документации.

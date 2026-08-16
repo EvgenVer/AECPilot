@@ -74,3 +74,34 @@ def test_a_citation_missing_its_bracket_does_not_swallow_the_next_one():
     text = "сначала [src: tasks/битая#p1 потом [src: tasks/целая.pdf#p3] конец"
 
     assert [citation.rel_path for citation in parse_citations(text)] == ["целая.pdf"]
+
+
+def test_an_anchor_the_format_cannot_have_is_dropped():
+    """Measured in the eval baseline (2.17): the model wrote `#p94` on a DOCX,
+    which has no pages at all — right answer, right file, link to nowhere. The
+    citation falls back to naming the file, which is what the spec prescribes
+    when a place cannot be named.
+    """
+    [docx] = parse_citations("[src: project/ТЗ.docx#p94]")
+    [sheet_on_pdf] = parse_citations("[src: project/ПЗ.pdf#Ведомость!C5:D6]")
+
+    assert docx.locator == {}
+    assert sheet_on_pdf.locator == {}
+
+
+def test_a_locator_the_format_does_have_survives():
+    [pdf] = parse_citations("[src: project/ПЗ.pdf#p12]")
+    [xlsx] = parse_citations("[src: project/кабели.xlsx#Ведомость!C5:D6]")
+    [heading] = parse_citations("[src: project/ТЗ.docx#h:Кабельный журнал]")
+
+    assert pdf.locator == {"page": 12}
+    assert xlsx.locator == {"sheet": "Ведомость", "range": "C5:D6"}
+    assert heading.locator == {"heading": "Кабельный журнал"}
+
+
+def test_an_unknown_format_is_left_alone():
+    """We only drop what we know cannot exist. A format we have no rule for
+    keeps whatever the citation said."""
+    [other] = parse_citations("[src: project/схема.dwg#p3]")
+
+    assert other.locator == {"page": 3}

@@ -98,6 +98,33 @@ def parse_locator(text: str) -> dict[str, int | str]:
     return {"sheet": sheet}
 
 
+# Locator keys each format can actually carry. A DOCX has no pages — Word paints
+# them at print time, the file has none — so `#p94` on a `.docx` is an anchor the
+# model invented by analogy with the PDF citations beside it (measured in the
+# eval baseline, task 2.17: right answer, right file, link to nowhere). Asking
+# the model not to do it is a request; dropping what the format cannot hold is
+# mechanical, and the citation falls back to naming the file — which is what the
+# spec prescribes when a place cannot be named.
+_LOCATOR_KEYS = {
+    "csv": (),
+    "docx": ("heading",),
+    "pdf": ("page", "heading"),
+    "xlsx": ("sheet", "range"),
+}
+
+
+def sanitize_locator(rel_path: str, locator: Mapping[str, int | str]) -> dict[str, int | str]:
+    """Drop locator parts the file's format cannot have."""
+    extension = rel_path.rsplit(".", 1)[-1].lower() if "." in rel_path else ""
+    allowed = _LOCATOR_KEYS.get(extension)
+    if allowed is None:
+        return dict(locator)
+    cleaned = {key: locator[key] for key in allowed if key in locator}
+    if "range" in cleaned and "sheet" not in cleaned:
+        del cleaned["range"]
+    return cleaned
+
+
 def format_citation(
     source_id: str, rel_path: str, locator: Mapping[str, int | str] | None = None
 ) -> str:
@@ -122,7 +149,7 @@ def parse_citations(text: str) -> list[Citation]:
             Citation(
                 source_id=match.group("source").strip(),
                 rel_path=rel_path,
-                locator=parse_locator(match.group("loc") or ""),
+                locator=sanitize_locator(rel_path, parse_locator(match.group("loc") or "")),
             )
         )
     return citations
