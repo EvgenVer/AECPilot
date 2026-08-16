@@ -1,0 +1,51 @@
+{
+  "contents": {
+    "documents": 3,
+    "chunks": 1622,
+    "characters": 13671545
+  },
+  "storage": {
+    "by_store_mb": {
+      "vectors": 51.27,
+      "kv": 28.3,
+      "graph": 0.0,
+      "other": 0.0
+    },
+    "index_db_mb": 30.93,
+    "files_mb": {
+      "graph_chunk_entity_relation.graphml": 0.0,
+      "kv_store_doc_status.json": 0.14,
+      "kv_store_full_docs.json": 13.64,
+      "kv_store_llm_response_cache.json": 0.0,
+      "kv_store_text_chunks.json": 14.52,
+      "vdb_chunks.json": 51.27,
+      "vdb_entities.json": 0.0,
+      "vdb_relationships.json": 0.0,
+      "aec-index.json": 0.0
+    }
+  },
+  "open_seconds": 11.3,
+  "memory_mb": {
+    "before_open": 60.7,
+    "after_open": 339.6,
+    "after_queries": 363.5,
+    "index_cost": 302.8
+  },
+  "query_seconds": {
+    "median": 1.03,
+    "max": 5.64,
+    "hits": [
+      10,
+      10,
+      10,
+      10,
+      10
+    ]
+  },
+  "projection": {
+    "scale": 2,
+    "chunks": 3244,
+    "storage_mb": 221.0,
+    "index_cost_mb": 605.5
+  }
+}
