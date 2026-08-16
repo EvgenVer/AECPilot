@@ -7,8 +7,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildRegistry,
+  classifyChannel,
   classifySurface,
   formatRegistry,
+  readChannelGroups,
   readDenied,
   readExclusions,
   readTaskIds,
@@ -54,6 +56,52 @@ describe("document parsing", () => {
   it("reads the deny list from the module rather than a copy of it", () => {
     const deny = "export const DENIED_RPC_METHODS: readonly string[] = ['model.save_key', 'env.reveal']";
     expect(readDenied(deny)).toEqual(["model.save_key", "env.reveal"]);
+  });
+});
+
+describe("readChannelGroups", () => {
+  const preload = [
+    "  getVersion: () => ipcRenderer.invoke('hermes:version'),",
+    "  readFileText: p => ipcRenderer.invoke('hermes:readFileText', p),",
+    "  onDeepLink: cb => ipcRenderer.on('hermes:deep-link', cb),",
+    "  setZoom: z => ipcRenderer.send('hermes:zoom', z),",
+    "  notOurs: () => ipcRenderer.invoke('other:thing'),",
+  ].join("\n");
+
+  it("keeps camelCase channels", () => {
+    // A first pass at this used a lowercase-only character class and reported 52
+    // groups where there are 74 — twenty capabilities (readFileText, selectPaths,
+    // openExternal …) silently absent from the inventory that exists to find
+    // absences.
+    expect(readChannelGroups(preload, "hermes:")).toContain("readFileText");
+  });
+
+  it("strips their namespace and ignores channels outside it", () => {
+    const groups = readChannelGroups(preload, "hermes:");
+    expect(groups).toEqual(["deep-link", "readFileText", "version", "zoom"]);
+  });
+
+  it("reads our unprefixed surface the same way", () => {
+    expect(readChannelGroups("ipcRenderer.invoke('viewer:read-document')")).toEqual(["viewer"]);
+  });
+});
+
+describe("classifyChannel", () => {
+  it("counts theirs as covered only when our channel really exists", () => {
+    const ourGroups = new Set(["shell"]);
+    expect(classifyChannel("openExternal", { rule: { ours: "shell" }, ourGroups }).status).toBe("ours");
+  });
+
+  it("turns a claim our preload no longer honours into a разрыв, not coverage", () => {
+    // Our preload is ours to rename; a table promising a channel that is gone
+    // must not keep reading as parity.
+    const row = classifyChannel("openExternal", { rule: { ours: "shell" }, ourGroups: new Set() });
+    expect(row.status).toBe("gap");
+    expect(row.brokenClaim).toBe("shell");
+  });
+
+  it("leaves an unmapped capability in the разрыв", () => {
+    expect(classifyChannel("translucency", { rule: undefined, ourGroups: new Set() }).status).toBe("gap");
   });
 });
 

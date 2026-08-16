@@ -36,6 +36,7 @@ const REPO_DIR = path.resolve(RUNTIME_DIR, "..");
 const SPEC_FILE = path.join(REPO_DIR, "SPECIFICATION.md");
 const TASKS_FILE = path.join(REPO_DIR, "TASKS.md");
 const DENY_FILE = path.join(REPO_DIR, "apps/desktop/src/main/gateway-passthrough-pure.ts");
+const OUR_PRELOAD = path.join(REPO_DIR, "apps/desktop/src/preload/index.ts");
 
 /** Why a surface we do not carry is not a разрыв. `hx` cites the §Non-Goals
  * entry that excludes it; `task` cites the TASKS id that will bring it.
@@ -55,6 +56,103 @@ export const CLASSIFICATION = {
   webhooks: { task: "3.11", note: "исходящие вебхуки, UR19" },
   cron: { task: "3.5", note: "расписания, UR18" },
   messaging: { task: "3.9", note: "внешние каналы, UR19" },
+};
+
+/** The main-process half of parity (D-27). Their `electron/` is 100 modules, but
+ * modules are not capabilities — most are plumbing whose equivalent our own main
+ * implements differently. What IS comparable is the boundary each main exposes
+ * to its renderer: their preload publishes 52 `hermes:<группа>:<действие>`
+ * channels, ours publishes 34 `<группа>:<действие>` ones.
+ *
+ * The two channel sets were written independently, so names do not line up and
+ * matching them mechanically would invent gaps where the capability exists under
+ * another name. Hence this table: `ours` names OUR channel group, and the script
+ * verifies it really exists in our preload — a claim that stops being true
+ * becomes a reported problem instead of a quiet reassurance.
+ *
+ * Rows left out on purpose land in РАСХОЖДЕНИЕ. That is the honest state for a
+ * capability whose counterpart I could not point at: «нужно решение», not
+ * «наверное есть». */
+export const ELECTRON_CLASSIFICATION = {
+  // — их бэкенд-жизненный цикл; у нас свой запуск ядра
+  backend: { ours: "gateway" },
+  "backend-exit": { ours: "gateway" },
+  "boot-progress": { ours: "setup" },
+  bootstrap: { ours: "setup" },
+  api: { ours: "gateway", note: "REST-дверь того же процесса" },
+  gateway: { ours: "gateway" },
+  // — файлы и рабочая папка
+  fs: { ours: "sources", note: "reveal/rename/trash над деревом источников и vault" },
+  workspace: { ours: "project" },
+  profile: { ours: "profiles" },
+  openExternal: { ours: "shell", note: "shell:open-external" },
+  readFileText: { ours: "viewer", note: "viewer:read-document" },
+  readFileDataUrl: { ours: "viewer" },
+  readFileDataUrlForAttach: { ours: "attach" },
+  selectPaths: { ours: "attach", note: "attach:pick — нативный диалог выбора" },
+  readClipboard: { ours: "attach", note: "attach:paste" },
+  writeClipboard: { ours: "attach" },
+  saveClipboardImage: { ours: "attach" },
+  watchDirectory: { ours: "scan", note: "детект изменений источников, UR7" },
+  setting: { ours: "settings" },
+  "data-url-read-max": { ours: "settings", note: "лимит на встраиваемый файл" },
+  // — исключено §Non-Goals
+  cloud: { hx: "HX3", note: "вход в их облако" },
+  "pet-overlay": { hx: "HX1" },
+  git: { hx: "HX6", note: "голый git-UI; diff-вьюер приходит отдельно, задача 3.3" },
+  terminal: { hx: "HX7", note: "живая оболочка; лента вывода — наш канал terminal, UR17" },
+  // — запланировано
+  hud: { task: "3.24" },
+  "quick-entry": { task: "3.15" },
+  "keep-awake": { task: "3.18" },
+  "wake-indicator": { task: "3.7b" },
+  updates: { task: "3.21" },
+  "open-updates": { task: "3.21" },
+  connections: { task: "3.12" },
+  connection: { task: "3.12" },
+  "connection-config": { task: "3.12" },
+  "ssh-config": { task: "3.12" },
+  "get-remote-display-reason": { task: "3.13a", note: "честное отключение поверхности в удалённом режиме" },
+  "find-in-page": { task: "3.16" },
+  "open-find-bar": { task: "3.16" },
+  "stop-find-in-page": { task: "3.16" },
+  "found-in-page": { task: "3.16" },
+  "deep-link": { task: "3.8", note: "установка MCP по внешней ссылке" },
+  "deep-link-ready": { task: "3.8" },
+  agents: { task: "7.1" },
+  "close-preview-requested": { task: "3.4" },
+  "preview-file-changed": { task: "3.4" },
+  watchPreviewFile: { task: "3.4" },
+  stopPreviewFileWatch: { task: "3.4" },
+  normalizePreviewTarget: { task: "3.4" },
+  openPreviewInBrowser: { task: "3.4" },
+  previewShortcutActive: { task: "3.4" },
+  requestMicrophoneAccess: { task: "3.7a", note: "разрешение на микрофон, UR21" },
+  fetchLinkTitle: { task: "3.17", note: "вставленная ссылка становится элементом" },
+  window: { task: "3.14" },
+  // — решения владельца 2026-08-16 (интервью по разрыву, найденному этим реестром)
+  zoom: { task: "3.26", note: "зум — доступность, взят" },
+  "native-theme": { task: "3.26" },
+  translucency: { hx: "HX14", note: "прозрачность окна" },
+  "titlebar-theme": { hx: "HX14" },
+  "vscode-theme": { hx: "HX14", note: "импорт чужого конфига с диска" },
+  selectSavePath: { task: "3.27" },
+  saveImageBuffer: { task: "3.27" },
+  saveImageFromUrl: { task: "3.27" },
+  saveGatewayFile: { task: "3.27" },
+  notify: { task: "3.28" },
+  "notification-action": { task: "3.28" },
+  "power-battery": { task: "3.28" },
+  "power-resume": { task: "3.28" },
+  logs: { task: "3.29", note: "падение рендерера должно пережить окно" },
+  uninstall: { task: "6.11" },
+  "active-work": { hx: "HX15" },
+  ambient: { hx: "HX15", note: "фоновые подсказки" },
+  devtools: { hx: "HX15", note: "запрет F12" },
+  version: { hx: "HX15" },
+  "window-state-changed": { task: "3.14" },
+  "focus-session": { task: "3.14" },
+  "open-folder-requested": { task: "3.14" },
 };
 
 /** RPC prefixes §Non-Goals excludes, for the reachability note. Each cites the
@@ -86,6 +184,38 @@ export function readDenied(denyText) {
   return block ? [...block[1].matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]) : [];
 }
 
+/** Capability groups of an IPC surface: the first segment of every channel a
+ * preload publishes. `prefix` strips their `hermes:` namespace so the two sides
+ * are named on the same terms. */
+export function readChannelGroups(preloadText, prefix = "") {
+  const groups = new Set();
+  for (const match of preloadText.matchAll(/(?:invoke|send|on)\(\s*'([a-zA-Z0-9:_.-]+)'/g)) {
+    const channel = match[1];
+    if (prefix) {
+      if (!channel.startsWith(prefix)) continue;
+      groups.add(channel.slice(prefix.length).split(":")[0]);
+    } else {
+      groups.add(channel.split(":")[0]);
+    }
+  }
+  return [...groups].sort();
+}
+
+/** Classifies one of their capability groups against ours. Unlike a surface,
+ * "ours" is a claim the table makes and the caller has already verified — an
+ * unverified claim must never read as coverage. */
+export function classifyChannel(name, { rule, ourGroups }) {
+  const base = { kind: "канал", id: name };
+  if (rule?.ours) {
+    return ourGroups.has(rule.ours)
+      ? { ...base, status: "ours", via: rule.ours, note: rule.note }
+      : { ...base, status: "gap", brokenClaim: rule.ours };
+  }
+  if (rule?.hx) return { ...base, status: "excluded", ...rule };
+  if (rule?.task) return { ...base, status: "planned", ...rule };
+  return { ...base, status: "gap" };
+}
+
 /** A surface counts as ours when its ENTRY POINT is vendored, not when some
  * file under it is. Our zone carries `app/cron/job-state.ts` and no screen —
  * one helper pulled in as somebody else's dependency. Counting files would
@@ -101,10 +231,16 @@ export function classifySurface(name, { theirs, ours, entry, rule }) {
 /**
  * Builds the registry. Pure: takes the inventories, returns what is printed.
  */
-export function buildRegistry({ surfaces, exclusions, taskIds, denied, from }) {
-  const rows = Object.entries(surfaces).map(([name, counts]) =>
-    classifySurface(name, { ...counts, rule: CLASSIFICATION[name] }),
-  );
+export function buildRegistry({ surfaces, channels, exclusions, taskIds, denied, from }) {
+  const ourGroups = new Set(channels?.ours ?? []);
+  const rows = [
+    ...Object.entries(surfaces).map(([name, counts]) =>
+      classifySurface(name, { ...counts, rule: CLASSIFICATION[name] }),
+    ),
+    ...(channels?.theirs ?? []).map((name) =>
+      classifyChannel(name, { rule: ELECTRON_CLASSIFICATION[name], ourGroups }),
+    ),
+  ];
 
   const problems = [];
   const usedHx = new Set(rows.map((r) => r.hx).filter(Boolean));
@@ -121,6 +257,17 @@ export function buildRegistry({ surfaces, exclusions, taskIds, denied, from }) {
   for (const name of Object.keys(CLASSIFICATION)) {
     if (!(name in surfaces)) problems.push(`в таблице есть «${name}», которой нет у донора на этом ref`);
     else if (surfaces[name].entry) problems.push(`«${name}» перенесена, но в таблице числится причина её отсутствия`);
+  }
+
+  const theirChannels = new Set(channels?.theirs ?? []);
+  for (const [name, rule] of Object.entries(ELECTRON_CLASSIFICATION)) {
+    if (!theirChannels.has(name)) {
+      problems.push(`в таблице каналов есть «${name}», которого нет у донора на этом ref`);
+    } else if (rule.ours && !ourGroups.has(rule.ours)) {
+      // The claim "мы это покрываем каналом X" is the one line in the table that
+      // can rot silently: our preload is ours to rename.
+      problems.push(`таблица каналов обещает наш канал «${rule.ours}» для «${name}», а в preload его нет`);
+    }
   }
 
   const reachable = EXCLUDED_RPC.filter((e) => !denied.some((d) => d.startsWith(e.prefix)));
@@ -150,27 +297,35 @@ export function formatRegistry(registry) {
     for (const p of registry.problems) lines.push(`  ${p}`);
   }
 
+  const label = (r) => `${r.kind === "канал" ? "канал " : "экран "}${r.id}`.padEnd(30);
+
   lines.push("", `== есть у нас (${registry.ours.length})`);
   for (const r of registry.ours) {
-    lines.push(`  ${r.id.padEnd(18)} файлов ${String(r.ours).padStart(3)}/${r.theirs}`);
+    const how = r.kind === "канал" ? `наш канал ${r.via}:*` : `файлов ${r.ours}/${r.theirs}`;
+    lines.push(`  ${label(r)} ${how}${r.note ? ` — ${r.note}` : ""}`);
   }
 
   lines.push("", `== исключено (${registry.excluded.length})`);
   for (const r of registry.excluded) {
-    lines.push(`  ${r.id.padEnd(18)} ${r.hx}${r.note ? ` — ${r.note}` : ""}`);
+    lines.push(`  ${label(r)} ${r.hx}${r.note ? ` — ${r.note}` : ""}`);
   }
 
   lines.push("", `== запланировано (${registry.planned.length})`);
   for (const r of registry.planned) {
-    lines.push(`  ${r.id.padEnd(18)} задача ${r.task}${r.note ? ` — ${r.note}` : ""}`);
+    lines.push(`  ${label(r)} задача ${r.task}${r.note ? ` — ${r.note}` : ""}`);
   }
 
   lines.push("", `== РАСХОЖДЕНИЕ (${registry.gaps.length})`);
   if (registry.gaps.length === 0) {
-    lines.push("  пусто — AC9 выполнен: у каждого их экрана есть перенос, исключение или задача");
+    lines.push("  пусто — AC9 выполнен: у каждой их возможности есть перенос, исключение или задача");
   }
   for (const r of registry.gaps) {
-    lines.push(`  ${r.id.padEnd(18)} их файлов: ${r.theirs} — НУЖНО решение: перенос, §Non-Goals или задача`);
+    const why = r.brokenClaim
+      ? `таблица обещала наш канал ${r.brokenClaim}, его нет`
+      : r.kind === "канал"
+        ? "их возможность main-процесса без записанного соответствия"
+        : `их файлов: ${r.theirs}`;
+    lines.push(`  ${label(r)} ${why} — НУЖНО решение: перенос, §Non-Goals или задача`);
   }
 
   if (registry.unexpressed.length > 0) {
@@ -262,6 +417,10 @@ function main() {
 
   const registry = buildRegistry({
     surfaces: donorSurfaces(sha, readVendorZone()),
+    channels: {
+      theirs: readChannelGroups(git(["show", `${sha}:apps/desktop/electron/preload.ts`]), "hermes:"),
+      ours: readChannelGroups(fs.readFileSync(OUR_PRELOAD, "utf8")),
+    },
     exclusions: readExclusions(fs.readFileSync(SPEC_FILE, "utf8")),
     taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf8")),
     denied: readDenied(fs.readFileSync(DENY_FILE, "utf8")),
