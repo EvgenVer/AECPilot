@@ -455,7 +455,7 @@
 - [x] 4.6 Реализовать wikilinks в MD-редакторе: навигация [[…]], создание страницы по клику — files: apps/desktop · verify: ручной прогон навигации · dep: 4.5 · parallel: no
 - [x] 4.7 Реализовать генератор wiki/-структуры и дефолтной AEC-SCHEMA.md — files: mcp/aec_rag или runtime/templates · verify: юнит: структура по specs/wiki.md · dep: — · parallel: yes
 - [x] 4.8 Реализовать skill aec-wiki: операция build (страницы, frontmatter, провенанс, raw/-снапшоты, index/log) — files: skills/aec-wiki · verify: BDD «Первичное построение» · dep: 4.7, 2.12 · parallel: no
-- [ ] 4.9 Реализовать операцию update (инкрементально; противоречия — явными блоками) — files: skills/aec-wiki · verify: BDD «Инкрементальное обновление» · dep: 4.8 · parallel: no
+- [x] 4.9 Реализовать операцию update (инкрементально; противоречия — явными блоками) — files: skills/aec-wiki · verify: BDD «Инкрементальное обновление» · dep: 4.8 · parallel: no
 - [ ] 4.10 Обеспечить сохранение ручных правок при update — files: skills/aec-wiki · verify: BDD «Ручная правка сохраняется» · dep: 4.9 · parallel: no
 - [ ] 4.11 Реализовать lint вики (битые ссылки, сироты, staleness, frontmatter, незакрытые противоречия) — files: skills/aec-wiki, mcp/aec_rag · verify: pytest-фикстуры дефектов + BDD «Lint» · dep: 4.8 · parallel: yes
 - [ ] 4.12 Реализовать query по вики (обзорные ответы со ссылками на страницы) — files: skills/aec-wiki · verify: BDD «Query» · dep: 4.8 · parallel: yes

@@ -390,6 +390,21 @@ def build_server(project_json: Path) -> FastMCP:
         result = write_snapshots(state.db(), state.vault, source_id=source_id, rel_paths=rel_paths)
         return {"files": result.files, "skipped": result.skipped}
 
+    @server.tool(
+        description=(
+            "What the wiki has fallen behind on, by comparing each wiki/raw/ snapshot's "
+            "sha256 against the index. Three separate lists: 'changed' — the document "
+            "was reissued, so pages built from it no longer describe it; 'new' — "
+            "indexed but never snapshotted; 'gone' — snapshotted but no longer in the "
+            "index. Call this first when asked to update the wiki."
+        )
+    )
+    def wiki_stale() -> dict[str, Any]:
+        from aec_rag.wiki import stale_snapshots
+
+        report = stale_snapshots(state.db(), state.vault)
+        return {"changed": report.changed, "gone": report.gone, "new": report.new}
+
     return server
 
 

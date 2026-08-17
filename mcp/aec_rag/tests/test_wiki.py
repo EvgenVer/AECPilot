@@ -144,3 +144,65 @@ def test_snapshot_can_be_narrowed_to_one_file(tmp_path: Path) -> None:
     # Инкрементальное обновление (4.9) переписывает снимки только изменившихся.
     assert write_snapshots(conn, tmp_path, rel_paths=["нет.pdf"]).files == []
     assert len(write_snapshots(conn, tmp_path, rel_paths=["ЭОМ/задание.pdf"]).files) == 1
+
+
+def test_stale_report_separates_changed_new_and_gone(tmp_path: Path) -> None:
+    from aec_rag.wiki import stale_snapshots, write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+    write_snapshots(conn, tmp_path)
+
+    # Ничего не менялось — расхождений нет.
+    fresh = stale_snapshots(conn, tmp_path)
+    assert (fresh.changed, fresh.new, fresh.gone) == ([], [], [])
+
+    # Документ переиздали: хэш в индексе уехал вперёд снимка.
+    conn.execute("UPDATE files SET sha256 = 'zzz999' WHERE rel_path = 'ЭОМ/задание.pdf'")
+    # И появился ещё один, которого в вики нет вовсе.
+    conn.execute(
+        "INSERT INTO files (source_id, rel_path, sha256, status, indexed_at)"
+        " VALUES ('tasks', 'ОВ/задание.pdf', 'new111', 'ok', '2026-08-17T11:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO ingested_files (source_id, rel_path, sha256, chunk_count, ingested_at)"
+        " VALUES ('tasks', 'ОВ/задание.pdf', 'new111', 1, '2026-08-17T11:00:00Z')"
+    )
+    conn.commit()
+
+    report = stale_snapshots(conn, tmp_path)
+
+    assert [entry["rel_path"] for entry in report.changed] == ["ЭОМ/задание.pdf"]
+    assert [entry["rel_path"] for entry in report.new] == ["ОВ/задание.pdf"]
+    assert report.gone == []
+
+
+def test_stale_report_notices_a_source_that_left(tmp_path: Path) -> None:
+    from aec_rag.wiki import stale_snapshots, write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+    write_snapshots(conn, tmp_path)
+
+    conn.execute("DELETE FROM ingested_files")
+    conn.commit()
+
+    report = stale_snapshots(conn, tmp_path)
+
+    # Исчезнувший источник — не повод что-то удалять: страницы по нему остаются,
+    # но об этом надо знать (specs/wiki.md, «источник отключён»).
+    assert [entry["rel_path"] for entry in report.gone] == ["ЭОМ/задание.pdf"]
+
+
+def test_stale_report_survives_a_snapshot_without_a_header(tmp_path: Path) -> None:
+    from aec_rag.wiki import stale_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+    (tmp_path / "wiki" / "raw" / "чужой.md").write_text("просто текст", encoding="utf-8")
+
+    report = stale_snapshots(conn, tmp_path)
+
+    # Файл без заголовка не наш; молча пропускаем, а не падаем на нём.
+    assert report.gone == []
+    assert [entry["rel_path"] for entry in report.new] == ["ЭОМ/задание.pdf"]

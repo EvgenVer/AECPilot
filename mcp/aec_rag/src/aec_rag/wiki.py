@@ -253,3 +253,89 @@ def write_snapshots(
         written.append(f"wiki/raw/{name}")
 
     return SnapshotResult(files=written, skipped=skipped)
+
+
+# ------------------------------------------------- что уехало вперёд (4.9/4.11)
+
+
+@dataclass(frozen=True)
+class StaleReport:
+    """Расхождение вики с индексом, по трём видам.
+
+    Разделены намеренно: изменившийся источник требует переписать страницу,
+    новый — решить, заводить ли её вообще, а исчезнувший — не удалять ничего
+    молча. Один общий список «расходится» заставил бы агента гадать, что делать.
+    """
+
+    changed: list[dict[str, str]]
+    new: list[dict[str, str]]
+    gone: list[dict[str, str]]
+
+
+def _snapshot_header(path: Path) -> dict[str, str]:
+    """Поля YAML-заголовка снимка. Разбор построчный, без зависимости от
+    парсера: в заголовке снимка ровно шесть плоских строк, которые пишем мы
+    сами, и тащить ради них YAML было бы дороже, чем прочитать."""
+    fields: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").split("\n")
+    except OSError:
+        return fields
+    if not lines or lines[0].strip() != "---":
+        return fields
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if sep:
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def stale_snapshots(conn: sqlite3.Connection, vault: Path) -> StaleReport:
+    """Чем вики отстала от индекса.
+
+    Сравнение идёт по ``sha256``: снимок несёт хэш содержимого, при котором его
+    сделали, а индекс — текущий. Разошлись — значит документ переиздали, и
+    страницы по нему больше не описывают то, что в нём написано.
+    """
+    raw = Path(vault) / "wiki" / "raw"
+
+    indexed: dict[tuple[str, str], str] = {}
+    for source, rel_path, sha256 in conn.execute(
+        "SELECT f.source_id, f.rel_path, f.sha256"
+        " FROM ingested_files AS i"
+        " JOIN files AS f ON f.source_id = i.source_id AND f.rel_path = i.rel_path"
+        " WHERE f.status != 'deleted'"
+    ).fetchall():
+        indexed[(source, rel_path)] = sha256 or ""
+
+    changed: list[dict[str, str]] = []
+    gone: list[dict[str, str]] = []
+    snapshotted: set[tuple[str, str]] = set()
+
+    for snapshot in sorted(raw.glob("*.md")) if raw.is_dir() else []:
+        header = _snapshot_header(snapshot)
+        source = header.get("source_id", "")
+        rel_path = header.get("rel_path", "")
+        if not source or not rel_path:
+            continue
+        key = (source, rel_path)
+        snapshotted.add(key)
+        entry = {
+            "rel_path": rel_path,
+            "snapshot": f"wiki/raw/{snapshot.name}",
+            "source_id": source,
+        }
+        if key not in indexed:
+            gone.append(entry)
+        elif indexed[key] != header.get("sha256", ""):
+            changed.append(entry)
+
+    new = [
+        {"rel_path": rel_path, "source_id": source}
+        for (source, rel_path) in sorted(indexed)
+        if (source, rel_path) not in snapshotted
+    ]
+
+    return StaleReport(changed=changed, new=new, gone=gone)
