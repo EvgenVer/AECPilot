@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { SpeechStreamEvent } from '../../../shared/ipc'
 import { createSpeechStreamSocket, SPEECH_STREAM_IPC_URL } from './speech-stream-socket'
 
@@ -36,6 +36,14 @@ beforeEach(() => {
       return () => listeners.delete(cb)
     }
   } as unknown as typeof window.aecpilot
+})
+
+// vitest hands the next file in this worker the same jsdom `window`, so a stub
+// left on it becomes someone else's bug (task 3.9 lost an afternoon to exactly
+// that).
+afterEach(() => {
+  listeners.clear()
+  delete (window as { aecpilot?: unknown }).aecpilot
 })
 
 /** Their `openSpeechStream` attaches handlers only after the constructor

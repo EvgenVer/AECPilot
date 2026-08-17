@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { SpeechStreamEvent } from '../../../shared/ipc'
 
 /**
@@ -78,6 +78,18 @@ beforeEach(() => {
     queueMicrotask(() => this.dispatchEvent(new Event('ended')))
     return Promise.resolve()
   })
+})
+
+// The jsdom `window` outlives this file: vitest reuses the environment for the
+// next test file in the worker, and `installHermesDesktopBridge` + a stubbed
+// `window.aecpilot` are exactly the globals other suites reach through. Left
+// behind, they turned the donor's messaging screen from "mocked, instant" into
+// a component whose promise chain never settles — its first case then timed out
+// (found in task 3.9, and only because the failure was in someone else's file).
+afterEach(() => {
+  vi.restoreAllMocks()
+  delete (window as { aecpilot?: unknown }).aecpilot
+  delete (window as { hermesDesktop?: unknown }).hermesDesktop
 })
 
 describe('речь, когда живой поток не играет', () => {

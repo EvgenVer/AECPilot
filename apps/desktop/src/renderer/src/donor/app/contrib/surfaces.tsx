@@ -3,9 +3,7 @@
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [3] removed the messaging surface (UR19 lands in phase 3)
- * (no other edits)
+ * Edits: none
  */
 /**
  * Wiring surfaces — each pane is its own memoized component. Every surface
@@ -42,8 +40,7 @@ import type { SidebarActions, WiringActions } from './types'
 // full-page views the workspace route table mounts live here; overlay views
 // (agents/settings/…) are the controller's and stay in wiring.tsx.
 const ArtifactsView = lazy(async () => ({ default: (await import('../artifacts')).ArtifactsView }))
-// EDIT [3]: the messaging surface (external channels) is UR19 — phase 3, not
-// this one. Its route entry is removed too; see app/routes.ts.
+const MessagingView = lazy(async () => ({ default: (await import('../messaging')).MessagingView }))
 const SkillsView = lazy(async () => ({ default: (await import('../skills')).SkillsView }))
 
 export function LegacySessionRedirect() {
@@ -175,6 +172,7 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
       <Route element={chatView} index />
       <Route element={chatView} path=":sessionId" />
       <Route element={page(<SkillsView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="skills" />
+      <Route element={page(<MessagingView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="messaging" />
       <Route element={page(<ArtifactsView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="artifacts" />
       <Route element={null} path="agents" />
       <Route element={null} path="command-center" />
