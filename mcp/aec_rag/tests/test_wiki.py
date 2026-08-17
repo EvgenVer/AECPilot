@@ -273,3 +273,75 @@ def test_snapshots_are_not_pages(tmp_path: Path) -> None:
     # проверку — каждое обновление выглядело бы как чужая правка.
     report = edited_pages(tmp_path)
     assert not any("raw/" in name for name in report["edited"] + report["unknown"])
+
+
+def test_write_page_refuses_to_lose_a_humans_paragraph(tmp_path: Path) -> None:
+    from aec_rag.wiki import WriteRefused, checkpoint_pages, write_page
+
+    init_wiki(tmp_path)
+    page = _page(tmp_path, "ТП-1.md", "---\ntype: entity\n---\n\nМощность 250 кВт.")
+    checkpoint_pages(tmp_path)
+    page.write_text(
+        "---\ntype: entity\n---\n\nМощность 250 кВт.\n\nСОГЛАСОВАНО УСТНО: резерв на ТП-2.",
+        encoding="utf-8",
+    )
+
+    # Замер 4.14: инструкция «перенеси чужие абзацы» не держится 5 раз из 5.
+    # Держится отказ.
+    try:
+        write_page(tmp_path, "wiki/entities/ТП-1.md", "---\ntype: entity\n---\n\nМощность 320 кВт.")
+    except WriteRefused as refused:
+        assert any("СОГЛАСОВАНО" in block for block in refused.lost)
+    else:
+        raise AssertionError("запись прошла, а должна была быть отклонена")
+
+    assert "СОГЛАСОВАНО" in page.read_text(encoding="utf-8")
+
+
+def test_write_page_allows_an_update_that_keeps_the_paragraph(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, write_page
+
+    init_wiki(tmp_path)
+    page = _page(tmp_path, "ТП-1.md", "---\ntype: entity\n---\n\nМощность 250 кВт.")
+    checkpoint_pages(tmp_path)
+    page.write_text(
+        "---\ntype: entity\n---\n\nМощность 250 кВт.\n\nСОГЛАСОВАНО УСТНО: резерв на ТП-2.",
+        encoding="utf-8",
+    )
+
+    write_page(
+        tmp_path,
+        "wiki/entities/ТП-1.md",
+        "---\ntype: entity\n---\n\nМощность 250 кВт.\n\n"
+        "СОГЛАСОВАНО УСТНО: резерв на ТП-2.\n\nПо ред. 2 — 320 кВт.",
+    )
+
+    text = page.read_text(encoding="utf-8")
+    assert "СОГЛАСОВАНО" in text and "320" in text
+
+
+def test_write_page_lets_the_agent_rewrite_its_own_page(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, write_page
+
+    init_wiki(tmp_path)
+    page = _page(tmp_path, "ТП-1.md", "---\ntype: entity\n---\n\nСтарый текст агента.")
+    checkpoint_pages(tmp_path)
+
+    # Свою же страницу агент вправе переписать как угодно: чужой работы в ней
+    # нет, и запрет только мешал бы обновлению.
+    write_page(tmp_path, "wiki/entities/ТП-1.md", "---\ntype: entity\n---\n\nНовый текст.")
+
+    assert page.read_text(encoding="utf-8").endswith("Новый текст.")
+
+
+def test_write_page_refuses_to_leave_the_vault(tmp_path: Path) -> None:
+    from aec_rag.wiki import write_page
+
+    init_wiki(tmp_path)
+
+    try:
+        write_page(tmp_path, "../чужое.md", "текст")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("запись за пределы проекта прошла")

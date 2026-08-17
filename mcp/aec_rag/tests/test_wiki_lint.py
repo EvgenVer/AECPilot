@@ -202,3 +202,37 @@ def test_a_fenced_example_is_not_a_link(tmp_path: Path) -> None:
     write_page(tmp_path, "Правила.md", "Пример:\n\n```\n[[Другая страница]]\n```\n")
 
     assert kinds(lint_wiki(None, tmp_path), "broken-link") == []
+
+
+def test_a_block_list_in_the_header_is_a_filled_field() -> None:
+    # Форму со списком блоком модель пишет наравне с `[a, b]`; найдено эвалом
+    # 4.14 на живом ответе — поле считалось пустым, и страница висела с
+    # «нет полей: sources».
+    header = (
+        "---\ntitle: ТП-1\ntype: entity\ntags:\n  - object\n"
+        'sources:\n  - "tasks/ЭОМ/задание.pdf"\n  - "tasks/кабели.xlsx"\n'
+        "updated: 2026-08-17\n---\n"
+    )
+
+    fields = parse_frontmatter(header)
+
+    assert "tasks/ЭОМ/задание.pdf" in fields["sources"]
+    assert "tasks/кабели.xlsx" in fields["sources"]
+    assert fields["tags"] == "object"
+
+
+def test_a_page_with_a_block_list_header_passes_lint(tmp_path: Path) -> None:
+    init_wiki(tmp_path)
+    write_page(
+        tmp_path,
+        "ТП-1.md",
+        "См. [[Щитовая]].",
+        header=(
+            "---\ntitle: ТП-1\ntype: entity\ntags:\n  - object\n"
+            'sources:\n  - "tasks/ЭОМ/задание.pdf"\n'
+            "updated: 2026-08-17\n---\n"
+        ),
+    )
+    write_page(tmp_path, "Щитовая.md", "См. [[ТП-1]].")
+
+    assert kinds(lint_wiki(None, tmp_path), "frontmatter") == []

@@ -66,14 +66,25 @@ def parse_frontmatter(text: str) -> dict[str, str]:
         return {}
 
     fields: dict[str, str] = {}
+    current = ""
     for line in lines[1:]:
         if line.strip() == "---":
             break
+
+        # Список блоком — `sources:` и на следующих строках `  - "…"`. Форма
+        # такая же законная, как `[a, b]` в строке, и модель пишет то одну, то
+        # другую. Не собирать её значило бы объявлять поле пустым там, где оно
+        # заполнено, — эту ошибку нашёл эвал 4.14 на живом ответе.
         if line.startswith((" ", "\t", "-")):
+            item = line.strip().lstrip("-").strip()
+            if current and item:
+                fields[current] = f"{fields[current]}, {item}".strip(", ")
             continue
+
         key, sep, value = line.partition(":")
         if sep:
-            fields[key.strip()] = value.strip()
+            current = key.strip()
+            fields[current] = value.strip()
     return fields
 
 

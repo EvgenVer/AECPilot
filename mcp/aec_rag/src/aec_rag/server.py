@@ -420,6 +420,24 @@ def build_server(project_json: Path) -> FastMCP:
 
     @server.tool(
         description=(
+            "Write a wiki page. Use this instead of the plain file tools for anything "
+            "under wiki/: it REFUSES the write when the new text would drop a paragraph "
+            "a human wrote, and tells you which one. Getting that refusal means read "
+            "the page and put the paragraph back — not rephrase it, put it back."
+        )
+    )
+    def wiki_write_page(rel: str, text: str) -> dict[str, Any]:
+        from aec_rag.wiki import WriteRefused, write_page
+
+        try:
+            return write_page(state.vault, rel, text)
+        except WriteRefused as refused:
+            raise ToolError(str(refused)) from refused
+        except (OSError, ValueError) as exc:
+            raise ToolError(str(exc)) from exc
+
+    @server.tool(
+        description=(
             "Record the wiki as you are leaving it, so a later run can tell your own "
             "text from a human's edits. Call it ONCE at the end of a build or update, "
             "after every page is written."

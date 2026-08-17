@@ -409,3 +409,61 @@ def edited_pages(vault: Path) -> dict[str, list[str]]:
             edited.append(rel)
 
     return {"edited": edited, "unknown": unknown}
+
+
+# ------------------------------------------- запись страницы с защитой (4.14)
+
+
+@dataclass(frozen=True)
+class WriteRefused(Exception):
+    """Запись отклонена: она теряет чужой текст."""
+
+    lost: list[str]
+
+    def __str__(self) -> str:
+        return (
+            "запись отклонена: из страницы пропадают абзацы, которые писал не ты — "
+            + " | ".join(f"«{line[:70]}»" for line in self.lost[:3])
+        )
+
+
+def _paragraphs(text: str) -> list[str]:
+    """Абзацы без заголовка страницы, по непустым блокам."""
+    body = text
+    if body.startswith("---"):
+        end = body.find("\n---", 3)
+        if end != -1:
+            body = body[end + 4 :]
+    return [block.strip() for block in body.split("\n\n") if block.strip()]
+
+
+def write_page(vault: Path, rel: str, text: str) -> dict[str, object]:
+    """Записывает страницу вики, отказываясь потерять чужой абзац.
+
+    Замер задачи 4.14: правило «чужие абзацы переносишь дословно» модель
+    нарушает 5 раз из 5, переписывая страницу целиком. Инструкция тут не
+    работает — работает отказ.
+
+    Что считается чужим: абзац, который есть в текущем файле и которого нет в
+    новом тексте, при условии что страницу правил человек (``wiki_edited``).
+    Страницу, которую агент сам же и оставил в прошлый раз, он вправе
+    переписать как угодно.
+    """
+    vault = Path(vault)
+    target = vault / rel
+    if not target.resolve().is_relative_to(vault.resolve()):
+        raise ValueError(f"путь ведёт за пределы проекта: {rel}")
+
+    if target.exists():
+        state = edited_pages(vault)
+        someone_elses = rel in state["edited"] or rel in state["unknown"]
+        if someone_elses:
+            before = _paragraphs(target.read_text(encoding="utf-8"))
+            after = set(_paragraphs(text))
+            lost = [block for block in before if block not in after]
+            if lost:
+                raise WriteRefused(lost=lost)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8", newline="\n")
+    return {"path": rel, "written": True}
