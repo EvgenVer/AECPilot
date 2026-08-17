@@ -17,6 +17,7 @@ import { queryClient } from './donor/lib/query-client'
 
 import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
+import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
 import { AecI18nProvider } from './shared/i18n'
@@ -54,6 +55,11 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         root rather than inside the screen that triggers it —
                         the screen is theirs and must stay unedited. */}
                     <ChannelDisclosureDialog />
+                    {/* Task 3.20: шаги от пустой установки до первого ответа.
+                        Здесь же, а не внутри их экрана: два шага из шести —
+                        их собственный оверлей, и мастер должен стоять рядом
+                        с ним, а не под ним. */}
+                    <FirstRunGuide />
                   </ProjectGate>
                 </HashRouter>
               </RootTooltipProvider>

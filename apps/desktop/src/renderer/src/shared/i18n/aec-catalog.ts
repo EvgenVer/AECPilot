@@ -155,6 +155,45 @@ export const aecLocales: PluginLocaleBundles = {
         confirm: 'Open the channel'
       }
     },
+    onboarding: {
+      title: 'Getting started',
+      subtitle: (project: string) => `Project «${project}»`,
+      skip: 'Later',
+      skipped: 'postponed',
+      step: {
+        project: 'Project',
+        key: 'Provider key',
+        model: 'Model',
+        sources: 'Documents folder',
+        index: 'Indexing',
+        ask: 'First question'
+      },
+      hint: {
+        project: 'A project is open — its folder is where the agent works.',
+        key: 'The agent answers through a model provider. The key is stored encrypted on this machine and is never sent anywhere but that provider.',
+        model:
+          'Pick the model that will answer. It can be changed at any time next to the input box.',
+        sources:
+          'Connect the folder holding the project documents. It is read only — nothing there is modified.',
+        index:
+          'Indexing lets the agent find the right page instead of re-reading everything. It runs on this machine and costs nothing.',
+        ask: 'The question goes into the input box — press Enter to send it.'
+      },
+      action: {
+        project: 'Open a project',
+        key: 'Connect a provider',
+        model: 'Choose a model',
+        sources: 'Connect a folder',
+        index: 'Index',
+        ask: 'Put the question in the box'
+      },
+      indexRunning: (done: number, total: number) => `indexing ${done} / ${total}`,
+      indexFailed: 'Indexing did not start.',
+      askWithSources:
+        'List the documents you can see in the connected sources and say what each one is about.',
+      askWithoutSources:
+        'What can you do in this project, and what do you need from me to answer questions about the documents?'
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -303,6 +342,45 @@ export const aecLocales: PluginLocaleBundles = {
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
       }
+    },
+    onboarding: {
+      title: 'С чего начать',
+      subtitle: (project: string) => `Проект «${project}»`,
+      skip: 'Позже',
+      skipped: 'отложено',
+      step: {
+        project: 'Проект',
+        key: 'Ключ провайдера',
+        model: 'Модель',
+        sources: 'Папка с документами',
+        index: 'Индексация',
+        ask: 'Первый вопрос'
+      },
+      hint: {
+        project: 'Проект открыт — в его папке и работает агент.',
+        key: 'Отвечает не приложение, а модель провайдера. Ключ хранится на этой машине в зашифрованном виде и никуда, кроме самого провайдера, не уходит.',
+        model:
+          'Выберите модель, которая будет отвечать. Её можно сменить в любой момент рядом с полем ввода.',
+        sources:
+          'Подключите папку, где лежат документы проекта. Она только читается — в ней ничего не меняется.',
+        index:
+          'Индексация нужна, чтобы агент находил нужную страницу, а не перечитывал всё подряд. Она идёт на этой машине и денег не стоит.',
+        ask: 'Вопрос попадёт в поле ввода — отправьте его клавишей Enter.'
+      },
+      action: {
+        project: 'Открыть проект',
+        key: 'Подключить провайдера',
+        model: 'Выбрать модель',
+        sources: 'Подключить папку',
+        index: 'Проиндексировать',
+        ask: 'Подставить вопрос'
+      },
+      indexRunning: (done: number, total: number) => `индексация ${done} / ${total}`,
+      indexFailed: 'Индексация не запустилась.',
+      askWithSources:
+        'Перечисли документы, которые ты видишь в подключённых источниках, и скажи, о чём каждый.',
+      askWithoutSources:
+        'Что ты умеешь делать в этом проекте и что тебе нужно от меня, чтобы отвечать по документам?'
     },
     settings: {
       languageLabel: 'Язык интерфейса',
