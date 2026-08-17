@@ -19,9 +19,32 @@ export const donorAliases = {
 
 export default defineConfig({
   main: {},
-  preload: {},
+  // Two preloads: the main window's ~150-member bridge, and the quick-entry
+  // window's two verbs (task 3.15). A capture box has no business holding the
+  // API the application window needs.
+  preload: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(here, 'src/preload/index.ts'),
+          'quick-entry': path.resolve(here, 'src/preload/quick-entry.ts')
+        }
+      }
+    }
+  },
   renderer: {
     plugins: [react(), tailwindcss()],
-    resolve: { alias: donorAliases }
+    resolve: { alias: donorAliases },
+    // Its own HTML entry rather than a route of the main one: mounting the
+    // whole shell to show one input would boot their application twice, and
+    // this window must appear in the time it takes to press a chord.
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(here, 'src/renderer/index.html'),
+          'quick-entry': path.resolve(here, 'src/renderer/quick-entry.html')
+        }
+      }
+    }
   }
 })

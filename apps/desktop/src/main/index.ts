@@ -9,6 +9,8 @@ import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
+import { isQuickEntryTarget } from './quick-entry-pure'
+import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import {
   closeSpeechStream,
   closeSpeechStreamsFor,
@@ -764,6 +766,43 @@ ipcMain.handle('chat:submit', async (_event, payload: unknown) => {
     ...(typeof ordinal === 'number' ? { truncate_before_user_ordinal: ordinal } : {})
   })
 })
+
+// --- Quick entry: the global-hotkey capture window (task 3.15) --------------
+//
+// Its window has no gateway of its own and no session state; it hands text
+// here, and here it goes through the SAME `prompt.submit` the composer uses.
+// "New session" is the ordinary create-then-submit, so a prompt captured from
+// another app lands exactly where the same words typed in the app would.
+
+ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
+  const { text, target } =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { text?: unknown; target?: unknown })
+      : {}
+
+  if (typeof text !== 'string' || text.trim() === '') return { ok: false, error: 'пустое сообщение' }
+  if (!isQuickEntryTarget(target)) return { ok: false, error: 'неизвестная цель отправки' }
+  if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
+  if (!currentProject) return { ok: false, error: 'проект не открыт' }
+
+  try {
+    if (target === 'new') await newSession()
+    const activeSessionId = await ensureSession()
+    await gateway.request('prompt.submit', { session_id: activeSessionId, text })
+    // The answer arrives in the main window, so bring it forward — otherwise a
+    // prompt fired from another app looks like it went nowhere.
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.webContents.getURL().includes('quick-entry')) continue
+      win.show()
+    }
+
+    return { ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.on('quick:hide', () => hideQuickEntry())
 
 // Slash-command completions for the composer (task 1.6.8). Read-only and
 // best-effort by design: this fires on every keystroke after "/", so a
@@ -1567,7 +1606,10 @@ ipcMain.handle('sessions:list', async () => {
   return { sessions: result.sessions.filter((s) => untagged.has(s.id)) }
 })
 
-ipcMain.handle('sessions:new', async () => {
+/** Task 3.15 lifted this out of the `sessions:new` handler so the quick-entry
+ * window's "new session" is the same act as pressing New Chat — one creation
+ * path, one set of race guards. */
+async function newSession(): Promise<{ sessionId: string }> {
   if (!gateway) throw new Error('gateway is not connected')
   const project = currentProject
   const epoch = sessionEpoch
@@ -1593,8 +1635,10 @@ ipcMain.handle('sessions:new', async () => {
   sessionId = result.session_id
   sessionEpoch += 1
   ensureSessionPromise = undefined
-  return { sessionId }
-})
+  return { sessionId: sessionId as string }
+}
+
+ipcMain.handle('sessions:new', async () => newSession())
 
 ipcMain.handle('sessions:switch', async (_event, id: string) => {
   if (!gateway) throw new Error('gateway is not connected')
@@ -2733,6 +2777,22 @@ app
     createWindow()
     console.log('aecpilot: window created')
 
+    // Task 3.15. Registered after the window exists, because the shortcut's
+    // whole job is to summon a capture box that submits into this app's
+    // session. A chord another app already owns is reported, not retried —
+    // silently losing a global hotkey is how a feature becomes a bug report.
+    const quick = registerQuickEntry(
+      { enabled: true },
+      process.env.ELECTRON_RENDERER_URL
+        ? { rendererUrl: process.env.ELECTRON_RENDERER_URL }
+        : {}
+    )
+    console.log(
+      quick.enabled
+        ? `aecpilot: quick entry on ${quick.shortcut}`
+        : `aecpilot: quick entry off (${quick.reason})`
+    )
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -2748,6 +2808,11 @@ app.on('window-all-closed', () => {
 })
 
 let quitting = false
+
+// Task 3.15: hand the chord back to the OS. Electron does this on exit anyway,
+// but not on a quit that hangs on the backend shutdown below — and a shortcut
+// still held by a closing app is a shortcut nobody else can take.
+app.on('will-quit', () => unregisterQuickEntry())
 
 app.on('before-quit', (event) => {
   if (quitting || !serveHandle || !stopServeFn) return
