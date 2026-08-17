@@ -16,6 +16,7 @@ import { useAecT } from '../../shared/i18n'
 
 import { DocxViewer } from './DocxViewer'
 import { PdfViewer } from './PdfViewer'
+import { SheetViewer } from './SheetViewer'
 import { TextViewer } from './TextViewer'
 import { ViewerHeader } from './ViewerHeader'
 import { $activeTab, $openDocument, $tabs, closeTab, selectDocument, tabKey } from './viewer-store'
@@ -26,7 +27,8 @@ import { $activeTab, $openDocument, $tabs, closeTab, selectDocument, tabKey } fr
 const BY_FORMAT: { match: RegExp; render: () => React.JSX.Element | null }[] = [
   { match: /\.pdf$/i, render: () => <PdfViewer /> },
   { match: /\.docx$/i, render: () => <DocxViewer /> },
-  { match: /\.txt$/i, render: () => <TextViewer /> }
+  { match: /\.txt$/i, render: () => <TextViewer /> },
+  { match: /\.(xlsx|csv)$/i, render: () => <SheetViewer /> }
 ]
 
 function fileName(relPath: string): string {

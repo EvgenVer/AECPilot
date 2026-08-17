@@ -22,6 +22,11 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           exclude: [...exclude, '**/*.test.tsx'],
+          // exceljs идёт в Node как есть (задача 4.3). Через конвейер vitest
+          // его мегабайтная CJS-сборка со всем деревом зависимостей едет 48
+          // секунд против 0,2 секунды у самого Node — измерено. В сборке
+          // главного процесса этого шага нет вовсе.
+          server: { deps: { external: ['exceljs'] } },
           // The two projects have different worker limits (see 'dom' below),
           // and vitest refuses to schedule differing limits in one group — so
           // they run as two groups: the fast node suite first, then the DOM

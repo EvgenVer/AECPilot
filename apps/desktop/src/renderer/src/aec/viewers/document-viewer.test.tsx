@@ -60,11 +60,11 @@ describe('полоса вкладок', () => {
 
   test('со второго документа появляется полоса, и по ней переключаются', () => {
     openDocument({ locator: {}, relPath: 'ТУ.pdf' })
-    openDocument({ locator: {}, relPath: 'ведомость.xlsx' })
+    // Формат без просмотрщика — модель BIM: показан честный ответ про формат,
+    // а не пустой экран.
+    openDocument({ locator: {}, relPath: 'модель.ifc' })
     show()
 
-    // Активна последняя открытая — и она не PDF, значит показан честный ответ
-    // про формат, а не пустой просмотрщик.
     expect(screen.getByText('Этот формат откроется во встроенном просмотрщике позже.')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'ТУ.pdf' }))

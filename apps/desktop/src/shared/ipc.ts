@@ -98,6 +98,21 @@ export interface ProjectSource {
  * `ProjectSource` above. `path` is a posix-style (`/`-separated) rel path
  * from the vault root, used as-is for every `vault:*` IPC call that takes a
  * `rel`/`parentRel`. */
+/** Один лист книги, разобранный для просмотрщика (задача 4.3). Строки — уже
+ * текст: показываем то, что человек увидел бы в Excel, а не внутреннее
+ * представление числа, даты или формулы. */
+export interface SheetData {
+  name: string
+  rows: string[][]
+  /** Строк на листе всего — может быть больше, чем прислано (см. `truncated`). */
+  totalRows: number
+  /** Лист длиннее потолка и прислан не целиком. Показывается человеку: молча
+   * обрезанная ведомость выглядит как ведомость, в которой чего-то нет. */
+  truncated: boolean
+}
+
+export type SheetReadResult = { ok: true; sheets: SheetData[] } | { error: string; ok: false }
+
 export interface VaultTreeNode {
   name: string
   path: string
@@ -716,6 +731,13 @@ export interface AecpilotApi {
     | { bytes: ArrayBuffer; name: string; ok: true; path: string; size: number }
     | { error: string; ok: false }
   >
+  /** Разбирает XLSX в таблицу строк для просмотрщика (задача 4.3). Путь
+   * резолвится теми же проверками, что и в `readDocument` — цитата это текст,
+   * написанный агентом, и `rel` враждебен ровно так же.
+   *
+   * Разбор идёт в главном процессе, а не в окне: exceljs — библиотека Node.
+   * Только чтение: источники read-only (SPEC UR2, AC6). */
+  readSheets(rel: string, sourceId?: string): Promise<SheetReadResult>
   /** Reads the current project's vault file tree (task 1.6). Empty array if
    * no project is open. `.aecpilot` is always hidden; symlinks are shown as
    * a leaf, never traversed. */

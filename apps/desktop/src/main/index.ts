@@ -2541,6 +2541,27 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 // file above it was never indexed, so no citation can legitimately point at one.
 const MAX_VIEWER_BYTES = 200 * 1024 * 1024
 
+/** Куда на диске смотрит запрос просмотрщика. Вынесено в общее место на задаче
+ *  4.3: путь приходит из текста, написанного агентом, и проверка «не вышли ли
+ *  мы за корень» не должна существовать в двух экземплярах — разъехавшись, они
+ *  разъедутся именно в ту сторону, в какую нельзя. */
+function resolveViewerPath(
+  vaultPath: string,
+  rel: string,
+  sourceId: unknown
+): { absPath: string; ok: true } | { error: string; ok: false } {
+  try {
+    if (typeof sourceId === 'string' && sourceId.length > 0) {
+      const source = listProjectSources(vaultPath).find((s) => s.id === sourceId)
+      if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
+      return { absPath: resolveSourceEntryRel(source.root_path, rel), ok: true }
+    }
+    return { absPath: resolveVaultEntryRel(vaultPath, rel), ok: true }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 // Task 2.14: reads a document for the viewer. `sourceId` names a connected
 // source; without it the path is read from the vault. Resolution stays here —
 // `rel` arrives from agent-authored citation text, which is exactly the input
@@ -2555,18 +2576,9 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
     return { ok: false, error: 'rel must be a non-empty string' }
   }
 
-  let absPath: string
-  try {
-    if (typeof sourceId === 'string' && sourceId.length > 0) {
-      const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
-      if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
-      absPath = resolveSourceEntryRel(source.root_path, rel)
-    } else {
-      absPath = resolveVaultEntryRel(currentProject.vaultPath, rel)
-    }
-  } catch (error: unknown) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
+  const resolved = resolveViewerPath(currentProject.vaultPath, rel, sourceId)
+  if (!resolved.ok) return resolved
+  const absPath = resolved.absPath
 
   try {
     const stat = fs.statSync(absPath)
@@ -2582,6 +2594,38 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
       path: absPath,
       size: stat.size
     }
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code
+    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
+    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Задача 4.3: XLSX разбирается здесь, а не в окне — exceljs это Node.
+ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel, sourceId } = payload as Record<string, unknown>
+  if (typeof rel !== 'string' || rel.length === 0) {
+    return { ok: false, error: 'rel must be a non-empty string' }
+  }
+
+  const resolved = resolveViewerPath(currentProject.vaultPath, rel, sourceId)
+  if (!resolved.ok) return resolved
+
+  try {
+    const stat = fs.statSync(resolved.absPath)
+    if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
+    if (stat.size > MAX_VIEWER_BYTES) {
+      return { ok: false, error: 'Файл слишком велик для просмотра' }
+    }
+    // Загружается по первой книге: пакет тяжёлый, а сессия без единого XLSX
+    // платить за него не должна.
+    const { readSheets } = await import('./sheet-read')
+    return await readSheets(resolved.absPath)
   } catch (error: unknown) {
     const code = (error as { code?: string }).code
     if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }

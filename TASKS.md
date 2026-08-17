@@ -449,7 +449,7 @@
   <!-- Обнаружено при 4.2: до этого документ открывался ТОЛЬКО из цитаты, то есть
        только тот, который агент случайно упомянул. SPEC G5 обещает просмотр как
        возможность продукта, а не как побочный эффект ответа агента. -->
-- [ ] 4.3 Реализовать XLSX/CSV-вьюер (Univer, read-only) — files: apps/desktop · verify: AC8-прогон XLSX/CSV (вкл. большой файл) · dep: 2.14 · parallel: yes
+- [x] 4.3 Реализовать XLSX/CSV-вьюер (exceljs в главном процессе + своя виртуализованная сетка; Univer вычеркнут — PLAN §зависимости), read-only — files: apps/desktop · verify: AC8-прогон XLSX/CSV (вкл. большой файл) · dep: 2.14 · parallel: yes
 - [ ] 4.4 Реализовать открытие DOCX/XLSX по locator из цитат (по решению O4) — files: apps/desktop · verify: клик из цитаты открывает место · dep: 4.2, 4.3, 2.7 · parallel: no
 - [ ] 4.5 Встроить MD-редактор (Milkdown): рендер+правка файлов vault, автосохранение — files: apps/desktop · verify: правка сохраняется, undo работает · dep: 1.8.18 · parallel: yes
 - [ ] 4.6 Реализовать wikilinks в MD-редакторе: навигация [[…]], создание страницы по клику — files: apps/desktop · verify: ручной прогон навигации · dep: 4.5 · parallel: no
