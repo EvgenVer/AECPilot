@@ -96,6 +96,9 @@ class Outcome:
     called the check» and «the check passed» are different states that look the
     same in a summary."""
     checks: list[dict[str, Any]] = field(default_factory=list)
+    """Все попытки, когда вопрос гнался несколько раз (отказной набор, 3.33).
+    Пусто у остальных: одна попытка — она же и результат."""
+    attempts: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -110,6 +113,7 @@ class Outcome:
             "judge_reason": self.judge_reason,
             "problems": self.problems,
             "checks": self.checks,
+            "attempts": self.attempts,
             "seconds": round(self.seconds, 1),
         }
 
@@ -449,6 +453,13 @@ REFUSAL_RULES = """Ты проверяешь ответ поисковой си�
 на просмотренные места — нормально и не делают ответ неверным.
 Неверно = система ответила по существу так, будто нашла ответ.
 
+ПЕРЕД ВЕРДИКТОМ найди в ответе фразу об отсутствии сведений. Она может стоять
+где угодно — в начале, в конце, в середине. Если такая фраза ЕСТЬ, ответ верен,
+что бы ни шло рядом: приведённое похожее значение из соседнего раздела, цитаты,
+предложение поискать иначе. Названное значение делает ответ неверным только
+тогда, когда система выдаёт его ЗА ОТВЕТ на заданный вопрос и нигде не говорит,
+что искомого нет.
+
 Ответь ТОЛЬКО JSON: {"correct": true|false, "reason": "одно предложение"}"""
 
 
@@ -476,7 +487,44 @@ async def judge(question: Question, answer: str) -> tuple[bool, str]:
         return False, f"судья ответил не JSON: {raw[:120]}"
 
 
+# Отказной набор гоняется несколько раз, вердикт — по большинству (решение
+# владельца 2026-08-17, задача 3.33). Причина измерена: вердикт по отказу
+# выносит модель-судья, и она ошибается примерно раз из шести — назвала неверным
+# ответ, который начинался ровно теми словами, которых требовала. В наборе
+# четыре вопроса, цена одного 0,25, поэтому одна осечка роняет метрику с 1,00 до
+# 0,75 и прогон «проваливает» порог при исправном продукте.
+#
+# Только для `negative`: у остальных типов порог не абсолютный, и тройная цена
+# там ничего не покупает.
+NEGATIVE_ATTEMPTS = 3
+
+
 async def run_one(conn, rag, question: Question, rules: str, top_k: int) -> Outcome:
+    if question.type == "negative" and NEGATIVE_ATTEMPTS > 1:
+        return await _run_majority(conn, rag, question, rules, top_k)
+    return await _run_once(conn, rag, question, rules, top_k)
+
+
+async def _run_majority(conn, rag, question: Question, rules: str, top_k: int) -> Outcome:
+    """N прогонов, наружу — тот, чей вердикт совпал с большинством.
+
+    Возвращается настоящий прогон, а не усреднённая сводка: отчёт должен
+    показывать ответ, который можно прочитать, и все попытки рядом с ним.
+    """
+    attempts = [
+        await _run_once(conn, rag, question, rules, top_k) for _ in range(NEGATIVE_ATTEMPTS)
+    ]
+    passed = sum(1 for attempt in attempts if attempt.correct)
+    verdict = passed * 2 > len(attempts)
+    chosen = next(attempt for attempt in attempts if attempt.correct == verdict)
+    chosen.attempts = [
+        {"correct": attempt.correct, "judge_reason": attempt.judge_reason, "answer": attempt.answer}
+        for attempt in attempts
+    ]
+    return chosen
+
+
+async def _run_once(conn, rag, question: Question, rules: str, top_k: int) -> Outcome:
     started = time.monotonic()
     material = await gather_context(conn, rag, question, top_k)
     prompt = (
