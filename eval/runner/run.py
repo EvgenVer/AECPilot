@@ -91,6 +91,11 @@ class Outcome:
     judge_reason: str
     problems: list[str] = field(default_factory=list)
     seconds: float = 0.0
+    """Every `rag_check_quote` the answer went through (SPEC UR26): what was
+    submitted and what came back. Kept in the report because «the model never
+    called the check» and «the check passed» are different states that look the
+    same in a summary."""
+    checks: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -104,6 +109,7 @@ class Outcome:
             "citation_valid": self.citation_valid,
             "judge_reason": self.judge_reason,
             "problems": self.problems,
+            "checks": self.checks,
             "seconds": round(self.seconds, 1),
         }
 
@@ -156,13 +162,16 @@ def load_dataset(path: Path) -> list[Question]:
     return questions
 
 
-def skill_rules() -> str:
+def skill_rules(path: Path | None = None) -> str:
     """The skill's own text as the system prompt — not a paraphrase of it.
 
     A paraphrase would make the eval measure a prompt nobody ships. Read from
     the file, so editing the skill is editing what is measured.
+
+    `path` overrides the shipped skill — that is how one version of it is
+    measured against another on the same questions (PLAN §Validation strategy).
     """
-    text = SKILL.read_text(encoding="utf-8")
+    text = (path or SKILL).read_text(encoding="utf-8")
     body = text.split("---", 2)[-1] if text.startswith("---") else text
     return body.strip()
 
@@ -236,6 +245,87 @@ async def ask(model: str, system: str, user: str, json_mode: bool = False) -> st
         request["response_format"] = {"type": "json_object"}
     response = await client().chat.completions.create(**request)
     return response.choices[0].message.content or ""
+
+
+# The one tool the skill requires (SPEC UR26): a quote goes through
+# `rag_check_quote` before it reaches the answer. The eval has to offer it, or
+# it measures a skill that cannot follow its own rules — and would score the
+# rule as a failure of the model.
+CHECK_QUOTE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "rag_check_quote",
+        "description": (
+            "Сверяет дословную выдержку с текстом процитированного места. "
+            "Звать ДО того, как выдержка попадёт в ответ."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "citation": {"type": "string", "description": "Ссылка целиком: [src: …]"},
+                "quote": {"type": "string", "description": "Фраза, скопированная дословно"},
+            },
+            "required": ["citation", "quote"],
+        },
+    },
+}
+
+
+async def ask_with_check(conn, system: str, user: str) -> tuple[str, list[dict[str, Any]]]:
+    """The answering call, with the quote check available as a tool.
+
+    Same wiring as the product: the check reads the cited chunk out of
+    `index.db` — never out of what the model just sent — and answers `ok:
+    false` for a quote that is not there.
+    """
+    from aec_rag.citation import parse_citations
+    from aec_rag.evidence import EvidenceUnavailable, check_quote, chunk_text
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    log: list[dict[str, Any]] = []
+
+    for _ in range(8):
+        response = await client().chat.completions.create(
+            model=ANSWER_MODEL, messages=messages, tools=[CHECK_QUOTE_TOOL]
+        )
+        message = response.choices[0].message
+        if not message.tool_calls:
+            return message.content or "", log
+        messages.append(message.model_dump(exclude_none=True))
+        for call in message.tool_calls:
+            try:
+                payload = json.loads(call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                payload = {}
+            citation = str(payload.get("citation", ""))
+            quote = str(payload.get("quote", ""))
+            parsed = parse_citations(citation)
+            try:
+                if not parsed:
+                    verdict = {"ok": False, "reason": "ссылка не разобрана"}
+                else:
+                    evidence = chunk_text(conn, parsed[0])
+                    verdict = (
+                        check_quote(quote, evidence)
+                        if evidence
+                        else {"ok": False, "reason": "ссылка не указывает ни на что в индексе"}
+                    )
+            except EvidenceUnavailable as exc:
+                verdict = {"ok": False, "reason": str(exc)}
+            log.append({"citation": citation, "quote": quote, **verdict})
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": json.dumps(verdict, ensure_ascii=False),
+                }
+            )
+    # Eight turns is a loop, not a correction. An answer built past that is not
+    # worth reporting as one.
+    return "", log
 
 
 CITATION_RE = re.compile(r"\[src:\s*([^/\]\s][^/\]]*)/([^\]#\[]+?)(?:#([^\]\[]*))?\]")
@@ -393,7 +483,7 @@ async def run_one(conn, rag, question: Question, rules: str, top_k: int) -> Outc
         f"Найденное в документах проекта:\n\n{render_context(material)}\n\n"
         f"ВОПРОС: {question.question}"
     )
-    answer = await ask(ANSWER_MODEL, rules, prompt)
+    answer, checks = await ask_with_check(conn, rules, prompt)
     citations, texts = citation_texts(conn, answer)
     citation_valid, problems = check_answer(question, answer, citations, texts)
     correct, reason = await judge(question, answer)
@@ -406,6 +496,7 @@ async def run_one(conn, rag, question: Question, rules: str, top_k: int) -> Outc
         judge_reason=reason,
         problems=problems,
         seconds=time.monotonic() - started,
+        checks=checks,
     )
 
 
@@ -453,7 +544,7 @@ async def main_async(args) -> int:
     if not questions:
         raise SystemExit("нечего прогонять")
 
-    rules = skill_rules()
+    rules = skill_rules(Path(args.skill) if args.skill else None)
     conn, rag = await open_index_and_db()
     outcomes: list[Outcome] = []
     try:
@@ -494,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=0, help="Взять первые N вопросов")
     parser.add_argument("--type", help="Только вопросы этого типа")
     parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument("--skill", help="Другой файл скила — для сравнения версий")
     parser.add_argument("--out", help="Куда записать отчёт")
     parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE))
     parser.add_argument("--validate-only", action="store_true", help="Только проверить датасет")

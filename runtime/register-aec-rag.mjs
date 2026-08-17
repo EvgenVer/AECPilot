@@ -139,7 +139,13 @@ export function registerAecRag({ projectJsonPath } = {}) {
     // instead of the reference the key would sit in config.yaml in plain text,
     // which rule R2 forbids. `${env:VAR}` is resolved from the hermes process
     // environment, where our safeStorage put it at spawn time.
-    env: { OPENAI_API_KEY: "${env:OPENAI_API_KEY}" },
+    // A path, not a secret, and it goes in as a literal because the same env
+    // stripping hides HERMES_HOME too: without it `rag_check_quote` cannot find
+    // the `grounded-citations` matcher it borrows (SPEC UR26, task 3.30).
+    env: {
+      OPENAI_API_KEY: "${env:OPENAI_API_KEY}",
+      AEC_HERMES_HOME: HERMES_HOME_DIR,
+    },
     enabled: true,
   });
   const skills = fs.existsSync(SKILLS_DIR)

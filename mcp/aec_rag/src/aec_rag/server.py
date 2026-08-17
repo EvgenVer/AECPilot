@@ -33,7 +33,9 @@ from typing import TYPE_CHECKING, Any
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
+from aec_rag.citation import parse_citations
 from aec_rag.db import open_index as open_db
+from aec_rag.evidence import EvidenceUnavailable, check_quote, chunk_text
 from aec_rag.ingest import Progress, ingest
 from aec_rag.project_config import ProjectConfigError, parse_project_config
 from aec_rag.rag_index import RagIndexError, load_settings, open_index
@@ -327,6 +329,33 @@ def build_server(project_json: Path) -> FastMCP:
             raise ToolError("пустой запрос")
         rag = await _index(state)
         return await overview(state.db(), rag, query, top_k=top_k)
+
+    @server.tool(
+        description=(
+            "Check a verbatim quote against the text of the place it cites (SPEC UR26). "
+            "Call it BEFORE putting the quote in the answer: `ok: false` means that "
+            "sentence is not in the source, so take the real wording or drop the quote. "
+            "`citation` is the reference as it appears in the answer — [src: …]."
+        )
+    )
+    def rag_check_quote(citation: str, quote: str) -> dict[str, Any]:
+        parsed = parse_citations(citation)
+        if not parsed:
+            raise ToolError(
+                "ссылка не разобрана: ожидается [src: <source_id>/<путь>#<локатор>]"
+            )
+        evidence = chunk_text(state.db(), parsed[0])
+        if not evidence:
+            return {
+                "ok": False,
+                "reason": "эта ссылка не указывает ни на один фрагмент индекса",
+            }
+        try:
+            return check_quote(quote, evidence)
+        except EvidenceUnavailable as exc:
+            # Не «ок» и не «не совпало»: сверять нечем, и это обязано быть видно
+            # — иначе исчезает гарантия, а её вид остаётся.
+            raise ToolError(str(exc)) from exc
 
     return server
 

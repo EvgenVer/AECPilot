@@ -23,6 +23,20 @@ describe("mergeMcpServerIntoConfigYaml", () => {
     expect(text).toContain('      OPENAI_API_KEY: "${env:OPENAI_API_KEY}"');
   });
 
+  it("writes a second env var as a literal — the skill path is not a secret (UR26)", () => {
+    // `rag_check_quote` borrows the matcher from the `grounded-citations` skill
+    // and needs to find it; hermes strips its own HERMES_HOME before spawning
+    // an MCP child, so the path is handed over here. A reference (`${env:…}`)
+    // would resolve to nothing for the same reason.
+    const { text } = mergeMcpServerIntoConfigYaml("", "aec-rag", {
+      ...RAG,
+      env: { ...RAG.env, AEC_HERMES_HOME: "C:\\repo\\runtime\\dev-profile" },
+    });
+
+    expect(text).toContain('      OPENAI_API_KEY: "${env:OPENAI_API_KEY}"');
+    expect(text).toMatch(/AEC_HERMES_HOME: "C:\\\\repo\\\\runtime\\\\dev-profile"/);
+  });
+
   it("keeps the key a reference — a value in config.yaml would be a plaintext secret", () => {
     const { text } = mergeMcpServerIntoConfigYaml("", "aec-rag", RAG);
 
