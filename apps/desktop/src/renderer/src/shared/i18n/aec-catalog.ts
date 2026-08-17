@@ -140,6 +140,21 @@ export const aecLocales: PluginLocaleBundles = {
       changed: (n: number) => `${n} changed`,
       deleted: (n: number) => `${n} deleted`
     },
+    channels: {
+      disclosure: {
+        title: (platform: string) => `Open the ${platform} channel?`,
+        lead: 'From the moment it is on, this channel carries out of this machine:',
+        conversation:
+          'everything said in the sessions it serves — your questions and the agent’s answers, including quoted fragments of your documents',
+        files:
+          'the agent’s access to the project: it reads and writes vault files while answering a message that arrived through the channel',
+        remoteStart:
+          'the ability to start it from outside — anyone who can write into that chat can set the agent to work',
+        reversible:
+          'You can turn the channel off at any time, but what has already left the machine stays where it went.',
+        confirm: 'Open the channel'
+      }
+    },
     settings: {
       languageLabel: 'Interface language',
       languageHint:
@@ -219,7 +234,8 @@ export const aecLocales: PluginLocaleBundles = {
       runFull: 'Перечитать всё',
       failed: (count: number) => `${count} файл(ов) не прочитались — смотрите отчёт прогона.`,
       graphTitle: 'Граф знаний',
-      graphEmpty: 'Пуст. Попросите агента добавить папку — это стоит вызова модели на каждый фрагмент.',
+      graphEmpty:
+        'Пуст. Попросите агента добавить папку — это стоит вызова модели на каждый фрагмент.',
       graphSummary: (documents: number, chunks: number) =>
         `${documents} документ(ов), ${chunks} фрагмент(ов)`,
       graphPartial: (outside: number) => `${outside} документ(ов) вне графа.`,
@@ -272,6 +288,21 @@ export const aecLocales: PluginLocaleBundles = {
       added: (n: number) => `добавлено ${n}`,
       changed: (n: number) => `изменено ${n}`,
       deleted: (n: number) => `удалено ${n}`
+    },
+    channels: {
+      disclosure: {
+        title: (platform: string) => `Открыть канал ${platform}?`,
+        lead: 'С момента включения этот канал выносит с этой машины:',
+        conversation:
+          'всё сказанное в сессиях, которые он обслуживает, — ваши вопросы и ответы агента, включая процитированные куски ваших документов',
+        files:
+          'доступ агента к проекту: отвечая на пришедшее по каналу сообщение, он читает и пишет файлы vault',
+        remoteStart:
+          'возможность запустить его снаружи — любой, кто может писать в тот чат, может дать агенту работу',
+        reversible:
+          'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
+        confirm: 'Открыть канал'
+      }
     },
     settings: {
       languageLabel: 'Язык интерфейса',

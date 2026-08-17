@@ -23,11 +23,18 @@
 // opened to this" — `donor/lib/voice-playback.ts` did, and its speech stream
 // went from "unavailable, fall back" to "throws" (task 3.7a).
 
+import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
+import { askChannelConsent } from '../aec/channels-disclosure/store'
+
 import { gatewayBridge } from './gateway-bridge'
 
 type HermesDesktop = Window['hermesDesktop']
 
 const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
+
+/** Shown by their own error toast when someone reads the list and backs out.
+ * A sentence, not a code: it is the whole feedback the person gets. */
+export const CHANNEL_ENABLE_DECLINED = 'Канал не включён — вы отменили включение.'
 
 /** The members our main process actually serves today. Typed loosely on
  * purpose: their contract is wide and precise (90-odd members), ours is a
@@ -48,6 +55,24 @@ const IMPLEMENTED: Record<string, unknown> = {
     const method = (request.method ?? 'GET').toUpperCase()
     if (!REST_METHODS.includes(method)) {
       return Promise.reject(new Error(`hermesDesktop.api: unsupported method ${method}`))
+    }
+
+    // Task 3.10 (AC10): opening an external channel is the one call here that
+    // hands data OUT of this machine, and their screen flips it on the switch.
+    // The list of consequences is shown first, and a refusal is an error their
+    // screen already knows how to display — it catches, notifies, and re-reads
+    // the platform, so the switch goes back on its own.
+    const platform = channelBeingEnabled(request)
+    if (platform) {
+      return askChannelConsent(platform).then((allowed) =>
+        allowed
+          ? gatewayBridge().rest<T>(request.path, {
+              method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+              ...(request.body === undefined ? {} : { body: request.body }),
+              ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
+            })
+          : Promise.reject(new Error(CHANNEL_ENABLE_DECLINED))
+      )
     }
 
     return gatewayBridge().rest<T>(request.path, {

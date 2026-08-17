@@ -16,6 +16,7 @@ import { installClipboardShim } from './donor/lib/clipboard'
 import { queryClient } from './donor/lib/query-client'
 
 import { ProjectGate } from './aec/project/ProjectGate'
+import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
 import { AecI18nProvider } from './shared/i18n'
@@ -49,6 +50,10 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                       hands one over only after this gate. */}
                   <ProjectGate>
                     <App />
+                    {/* Task 3.10: asked from our bridge, so it hangs at the
+                        root rather than inside the screen that triggers it —
+                        the screen is theirs and must stay unedited. */}
+                    <ChannelDisclosureDialog />
                   </ProjectGate>
                 </HashRouter>
               </RootTooltipProvider>
