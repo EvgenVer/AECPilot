@@ -127,7 +127,7 @@ export const ELECTRON_CLASSIFICATION = {
   normalizePreviewTarget: { task: "3.4" },
   openPreviewInBrowser: { task: "3.4" },
   previewShortcutActive: { task: "3.4" },
-  requestMicrophoneAccess: { task: "3.7a", note: "разрешение на микрофон, UR21" },
+  requestMicrophoneAccess: { ours: "media", note: "3.7a: media:request-microphone, UR21" },
   fetchLinkTitle: { task: "3.17", note: "вставленная ссылка становится элементом" },
   window: { task: "3.14" },
   // — решения владельца 2026-08-16 (интервью по разрыву, найденному этим реестром)
