@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -339,3 +341,71 @@ def stale_snapshots(conn: sqlite3.Connection, vault: Path) -> StaleReport:
     ]
 
     return StaleReport(changed=changed, new=new, gone=gone)
+
+
+# --------------------------------------------- чужая правка страницы (4.10)
+
+#: Где записано, какими агент оставил страницы. В `.aecpilot/`, а не в самих
+#: страницах: отпечаток в заголовке страницы человек увидел бы, не понял и
+#: однажды поправил — а тогда проверка перестала бы работать ровно в тот
+#: момент, ради которого она заведена.
+STATE_FILE = Path(".aecpilot") / "wiki-state.json"
+
+
+def _page_files(vault: Path) -> list[Path]:
+    """Страницы вики. `raw/` не в счёт — это снимки, их правит только код."""
+    wiki = Path(vault) / "wiki"
+    if not wiki.is_dir():
+        return []
+    return sorted(
+        path
+        for path in wiki.rglob("*.md")
+        if path.is_file() and "raw" not in path.relative_to(wiki).parts
+    )
+
+
+def _page_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def checkpoint_pages(vault: Path) -> dict[str, str]:
+    """Запоминает, какими агент оставил страницы. Зовётся после записи."""
+    vault = Path(vault)
+    state = {path.relative_to(vault).as_posix(): _page_digest(path) for path in _page_files(vault)}
+    target = vault / STATE_FILE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    return state
+
+
+def edited_pages(vault: Path) -> dict[str, list[str]]:
+    """Страницы, которых агент в таком виде не оставлял.
+
+    ``edited`` — правил человек: содержимое разошлось с запомненным.
+    ``unknown`` — страница есть, а отпечатка нет: её завёл человек, либо
+    отпечатки не снимались вовсе.
+
+    Оба списка означают одно и то же для поведения: **переписывать такую
+    страницу целиком нельзя**. Разделены, потому что причины разные и в отчёте
+    агента они звучат по-разному.
+
+    Отпечатков нет вообще → все страницы попадают в ``unknown``. Это правильная
+    сторона ошибки: осторожность там, где могла быть чужая работа.
+    """
+    vault = Path(vault)
+    try:
+        state = json.loads((vault / STATE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+
+    edited: list[str] = []
+    unknown: list[str] = []
+    for path in _page_files(vault):
+        rel = path.relative_to(vault).as_posix()
+        recorded = state.get(rel)
+        if recorded is None:
+            unknown.append(rel)
+        elif recorded != _page_digest(path):
+            edited.append(rel)
+
+    return {"edited": edited, "unknown": unknown}

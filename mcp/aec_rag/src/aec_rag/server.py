@@ -405,6 +405,31 @@ def build_server(project_json: Path) -> FastMCP:
         report = stale_snapshots(state.db(), state.vault)
         return {"changed": report.changed, "gone": report.gone, "new": report.new}
 
+    @server.tool(
+        description=(
+            "Which wiki pages carry work that is not yours. 'edited' — a human changed "
+            "the page after you last wrote it; 'unknown' — a page you have no record of "
+            "writing. Never overwrite either one wholesale: read it and edit in place. "
+            "Call this BEFORE updating any page."
+        )
+    )
+    def wiki_edited() -> dict[str, Any]:
+        from aec_rag.wiki import edited_pages
+
+        return edited_pages(state.vault)
+
+    @server.tool(
+        description=(
+            "Record the wiki as you are leaving it, so a later run can tell your own "
+            "text from a human's edits. Call it ONCE at the end of a build or update, "
+            "after every page is written."
+        )
+    )
+    def wiki_checkpoint() -> dict[str, Any]:
+        from aec_rag.wiki import checkpoint_pages
+
+        return {"pages": len(checkpoint_pages(state.vault))}
+
     return server
 
 

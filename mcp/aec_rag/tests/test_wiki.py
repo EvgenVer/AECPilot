@@ -206,3 +206,70 @@ def test_stale_report_survives_a_snapshot_without_a_header(tmp_path: Path) -> No
     # Файл без заголовка не наш; молча пропускаем, а не падаем на нём.
     assert report.gone == []
     assert [entry["rel_path"] for entry in report.new] == ["ЭОМ/задание.pdf"]
+
+
+def _page(tmp_path: Path, name: str, text: str) -> Path:
+    path = tmp_path / "wiki" / "entities" / name
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_untouched_pages_are_not_reported_as_edited(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, edited_pages
+
+    init_wiki(tmp_path)
+    _page(tmp_path, "ТП-1.md", "страница агента")
+    checkpoint_pages(tmp_path)
+
+    assert edited_pages(tmp_path) == {"edited": [], "unknown": []}
+
+
+def test_a_human_edit_is_noticed(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, edited_pages
+
+    init_wiki(tmp_path)
+    page = _page(tmp_path, "ТП-1.md", "страница агента")
+    checkpoint_pages(tmp_path)
+
+    page.write_text("страница агента\n\nа это дописал инженер", encoding="utf-8")
+
+    # Ровно тот случай, ради которого всё это заведено: перезапись целиком
+    # стёрла бы приписку, и человек об этом не узнал бы.
+    assert edited_pages(tmp_path)["edited"] == ["wiki/entities/ТП-1.md"]
+
+
+def test_a_page_the_agent_never_wrote_is_unknown_not_edited(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, edited_pages
+
+    init_wiki(tmp_path)
+    checkpoint_pages(tmp_path)
+    _page(tmp_path, "Щитовая.md", "это написал человек")
+
+    report = edited_pages(tmp_path)
+
+    assert report["unknown"] == ["wiki/entities/Щитовая.md"]
+    assert report["edited"] == []
+
+
+def test_without_a_checkpoint_everything_is_treated_as_someone_elses(tmp_path: Path) -> None:
+    from aec_rag.wiki import edited_pages
+
+    init_wiki(tmp_path)
+    _page(tmp_path, "ТП-1.md", "страница")
+
+    # Правильная сторона ошибки: осторожность там, где могла быть чужая работа.
+    assert "wiki/entities/ТП-1.md" in edited_pages(tmp_path)["unknown"]
+
+
+def test_snapshots_are_not_pages(tmp_path: Path) -> None:
+    from aec_rag.wiki import checkpoint_pages, edited_pages, write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+    checkpoint_pages(tmp_path)
+    write_snapshots(conn, tmp_path)
+
+    # Снимки пишет код и переписывает при каждом обновлении; попади они в
+    # проверку — каждое обновление выглядело бы как чужая правка.
+    report = edited_pages(tmp_path)
+    assert not any("raw/" in name for name in report["edited"] + report["unknown"])
