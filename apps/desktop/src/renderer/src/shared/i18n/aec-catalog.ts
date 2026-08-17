@@ -155,6 +155,9 @@ export const aecLocales: PluginLocaleBundles = {
         confirm: 'Open the channel'
       }
     },
+    citations: {
+      unverified: 'This phrase is not in the cited place:'
+    },
     onboarding: {
       title: 'Getting started',
       subtitle: (project: string) => `Project «${project}»`,
@@ -342,6 +345,9 @@ export const aecLocales: PluginLocaleBundles = {
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
       }
+    },
+    citations: {
+      unverified: 'Этой фразы в процитированном месте нет:'
     },
     onboarding: {
       title: 'С чего начать',

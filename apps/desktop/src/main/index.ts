@@ -2477,6 +2477,27 @@ ipcMain.handle('index:status', async () => {
   }
 })
 
+ipcMain.handle('quotes:check', async (_event, answer: unknown) => {
+  // Несостоявшаяся проверка возвращается значением, а не исключением: рендерер
+  // обязан отличать «выдержка не найдена» от «проверить не удалось», и второе
+  // не должно выглядеть как первое.
+  if (typeof answer !== 'string' || !answer.trim()) {
+    return { available: false, reason: 'пустой ответ', quotes: [] }
+  }
+  if (!currentProject) return { available: false, reason: 'нет открытого проекта', quotes: [] }
+  try {
+    const { runQuoteCheck } = await import('./quote-check')
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    return await runQuoteCheck(currentProject.vaultPath, answer, HERMES_HOME_DIR)
+  } catch (error: unknown) {
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : String(error),
+      quotes: []
+    }
+  }
+})
+
 ipcMain.handle('index:ingest-state', () => ingestState)
 
 ipcMain.handle('index:ingest', async (_event, payload: unknown) => {

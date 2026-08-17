@@ -398,6 +398,22 @@ export interface IngestState {
   running: boolean
 }
 
+/** Вердикт по одной выдержке (SPEC UR26): сама фраза, её место в тексте ответа
+ * и была ли она найдена в источнике. `start`/`end` нужны интерфейсу — пометка
+ * ставится на конкретный кусок, а одинаковых фраз в ответе может быть две.
+ * Объявлено здесь по той же причине, что `ProjectSource` выше: рендерер не
+ * импортирует модули главного процесса. */
+export interface QuoteVerdict {
+  text: string
+  start: number
+  end: number
+  ok: boolean
+  reason: string
+}
+
+export type QuoteCheckResult =
+  { available: true; quotes: QuoteVerdict[] } | { available: false; reason: string; quotes: [] }
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -663,6 +679,19 @@ export interface AecpilotApi {
     sourceId: string,
     rel: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Второй рубеж сверки выдержек (SPEC UR26, задача 3.31b): каждая выдержка
+   * готового ответа сверяется с текстом того места, на которое ссылается ответ.
+   *
+   * Не «на всякий случай»: у агента есть свой инструмент проверки, но замер
+   * 3.22 показал, что он обходит его ровно там, где тот бы его не пропустил.
+   * Здесь проверка от модели не зависит вовсе.
+   *
+   * `available: false` — проверка НЕ состоялась (нет индекса, нет скила с
+   * матчером, процесс не ответил). Это не «всё хорошо»: показать выдержку как
+   * подтверждённую после несостоявшейся проверки значило бы дать гарантию,
+   * которой нет. Никогда не отклоняется — несостоявшаяся проверка это значение,
+   * а не исключение. */
+  checkQuotes(answer: string): Promise<QuoteCheckResult>
   /** What the index holds, for the indicator (task 2.15). */
   getIndexStatus(): Promise<{ ok: true; status: RagStatus } | { error: string; ok: false }>
   /** Starts a tier-1 ingest of everything scanned but not indexed. Returns

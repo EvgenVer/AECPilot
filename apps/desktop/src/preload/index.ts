@@ -65,6 +65,7 @@ const api: AecpilotApi = {
     ipcRenderer.invoke('sources:get-entry-path', { sourceId, rel }),
   readDocument: (rel, sourceId) => ipcRenderer.invoke('viewer:read-document', { rel, sourceId }),
   getIndexStatus: () => ipcRenderer.invoke('index:status'),
+  checkQuotes: (answer) => ipcRenderer.invoke('quotes:check', answer),
   startIngest: (full) => ipcRenderer.invoke('index:ingest', { full }),
   getIngestState: () => ipcRenderer.invoke('index:ingest-state'),
   onIngestState: (cb) => {

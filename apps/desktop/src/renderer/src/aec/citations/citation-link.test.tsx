@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { $openDocument, closeDocument } from '../viewers/viewer-store'
 
 import { CitationChip } from './CitationLink'
-import { parseCitations } from './citation-pure'
+import { parseCitationLabel, parseCitations } from './citation-pure'
+import { forgetVerdicts, rememberVerdicts } from './quote-verdicts'
 
 function renderChip(text: string): void {
   const [citation] = parseCitations(text)
@@ -67,5 +68,47 @@ describe('CitationChip', () => {
     // A new token, so the viewer scrolls back to the cited page instead of
     // leaving the reader wherever they had scrolled to.
     expect($openDocument.get()?.token).not.toBe(first)
+  })
+})
+
+describe('пометка непроверенной выдержки (задача 3.31b)', () => {
+  // Автоочистка @testing-library в dom-проекте не включена: без неё дерево
+  // прошлого теста остаётся, и `getByRole` находит две фишки вместо одной.
+  afterEach(() => {
+    cleanup()
+    forgetVerdicts()
+  })
+
+  const citation = parseCitationLabel('[src: p/а.pdf#p12]')!
+
+  it('обычная фишка не кричит и открывает документ', () => {
+    render(<CitationChip citation={citation} />)
+
+    const chip = screen.getByRole('button')
+    expect(chip.querySelector('.codicon-warning')).toBeNull()
+    expect(chip.getAttribute('title')).toBe('[src: p/а.pdf#p12]')
+  })
+
+  it('выдержка, которой нет в источнике, видна на фишке и названа в подсказке', () => {
+    rememberVerdicts('[src: p/а.pdf#p12](#cite) «выдуманная фраза про мощность»', [
+      { text: 'выдуманная фраза про мощность', start: 26, end: 55, ok: false, reason: '' }
+    ])
+
+    render(<CitationChip citation={citation} />)
+
+    const chip = screen.getByRole('button')
+    expect(chip.querySelector('.codicon-warning')).not.toBeNull()
+    // Человеку показывают САМУ фразу: «что-то не так» без неё — не сведения.
+    expect(chip.getAttribute('title')).toContain('выдуманная фраза про мощность')
+  })
+
+  it('пометка не переезжает на соседнюю цитату', () => {
+    rememberVerdicts('[src: p/а.pdf#p12](#cite) «выдуманная фраза про мощность»', [
+      { text: 'выдуманная фраза про мощность', start: 26, end: 55, ok: false, reason: '' }
+    ])
+
+    render(<CitationChip citation={parseCitationLabel('[src: p/б.xlsx]')!} />)
+
+    expect(screen.getByRole('button').querySelector('.codicon-warning')).toBeNull()
   })
 })
