@@ -8,6 +8,7 @@ import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
+import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import {
   closeSpeechStream,
   closeSpeechStreamsFor,
@@ -420,6 +421,34 @@ function applyModelConfigOverride(
     writeFileSync(configPath, merged.text, 'utf-8')
   } catch (error: unknown) {
     console.error('aecpilot: could not write config.yaml with LLM settings', error)
+  }
+}
+
+/** Task 3.7a — writes the default speech voice into `config.yaml` when it has
+ * none. Their default is English, and Edge answers a voice-vs-script mismatch
+ * with an EMPTY audio stream, so on a clean install a Russian reply is not
+ * spoken at all. Runs on every start and does nothing once a voice is set, so
+ * the user's own choice survives. Failure here never blocks startup: the worst
+ * case is the state we had before. */
+function applyDefaultSpeechVoice(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the default voice', error)
+    return
+  }
+  const merged = ensureVoiceInConfigYaml(original)
+  if (merged.unexpectedStructure) {
+    console.warn('aecpilot: config.yaml has a tts: scalar — leaving the voice untouched')
+    return
+  }
+  if (!merged.changed) return
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the default voice', error)
   }
 }
 
@@ -2664,6 +2693,7 @@ app
           // (if one is stored) into the child process env only — never written
           // to disk. This must happen before startServe spawns hermes.
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
+          applyDefaultSpeechVoice(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
