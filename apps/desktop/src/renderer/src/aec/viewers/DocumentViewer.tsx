@@ -15,20 +15,38 @@ import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 
 import { DocxViewer } from './DocxViewer'
+import { MarkdownEditor } from './MarkdownEditor'
 import { PdfViewer } from './PdfViewer'
 import { SheetViewer } from './SheetViewer'
 import { TextViewer } from './TextViewer'
 import { ViewerHeader } from './ViewerHeader'
-import { $activeTab, $openDocument, $tabs, closeTab, selectDocument, tabKey } from './viewer-store'
+import {
+  $activeTab,
+  $openDocument,
+  $tabs,
+  closeTab,
+  selectDocument,
+  tabKey,
+  type DocumentRequest
+} from './viewer-store'
 
 /** Раздача по расширению, а не по содержимому. Имя файла в цитате — то же имя,
  *  по которому документ разбирал индексатор, и расходиться этим двум взглядам
  *  на один файл нельзя. */
-const BY_FORMAT: { match: RegExp; render: () => React.JSX.Element | null }[] = [
+const BY_FORMAT: {
+  match: RegExp
+  render: (request: DocumentRequest) => React.JSX.Element | null
+}[] = [
   { match: /\.pdf$/i, render: () => <PdfViewer /> },
   { match: /\.docx$/i, render: () => <DocxViewer /> },
   { match: /\.txt$/i, render: () => <TextViewer /> },
-  { match: /\.(xlsx|csv)$/i, render: () => <SheetViewer /> }
+  { match: /\.(xlsx|csv)$/i, render: () => <SheetViewer /> },
+  // .md правится, а не просматривается — но только в vault: файл источника
+  // открывается на чтение, как и всё остальное там (SPEC UR2, AC6).
+  {
+    match: /\.(md|markdown)$/i,
+    render: (request) => (request.sourceId ? <TextViewer /> : <MarkdownEditor />)
+  }
 ]
 
 function fileName(relPath: string): string {
@@ -124,7 +142,7 @@ export function DocumentViewer(): React.JSX.Element {
         {!request ? (
           <PdfViewer />
         ) : format ? (
-          format.render()
+          format.render(request)
         ) : (
           <Unsupported relPath={request.relPath} sourceId={request.sourceId} />
         )}

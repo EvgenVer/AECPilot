@@ -16,6 +16,7 @@ import {
   PathOutsideVaultError,
   renameEntry,
   resolveVaultEntryRel,
+  writeVaultFile,
   resolveVaultRel,
   validateEntryName
 } from './vault-fs'
@@ -363,5 +364,45 @@ describe('renameEntry', () => {
 
   it('rejects renaming a path that escapes the vault', () => {
     expect(() => renameEntry(vaultPath, '..\\outside.md', 'new.md')).toThrow(PathOutsideVaultError)
+  })
+})
+
+// Задача 4.5: сохранение из MD-редактора. Проверяется не «записалось ли», а
+// три отказа, каждый из которых иначе стал бы дырой: запись мимо vault, запись
+// в папку и создание файла по присланному пути.
+describe('writeVaultFile', () => {
+  let vaultPath: string
+
+  beforeEach(() => {
+    vaultPath = makeTempDir()
+    fs.mkdirSync(path.join(vaultPath, 'wiki'))
+    fs.writeFileSync(path.join(vaultPath, 'wiki', 'страница.md'), 'старое')
+  })
+
+  afterEach(() => {
+    fs.rmSync(vaultPath, { recursive: true, force: true })
+  })
+
+  it('перезаписывает существующий файл в UTF-8', () => {
+    writeVaultFile(vaultPath, 'wiki/страница.md', '# Кабельный журнал')
+
+    expect(fs.readFileSync(path.join(vaultPath, 'wiki', 'страница.md'), 'utf-8')).toBe(
+      '# Кабельный журнал'
+    )
+  })
+
+  it('не заводит новый файл по присланному пути', () => {
+    // Заводить файлы умеет createFileEntry со своей проверкой имени; редактор
+    // сохраняет только то, что уже открыл.
+    expect(() => writeVaultFile(vaultPath, 'wiki/новая.md', 'текст')).toThrow()
+    expect(fs.existsSync(path.join(vaultPath, 'wiki', 'новая.md'))).toBe(false)
+  })
+
+  it('не пишет в папку', () => {
+    expect(() => writeVaultFile(vaultPath, 'wiki', 'текст')).toThrow('Это не файл')
+  })
+
+  it('не пишет за пределы vault', () => {
+    expect(() => writeVaultFile(vaultPath, '..\чужое.md', 'текст')).toThrow(PathOutsideVaultError)
   })
 })

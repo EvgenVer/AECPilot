@@ -50,6 +50,10 @@ export default defineConfig({
           // pass in isolation and fail only in a full parallel run.
           maxWorkers: 4,
           sequence: { groupOrder: 1 },
+          // Milkdown и его ProseMirror идут в Node как есть (задача 4.5): через
+          // конвейер vitest их дерево модулей едет полторы минуты, снаружи —
+          // секунды. Ровно та же причина, что у exceljs выше.
+          server: { deps: { external: [/@milkdown/, /prosemirror/] } },
           // Same reason: the assertions wait for a promise chain to settle,
           // not for a timer, so a longer ceiling costs nothing when things are
           // fast and stops a green suite from turning red under load.

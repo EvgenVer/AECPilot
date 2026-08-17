@@ -98,6 +98,13 @@ export interface ProjectSource {
  * `ProjectSource` above. `path` is a posix-style (`/`-separated) rel path
  * from the vault root, used as-is for every `vault:*` IPC call that takes a
  * `rel`/`parentRel`. */
+export interface VaultTreeNode {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  children?: VaultTreeNode[]
+}
+
 /** Один лист книги, разобранный для просмотрщика (задача 4.3). Строки — уже
  * текст: показываем то, что человек увидел бы в Excel, а не внутреннее
  * представление числа, даты или формулы. */
@@ -112,13 +119,6 @@ export interface SheetData {
 }
 
 export type SheetReadResult = { ok: true; sheets: SheetData[] } | { error: string; ok: false }
-
-export interface VaultTreeNode {
-  name: string
-  path: string
-  type: 'dir' | 'file'
-  children?: VaultTreeNode[]
-}
 
 /** A node in a connected source's directory tree (task 1.8) — mirrors
  * `SourceTreeNode` from `../main/source-tree`, redeclared here for the same
@@ -750,6 +750,10 @@ export interface AecpilotApi {
   createVaultDir(parentRel: string | undefined, name: string): Promise<VaultOpResult>
   /** Renames the file/folder at `rel` to `newName`, staying in the same
    * parent folder. */
+  /** Перезаписывает содержимое файла vault (задача 4.5). Только существующий
+   * файл и только vault: заводить файлы умеет `createVaultFile` со своей
+   * проверкой имени, а источники read-only (SPEC UR2, AC6). */
+  writeVaultFile(rel: string, text: string): Promise<VaultOpResult>
   renameVaultEntry(rel: string, newName: string): Promise<VaultOpResult>
   /** Moves the file/folder at `rel` to the OS recycle bin — never a
    * permanent delete. The caller is expected to confirm with the user

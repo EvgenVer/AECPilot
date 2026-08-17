@@ -100,7 +100,8 @@ import {
   createDirEntry,
   createFileEntry,
   renameEntry,
-  resolveVaultEntryRel
+  resolveVaultEntryRel,
+  writeVaultFile
 } from './vault-fs'
 import type { ScanReportEnvelope } from '../shared/ipc'
 
@@ -2680,6 +2681,29 @@ ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
     createDirEntry(currentProject.vaultPath, parentRel as string | undefined, name)
     return { ok: true }
   } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Задача 4.5: сохранение из MD-редактора.
+ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, error: 'invalid payload' }
+  }
+  const { rel, text } = payload as Record<string, unknown>
+  if (typeof rel !== 'string' || rel.length === 0) {
+    return { ok: false, error: 'rel must be a non-empty string' }
+  }
+  if (typeof text !== 'string') return { ok: false, error: 'text must be a string' }
+
+  try {
+    writeVaultFile(currentProject.vaultPath, rel, text)
+    return { ok: true }
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code
+    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
+    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 })

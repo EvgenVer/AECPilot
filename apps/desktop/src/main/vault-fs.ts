@@ -289,6 +289,20 @@ export function createDirEntry(
  * `newName`, staying in the same parent folder. Throws a Russian-message
  * `Error` on an invalid new name, an escaping/`.aecpilot`/empty `rel`, or an
  * already-existing entry at the destination. */
+/** Перезаписывает содержимое существующего файла vault (задача 4.5).
+ *
+ * Существующего — намеренно: создание файла это `createFileEntry` со своей
+ * проверкой имени, и редактор не должен уметь заводить файлы по пути, который
+ * ему прислали. Всегда UTF-8: файл, который правит наш редактор, — наш файл.
+ *
+ * Источников тут нет вовсе, и это не упущение: они read-only (SPEC UR2, AC6). */
+export function writeVaultFile(vaultPath: string, rel: string, text: string): void {
+  const target = resolveVaultEntryRel(vaultPath, rel)
+  const stat = fs.statSync(target)
+  if (!stat.isFile()) throw new Error('Это не файл')
+  fs.writeFileSync(target, text, 'utf8')
+}
+
 export function renameEntry(vaultPath: string, rel: string, newName: string): void {
   const nameError = validateEntryName(newName)
   if (nameError) throw new Error(nameError)

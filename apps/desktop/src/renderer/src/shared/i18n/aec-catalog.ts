@@ -117,6 +117,9 @@ export const aecLocales: PluginLocaleBundles = {
       zoomFit: 'Fit to the panel width',
       zoomFitShort: 'Fit',
       zoomLabel: (percent: number) => `${percent}%`,
+      saving: 'Saving…',
+      saved: 'Saved',
+      saveFailed: (reason: string) => `Not saved: ${reason}`,
       sheetEmpty: 'The sheet is empty.',
       sheetTruncated: (shown: number, total: number) =>
         `First ${shown} rows of ${total}`
@@ -324,6 +327,9 @@ export const aecLocales: PluginLocaleBundles = {
       zoomFit: 'По ширине панели',
       zoomFitShort: 'По ширине',
       zoomLabel: (percent: number) => `${percent}%`,
+      saving: 'Сохраняю…',
+      saved: 'Сохранено',
+      saveFailed: (reason: string) => `Не сохранено: ${reason}`,
       sheetEmpty: 'Лист пуст.',
       sheetTruncated: (shown: number, total: number) =>
         `Первые ${shown} строк из ${total}`
