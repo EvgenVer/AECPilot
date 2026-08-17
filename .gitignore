@@ -54,3 +54,8 @@ eval/.dataset-material.txt
 # Индекс мини-проекта для эвала вики (задача 4.14): строится из
 # eval/fixtures/wiki-project одной командой, в истории ему делать нечего.
 eval/.wiki-vault/
+
+# Документы мини-проекта собираются из eval/fixtures/wiki-project/src/*.md
+# командой build_docs.py. В git только исходники: .docx пересобирается
+# побайтово другим при каждом запуске, и его версии — чистый шум в истории.
+eval/fixtures/wiki-project/*.docx

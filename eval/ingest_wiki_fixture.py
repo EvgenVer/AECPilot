@@ -20,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from graph_cost import load_env_file  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "wiki-project"))
+import build_docs  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = REPO_ROOT / "eval" / "fixtures" / "wiki-project"
 VAULT = REPO_ROOT / "eval" / ".wiki-vault"
@@ -53,6 +56,11 @@ async def run(full: bool) -> dict:
     from aec_rag.project_config import parse_project_config
     from aec_rag.rag_index import load_settings
     from aec_rag.rag_index import open_index as open_rag_index
+
+    # Документы собираются из исходников здесь же: в git лежат только `src/*.md`,
+    # а индексатор берёт `.pdf/.docx/.xlsx/.csv`. Один шаг вместо двух и
+    # никакого шанса проиндексировать вчерашнюю сборку.
+    build_docs.main()
 
     project_json = ensure_vault()
     scan = run_scan(project_json)
