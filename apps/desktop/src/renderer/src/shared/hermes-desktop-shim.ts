@@ -86,7 +86,8 @@ const IMPLEMENTED: Record<string, unknown> = {
   // it and hands that to the client's `connect()`. Ours ignores the URL — main
   // owns the socket — so the honest answer is a descriptor that names the IPC
   // bridge and carries NO credential. Nothing dials it: their REST goes through
-  // `api` below, their plugin socket is removed, and voice is not bridged.
+  // `api` below, their plugin socket is removed, and the speech stream is
+  // main's socket reached over IPC (task 3.7a).
   getConnection(profile?: null | string): Promise<unknown> {
     return Promise.resolve({
       authMode: 'token',
@@ -109,6 +110,13 @@ const IMPLEMENTED: Record<string, unknown> = {
   // button raised their `recordingFailed` notice instead of recording.
   requestMicrophoneAccess(): Promise<boolean> {
     return window.aecpilot.requestMicrophoneAccess()
+  },
+
+  // Task 3.18. Their settings row writes the preference into their own storage
+  // and calls this; main owns the real blocker and its own copy, so an
+  // overnight run survives a restart of the app.
+  setKeepAwake(on: boolean): Promise<unknown> {
+    return window.aecpilot.setKeepAwake(on)
   },
 
   profile: {

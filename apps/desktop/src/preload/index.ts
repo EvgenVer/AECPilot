@@ -22,6 +22,7 @@ const api: AecpilotApi = {
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
+  setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   openSpeechStream: (id) => ipcRenderer.invoke('speech:open', id),
   sendSpeechFrame: (id, frame) => ipcRenderer.invoke('speech:send', { id, frame }),
   closeSpeechStream: (id) => ipcRenderer.invoke('speech:close', id),

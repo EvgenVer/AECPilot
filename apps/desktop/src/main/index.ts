@@ -11,6 +11,7 @@ import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
+import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import {
   closeSpeechStream,
   closeSpeechStreamsFor,
@@ -803,6 +804,15 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
 })
 
 ipcMain.on('quick:hide', () => hideQuickEntry())
+
+/** Task 3.18. Their settings row mirrors the preference into the renderer's own
+ * storage and calls this; main keeps its own copy because the blocker has to be
+ * back in force after a restart without anyone visiting Settings. */
+ipcMain.handle('power:keep-awake', (_event, on: unknown) => {
+  if (typeof on !== 'boolean') return { enabled: loadKeepAwake() }
+
+  return { enabled: setKeepAwake(on) }
+})
 
 // Slash-command completions for the composer (task 1.6.8). Read-only and
 // best-effort by design: this fires on every keystroke after "/", so a
@@ -2793,6 +2803,10 @@ app
         : `aecpilot: quick entry off (${quick.reason})`
     )
 
+    // Task 3.18: an overnight run must survive a restart of the app, so the
+    // blocker comes back from main's own copy of the preference.
+    if (restoreKeepAwake()) console.log('aecpilot: keep-awake restored')
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -2812,7 +2826,10 @@ let quitting = false
 // Task 3.15: hand the chord back to the OS. Electron does this on exit anyway,
 // but not on a quit that hangs on the backend shutdown below — and a shortcut
 // still held by a closing app is a shortcut nobody else can take.
-app.on('will-quit', () => unregisterQuickEntry())
+app.on('will-quit', () => {
+  unregisterQuickEntry()
+  releaseKeepAwake()
+})
 
 app.on('before-quit', (event) => {
   if (quitting || !serveHandle || !stopServeFn) return

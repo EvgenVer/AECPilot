@@ -604,6 +604,12 @@ export interface AecpilotApi {
    *
    * The id is minted by the RENDERER so its event listener can filter before
    * `openSpeechStream` even resolves; main scopes it to the window. */
+  /** Keeps the machine from sleeping through a long unattended run (task
+   * 3.18). The display may still go dark — that is `prevent-app-suspension`,
+   * and it is what the criterion asks for. Answers with the state actually in
+   * force, so a platform without a blocker cannot be mistaken for a working
+   * one. Passing a non-boolean reads the stored preference without changing it. */
+  setKeepAwake(on: boolean): Promise<{ enabled: boolean }>
   openSpeechStream(id: string): Promise<{ ok: boolean; error?: string }>
   /** One frame of their protocol as JSON: `{text}`, `{done:true}`, `{stop:true}`.
    * Anything else is refused in main rather than forwarded. */
