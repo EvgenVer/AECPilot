@@ -112,6 +112,16 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.requestMicrophoneAccess()
   },
 
+  // Task 3.19. Every "open this in a browser" in their code lands here: the
+  // OAuth sign-in URL, a provider's docs link, a link clicked in the terminal
+  // pane. The URL is not ours — it comes from the core or from a model's answer
+  // — so it goes through main, where `decideExternalLink` allows http/https/mailto
+  // and refuses everything else (`file:`, `javascript:`, …). The renderer never
+  // navigates to it and never opens a window for it.
+  openExternal(url: string): Promise<unknown> {
+    return window.aecpilot.openExternalLink(url)
+  },
+
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
