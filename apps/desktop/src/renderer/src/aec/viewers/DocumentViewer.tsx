@@ -14,18 +14,20 @@ import { useStore } from '@nanostores/react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 
+import { DocxViewer } from './DocxViewer'
 import { PdfViewer } from './PdfViewer'
-import {
-  $activeTab,
-  $openDocument,
-  $tabs,
-  closeDocument,
-  closeTab,
-  selectDocument,
-  tabKey
-} from './viewer-store'
+import { TextViewer } from './TextViewer'
+import { ViewerHeader } from './ViewerHeader'
+import { $activeTab, $openDocument, $tabs, closeTab, selectDocument, tabKey } from './viewer-store'
 
-const PDF = /\.pdf$/i
+/** Раздача по расширению, а не по содержимому. Имя файла в цитате — то же имя,
+ *  по которому документ разбирал индексатор, и расходиться этим двум взглядам
+ *  на один файл нельзя. */
+const BY_FORMAT: { match: RegExp; render: () => React.JSX.Element | null }[] = [
+  { match: /\.pdf$/i, render: () => <PdfViewer /> },
+  { match: /\.docx$/i, render: () => <DocxViewer /> },
+  { match: /\.txt$/i, render: () => <TextViewer /> }
+]
 
 function fileName(relPath: string): string {
   return relPath.split('/').pop() ?? relPath
@@ -87,20 +89,7 @@ function Unsupported({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border flex items-center gap-2 border-b px-3 py-2">
-        <span className="truncate text-sm font-medium" title={relPath}>
-          {fileName(relPath)}
-        </span>
-        <Button
-          aria-label={t('viewer.close')}
-          className="ml-auto"
-          onClick={closeDocument}
-          size="sm"
-          variant="ghost"
-        >
-          ✕
-        </Button>
-      </div>
+      <ViewerHeader relPath={relPath} />
       <div className="text-muted-foreground space-y-3 p-4 text-sm">
         <p>{t('viewer.unsupported')}</p>
         <p className="text-foreground break-all">{relPath}</p>
@@ -122,13 +111,18 @@ function Unsupported({
 
 export function DocumentViewer(): React.JSX.Element {
   const request = useStore($openDocument)
+  // Пустой просмотрщик показывает PDF-вид: у него есть своё «кликните ссылку в
+  // ответе», и заводить второй пустой экран не за чем.
+  const format = request && BY_FORMAT.find((candidate) => candidate.match.test(request.relPath))
 
   return (
     <div className="flex h-full flex-col">
       <TabStrip />
       <div className="min-h-0 flex-1">
-        {!request || PDF.test(request.relPath) ? (
+        {!request ? (
           <PdfViewer />
+        ) : format ? (
+          format.render()
         ) : (
           <Unsupported relPath={request.relPath} sourceId={request.sourceId} />
         )}

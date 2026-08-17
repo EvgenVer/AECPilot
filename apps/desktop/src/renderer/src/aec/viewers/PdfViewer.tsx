@@ -23,7 +23,8 @@ import {
   type SearchablePage,
   type TextPiece
 } from './pdf-search'
-import { $openDocument, closeDocument, requestedPage } from './viewer-store'
+import { ViewerHeader } from './ViewerHeader'
+import { $openDocument, requestedPage } from './viewer-store'
 
 type LoadedDocument = {
   pages: number
@@ -290,6 +291,11 @@ export function PdfViewer(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Имя файла — в общей шапке: полоса вкладок появляется только со второго
+          документа, и без шапки открытый в одиночку файл оставался бы
+          безымянным. */}
+      <ViewerHeader relPath={request.relPath} />
+
       <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
         <Button
           aria-label={t('viewer.previous')}
@@ -355,17 +361,7 @@ export function PdfViewer(): React.JSX.Element {
           +
         </Button>
 
-        <Button
-          aria-label={t('viewer.close')}
-          className="ml-auto"
-          onClick={closeDocument}
-          size="sm"
-          variant="ghost"
-        >
-          ✕
-        </Button>
-
-        <div className="flex w-full items-center gap-1">
+        <div className="ml-auto flex w-full items-center gap-1">
           <input
             aria-label={t('viewer.search')}
             className="border-border bg-background focus:border-ring min-w-0 flex-1 rounded border px-2 py-1 text-xs outline-none"

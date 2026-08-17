@@ -24,6 +24,8 @@ import {
 import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
+import { openDocument } from '../viewers/viewer-store'
+
 import { splitBySearchQuery, subtreeMatchesSearchQuery } from './explorer-search-pure'
 import { SourcesPanel } from './SourcesPanel'
 
@@ -75,7 +77,12 @@ function TreeRow({
             >
               <button
                 className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs text-(--ui-text-primary)"
-                onClick={() => isDir && onToggle(node.path)}
+                // Задача 4.2a: клик по файлу открывает его в просмотрщике.
+                // До этого документ можно было открыть только из цитаты, то
+                // есть только тот, который агент случайно упомянул.
+                onClick={() =>
+                  isDir ? onToggle(node.path) : openDocument({ locator: {}, relPath: node.path })
+                }
                 title={node.path}
                 type="button"
               >

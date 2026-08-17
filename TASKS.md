@@ -444,7 +444,11 @@
 
 ### Phase 4 — Viewers & wiki (была 3; спека: specs/wiki.md)
 - [x] 4.1 Довести PDF-вьюер: вкладки, поиск по тексту, зум — files: apps/desktop · verify: AC8-прогон PDF (вкл. битый файл → понятная ошибка) · dep: 2.14 · parallel: yes
-- [ ] 4.2 Реализовать DOCX-вьюер (docx-preview) и TXT-просмотр — files: apps/desktop · verify: AC8-прогон DOCX/TXT · dep: 2.14 · parallel: yes
+- [x] 4.2 Реализовать DOCX-вьюер (docx-preview) и TXT-просмотр — files: apps/desktop · verify: AC8-прогон DOCX/TXT · dep: 2.14 · parallel: yes
+- [x] 4.2a Открывать документ кликом по файлу в проводнике (vault и источники) — files: apps/desktop · verify: клик по файлу в дереве открывает его во вкладке просмотрщика; файл источника открывается только на чтение · dep: 4.2 · parallel: no
+  <!-- Обнаружено при 4.2: до этого документ открывался ТОЛЬКО из цитаты, то есть
+       только тот, который агент случайно упомянул. SPEC G5 обещает просмотр как
+       возможность продукта, а не как побочный эффект ответа агента. -->
 - [ ] 4.3 Реализовать XLSX/CSV-вьюер (Univer, read-only) — files: apps/desktop · verify: AC8-прогон XLSX/CSV (вкл. большой файл) · dep: 2.14 · parallel: yes
 - [ ] 4.4 Реализовать открытие DOCX/XLSX по locator из цитат (по решению O4) — files: apps/desktop · verify: клик из цитаты открывает место · dep: 4.2, 4.3, 2.7 · parallel: no
 - [ ] 4.5 Встроить MD-редактор (Milkdown): рендер+правка файлов vault, автосохранение — files: apps/desktop · verify: правка сохраняется, undo работает · dep: 1.8.18 · parallel: yes

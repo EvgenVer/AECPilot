@@ -18,6 +18,12 @@ vi.mock('./PdfViewer', () => ({
   PdfViewer: (): React.JSX.Element => <div data-testid="pdf" />
 }))
 
+// Задача 4.2. DOCX тоже замокан — он тянет docx-preview и jszip; проверяется
+// раздача по формату, а не чужой разбор.
+vi.mock('./DocxViewer', () => ({
+  DocxViewer: (): React.JSX.Element => <div data-testid="docx" />
+}))
+
 function show(): void {
   render(
     <AecI18nProvider>
@@ -28,6 +34,13 @@ function show(): void {
 
 beforeEach(() => {
   closeAllDocuments()
+  // Текстовый просмотрщик читает файл сразу после монтирования. Мост тут не
+  // проверяется, но и падать он не должен: без заглушки промах по
+  // `window.aecpilot` всплывает необработанным отказом и пачкает прогон.
+  Object.defineProperty(window, 'aecpilot', {
+    configurable: true,
+    value: { readDocument: vi.fn().mockResolvedValue({ error: 'нет моста', ok: false }) }
+  })
 })
 
 afterEach(() => {
@@ -70,6 +83,35 @@ describe('полоса вкладок', () => {
     expect($openDocument.get()?.relPath).toBe('смета.pdf')
     // Осталась одна — полоса снова прячется.
     expect(screen.queryByRole('button', { name: 'Закрыть смета.pdf' })).toBeNull()
+  })
+
+  test('раздача по формату: расширение решает, кто рисует', () => {
+    // Задача 4.2. Текстовый просмотрщик не замокан: он читает через
+    // readDocument, которого в тесте нет, поэтому виден его экран загрузки —
+    // этого хватает, чтобы отличить его от заглушки неподдержанного формата.
+    const cases = [
+      { expected: 'pdf', relPath: 'ТУ.pdf' },
+      { expected: 'docx', relPath: 'ПЗ.docx' },
+      { expected: 'Открываю документ…', relPath: 'выгрузка.txt' },
+      {
+        expected: 'Этот формат откроется во встроенном просмотрщике позже.',
+        relPath: 'модель.ifc'
+      }
+    ]
+
+    for (const one of cases) {
+      closeAllDocuments()
+      openDocument({ locator: {}, relPath: one.relPath })
+      show()
+
+      const found =
+        one.expected.length <= 4
+          ? screen.queryByTestId(one.expected)
+          : screen.queryByText(one.expected)
+      expect(found, one.relPath).toBeTruthy()
+
+      cleanup()
+    }
   })
 
   test('вкладка подписана именем файла, а полный путь — в подсказке', () => {

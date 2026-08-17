@@ -16,6 +16,8 @@ import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
 import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
 
+import { openDocument } from '../viewers/viewer-store'
+
 const SOURCES_KEY = ['aec', 'sources'] as const
 
 /** Reachability per source id, filled in after the list arrives. */
@@ -63,8 +65,12 @@ function SourceNodes({
           >
             <button
               className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
+              // Задача 4.2a: файл источника открывается тем же просмотрщиком.
+              // Открывается — не правится: источники read-only (SPEC UR2, AC6).
               onClick={() =>
-                node.type === 'dir' && setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
+                node.type === 'dir'
+                  ? setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
+                  : openDocument({ locator: {}, relPath: node.path, sourceId })
               }
               title={node.path}
               type="button"
