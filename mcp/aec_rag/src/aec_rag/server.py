@@ -201,9 +201,7 @@ def build_server(project_json: Path) -> FastMCP:
         }
 
     @server.tool(
-        description=(
-            "Progress events of one job, oldest first — what rag_ingest has been doing."
-        )
+        description=("Progress events of one job, oldest first — what rag_ingest has been doing.")
     )
     def rag_job(job_id: str) -> dict[str, Any]:
         job = state.jobs.get(job_id)
@@ -291,6 +289,7 @@ def build_server(project_json: Path) -> FastMCP:
 
         async def run() -> None:
             try:
+
                 def note(done: int, total: int, file, chunks: int) -> None:
                     state.record(
                         job,
@@ -341,9 +340,7 @@ def build_server(project_json: Path) -> FastMCP:
     def rag_check_quote(citation: str, quote: str) -> dict[str, Any]:
         parsed = parse_citations(citation)
         if not parsed:
-            raise ToolError(
-                "ссылка не разобрана: ожидается [src: <source_id>/<путь>#<локатор>]"
-            )
+            raise ToolError("ссылка не разобрана: ожидается [src: <source_id>/<путь>#<локатор>]")
         evidence = chunk_text(state.db(), parsed[0])
         if not evidence:
             return {
@@ -356,6 +353,25 @@ def build_server(project_json: Path) -> FastMCP:
             # Не «ок» и не «не совпало»: сверять нечем, и это обязано быть видно
             # — иначе исчезает гарантия, а её вид остаётся.
             raise ToolError(str(exc)) from exc
+
+    @server.tool(
+        description=(
+            "Create the project's wiki skeleton: wiki/ with entities, concepts, "
+            "comparisons, queries, raw, plus SCHEMA.md, index.md and log.md. Call it "
+            "once before building the wiki. Existing files and folders are never "
+            "touched, so calling it again on a live project is safe and returns empty "
+            "lists."
+        )
+    )
+    def wiki_init() -> dict[str, Any]:
+        from aec_rag.wiki import init_wiki
+
+        result = init_wiki(state.vault)
+        return {
+            "created_dirs": result.created_dirs,
+            "created_files": result.created_files,
+            "wiki_path": result.wiki_path,
+        }
 
     return server
 

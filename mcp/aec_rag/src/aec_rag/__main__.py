@@ -250,6 +250,19 @@ def run_check_quotes(project_arg: Path, answer: str) -> dict:
         conn.close()
 
 
+def run_wiki_init(project_arg: Path) -> dict:
+    """Скелет вики (задача 4.7). Вызывается и скилом через MCP, и руками."""
+    from aec_rag.wiki import init_wiki
+
+    project_json = _resolve_project_json(project_arg)
+    result = init_wiki(project_json.parent.parent)
+    return {
+        "created_dirs": result.created_dirs,
+        "created_files": result.created_files,
+        "wiki_path": result.wiki_path,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aec-rag")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -298,6 +311,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     check_parser.add_argument("--project", required=True, type=Path)
 
+    wiki_parser = subparsers.add_parser(
+        "wiki-init", help="Create the project's wiki skeleton (nothing existing is touched)"
+    )
+    wiki_parser.add_argument("--project", required=True, type=Path)
+
     args = parser.parse_args(argv)
 
     try:
@@ -306,6 +324,8 @@ def main(argv: list[str] | None = None) -> int:
             # декодируется кодировкой консоли, и русский ответ приезжает
             # искажённым — сверять его с источником после этого бессмысленно.
             report = run_check_quotes(args.project, sys.stdin.buffer.read().decode("utf-8"))
+        elif args.command == "wiki-init":
+            report = run_wiki_init(args.project)
         elif args.command == "detach":
             report = run_detach(args.project, args.source)
         elif args.command == "status":

@@ -1,0 +1,79 @@
+"""Скелет вики (задача 4.7).
+
+Проверяется не «создались ли папки» — это mkdir, — а два обещания, на которых
+держится вся вика: структура ровно та, что записана в ``specs/wiki.md``, и
+повторный вызов на живом проекте ничего не портит.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from aec_rag.wiki import DEFAULT_TAGS, SUBDIRS, default_schema, init_wiki
+
+
+def test_creates_the_structure_from_the_spec(tmp_path: Path) -> None:
+    result = init_wiki(tmp_path)
+
+    wiki = tmp_path / "wiki"
+    for name in SUBDIRS:
+        assert (wiki / name).is_dir(), name
+    for name in ("SCHEMA.md", "index.md", "log.md"):
+        assert (wiki / name).is_file(), name
+    assert (wiki / "raw" / "README.md").is_file()
+    assert result.created_dirs, "первый запуск обязан что-то создать"
+
+
+def test_schema_carries_the_domain_taxonomy() -> None:
+    schema = default_schema()
+
+    # Теги — единственное в схеме, что задаёт предметную область; без них файл
+    # был бы общими словами про вики вообще.
+    for tag in DEFAULT_TAGS:
+        assert f"`{tag}`" in schema, tag
+
+
+def test_schema_states_the_rules_that_lint_will_check() -> None:
+    schema = default_schema()
+
+    # Правила из specs/wiki.md, по которым потом судит lint (4.11). Если они
+    # разъедутся, агент будет писать одно, а проверка требовать другое.
+    assert "200" in schema
+    assert "[src:" in schema
+    assert "[[…]]" in schema
+
+
+def test_second_run_changes_nothing(tmp_path: Path) -> None:
+    init_wiki(tmp_path)
+    (tmp_path / "wiki" / "SCHEMA.md").write_text("моя схема", encoding="utf-8")
+    (tmp_path / "wiki" / "entities" / "ТП-1.md").write_text("страница", encoding="utf-8")
+
+    result = init_wiki(tmp_path)
+
+    # Вики живёт долго и её правит человек: повторный вызов обязан быть
+    # безобиден, иначе однажды он сотрёт чужую работу.
+    assert result.created_dirs == []
+    assert result.created_files == []
+    assert (tmp_path / "wiki" / "SCHEMA.md").read_text(encoding="utf-8") == "моя схема"
+    assert (tmp_path / "wiki" / "entities" / "ТП-1.md").exists()
+
+
+def test_fills_in_only_what_is_missing(tmp_path: Path) -> None:
+    (tmp_path / "wiki").mkdir()
+    (tmp_path / "wiki" / "index.md").write_text("мой каталог", encoding="utf-8")
+
+    result = init_wiki(tmp_path)
+
+    assert "wiki/index.md" not in result.created_files
+    assert "wiki/SCHEMA.md" in result.created_files
+    assert (tmp_path / "wiki" / "index.md").read_text(encoding="utf-8") == "мой каталог"
+
+
+def test_files_are_written_with_lf(tmp_path: Path) -> None:
+    init_wiki(tmp_path)
+
+    raw = (tmp_path / "wiki" / "SCHEMA.md").read_bytes()
+
+    # Иначе на Windows файл уедет с CRLF, а агент допишет строку с LF — и любой
+    # diff покажет изменённым весь файл.
+    assert b"\r\n" not in raw

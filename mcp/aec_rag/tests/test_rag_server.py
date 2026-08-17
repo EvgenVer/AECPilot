@@ -148,3 +148,18 @@ async def test_an_empty_query_is_refused(project, monkeypatch):
         result = await client.call_tool("rag_query", {"query": "   "})
 
     assert result.isError
+
+
+@pytest.mark.anyio
+async def test_wiki_init_creates_the_skeleton_through_the_tool(project, monkeypatch):
+    """Задача 4.7: скилу вики нужен именно инструмент, а не CLI."""
+    project_json, _ = project
+    server = await stub_server(project_json, monkeypatch)
+
+    async with create_connected_server_and_client_session(server._mcp_server) as client:
+        result = await client.call_tool("wiki_init", {})
+
+    assert not result.isError
+    vault = project_json.parent.parent
+    assert (vault / "wiki" / "SCHEMA.md").is_file()
+    assert (vault / "wiki" / "entities").is_dir()
