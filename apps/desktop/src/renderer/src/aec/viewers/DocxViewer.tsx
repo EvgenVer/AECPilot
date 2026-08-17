@@ -16,10 +16,30 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useAecT } from '../../shared/i18n'
 
+import { headingMatches } from './locator-pure'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument } from './viewer-store'
 
 type State = { error?: string; ready: boolean; token: number }
+
+/** Прокрутка к заголовку из ссылки (задача 4.4).
+ *
+ *  Ищется среди всех абзацев, а не среди `h1`–`h6`: docx-preview рисует
+ *  заголовок Word обычным абзацем со своим классом, и разметочных заголовков в
+ *  выводе нет вовсе. Не нашли — не прокручиваем: документ открыт с начала, и
+ *  это честнее, чем встать на случайный абзац. */
+function scrollToHeading(root: HTMLElement, heading: string): void {
+  const candidates = root.querySelectorAll<HTMLElement>('p, h1, h2, h3, h4, h5, h6, td')
+
+  for (const candidate of candidates) {
+    if (!headingMatches(candidate.textContent ?? '', heading)) continue
+    candidate.scrollIntoView({ block: 'center' })
+    // Подсветка держится, пока открыт документ: человек пришёл сюда по ссылке
+    // и должен видеть, на что именно она указывала.
+    candidate.style.backgroundColor = 'rgb(251 191 36 / 0.35)'
+    return
+  }
+}
 
 export function DocxViewer(): React.JSX.Element | null {
   const t = useAecT()
@@ -54,6 +74,9 @@ export function DocxViewer(): React.JSX.Element | null {
           inWrapper: true
         })
         if (cancelled) return
+        if (request.locator.heading && bodyRef.current) {
+          scrollToHeading(bodyRef.current, request.locator.heading)
+        }
         setState({ ready: true, token: request.token })
       } catch (cause: unknown) {
         if (cancelled) return

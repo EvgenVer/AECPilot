@@ -20,6 +20,7 @@ import { useAecT } from '../../shared/i18n'
 import type { SheetData } from '../../../../shared/ipc'
 
 import { parseCsv } from './csv-pure'
+import { findSheet, isCited, parseA1Range, type CellRange } from './locator-pure'
 import { decodeText } from './text-decode'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument } from './viewer-store'
@@ -74,6 +75,16 @@ export function SheetViewer(): React.JSX.Element | null {
           ? { sheets: result.sheets, token: request.token }
           : { error: result.error, token: request.token }
       )
+      // Задача 4.4: лист из ссылки выбирается здесь же, где листы впервые
+      // становятся известны. Нет такого листа — остаётся первый: открыть чужой
+      // лист хуже, чем открыть книгу с начала.
+      if (result.ok) {
+        const at = findSheet(
+          result.sheets.map((sheet) => sheet.name),
+          request.locator.sheet
+        )
+        setActive(at ?? 0)
+      }
     })()
 
     return () => {
@@ -92,6 +103,23 @@ export function SheetViewer(): React.JSX.Element | null {
     getScrollElement: () => scrollRef.current,
     overscan: 12
   })
+
+  // Задача 4.4. Выделение — только на том листе, который ссылка и называет:
+  // диапазон C5:D6 на соседнем листе адресует другие данные.
+  const highlight: CellRange | null =
+    sheet && request && findSheet([sheet.name], request.locator.sheet) !== null
+      ? parseA1Range(request.locator.range ?? '')
+      : null
+
+  // Прокрутка к названному месту. `token` в зависимостях — тот же приём, что и
+  // в PDF: повторный клик по той же ссылке должен вернуть к ней, а не оставить
+  // читателя там, куда он успел уехать.
+  const scrollTo = highlight?.top
+  const token = request?.token
+  useEffect(() => {
+    if (scrollTo === undefined) return
+    virtualizer.scrollToIndex(scrollTo - 1, { align: 'center' })
+  }, [scrollTo, token, virtualizer])
 
   if (!request) return null
 
@@ -148,15 +176,23 @@ export function SheetViewer(): React.JSX.Element | null {
                 >
                   {item.index + 1}
                 </div>
-                {Array.from({ length: columns }, (_, column) => (
-                  <div
-                    className="border-border w-40 shrink-0 truncate border-r border-b px-1.5 text-xs leading-6"
-                    key={column}
-                    title={rows[item.index][column] ?? ''}
-                  >
-                    {rows[item.index][column] ?? ''}
-                  </div>
-                ))}
+                {Array.from({ length: columns }, (_, column) => {
+                  const cited = isCited(item.index, column, highlight)
+
+                  return (
+                    <div
+                      className={
+                        cited
+                          ? 'w-40 shrink-0 truncate border-r border-b border-amber-500/60 bg-amber-400/30 px-1.5 text-xs leading-6'
+                          : 'border-border w-40 shrink-0 truncate border-r border-b px-1.5 text-xs leading-6'
+                      }
+                      key={column}
+                      title={rows[item.index][column] ?? ''}
+                    >
+                      {rows[item.index][column] ?? ''}
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
