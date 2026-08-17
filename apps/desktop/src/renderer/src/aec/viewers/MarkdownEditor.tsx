@@ -21,6 +21,8 @@ import { useAecT } from '../../shared/i18n'
 import { decodeText } from './text-decode'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument } from './viewer-store'
+import { openWikiPage } from './wikilink-open'
+import { wikilinkPlugin } from './wikilink-plugin'
 
 /** Пауза до записи. Секунда: достаточно, чтобы не писать во время набора, и
  *  мало, чтобы правка не потерялась, если человек сразу переключился. */
@@ -95,6 +97,7 @@ export function MarkdownEditor(): React.JSX.Element | null {
         .use(commonmark)
         // gfm — ради таблиц: вики и заметки по проекту без них не живут.
         .use(gfm)
+        .use(wikilinkPlugin((wanted) => void openWikiPage(wanted)))
         // История своя у ProseMirror; без неё Ctrl+Z в редакторе не работает.
         .use(history)
         .use(listen.listener)

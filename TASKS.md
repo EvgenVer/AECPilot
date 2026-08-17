@@ -452,7 +452,7 @@
 - [x] 4.3 Реализовать XLSX/CSV-вьюер (exceljs в главном процессе + своя виртуализованная сетка; Univer вычеркнут — PLAN §зависимости), read-only — files: apps/desktop · verify: AC8-прогон XLSX/CSV (вкл. большой файл) · dep: 2.14 · parallel: yes
 - [x] 4.4 Реализовать открытие DOCX/XLSX по locator из цитат (по решению O4) — files: apps/desktop · verify: клик из цитаты открывает место · dep: 4.2, 4.3, 2.7 · parallel: no
 - [x] 4.5 Встроить MD-редактор (Milkdown): рендер+правка файлов vault, автосохранение — files: apps/desktop · verify: правка сохраняется, undo работает · dep: 1.8.18 · parallel: yes
-- [ ] 4.6 Реализовать wikilinks в MD-редакторе: навигация [[…]], создание страницы по клику — files: apps/desktop · verify: ручной прогон навигации · dep: 4.5 · parallel: no
+- [x] 4.6 Реализовать wikilinks в MD-редакторе: навигация [[…]], создание страницы по клику — files: apps/desktop · verify: ручной прогон навигации · dep: 4.5 · parallel: no
 - [ ] 4.7 Реализовать генератор wiki/-структуры и дефолтной AEC-SCHEMA.md — files: mcp/aec_rag или runtime/templates · verify: юнит: структура по specs/wiki.md · dep: — · parallel: yes
 - [ ] 4.8 Реализовать skill aec-wiki: операция build (страницы, frontmatter, провенанс, raw/-снапшоты, index/log) — files: skills/aec-wiki · verify: BDD «Первичное построение» · dep: 4.7, 2.12 · parallel: no
 - [ ] 4.9 Реализовать операцию update (инкрементально; противоречия — явными блоками) — files: skills/aec-wiki · verify: BDD «Инкрементальное обновление» · dep: 4.8 · parallel: no

@@ -77,6 +77,26 @@ describe('редактор markdown', () => {
     expect(document.querySelector('.ProseMirror')).toBeNull()
   })
 
+  test('ссылка [[…]] подсвечена и несёт свою цель', async () => {
+    // Задача 4.6. Подсветка — украшение поверх текста: в документе остаётся
+    // тот же `[[…]]`, и файл от неё не меняется ни на символ.
+    readDocument.mockResolvedValue({
+      bytes: bytesOf('см. [[Кабельный журнал]] далее'),
+      name: 'страница.md',
+      ok: true,
+      path: 'C:/p/страница.md',
+      size: 10
+    })
+    openDocument({ locator: {}, relPath: 'wiki/страница.md' })
+    show()
+
+    await waitFor(() => expect(document.querySelector('[data-wikilink]')).toBeTruthy())
+    const link = document.querySelector('[data-wikilink]')
+    expect(link?.getAttribute('data-wikilink')).toBe('Кабельный журнал')
+    // Скобки на месте — текст не подменён.
+    expect(document.querySelector('.ProseMirror')?.textContent).toContain('[[Кабельный журнал]]')
+  })
+
   test('ошибка чтения показывается, а не проглатывается', async () => {
     readDocument.mockResolvedValue({ error: 'Файл не найден', ok: false })
     openDocument({ locator: {}, relPath: 'wiki/нет.md' })
