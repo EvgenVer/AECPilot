@@ -12,8 +12,13 @@ import { useEffect } from 'react'
 
 import { notify } from '../../donor/store/notifications'
 import { useAecT } from '../../shared/i18n'
+import { fillComposer } from '../onboarding/bridge'
 
-import { buildScanNotification, type SourceChangeSummary } from './scan-notification-pure'
+import {
+  buildScanNotification,
+  hasWikiPages,
+  type SourceChangeSummary
+} from './scan-notification-pure'
 
 /** "12 added, 3 changed, 1 deleted" — only the non-zero parts. */
 function summarize(
@@ -39,14 +44,27 @@ export function ScanWatcher() {
       // A scan is tagged with the vault it STARTED against. One that finishes
       // after the user has switched projects would otherwise report project
       // A's changes over project B's screen.
-      void window.aecpilot.getCurrentProject().then((project) => {
+      void window.aecpilot.getCurrentProject().then(async (project) => {
         if (!project || project.vaultPath !== envelope.vaultPath) return
+
+        // Задача 4.13. Кнопка «обновить вики» появляется, только если вики
+        // построена: предлагать обновить то, чего нет, значит врать кнопкой.
+        const built = hasWikiPages(await window.aecpilot.getVaultTree())
 
         notify({
           kind: 'info',
           icon: 'search',
           title: t('scan.title'),
-          message: model.sources.map((source) => summarize(source, t)).join('\n')
+          message: model.sources.map((source) => summarize(source, t)).join('\n'),
+          // Не отправка, а заготовка в поле ввода: команда видна человеку до
+          // того, как уйдёт, и не влезает в идущий ход агента. Подтверждение —
+          // его Enter (SPEC UR6: вики обновляется только по команде).
+          action: built
+            ? {
+                label: t('scan.updateWiki'),
+                onClick: () => fillComposer(t('scan.updateWikiPrompt'))
+              }
+            : undefined
         })
       })
     })

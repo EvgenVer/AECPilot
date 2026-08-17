@@ -2,7 +2,7 @@
 // DOM, no React (see chat-state.test.ts for the same convention).
 
 import { describe, expect, it } from 'vitest'
-import { buildScanNotification, reportHasChanges } from './scan-notification-pure'
+import { buildScanNotification, hasWikiPages, reportHasChanges } from './scan-notification-pure'
 import type { ScanReport, SourceScanReport } from '../../../../shared/ipc'
 
 function source(overrides: Partial<SourceScanReport> = {}): SourceScanReport {
@@ -131,5 +131,58 @@ describe('buildScanNotification', () => {
       { sourceId: 'uuid-1', label: '\\\\server\\tasks' },
       { sourceId: 'uuid-2', label: 'uuid-2' }
     ])
+  })
+})
+
+describe('есть ли построенная вики (задача 4.13)', () => {
+  const dir = (path: string, children: unknown[]) => ({
+    children,
+    name: path.split('/').pop() ?? path,
+    path,
+    type: 'dir' as const
+  })
+  const file = (path: string) => ({
+    name: path.split('/').pop() ?? path,
+    path,
+    type: 'file' as const
+  })
+
+  it('пустой vault — вики нет', () => {
+    expect(hasWikiPages([])).toBe(false)
+  })
+
+  it('один скелет — ещё не вики', () => {
+    // index.md, log.md и SCHEMA.md появляются вместе с папками, а страниц нет:
+    // кнопка «обновить» здесь предлагала бы обновить пустоту.
+    const tree = [
+      dir('wiki', [
+        file('wiki/index.md'),
+        file('wiki/log.md'),
+        file('wiki/SCHEMA.md'),
+        dir('wiki/entities', []),
+        dir('wiki/raw', [file('wiki/raw/README.md')])
+      ])
+    ]
+
+    expect(hasWikiPages(tree)).toBe(false)
+  })
+
+  it('снимок в raw/ страницей не считается', () => {
+    const tree = [dir('wiki', [dir('wiki/raw', [file('wiki/raw/tasks__задание.pdf.md')])])]
+
+    expect(hasWikiPages(tree)).toBe(false)
+  })
+
+  it('одна содержательная страница — вики есть', () => {
+    const tree = [dir('wiki', [dir('wiki/entities', [file('wiki/entities/ТП-1.md')])])]
+
+    expect(hasWikiPages(tree)).toBe(true)
+  })
+
+  it('markdown вне wiki/ не считается', () => {
+    // В vault полно .md помимо вики — заметки, AGENTS.md, черновики.
+    const tree = [dir('workspace', [file('workspace/заметки.md')]), file('AGENTS.md')]
+
+    expect(hasWikiPages(tree)).toBe(false)
   })
 })

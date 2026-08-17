@@ -121,8 +121,7 @@ export const aecLocales: PluginLocaleBundles = {
       saved: 'Saved',
       saveFailed: (reason: string) => `Not saved: ${reason}`,
       sheetEmpty: 'The sheet is empty.',
-      sheetTruncated: (shown: number, total: number) =>
-        `First ${shown} rows of ${total}`
+      sheetTruncated: (shown: number, total: number) => `First ${shown} rows of ${total}`
     },
     rollback: {
       title: 'Changes',
@@ -157,7 +156,9 @@ export const aecLocales: PluginLocaleBundles = {
       title: 'Sources changed',
       added: (n: number) => `${n} added`,
       changed: (n: number) => `${n} changed`,
-      deleted: (n: number) => `${n} deleted`
+      deleted: (n: number) => `${n} deleted`,
+      updateWiki: 'Update the wiki',
+      updateWikiPrompt: 'Update the project wiki from the changes'
     },
     channels: {
       disclosure: {
@@ -331,8 +332,7 @@ export const aecLocales: PluginLocaleBundles = {
       saved: 'Сохранено',
       saveFailed: (reason: string) => `Не сохранено: ${reason}`,
       sheetEmpty: 'Лист пуст.',
-      sheetTruncated: (shown: number, total: number) =>
-        `Первые ${shown} строк из ${total}`
+      sheetTruncated: (shown: number, total: number) => `Первые ${shown} строк из ${total}`
     },
     rollback: {
       title: 'Изменения',
@@ -367,7 +367,9 @@ export const aecLocales: PluginLocaleBundles = {
       title: 'Источники изменились',
       added: (n: number) => `добавлено ${n}`,
       changed: (n: number) => `изменено ${n}`,
-      deleted: (n: number) => `удалено ${n}`
+      deleted: (n: number) => `удалено ${n}`,
+      updateWiki: 'Обновить вики',
+      updateWikiPrompt: 'Обнови вики проекта по изменениям'
     },
     channels: {
       disclosure: {

@@ -64,3 +64,31 @@ export function buildScanNotification(
 
   return { sources }
 }
+
+/** Служебные страницы вики: они есть всегда, сразу после `wiki_init`, и
+ *  наличием вики не считаются. */
+const WIKI_SERVICE = ['index.md', 'log.md', 'schema.md']
+
+/** Есть ли в vault хоть одна содержательная страница вики (задача 4.13).
+ *
+ *  От этого зависит, предлагать ли из уведомления «обновить вики»: кнопка,
+ *  предлагающая обновить то, чего нет, — это кнопка, которая врёт. Каталог,
+ *  журнал и схема не в счёт, снимки в `raw/` тем более: они появляются вместе
+ *  со скелетом, а вики при этом ещё пуста.
+ *
+ *  Решает путь узла, а не его место в обходе: дерево приходит от главного
+ *  процесса, и завязываться на то, как оно вложено, значит ломаться от любой
+ *  перестановки. */
+export function hasWikiPages(
+  tree: { name: string; path: string; type: string; children?: unknown }[]
+): boolean {
+  return tree.some((node) => {
+    if (node.type === 'dir') {
+      return hasWikiPages((node.children ?? []) as typeof tree)
+    }
+    const path = node.path.toLowerCase()
+    if (!path.startsWith('wiki/') || !path.endsWith('.md')) return false
+    if (path.startsWith('wiki/raw/')) return false
+    return !WIKI_SERVICE.includes(node.name.toLowerCase())
+  })
+}
