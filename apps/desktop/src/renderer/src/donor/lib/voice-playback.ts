@@ -4,15 +4,16 @@
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [1] the speech WebSocket is not opened from the renderer (SPEC C9):
- *       `resolveSpeakStreamUrl` answers null — their own "no streaming
- *       backend" answer — instead of minting a gateway credential, and the
- *       two imports it was the only user of (`resolveGatewayWsUrl`,
- *       `getApiRequestProfile`) are dropped with it. The socket constructor
- *       in `openSpeechStream` throws, since nothing can now reach it.
+ *   [1] the speech WebSocket is main's, not the renderer's (SPEC C9):
+ *       `resolveSpeakStreamUrl` answers a marker instead of minting a gateway
+ *       credential, and the socket constructor returns our IPC-backed
+ *       stand-in. The two imports the resolution was the only user of
+ *       (`resolveGatewayWsUrl`, `getApiRequestProfile`) are dropped with it.
  * (no other edits)
  */
 import { speakText } from '@/hermes'
+
+import { createSpeechStreamSocket, SPEECH_STREAM_IPC_URL } from '../../shared/speech-stream-socket'
 import {
   $voicePlayback,
   setVoicePlaybackState,
@@ -109,29 +110,20 @@ export function stopVoicePlayback() {
 // ---------------------------------------------------------------------------
 
 async function resolveSpeakStreamUrl(): Promise<null | string> {
-  // EDIT [1]: this build has no speech-stream URL. Theirs minted a gateway
-  // credential and rewrote the endpoint to /api/audio/speak-stream; ours cannot
-  // — main owns the gateway socket and the renderer is never told its URL or
-  // token (SPEC C9).
+  // EDIT [1]: theirs minted a gateway credential and rewrote the endpoint to
+  // /api/audio/speak-stream. Ours cannot: in the mode we run, the core
+  // authenticates a WebSocket with the session token — the same token that
+  // authorizes every method it has — and SPEC C9 keeps that out of the
+  // renderer. So the address is not resolved here at all; main knows it. What
+  // is returned is a marker their code carries to `openVoiceSocket` below,
+  // where the IPC-backed socket is created (`shared/speech-stream-socket.ts`).
   //
-  // `null` is THEIR OWN "no streaming backend/provider" answer, and both
-  // callers already do the right thing with it: `playSpeechText` speaks the
-  // whole reply over the POST endpoint, and the voice conversation calls
-  // `awaitFallbackSpeech`. What this costs, stated plainly: with a provider
-  // that can stream (ElevenLabs / OpenAI / Gemini / xAI) speech starts once the
-  // reply is synthesized instead of on the provider's first chunk. With the
-  // default provider (Edge, no key) the server answers `{"type":"fallback"}`
-  // itself, so nothing is lost at all.
-  //
-  // NOT an oversight and not a stub: routing the PCM stream through main is a
-  // separate decision — see the 3.7a note in TASKS.md.
-  //
-  // Until 3.7a this function returned a URL, because the shim's `getConnection`
-  // answers with a credential-free IPC descriptor whose path still ends in
-  // /api/ws. So the streaming branch WAS entered, the socket constructor below
-  // threw, and `playSpeechText` rethrew instead of falling back — the app spoke
-  // nothing at all.
-  return null
+  // Not null, because null is their "no streaming backend" answer and would
+  // skip the streaming path entirely. Streaming still ends in whole-text
+  // playback when the configured provider has no chunked API — but that is the
+  // SERVER's call, arriving as `{"type":"fallback"}`, and it stays the server's
+  // call here.
+  return SPEECH_STREAM_IPC_URL
 }
 
 export interface SpeechStreamSession {
@@ -147,9 +139,10 @@ export interface SpeechStreamSession {
   done: Promise<'done' | 'fallback'>
 }
 
-/** EDIT [1]: stands in for the socket constructor — see openSpeechStream. */
-function openVoiceSocket(_wsUrl: string): WebSocket {
-  throw new Error('voice streaming is not bridged (SPEC C9; TASKS 3.7a)')
+/** EDIT [1]: stands in for the socket constructor. Same shape and lifecycle,
+ * transport is our IPC bridge — the socket itself lives in main (SPEC C9). */
+function openVoiceSocket(wsUrl: string): WebSocket {
+  return createSpeechStreamSocket(wsUrl)
 }
 
 /**
@@ -159,11 +152,8 @@ function openVoiceSocket(_wsUrl: string): WebSocket {
  * stream (ChatGPT-style) with no per-sentence connection or synthesis gaps.
  */
 function openSpeechStream(wsUrl: string, options: VoicePlaybackOptions): SpeechStreamSession {
-  // EDIT [1]: their raw socket construction is gone — the renderer opens no
-  // socket to the gateway (SPEC C9). Both callers are gated on
-  // `resolveSpeakStreamUrl`, which now returns null by construction, so this
-  // line cannot be reached; the throw states that rather than leaving it to be
-  // assumed.
+  // EDIT [1]: their raw socket construction → the stand-in above. Everything
+  // below is theirs and runs unchanged, `WebSocket.OPEN` comparisons included.
   const ws = openVoiceSocket(wsUrl)
   ws.binaryType = 'arraybuffer'
 

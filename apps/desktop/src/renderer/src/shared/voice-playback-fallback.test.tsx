@@ -1,15 +1,22 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import type { SpeechStreamEvent } from '../../../shared/ipc'
 
 /**
- * Task 3.7a — the two runtime facts EDIT [1] in `donor/lib/voice-playback.ts`
- * rests on. Both were BROKEN before this task, and neither is visible by
- * reading that file alone: it looks like the streaming branch simply never
- * runs, while in truth the shim's `getConnection` handed it a usable-looking
- * URL and the app then spoke nothing at all.
+ * Task 3.7a — the property the whole voice mode hangs on: when the live stream
+ * cannot play, the reply is still SPOKEN, over the POST endpoint. It held in
+ * neither direction before this task. The streaming branch was entered (the
+ * shim's `getConnection` handed it a usable-looking URL), the socket
+ * constructor threw, and `playSpeechText` rethrew instead of falling back — so
+ * "read replies aloud" and the voice conversation both produced silence.
  *
- * `.test.tsx` because that is how a file asks for jsdom here (see
- * vitest.config.ts) — this one needs `window` and an `<audio>` element, not
- * React.
+ * Two ways the stream can decline, both covered here because they are
+ * different code paths and only one of them is an error:
+ *   • main refuses to open it (backend not up) → their `onerror` → fallback;
+ *   • the server answers `{"type":"fallback"}` — the ordinary case on the
+ *     default TTS provider, which has no chunked API at all.
+ *
+ * `.test.tsx` because that is how a file asks for jsdom here (vitest.config.ts)
+ * — this one needs `window` and an `<audio>` element, not React.
  */
 
 const { speakText } = vi.hoisted(() => ({ speakText: vi.fn() }))
@@ -17,22 +24,51 @@ const { speakText } = vi.hoisted(() => ({ speakText: vi.fn() }))
 // The real `@/hermes` is the donor's whole backend client; the POST endpoint is
 // the only part of it this path touches. `getApiRequestProfile` is here even
 // though the file no longer imports it: without it the pre-fix version of the
-// file threw INSIDE its own try/catch and returned null — the very answer this
-// test is checking for — so the mock, not the app, would have been under test.
+// file threw INSIDE its own try/catch and returned null — the very answer an
+// earlier version of this test was checking for — so the mock, not the app,
+// would have been under test.
 vi.mock('@/hermes', () => ({ speakText, getApiRequestProfile: () => null }))
 
 const { playSpeechText, startSpeechStream } = await import('@/lib/voice-playback')
 const { installHermesDesktopBridge } = await import('./hermes-desktop-shim')
 
+const listeners = new Set<(event: SpeechStreamEvent) => void>()
+const openSpeechStream = vi.fn()
+const requestMicrophoneAccess = vi.fn()
+
+function emit(id: string, event: Omit<SpeechStreamEvent, 'id'>): void {
+  for (const listener of [...listeners]) listener({ id, ...event } as SpeechStreamEvent)
+}
+
+/** The stream id is minted inside the adapter; main learns it from the open
+ * call, and so does this test — the same way. */
+async function openedStreamId(): Promise<string> {
+  await vi.waitFor(() => expect(openSpeechStream).toHaveBeenCalled())
+
+  return openSpeechStream.mock.calls.at(-1)![0] as string
+}
+
 beforeEach(() => {
+  listeners.clear()
+  speakText.mockReset().mockResolvedValue({ data_url: 'data:audio/mpeg;base64,AAAA' })
+  openSpeechStream.mockReset().mockResolvedValue({ ok: true })
+  requestMicrophoneAccess.mockReset().mockResolvedValue(false)
+
+  window.aecpilot = {
+    requestMicrophoneAccess,
+    openSpeechStream,
+    sendSpeechFrame: vi.fn().mockResolvedValue({ ok: true }),
+    closeSpeechStream: vi.fn().mockResolvedValue(undefined),
+    onSpeechStreamEvent: (cb: (event: SpeechStreamEvent) => void) => {
+      listeners.add(cb)
+      return () => listeners.delete(cb)
+    }
+  } as unknown as typeof window.aecpilot
+
   // The REAL shim, not a hand-made stand-in: what broke playback was the pair
   // of these two files disagreeing, so a reconstruction of one of them would
-  // measure the reconstruction. Without it `window.hermesDesktop` is undefined
-  // and the streaming branch is skipped for a reason the app never has.
+  // measure the reconstruction.
   installHermesDesktopBridge()
-
-  speakText.mockReset()
-  speakText.mockResolvedValue({ data_url: 'data:audio/mpeg;base64,AAAA' })
 
   // jsdom has no media pipeline: play() is "not implemented". Stand in for it
   // and end the clip immediately, so the test measures which PATH was taken.
@@ -44,14 +80,40 @@ beforeEach(() => {
   })
 })
 
-describe('речь без потокового сокета (SPEC C9)', () => {
-  test('реплика читается через POST, а не падает на конструкторе сокета', async () => {
+describe('речь, когда живой поток не играет', () => {
+  test('шлюз не поднялся — реплика всё равно читается, через POST', async () => {
+    openSpeechStream.mockResolvedValue({ ok: false, error: 'речевой шлюз недоступен' })
+
     await expect(
       playSpeechText('Колонна К-1 армируется по узлу 3.', { source: 'read-aloud' })
     ).resolves.toBe(true)
 
-    expect(speakText).toHaveBeenCalledTimes(1)
     expect(speakText).toHaveBeenCalledWith('Колонна К-1 армируется по узлу 3.')
+  })
+
+  test('сервер ответил «потока нет» — реплика читается, через POST', async () => {
+    const spoken = playSpeechText('Марка бетона B25.', { source: 'read-aloud' })
+
+    // Ровно то, что отвечает ядро на провайдере по умолчанию: у Edge нет
+    // потокового API, и решает это СЕРВЕР, а не мы за него.
+    const id = await openedStreamId()
+    emit(id, { type: 'open' })
+    emit(id, { type: 'text', text: '{"type":"fallback"}' })
+
+    await expect(spoken).resolves.toBe(true)
+    expect(speakText).toHaveBeenCalledWith('Марка бетона B25.')
+  })
+
+  test('разговорный цикл получает сессию и её вердикт «нет потока»', async () => {
+    const session = await startSpeechStream({ source: 'voice-conversation' })
+    expect(session).not.toBeNull()
+
+    emit(await openedStreamId(), { type: 'error' })
+
+    // Их цикл на этом вердикте зовёт awaitFallbackSpeech и дочитывает ответ
+    // целиком — то есть тишины не остаётся и здесь.
+    await expect(session?.done).resolves.toBe('fallback')
+    expect(speakText).not.toHaveBeenCalled()
   })
 
   test('микрофон отвечает булевым, а не отказом промиса', async () => {
@@ -59,19 +121,7 @@ describe('речь без потокового сокета (SPEC C9)', () => {
     // член шима ОТКЛОНЯЕТ промис, а `await` на отклонении — это исключение,
     // а не `false`: кнопка микрофона показывала «не удалось начать запись»
     // и не записывала ничего.
-    const requestMicrophoneAccess = vi.fn().mockResolvedValue(false)
-    window.aecpilot = { requestMicrophoneAccess } as unknown as typeof window.aecpilot
-
     await expect(window.hermesDesktop.requestMicrophoneAccess()).resolves.toBe(false)
     expect(requestMicrophoneAccess).toHaveBeenCalledTimes(1)
-  })
-
-  test('живой поток недоступен — и говорит об этом через null, их же ответом', async () => {
-    // `null` — это ветка «нет потокового бэкенда» их разговорного цикла: он
-    // вызывает awaitFallbackSpeech и дочитывает ответ целиком. Сессия,
-    // которая сразу отваливается, привела бы туда же, но лишним мерцанием
-    // состояния «готовлю речь».
-    await expect(startSpeechStream({ source: 'voice-conversation' })).resolves.toBeNull()
-    expect(speakText).not.toHaveBeenCalled()
   })
 })

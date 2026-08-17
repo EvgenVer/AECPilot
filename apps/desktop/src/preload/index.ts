@@ -22,6 +22,15 @@ const api: AecpilotApi = {
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
+  openSpeechStream: (id) => ipcRenderer.invoke('speech:open', id),
+  sendSpeechFrame: (id, frame) => ipcRenderer.invoke('speech:send', { id, frame }),
+  closeSpeechStream: (id) => ipcRenderer.invoke('speech:close', id),
+  onSpeechStreamEvent: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('speech:event', listener)
+    return () => ipcRenderer.removeListener('speech:event', listener)
+  },
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   completePath: (word) => ipcRenderer.invoke('chat:complete-path', word),
   pickAttachments: () => ipcRenderer.invoke('attach:pick'),

@@ -198,6 +198,17 @@ export interface ScanReportEnvelope {
   report: ScanReport
 }
 
+/** One thing that happened on a speech stream (task 3.7a). `text` carries the
+ * core's own control frames verbatim (`start` / `end` / `fallback`), `audio` a
+ * raw int16 PCM chunk. `error` and `close` are not failures to report — their
+ * player reads both as "no streaming, speak the whole reply instead". */
+export interface SpeechStreamEvent {
+  id: string
+  type: 'open' | 'text' | 'audio' | 'error' | 'close'
+  text?: string
+  audio?: Uint8Array
+}
+
 /** Why an empty snapshot list may not mean "the agent changed nothing" (task
  * 1.6.C2) — computed in main by replaying hermes's own working-directory
  * search over the vault root; see `main/checkpoint-scope-pure.ts`.
@@ -586,6 +597,19 @@ export interface AecpilotApi {
    * status. It grants nothing by itself — the capture still goes through the
    * window's permission policy. */
   requestMicrophoneAccess(): Promise<boolean>
+  /** Streaming speech (task 3.7a, SPEC C9). Main holds the WebSocket to the
+   * core's `/api/audio/speak-stream`; the renderer names the stream, feeds it
+   * their frames and receives PCM back. It never learns the URL or the token —
+   * in loopback mode that token authorizes every method the gateway has.
+   *
+   * The id is minted by the RENDERER so its event listener can filter before
+   * `openSpeechStream` even resolves; main scopes it to the window. */
+  openSpeechStream(id: string): Promise<{ ok: boolean; error?: string }>
+  /** One frame of their protocol as JSON: `{text}`, `{done:true}`, `{stop:true}`.
+   * Anything else is refused in main rather than forwarded. */
+  sendSpeechFrame(id: string, frame: string): Promise<{ ok: boolean; error?: string }>
+  closeSpeechStream(id: string): Promise<void>
+  onSpeechStreamEvent(cb: (event: SpeechStreamEvent) => void): () => void
   /** Slash-command completions for what is being typed (task 1.6.8). Never
    * rejects: a disconnected gateway or a failed call comes back as an empty
    * list, because this runs on every keystroke and must not put an error over

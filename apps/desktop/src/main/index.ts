@@ -7,6 +7,14 @@ import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
+import { isValidStreamId } from './speech-stream-pure'
+import {
+  closeSpeechStream,
+  closeSpeechStreamsFor,
+  openSpeechStream,
+  sendSpeechFrame,
+  streamKey
+} from './speech-stream'
 import {
   imageMime,
   isInside,
@@ -554,6 +562,53 @@ ipcMain.handle('media:request-microphone', async () => {
     // Chromium still gets to decide when the capture actually starts.
     return true
   }
+})
+
+// --- Streaming speech (task 3.7a) -------------------------------------------
+//
+// The socket to `/api/audio/speak-stream` is main's, because the credential
+// that opens it is the gateway's whole session token (SPEC C9; see
+// `speech-stream-pure.ts`). These three handlers are the entire renderer-facing
+// surface: name a stream, feed it one of their three frame shapes, close it.
+
+/** Windows whose teardown already closes their streams — one listener each,
+ * not one per opened stream. */
+const speechCleanupHooked = new Set<number>()
+
+ipcMain.handle('speech:open', (event, id: unknown) => {
+  if (!isValidStreamId(id)) return { ok: false, error: 'неверный идентификатор потока речи' }
+
+  const sender = event.sender
+  const key = streamKey(sender.id, id)
+
+  // A reload or a closed window leaves the backend synthesizing into nothing.
+  if (!speechCleanupHooked.has(sender.id)) {
+    speechCleanupHooked.add(sender.id)
+    sender.once('destroyed', () => {
+      speechCleanupHooked.delete(sender.id)
+      closeSpeechStreamsFor(sender.id)
+    })
+  }
+
+  return openSpeechStream(key, restTarget(), (partial) => {
+    if (sender.isDestroyed()) return
+    sender.send('speech:event', { ...partial, id })
+  })
+})
+
+ipcMain.handle('speech:send', (event, payload: unknown) => {
+  const { id, frame } =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { id?: unknown; frame?: unknown })
+      : {}
+  if (!isValidStreamId(id)) return { ok: false, error: 'неверный идентификатор потока речи' }
+
+  return sendSpeechFrame(streamKey(event.sender.id, id), frame)
+})
+
+ipcMain.handle('speech:close', (event, id: unknown) => {
+  if (!isValidStreamId(id)) return
+  closeSpeechStream(streamKey(event.sender.id, id))
 })
 
 // --- Artifacts: files on disk (tasks 1.6.B7.4/B7.5) -------------------------
