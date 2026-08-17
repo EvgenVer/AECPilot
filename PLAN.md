@@ -318,7 +318,7 @@ lock-файлах. Лицензионное правило — C3.
 | lightrag-hku, docling, lancedb, mcp (python-sdk), docxtpl | RAG, парсинг, векторы, MCP-серверы, шаблоны DOCX | runtime (py) | MIT/Apache-2.0 |
 | mem0ai | расширенная память как провайдер Hermes; берётся после замера в 5.1 | runtime (py) | Apache-2.0 |
 | electron, react | desktop UI | runtime (ts) | MIT |
-| pdfjs-dist, docx-preview, @univerjs/*, milkdown, react-arborist | наши вьюеры, MD-редактор, дерево проводника | runtime (ts) | Apache-2.0/MIT |
+| pdfjs-dist, docx-preview `0.4.0`, exceljs `4.4.0`, @milkdown/kit `7.22.1`, react-arborist | наши вьюеры, MD-редактор, дерево проводника | runtime (ts) | Apache-2.0/MIT |
 | @assistant-ui/react `0.14.29`, @assistant-ui/react-streamdown `0.3.7`, streamdown `2.5.0`, @streamdown/code `1.1.1` | модель транскрипта донора и markdown-рендер | runtime (ts) | MIT/Apache-2.0 |
 | d3-force `3.0.0` + типы | силовая раскладка Карты обучения | runtime (ts) | ISC |
 | jsdom, @testing-library/react, @testing-library/dom | среда компонентных тестов | dev | MIT |
@@ -402,6 +402,27 @@ uv-workspace. Замер 2026-08-05: в обоих `mcp==1.28.1` и `starlette==
 `@assistant-ui/react-streamdown` держит `@assistant-ui/react` жёстким peer-ом узкого
 диапазона, а семейство релизится ежедневно. Перед апгрейдом:
 `npm view @assistant-ui/react-streamdown@<v> peerDependencies`.
+
+**Вьюеры и MD-редактор — фактическая установка (фаза 4, веттинг и «go» владельца
+2026-08-17).** Поставлены `docx-preview 0.4.0` (Apache-2.0, 975 КБ, одна зависимость
+`jszip`, публикация 2026-07-07), `exceljs 4.4.0` (MIT, 21,8 МБ распакованных со всеми
+сборками и sourcemap) и `@milkdown/kit 7.22.1` (MIT, 121 КБ метапакета). Установочных
+скриптов нет ни у одного. Дерево выросло на 140 пакетов; из них шесть помечены
+deprecated (`fstream`, `glob@7`, `inflight`, `rimraf@2`, `lodash.isequal`, `uuid@8`) —
+все приезжают цепочкой `exceljs → archiver/unzipper` и в окно не попадают: разбор XLSX
+идёт в главном процессе. Позиция для `pnpm audit` в 6.6.
+
+**`@univerjs/*` из плана вычеркнут — он физически не может открыть наш файл.** Импорт и
+экспорт XLSX у Univer живут в линии `@univerjs-pro/*` («exchange client»), а это КЛИЕНТ к
+их серверной службе конвертации, коммерческой. В открытой линии импортёра нет
+(`@univerjs/sheets-exchange-client` — 404 в реестре). Мы делаем офлайн-приложение, значит
+разбирать файл всё равно пришлось бы своей библиотекой, и Univer остался бы только
+сеткой — за 7,5 МБ одного лишь пакета пресетов, со своим слоем отрисовки и своими стилями
+рядом с Tailwind донора. Взято: `exceljs` разбирает в главном процессе (это Node-
+библиотека, там она у себя дома), рисует наша сетка на `@tanstack/react-virtual`, который
+уже в дереве. Побочный итог: `exceljs` умеет и писать, поэтому дверь к правке таблиц
+остаётся открытой — но редактора ячейки у нас нет и он был бы нашим при любом выборе,
+так что это отдельный вопрос объёма, а не следствие этого решения.
 
 ## Сверка выдержек (SPEC UR26) — чей код и где стоит
 
