@@ -403,6 +403,6 @@ describe('writeVaultFile', () => {
   })
 
   it('не пишет за пределы vault', () => {
-    expect(() => writeVaultFile(vaultPath, '..\чужое.md', 'текст')).toThrow(PathOutsideVaultError)
+    expect(() => writeVaultFile(vaultPath, '..\\чужое.md', 'текст')).toThrow(PathOutsideVaultError)
   })
 })
