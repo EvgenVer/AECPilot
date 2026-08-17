@@ -430,6 +430,27 @@ def build_server(project_json: Path) -> FastMCP:
 
         return {"pages": len(checkpoint_pages(state.vault))}
 
+    @server.tool(
+        description=(
+            "Check the wiki mechanically: broken [[links]], orphan pages, pages whose "
+            "source was reissued, malformed frontmatter, and contradictions still "
+            "awaiting a decision. Findings come worst-first with severity error / "
+            "warning / info. Report them; do not silently fix a page a human may have "
+            "written (see wiki_edited)."
+        )
+    )
+    def wiki_lint() -> dict[str, Any]:
+        from aec_rag.wiki_lint import lint_wiki
+
+        findings = lint_wiki(state.db(), state.vault)
+        return {
+            "findings": [finding.as_dict() for finding in findings],
+            "counts": {
+                severity: sum(1 for f in findings if f.severity == severity)
+                for severity in ("error", "warning", "info")
+            },
+        }
+
     return server
 
 

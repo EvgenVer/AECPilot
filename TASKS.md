@@ -457,8 +457,8 @@
 - [x] 4.8 Реализовать skill aec-wiki: операция build (страницы, frontmatter, провенанс, raw/-снапшоты, index/log) — files: skills/aec-wiki · verify: BDD «Первичное построение» · dep: 4.7, 2.12 · parallel: no
 - [x] 4.9 Реализовать операцию update (инкрементально; противоречия — явными блоками) — files: skills/aec-wiki · verify: BDD «Инкрементальное обновление» · dep: 4.8 · parallel: no
 - [x] 4.10 Обеспечить сохранение ручных правок при update — files: skills/aec-wiki · verify: BDD «Ручная правка сохраняется» · dep: 4.9 · parallel: no
-- [ ] 4.11 Реализовать lint вики (битые ссылки, сироты, staleness, frontmatter, незакрытые противоречия) — files: skills/aec-wiki, mcp/aec_rag · verify: pytest-фикстуры дефектов + BDD «Lint» · dep: 4.8 · parallel: yes
-- [ ] 4.12 Реализовать query по вики (обзорные ответы со ссылками на страницы) — files: skills/aec-wiki · verify: BDD «Query» · dep: 4.8 · parallel: yes
+- [x] 4.11 Реализовать lint вики (битые ссылки, сироты, staleness, frontmatter, незакрытые противоречия) — files: skills/aec-wiki, mcp/aec_rag · verify: pytest-фикстуры дефектов + BDD «Lint» · dep: 4.8 · parallel: yes
+- [x] 4.12 Реализовать query по вики (обзорные ответы со ссылками на страницы) — files: skills/aec-wiki · verify: BDD «Query» · dep: 4.8 · parallel: yes
 - [ ] 4.13 Связать детект изменений с вики: действие «обновить вики» из уведомления — files: apps/desktop · verify: сквозной прогон изменение→уведомление→подтверждение→update · dep: 4.9 · parallel: no
 - [ ] 4.14 Прогнать smoke-эвал aec-wiki (≥5 сценариев) — files: eval/ · verify: отчёт соответствует критериям спеки · dep: 4.10 · parallel: yes
 - [ ] 4.15 Прогнать AC3 на эталонном проекте — files: отчёт в AGENT_RUNS.md · verify: чек-лист AC3 полностью · dep: 4.11, 4.12 · parallel: no
