@@ -77,3 +77,70 @@ def test_files_are_written_with_lf(tmp_path: Path) -> None:
     # Иначе на Windows файл уедет с CRLF, а агент допишет строку с LF — и любой
     # diff покажет изменённым весь файл.
     assert b"\r\n" not in raw
+
+
+def _index_with_document(tmp_path: Path):
+    """Индекс с одним разобранным документом — минимум для снимка."""
+    from aec_rag.db import open_index
+
+    conn = open_index(tmp_path / "index.db")
+    conn.execute(
+        "INSERT INTO files (source_id, rel_path, sha256, status, indexed_at)"
+        " VALUES ('tasks', 'ЭОМ/задание.pdf', 'abc123', 'ok', '2026-08-17T10:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO ingested_files (source_id, rel_path, sha256, chunk_count, ingested_at)"
+        " VALUES ('tasks', 'ЭОМ/задание.pdf', 'abc123', 2, '2026-08-17T10:05:00Z')"
+    )
+    for ordinal, text in enumerate(["Мощность 250 кВт.", "Категория вторая."]):
+        conn.execute(
+            "INSERT INTO chunks (chunk_id, source_id, rel_path, ordinal, locator, is_table, text)"
+            " VALUES (?, 'tasks', 'ЭОМ/задание.pdf', ?, '{}', 0, ?)",
+            (f"c{ordinal}", ordinal, text),
+        )
+    conn.commit()
+    return conn
+
+
+def test_snapshot_carries_the_text_and_the_hash_it_was_read_at(tmp_path: Path) -> None:
+    from aec_rag.wiki import write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+
+    result = write_snapshots(conn, tmp_path)
+
+    assert result.files == ["wiki/raw/tasks__ЭОМ_задание.pdf.md"]
+    text = (tmp_path / "wiki" / "raw" / "tasks__ЭОМ_задание.pdf.md").read_text(encoding="utf-8")
+    # Хэш — то, по чему lint потом увидит, что источник уехал вперёд.
+    assert "sha256: abc123" in text
+    assert "source_id: tasks" in text
+    # Куски идут по порядку: снимок читают глазами, и переставленные абзацы
+    # сделали бы его бесполезным.
+    assert text.index("Мощность 250 кВт.") < text.index("Категория вторая.")
+
+
+def test_snapshot_skips_a_file_without_chunks(tmp_path: Path) -> None:
+    from aec_rag.wiki import write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    conn.execute("DELETE FROM chunks")
+    conn.commit()
+    init_wiki(tmp_path)
+
+    result = write_snapshots(conn, tmp_path)
+
+    # Пустой снимок выглядел бы как пустой документ; лучше сказать, что его нет.
+    assert result.files == []
+    assert result.skipped == ["tasks/ЭОМ/задание.pdf"]
+
+
+def test_snapshot_can_be_narrowed_to_one_file(tmp_path: Path) -> None:
+    from aec_rag.wiki import write_snapshots
+
+    conn = _index_with_document(tmp_path)
+    init_wiki(tmp_path)
+
+    # Инкрементальное обновление (4.9) переписывает снимки только изменившихся.
+    assert write_snapshots(conn, tmp_path, rel_paths=["нет.pdf"]).files == []
+    assert len(write_snapshots(conn, tmp_path, rel_paths=["ЭОМ/задание.pdf"]).files) == 1

@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 #: Папки вики. Порядок — как в ``specs/wiki.md``.
@@ -161,3 +163,93 @@ def init_wiki(vault: Path) -> WikiInitResult:
         created_files=created_files,
         wiki_path=wiki.as_posix(),
     )
+
+
+# ---------------------------------------------------------------- снимки raw/
+
+
+@dataclass(frozen=True)
+class SnapshotResult:
+    """Что записано в ``wiki/raw/``."""
+
+    files: list[str]
+    skipped: list[str]
+
+
+def _snapshot_name(source_id: str, rel_path: str) -> str:
+    """Имя снимка: ``<источник>__<путь с подчёркиваниями>.md``.
+
+    Плоско, а не деревом. Дерево пришлось бы чинить при каждом переименовании
+    папки в источнике, а имя со слэшами, заменёнными на подчёркивание, читается
+    и остаётся уникальным.
+    """
+    flat = rel_path.replace("\\", "/").replace("/", "_")
+    return f"{source_id}__{flat}.md"
+
+
+def write_snapshots(
+    conn: sqlite3.Connection,
+    vault: Path,
+    *,
+    source_id: str | None = None,
+    rel_paths: list[str] | None = None,
+) -> SnapshotResult:
+    """Пишет снимки разобранных документов в ``wiki/raw/``.
+
+    Текст берётся из индекса, а не из исходного файла: в индексе он уже
+    разобран Docling, и именно этот текст видел агент, когда строил вики.
+    Снимок с ``sha256`` из индекса — то, по чему потом видно, что источник
+    уехал вперёд (lint, задача 4.11).
+
+    Работу делает код: перекладывание мегабайтов текста через контекст модели
+    стоило бы денег и ничего бы к тексту не добавило.
+    """
+    raw = Path(vault) / "wiki" / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+
+    query = """
+        SELECT f.source_id, f.rel_path, f.sha256, i.ingested_at
+        FROM ingested_files AS i
+        JOIN files AS f ON f.source_id = i.source_id AND f.rel_path = i.rel_path
+        WHERE f.status != 'deleted'
+    """
+    params: list[str] = []
+    if source_id:
+        query += " AND f.source_id = ?"
+        params.append(source_id)
+    if rel_paths:
+        query += f" AND f.rel_path IN ({','.join('?' * len(rel_paths))})"
+        params.extend(rel_paths)
+
+    written: list[str] = []
+    skipped: list[str] = []
+
+    for source, rel_path, sha256, ingested_at in conn.execute(
+        query + " ORDER BY f.source_id, f.rel_path", params
+    ).fetchall():
+        chunks = conn.execute(
+            "SELECT text FROM chunks WHERE source_id = ? AND rel_path = ? ORDER BY ordinal",
+            (source, rel_path),
+        ).fetchall()
+        if not chunks:
+            skipped.append(f"{source}/{rel_path}")
+            continue
+
+        header = (
+            "---\n"
+            f"source_id: {source}\n"
+            f"rel_path: {rel_path}\n"
+            f"sha256: {sha256 or ''}\n"
+            f"ingested_at: {ingested_at}\n"
+            f"snapshot_at: {datetime.now(UTC).isoformat()}\n"
+            "type: raw\n"
+            "---\n\n"
+            "<!-- Снимок разобранного документа. Не редактируется: он сверяется\n"
+            "     с индексом по sha256, и правка развела бы его с источником. -->\n\n"
+        )
+        body = "\n\n".join(chunk[0] for chunk in chunks)
+        name = _snapshot_name(source, rel_path)
+        (raw / name).write_text(header + body + "\n", encoding="utf-8", newline="\n")
+        written.append(f"wiki/raw/{name}")
+
+    return SnapshotResult(files=written, skipped=skipped)

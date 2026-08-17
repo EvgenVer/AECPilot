@@ -373,6 +373,23 @@ def build_server(project_json: Path) -> FastMCP:
             "wiki_path": result.wiki_path,
         }
 
+    @server.tool(
+        description=(
+            "Write wiki/raw/ snapshots of parsed documents, taken from the index — the "
+            "same text you were given, with the sha256 it was read at, so drift is "
+            "detectable later. Do NOT copy document text into files yourself; call "
+            "this. Without arguments it snapshots every indexed document; pass "
+            "source_id and/or rel_paths to narrow it to what changed."
+        )
+    )
+    def wiki_snapshot(
+        source_id: str | None = None, rel_paths: list[str] | None = None
+    ) -> dict[str, Any]:
+        from aec_rag.wiki import write_snapshots
+
+        result = write_snapshots(state.db(), state.vault, source_id=source_id, rel_paths=rel_paths)
+        return {"files": result.files, "skipped": result.skipped}
+
     return server
 
 
