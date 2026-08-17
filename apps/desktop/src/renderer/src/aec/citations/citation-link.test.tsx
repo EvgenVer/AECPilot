@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { $openDocument, closeDocument } from '../viewers/viewer-store'
+import { $openDocument, closeAllDocuments } from '../viewers/viewer-store'
 
 import { CitationChip } from './CitationLink'
 import { parseCitationLabel, parseCitations } from './citation-pure'
@@ -17,7 +17,9 @@ function renderChip(text: string): void {
 
 describe('CitationChip', () => {
   beforeEach(() => {
-    closeDocument()
+    // Не `closeDocument()`: с задачи 4.1 он закрывает ОДНУ вкладку, а тесту
+    // нужен чистый просмотрщик — иначе документ из прошлого теста остаётся.
+    closeAllDocuments()
   })
 
   afterEach(() => {

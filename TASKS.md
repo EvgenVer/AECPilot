@@ -443,7 +443,7 @@
 - [ ] 3.25 Ответ отказом на `window.read.request` (SPEC HX12): поверхность не реализуется, но запрос обязан получать ответ — files: renderer/src/aec/, main/ · verify: агент, вызвавший `read_window_below`, получает отказ сразу, а не ждёт 30-секундный таймаут; нативная зависимость `get-windows` в дереве не появляется · dep: 3.B0 · parallel: yes
 
 ### Phase 4 — Viewers & wiki (была 3; спека: specs/wiki.md)
-- [ ] 4.1 Довести PDF-вьюер: вкладки, поиск по тексту, зум — files: apps/desktop · verify: AC8-прогон PDF (вкл. битый файл → понятная ошибка) · dep: 2.14 · parallel: yes
+- [x] 4.1 Довести PDF-вьюер: вкладки, поиск по тексту, зум — files: apps/desktop · verify: AC8-прогон PDF (вкл. битый файл → понятная ошибка) · dep: 2.14 · parallel: yes
 - [ ] 4.2 Реализовать DOCX-вьюер (docx-preview) и TXT-просмотр — files: apps/desktop · verify: AC8-прогон DOCX/TXT · dep: 2.14 · parallel: yes
 - [ ] 4.3 Реализовать XLSX/CSV-вьюер (Univer, read-only) — files: apps/desktop · verify: AC8-прогон XLSX/CSV (вкл. большой файл) · dep: 2.14 · parallel: yes
 - [ ] 4.4 Реализовать открытие DOCX/XLSX по locator из цитат (по решению O4) — files: apps/desktop · verify: клик из цитаты открывает место · dep: 4.2, 4.3, 2.7 · parallel: no
