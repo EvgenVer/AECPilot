@@ -205,6 +205,51 @@ def run_serve(project_arg: Path) -> None:
     build_server(_resolve_project_json(project_arg)).run()
 
 
+def run_check_quotes(project_arg: Path, answer: str) -> dict:
+    """Второй рубеж сверки выдержек (SPEC UR26, задача 3.31).
+
+    На вход — текст ответа целиком, на выход — каждая выдержка с вердиктом.
+    Приложение показывает ответ дословно и лишь помечает непрошедшие: переписать
+    ответ агента оно не вправе, а «этой фразы в источнике нет» — именно то, что
+    человеку нужно знать.
+
+    Одним процессом на ответ, а не на выдержку: ответ с пятью цитатами не должен
+    стоить пяти запусков python.
+
+    Выдержка сверяется с текстом БЛИЖАЙШЕЙ ПРЕДШЕСТВУЮЩЕЙ ссылки — так её и
+    ставит скил (ссылка, следом выдержка). Выдержка до первой ссылки сверяется
+    со всем процитированным в ответе: она может относиться к чему угодно из
+    названного ниже, и придираться к порядку здесь значило бы помечать верные
+    цитаты.
+    """
+    from aec_rag.citation import parse_citations
+    from aec_rag.evidence import EvidenceUnavailable, check_quote, chunk_text, find_quotes
+
+    project_path = _resolve_project_json(project_arg)
+    index_db_path = project_path.parent / "index.db"
+    if not index_db_path.is_file():
+        return {"available": False, "reason": "индекс не собран", "quotes": []}
+
+    conn = open_index(index_db_path)
+    try:
+        citations = parse_citations(answer)
+        everything = "\n".join(chunk_text(conn, citation) for citation in citations)
+        results = []
+        for quote in find_quotes(answer):
+            citation = quote.citation(citations)
+            evidence = chunk_text(conn, citation) if citation else everything
+            try:
+                verdict = check_quote(quote.text, evidence)
+            except EvidenceUnavailable as exc:
+                # Сверять нечем — и это НЕ «прошло». Молчаливое «ок» убрало бы
+                # гарантию, оставив её вид.
+                return {"available": False, "reason": str(exc), "quotes": []}
+            results.append({"text": quote.text, "start": quote.start, "end": quote.end, **verdict})
+        return {"available": True, "quotes": results}
+    finally:
+        conn.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aec-rag")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -248,10 +293,20 @@ def main(argv: list[str] | None = None) -> int:
     serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
     serve_parser.add_argument("--project", required=True, type=Path)
 
+    check_parser = subparsers.add_parser(
+        "check-quotes", help="Check every verbatim quote in an answer read from stdin (UR26)"
+    )
+    check_parser.add_argument("--project", required=True, type=Path)
+
     args = parser.parse_args(argv)
 
     try:
-        if args.command == "detach":
+        if args.command == "check-quotes":
+            # Байты, а не `sys.stdin.read()`: на Windows текстовый stdin
+            # декодируется кодировкой консоли, и русский ответ приезжает
+            # искажённым — сверять его с источником после этого бессмысленно.
+            report = run_check_quotes(args.project, sys.stdin.buffer.read().decode("utf-8"))
+        elif args.command == "detach":
             report = run_detach(args.project, args.source)
         elif args.command == "status":
             report = run_status(args.project)

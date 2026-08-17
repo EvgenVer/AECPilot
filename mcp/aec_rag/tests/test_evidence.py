@@ -13,7 +13,13 @@ import sqlite3
 
 import pytest
 from aec_rag.citation import parse_citations
-from aec_rag.evidence import EvidenceUnavailable, check_quote, chunk_text, hermes_home
+from aec_rag.evidence import (
+    EvidenceUnavailable,
+    check_quote,
+    chunk_text,
+    find_quotes,
+    hermes_home,
+)
 
 SKILL_TEXT = """
 def quote_in_evidence(quote, evidence):
@@ -118,3 +124,42 @@ def test_a_citation_that_points_nowhere_yields_no_evidence():
     citation = parse_citations("[src: project/выдумка.pdf]")[0]
 
     assert chunk_text(conn, citation) == ""
+
+
+def test_quotes_are_tied_to_the_citation_that_precedes_them():
+    # Так их и ставит скил: ссылка, следом выдержка. Привязка к ПОСЛЕДУЮЩЕЙ
+    # ссылке сверяла бы выдержку с чужим документом и метила бы верную цитату.
+    answer = (
+        "Мощность 250 кВт [src: p/а.pdf#p12](#cite) «установленная мощность 250 кВт». "
+        "Кабель ВВГнг [src: p/б.xlsx](#cite) «кабель ВВГнг три на пятьдесят»."
+    )
+    citations = parse_citations(answer)
+    quotes = find_quotes(answer)
+
+    assert [q.citation(citations).rel_path for q in quotes] == ["а.pdf", "б.xlsx"]
+
+
+def test_a_quote_before_any_citation_has_none():
+    quotes = find_quotes("«первая фраза без ссылки» [src: p/а.pdf](#cite)")
+    assert quotes[0].citation(parse_citations("«…» [src: p/а.pdf](#cite)")) is None
+
+
+def test_a_turn_of_phrase_is_not_a_quote():
+    # «класса «В»» — не утверждение из источника, и пометка на нём была бы шумом.
+    assert find_quotes('Класс герметичности «В» и "тип 2".') == []
+
+
+def test_an_unclosed_quote_does_not_swallow_the_answer():
+    answer = 'Начали «фразу и не закрыли\nВторой абзац "тоже с четырьмя словами тут".'
+    quotes = find_quotes(answer)
+
+    assert [q.text for q in quotes] == ["тоже с четырьмя словами тут"]
+
+
+def test_a_quote_carries_its_place_in_the_text():
+    answer = "текст «одна и та же фраза» и снова «одна и та же фраза»"
+    first, second = find_quotes(answer)
+
+    # Интерфейс метит конкретный кусок; двух одинаковых фраз ему мало.
+    assert answer[first.start : first.end] == first.text
+    assert first.start != second.start

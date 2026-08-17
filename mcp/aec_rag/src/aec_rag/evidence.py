@@ -20,7 +20,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
@@ -77,6 +80,56 @@ def _matcher(root: str):
     return matcher
 
 
+#: Короче — не выдержка, а оборот речи («класса «В»»). Порог общий для обоих
+#: рубежей: разойдись они, инструмент принимал бы то, что показ пометит.
+MIN_WORDS = 4
+
+
+@dataclass(frozen=True)
+class Quote:
+    """Выдержка, найденная в тексте ответа: сама фраза и её место в строке.
+
+    Место нужно интерфейсу: пометка ставится на конкретный кусок текста, а
+    одинаковых фраз в ответе может быть две.
+    """
+
+    text: str
+    start: int
+    end: int
+
+    def citation(self, citations: Sequence) -> object | None:
+        """Ближайшая ссылка ПЕРЕД выдержкой — так их и ставит скил.
+
+        `None` до первой ссылки: такая выдержка сверяется со всем, что ответ
+        процитировал (см. `run_check_quotes`).
+        """
+        preceding = [item for item in citations if item.start < self.start]
+        return preceding[-1] if preceding else None
+
+
+# Выдержка — «ёлочки» или обычные кавычки. Внутри не бывает переноса абзаца:
+# незакрытая кавычка иначе съедала бы половину ответа и помечала бы её целиком.
+_QUOTE = re.compile(r"«([^»\n]{10,400})»|\"([^\"\n]{10,400})\"")
+
+MIN_QUOTE_WORDS = 4
+
+
+def find_quotes(answer: str) -> list[Quote]:
+    """Выдержки в тексте ответа.
+
+    Короче четырёх слов — не выдержка, а оборот речи («класса «В»»), и метить
+    такие значило бы засыпать человека пометками там, где никто ничего не
+    утверждал.
+    """
+    found: list[Quote] = []
+    for match in _QUOTE.finditer(answer):
+        group = 1 if match.group(1) is not None else 2
+        text = (match.group(group) or "").strip()
+        if len(text.split()) >= MIN_WORDS:
+            found.append(Quote(text=text, start=match.start(group), end=match.end(group)))
+    return found
+
+
 def chunk_text(conn, citation) -> str:
     """Текст того места, на которое показывает ссылка.
 
@@ -109,9 +162,6 @@ def _locator_matches(stored: dict, wanted: dict) -> bool:
     if "heading" in wanted:
         return str(stored.get("heading", "")).startswith(str(wanted["heading"])[:40])
     return True
-
-
-MIN_WORDS = 4
 
 
 def check_quote(quote: str, evidence: str) -> dict[str, object]:

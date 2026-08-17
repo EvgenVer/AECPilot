@@ -42,6 +42,13 @@ class Citation:
     source_id: str
     rel_path: str
     locator: dict[str, int | str] = field(default_factory=dict)
+    #: Где ссылка стоит в разобранном тексте. Нужна тому, кто сопоставляет
+    #: ссылку с идущей за ней выдержкой (SPEC UR26); `parse_citations` её
+    #: заполняет, а собранная руками цитата обходится нулём — она не из текста.
+    #: В сравнении не участвует намеренно: две ссылки на одно и то же место
+    #: одинаковы, в каком бы месте строки они ни стояли.
+    start: int = field(default=0, compare=False)
+    end: int = field(default=0, compare=False)
 
 
 def format_locator(locator: Mapping[str, int | str]) -> str | None:
@@ -150,6 +157,8 @@ def parse_citations(text: str) -> list[Citation]:
                 source_id=match.group("source").strip(),
                 rel_path=rel_path,
                 locator=sanitize_locator(rel_path, parse_locator(match.group("loc") or "")),
+                start=match.start(),
+                end=match.end(),
             )
         )
     return citations
