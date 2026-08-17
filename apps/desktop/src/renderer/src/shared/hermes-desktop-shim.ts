@@ -12,13 +12,16 @@
 // screen that needs one more member is a task that wires it (the explorer's
 // file operations at 1.8.17, profiles at 1.8.11), not a reason to fake it here.
 //
-// Two capabilities are refused on purpose rather than implemented:
-//   getConnection — would hand the renderer the gateway's URL and token, which
-//     SPEC C9 forbids. Their per-profile socket pool is the only caller and it
-//     treats the rejection as a transport failure, which is the honest outcome:
-//     main owns one connection and does not lend it out.
+// One capability is refused on purpose rather than implemented:
 //   api({upload}) — multipart upload has no IPC counterpart; attachments go
 //     through our own `pickAttachments` / `pasteAttachment` channels.
+//
+// And one answers without granting anything: `getConnection` hands back a
+// descriptor that names the IPC bridge and carries no credential, because the
+// gateway's real URL and token are exactly what SPEC C9 keeps out of the
+// renderer. Callers must therefore not read that descriptor as "a socket can be
+// opened to this" — `donor/lib/voice-playback.ts` did, and its speech stream
+// went from "unavailable, fall back" to "throws" (task 3.7a).
 
 import { gatewayBridge } from './gateway-bridge'
 
@@ -73,6 +76,14 @@ const IMPLEMENTED: Record<string, unknown> = {
   // app is. Resolving true is the truthful answer to "is it still there".
   touchBackend(): Promise<{ ok: boolean }> {
     return Promise.resolve({ ok: true })
+  },
+
+  // Task 3.7a. Their recorder asks before opening capture and reads `false` as
+  // "denied"; the unbridged stand-in would REJECT here, and an `await` on a
+  // rejection is a throw, not a `false` — which is why pressing the microphone
+  // button raised their `recordingFailed` notice instead of recording.
+  requestMicrophoneAccess(): Promise<boolean> {
+    return window.aecpilot.requestMicrophoneAccess()
   },
 
   profile: {

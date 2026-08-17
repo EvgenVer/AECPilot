@@ -4,13 +4,15 @@
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [1] the speech WebSocket is not opened from the renderer (SPEC C9); voice
- *       streaming is routed through main when UR21 lands (task 3.7)
+ *   [1] the speech WebSocket is not opened from the renderer (SPEC C9):
+ *       `resolveSpeakStreamUrl` answers null — their own "no streaming
+ *       backend" answer — instead of minting a gateway credential, and the
+ *       two imports it was the only user of (`resolveGatewayWsUrl`,
+ *       `getApiRequestProfile`) are dropped with it. The socket constructor
+ *       in `openSpeechStream` throws, since nothing can now reach it.
  * (no other edits)
  */
-import { resolveGatewayWsUrl } from '@hermes/shared'
-
-import { getApiRequestProfile, speakText } from '@/hermes'
+import { speakText } from '@/hermes'
 import {
   $voicePlayback,
   setVoicePlaybackState,
@@ -107,36 +109,29 @@ export function stopVoicePlayback() {
 // ---------------------------------------------------------------------------
 
 async function resolveSpeakStreamUrl(): Promise<null | string> {
-  const desktop = window.hermesDesktop
-
-  if (!desktop?.getConnection) {
-    return null
-  }
-
-  try {
-    // Mint a fresh credential (single-use ticket in OAuth mode) for the
-    // ACTIVE profile's backend, then swap the gateway endpoint for the PCM
-    // one — auth is shared across WS routes.
-    const profile = getApiRequestProfile()
-    const wsUrl = await resolveGatewayWsUrl(desktop, await desktop.getConnection(profile))
-    const url = new URL(wsUrl)
-
-    if (!url.pathname.endsWith('/api/ws')) {
-      return null
-    }
-
-    url.pathname = url.pathname.replace(/\/api\/ws$/, '/api/audio/speak-stream')
-
-    // The backend resolves the TTS provider chain from this profile's
-    // config/.env (same seam as /api/pty?profile=).
-    if (profile) {
-      url.searchParams.set('profile', profile)
-    }
-
-    return url.toString()
-  } catch {
-    return null
-  }
+  // EDIT [1]: this build has no speech-stream URL. Theirs minted a gateway
+  // credential and rewrote the endpoint to /api/audio/speak-stream; ours cannot
+  // — main owns the gateway socket and the renderer is never told its URL or
+  // token (SPEC C9).
+  //
+  // `null` is THEIR OWN "no streaming backend/provider" answer, and both
+  // callers already do the right thing with it: `playSpeechText` speaks the
+  // whole reply over the POST endpoint, and the voice conversation calls
+  // `awaitFallbackSpeech`. What this costs, stated plainly: with a provider
+  // that can stream (ElevenLabs / OpenAI / Gemini / xAI) speech starts once the
+  // reply is synthesized instead of on the provider's first chunk. With the
+  // default provider (Edge, no key) the server answers `{"type":"fallback"}`
+  // itself, so nothing is lost at all.
+  //
+  // NOT an oversight and not a stub: routing the PCM stream through main is a
+  // separate decision — see the 3.7a note in TASKS.md.
+  //
+  // Until 3.7a this function returned a URL, because the shim's `getConnection`
+  // answers with a credential-free IPC descriptor whose path still ends in
+  // /api/ws. So the streaming branch WAS entered, the socket constructor below
+  // threw, and `playSpeechText` rethrew instead of falling back — the app spoke
+  // nothing at all.
+  return null
 }
 
 export interface SpeechStreamSession {
@@ -154,7 +149,7 @@ export interface SpeechStreamSession {
 
 /** EDIT [1]: stands in for the socket constructor — see openSpeechStream. */
 function openVoiceSocket(_wsUrl: string): WebSocket {
-  throw new Error('voice streaming is not bridged yet (SPEC C9; task 3.7)')
+  throw new Error('voice streaming is not bridged (SPEC C9; TASKS 3.7a)')
 }
 
 /**
@@ -165,12 +160,10 @@ function openVoiceSocket(_wsUrl: string): WebSocket {
  */
 function openSpeechStream(wsUrl: string, options: VoicePlaybackOptions): SpeechStreamSession {
   // EDIT [1]: their raw socket construction is gone — the renderer opens no
-  // socket to the gateway (SPEC C9). At runtime this branch is already
-  // unreachable: `resolveSpeakStreamUrl` above needs
-  // `hermesDesktop.getConnection`, which our shim refuses, so both callers get
-  // null and fall back to whole-text playback. The throw is here so the
-  // unreachability is stated rather than assumed. Voice mode (UR21) is task
-  // 3.7; that is where the PCM stream gets routed through main.
+  // socket to the gateway (SPEC C9). Both callers are gated on
+  // `resolveSpeakStreamUrl`, which now returns null by construction, so this
+  // line cannot be reached; the throw states that rather than leaving it to be
+  // assumed.
   const ws = openVoiceSocket(wsUrl)
   ws.binaryType = 'arraybuffer'
 

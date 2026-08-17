@@ -21,6 +21,7 @@ const api: AecpilotApi = {
   respondSecret: (requestId, value) => ipcRenderer.invoke('chat:respond-secret', requestId, value),
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
+  requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   completePath: (word) => ipcRenderer.invoke('chat:complete-path', word),
   pickAttachments: () => ipcRenderer.invoke('attach:pick'),

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences } from 'electron'
 import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -6,6 +6,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import {
   imageMime,
   isInside,
@@ -532,6 +533,26 @@ ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
     return { ok: true }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+/** Task 3.7a — the donor's recorder asks this BEFORE opening the microphone,
+ * so a refusal by the OS becomes a sentence ("доступ к микрофону запрещён")
+ * instead of a `NotAllowedError` thrown out of `getUserMedia`.
+ *
+ * macOS is the only platform with a prompt, and asking there is the point: the
+ * first recording is what triggers the system dialog. Elsewhere the status is
+ * read, never prompted. */
+ipcMain.handle('media:request-microphone', async () => {
+  if (process.platform === 'darwin') {
+    return systemPreferences.askForMediaAccess('microphone')
+  }
+  try {
+    return decideMicrophoneAccess(systemPreferences.getMediaAccessStatus('microphone'))
+  } catch {
+    // Not implemented on this platform (Linux). Not knowing is not a refusal —
+    // Chromium still gets to decide when the capture actually starts.
+    return true
   }
 })
 
@@ -2545,9 +2566,30 @@ ipcMain.handle('vault:get-entry-path', (_event, payload: unknown) => {
   }
 })
 
+/** Task 3.7a. Electron grants every permission a page asks for while no handler
+ * is installed, so until this ran the window could have taken geolocation, MIDI,
+ * screen capture or window management without anyone deciding. The rules live in
+ * `media-permission-pure.ts`; both callbacks are needed because most web APIs
+ * check first and only then request. */
+function installPermissionPolicy(): void {
+  const ses = session.defaultSession
+
+  ses.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    const kinds = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
+    callback(isAllowedPermission(permission, kinds))
+  })
+
+  ses.setPermissionCheckHandler((_contents, permission, _origin, details) => {
+    const kind = details.mediaType
+    return isAllowedPermission(permission, kind && kind !== 'unknown' ? [kind] : [])
+  })
+}
+
 app
   .whenReady()
   .then(async () => {
+    installPermissionPolicy()
+
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.
     if (process.env.AEC_SMOKE !== '1') {
       // AEC_GATEWAY_URL (task 0.16, Playwright e2e): point the gateway

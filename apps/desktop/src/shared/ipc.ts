@@ -579,6 +579,13 @@ export interface AecpilotApi {
    * is allowed at all (`http`/`https`/`mailto` only) and returns why not, so
    * the chat can show the refusal instead of failing silently. */
   openExternalLink(url: string): Promise<VaultOpResult>
+  /** Whether the OS will hand this app the microphone (task 3.7a, SPEC UR21).
+   * Asked by the voice recorder BEFORE it opens capture, so a refusal in the
+   * system settings reads as a sentence instead of a `NotAllowedError`. On
+   * macOS this is what raises the system prompt; elsewhere it only reads the
+   * status. It grants nothing by itself — the capture still goes through the
+   * window's permission policy. */
+  requestMicrophoneAccess(): Promise<boolean>
   /** Slash-command completions for what is being typed (task 1.6.8). Never
    * rejects: a disconnected gateway or a failed call comes back as an empty
    * list, because this runs on every keystroke and must not put an error over
