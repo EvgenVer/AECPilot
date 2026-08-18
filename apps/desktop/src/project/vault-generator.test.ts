@@ -478,6 +478,108 @@ describe('generateVault — partial-state cleanup on a mid-way write failure', (
   })
 })
 
+describe('generateVault — partial-state cleanup into a directory that already existed', () => {
+  // Task 4D-12. The case the test above does not cover: the user picked a
+  // folder that was already there, so the folder itself must survive — but
+  // nothing this call put inside it may. Before the rollback, a failed init
+  // left `wiki/`, `workspace/` and `templates/` behind, and the retry met them
+  // as "the folder is not empty" — the user confirming a conflict with our own
+  // crash.
+  function runFailingInit(vaultPath: string): void {
+    const writeFileSyncMock = vi.mocked(fs.writeFileSync)
+    const realWriteFileSync = writeFileSyncMock.getMockImplementation()!
+    let callCount = 0
+    writeFileSyncMock.mockImplementation((...args: Parameters<typeof fs.writeFileSync>) => {
+      callCount++
+      // 1: AGENTS.md, 2: the checkpoint marker, 3: project.json — fail the last
+      // one, so everything before it is already on disk.
+      if (callCount === 3) throw new Error('simulated write failure')
+      return realWriteFileSync(...args)
+    })
+    try {
+      expect(() =>
+        generateVault({
+          vaultPath,
+          projectName: 'Объект-X',
+          agentsTemplate: AGENTS_TEMPLATE,
+          nowIso: NOW_ISO
+        })
+      ).toThrow('simulated write failure')
+    } finally {
+      writeFileSyncMock.mockImplementation(realWriteFileSync)
+      writeFileSyncMock.mockClear()
+    }
+  }
+
+  it('leaves an empty pre-existing directory exactly as empty as it found it', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-rollback-')
+    try {
+      runFailingInit(vaultPath)
+
+      expect(fs.existsSync(vaultPath)).toBe(true)
+      expect(fs.readdirSync(vaultPath)).toEqual([])
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the user files and removes only what it created', () => {
+    const vaultPath = makeTempDir('aecpilot-vault-rollback-own-')
+    try {
+      fs.mkdirSync(path.join(vaultPath, 'мои-чертежи'))
+      fs.writeFileSync(path.join(vaultPath, 'смета.txt'), 'моё', 'utf-8')
+
+      runFailingInit(vaultPath)
+
+      expect(fs.readdirSync(vaultPath).sort()).toEqual(['мои-чертежи', 'смета.txt'])
+      expect(fs.readFileSync(path.join(vaultPath, 'смета.txt'), 'utf-8')).toBe('моё')
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+
+  it('never removes a folder of the user that shares our name', () => {
+    // The guard that makes the rollback safe: only paths this call BROUGHT
+    // INTO EXISTENCE are removed. A `wiki/` the user already kept — with their
+    // own file in it — is not ours to delete, even though we would have
+    // created one by that name.
+    const vaultPath = makeTempDir('aecpilot-vault-rollback-name-')
+    try {
+      fs.mkdirSync(path.join(vaultPath, 'wiki'))
+      fs.writeFileSync(path.join(vaultPath, 'wiki', 'моя-страница.md'), 'моё', 'utf-8')
+
+      runFailingInit(vaultPath)
+
+      expect(fs.existsSync(path.join(vaultPath, 'wiki', 'моя-страница.md'))).toBe(true)
+      expect(fs.existsSync(path.join(vaultPath, 'workspace'))).toBe(false)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+
+  it('lets the retry through without asking about a conflict we caused', () => {
+    // The user-visible point of the whole task: run once, fail, run again —
+    // and the second run just works instead of reporting `needs-confirm`
+    // against our own leftovers.
+    const vaultPath = makeTempDir('aecpilot-vault-rollback-retry-')
+    try {
+      runFailingInit(vaultPath)
+
+      const retry = generateVault({
+        vaultPath,
+        projectName: 'Объект-X',
+        agentsTemplate: AGENTS_TEMPLATE,
+        nowIso: NOW_ISO
+      })
+
+      expect(retry).toEqual({ ok: true })
+      expect(fs.existsSync(path.join(vaultPath, '.aecpilot', 'project.json'))).toBe(true)
+    } finally {
+      fs.rmSync(vaultPath, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('generateVault — real runtime/templates/AGENTS.md guard', () => {
   it('exists and is non-empty', () => {
     const dirname = path.dirname(fileURLToPath(import.meta.url))

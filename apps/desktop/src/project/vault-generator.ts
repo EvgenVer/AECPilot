@@ -115,7 +115,11 @@ function createMissingVaultEntries(
   vaultPath: string,
   projectName: string,
   agentsTemplate: string,
-  nowIso: string | undefined
+  nowIso: string | undefined,
+  /** Task 4D-12: every path this call brings into existence, appended as it
+   * goes. Passed in rather than returned because the caller needs it most
+   * precisely when this function throws and returns nothing. */
+  created: string[]
 ): void {
   // Review fix-iteration 1 (minor 2): checked up front, before any write —
   // `.aecpilot` occupied by a plain file (not a directory) would otherwise
@@ -129,20 +133,28 @@ function createMissingVaultEntries(
   }
 
   for (const subdir of VAULT_SUBDIRS) {
-    fs.mkdirSync(path.join(vaultPath, subdir), { recursive: true })
+    const dir = path.join(vaultPath, subdir)
+    if (!fs.existsSync(dir)) created.push(dir)
+    fs.mkdirSync(dir, { recursive: true })
   }
-  fs.mkdirSync(path.join(vaultPath, '.aecpilot', 'logs'), { recursive: true })
+  const logsDir = path.join(vaultPath, '.aecpilot', 'logs')
+  if (!fs.existsSync(logsDir)) created.push(logsDir)
+  fs.mkdirSync(logsDir, { recursive: true })
 
   const agentsPath = path.join(vaultPath, 'AGENTS.md')
   if (!fs.existsSync(agentsPath)) {
     const agentsContent = agentsTemplate.split(PROJECT_NAME_PLACEHOLDER).join(projectName)
+    created.push(agentsPath)
     fs.writeFileSync(agentsPath, agentsContent)
   }
 
-  ensureCheckpointMarker(vaultPath)
+  if (ensureCheckpointMarker(vaultPath)) {
+    created.push(path.join(vaultPath, CHECKPOINT_MARKER_FILE))
+  }
 
   const projectJsonPath = path.join(vaultPath, '.aecpilot', 'project.json')
   if (!fs.existsSync(projectJsonPath)) {
+    created.push(projectJsonPath)
     const projectConfig: ProjectConfig = {
       schema_version: PROJECT_CONFIG_SCHEMA_VERSION,
       name: projectName,
@@ -151,6 +163,30 @@ function createMissingVaultEntries(
       settings: { wiki_lang: 'auto', scan_interval_s: 300, embedding_model: '' }
     }
     fs.writeFileSync(projectJsonPath, `${JSON.stringify(projectConfig, null, 2)}\n`)
+  }
+}
+
+/** Task 4D-12: undoes a half-written init into a directory that already
+ * existed. Before this, a write that failed partway (disk full, antivirus,
+ * revoked permission) left `wiki/`, `workspace/` and friends behind — and the
+ * next attempt met them as "the folder is not empty" and asked the user to
+ * confirm a conflict with their own earlier failure. Either the project is
+ * there whole or it is not there at all.
+ *
+ * Safe by construction: the list only ever holds paths the failed call itself
+ * brought into existence — anything that was already there was never added,
+ * so nothing of the user's can be reached from here. Removal goes newest
+ * first, so a directory is removed after whatever we put inside it; `force`
+ * makes a child that its parent already took with it a no-op. A failure to
+ * clean up is swallowed: the caller is already re-throwing the real error,
+ * and burying it under a rollback error would hide the actual cause. */
+function rollback(created: string[]): void {
+  for (const target of [...created].reverse()) {
+    try {
+      fs.rmSync(target, { force: true, recursive: true })
+    } catch {
+      // Best-effort; the original failure is the one worth reporting.
+    }
   }
 }
 
@@ -202,12 +238,12 @@ export function ensureCheckpointMarker(vaultPath: string): boolean {
  *   `confirmed: true`. Once past that (no conflict, or confirmed), only the
  *   missing pieces are created — every existing file/folder of the user's is
  *   left untouched, including a conflicting AGENTS.md/.aecpilot itself.
- * - Because a pre-existing `vaultPath` (empty or not) isn't created by this
- *   call, it is *not* removed on a later write failure — it may be left
- *   holding partial contents; the original error is still re-thrown. A
- *   `vaultPath` this call *did* create (didn't exist before) is removed
- *   recursively on such a failure, leaving no trace — same rollback task 1.2
- *   established.
+ * - A write failure partway through leaves no trace either way (task 4D-12).
+ *   A `vaultPath` this call created is removed recursively — the rollback
+ *   task 1.2 established. A pre-existing `vaultPath` stays, but everything
+ *   this call put inside it is removed (see `rollback`), so a retry meets the
+ *   directory as it found it rather than as a conflict with our own failure.
+ *   The original error is re-thrown in both cases.
  */
 export function generateVault(options: GenerateVaultOptions): GenerateVaultResult {
   const { vaultPath, projectName, agentsTemplate, nowIso, confirmed } = options
@@ -229,16 +265,13 @@ export function generateVault(options: GenerateVaultOptions): GenerateVaultResul
         return { ok: false, reason: 'already-project' }
       }
 
-      // Review fix-iteration 1 (minor 3, accepted as-is, not "fixed"): an
-      // AGENTS.md/.aecpilot left behind by our OWN earlier init attempt that
-      // failed partway through (before writing project.json — see
-      // generateVault's no-rollback-on-a-pre-existing-directory note) is
-      // indistinguishable from a genuine user file of the same name — both
-      // just "exist, no project.json inside yet". Reporting it as a conflict
-      // here is a false positive in that retry case, but a safe one: the
-      // user confirms once, `createMissingVaultEntries` then completes the
-      // structure idempotently (only what's still missing), touching nothing
-      // that's already there either way.
+      // A conflict here means the user has their own AGENTS.md or .aecpilot,
+      // and they get asked about it. It used to also mean "or WE left one
+      // behind when an earlier init died partway" — indistinguishable from
+      // the real thing, and a false alarm we shipped knowingly. Task 4D-12
+      // removed the second case at the source: a failed init now rolls back
+      // what it created, so a retry sees the directory as it found it. The
+      // confirm below is once again only about the user's own files.
       const conflicts: VaultConflict[] = []
       if (fs.existsSync(path.join(vaultPath, 'AGENTS.md'))) conflicts.push('agents-md')
       if (fs.existsSync(aecpilotPath)) conflicts.push('aecpilot')
@@ -251,11 +284,14 @@ export function generateVault(options: GenerateVaultOptions): GenerateVaultResul
     createdVaultDir = true
   }
 
+  const created: string[] = []
   try {
-    createMissingVaultEntries(vaultPath, projectName, agentsTemplate, nowIso)
+    createMissingVaultEntries(vaultPath, projectName, agentsTemplate, nowIso, created)
   } catch (err) {
     if (createdVaultDir) {
       fs.rmSync(vaultPath, { recursive: true, force: true })
+    } else {
+      rollback(created)
     }
     throw err
   }
