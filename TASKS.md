@@ -497,7 +497,9 @@
        «'anyio' not found in `markers` configuration option» и обрывает сбор. До этого
        снятие плагина не роняло прогон, а тихо ПЕРЕСТАВАЛО запускать async-тесты — набор
        молча уменьшался, а отчёт оставался зелёным. Полный прогон: 294 passed, 3 skipped. -->
-- [ ] 4D-7 Описать колонку `skip_reason` (too_large|unreadable) в перечне колонок — files: specs/workspace-sources.md · verify: перечень совпадает со схемой `index.db` · dep: — · parallel: yes
+- [x] 4D-7 Описать колонку `skip_reason` (too_large|unreadable) в перечне колонок — files: specs/workspace-sources.md · verify: перечень совпадает со схемой `index.db` · dep: — · parallel: yes
+  <!-- Сделано 2026-08-17. Перечень колонок `files` в спеке теперь совпадает со схемой
+       `db.py`: source_id, rel_path, size, mtime, sha256, status, skip_reason, indexed_at. -->
 - [ ] 4D-8 Перевести чтение папок-источников в главном процессе на асинхронные вызовы — files: apps/desktop/src/main · verify: путь на несуществующий сетевой хост не блокирует главный процесс — интерфейс отвечает, пока папка молчит · dep: — · parallel: yes
 - [ ] 4D-9 Ставить `PRAGMA busy_timeout` при открытии `index.db` — files: mcp/aec_rag/src/aec_rag/db.py · verify: pytest: два соединения пишут одновременно, оба доходят; без PRAGMA тест краснеет · dep: — · parallel: yes
 - [ ] 4D-10 Ограничить рост `.aecpilot/logs/sources-rejected.jsonl` — files: apps/desktop/src/main · verify: юнит: при превышении лимита старые строки уходят, файл не растёт · dep: — · parallel: yes

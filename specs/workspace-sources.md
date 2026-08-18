@@ -105,7 +105,8 @@ Vault (создаётся при создании проекта):
     project.json   # {name, created_at, sources: [{id, root_path, added_at}],
                    #  settings: {wiki_lang: "auto"|<code>, scan_interval_s, embedding_model}}
     index.db       # SQLite: files(source_id, rel_path, size, mtime, sha256,
-                   #   status: ok|changed|deleted|detached, indexed_at) + FTS5 по извлечённому тексту
+                   #   status: ok|changed|deleted|detached, skip_reason: too_large|unreadable|NULL,
+                   #   indexed_at) + FTS5 по извлечённому тексту
     lancedb/       # векторное хранилище (появляется в Phase 2)
     memory/        # память проекта Mem0 (появляется в Phase 5, specs/agent-memory.md)
     logs/          # журнал операций и отклонённых попыток записи
