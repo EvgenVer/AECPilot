@@ -365,3 +365,29 @@ async def test_a_halted_pipeline_is_not_reported_as_an_indexed_document(tmp_path
         await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
 
     assert "векторов" in str(excinfo.value)
+
+
+@pytest.mark.anyio
+async def test_a_cyrillic_vault_path_survives_a_full_write_and_read(tmp_path):
+    """D-19, живая половина. `test_rag_index` уже проверяет, что индекс под
+    кириллическим путём ОТКРЫВАЕТСЯ. Здесь — то, ради чего он нужен: полный цикл
+    записи и чтения, то есть все файлы хранилищ, которые LightRAG заводит внутри
+    рабочего каталога.
+
+    Вопрос не праздный: `docling-parse` на такой путь не открывается вовсе
+    (замер 2.2), а vault инженера почти всегда лежит по кириллическому пути с
+    пробелами — «D:/Проекты/ЖК Нагатинский».
+    """
+    vault = make_vault(tmp_path / "Проекты" / "ЖК Нагатинский, корпус 2")
+    rag = await open_stub_index(vault)
+    entries = indexed([Chunk(text="Установленная мощность 320 кВт.", locator={"page": 4})])
+
+    keys = await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
+
+    from lightrag.base import QueryParam
+
+    result = await rag.aquery_data(
+        "установленная мощность", param=QueryParam(mode="naive", enable_rerank=False)
+    )
+
+    assert keys[0] in {chunk["chunk_id"] for chunk in result["data"]["chunks"]}
