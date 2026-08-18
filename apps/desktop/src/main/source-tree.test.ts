@@ -19,10 +19,10 @@ function makeTempDir(): string {
 }
 
 describe('isSourceAvailable', () => {
-  it('returns true for an existing, readable directory', () => {
+  it('returns true for an existing, readable directory', async () => {
     const dir = makeTempDir()
     try {
-      expect(isSourceAvailable(dir)).toBe(true)
+      expect(await isSourceAvailable(dir)).toBe(true)
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
@@ -31,18 +31,18 @@ describe('isSourceAvailable', () => {
   // Core of BDD "Недоступный источник": a mock of the "network path became
   // unreachable" scenario — a root that no longer exists must report
   // `false`, never throw.
-  it('returns false for a nonexistent root (mocked access error)', () => {
+  it('returns false for a nonexistent root (mocked access error)', async () => {
     const dir = makeTempDir()
     fs.rmSync(dir, { recursive: true, force: true })
-    expect(isSourceAvailable(dir)).toBe(false)
+    expect(await isSourceAvailable(dir)).toBe(false)
   })
 
-  it('returns false when the root is a file, not a directory', () => {
+  it('returns false when the root is a file, not a directory', async () => {
     const dir = makeTempDir()
     const filePath = path.join(dir, 'not-a-dir.txt')
     fs.writeFileSync(filePath, 'hi')
     try {
-      expect(isSourceAvailable(filePath)).toBe(false)
+      expect(await isSourceAvailable(filePath)).toBe(false)
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
@@ -64,20 +64,20 @@ describe('buildSourceTree', () => {
     fs.rmSync(sourcePath, { recursive: true, force: true })
   })
 
-  it('sorts dirs before files, then alphabetically (Cyrillic included)', () => {
-    const tree = buildSourceTree(sourcePath)
+  it('sorts dirs before files, then alphabetically (Cyrillic included)', async () => {
+    const tree = await buildSourceTree(sourcePath)
     expect(tree.map((n) => n.name)).toEqual(['Чертежи', 'sub', 'a-file.txt'])
   })
 
-  it('recurses into subdirectories with posix-style rel paths', () => {
-    const tree = buildSourceTree(sourcePath)
+  it('recurses into subdirectories with posix-style rel paths', async () => {
+    const tree = await buildSourceTree(sourcePath)
     const dir = tree.find((n) => n.name === 'Чертежи')
     expect(dir?.type).toBe('dir')
     expect(dir?.children).toEqual([{ name: 'план.dwg', path: 'Чертежи/план.dwg', type: 'file' }])
   })
 
-  it('marks files as type "file" without a children array', () => {
-    const tree = buildSourceTree(sourcePath)
+  it('marks files as type "file" without a children array', async () => {
+    const tree = await buildSourceTree(sourcePath)
     const file = tree.find((n) => n.name === 'a-file.txt')
     expect(file).toEqual({ name: 'a-file.txt', path: 'a-file.txt', type: 'file' })
   })
@@ -92,64 +92,70 @@ describe('buildSourceTree', () => {
 const SOURCE_ROOT = 'C:\\shares\\object-x'
 
 describe('resolveSourceEntryRel — empty/undefined rel resolves to the source root', () => {
-  it('resolves undefined to the (path-resolved) source root', () => {
-    expect(resolveSourceEntryRel(SOURCE_ROOT, undefined)).toBe(path.resolve(SOURCE_ROOT))
+  it('resolves undefined to the (path-resolved) source root', async () => {
+    expect(await resolveSourceEntryRel(SOURCE_ROOT, undefined)).toBe(path.resolve(SOURCE_ROOT))
   })
 
-  it('resolves an empty string to the source root', () => {
-    expect(resolveSourceEntryRel(SOURCE_ROOT, '')).toBe(path.resolve(SOURCE_ROOT))
+  it('resolves an empty string to the source root', async () => {
+    expect(await resolveSourceEntryRel(SOURCE_ROOT, '')).toBe(path.resolve(SOURCE_ROOT))
   })
 
-  it.each(['.', './', './.', './/'])('resolves rel %s to the source root too', (rel) => {
-    expect(resolveSourceEntryRel(SOURCE_ROOT, rel)).toBe(path.resolve(SOURCE_ROOT))
+  it.each(['.', './', './.', './/'])('resolves rel %s to the source root too', async (rel) => {
+    expect(await resolveSourceEntryRel(SOURCE_ROOT, rel)).toBe(path.resolve(SOURCE_ROOT))
   })
 })
 
 describe('resolveSourceEntryRel — traversal attempts', () => {
-  it('rejects a ".." component', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '..\\outside')).toThrow(PathOutsideSourceError)
-  })
-
-  it('rejects a ".." component mixed into a deeper relative path', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'a\\..\\..\\b')).toThrow(PathOutsideSourceError)
-  })
-
-  it('rejects an all-dots component ("...")', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '...')).toThrow(PathOutsideSourceError)
-  })
-
-  it('rejects an absolute path', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'C:\\Windows\\System32')).toThrow(
+  it('rejects a ".." component', async () => {
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, '..\\outside')).rejects.toThrow(
       PathOutsideSourceError
     )
   })
 
-  it('rejects a \\\\?\\ device/extended-length prefix', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '\\\\?\\C:\\shares\\object-x\\a')).toThrow(
+  it('rejects a ".." component mixed into a deeper relative path', async () => {
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, 'a\\..\\..\\b')).rejects.toThrow(
       PathOutsideSourceError
     )
   })
 
-  it('rejects a \\\\.\\ device prefix', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, '\\\\.\\C:\\shares\\object-x\\a')).toThrow(
+  it('rejects an all-dots component ("...")', async () => {
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, '...')).rejects.toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects an absolute path', async () => {
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, 'C:\\Windows\\System32')).rejects.toThrow(
       PathOutsideSourceError
     )
   })
 
-  it('rejects a path containing an embedded control character', () => {
+  it('rejects a \\\\?\\ device/extended-length prefix', async () => {
+    await expect(
+      resolveSourceEntryRel(SOURCE_ROOT, '\\\\?\\C:\\shares\\object-x\\a')
+    ).rejects.toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects a \\\\.\\ device prefix', async () => {
+    await expect(
+      resolveSourceEntryRel(SOURCE_ROOT, '\\\\.\\C:\\shares\\object-x\\a')
+    ).rejects.toThrow(PathOutsideSourceError)
+  })
+
+  it('rejects a path containing an embedded control character', async () => {
     const rel = 'a' + String.fromCharCode(0) + 'evil'
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, rel)).toThrow(PathOutsideSourceError)
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, rel)).rejects.toThrow(PathOutsideSourceError)
   })
 
-  it('rejects a drive-relative component ("C:foo")', () => {
-    expect(() => resolveSourceEntryRel(SOURCE_ROOT, 'C:foo')).toThrow(PathOutsideSourceError)
+  it('rejects a drive-relative component ("C:foo")', async () => {
+    await expect(resolveSourceEntryRel(SOURCE_ROOT, 'C:foo')).rejects.toThrow(
+      PathOutsideSourceError
+    )
   })
 })
 
 describe('resolveSourceEntryRel — boundary safety (component, not string-prefix, based)', () => {
-  it('never lets a sibling with a shared string prefix resolve outside the root', () => {
+  it('never lets a sibling with a shared string prefix resolve outside the root', async () => {
     const root = 'C:\\a\\b'
-    const resolved = resolveSourceEntryRel(root, 'sub')
+    const resolved = await resolveSourceEntryRel(root, 'sub')
     expect(resolved.toLowerCase().startsWith(path.resolve(root).toLowerCase() + path.sep)).toBe(
       true
     )
@@ -158,11 +164,11 @@ describe('resolveSourceEntryRel — boundary safety (component, not string-prefi
 })
 
 describe('resolveSourceEntryRel — accepts a valid nested relative path', () => {
-  it('resolves a normal relative path, forward or backward slashes', () => {
-    expect(resolveSourceEntryRel(SOURCE_ROOT, 'a\\b.pdf')).toBe(
+  it('resolves a normal relative path, forward or backward slashes', async () => {
+    expect(await resolveSourceEntryRel(SOURCE_ROOT, 'a\\b.pdf')).toBe(
       path.resolve(SOURCE_ROOT, 'a', 'b.pdf')
     )
-    expect(resolveSourceEntryRel(SOURCE_ROOT, 'a/b.pdf')).toBe(
+    expect(await resolveSourceEntryRel(SOURCE_ROOT, 'a/b.pdf')).toBe(
       path.resolve(SOURCE_ROOT, 'a', 'b.pdf')
     )
   })
@@ -197,17 +203,36 @@ describe('resolveSourceEntryRel — symlink/junction escape (real-path containme
     return link
   }
 
-  it('rejects reaching an entry through an escaping junction component', (ctx) => {
+  it('rejects reaching an entry through an escaping junction component', async (ctx) => {
     const link = makeEscapingJunction(ctx)
     if (!link) return
-    expect(() => resolveSourceEntryRel(sourceRoot, 'escape-link/secret.txt')).toThrow(
+    await expect(resolveSourceEntryRel(sourceRoot, 'escape-link/secret.txt')).rejects.toThrow(
       PathOutsideSourceError
     )
   })
 
-  it('still allows targeting the junction LEAF itself ("Показать в проводнике" the link, not its target)', (ctx) => {
+  it('still allows targeting the junction LEAF itself ("Показать в проводнике" the link, not its target)', async (ctx) => {
     const link = makeEscapingJunction(ctx)
     if (!link) return
-    expect(resolveSourceEntryRel(sourceRoot, 'escape-link')).toBe(link)
+    expect(await resolveSourceEntryRel(sourceRoot, 'escape-link')).toBe(link)
+  })
+})
+
+// Task 4D-8. Measured before the change: `fs.statSync` against a dead UNC path
+// (`\10.255.255.1\share`) waited 42,2 s and let the timer fire ONCE — the whole
+// main process frozen for three quarters of a minute. `fs.promises.stat` against
+// an equally dead path waited the same 42,2 s and let it fire 681 times. The
+// wait is the network's and cannot be argued with; whether the app is alive
+// during it is ours.
+//
+// A behavioral test of that costs 42 seconds per run, so the guard is static:
+// a source root is routinely a network share, and no filesystem call in this
+// module may be the blocking kind again.
+describe('source-tree: no blocking filesystem calls (task 4D-8)', () => {
+  it('uses no *Sync filesystem call', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'source-tree.ts'), 'utf8')
+    const offenders = [...source.matchAll(/\bfs\.\w+Sync\b/g)].map((m) => m[0])
+
+    expect(offenders).toEqual([])
   })
 })

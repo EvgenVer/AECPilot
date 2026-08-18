@@ -2327,7 +2327,7 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
   if (!isAbsolute(rootPath)) {
     return { ok: false, errors: ['путь к источнику должен быть абсолютным'] }
   }
-  const result = addSourceToProject(currentProject.vaultPath, rootPath, {
+  const result = await addSourceToProject(currentProject.vaultPath, rootPath, {
     confirmed: confirmed === true
   })
   if (!('needsConfirm' in result) && result.ok) await reloadMcp()
@@ -2338,7 +2338,7 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
 // directory read) — the sidebar calls this once per connected source on
 // load, so every source's "RO"/"недоступен" badge shows up without a manual
 // expand, and without the cost of a full recursive tree build per source.
-ipcMain.handle('sources:status', (_event, payload: unknown) => {
+ipcMain.handle('sources:status', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -2386,7 +2386,7 @@ ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
 // Task 1.8: builds a connected source's directory tree for the sidebar's
 // "Источники" activity — read-only, no-op when no project is open (a stale
 // renderer call after the project was closed mid-flight must never throw).
-ipcMain.handle('sources:tree', (_event, payload: unknown) => {
+ipcMain.handle('sources:tree', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -2403,7 +2403,7 @@ ipcMain.handle('sources:tree', (_event, payload: unknown) => {
 // (`rel: ''` targets the source's own root) — read-only, mirrors
 // `vault:show-in-explorer` but resolved against the source's root instead of
 // the vault.
-ipcMain.handle('sources:show-in-explorer', (_event, payload: unknown) => {
+ipcMain.handle('sources:show-in-explorer', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -2417,7 +2417,7 @@ ipcMain.handle('sources:show-in-explorer', (_event, payload: unknown) => {
   if (!source) return { ok: false, error: 'Источник не найден' }
   let absPath: string
   try {
-    absPath = resolveSourceEntryRel(source.root_path, rel)
+    absPath = await resolveSourceEntryRel(source.root_path, rel)
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -2428,7 +2428,7 @@ ipcMain.handle('sources:show-in-explorer', (_event, payload: unknown) => {
 // Task 1.5.5: resolves a connected source's entry to its absolute path,
 // backing "Копировать путь" — the renderer copies the returned path itself
 // (via the clipboard), it never builds the path on its own.
-ipcMain.handle('sources:get-entry-path', (_event, payload: unknown) => {
+ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -2441,7 +2441,7 @@ ipcMain.handle('sources:get-entry-path', (_event, payload: unknown) => {
   const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
   if (!source) return { ok: false, error: 'Источник не найден' }
   try {
-    return { ok: true, path: resolveSourceEntryRel(source.root_path, rel) }
+    return { ok: true, path: await resolveSourceEntryRel(source.root_path, rel) }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -2550,16 +2550,16 @@ const MAX_VIEWER_BYTES = 200 * 1024 * 1024
  *  4.3: путь приходит из текста, написанного агентом, и проверка «не вышли ли
  *  мы за корень» не должна существовать в двух экземплярах — разъехавшись, они
  *  разъедутся именно в ту сторону, в какую нельзя. */
-function resolveViewerPath(
+async function resolveViewerPath(
   vaultPath: string,
   rel: string,
   sourceId: unknown
-): { absPath: string; ok: true } | { error: string; ok: false } {
+): Promise<{ absPath: string; ok: true } | { error: string; ok: false }> {
   try {
     if (typeof sourceId === 'string' && sourceId.length > 0) {
       const source = listProjectSources(vaultPath).find((s) => s.id === sourceId)
       if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
-      return { absPath: resolveSourceEntryRel(source.root_path, rel), ok: true }
+      return { absPath: await resolveSourceEntryRel(source.root_path, rel), ok: true }
     }
     return { absPath: resolveVaultEntryRel(vaultPath, rel), ok: true }
   } catch (error: unknown) {
@@ -2581,17 +2581,17 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
     return { ok: false, error: 'rel must be a non-empty string' }
   }
 
-  const resolved = resolveViewerPath(currentProject.vaultPath, rel, sourceId)
+  const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved
   const absPath = resolved.absPath
 
   try {
-    const stat = fs.statSync(absPath)
+    const stat = await fs.promises.stat(absPath)
     if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
     if (stat.size > MAX_VIEWER_BYTES) {
       return { ok: false, error: 'Файл слишком велик для просмотра' }
     }
-    const bytes = fs.readFileSync(absPath)
+    const bytes = await fs.promises.readFile(absPath)
     return {
       ok: true,
       bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
@@ -2618,11 +2618,11 @@ ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
     return { ok: false, error: 'rel must be a non-empty string' }
   }
 
-  const resolved = resolveViewerPath(currentProject.vaultPath, rel, sourceId)
+  const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved
 
   try {
-    const stat = fs.statSync(resolved.absPath)
+    const stat = await fs.promises.stat(resolved.absPath)
     if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
     if (stat.size > MAX_VIEWER_BYTES) {
       return { ok: false, error: 'Файл слишком велик для просмотра' }

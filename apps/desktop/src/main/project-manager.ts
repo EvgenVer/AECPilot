@@ -9,14 +9,8 @@
 // stay in main/index.ts and recents.ts) so this can be unit-tested directly,
 // the same way task 1.2's vault-generator.ts is.
 
-import {
-  accessSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync
-} from 'node:fs'
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import * as fsp from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
@@ -348,10 +342,13 @@ export type SourceStatusResult =
  * "недоступен" badge right away on load, one IPC call per source, without
  * paying for a full recursive tree build per source just to render badges.
  * An unknown `sourceId` comes back as `{ ok: false }`. */
-export function getSourceStatusResult(vaultPath: string, sourceId: string): SourceStatusResult {
+export async function getSourceStatusResult(
+  vaultPath: string,
+  sourceId: string
+): Promise<SourceStatusResult> {
   const source = findSourceById(vaultPath, sourceId)
   if (!source) return { ok: false, error: 'Источник не найден' }
-  return { ok: true, status: isSourceAvailable(source.root_path) ? 'ok' : 'unavailable' }
+  return { ok: true, status: (await isSourceAvailable(source.root_path)) ? 'ok' : 'unavailable' }
 }
 
 export type SourceTreeResult =
@@ -368,16 +365,19 @@ export type SourceTreeResult =
  * `{ ok: true, status: 'unavailable' }`, never thrown, so one bad source
  * never blocks the others (specs/workspace-sources.md's "Недоступный
  * источник"). */
-export function getSourceTreeResult(vaultPath: string, sourceId: string): SourceTreeResult {
+export async function getSourceTreeResult(
+  vaultPath: string,
+  sourceId: string
+): Promise<SourceTreeResult> {
   const source = findSourceById(vaultPath, sourceId)
   if (!source) return { ok: false, error: 'Источник не найден' }
 
-  if (!isSourceAvailable(source.root_path)) {
+  if (!(await isSourceAvailable(source.root_path))) {
     return { ok: true, status: 'unavailable' }
   }
 
   try {
-    return { ok: true, status: 'ok', tree: buildSourceTree(source.root_path) }
+    return { ok: true, status: 'ok', tree: await buildSourceTree(source.root_path) }
   } catch (error: unknown) {
     console.error('aecpilot: could not build source tree', error)
     return { ok: true, status: 'unavailable' }
@@ -406,11 +406,11 @@ export type AddSourceResult =
  * - Otherwise -> the source is added, `project.json` is re-validated
  *   (`validateProjectConfig`) as a safety net before writing, and the
  *   updated `sources` list is returned. */
-export function addSourceToProject(
+export async function addSourceToProject(
   vaultPath: string,
   rootPath: string,
   options?: { confirmed?: boolean; nowIso?: string; idFactory?: () => string }
-): AddSourceResult {
+): Promise<AddSourceResult> {
   const configResult = readProjectConfigFile(vaultPath)
   if (!configResult.ok) return { ok: false, errors: [configResult.error] }
   const config = configResult.config
@@ -424,7 +424,7 @@ export function addSourceToProject(
 
   const warnings = [...validation.warnings]
   try {
-    accessSync(rootPath)
+    await fsp.access(rootPath)
   } catch {
     warnings.push('Путь сейчас недоступен — источник будет добавлен как недоступный')
   }

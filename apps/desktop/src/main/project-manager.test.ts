@@ -47,7 +47,7 @@ describe('createProject — success', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('generates the vault and returns the created project (name trimmed)', () => {
+  it('generates the vault and returns the created project (name trimmed)', async () => {
     const vaultPath = path.join(parent, 'vault')
 
     const result = createProject(vaultPath, '  Объект-X  ', templatePath)
@@ -65,7 +65,7 @@ describe('createProject — success', () => {
 })
 
 describe('createProject — blank name', () => {
-  it('rejects before touching the filesystem', () => {
+  it('rejects before touching the filesystem', async () => {
     const parent = makeTempDir('aecpilot-create-project-blank-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -83,7 +83,7 @@ describe('createProject — blank name', () => {
 })
 
 describe('createProject — unreadable template', () => {
-  it('returns a human-readable error and creates nothing', () => {
+  it('returns a human-readable error and creates nothing', async () => {
     const parent = makeTempDir('aecpilot-create-project-notemplate-')
     try {
       const vaultPath = path.join(parent, 'vault')
@@ -103,7 +103,7 @@ describe('createProject — unreadable template', () => {
 // Task 1.5.4 — Obsidian-style init: a non-empty target directory is no
 // longer rejected outright by createProject either.
 describe('createProject — non-empty target directory, no naming conflict', () => {
-  it('succeeds, leaving the existing file untouched and adding the missing vault structure', () => {
+  it('succeeds, leaving the existing file untouched and adding the missing vault structure', async () => {
     const parent = makeTempDir('aecpilot-create-project-nonempty-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -130,7 +130,7 @@ describe('createProject — non-empty target directory, no naming conflict', () 
 })
 
 describe('createProject — non-empty target directory, AGENTS.md naming conflict', () => {
-  it('returns needsConfirm without writing anything, then succeeds once confirmed (AGENTS.md preserved)', () => {
+  it('returns needsConfirm without writing anything, then succeeds once confirmed (AGENTS.md preserved)', async () => {
     const parent = makeTempDir('aecpilot-create-project-conflict-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -156,7 +156,7 @@ describe('createProject — non-empty target directory, AGENTS.md naming conflic
 })
 
 describe('createProject — target directory already an AECPilot project', () => {
-  it('returns a Russian error pointing at "Открыть проект", without touching project.json', () => {
+  it('returns a Russian error pointing at "Открыть проект", without touching project.json', async () => {
     const parent = makeTempDir('aecpilot-create-project-already-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -184,7 +184,7 @@ describe('createProject — target directory already an AECPilot project', () =>
   // "repaired" by (re-)creating over it. Recovering it is a separate,
   // deliberate, manual action; openProject is where the corrupt-JSON error
   // actually surfaces to the user.
-  it('treats a broken (invalid JSON) project.json the same way — already-project, file untouched', () => {
+  it('treats a broken (invalid JSON) project.json the same way — already-project, file untouched', async () => {
     const parent = makeTempDir('aecpilot-create-project-broken-json-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -207,7 +207,7 @@ describe('createProject — target directory already an AECPilot project', () =>
 })
 
 describe('createProject — target path is a file', () => {
-  it('maps generateVault error to a Russian, UI-friendly message', () => {
+  it('maps generateVault error to a Russian, UI-friendly message', async () => {
     const parent = makeTempDir('aecpilot-create-project-file-target-')
     try {
       const templatePath = path.join(parent, 'AGENTS.template.md')
@@ -235,7 +235,7 @@ describe('openProject', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('opens a valid vault (fixture via generateVault), taking the name from project.json — not the folder name', () => {
+  it('opens a valid vault (fixture via generateVault), taking the name from project.json — not the folder name', async () => {
     const vaultPath = path.join(parent, 'some-folder-name')
     generateVault({ vaultPath, projectName: 'Объект-Y', agentsTemplate: AGENTS_TEMPLATE })
 
@@ -247,7 +247,7 @@ describe('openProject', () => {
   // Task 1.5.4: a folder with no .aecpilot/project.json is no longer a flat
   // error — Obsidian-style, any folder can become a project, so the caller
   // (UI) gets a signal to offer initializing one here instead.
-  it('returns needsInit (not an error) for a folder with no .aecpilot/project.json', () => {
+  it('returns needsInit (not an error) for a folder with no .aecpilot/project.json', async () => {
     const vaultPath = path.join(parent, 'not-a-vault')
     fs.mkdirSync(vaultPath)
 
@@ -256,7 +256,7 @@ describe('openProject', () => {
     expect(result).toEqual({ needsInit: true, suggestedName: 'not-a-vault' })
   })
 
-  it('rejects a vaultPath that does not exist at all (not needsInit)', () => {
+  it('rejects a vaultPath that does not exist at all (not needsInit)', async () => {
     const vaultPath = path.join(parent, 'does-not-exist')
 
     const result = openProject(vaultPath)
@@ -264,7 +264,7 @@ describe('openProject', () => {
     expect(result).toEqual({ ok: false, error: 'Папка не найдена' })
   })
 
-  it('rejects a corrupt (non-JSON) project.json', () => {
+  it('rejects a corrupt (non-JSON) project.json', async () => {
     const vaultPath = path.join(parent, 'broken-json-vault')
     fs.mkdirSync(path.join(vaultPath, '.aecpilot'), { recursive: true })
     fs.writeFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), '{ not valid json')
@@ -277,7 +277,7 @@ describe('openProject', () => {
     })
   })
 
-  it('rejects a schema-invalid project.json, listing the errors', () => {
+  it('rejects a schema-invalid project.json, listing the errors', async () => {
     const vaultPath = path.join(parent, 'invalid-config-vault')
     fs.mkdirSync(path.join(vaultPath, '.aecpilot'), { recursive: true })
     fs.writeFileSync(
@@ -314,11 +314,11 @@ describe('addSourceToProject', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('adds a source, re-reads and re-validates project.json, and returns the updated list', () => {
+  it('adds a source, re-reads and re-validates project.json, and returns the updated list', async () => {
     const sourceDir = path.join(parent, 'source-a')
     fs.mkdirSync(sourceDir)
 
-    const result = addSourceToProject(vaultPath, sourceDir, {
+    const result = await addSourceToProject(vaultPath, sourceDir, {
       nowIso: '2026-07-15T09:00:00.000Z',
       idFactory: () => 'fixed-id-1'
     })
@@ -340,41 +340,41 @@ describe('addSourceToProject', () => {
     }
   })
 
-  it('rejects re-adding the exact same path (already connected), leaving project.json untouched', () => {
+  it('rejects re-adding the exact same path (already connected), leaving project.json untouched', async () => {
     const sourceDir = path.join(parent, 'source-b')
     fs.mkdirSync(sourceDir)
 
-    const first = addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-1' })
+    const first = await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-1' })
     expect('ok' in first && first.ok).toBe(true)
 
     const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
-    const second = addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-2' })
+    const second = await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-2' })
     const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
 
     expect(second).toEqual({ ok: false, errors: ['Этот путь уже подключён как источник'] })
     expect(after).toBe(before)
   })
 
-  it('rejects a source nested inside the vault, without writing anything', () => {
+  it('rejects a source nested inside the vault, without writing anything', async () => {
     const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
 
-    const result = addSourceToProject(vaultPath, path.join(vaultPath, 'wiki'))
+    const result = await addSourceToProject(vaultPath, path.join(vaultPath, 'wiki'))
 
     expect('ok' in result && result.ok).toBe(false)
     const after = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
     expect(after).toBe(before)
   })
 
-  it('returns needsConfirm for an inaccessible (non-existent) path, writing nothing until confirmed', () => {
+  it('returns needsConfirm for an inaccessible (non-existent) path, writing nothing until confirmed', async () => {
     const missingDir = path.join(parent, 'does-not-exist')
 
-    const result = addSourceToProject(vaultPath, missingDir)
+    const result = await addSourceToProject(vaultPath, missingDir)
 
     expect(result).toEqual({
       needsConfirm: ['Путь сейчас недоступен — источник будет добавлен как недоступный']
     })
 
-    const confirmed = addSourceToProject(vaultPath, missingDir, {
+    const confirmed = await addSourceToProject(vaultPath, missingDir, {
       confirmed: true,
       idFactory: () => 'id-missing'
     })
@@ -384,22 +384,24 @@ describe('addSourceToProject', () => {
     })
   })
 
-  it('returns needsConfirm for an overlap with an existing source, then adds it once confirmed', () => {
+  it('returns needsConfirm for an overlap with an existing source, then adds it once confirmed', async () => {
     const parentDir = path.join(parent, 'overlap-parent')
     fs.mkdirSync(parentDir)
-    const addFirst = addSourceToProject(vaultPath, parentDir, { idFactory: () => 'id-parent' })
+    const addFirst = await addSourceToProject(vaultPath, parentDir, {
+      idFactory: () => 'id-parent'
+    })
     expect('ok' in addFirst && addFirst.ok).toBe(true)
 
     const nestedDir = path.join(parentDir, 'nested')
     fs.mkdirSync(nestedDir)
 
-    const result = addSourceToProject(vaultPath, nestedDir)
+    const result = await addSourceToProject(vaultPath, nestedDir)
     expect('needsConfirm' in result).toBe(true)
     if ('needsConfirm' in result) {
       expect(result.needsConfirm[0]).toContain(parentDir)
     }
 
-    const confirmed = addSourceToProject(vaultPath, nestedDir, {
+    const confirmed = await addSourceToProject(vaultPath, nestedDir, {
       confirmed: true,
       idFactory: () => 'id-nested'
     })
@@ -407,17 +409,17 @@ describe('addSourceToProject', () => {
     if ('ok' in confirmed && confirmed.ok) expect(confirmed.sources).toHaveLength(2)
   })
 
-  it('rejects when the vault has no project.json', () => {
+  it('rejects when the vault has no project.json', async () => {
     const notAVault = path.join(parent, 'not-a-vault')
     fs.mkdirSync(notAVault)
 
-    const result = addSourceToProject(notAVault, path.join(parent, 'source-c'))
+    const result = await addSourceToProject(notAVault, path.join(parent, 'source-c'))
 
     expect('ok' in result && result.ok).toBe(false)
     if ('ok' in result && !result.ok) expect(result.errors[0]).toContain('Папка недоступна')
   })
 
-  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', () => {
+  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', async () => {
     const sourceDir = path.join(parent, 'source-write-fail')
     fs.mkdirSync(sourceDir)
 
@@ -428,9 +430,9 @@ describe('addSourceToProject', () => {
     })
 
     const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
-    let result: ReturnType<typeof addSourceToProject>
+    let result: Awaited<ReturnType<typeof addSourceToProject>>
     try {
-      result = addSourceToProject(vaultPath, sourceDir)
+      result = await addSourceToProject(vaultPath, sourceDir)
     } finally {
       writeFileSyncMock.mockImplementation(realWriteFileSync)
     }
@@ -467,13 +469,13 @@ describe('removeSourceFromProject', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('removes the source, re-reads and re-validates project.json, and returns the remaining list', () => {
+  it('removes the source, re-reads and re-validates project.json, and returns the remaining list', async () => {
     const sourceDir = path.join(parent, 'source-a')
     fs.mkdirSync(sourceDir)
     const otherDir = path.join(parent, 'source-b')
     fs.mkdirSync(otherDir)
-    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
-    addSourceToProject(vaultPath, otherDir, { idFactory: () => 'id-b' })
+    await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+    await addSourceToProject(vaultPath, otherDir, { idFactory: () => 'id-b' })
 
     const result = removeSourceFromProject(vaultPath, 'id-a')
 
@@ -491,10 +493,10 @@ describe('removeSourceFromProject', () => {
     }
   })
 
-  it('rejects an unknown sourceId, leaving project.json untouched', () => {
+  it('rejects an unknown sourceId, leaving project.json untouched', async () => {
     const sourceDir = path.join(parent, 'source-a')
     fs.mkdirSync(sourceDir)
-    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+    await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
 
     const before = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
     const result = removeSourceFromProject(vaultPath, 'no-such-id')
@@ -504,10 +506,10 @@ describe('removeSourceFromProject', () => {
     expect(after).toBe(before)
   })
 
-  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', () => {
+  it('returns {ok:false} on a write failure instead of throwing, leaving project.json untouched', async () => {
     const sourceDir = path.join(parent, 'source-a')
     fs.mkdirSync(sourceDir)
-    addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+    await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
 
     const writeFileSyncMock = vi.mocked(fs.writeFileSync)
     const realWriteFileSync = writeFileSyncMock.getMockImplementation()!
@@ -531,7 +533,7 @@ describe('removeSourceFromProject', () => {
     expect(after).toBe(before)
   })
 
-  it('rejects when the vault has no project.json', () => {
+  it('rejects when the vault has no project.json', async () => {
     const notAVault = path.join(parent, 'not-a-vault')
     fs.mkdirSync(notAVault)
 
@@ -573,11 +575,11 @@ describe('getSourceTreeResult', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('returns the tree for a reachable source', () => {
-    const added = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+  it('returns the tree for a reachable source', async () => {
+    const added = await addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
     expect('ok' in added && added.ok).toBe(true)
 
-    const result = getSourceTreeResult(vaultPath, 'src-ok')
+    const result = await getSourceTreeResult(vaultPath, 'src-ok')
 
     expect(result).toEqual({
       ok: true,
@@ -586,17 +588,17 @@ describe('getSourceTreeResult', () => {
     })
   })
 
-  it('returns {ok:false} for an unknown sourceId', () => {
-    expect(getSourceTreeResult(vaultPath, 'no-such-id')).toEqual({
+  it('returns {ok:false} for an unknown sourceId', async () => {
+    expect(await getSourceTreeResult(vaultPath, 'no-such-id')).toEqual({
       ok: false,
       error: 'Источник не найден'
     })
   })
 
-  it('reports unavailable (never throws) once the source root is removed, isolated from an ok source', () => {
-    const addedOk = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+  it('reports unavailable (never throws) once the source root is removed, isolated from an ok source', async () => {
+    const addedOk = await addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
     expect('ok' in addedOk && addedOk.ok).toBe(true)
-    const addedMissing = addSourceToProject(vaultPath, missingSourceDir, {
+    const addedMissing = await addSourceToProject(vaultPath, missingSourceDir, {
       idFactory: () => 'src-missing'
     })
     expect('ok' in addedMissing && addedMissing.ok).toBe(true)
@@ -605,8 +607,8 @@ describe('getSourceTreeResult', () => {
     // "Недоступный источник") — removing the folder after it was connected.
     fs.rmSync(missingSourceDir, { recursive: true, force: true })
 
-    const okResult = getSourceTreeResult(vaultPath, 'src-ok')
-    const missingResult = getSourceTreeResult(vaultPath, 'src-missing')
+    const okResult = await getSourceTreeResult(vaultPath, 'src-ok')
+    const missingResult = await getSourceTreeResult(vaultPath, 'src-missing')
 
     expect(okResult).toEqual({
       ok: true,
@@ -648,32 +650,32 @@ describe('getSourceStatusResult', () => {
     fs.rmSync(parent, { recursive: true, force: true })
   })
 
-  it('returns status "ok" for a reachable source', () => {
-    const added = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+  it('returns status "ok" for a reachable source', async () => {
+    const added = await addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
     expect('ok' in added && added.ok).toBe(true)
 
-    expect(getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
+    expect(await getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
   })
 
-  it('returns {ok:false} for an unknown sourceId', () => {
-    expect(getSourceStatusResult(vaultPath, 'no-such-id')).toEqual({
+  it('returns {ok:false} for an unknown sourceId', async () => {
+    expect(await getSourceStatusResult(vaultPath, 'no-such-id')).toEqual({
       ok: false,
       error: 'Источник не найден'
     })
   })
 
-  it('reports unavailable once the source root is removed, isolated from an ok source', () => {
-    const addedOk = addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
+  it('reports unavailable once the source root is removed, isolated from an ok source', async () => {
+    const addedOk = await addSourceToProject(vaultPath, okSourceDir, { idFactory: () => 'src-ok' })
     expect('ok' in addedOk && addedOk.ok).toBe(true)
-    const addedMissing = addSourceToProject(vaultPath, missingSourceDir, {
+    const addedMissing = await addSourceToProject(vaultPath, missingSourceDir, {
       idFactory: () => 'src-missing'
     })
     expect('ok' in addedMissing && addedMissing.ok).toBe(true)
 
     fs.rmSync(missingSourceDir, { recursive: true, force: true })
 
-    expect(getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
-    expect(getSourceStatusResult(vaultPath, 'src-missing')).toEqual({
+    expect(await getSourceStatusResult(vaultPath, 'src-ok')).toEqual({ ok: true, status: 'ok' })
+    expect(await getSourceStatusResult(vaultPath, 'src-missing')).toEqual({
       ok: true,
       status: 'unavailable'
     })
@@ -704,7 +706,7 @@ describe('getScanIntervalSeconds', () => {
     expect(getScanIntervalSeconds(vaultPath)).toBe(300)
   })
 
-  it('reads a non-default configured value', () => {
+  it('reads a non-default configured value', async () => {
     generateVault({
       vaultPath,
       projectName: 'Объект-X',
@@ -719,7 +721,7 @@ describe('getScanIntervalSeconds', () => {
     expect(getScanIntervalSeconds(vaultPath)).toBe(60)
   })
 
-  it('falls back to the 300s default when project.json is unreadable', () => {
+  it('falls back to the 300s default when project.json is unreadable', async () => {
     expect(getScanIntervalSeconds(vaultPath)).toBe(300)
   })
 })

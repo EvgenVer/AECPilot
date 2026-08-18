@@ -15,6 +15,14 @@
 // (a fix-iteration removed a premature version of this resolver rather than
 // speculate ahead of the task that actually needed one — this is that task).
 
+// Task 4D-8: every filesystem call here is async, and that is not a style
+// choice. A source root is routinely a network share, and a share that has
+// gone away does not fail — it hangs until the OS gives up, tens of seconds
+// later. Synchronously, that hang is the whole main process: no window
+// repaints, no menu responds, nothing else runs. Asynchronously the same wait
+// costs one pending promise. The lexical checks below stay synchronous — they
+// never touch the disk, which is the point of doing them first.
+
 import * as fs from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -31,15 +39,15 @@ export interface SourceTreeNode {
 }
 
 /** Whether a source's root is currently reachable: exists and is a
- * directory. Cheap (a single `fs.statSync`, no directory read) — used by
+ * directory. Cheap (a single stat, no directory read) — used by
  * both `sources:status` (via `project-manager.ts`'s `getSourceStatusResult`,
  * called for every source on load) and `sources:tree` (via
  * `getSourceTreeResult`, before the full recursive build). An error here
  * (path gone, network share dropped, permission revoked, …) is reported as
  * `unavailable`, never thrown, so one bad source never blocks the others. */
-export function isSourceAvailable(rootPath: string): boolean {
+export async function isSourceAvailable(rootPath: string): Promise<boolean> {
   try {
-    return fs.statSync(rootPath).isDirectory()
+    return (await fs.promises.stat(rootPath)).isDirectory()
   } catch {
     return false
   }
@@ -51,12 +59,12 @@ export function isSourceAvailable(rootPath: string): boolean {
  * traversed — avoids symlink cycles). Throws if `rootPath` can't be read —
  * callers should check `isSourceAvailable` first (see `getSourceTreeResult`)
  * to produce the `unavailable` status instead of surfacing the raw error. */
-export function buildSourceTree(rootPath: string): SourceTreeNode[] {
+export async function buildSourceTree(rootPath: string): Promise<SourceTreeNode[]> {
   return readSourceDir(resolve(rootPath), '')
 }
 
-function readSourceDir(absDir: string, relPrefix: string): SourceTreeNode[] {
-  const entries = fs.readdirSync(absDir, { withFileTypes: true })
+async function readSourceDir(absDir: string, relPrefix: string): Promise<SourceTreeNode[]> {
+  const entries = await fs.promises.readdir(absDir, { withFileTypes: true })
   const nodes: SourceTreeNode[] = []
 
   for (const entry of entries) {
@@ -68,7 +76,7 @@ function readSourceDir(absDir: string, relPrefix: string): SourceTreeNode[] {
         name: entry.name,
         path: rel,
         type: 'dir',
-        children: readSourceDir(join(absDir, entry.name), rel)
+        children: await readSourceDir(join(absDir, entry.name), rel)
       })
     } else {
       nodes.push({ name: entry.name, path: rel, type: 'file' })
@@ -149,10 +157,10 @@ function lexicalResolve(root: string, rel?: string | null): string {
  * nested inside it — same semantics as vault-fs.ts's `isWithinRealRoot`. If
  * `absPath` doesn't exist (or isn't accessible), this returns `true` —
  * nothing to escape *through* yet. */
-function isWithinRealRoot(realRoot: string, absPath: string): boolean {
+async function isWithinRealRoot(realRoot: string, absPath: string): Promise<boolean> {
   let real: string
   try {
-    real = fs.realpathSync(absPath)
+    real = await fs.promises.realpath(absPath)
   } catch {
     return true
   }
@@ -160,13 +168,13 @@ function isWithinRealRoot(realRoot: string, absPath: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
-/** `fs.realpathSync`, falling back to the plain resolved path if the target
+/** `realpath`, falling back to the plain resolved path if the target
  * doesn't exist (or isn't accessible) — same fallback rationale as
  * vault-fs.ts's `safeRealpath` (keeps this usable against fixture paths in
  * tests that only exercise the lexical/naming checks). */
-function safeRealpath(p: string): string {
+async function safeRealpath(p: string): Promise<string> {
   try {
-    return fs.realpathSync(p)
+    return await fs.promises.realpath(p)
   } catch {
     return p
   }
@@ -185,13 +193,16 @@ function safeRealpath(p: string): string {
  * "Копировать путь" target (there's no rename/delete to guard against, a
  * source has no write operations at all). Backs `sources:show-in-explorer`/
  * `sources:get-entry-path`. */
-export function resolveSourceEntryRel(rootPath: string, rel?: string | null): string {
+export async function resolveSourceEntryRel(
+  rootPath: string,
+  rel?: string | null
+): Promise<string> {
   const root = resolve(rootPath)
   const candidate = lexicalResolve(root, rel)
   if (candidate === root) return root
 
-  const realRoot = safeRealpath(root)
-  if (!isWithinRealRoot(realRoot, dirname(candidate))) {
+  const realRoot = await safeRealpath(root)
+  if (!(await isWithinRealRoot(realRoot, dirname(candidate)))) {
     throw new PathOutsideSourceError('Путь ведёт за пределы источника через симлинк')
   }
   return candidate
