@@ -15,9 +15,15 @@
 // already up (or reconnecting) before the window exists, and no renderer is
 // allowed to decide otherwise. One consequence to know about: their
 // multi-profile socket pool (`donor/store/gateway.ts`) opens one client per
-// profile, but every instance here listens to main's single event stream. It
-// stays correct only because the pool asks `hermesDesktop.getConnection()`
-// first, and our shim answers null for secondaries — see hermes-desktop-shim.
+// profile, and every instance here listens to main's single event stream — so
+// the pool collapses into N aliases of one connection. That is harmless
+// because profile routing does not live in the socket here: `switchProfile`
+// calls `hermesDesktop.profile.set` → `profiles:use` in main, which moves new
+// and resumed sessions with the `profile` parameter on session.create/resume
+// (task 1.6.B5.23, owner decision B5-1=C). Do NOT read
+// `hermesDesktop.getConnection()` as the guard that makes this safe: it hands
+// back the same descriptor for every profile, secondaries included, and never
+// null. Pinned by `hermes-desktop-shim.test.ts`.
 
 import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
 
