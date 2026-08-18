@@ -10,11 +10,41 @@ packages:
 overrides:
   mermaid: '>=11.16.1'
   dompurify: '>=3.4.13'
+  # Task 4D-17. Both are patch bumps inside the major their parents already
+  # depend on, so nobody's range is being forced open. `brace-expansion` rides
+  # in on exceljs (three separate majors: archiver's glob chain, readdir-glob,
+  # and typescript-eslint's minimatch) and `nanoid` on postcss under vue —
+  # every advisory is the same unbounded-expansion DoS class.
+  brace-expansion@1: '^1.1.18'
+  brace-expansion@2: '^2.1.4'
+  brace-expansion@5: '^5.0.9'
+  nanoid@3: '^3.3.18'
+  # Same task, dev half: patch/minor bumps inside the major each parent already
+  # asks for. postcss and js-yaml ride in on vite and eslint, undici on electron
+  # and jsdom. None of the three reaches the shipped bundle, but a finding
+  # nobody looks at is a finding nobody sees change.
+  postcss@8: '^8.5.23'
+  undici@7: '^7.29.0'
+  js-yaml@4: '^4.3.1'
 
 # `unicode-animations` ships a postinstall that prints a spinner demo to
 # /dev/tty for three seconds. Harmless (read the script: no network, no writes)
 # and useless to us, so it stays unbuilt — recorded here rather than left as a
 # warning, because a standing warning is a decision nobody made.
+# Task 4D-17. The one advisory left after the bumps above, kept with its reason
+# rather than left to be re-discovered by whoever runs the audit next.
+#
+# GHSA-w5hq-g745-h8pq — uuid@8.3.2, reached only as exceljs>uuid. The flaw is a
+# missing bounds check in v3/v5/v6 WHEN A BUFFER IS PASSED; exceljs calls
+# `v4()` with no arguments, in one file on the WRITE path
+# (`xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`), and we only read. Fixing it
+# means forcing uuid 8 → 11 on a transitive dependency — three majors, in a code
+# path our tests never execute, to close a hole that is not reachable. Recheck
+# when exceljs widens its own range.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-w5hq-g745-h8pq
+
 allowBuilds:
   unicode-animations: false
 
