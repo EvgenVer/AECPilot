@@ -152,6 +152,13 @@ export const aecLocales: PluginLocaleBundles = {
       confirmNote:
         'Files created AFTER the snapshot are not deleted by a restore — that is the core’s behaviour.'
     },
+    coreNotice: {
+      riskTitle: 'Check where this text came from',
+      riskBody: (tool: string) =>
+        `The result of "${tool}" reads like an instruction addressed to the agent, not like ` +
+        `data. It came from outside the project, so treat what it asks for as somebody's ` +
+        `request, not as a fact.`
+    },
     scan: {
       title: 'Sources changed',
       added: (n: number) => `${n} added`,
@@ -362,6 +369,13 @@ export const aecLocales: PluginLocaleBundles = {
         `Все файлы будут перезаписаны состоянием из снимка ${hash}, а последний ход исчезнет из истории сессии. Текущее содержимое пропадёт.`,
       confirmNote:
         'Файлы, созданные ПОСЛЕ снимка, при восстановлении не удаляются — это поведение ядра.'
+    },
+    coreNotice: {
+      riskTitle: 'Проверьте, откуда этот текст',
+      riskBody: (tool: string) =>
+        `Результат «${tool}» читается как инструкция агенту, а не как данные. Он пришёл ` +
+        `извне проекта, поэтому относитесь к тому, что там написано, как к чьей-то просьбе, ` +
+        `а не как к факту.`
     },
     scan: {
       title: 'Источники изменились',

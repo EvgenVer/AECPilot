@@ -1308,6 +1308,28 @@ export interface StatusUpdateEvent {
   payload: { kind: string; text: string }
 }
 
+/** The core scanned a tool result that came from somewhere it does not control
+ * — a web page, an MCP response, a document out of the user's folders — and it
+ * looks like an instruction rather than data
+ * (`agent/tool_dispatch_helpers.py::_tool_output_risk_metadata`, since 0.19.0).
+ *
+ * Two properties worth knowing. It carries NO copy of the scanned text: the
+ * findings are identifiers, not excerpts — deliberately, so the warning cannot
+ * itself become a delivery mechanism. And the gateway emits it only when the
+ * scan found something (`server.py`: `risk != "low"`), so it is not a stream
+ * of "all clear" that a person would learn to ignore. */
+export interface ToolOutputRiskEvent {
+  type: 'tool.output_risk'
+  session_id?: string
+  payload: {
+    tool_id: string
+    name: string
+    risk: string
+    findings: string[]
+    redacted: boolean
+  }
+}
+
 export interface MessageCompleteEvent {
   type: 'message.complete'
   session_id?: string
@@ -1636,6 +1658,7 @@ export type GatewayEvent =
   | ReasoningDeltaEvent
   | ReasoningAvailableEvent
   | StatusUpdateEvent
+  | ToolOutputRiskEvent
   | MessageCompleteEvent
   | GatewayErrorEvent
   | ToolStartEvent

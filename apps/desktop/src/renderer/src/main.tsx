@@ -21,6 +21,7 @@ import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
+import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
@@ -32,6 +33,7 @@ installClipboardShim()
 // Task 3.31b: второй рубеж сверки выдержек. Подписка ставится один раз на окно
 // и до первого рендера — ответ может прийти раньше, чем смонтируется лента.
 registerQuoteCheck()
+registerCoreNotices()
 
 // Their provider stack, in their order (main.tsx at DONOR_SHA), with two
 // substitutions: our i18n provider stands in for theirs (same component
