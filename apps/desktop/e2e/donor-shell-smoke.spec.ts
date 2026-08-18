@@ -140,6 +140,28 @@ test('their shell paints and the composer goes live over our bridge', async () =
   // path the create-project dialog uses, which makes vault creation part of
   // what this test covers rather than something it works around.
   projectDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  // Task 4D-11: main only creates a project in a folder a human picked in a
+  // native dialog. A test cannot click a native dialog, so it stands in for the
+  // human at the only place that matters — the dialog itself — and then walks
+  // the same two IPC calls the create-project screen walks. Stubbing the
+  // create-time guard instead would test a build nobody ships.
+  await app.evaluate(({ dialog }, dir) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [dir] })) as never
+  }, projectDir)
+  const picked = await page.evaluate(() => window.aecpilot.pickProjectDirectory())
+  expect(picked, 'pickProjectDirectory should return the stubbed folder').toBe(projectDir)
+
+  // The other half of the same guard: a valid, writable, absolute path that
+  // nobody picked is refused. Without this line the test above would pass
+  // just as happily with the guard deleted.
+  const unpicked = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-unpicked-'))
+  const refused = await page.evaluate(
+    (dir) => window.aecpilot.createProject(dir, 'e2e', true),
+    unpicked
+  )
+  expect(refused).toMatchObject({ ok: false })
+  rmSync(unpicked, { force: true, recursive: true })
+
   const created = await page.evaluate(
     (dir) => window.aecpilot.createProject(dir, 'e2e', true),
     projectDir

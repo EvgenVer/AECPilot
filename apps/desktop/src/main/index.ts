@@ -94,6 +94,7 @@ import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
+import { rememberPickedDirectory, wasPickedByUser } from './picked-paths'
 import { resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -2180,6 +2181,9 @@ ipcMain.handle('project:pick-directory', async (event) => {
     ? await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
     : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
   if (result.canceled || result.filePaths.length === 0) return null
+  // Task 4D-11: main remembers what it just showed a human, so `project:create`
+  // below can tell a chosen folder from one the renderer made up.
+  rememberPickedDirectory(result.filePaths[0])
   return result.filePaths[0]
 })
 
@@ -2191,12 +2195,15 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (typeof dirPath !== 'string' || dirPath.length === 0) {
     return { ok: false, error: 'dirPath must be a non-empty string' }
   }
-  // Fix-iteration 1 (review minor): reject a non-absolute path before it
-  // ever reaches generateVault. Not cross-checked against the last
-  // project:pick-directory result — coordinator decision: out of scope for
-  // the current threat model (residual risk tracked in TASKS.md Discovered).
   if (!isAbsolute(dirPath)) {
     return { ok: false, error: 'путь к папке должен быть абсолютным' }
+  }
+  // Task 4D-11. The renderer may only name a folder a human picked in a native
+  // dialog this process opened. Anything else — including a perfectly valid
+  // absolute path — is refused, because "the window asked" is not evidence that
+  // anyone chose it. See picked-paths.ts for why the guard is shaped this way.
+  if (!wasPickedByUser(dirPath)) {
+    return { ok: false, error: 'папку проекта нужно выбрать в диалоге выбора папки' }
   }
   if (typeof name !== 'string') {
     return { ok: false, error: 'name must be a string' }
