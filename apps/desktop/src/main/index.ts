@@ -177,9 +177,7 @@ async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule>
 
 // Same dynamic-import rationale as the loader above (task 2.12).
 async function loadRegisterAecRagModule(): Promise<RegisterAecRagModule> {
-  const specifier = pathToFileURL(
-    join(__dirname, '../../../../runtime/register-aec-rag.mjs')
-  ).href
+  const specifier = pathToFileURL(join(__dirname, '../../../../runtime/register-aec-rag.mjs')).href
   return (await import(/* @vite-ignore */ specifier)) as RegisterAecRagModule
 }
 
@@ -782,7 +780,8 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
       ? (payload as { text?: unknown; target?: unknown })
       : {}
 
-  if (typeof text !== 'string' || text.trim() === '') return { ok: false, error: 'пустое сообщение' }
+  if (typeof text !== 'string' || text.trim() === '')
+    return { ok: false, error: 'пустое сообщение' }
   if (!isQuickEntryTarget(target)) return { ok: false, error: 'неизвестная цель отправки' }
   if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
   if (!currentProject) return { ok: false, error: 'проект не открыт' }
@@ -2505,7 +2504,8 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
   if (!currentProject) return { started: false, error: 'Нет открытого проекта' }
   if (ingestState.running) return { started: false, error: 'Индексация уже идёт' }
 
-  const full = typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
+  const full =
+    typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
   // Captured at start: the run belongs to the project it began against, and a
   // project switch mid-run must not make its report land on somebody else's
   // indicator (the same rule the scan runner already follows).
@@ -2514,10 +2514,14 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 
   publishIngestState({ error: null, progress: null, running: true })
 
-  void runIngest(vaultPath, (progress) => {
-    if (currentProject?.vaultPath !== vaultPath) return
-    publishIngestState({ progress })
-  }, { full })
+  void runIngest(
+    vaultPath,
+    (progress) => {
+      if (currentProject?.vaultPath !== vaultPath) return
+      publishIngestState({ progress })
+    },
+    { full }
+  )
     .then(({ report }) => {
       if (currentProject?.vaultPath !== vaultPath) {
         publishIngestState({ progress: null, running: false })
@@ -2882,9 +2886,7 @@ app
     // silently losing a global hotkey is how a feature becomes a bug report.
     const quick = registerQuickEntry(
       { enabled: true },
-      process.env.ELECTRON_RENDERER_URL
-        ? { rendererUrl: process.env.ELECTRON_RENDERER_URL }
-        : {}
+      process.env.ELECTRON_RENDERER_URL ? { rendererUrl: process.env.ELECTRON_RENDERER_URL } : {}
     )
     console.log(
       quick.enabled

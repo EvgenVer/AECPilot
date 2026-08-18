@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 import { describeProgress, readIngestLines } from './ingest-progress-pure'
 
-const started = '{"progress":{"stage":"started","done":0,"total":2,"source_id":"","rel_path":"","chunks":0,"error":""}}'
-const file = '{"progress":{"stage":"file","done":1,"total":2,"source_id":"tasks","rel_path":"ЭОМ/задание.pdf","chunks":7,"error":""}}'
+const started =
+  '{"progress":{"stage":"started","done":0,"total":2,"source_id":"","rel_path":"","chunks":0,"error":""}}'
+const file =
+  '{"progress":{"stage":"file","done":1,"total":2,"source_id":"tasks","rel_path":"ЭОМ/задание.pdf","chunks":7,"error":""}}'
 const report =
   '{"files_total":2,"files_ingested":2,"files_skipped":0,"files_failed":0,"chunks":12,"removed_chunks":0,"errors":[]}'
 

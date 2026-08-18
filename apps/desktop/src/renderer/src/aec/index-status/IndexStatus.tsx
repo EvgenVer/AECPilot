@@ -12,11 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '../../donor/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '../../donor/components/ui/popover'
 import { useAecT } from '../../shared/i18n'
 import type { IngestState } from '../../../../shared/ipc'
 
@@ -90,9 +86,7 @@ export function IndexStatus(): React.JSX.Element | null {
 
         {ingest.error ? <div className="text-destructive">{ingest.error}</div> : null}
         {ingest.lastReport && ingest.lastReport.files_failed > 0 ? (
-          <div className="text-amber-500">
-            {t('index.failed', ingest.lastReport.files_failed)}
-          </div>
+          <div className="text-amber-500">{t('index.failed', ingest.lastReport.files_failed)}</div>
         ) : null}
 
         <div className="flex gap-2">
@@ -128,7 +122,9 @@ export function IndexStatus(): React.JSX.Element | null {
 function GraphScope({
   data
 }: {
-  data: NonNullable<Awaited<ReturnType<typeof window.aecpilot.getIndexStatus>> & { ok: true }>['status']
+  data: NonNullable<
+    Awaited<ReturnType<typeof window.aecpilot.getIndexStatus>> & { ok: true }
+  >['status']
 }): React.JSX.Element {
   const t = useAecT()
   const entries = data.graph_entries ?? []

@@ -82,14 +82,12 @@ describe('parseCitations', () => {
     const text =
       'По ред. 2 — 250 кВт [src: tasks/задание_ред2.pdf#p12], по ред. 1 — 180 кВт [src: tasks/задание.pdf#p11].'
 
-    expect(parseCitations(text).map((c) => c.relPath)).toEqual([
-      'задание_ред2.pdf',
-      'задание.pdf'
-    ])
+    expect(parseCitations(text).map((c) => c.relPath)).toEqual(['задание_ред2.pdf', 'задание.pdf'])
   })
 
   it('reads a spreadsheet and a heading citation', () => {
-    const text = '[src: tasks/Ведомости/кабели.xlsx#Ведомость!C5:D6] и [src: tasks/ПЗ.docx#h:Кабельный журнал]'
+    const text =
+      '[src: tasks/Ведомости/кабели.xlsx#Ведомость!C5:D6] и [src: tasks/ПЗ.docx#h:Кабельный журнал]'
 
     expect(parseCitations(text).map((c) => c.locator)).toEqual([
       { range: 'C5:D6', sheet: 'Ведомость' },

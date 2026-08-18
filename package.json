@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "corepack pnpm -C apps/desktop dev",
     "build": "corepack pnpm -C apps/desktop build",
-    "lint": "corepack pnpm -C apps/desktop lint && corepack pnpm -C apps/desktop typecheck && uv run ruff check .",
+    "lint": "corepack pnpm -C apps/desktop lint && corepack pnpm -C apps/desktop typecheck && corepack pnpm -C apps/desktop format:check && uv run ruff check . && corepack pnpm audit --prod",
     "test": "corepack pnpm -C apps/desktop test && uv run pytest -q",
     "e2e": "corepack pnpm -C apps/desktop e2e"
   }

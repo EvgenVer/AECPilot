@@ -155,7 +155,7 @@ export function parseCitations(text: string): Citation[] {
         raw: match[0],
         relPath,
         sourceId: (match[1] ?? '').trim(),
-        start: match.index,
+        start: match.index
       })
     }
     match = CITATION_RE.exec(text)
