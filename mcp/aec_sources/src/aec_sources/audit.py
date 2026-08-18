@@ -15,6 +15,13 @@ from pathlib import Path
 
 LOG_FILENAME = "sources-rejected.jsonl"
 
+#: Size at which the journal is rolled over. One previous generation is kept
+#: alongside it, so the journal costs at most twice this on disk.
+MAX_LOG_BYTES = 1024 * 1024
+
+#: Suffix of the kept generation, i.e. ``sources-rejected.jsonl.1``.
+ROTATED_SUFFIX = ".1"
+
 
 def logs_dir_from_project(project_json_path: Path) -> Path:
     """Derive the project's logs directory from its ``project.json`` path.
@@ -31,14 +38,34 @@ def log_rejected(logs_dir: Path, entry: dict[str, object]) -> None:
     never overwritten).
 
     A ``ts`` (ISO-8601 UTC) timestamp is added automatically. ``logs_dir`` is
-    created if it doesn't exist yet. Never raises: any ``OSError`` is
-    swallowed, since the journal is best-effort and must not fail the tool
-    call it records.
+    created if it doesn't exist yet. Once the journal outgrows
+    ``MAX_LOG_BYTES`` it is rolled over (see ``_rotate_if_large``). Never
+    raises: any ``OSError`` is swallowed, since the journal is best-effort and
+    must not fail the tool call it records.
     """
     line_entry = {"ts": datetime.now(UTC).isoformat(), **entry}
     try:
         logs_dir.mkdir(parents=True, exist_ok=True)
-        with (logs_dir / LOG_FILENAME).open("a", encoding="utf-8") as handle:
+        journal = logs_dir / LOG_FILENAME
+        _rotate_if_large(journal)
+        with journal.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(line_entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
+
+
+def _rotate_if_large(journal: Path) -> None:
+    """Move the journal aside once it outgrows ``MAX_LOG_BYTES``.
+
+    One generation is kept and the one before it is dropped. The journal
+    exists to explain a rejection that just happened, so the recent lines are
+    the valuable ones; an unbounded file on the user's disk is a worse answer
+    than a bounded one. A missing journal is not an error — that is the first
+    call.
+    """
+    try:
+        if journal.stat().st_size < MAX_LOG_BYTES:
+            return
+    except FileNotFoundError:
+        return
+    journal.replace(journal.with_name(journal.name + ROTATED_SUFFIX))

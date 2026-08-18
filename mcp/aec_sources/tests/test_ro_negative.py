@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 
 import pytest
+from aec_sources import audit
 from aec_sources import fs as fs_module
 from aec_sources import server as server_module
 from aec_sources.config import SourceRoot
@@ -178,3 +179,59 @@ def test_module_exposes_no_public_write_like_functions(module):
     for name in functions:
         lowered = name.lower()
         assert not any(bad in lowered for bad in WRITE_LIKE_SUBSTRINGS), name
+
+
+# --- 7. the journal is bounded: it rolls over instead of growing forever ---
+
+
+def test_journal_rolls_over_once_it_outgrows_the_limit(tmp_path):
+    """A rejection log that grows without bound is a slow disk leak on the
+    user's machine, and nobody reads its first million lines. Past the limit
+    the file is moved aside and a fresh one starts; exactly one previous
+    generation survives.
+    """
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    journal = logs_dir / JOURNAL_FILENAME
+    journal.write_text("x" * (audit.MAX_LOG_BYTES + 1), encoding="utf-8")
+
+    audit.log_rejected(logs_dir, {"event": "after_rollover"})
+
+    rotated = logs_dir / (JOURNAL_FILENAME + audit.ROTATED_SUFFIX)
+    assert rotated.exists(), "прошлое поколение должно сохраниться"
+    assert read_journal_lines(logs_dir) == [
+        {"ts": read_journal_lines(logs_dir)[0]["ts"], "event": "after_rollover"}
+    ]
+
+
+def test_journal_keeps_only_one_previous_generation(tmp_path):
+    """The second rollover overwrites the first one's backup rather than
+    piling up `.1`, `.2`, `.3`: the bound must hold over time, not just once.
+    """
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    journal = logs_dir / JOURNAL_FILENAME
+    rotated = logs_dir / (JOURNAL_FILENAME + audit.ROTATED_SUFFIX)
+
+    for marker in ("first", "second"):
+        journal.write_text(marker + "x" * audit.MAX_LOG_BYTES, encoding="utf-8")
+        audit.log_rejected(logs_dir, {"event": marker})
+
+    assert rotated.read_text(encoding="utf-8").startswith("second")
+    assert sorted(p.name for p in logs_dir.iterdir()) == [
+        JOURNAL_FILENAME,
+        JOURNAL_FILENAME + audit.ROTATED_SUFFIX,
+    ]
+
+
+def test_journal_below_the_limit_is_appended_to_not_rolled(tmp_path):
+    """Mutation guard: rotating unconditionally would pass the two tests above
+    while throwing away every previous line. Below the limit nothing moves.
+    """
+    logs_dir = tmp_path / "logs"
+
+    audit.log_rejected(logs_dir, {"event": "first"})
+    audit.log_rejected(logs_dir, {"event": "second"})
+
+    assert not (logs_dir / (JOURNAL_FILENAME + audit.ROTATED_SUFFIX)).exists()
+    assert [entry["event"] for entry in read_journal_lines(logs_dir)] == ["first", "second"]
