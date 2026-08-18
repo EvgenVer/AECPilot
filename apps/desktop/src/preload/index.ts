@@ -48,6 +48,9 @@ const api: AecpilotApi = {
   saveLlmSettings: (payload) => ipcRenderer.invoke('settings:save', payload),
   getApprovalsMode: () => ipcRenderer.invoke('approvals:get-mode'),
   setApprovalsMode: (mode) => ipcRenderer.invoke('approvals:set-mode', mode),
+  saveAttachmentImage: (bytes, extension) =>
+    ipcRenderer.invoke('attachments:save-image', { bytes, extension }),
+  readAttachmentDataUrl: (path) => ipcRenderer.invoke('attachments:read-data-url', { path }),
   pickProjectDirectory: () => ipcRenderer.invoke('project:pick-directory'),
   createProject: (dirPath, name, confirmed) =>
     ipcRenderer.invoke('project:create', { dirPath, name, confirmed }),

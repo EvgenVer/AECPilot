@@ -94,6 +94,7 @@ import { loadRecents, recordRecent } from './recents'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
+import { readAttachmentDataUrl, saveAttachment } from './attachments'
 import { rememberPickedDirectory, wasPickedByUser } from './picked-paths'
 import { resolveSourceEntryRel } from './source-tree'
 import {
@@ -2175,6 +2176,32 @@ ipcMain.handle('approvals:set-mode', async (_event, mode: string) => {
 // Task 1.3: opens a native "choose folder" dialog (createDirectory: true —
 // the OS picker lets the user create a new empty folder in place) for the
 // create-project flow. Returns null on cancel.
+// Task 4D-15: the two bridge members the donor's composer drop engine calls.
+// Why they are scoped the way they are — attachments.ts's header.
+const ATTACHMENTS_DIR = join(app.getPath('userData'), 'attachments')
+
+ipcMain.handle('attachments:save-image', async (_event, payload: unknown) => {
+  const { bytes, extension } = (payload ?? {}) as { bytes?: unknown; extension?: unknown }
+  if (!(bytes instanceof Uint8Array)) return { ok: false, error: 'bytes must be a Uint8Array' }
+  try {
+    return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, bytes, extension) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('attachments:read-data-url', async (_event, payload: unknown) => {
+  const { path: filePath } = (payload ?? {}) as { path?: unknown }
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    return { ok: false, error: 'path must be a non-empty string' }
+  }
+  try {
+    return { ok: true, dataUrl: await readAttachmentDataUrl(ATTACHMENTS_DIR, filePath) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 ipcMain.handle('project:pick-directory', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
   const result = win

@@ -129,6 +129,21 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.setKeepAwake(on)
   },
 
+  // Task 4D-15. Their composer's drop engine calls these two; without them a
+  // dropped image hit the unbridged-member path and the attachment silently
+  // was not one. `readFileDataUrl` answers only for files `saveImageBuffer`
+  // just wrote — see main/attachments.ts for why it is not a general reader.
+  async saveImageBuffer(bytes: Uint8Array, extension: string): Promise<null | string> {
+    const result = await window.aecpilot.saveAttachmentImage(bytes, extension)
+    return result.ok ? result.path : null
+  },
+
+  async readFileDataUrl(filePath: string): Promise<string> {
+    const result = await window.aecpilot.readAttachmentDataUrl(filePath)
+    if (!result.ok) throw new Error(result.error)
+    return result.dataUrl
+  },
+
   profile: {
     set(name: string) {
       return window.aecpilot.useProfile(name)

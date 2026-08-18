@@ -541,6 +541,17 @@ export interface AecpilotApi {
   /** Opens a native "choose folder" dialog for the create-project flow (task
    * 1.3). The dialog allows creating a new folder. Returns `null` if the
    * user cancels. */
+  /** Task 4D-15: saves bytes dropped/pasted into the composer and returns the
+   * file's path. Serves the donor's `hermesDesktop.saveImageBuffer`. */
+  saveAttachmentImage(
+    bytes: Uint8Array,
+    extension: string
+  ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Reads back a file `saveAttachmentImage` wrote, as a data URL. Refuses
+   * anything else — it is deliberately not a general file reader. */
+  readAttachmentDataUrl(
+    path: string
+  ): Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>
   pickProjectDirectory(): Promise<string | null>
   /** Creates a new vault at `dirPath` named `name`, records it as the
    * most-recent project, and makes it the current open project (see
