@@ -10,7 +10,7 @@ The LLM stub asserts on call. That is how «tier one never calls a model»
 from __future__ import annotations
 
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 from rag_stubs import (
     add_scanned,
     call,
@@ -32,7 +32,7 @@ async def test_ingest_returns_a_job_and_the_job_reports_what_it_did(project, mon
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Мощность 250 кВт.\nКатегория вторая.")
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         job = await ingest_and_wait(client, server)
 
         assert job.report["files_ingested"] == 1
@@ -48,7 +48,7 @@ async def test_status_answers_what_the_index_holds(project, monkeypatch):
     add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         before = await call(client, "rag_status")
         assert before["files_total"] == 1
         assert before["files_indexed"] == 0
@@ -80,7 +80,7 @@ async def test_query_returns_chunks_with_the_place_they_came_from(project, monke
     )
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         result = await call(client, "rag_query", {"query": "установленная мощность"})
 
@@ -99,7 +99,7 @@ async def test_query_honours_filters(project, monkeypatch):
     add_scanned(project_json, source, "ОВ/задание.pdf", "Мощность 40 кВт по отоплению.")
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         result = await call(
             client, "rag_query", {"query": "мощность", "filters": {"path_prefix": "ОВ/"}}
@@ -117,7 +117,7 @@ async def test_query_never_returns_a_chunk_whose_file_is_gone(project, monkeypat
     add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         conn = server.rag_state.db()
         conn.execute("DELETE FROM chunks")
@@ -132,10 +132,10 @@ async def test_an_unknown_mode_is_refused_rather_than_guessed(project, monkeypat
     project_json, _ = project
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         result = await client.call_tool("rag_ingest", {"mode": "быстро"})
 
-    assert result.isError
+    assert result.is_error
     assert "быстро" in error_text(result)
 
 
@@ -144,10 +144,10 @@ async def test_an_empty_query_is_refused(project, monkeypatch):
     project_json, _ = project
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         result = await client.call_tool("rag_query", {"query": "   "})
 
-    assert result.isError
+    assert result.is_error
 
 
 @pytest.mark.anyio
@@ -156,10 +156,10 @@ async def test_wiki_init_creates_the_skeleton_through_the_tool(project, monkeypa
     project_json, _ = project
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         result = await client.call_tool("wiki_init", {})
 
-    assert not result.isError
+    assert not result.is_error
     vault = project_json.parent.parent
     assert (vault / "wiki" / "SCHEMA.md").is_file()
     assert (vault / "wiki" / "entities").is_dir()

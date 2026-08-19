@@ -12,7 +12,7 @@ from aec_sources.config import SourceRoot
 from aec_sources.fs import read_file_range
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 from aec_sources.server import build_server
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 
 windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows path semantics")
 
@@ -53,11 +53,11 @@ async def test_sources_list_reports_ok_and_unavailable(tmp_path):
         ]
     )
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_list", {})
 
-    assert result.isError is False
-    entries = {entry["id"]: entry for entry in result.structuredContent["result"]}
+    assert result.is_error is False
+    entries = {entry["id"]: entry for entry in result.structured_content["result"]}
     assert entries["ok-src"]["status"] == "ok"
     assert entries["ok-src"]["root_path"] == str(root)
     assert entries["missing-src"]["status"] == "unavailable"
@@ -68,11 +68,11 @@ async def test_sources_tree_root_lists_dirs_first_then_files(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src"})
 
-    assert result.isError is False
-    entries = result.structuredContent["result"]
+    assert result.is_error is False
+    entries = result.structured_content["result"]
     names = {entry["name"] for entry in entries}
     assert names == {"top.txt", "empty_dir", "Документы с пробелом"}
 
@@ -97,13 +97,13 @@ async def test_sources_tree_subdirectory_with_cyrillic_and_spaces(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_tree", {"source_id": "src", "path": "Документы с пробелом"}
         )
 
-    assert result.isError is False
-    entries = result.structuredContent["result"]
+    assert result.is_error is False
+    entries = result.structured_content["result"]
     names = {entry["name"] for entry in entries}
     assert names == {"файл.txt", "вложенная папка"}
 
@@ -117,11 +117,11 @@ async def test_sources_tree_empty_subdirectory_is_empty_list(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src", "path": "empty_dir"})
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == []
+    assert result.is_error is False
+    assert result.structured_content["result"] == []
 
 
 @pytest.mark.anyio
@@ -129,10 +129,10 @@ async def test_sources_tree_unknown_source_id_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "no-such-source"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -140,10 +140,10 @@ async def test_sources_tree_nonexistent_path_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src", "path": "no-such-dir"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -151,10 +151,10 @@ async def test_sources_tree_parent_traversal_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src", "path": "../x"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -162,12 +162,12 @@ async def test_sources_tree_absolute_path_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_tree", {"source_id": "src", "path": "C:/Windows/System32"}
         )
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -175,10 +175,10 @@ async def test_sources_tree_unavailable_root_is_error(tmp_path):
     missing = tmp_path / "does-not-exist"
     server = build_server([SourceRoot(id="src", root_path=str(missing))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -186,10 +186,10 @@ async def test_sources_tree_null_byte_in_path_is_error_not_traceback(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src", "path": "a\x00b"})
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert "Traceback" not in message
     assert str(root) not in message
@@ -200,11 +200,11 @@ async def test_sources_stat_file(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": "top.txt"})
 
-    assert result.isError is False
-    stat = result.structuredContent
+    assert result.is_error is False
+    stat = result.structured_content
     assert stat["size"] == len(b"top-level")
     assert "sha256" not in stat
     assert "type" not in stat
@@ -216,11 +216,11 @@ async def test_sources_stat_directory_size_is_null(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": "empty_dir"})
 
-    assert result.isError is False
-    stat = result.structuredContent
+    assert result.is_error is False
+    stat = result.structured_content
     assert stat["size"] is None
     assert "type" not in stat
     datetime.fromisoformat(stat["mtime"])
@@ -231,10 +231,10 @@ async def test_sources_stat_nonexistent_path_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": "no-such.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -242,10 +242,10 @@ async def test_sources_stat_parent_traversal_is_error(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": "../secret.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -253,10 +253,10 @@ async def test_sources_stat_null_byte_in_path_is_error_not_traceback(tmp_path):
     root = make_fixture_root(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": "a\x00b"})
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert "Traceback" not in message
     assert str(root) not in message
@@ -286,13 +286,13 @@ async def test_sources_read_whole_file_cyrillic_name_and_content(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "src", "path": "Кириллица/документ.txt"}
         )
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == "Привет, мир!"
+    assert result.is_error is False
+    assert result.structured_content["result"] == "Привет, мир!"
 
 
 @pytest.mark.anyio
@@ -300,13 +300,13 @@ async def test_sources_read_range_prefix(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [0, 5]}
         )
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == "01234"
+    assert result.is_error is False
+    assert result.structured_content["result"] == "01234"
 
 
 @pytest.mark.anyio
@@ -314,13 +314,13 @@ async def test_sources_read_range_middle(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [3, 4]}
         )
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == "3456"
+    assert result.is_error is False
+    assert result.structured_content["result"] == "3456"
 
 
 @pytest.mark.anyio
@@ -328,13 +328,13 @@ async def test_sources_read_range_offset_past_eof_is_empty_not_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [100, 5]}
         )
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == ""
+    assert result.is_error is False
+    assert result.structured_content["result"] == ""
 
 
 @pytest.mark.anyio
@@ -342,13 +342,13 @@ async def test_sources_read_range_length_past_eof_is_truncated_not_error(tmp_pat
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "src", "path": "digits.txt", "range": [8, 100]}
         )
 
-    assert result.isError is False
-    assert result.structuredContent["result"] == "89"
+    assert result.is_error is False
+    assert result.structured_content["result"] == "89"
 
 
 @pytest.mark.anyio
@@ -356,10 +356,10 @@ async def test_sources_read_parent_traversal_is_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "../secret.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -367,14 +367,14 @@ async def test_sources_read_absolute_path_is_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client,
             "sources_read",
             {"source_id": "src", "path": "C:/Windows/System32/notepad.exe"},
         )
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -382,12 +382,12 @@ async def test_sources_read_unknown_source_id_is_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client, "sources_read", {"source_id": "no-such-source", "path": "digits.txt"}
         )
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -395,10 +395,10 @@ async def test_sources_read_directory_is_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "sub"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -406,10 +406,10 @@ async def test_sources_read_nonexistent_path_is_error(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "no-such.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @pytest.mark.anyio
@@ -422,14 +422,14 @@ async def test_sources_read_malformed_range_is_error(tmp_path, bad_range):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(
             client,
             "sources_read",
             {"source_id": "src", "path": "digits.txt", "range": bad_range},
         )
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert message  # a human-readable explanation, not a bare failure
 
@@ -439,10 +439,10 @@ async def test_sources_read_null_byte_in_path_is_error_not_traceback(tmp_path):
     root = make_read_fixture(tmp_path)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "a\x00b"})
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert "Traceback" not in message
     assert str(root) not in message
@@ -465,10 +465,10 @@ async def test_sources_read_symlink_escaping_root_is_error(tmp_path):
 
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "escape-link.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 # --- read_file_range unit tests: the 10 MiB default limit is exercised via a

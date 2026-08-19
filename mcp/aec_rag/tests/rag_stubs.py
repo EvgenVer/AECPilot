@@ -151,11 +151,11 @@ async def stub_server(project_json, monkeypatch, llm_func=forbidden_llm):
 
 async def call(client, name, arguments=None):
     result = await client.call_tool(name, arguments or {})
-    if result.isError:
+    if result.is_error:
         raise AssertionError(
             "\n".join(block.text for block in result.content if hasattr(block, "text"))
         )
-    return result.structuredContent
+    return result.structured_content
 
 
 def error_text(result):

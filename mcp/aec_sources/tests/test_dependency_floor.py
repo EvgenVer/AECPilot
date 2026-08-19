@@ -27,6 +27,14 @@ def test_starlette_is_at_or_above_the_cve_fix():
 
 
 def test_mcp_major_matches_the_core():
-    # A major bump in the protocol library is the one skew that can actually
-    # break the stdio handshake with the core's client.
-    assert _parts(version("mcp"))[0] == 1
+    # Not "otherwise the connection breaks" — that justification stood here until
+    # task 3.B0a disproved it by measurement: an mcp 2.0.0 client talked to these
+    # servers running on mcp 1.28.1 without a single change, negotiating the
+    # protocol down to 2025-11-25 (eval/reports/mcp-2x.md). A major skew is
+    # survivable.
+    #
+    # The test stays for the other reason: falling behind the core should be a
+    # decision, not a drift. The core moved to mcp 2.x in 0.20.4 and these servers
+    # followed in 3.B0б; if the core moves again, this line goes red and someone
+    # chooses, instead of finding out later from a subtly different surface.
+    assert _parts(version("mcp"))[0] == 2

@@ -30,8 +30,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from aec_rag.citation import parse_citations
 from aec_rag.db import open_index as open_db
@@ -107,9 +107,11 @@ class RagServer:
 
     def db(self) -> sqlite3.Connection:
         if self._conn is None:
-            # `check_same_thread=False`: FastMCP may run a tool body in a worker
-            # thread, and every write here is already serialized by the event
-            # loop being single-threaded.
+            # `check_same_thread=False` is set in `open_db` itself — mcp 2.0 really
+            # does run a sync tool body on a worker thread (measured, 3.B0б), and
+            # until that task the flag was only claimed here, never passed. What
+            # keeps it safe is that every writer of this database is an ASYNC tool
+            # body, so writes stay on the loop thread; sync bodies only read.
             self._conn = open_db(self.project_json.parent / "index.db")
             self._conn.execute("PRAGMA busy_timeout = 5000")
         return self._conn
@@ -133,9 +135,9 @@ class RagServer:
             del job.events[: len(job.events) - MAX_EVENTS]
 
 
-def build_server(project_json: Path) -> FastMCP:
+def build_server(project_json: Path) -> MCPServer:
     """Construct the aec-rag MCP server for one project."""
-    server = FastMCP(name="aec-rag")
+    server = MCPServer(name="aec-rag")
     state = RagServer(project_json)
     server.rag_state = state
 

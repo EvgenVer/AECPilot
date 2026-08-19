@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from aec_sources.config import SourceRoot
 from aec_sources.server import build_server
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 
 windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows path/lock semantics")
 
@@ -99,15 +99,15 @@ async def test_sources_read_long_path_over_260_chars(tmp_path):
     rel_path = deep_file.relative_to(root).as_posix()
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": rel_path})
 
     if extended:
-        assert result.isError is True
+        assert result.is_error is True
         assert "Traceback" not in error_text(result)
     else:
-        assert result.isError is False
-        assert result.structuredContent["result"] == "deep content"
+        assert result.is_error is False
+        assert result.structured_content["result"] == "deep content"
 
 
 @windows_only
@@ -121,15 +121,15 @@ async def test_sources_stat_long_path_over_260_chars(tmp_path):
     rel_path = deep_file.relative_to(root).as_posix()
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "src", "path": rel_path})
 
     if extended:
-        assert result.isError is True
+        assert result.is_error is True
         assert "Traceback" not in error_text(result)
     else:
-        assert result.isError is False
-        assert result.structuredContent["size"] == len(b"deep content")
+        assert result.is_error is False
+        assert result.structured_content["size"] == len(b"deep content")
 
 
 @windows_only
@@ -143,15 +143,15 @@ async def test_sources_tree_long_path_over_260_chars(tmp_path):
     rel_path = deep_dir.relative_to(root).as_posix()
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "src", "path": rel_path})
 
     if extended:
-        assert result.isError is True
+        assert result.is_error is True
         assert "Traceback" not in error_text(result)
     else:
-        assert result.isError is False
-        names = {entry["name"] for entry in result.structuredContent["result"]}
+        assert result.is_error is False
+        names = {entry["name"] for entry in result.structured_content["result"]}
         assert names == {"deep.txt"}
 
 
@@ -208,12 +208,12 @@ async def test_sources_read_real_locked_file_is_error_not_traceback(tmp_path):
 
     try:
         server = build_server([SourceRoot(id="src", root_path=str(root))])
-        async with create_connected_server_and_client_session(server) as client:
+        async with connected_session(server) as client:
             result = await call(client, "sources_read", {"source_id": "src", "path": "locked.docx"})
     finally:
         _release_lock(handle)
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert "Traceback" not in message
 
@@ -233,7 +233,7 @@ async def test_sources_tree_of_directory_with_real_locked_file_does_not_fail(tmp
 
     try:
         server = build_server([SourceRoot(id="src", root_path=str(root))])
-        async with create_connected_server_and_client_session(server) as client:
+        async with connected_session(server) as client:
             result = await call(client, "sources_tree", {"source_id": "src"})
     finally:
         _release_lock(handle)
@@ -242,8 +242,8 @@ async def test_sources_tree_of_directory_with_real_locked_file_does_not_fail(tmp
     # allowed by the brief, but empirically stat() succeeds even under a
     # dwShareMode=0 lock, so size is populated here) -- above all, the
     # listing itself must not fail.
-    assert result.isError is False
-    names = {entry["name"] for entry in result.structuredContent["result"]}
+    assert result.is_error is False
+    names = {entry["name"] for entry in result.structured_content["result"]}
     assert names == {"locked.docx"}
 
 
@@ -270,10 +270,10 @@ async def test_sources_read_locked_file_monkeypatch_is_error_not_traceback(tmp_p
     monkeypatch.setattr(Path, "open", flaky_open)
 
     server = build_server([SourceRoot(id="src", root_path=str(root))])
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "locked.docx"})
 
-    assert result.isError is True
+    assert result.is_error is True
     message = error_text(result)
     assert "Traceback" not in message
 
@@ -292,11 +292,11 @@ async def test_sources_read_locked_file_monkeypatch_is_error_not_traceback(tmp_p
 async def test_sources_list_unc_root_is_unavailable():
     server = build_server([SourceRoot(id="unc-src", root_path=UNC_NONEXISTENT_ROOT)])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_list", {})
 
-    assert result.isError is False
-    entries = {entry["id"]: entry for entry in result.structuredContent["result"]}
+    assert result.is_error is False
+    entries = {entry["id"]: entry for entry in result.structured_content["result"]}
     assert entries["unc-src"]["status"] == "unavailable"
     assert entries["unc-src"]["root_path"] == UNC_NONEXISTENT_ROOT
 
@@ -306,10 +306,10 @@ async def test_sources_list_unc_root_is_unavailable():
 async def test_sources_tree_unc_root_unavailable_is_error():
     server = build_server([SourceRoot(id="unc-src", root_path=UNC_NONEXISTENT_ROOT)])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_tree", {"source_id": "unc-src"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @windows_only
@@ -317,10 +317,10 @@ async def test_sources_tree_unc_root_unavailable_is_error():
 async def test_sources_stat_unc_root_unavailable_is_error():
     server = build_server([SourceRoot(id="unc-src", root_path=UNC_NONEXISTENT_ROOT)])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_stat", {"source_id": "unc-src", "path": "x"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
 
 @windows_only
@@ -328,7 +328,7 @@ async def test_sources_stat_unc_root_unavailable_is_error():
 async def test_sources_read_unc_root_unavailable_is_error():
     server = build_server([SourceRoot(id="unc-src", root_path=UNC_NONEXISTENT_ROOT)])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "unc-src", "path": "any.txt"})
 
-    assert result.isError is True
+    assert result.is_error is True

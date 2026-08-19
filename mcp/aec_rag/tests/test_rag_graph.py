@@ -10,7 +10,7 @@ being billed for.
 from __future__ import annotations
 
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 from rag_stubs import (
     add_scanned,
     call,
@@ -45,7 +45,7 @@ async def test_a_clean_project_has_an_empty_graph(project, monkeypatch):
     add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         scope = await call(client, "rag_graph_scope")
 
@@ -64,7 +64,7 @@ async def test_graph_add_says_how_much_work_it_is_before_doing_it(project, monke
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Мощность 250 кВт.\nЩит ЩС-1.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         started, job = await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
 
@@ -91,7 +91,7 @@ async def test_a_document_outside_the_graph_is_still_searchable(project, monkeyp
     add_scanned(project_json, source, "ОВ/задание.pdf", "Тепловая нагрузка 40 кВт.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
 
@@ -111,7 +111,7 @@ async def test_new_files_in_a_marked_folder_wait_for_a_confirmation(project, mon
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Мощность 250 кВт.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
 
@@ -136,7 +136,7 @@ async def test_a_marked_folder_does_not_swallow_its_neighbour(project, monkeypat
     add_scanned(project_json, source, "ЭОМ-2/задание.pdf", "Мощность 90 кВт.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         started, _ = await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
 
@@ -150,7 +150,7 @@ async def test_overview_returns_material_and_admits_partial_coverage(project, mo
     add_scanned(project_json, source, "ОВ/задание.pdf", "Тепловая нагрузка 40 кВт.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
         result = await call(client, "rag_overview", {"query": "расскажи о проекте"})
@@ -171,7 +171,7 @@ async def test_overview_says_the_graph_covers_everything_when_it_does(project, m
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Трансформатор ТМГ-1000 питает ЩС-1.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         await graph_add_and_wait(client, server, ["tasks"])
         result = await call(client, "rag_overview", {"query": "расскажи о проекте"})
@@ -184,10 +184,10 @@ async def test_graph_add_without_paths_is_refused(project, monkeypatch):
     project_json, _ = project
     server = await stub_server(project_json, monkeypatch)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         result = await client.call_tool("rag_graph_add", {"paths": []})
 
-    assert result.isError
+    assert result.is_error
 
 
 @pytest.mark.anyio
@@ -201,7 +201,7 @@ async def test_the_choice_survives_in_project_json(project, monkeypatch, calls):
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Мощность 250 кВт.")
     server = await graph_server(project_json, monkeypatch, calls)
 
-    async with create_connected_server_and_client_session(server._mcp_server) as client:
+    async with connected_session(server) as client:
         await ingest_and_wait(client, server)
         await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
 

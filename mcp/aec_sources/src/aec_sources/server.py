@@ -10,13 +10,15 @@ are implemented here. Every path-taking tool reuses
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import ContentBlock
+from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult, InputRequiredResult
+
+if TYPE_CHECKING:
+    from mcp.server.mcpserver.server import Context
 
 from aec_sources.audit import log_rejected
 from aec_sources.config import SourceRoot
@@ -24,8 +26,8 @@ from aec_sources.fs import list_directory, list_roots_status, read_file_range, s
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 
 
-class _AuditingFastMCP(FastMCP):
-    """FastMCP that also journals calls to tool names it doesn't register at
+class _AuditingMCPServer(MCPServer):
+    """MCPServer that also journals calls to tool names it doesn't register at
     all — e.g. an agent guessing at a write/delete tool
     (``sources_write``/``sources_delete``/...) that simply doesn't exist,
     read-only by construction (specs/workspace-sources.md). Calls to the 4
@@ -35,24 +37,29 @@ class _AuditingFastMCP(FastMCP):
 
     ``logs_dir`` is ``None`` (the default) when the caller of
     ``build_server`` didn't request journaling; in that case this behaves
-    exactly like plain ``FastMCP``.
+    exactly like plain ``MCPServer``.
     """
 
     logs_dir: Path | None = None
 
     async def call_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> Sequence[ContentBlock] | dict[str, Any]:
-        # `_tool_manager` is a private FastMCP internal (pinned mcp>=1,<2); if a
+        self, name: str, arguments: dict[str, Any], context: Context | None = None
+    ) -> CallToolResult | InputRequiredResult:
+        # `_tool_manager` is a private MCPServer internal (pinned mcp>=2,<3); if a
         # dependency bump renames/removes it, this silently stops journaling —
         # caught by test_unknown_write_like_tool_call_is_error_and_journaled
         # (the journal simply won't be created).
+        #
+        # It survived 1.x -> 2.0 unchanged, name and `get_tool(name) -> Tool | None`
+        # contract both (measured, task 3.B0a). What DID change is this method's own
+        # signature — the third `context` parameter and the result type — and that
+        # failure is loud: a mismatched override raises TypeError on the first call.
         if self.logs_dir is not None and self._tool_manager.get_tool(name) is None:
             log_rejected(self.logs_dir, {"event": "unknown_tool", "tool": name})
-        return await super().call_tool(name, arguments)
+        return await super().call_tool(name, arguments, context)
 
 
-def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = None) -> FastMCP:
+def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = None) -> MCPServer:
     """Construct the aec-sources MCP server with the 4 read-only tools registered.
 
     ``roots`` are the configured source roots (parsed from project.json).
@@ -60,7 +67,7 @@ def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = 
     ``aec_sources.audit``); ``None`` (the default, for backward
     compatibility with existing callers/tests) disables journaling.
     """
-    server = _AuditingFastMCP(name="aec-sources")
+    server = _AuditingMCPServer(name="aec-sources")
     server.source_roots = list(roots or [])
     server.logs_dir = logs_dir
 

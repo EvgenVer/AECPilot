@@ -78,7 +78,16 @@ def open_index(path: Path | str) -> sqlite3.Connection:
     across separate connections (``CREATE TABLE/VIRTUAL TABLE IF NOT
     EXISTS``).
     """
-    conn = sqlite3.connect(str(path))
+    # `check_same_thread=False` because mcp 2.0 runs a SYNC tool body on a worker
+    # thread while an ASYNC one stays on the event loop (measured, task 3.B0б:
+    # sync -> a pool thread, async -> the loop thread). The same connection is
+    # therefore touched from more than one thread, and sqlite3's default would
+    # refuse the second one. Safe here because of what the two kinds do: every
+    # writer of this database lives in an async tool body (`rag_ingest`,
+    # `rag_graph_add`, and `ingest`/`add_documents_to_graph` under them), so
+    # writes stay serialized by the single-threaded loop; the sync bodies only
+    # read. On mcp 1.x every body ran on the loop and this never came up.
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.executescript(_SCHEMA)
     conn.commit()
     return conn

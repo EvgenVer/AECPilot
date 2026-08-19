@@ -507,7 +507,7 @@
        ГЛАВНОЕ СЛЕДСТВИЕ: 3.B0 и 3.B0б едут ПО ОТДЕЛЬНОСТИ, зависимость 3.B0 не
        дополняется. Размер 3.B0б — в продуктовом коде почти ничего, весь объём в
        тестах: 67 обращений к camelCase-полям моделей в 7 файлах. -->
-- [ ] 3.B0б Перевести `aec-sources` и `aec-rag` на MCP 2.x по замеру 3.B0а: `mcp>=1,<2` → `mcp>=2,<3`; `mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`; `ToolError` из `mcp.server.mcpserver.exceptions`; в `_AuditingFastMCP.call_tool` — третий параметр `context` и возврат `CallToolResult | InputRequiredResult`; в тестах 67 обращений к camelCase-полям моделей (`isError`, `inputSchema`, `structuredContent`) → snake_case; в `test_dependency_floor.py` не только `major == 2`, но и переписанное обоснование — files: mcp/aec_sources/**, mcp/aec_rag/**, pyproject обоих · verify: все 19 инструментов зарегистрированы и вызываются; pytest обоих пакетов зелёный; ядро 0.20.4 видит оба сервера и их инструменты; **журнал отвергнутых попыток по-прежнему пишется** — проверено вызовом несуществующего `sources_write` с проверкой файла журнала, а не только зелёным тестом · dep: 3.B0а · parallel: no
+- [x] 3.B0б Перевести `aec-sources` и `aec-rag` на MCP 2.x по замеру 3.B0а: `mcp>=1,<2` → `mcp>=2,<3`; `mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`; `ToolError` из `mcp.server.mcpserver.exceptions`; в `_AuditingFastMCP.call_tool` — третий параметр `context` и возврат `CallToolResult | InputRequiredResult`; в тестах 67 обращений к camelCase-полям моделей (`isError`, `inputSchema`, `structuredContent`) → snake_case; в `test_dependency_floor.py` не только `major == 2`, но и переписанное обоснование — files: mcp/aec_sources/**, mcp/aec_rag/**, pyproject обоих · verify: все 19 инструментов зарегистрированы и вызываются; pytest обоих пакетов зелёный; ядро 0.20.4 видит оба сервера и их инструменты; **журнал отвергнутых попыток по-прежнему пишется** — проверено вызовом несуществующего `sources_write` с проверкой файла журнала, а не только зелёным тестом · dep: 3.B0а · parallel: no
   <!-- ГЛАВНОЕ МЕСТО ЗАДАЧИ — `_AuditingFastMCP` в `aec_sources/server.py`. Он наследуется
        от FastMCP, переопределяет `call_tool` и читает ПРИВАТНЫЙ `self._tool_manager`,
        чтобы записать в журнал попытку вызвать инструмент записи или удаления, которого не
@@ -528,6 +528,32 @@
        разговаривает с нашими серверами на `mcp 1.28.1` без единой правки, согласовывая
        протокол вниз до `2025-11-25`. Значит эта задача едет ПОСЛЕ 3.B0, отдельным
        заходом, и зависимость 3.B0 не дополняется. -->
+  <!-- ЗАКРЫТА 2026-08-19 (сразу за 3.B0, по указанию владельца «без остановки»).
+       Сделано ровно по рецепту разведки — и плюс ДВЕ вещи, которых разведка не увидела,
+       потому что смотрела на surface регистрации, а не на исполнение. Обе в отчёте
+       `eval/reports/mcp-2x.md`, раздел «Что переезд стоил на самом деле»:
+       1. `mcp.shared.memory.create_connected_server_and_client_session` в 2.0 УДАЛЁН —
+          на нём держались 6 тестовых файлов и 56 вызовов. Собрана замена
+          `tests/mcp_harness.py` в каждом пакете поверх выживших примитивов; заодно тесты
+          перестали называть приватный `_mcp_server` (в 2.0 он `_lowlevel_server`).
+       2. 2.0 исполняет СИНХРОННОЕ тело инструмента в рабочем потоке, асинхронное — на
+          цикле (замерено: sync same=False, async same=True). `aec-rag` из-за этого дал
+          «SQLite objects created in a thread can only be used in that same thread» на
+          пяти тестах — и выяснилось, что комментарий в `server.py` описывал флаг
+          `check_same_thread=False`, которого НИКОГДА не было: `db.open_index` звал
+          `sqlite3.connect(path)` без него. Флаг поставлен; безопасность обоснована
+          поимённо — все писатели `index.db` живут в асинхронных телах, синхронные
+          только читают. Прежнее обоснование («сериализовано однопоточным циклом») для
+          синхронных тел неверно и в комментарии заменено.
+       Отдельно: у `aec-rag` зависимость `mcp` вообще не была объявлена — сервер
+       импортировал её, а pyproject молчал, то есть пакет жил на чужом дереве. Объявлена.
+       ПРОВЕРЕНО: pytest 300 passed / 3 skipped, ruff check и format чисто; все 19
+       инструментов подняты клиентом 2.0 и вызваны (4 + 15, у всех описания на месте);
+       **журнал отвергнутых попыток пишется** — `sources_write` дал строку в
+       `.aecpilot/logs/sources-rejected.jsonl`, проверено файлом, а не зелёным тестом;
+       живое ядро 0.20.4 вызвало `mcp__aec_sources__sources_list` и получило источник;
+       ядро видит ОБА сервера — в кэше схем `mcp-project-switch-probe` есть и
+       `aec-sources`, и `aec-rag`. -->
 - [ ] 3.3 История изменений (UR16): diff-вьюер и панель «что агент изменил в моих документах», без веток/worktree/коммитов (HX6) — files: donor/app/right-sidebar/review/**, renderer/src/aec/ · verify: изменение агента видно построчно и отменяется; git-понятия в интерфейсе не появляются · dep: 3.B0 · parallel: yes
 - [ ] 3.4 Предпросмотр артефактов в песочнице (UR22) + инструмент `read_preview` — files: donor/app/chat/right-rail/** · verify: HTML-артефакт отображается; `contextIsolation`/`sandbox` окна не ослаблены (SPEC C9); `preview.read.request` получает ответ по вкладке-артефакту; внешний URL во вкладку не загружается ни одним путём (SPEC HX13) · dep: 3.B0 · parallel: yes
 - [ ] 3.4б Живые блоки в ленте (UR28): механизм директив `::имя{...}` + наши блоки — ведомость таблицей, карточка расхождения, ссылка на пункт норматива с открытием документа на месте — files: donor/lib/transcript-directives.ts, donor/components/assistant-ui/{transcript-directive,inline-preview-directive}.tsx, renderer/src/aec/ · verify: директива, занимающая абзац целиком, отрисовывается блоком; та же строка в середине текста остаётся текстом; незарегистрированное имя остаётся абзацем; ошибка отрисовки даёт значок внутри сообщения, а не ломает его; блок не дотягивается до приложения и его хранилища (изолированная рамка, `contextIsolation`/`sandbox` не ослаблены — SPEC C9) · dep: 3.B0 · parallel: yes

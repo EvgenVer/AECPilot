@@ -16,7 +16,7 @@ from aec_sources import fs as fs_module
 from aec_sources import server as server_module
 from aec_sources.config import SourceRoot
 from aec_sources.server import build_server
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 
 JOURNAL_FILENAME = "sources-rejected.jsonl"
 
@@ -53,7 +53,7 @@ def error_text(result):
 async def test_tools_list_is_exactly_four_read_only_tools():
     server = build_server()
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await client.list_tools()
 
     names = {tool.name for tool in result.tools}
@@ -72,10 +72,10 @@ async def test_unknown_write_like_tool_call_is_error_and_journaled(tmp_path, too
     logs_dir = tmp_path / "logs"
     server = build_server([], logs_dir=logs_dir)
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, tool_name, {"path": "x"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
     lines = read_journal_lines(logs_dir)
     assert len(lines) == 1
@@ -94,10 +94,10 @@ async def test_traversal_attempt_is_error_and_journaled(tmp_path):
     logs_dir = tmp_path / "logs"
     server = build_server([SourceRoot(id="src", root_path=str(root))], logs_dir=logs_dir)
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "../x"})
 
-    assert result.isError is True
+    assert result.is_error is True
 
     lines = read_journal_lines(logs_dir)
     assert len(lines) == 1
@@ -123,7 +123,7 @@ async def test_journal_is_additive_across_several_rejections(tmp_path):
 
     server = build_server([SourceRoot(id="src", root_path=str(root))], logs_dir=logs_dir)
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         for _ in range(3):
             await call(client, "sources_read", {"source_id": "src", "path": "../x"})
 
@@ -153,10 +153,10 @@ async def test_journal_write_failure_does_not_break_tool_response(tmp_path, monk
 
     monkeypatch.setattr(Path, "open", broken_open)
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await call(client, "sources_read", {"source_id": "src", "path": "../x"})
 
-    assert result.isError is True
+    assert result.is_error is True
     assert not (logs_dir / JOURNAL_FILENAME).exists()
     # The response must still report the *actual* rejection reason (the
     # traversal attempt) — the journal write failure must not leak into or

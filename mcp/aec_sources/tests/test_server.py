@@ -1,7 +1,7 @@
 import pytest
 from aec_sources.config import SourceRoot
 from aec_sources.server import build_server
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp_harness import connected_session
 
 EXPECTED_TOOL_NAMES = {"sources_list", "sources_tree", "sources_read", "sources_stat"}
 
@@ -10,7 +10,7 @@ EXPECTED_TOOL_NAMES = {"sources_list", "sources_tree", "sources_read", "sources_
 async def test_tools_list_has_exactly_the_four_contract_tools():
     server = build_server()
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await client.list_tools()
 
     names = {tool.name for tool in result.tools}
@@ -25,7 +25,7 @@ async def test_sources_read_on_a_directory_is_error(tmp_path):
     (root / "sub").mkdir(parents=True)
     server = build_server([SourceRoot(id="src", root_path=str(root))])
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with connected_session(server) as client:
         result = await client.call_tool("sources_read", {"source_id": "src", "path": "sub"})
 
-    assert result.isError is True
+    assert result.is_error is True

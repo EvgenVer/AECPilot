@@ -2,7 +2,7 @@
 name = "aec-sources"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
-dependencies = ["mcp>=1,<2"]
+dependencies = ["mcp>=2,<3"]
 
 [project.scripts]
 aec-sources = "aec_sources.__main__:main"
