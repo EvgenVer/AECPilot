@@ -43,6 +43,39 @@ def _resolve_project_json(project_arg: Path) -> Path:
     return project_arg
 
 
+#: Substrings SQLite uses when the lock, not the query, is the problem.
+LOCK_MARKERS = ("database is locked", "database is busy")
+
+
+def explain_operational_error(exc: sqlite3.OperationalError, command: str = "") -> str:
+    """Turn SQLite's `database is locked` into something a person can act on.
+
+    Task 4D-9, owner decision 2026-08-17. The refusal itself is legitimate and
+    stays: `index.db` takes one writer at a time, and a scan holds its
+    transaction for the whole pass — it hashes every file inside it — so the
+    five seconds a second writer waits are nowhere near enough to outlast a
+    running one. What was wrong is that the message explained none of that.
+
+    `detach` keeps its own ending, and it is not decoration: a source left
+    un-detached IS picked up by `run_scan`'s orphan sweep on the next cycle, so
+    there the honest advice is "you may also do nothing". For every other
+    command the work simply did not happen and has to be repeated.
+    """
+    text = str(exc).lower()
+    if not any(marker in text for marker in LOCK_MARKERS):
+        return f"aec-rag: {exc}"
+    common = (
+        "aec-rag: индекс проекта занят другим процессом — скорее всего открытым "
+        "приложением, которое сканирует источники. index.db принимает одного писателя "
+        "за раз, а скан держит запись до конца прохода. "
+    )
+    if command == "detach":
+        return common + (
+            "Пометка будет доделана следующим сканом — или закройте приложение и повторите команду."
+        )
+    return common + "Закройте приложение (или дождитесь конца его скана) и повторите команду."
+
+
 def run_scan(project_arg: Path) -> dict:
     """Scans every source declared in `project_arg`'s project.json into that
     vault's `.aecpilot/index.db`. Returns `{"sources": {source_id: report}}`
@@ -346,17 +379,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"aec-rag: {exc}", file=sys.stderr)
         return 1
     except sqlite3.OperationalError as exc:
-        # Review fix (major, task 1.16): `detach` can lose a lock race
-        # against a concurrently running `scan` (SQLite's busy_timeout
-        # expires) -- report that plainly instead of a raw traceback. Not
-        # fatal for the *system* (`run_scan`'s orphan sweep above will pick
-        # up and detach this source on the very next scan cycle), just for
-        # this one process's exit code.
-        print(
-            f"aec-rag: index.db занят идущим сканированием — пометка будет доделана "
-            f"следующим сканом ({exc})",
-            file=sys.stderr,
-        )
+        print(explain_operational_error(exc, getattr(args, "command", "")), file=sys.stderr)
         return 1
 
     print(json.dumps(report))

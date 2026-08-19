@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 
 from aec_rag import __main__ as aec_rag_main
-from aec_rag.__main__ import main
+from aec_rag.__main__ import explain_operational_error, main
 from aec_rag.db import open_index
 from aec_rag.indexer import scan_source
 
@@ -322,4 +322,40 @@ def test_detach_locked_index_db_exits_1_with_friendly_message(tmp_path, capsys, 
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "aec-rag:" in captured.err
-    assert "занят идущим сканированием" in captured.err
+    # Задача 4D-9: обещание про следующий скан осталось (для detach оно верное —
+    # осиротевший источник подхватит подметание в `run_scan`), но теперь рядом
+    # сказано, КТО держит индекс и что можно сделать прямо сейчас.
+    assert "Пометка будет доделана следующим сканом" in captured.err
+    assert "приложением" in captured.err
+
+
+# --- задача 4D-9: отказ по блокировке объясняет себя ------------------------
+
+
+def test_a_lock_refusal_says_what_holds_the_index():
+    """«database is locked» само по себе не говорит человеку ничего: ни кто
+    держит, ни что делать. Отказ при этом законный — index.db принимает одного
+    писателя, а скан держит запись весь проход, — поэтому чинится не поведение,
+    а сообщение.
+    """
+    message = explain_operational_error(sqlite3.OperationalError("database is locked"), "scan")
+
+    assert "приложением" in message
+    assert "повторите команду" in message
+    # А обещания «доделается само» тут нет: скан, который не прошёл, не пройдёт
+    # сам по себе.
+    assert "следующим сканом" not in message
+    # И не остаётся сырой формулировки, ради которой всё затевалось.
+    assert "database is locked" not in message
+
+
+def test_another_operational_error_is_not_dressed_up_as_a_lock():
+    """Мутационная страховка: подменять КАЖДУЮ OperationalError рассказом про
+    занятый индекс значило бы врать про повреждённую схему или битый файл.
+    """
+    message = explain_operational_error(
+        sqlite3.OperationalError("no such column: мощность"), "scan"
+    )
+
+    assert "no such column: мощность" in message
+    assert "приложением" not in message
