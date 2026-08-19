@@ -24,7 +24,7 @@ their intra-tree imports survive the copy unedited.
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/message-list.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [1] gateway client → shared/gateway-bridge
@@ -86,6 +86,15 @@ string) has no counterpart and must not be vendored as-is.
 
 Re-copy the file from the new `DONOR_SHA` and re-apply the edits listed in its
 header. Never patch a vendored file toward a new upstream version.
+
+**The zone carries mixed commits, and that is correct.** Only files that
+actually changed upstream get re-copied, so a file whose content is identical
+across the two commits keeps the older stamp — the header records the copy it
+came from, not the pin it is compatible with. After the 0.20.0 → 0.20.4 raise
+(task 3.B0) 457 files still say `v2026.8.3` and 357 say `v2026.8.18`, and every
+one of them matches the 0.20.4 tree byte for byte. The question "is this zone
+current" is answered by `node runtime/donor-report.mjs <ref>` — zero changed
+files means current — never by reading the stamps.
 
 ## Our own surfaces do not live here
 

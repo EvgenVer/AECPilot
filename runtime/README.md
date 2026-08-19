@@ -11,7 +11,7 @@ Run setup:
 node runtime/setup.mjs
 ```
 
-Creates a venv at `runtime/.hermes-venv` (Python 3.12.13, `hermes-agent[mcp]` 0.20.0
+Creates a venv at `runtime/.hermes-venv` (Python 3.12.13, `hermes-agent[mcp]` 0.20.4
 installed editable from a shallow checkout at `HERMES_SHA` in `runtime/.hermes-src` —
 upstream's build backend refuses to build a wheel, see PLAN.md § Stack) and a dev
 profile dir at `runtime/dev-profile` (set as `HERMES_HOME` when invoking the
@@ -90,9 +90,10 @@ Exit 0 = the tool was called and returned the fixture's "demo" source. Exit
 Exit 3 = any other failure (protocol-level failure, non-auth model failure,
 or the model correctly reporting the tool isn't available).
 
-`setup.mjs` installs `hermes-agent[mcp]==0.18.0` — the `mcp` extra (approved,
-see PLAN.md § Selected dependencies) pulls in hermes's pinned `mcp==1.26.0` +
-`starlette==1.0.1` into `runtime/.hermes-venv`, which is what lets
+`setup.mjs` installs `hermes-agent[mcp]` at the pinned SHA (0.20.4 since task
+3.B0) — the `mcp` extra (approved, see PLAN.md § Selected dependencies) pulls
+in hermes's pinned `mcp==2.0.0` + `starlette==1.3.1` into
+`runtime/.hermes-venv`, which is what lets
 `tools.mcp_tool` act as an MCP *client* and connect to aec-sources (or any
 other MCP server) at all. Historical note: before that extra was approved
 and installed, this check reliably hit exit 3 with the model correctly
