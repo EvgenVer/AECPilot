@@ -10,9 +10,10 @@
 // own subscriber, pushing into their notification store, is the sanctioned
 // shape: our surface, their component.
 //
-// (The shell's own `notifications-pure.ts` was the other candidate. It is dead
-// code — nothing has dispatched into it since the renderer moved to the donor's
-// shell in phase 1.8, so a branch there would have been a change nobody sees.)
+// (The shell's own `notifications-pure.ts` was the other candidate. It turned
+// out to be dead code — nothing had dispatched into it since the renderer moved
+// to the donor's shell in phase 1.8 — and it was deleted by the owner's decision
+// rather than extended, because dead code with green tests reads as living.)
 
 import { isGatewayEventOfType, type GatewayEvent } from '../../../../shared/gateway/types'
 
