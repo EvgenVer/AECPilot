@@ -238,9 +238,7 @@ async def test_narrowing_by_path_indexes_only_that_folder(project):
     add_scanned(conn, source, "ОВ/задание.pdf")
     rag = await open_stub_index(vault)
 
-    report = await ingest(
-        conn, rag, {"tasks": str(source)}, rel_paths=["ЭОМ/"], parser=fake_parser
-    )
+    report = await ingest(conn, rag, {"tasks": str(source)}, rel_paths=["ЭОМ/"], parser=fake_parser)
 
     assert report.files_ingested == 1
     assert [row[0] for row in conn.execute("SELECT DISTINCT rel_path FROM chunks")] == [

@@ -58,9 +58,7 @@ def ensure_vault() -> Path:
             sources.append({"id": source_id, "root_path": root})
     data["sources"] = sources
 
-    project_json.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    project_json.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return project_json
 
 

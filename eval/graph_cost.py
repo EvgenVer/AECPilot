@@ -173,9 +173,7 @@ def dry_llm(usage: Usage):
         started = time.monotonic()
         history = kwargs.get("history_messages") or []
         tokens = (
-            count(prompt)
-            + count(system_prompt)
-            + sum(count(m.get("content")) for m in history)
+            count(prompt) + count(system_prompt) + sum(count(m.get("content")) for m in history)
         )
         usage.record(input_tokens=tokens, output_tokens=0, seconds=time.monotonic() - started)
         return "<|COMPLETE|>"

@@ -144,9 +144,7 @@ async def test_a_marked_folder_does_not_swallow_its_neighbour(project, monkeypat
 
 
 @pytest.mark.anyio
-async def test_overview_returns_material_and_admits_partial_coverage(
-    project, monkeypatch, calls
-):
+async def test_overview_returns_material_and_admits_partial_coverage(project, monkeypatch, calls):
     project_json, source = project
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Трансформатор ТМГ-1000 питает ЩС-1.")
     add_scanned(project_json, source, "ОВ/задание.pdf", "Тепловая нагрузка 40 кВт.")
@@ -168,9 +166,7 @@ async def test_overview_returns_material_and_admits_partial_coverage(
 
 
 @pytest.mark.anyio
-async def test_overview_says_the_graph_covers_everything_when_it_does(
-    project, monkeypatch, calls
-):
+async def test_overview_says_the_graph_covers_everything_when_it_does(project, monkeypatch, calls):
     project_json, source = project
     add_scanned(project_json, source, "ЭОМ/задание.pdf", "Трансформатор ТМГ-1000 питает ЩС-1.")
     server = await graph_server(project_json, monkeypatch, calls)

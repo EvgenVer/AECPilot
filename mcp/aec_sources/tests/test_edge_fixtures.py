@@ -39,9 +39,7 @@ def error_text(result):
 # --- long paths (>260 chars) -------------------------------------------------
 
 
-def make_long_path_fixture(
-    tmp_path: Path, min_length: int = 280
-) -> tuple[Path, Path, Path, bool]:
+def make_long_path_fixture(tmp_path: Path, min_length: int = 280) -> tuple[Path, Path, Path, bool]:
     """Build a source root with a file nested deep enough that its full path
     exceeds the classic Windows MAX_PATH (260 chars).
 
@@ -211,9 +209,7 @@ async def test_sources_read_real_locked_file_is_error_not_traceback(tmp_path):
     try:
         server = build_server([SourceRoot(id="src", root_path=str(root))])
         async with create_connected_server_and_client_session(server) as client:
-            result = await call(
-                client, "sources_read", {"source_id": "src", "path": "locked.docx"}
-            )
+            result = await call(client, "sources_read", {"source_id": "src", "path": "locked.docx"})
     finally:
         _release_lock(handle)
 

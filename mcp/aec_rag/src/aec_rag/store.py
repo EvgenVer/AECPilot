@@ -225,9 +225,7 @@ def get_chunks(conn: sqlite3.Connection, chunk_ids: Sequence[str]) -> dict[str, 
     return {row[0]: _row_to_chunk(row) for row in rows}
 
 
-def get_file_chunks(
-    conn: sqlite3.Connection, source_id: str, rel_path: str
-) -> list[StoredChunk]:
+def get_file_chunks(conn: sqlite3.Connection, source_id: str, rel_path: str) -> list[StoredChunk]:
     """A file's chunks in their original order — what tier 2 re-reads to build
     the graph from text that is already parsed and already stored.
     """

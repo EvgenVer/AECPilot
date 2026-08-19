@@ -64,9 +64,7 @@ def word_embedding():
     async def embed(texts, **kwargs):
         return np.array([_vector(text) for text in texts], dtype=np.float32)
 
-    return EmbeddingFunc(
-        embedding_dim=DIM, max_token_size=8192, model_name="stub", func=embed
-    )
+    return EmbeddingFunc(embedding_dim=DIM, max_token_size=8192, model_name="stub", func=embed)
 
 
 async def forbidden_llm(prompt, system_prompt=None, **kwargs):
@@ -146,9 +144,7 @@ async def test_our_chunk_comes_back_from_a_query_under_our_own_id(tmp_path):
     entries = indexed(chunks)
     doc = document_id("tasks", "задание.pdf")
 
-    keys = await insert_document(
-        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries
-    )
+    keys = await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
 
     assert keys == [chunk_key(doc, entry.chunk_id) for entry in entries]
 
@@ -174,9 +170,7 @@ async def test_chunks_are_not_re_cut_by_their_token_limit(tmp_path):
     long_text = "Ведомость нагрузок. " * 90  # ~1800 characters, well over their default
     entries = indexed([Chunk(text=long_text, locator={"page": 3})])
 
-    keys = await insert_document(
-        rag, source_id="tasks", rel_path="ведомость.pdf", chunks=entries
-    )
+    keys = await insert_document(rag, source_id="tasks", rel_path="ведомость.pdf", chunks=entries)
 
     stored = await rag.text_chunks.get_by_id(keys[0])
     assert len(keys) == 1
@@ -212,14 +206,10 @@ async def test_reingest_replaces_the_previous_edition(tmp_path):
     vault = make_vault(tmp_path)
     rag = await open_stub_index(vault)
     first = indexed([Chunk(text="Установленная мощность 250 кВт.", locator={"page": 1})])
-    old_keys = await insert_document(
-        rag, source_id="tasks", rel_path="задание.pdf", chunks=first
-    )
+    old_keys = await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=first)
 
     second = indexed([Chunk(text="Установленная мощность 320 кВт.", locator={"page": 1})])
-    new_keys = await insert_document(
-        rag, source_id="tasks", rel_path="задание.pdf", chunks=second
-    )
+    new_keys = await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=second)
 
     assert old_keys != new_keys
     assert await rag.text_chunks.get_by_id(old_keys[0]) is None
@@ -257,9 +247,7 @@ async def test_locator_is_recovered_by_joining_the_key_back_to_index_db(tmp_path
     ids = store_chunks(index_db, "tasks", "задание.pdf", "sha", chunks)
     entries = [IndexedChunk(chunk_id=ids[0], text=chunks[0].text)]
 
-    keys = await insert_document(
-        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries
-    )
+    keys = await insert_document(rag, source_id="tasks", rel_path="задание.pdf", chunks=entries)
 
     from aec_rag.store import get_chunks
 
@@ -328,9 +316,7 @@ async def test_two_projects_in_one_process_do_not_share_a_document_register(tmp_
     second = await open_stub_index(make_vault(tmp_path / "второй"))
     entries = indexed([Chunk(text="Мощность 250 кВт.", locator={"page": 1})])
 
-    keys_a = await insert_document(
-        first, source_id="tasks", rel_path="задание.pdf", chunks=entries
-    )
+    keys_a = await insert_document(first, source_id="tasks", rel_path="задание.pdf", chunks=entries)
     keys_b = await insert_document(
         second, source_id="tasks", rel_path="задание.pdf", chunks=entries
     )

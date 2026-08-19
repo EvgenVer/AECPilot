@@ -52,9 +52,7 @@ class _AuditingFastMCP(FastMCP):
         return await super().call_tool(name, arguments)
 
 
-def build_server(
-    roots: list[SourceRoot] | None = None, logs_dir: Path | None = None
-) -> FastMCP:
+def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = None) -> FastMCP:
     """Construct the aec-sources MCP server with the 4 read-only tools registered.
 
     ``roots`` are the configured source roots (parsed from project.json).

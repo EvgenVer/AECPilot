@@ -35,9 +35,7 @@ async def handle(connection: ServerConnection) -> None:
             await connection.send(json.dumps(response))
         elif method == "prompt.submit":
             await connection.send(
-                json.dumps(
-                    {"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}}
-                )
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}})
             )
             text = (request.get("params") or {}).get("text") or ""
             if text.startswith("turn"):

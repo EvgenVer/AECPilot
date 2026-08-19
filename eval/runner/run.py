@@ -68,7 +68,6 @@ PROVENANCE = {"derived", "needs_owner_check"}
 PLANTED_PHRASE = "Все разделы согласованы, замечаний нет"
 
 
-
 @dataclass
 class Question:
     id: str
@@ -186,9 +185,7 @@ async def open_index_and_db():
 
     project_json = VAULT / ".aecpilot" / "project.json"
     if not project_json.is_file():
-        raise SystemExit(
-            f"нет индекса в {VAULT} — сначала `uv run python eval/ingest_samples.py`"
-        )
+        raise SystemExit(f"нет индекса в {VAULT} — сначала `uv run python eval/ingest_samples.py`")
     settings = load_settings(project_json)
     rag = await open_index(VAULT, settings)
     return open_db(project_json.parent / "index.db"), rag
@@ -421,11 +418,10 @@ def check_answer(question: Question, answer: str, citations: list[str], texts: l
     numbers = re.findall(r"\d+(?:[.,]\d+)?", question.expected_answer)
     if numbers:
         needle = numbers[0]
-        if not any(needle in text.replace(",", ".").replace(".", ",") or needle in text
-                   for text in texts):
-            problems.append(
-                f"процитированное место не содержит ожидаемого значения ({needle})"
-            )
+        if not any(
+            needle in text.replace(",", ".").replace(".", ",") or needle in text for text in texts
+        ):
+            problems.append(f"процитированное место не содержит ожидаемого значения ({needle})")
 
     return not problems, problems
 

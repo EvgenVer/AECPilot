@@ -208,9 +208,7 @@ async def ingest_one(
     """
     parsed = parse(path)
     chunks = (
-        chunk_document(parsed)
-        if max_chars is None
-        else chunk_document(parsed, max_chars=max_chars)
+        chunk_document(parsed) if max_chars is None else chunk_document(parsed, max_chars=max_chars)
     )
     doc_id = document_id(file.source_id, file.rel_path)
 
@@ -248,9 +246,7 @@ def _fail(
     *,
     skipped: bool = False,
 ) -> None:
-    report.errors.append(
-        {"source_id": file.source_id, "rel_path": file.rel_path, "error": message}
-    )
+    report.errors.append({"source_id": file.source_id, "rel_path": file.rel_path, "error": message})
     on_progress(
         Progress(
             stage="skipped" if skipped else "failed",

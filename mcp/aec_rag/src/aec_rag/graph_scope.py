@@ -216,9 +216,7 @@ def graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     documents = conn.execute("SELECT count(*), coalesce(sum(chunk_count), 0) FROM graph_documents")
     count, chunks = documents.fetchone()
     indexable = indexable_files(conn)
-    in_graph = {
-        (row["source_id"], row["rel_path"]) for row in documents_in_graph(conn)
-    }
+    in_graph = {(row["source_id"], row["rel_path"]) for row in documents_in_graph(conn)}
     outside = [file for file in indexable if (file.source_id, file.rel_path) not in in_graph]
     return {
         "documents": count,
@@ -228,9 +226,7 @@ def graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def pending_for_scope(
-    conn: sqlite3.Connection, entries: list[ScopeEntry]
-) -> list[PendingFile]:
+def pending_for_scope(conn: sqlite3.Connection, entries: list[ScopeEntry]) -> list[PendingFile]:
     """Files inside a marked folder that the graph does not hold at this content.
 
     This is the list SPECIFICATION UR24 requires be shown and confirmed rather

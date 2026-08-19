@@ -268,9 +268,7 @@ def _record_field(record: Any, name: str, default: Any = None) -> Any:
     return getattr(record, name, default)
 
 
-async def _already_holds(
-    rag: LightRAG, doc_id: str, keys: Sequence[str], options: str
-) -> bool:
+async def _already_holds(rag: LightRAG, doc_id: str, keys: Sequence[str], options: str) -> bool:
     """Is this exact document, chunk for chunk, already in the index as asked?
 
     The chunk set has to match exactly, not merely contain ours: a shortened

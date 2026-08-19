@@ -126,8 +126,9 @@ def index_contents() -> dict[str, int]:
         return {
             "documents": conn.execute("SELECT count(*) FROM ingested_files").fetchone()[0],
             "chunks": conn.execute("SELECT count(*) FROM chunks").fetchone()[0],
-            "characters": conn.execute("SELECT coalesce(sum(length(text)), 0) FROM chunks")
-            .fetchone()[0],
+            "characters": conn.execute(
+                "SELECT coalesce(sum(length(text)), 0) FROM chunks"
+            ).fetchone()[0],
         }
     finally:
         conn.close()

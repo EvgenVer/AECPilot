@@ -54,9 +54,7 @@ def resolve_in_root(root: Path, rel_path: str | None) -> Path:
 
     candidate = Path(rel_path)
     if candidate.is_absolute():
-        raise PathOutsideSourceError(
-            f"PATH_OUTSIDE_SOURCE: path escapes source root: {rel_path!r}"
-        )
+        raise PathOutsideSourceError(f"PATH_OUTSIDE_SOURCE: path escapes source root: {rel_path!r}")
     for part in candidate.parts:
         if ":" in part or _ALL_DOTS_RE.match(part.rstrip()):
             raise PathOutsideSourceError(

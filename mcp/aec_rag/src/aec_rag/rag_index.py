@@ -110,9 +110,7 @@ def load_settings(project_path: Path | str) -> RagSettings:
 
     if model not in EMBEDDING_DIMENSIONS:
         known = ", ".join(sorted(EMBEDDING_DIMENSIONS))
-        raise RagIndexError(
-            f"неизвестная embedding-модель {model!r} в {path}; известные: {known}"
-        )
+        raise RagIndexError(f"неизвестная embedding-модель {model!r} в {path}; известные: {known}")
 
     return RagSettings(embedding_model=model, embedding_dim=EMBEDDING_DIMENSIONS[model])
 
