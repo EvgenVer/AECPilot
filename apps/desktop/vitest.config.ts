@@ -27,6 +27,13 @@ export default defineConfig({
           // секунд против 0,2 секунды у самого Node — измерено. В сборке
           // главного процесса этого шага нет вовсе.
           server: { deps: { external: ['exceljs'] } },
+          // Task D-33. Same ceiling as the DOM project below, and for the same
+          // reason: `sheet-read.test.ts` really opens and parses a workbook, and
+          // under a full parallel run on a busy machine that outran the 5 s
+          // default — while passing in 2,8 s in isolation. The assertion waits
+          // for work to finish, not for a timer, so a higher ceiling costs
+          // nothing when the machine is idle.
+          testTimeout: 15000,
           // The two projects have different worker limits (see 'dom' below),
           // and vitest refuses to schedule differing limits in one group — so
           // they run as two groups: the fast node suite first, then the DOM
@@ -57,7 +64,14 @@ export default defineConfig({
           // Same reason: the assertions wait for a promise chain to settle,
           // not for a timer, so a longer ceiling costs nothing when things are
           // fast and stops a green suite from turning red under load.
-          testTimeout: 15000
+          //
+          // Raised 15 s → 30 s for D-33: fifteen still was not enough for the
+          // Milkdown editor tests during a full run on a loaded machine (twice
+          // in one session), and they pass in seconds on their own. This is the
+          // SECOND raise. If it happens a third time the answer is not a bigger
+          // number — it is running the heavy-import files in their own group,
+          // the way the node/dom split already works.
+          testTimeout: 30000
         }
       },
       {
