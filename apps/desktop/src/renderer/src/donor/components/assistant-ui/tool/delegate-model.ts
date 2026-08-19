@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/delegate-model.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -59,6 +59,14 @@ function resultRows(result: unknown): Record<string, unknown>[] {
   return results.map(parseMaybeObject)
 }
 
+// The delegate tool settles result rows with statuses like 'ok', 'error',
+// 'timeout', 'failed'/'failure' (tools/delegate_tool.py). Anything that is
+// not a success must render as failed — mapping unknown statuses to
+// 'completed' hid timed-out children behind a green check (#73728, #85492).
+function settledRowStatus(status: string): DelegateRowStatus {
+  return status === '' || status === 'ok' || status === 'completed' ? 'completed' : 'failed'
+}
+
 function dispatchedGoals(result: unknown): string[] {
   const record = parseMaybeObject(result)
 
@@ -94,7 +102,7 @@ export function delegateRowsFromCall(args: unknown, result: unknown, toolCallId 
       goal,
       id: `${toolCallId}:${index}`,
       model: entry ? field(entry, 'model') || undefined : undefined,
-      status: entry ? (field(entry, 'status') === 'failed' ? 'failed' : 'completed') : idle
+      status: entry ? settledRowStatus(field(entry, 'status')) : idle
     }
   })
 }

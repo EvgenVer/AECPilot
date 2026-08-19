@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/narrow-overlays.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,7 @@
 import { useStore } from '@nanostores/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { ContribBoundary } from '@/contrib/react/boundary'
+import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import type { Contribution } from '@/contrib/types'
 import { ESCAPE_PRIORITY, isTopEscapeLayer, pushEscapeLayer } from '@/lib/escape-layers'
@@ -145,7 +145,9 @@ export function NarrowOverlays() {
           // width) instead of a fat fixed 20rem — capped for tiny screens.
           style={{ width: `min(${(revealed.data as { width?: string } | undefined)?.width ?? '18rem'}, 85vw)` }}
         >
-          <ContribBoundary id={revealed.id}>{revealed.render?.()}</ContribBoundary>
+          <ContribBoundary id={revealed.id}>
+            {revealed.render && <ContribRender render={revealed.render} />}
+          </ContribBoundary>
         </div>
       )}
     </>

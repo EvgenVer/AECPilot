@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/composer-queue.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
+
+import { SLASH_COMMAND_RE } from '@/lib/chat-runtime'
 
 import type { ComposerAttachment } from './composer'
 
@@ -18,6 +20,15 @@ export interface QueuedPromptEntry {
   displayText?: string
   attachments: ComposerAttachment[]
   queuedAt: number
+}
+
+/** Whether a queued entry can ride a mid-turn redirect: text-only, non-empty,
+ *  not a slash command — the same gate `steerDraft` applies to the live draft
+ *  (attachments can't ride a redirect; slash commands execute, not steer). */
+export const isSteerableEntry = (entry: Pick<QueuedPromptEntry, 'attachments' | 'text'>): boolean => {
+  const text = entry.text.trim()
+
+  return Boolean(text) && entry.attachments.length === 0 && !SLASH_COMMAND_RE.test(text)
 }
 
 type QueueState = Record<string, QueuedPromptEntry[]>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-quick-entry-bridge.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,7 @@ import {
 } from '@/store/quick-entry'
 import { $gatewayState, $sessions } from '@/store/session'
 import { sessionTileDelegate } from '@/store/session-states'
-import { isSecondaryWindow } from '@/store/windows'
+import { isAuxiliaryWindow } from '@/store/windows'
 
 interface QuickEntryBridgeParams {
   startFreshSessionDraft: () => void
@@ -64,7 +64,7 @@ export function useQuickEntryBridge({ startFreshSessionDraft, submitText }: Quic
   startFreshRef.current = startFreshSessionDraft
 
   useEffect(() => {
-    if (isSecondaryWindow()) {
+    if (isAuxiliaryWindow()) {
       return
     }
 
@@ -108,7 +108,7 @@ export function useQuickEntryBridge({ startFreshSessionDraft, submitText }: Quic
   // Push gateway truth into the quick window whenever it changes: connection
   // state gates its input; the recent-session list feeds its target picker.
   useEffect(() => {
-    if (isSecondaryWindow()) {
+    if (isAuxiliaryWindow()) {
       return
     }
 

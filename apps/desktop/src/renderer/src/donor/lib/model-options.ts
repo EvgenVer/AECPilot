@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/model-options.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -57,7 +57,11 @@ export function modelOptionsQueryKey(profile: null | string | undefined, session
   return ['model-options', profileKey, sessionId || 'global'] as const
 }
 
-export function requestModelOptions({
+function hasSelectableModels(options: ModelOptionsResponse | null | undefined): boolean {
+  return options?.providers?.some(provider => (provider.models?.length ?? 0) > 0) ?? false
+}
+
+export async function requestModelOptions({
   explicitOnly = true,
   gateway,
   refresh = false,
@@ -78,7 +82,43 @@ export function requestModelOptions({
       params.explicit_only = true
     }
 
-    return gateway.request<ModelOptionsResponse>('model.options', params)
+    let gatewayError: unknown
+    let gatewayOptions: ModelOptionsResponse | undefined
+
+    try {
+      gatewayOptions = await gateway.request<ModelOptionsResponse>('model.options', params)
+    } catch (error) {
+      gatewayError = error
+    }
+
+    if (gatewayOptions && hasSelectableModels(gatewayOptions)) {
+      return gatewayOptions
+    }
+
+    // A connected Desktop gateway can occasionally return only the current
+    // provider/model (or an empty provider list) while its authenticated REST
+    // catalog is already populated. Recover through the same profile-scoped
+    // endpoint Settings uses, but keep the live session selection authoritative.
+    try {
+      const restOptions = await getGlobalModelOptions({ explicitOnly, ...(refresh ? { refresh: true } : {}) })
+
+      if (hasSelectableModels(restOptions)) {
+        return {
+          ...restOptions,
+          ...(gatewayOptions?.provider ? { provider: gatewayOptions.provider } : {}),
+          ...(gatewayOptions?.model ? { model: gatewayOptions.model } : {})
+        }
+      }
+    } catch {
+      // Preserve the gateway result (or its original error) when the recovery
+      // path is unavailable.
+    }
+
+    if (gatewayOptions) {
+      return gatewayOptions
+    }
+
+    throw gatewayError
   }
 
   return getGlobalModelOptions({ explicitOnly, ...(refresh ? { refresh: true } : {}) })

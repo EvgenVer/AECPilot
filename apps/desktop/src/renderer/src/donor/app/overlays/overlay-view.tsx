@@ -1,15 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/overlays/overlay-view.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { type CSSProperties, type ReactNode, useEffect } from 'react'
 
 import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
+import { TitlebarIcon } from '@/app/shell/titlebar-icon'
 import { Button } from '@/components/ui/button'
-import { Codicon } from '@/components/ui/codicon'
 import { translateNow } from '@/i18n'
 import { ESCAPE_PRIORITY, isTopEscapeLayer, pushEscapeLayer } from '@/lib/escape-layers'
 import { triggerHaptic } from '@/lib/haptics'
@@ -105,6 +105,10 @@ export function OverlayView({
           'relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-chat-surface-background) shadow-md',
           rootClassName
         )}
+        // Marks the card as a RAISED surface for window glass: while the field
+        // behind it thins to show the desktop, this card stays near-opaque
+        // (see the [data-glass-raised] rules in styles.css). Inert otherwise.
+        data-glass-raised=""
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[calc(var(--titlebar-height)+0.1875rem)] [-webkit-app-region:drag]">
           {headerContent && (
@@ -120,7 +124,7 @@ export function OverlayView({
             size="icon-titlebar"
             variant="ghost"
           >
-            <Codicon name="close" size="1rem" />
+            <TitlebarIcon name="close" />
           </Button>
         </div>
 

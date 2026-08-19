@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/boot.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -70,6 +70,27 @@ export function setDesktopBootStep(step: {
     progress: step.progress,
     running: step.running ?? true,
     timestamp: Date.now()
+  })
+}
+
+/**
+ * Re-arm the boot overlay for an automatic bounded retry of a failed REMOTE
+ * boot (#82679). Unlike setDesktopBootStep — whose null `error` intentionally
+ * cannot clear a latched failure — this explicitly lifts the error so the
+ * overlay shows the retry status instead of the terminal failure surface
+ * while the retry is in flight. failDesktopBoot() re-latches when the
+ * bounded retries are exhausted.
+ */
+export function resumeDesktopBootForRetry(message: string) {
+  const current = $desktopBoot.get()
+  $desktopBoot.set({
+    ...current,
+    error: null,
+    message,
+    phase: 'renderer.boot.retry',
+    running: true,
+    timestamp: Date.now(),
+    visible: true
   })
 }
 

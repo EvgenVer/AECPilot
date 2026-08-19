@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/types.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,6 @@ export type SidebarActions = Pick<
   | 'onBranchSession'
   | 'onDeleteSession'
   | 'onLoadMoreMessaging'
-  | 'onLoadMoreProfileSessions'
   | 'onLoadMoreSessions'
   | 'onManageCronJob'
   | 'onNavigate'
@@ -39,6 +38,7 @@ export type ChatActions = Pick<
   | 'onAddUrl'
   | 'onAttachDroppedItems'
   | 'onAttachImageBlob'
+  | 'onAttachPrCommentUrl'
   | 'onBranchInNewChat'
   | 'onCancel'
   | 'onDeleteSelectedSession'
@@ -66,8 +66,8 @@ export type ChatActions = Pick<
  * the latest closure.
  */
 export interface WiringActions extends SidebarActions, ChatActions {
-  /** The live gateway instance (held in a controller ref). Surfaces recapture
-   *  it by subscribing to `$gatewayState`, so no gateway prop needs threading. */
+  /** Imperative access to the live gateway for controller-owned callbacks.
+   *  Rendered surfaces subscribe to the active `$gateway` atom directly. */
   getGateway: () => ComponentProps<typeof ChatView>['gateway']
   openAgents: () => void
   openCommandCenterSection: (section: CommandCenterSection) => void

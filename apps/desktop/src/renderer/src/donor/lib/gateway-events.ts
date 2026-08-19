@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-events.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,11 +24,17 @@ function asRecord(payload: unknown): Record<string, unknown> {
  * Without this, ``explicitSid || activeSessionId`` reattributes live deltas to
  * the newly focused chat.
  */
-const UNSCOPED_STREAM_EVENT_TYPES = new Set([
+/** Unscoped stream events that must stay pinned to the session that received
+ * ``message.start`` after the user switches chats mid-turn (#47709 / #48281).
+ * Without this, ``explicitSid || activeSessionId`` reattributes live deltas to
+ * the newly focused chat. Exported so the event handler can tell which events
+ * are pin-eligible when deciding whether an unpinned straggler is legitimate. */
+export const UNSCOPED_STREAM_EVENT_TYPES = new Set([
   'approval.request',
   'browser.progress',
   'clarify.request',
   'error',
+  'mcp.setup.request',
   'message.complete',
   'message.delta',
   'message.interim',
@@ -73,7 +79,28 @@ export interface GatewayEventSessionRouteInput {
 export interface GatewayEventSessionRoute {
   drop: boolean
   nextUnscopedStreamSessionId: null | string
+  /** True when the event was attributed via the pinned stream session rather
+   *  than the active-session fallback. The caller uses this to drop late
+   *  stragglers: an unpinned stream event landing on a session that has no
+   *  live turn belongs to a turn that already ended elsewhere. */
+  pinned: boolean
   sessionId: null | string
+}
+
+export function approvalReplaySessionId(
+  eventType: string | undefined,
+  activeSessionId: null | string,
+  routedSessionId: null | string
+): null | string {
+  if (eventType === 'gateway.ready') {
+    return activeSessionId
+  }
+
+  if (eventType === 'session.info') {
+    return routedSessionId
+  }
+
+  return null
 }
 
 /**
@@ -98,6 +125,7 @@ export function resolveGatewayEventSessionId({
     return {
       drop: false,
       nextUnscopedStreamSessionId,
+      pinned: true,
       sessionId: explicitSessionId
     }
   }
@@ -106,6 +134,7 @@ export function resolveGatewayEventSessionId({
     return {
       drop: true,
       nextUnscopedStreamSessionId: unscopedStreamSessionId,
+      pinned: false,
       sessionId: null
     }
   }
@@ -130,6 +159,7 @@ export function resolveGatewayEventSessionId({
   return {
     drop: false,
     nextUnscopedStreamSessionId,
+    pinned: streamEvent && eventType !== 'message.start' && Boolean(unscopedStreamSessionId),
     sessionId
   }
 }

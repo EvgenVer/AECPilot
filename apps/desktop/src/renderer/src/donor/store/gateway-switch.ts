@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/gateway-switch.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import { invalidateProfileScopedQueries } from '@/lib/query-client'
 import { clearArtifactRegistry } from '@/store/artifacts'
 import { resetSessionsLimit } from '@/store/layout'
 import { resetLiveSync } from '@/store/live-sync'
+import { invalidateProfileListFetches } from '@/store/profile'
 import {
   $unreadFinishedSessionIds,
   setActiveSessionId,
@@ -24,9 +25,11 @@ import {
   setMessagingTruncated,
   setSelectedStoredSessionId,
   setSessionProfilesTruncated,
+  setSessionProfilesUsage,
   setSessions,
   setSessionsLoading
 } from '@/store/session'
+import { resetSessionPinMirror } from '@/store/session-pin-sync'
 import { clearAllSessionStates } from '@/store/session-states'
 
 // True while a soft gateway-mode apply is mid-flight (wipe → re-dial). Lets the
@@ -50,15 +53,30 @@ export function wipeSessionListsForGatewaySwitch(): void {
   // The next backend is a different runtime — don't carry the old one's
   // "batched sidebar endpoint missing" capability verdict across the switch.
   resetSidebarBatchCapability()
+  // Strand any in-flight /api/profiles fetch from the PREVIOUS backend. The
+  // rail's $profiles cache is deliberately NOT wiped (an empty list flickers
+  // the rail away), but a late response from the old backend must not
+  // overwrite what the new backend reports — that stale write is how a
+  // remote/Cloud connection apply made the profile rail vanish (#85731).
+  invalidateProfileListFetches()
+  // Pins are mirrored per-backend. The next gateway has its own state.db and
+  // has never seen them, so drop the "already pushed" bookkeeping and let the
+  // next reconcile re-assert the whole set against the new backend.
+  resetSessionPinMirror()
   setSessions([])
   setSessionProfilesTruncated({})
+  setSessionProfilesUsage({})
   setCronSessions([])
   setMessagingSessions([])
   setMessagingPlatformTotals({})
   setMessagingTruncated(false)
   // Clearing $sessionStates automatically clears $workingSessionIds and
   // $attentionSessionIds (computed) and $stalledSessionIds (owned beside it).
-  // $unreadFinishedSessionIds is separate, so wipe it explicitly.
+  // $unreadFinishedSessionIds is separate, so wipe it explicitly. Only the
+  // transient paint layer is wiped: the persisted markers/watermarks in
+  // session-unread.ts are keyed by durable session id and repaint the rows
+  // that are still unread once the next gateway's lists load — so a profile
+  // round-trip doesn't swallow green dots.
   clearAllSessionStates()
   resetLiveRuntimeTracking()
   resetLiveSync()

@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/cron-jobs-section.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { createCronTriggerController, type CronTriggerController } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
 import { ActionsContextMenu, type MenuKit, renderActionItem } from '@/components/ui/actions-menu'
@@ -79,7 +80,7 @@ interface SidebarCronJobsSectionProps {
   // Open the full Cron page focused on this job (manage / full history).
   onManageJob: (jobId: string) => void
   // Fire the job now.
-  onTriggerJob: (jobId: string) => void
+  onTriggerJob: (jobId: string) => Promise<void>
   onToggle: () => void
   open: boolean
 }
@@ -99,6 +100,45 @@ export function SidebarCronJobsSection({
   const [peekJobId, setPeekJobId] = useState<null | string>(null)
   // Rows revealed so far; starts compact, grows in steps via "load more".
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_JOBS)
+  const [triggeringJobIds, setTriggeringJobIds] = useState<ReadonlySet<string>>(() => new Set())
+  const triggerControllerRef = useRef<CronTriggerController | null>(null)
+
+  // eslint-disable-next-line no-restricted-syntax -- controller mount identity, not an atom mirror
+  useEffect(() => {
+    const controller = createCronTriggerController((jobId, running) => {
+      if (triggerControllerRef.current !== controller) {
+        return
+      }
+
+      setTriggeringJobIds(current => {
+        const next = new Set(current)
+
+        if (running) {
+          next.add(jobId)
+        } else {
+          next.delete(jobId)
+        }
+
+        return next
+      })
+    })
+
+    triggerControllerRef.current = controller
+
+    return () => {
+      triggerControllerRef.current = null
+    }
+  }, [])
+
+  const triggerJob = (jobId: string) => {
+    const controller = triggerControllerRef.current
+
+    if (!controller) {
+      return
+    }
+
+    void controller.run(jobId, () => onTriggerJob(jobId)).catch(() => undefined)
+  }
 
   const visible = usePaneVisible()
 
@@ -157,9 +197,10 @@ export function SidebarCronJobsSection({
         </button>
       </div>
       {open && (
-        <SidebarGroupContent className="flex max-h-72 flex-col gap-px overflow-x-hidden overflow-y-auto overscroll-contain pb-1.75 compact:max-h-none compact:overflow-visible">
+        <SidebarGroupContent className="scrollbar-fade flex max-h-72 flex-col gap-px overflow-x-hidden overflow-y-auto overscroll-contain pb-1.75 compact:max-h-none compact:overflow-visible">
           {shown.map(job => (
             <CronJobSidebarRow
+              busy={triggeringJobIds.has(job.id)}
               expanded={peekJobId === job.id}
               job={job}
               key={job.id}
@@ -167,7 +208,7 @@ export function SidebarCronJobsSection({
               onManage={() => onManageJob(job.id)}
               onOpenRun={onOpenRun}
               onTogglePeek={() => setPeekJobId(prev => (prev === job.id ? null : job.id))}
-              onTrigger={() => onTriggerJob(job.id)}
+              onTrigger={() => triggerJob(job.id)}
             />
           ))}
           {hiddenCount > 0 && (
@@ -183,6 +224,7 @@ export function SidebarCronJobsSection({
 }
 
 function CronJobSidebarRow({
+  busy,
   expanded,
   job,
   nowMs,
@@ -191,6 +233,7 @@ function CronJobSidebarRow({
   onTogglePeek,
   onTrigger
 }: {
+  busy: boolean
   expanded: boolean
   job: CronJob
   nowMs: number
@@ -305,11 +348,16 @@ function CronJobSidebarRow({
               <Tip label={c.triggerNow}>
                 <button
                   aria-label={c.triggerNow}
-                  className="grid size-5 place-items-center rounded-sm text-(--ui-text-tertiary) hover:bg-(--ui-control-hover-background) hover:text-foreground"
+                  className="grid size-5 place-items-center rounded-sm text-(--ui-text-tertiary) hover:bg-(--ui-control-hover-background) hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                  disabled={busy}
                   onClick={onTrigger}
                   type="button"
                 >
-                  <Codicon name="zap" size="0.75rem" />
+                  {busy ? (
+                    <GlyphSpinner ariaLabel={c.triggerNow} className="text-[0.75rem]" />
+                  ) : (
+                    <Codicon name="zap" size="0.75rem" />
+                  )}
                 </button>
               </Tip>
               <Tip label={c.manage}>

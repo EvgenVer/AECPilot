@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/providers.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,7 +12,7 @@ import type { OAuthProvider } from '@/types/hermes'
 
 const PROVIDER_DISPLAY: Record<string, { order: number; title: string }> = {
   nous: { order: 0, title: 'Nous Portal' },
-  'openai-codex': { order: 1, title: 'OpenAI OAuth (ChatGPT)' },
+  'openai-codex': { order: 1, title: 'ChatGPT or Codex Subscription' },
   'minimax-oauth': { order: 2, title: 'MiniMax' },
   'qwen-oauth': { order: 3, title: 'Qwen Code' },
   'xai-oauth': { order: 4, title: 'xAI Grok' },
@@ -83,7 +83,7 @@ function ConnectedTag() {
 const PROVIDER_ROW_CLASS =
   'group flex w-full items-center justify-between gap-3 rounded-[6px] px-3 py-2.5 text-left transition-colors hover:bg-(--ui-control-hover-background)'
 
-/** Quick-key row for API-key providers (Fireworks #2 after Nous, OpenRouter further down). */
+/** Quick-key row for API-key providers (Fireworks leads the expanded list after Nous, OpenRouter further down). */
 export function KeyProviderRow({ onClick, pitch, title }: { onClick: () => void; pitch: string; title: string }) {
   return (
     <RowButton className={PROVIDER_ROW_CLASS} onClick={onClick}>

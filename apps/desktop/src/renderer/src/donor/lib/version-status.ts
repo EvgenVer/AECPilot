@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/version-status.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,7 +46,7 @@ export interface VersionStatusInput {
   /** Client only: short commit sha of the running build. */
   sha?: null | string
   target: UpdateTarget
-  /** Backend only: an update the commit count can't express (pip installs). */
+  /** An update the commit count can't express (shallow clones, pip installs). */
   updateAvailable?: boolean
   version?: null | string
 }
@@ -77,7 +77,12 @@ export function resolveVersionStatus({
 }: VersionStatusInput): VersionStatusResult {
   const client = target === 'client'
   const busy = applying || restarting
-  const available = behind > 0 || (!client && !!updateAvailable)
+  // updateAvailable covers every "behind but uncountable" shape: shallow
+  // installer clones (behind === null upstream, coalesced to 0 by callers),
+  // SSH-official presence-only checks, and pip installs. It applies to BOTH
+  // targets — the client statusbar item is how a shallow desktop install
+  // learns it's stale at all.
+  const available = behind > 0 || !!updateAvailable
 
   // A client with no version still identifies itself by sha; a backend can't.
   const named = version ?? (client ? sha : null) ?? copy.unknown

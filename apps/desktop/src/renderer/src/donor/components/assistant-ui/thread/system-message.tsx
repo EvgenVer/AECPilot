@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/system-message.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,18 +9,50 @@ import { MessagePrimitive, useAuiState } from '@assistant-ui/react'
 import { type FC } from 'react'
 
 import { messageContentText } from '@/components/assistant-ui/thread/content'
+import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
+import { SCAFFOLD_LABEL_CLASS } from '@/components/chat/scaffold-row'
 import { Codicon } from '@/components/ui/codicon'
+import { ToolIcon } from '@/components/ui/tool-icon'
 import { LinkifiedText } from '@/lib/external-link'
 import { cn } from '@/lib/utils'
 
 const SLASH_STATUS_RE = /^slash:(?<command>\/[^\n]+)\n(?<output>[\s\S]*)$/
 const STEER_NOTE_RE = /^steer:(?<text>[\s\S]+)$/
+const REVIEW_NOTE_RE = /^review:(?<label>[^:\n]+):?\s*(?<detail>[\s\S]*)$/
 
 export const SystemMessage: FC = () => {
   const text = useAuiState(s => messageContentText(s.message.content))
 
   if (!text) {
     return null
+  }
+
+  // The self-improvement review saved something to memory/skills — the same
+  // kind of event as a landed `memory` write, so it wears the same chrome:
+  // brain glyph with the gold→purple glow, gradient label, purple detail,
+  // left-aligned in the reading column like every other scaffold line.
+  const reviewNote = text.match(REVIEW_NOTE_RE)
+
+  if (reviewNote?.groups) {
+    const detail = reviewNote.groups.detail.trim()
+
+    return (
+      <MessagePrimitive.Root
+        className="flex w-full min-w-0 max-w-full items-start gap-1.5 self-start py-0.5"
+        data-role="system"
+        data-slot="aui_system-message-root"
+      >
+        <span className="tool-memory-legendary-glyph flex h-(--conversation-line-height) w-3.5 shrink-0 items-center justify-center">
+          <ToolIcon className="text-(--tool-memory-legendary-icon)" name="brain" size="0.875rem" />
+        </span>
+        <span className={cn(SCAFFOLD_LABEL_CLASS, 'tool-memory-legendary-title shrink-0 text-transparent')}>
+          {reviewNote.groups.label.trim()}
+        </span>
+        {detail && (
+          <span className={cn(SCAFFOLD_LABEL_CLASS, 'tool-memory-legendary-meta min-w-0 wrap-anywhere')}>{detail}</span>
+        )}
+      </MessagePrimitive.Root>
+    )
   }
 
   const steerNote = text.match(STEER_NOTE_RE)
@@ -35,7 +67,7 @@ export const SystemMessage: FC = () => {
         <Codicon className="text-muted-foreground/55" name="compass" size="0.75rem" />
         <span className="text-muted-foreground/55">steered</span>
         <span className="text-muted-foreground/35">·</span>
-        <span className="whitespace-pre-wrap">{steerNote.groups.text.trim()}</span>
+        <span className="whitespace-pre-wrap">{steerNote.groups.text.trim()}</span> <MessageTimelineTimestamp />
       </MessagePrimitive.Root>
     )
   }
@@ -66,7 +98,8 @@ export const SystemMessage: FC = () => {
             <span className="mx-1.5 text-muted-foreground/35">·</span>
             <LinkifiedText className="whitespace-pre-wrap" explicitOnly pretty={false} text={output} />
           </>
-        )}
+        )}{' '}
+        <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ml-1.5')} />
       </MessagePrimitive.Root>
     )
   }
@@ -82,7 +115,8 @@ export const SystemMessage: FC = () => {
       data-role="system"
       data-slot="aui_system-message-root"
     >
-      <LinkifiedText className="whitespace-pre-wrap" explicitOnly pretty={false} text={text} />
+      <LinkifiedText className="whitespace-pre-wrap" explicitOnly pretty={false} text={text} />{' '}
+      <MessageTimelineTimestamp className={cn(multiline ? 'mt-0.5 block' : 'ml-1.5')} />
     </MessagePrimitive.Root>
   )
 }

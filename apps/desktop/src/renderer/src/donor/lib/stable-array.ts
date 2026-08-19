@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/stable-array.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,3 +12,13 @@
  *  would corrupt the cache — fail loud instead. */
 export const stableArray = <T>(prev: readonly T[], next: T[]): readonly T[] =>
   prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : Object.freeze(next)
+
+/** {@link stableArray} for a keyed projection. */
+export const stableRecord = <T>(
+  prev: Readonly<Record<string, T>>,
+  next: Record<string, T>
+): Readonly<Record<string, T>> => {
+  const keys = Object.keys(next)
+
+  return keys.length === Object.keys(prev).length && keys.every(k => prev[k] === next[k]) ? prev : Object.freeze(next)
+}

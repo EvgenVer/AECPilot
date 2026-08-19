@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/message-render-boundary.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,12 @@ import { Component, type ReactNode } from 'react'
 const isTransientLookupError = (error: unknown): boolean =>
   error instanceof Error && /(useClientLookup|tapClient(Lookup|Resource)).*out of bounds/.test(error.message)
 
+// Consecutive transient retries before giving up and waiting for a structural
+// resetKey change (the pre-retry behavior). The race heals on the next
+// consistent store snapshot, so one retry almost always recovers; the cap
+// only bounds a pathological loop where the lookup stays out of bounds.
+const MAX_TRANSIENT_RETRIES = 5
+
 interface Props {
   // Changes whenever the message list mutates STRUCTURALLY (ids/roles/count);
   // remounting clears the caught error so the next consistent render recovers
@@ -34,13 +40,57 @@ interface Props {
 export class MessageRenderBoundary extends Component<Props, { error: Error | null }> {
   state: { error: Error | null } = { error: null }
 
+  private retryTimer: number | null = null
+
+  private transientRetries = 0
+
   static getDerivedStateFromError(error: Error) {
     return { error }
   }
 
-  componentDidUpdate(prev: Props) {
+  componentDidCatch(error: Error) {
+    // The resetKey path below only recovers on a STRUCTURAL change, but this
+    // race also fires mid-turn while ids/roles/count are stable: without a
+    // self-retry the boundary renders null for the rest of the turn (or
+    // until an unrelated message add/remove). Retry on a timer, not rAF —
+    // a parked renderer never fires frames, and a timer always runs.
+    if (!isTransientLookupError(error) || this.transientRetries >= MAX_TRANSIENT_RETRIES) {
+      return
+    }
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    this.transientRetries += 1
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = null
+      this.setState({ error: null })
+    }, 0)
+  }
+
+  componentDidUpdate(prev: Props, prevState: { error: Error | null }) {
     if (this.state.error && prev.resetKey !== this.props.resetKey) {
       this.setState({ error: null })
+
+      return
+    }
+
+    if (prevState.error && !this.state.error) {
+      // Recovered (retry or structural reset): reset the retry budget and
+      // drop any retry timer the structural reset just made redundant.
+      this.transientRetries = 0
+
+      if (this.retryTimer !== null) {
+        window.clearTimeout(this.retryTimer)
+        this.retryTimer = null
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.retryTimer !== null) {
+      window.clearTimeout(this.retryTimer)
     }
   }
 

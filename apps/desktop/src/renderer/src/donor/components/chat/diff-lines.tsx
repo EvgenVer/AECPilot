@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/diff-lines.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -652,7 +652,13 @@ export function FileDiffPanel({
       >
         {showLineNumbers ? (
           <div className="grid min-w-max grid-cols-[auto_minmax(0,1fr)]">
-            <div className="sticky left-0 z-1 select-none bg-(--ui-editor-surface-background) py-3 text-muted-foreground/55">
+            <div
+              className="sticky left-0 z-1 select-none bg-(--ui-editor-surface-background) py-3 text-muted-foreground/55"
+              // Masks the code scrolling horizontally beneath it, so it has to
+              // stay opaque when window glass thins the field. See
+              // `[data-glass-opaque]` in styles.css.
+              data-glass-opaque=""
+            >
               {beforeRows > 0 && <div aria-hidden style={{ height: beforeRows * PREVIEW_LINE_PX }} />}
               {visibleLineChunks.map(chunk => (
                 <div className="block" key={chunk.start}>

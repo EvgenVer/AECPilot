@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/use-deep-link-highlight.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,20 @@ interface DeepLinkHighlightOptions {
   block?: ScrollLogicalPosition
 }
 
+// react-router's useSearchParams throws with no router context. Inside Settings
+// (every original caller) there always is one, so behavior is unchanged; when a
+// consumer is embedded OUTSIDE the router (e.g. McpTab in a plugin dialog) there
+// is none, and this degrades to an inert [empty params, no-op setter] instead of
+// crashing. Router presence is stable for a mounted instance's lifetime, so the
+// try/catch never changes the hook count between renders (rules-of-hooks safe).
+function useOptionalSearchParams(): ReturnType<typeof useSearchParams> {
+  try {
+    return useSearchParams()
+  } catch {
+    return [new URLSearchParams(), () => undefined]
+  }
+}
+
 // Deep-link from the command palette (?<param>=<id>): once the target row is
 // renderable, scroll it into view and flash it, then drop the param so it
 // doesn't re-fire. Returns the pending target (null once consumed) so callers
@@ -27,7 +41,7 @@ export function useDeepLinkHighlight({
   onResolve,
   block = 'center'
 }: DeepLinkHighlightOptions): null | string {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useOptionalSearchParams()
   const target = searchParams.get(param)
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-submit.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,8 @@ import { hasClarifyRequest, skipClarifyRequest } from '@/store/clarify'
 import { clearSessionDraft, type ComposerAttachment } from '@/store/composer'
 import { resetBrowseState } from '@/store/composer-input-history'
 import { enqueueQueuedPrompt, type QueuedPromptEntry } from '@/store/composer-queue'
+import { hasMcpSetupRequest, skipMcpSetupRequest } from '@/store/mcp-setup'
+import { hasBlockingPromptRequest } from '@/store/prompts'
 
 import { cloneAttachments, type QueueEditState } from '../composer-utils'
 import { onComposerSubmitRequest } from '../focus'
@@ -85,7 +87,7 @@ export function useComposerSubmit({
 
   // Shared send primitive: fire onSubmit, and if the gateway rejects (accepted
   // === false) or throws, re-load + re-stash the draft so the words survive.
-  const dispatchSubmit = (text: string, attachments?: ComposerAttachment[]) => {
+  const dispatchSubmit = (text: string, attachments?: ComposerAttachment[], displayKind?: 'hidden') => {
     const submittedScope = activeQueueSessionKeyRef.current
     const submittedAttachments = attachments ?? []
 
@@ -100,8 +102,8 @@ export function useComposerSubmit({
 
     void Promise.resolve(
       attachments
-        ? onSubmit(text, { attachments, composerScope: submittedScope })
-        : onSubmit(text, { composerScope: submittedScope })
+        ? onSubmit(text, { attachments, composerScope: submittedScope, ...(displayKind ? { displayKind } : {}) })
+        : onSubmit(text, { composerScope: submittedScope, ...(displayKind ? { displayKind } : {}) })
     )
       .then(accepted => void (accepted === false ? restore() : clearSessionDraft(submittedScope)))
       .catch(restore)
@@ -115,9 +117,9 @@ export function useComposerSubmit({
 
   useEffect(
     () =>
-      onComposerSubmitRequest(({ target, text }) => {
+      onComposerSubmitRequest(({ target, text, displayKind }) => {
         if (target === 'main' && !inputDisabled) {
-          dispatchSubmitRef.current(text)
+          dispatchSubmitRef.current(text, undefined, displayKind)
         }
       }),
     [inputDisabled]
@@ -168,6 +170,21 @@ export function useComposerSubmit({
       void skipClarifyRequest(sessionId)
     }
 
+    // Same deal for a pending MCP setup card: the agent is blocked on
+    // mcp.setup.respond, so a typed message declines the card and rides on.
+    if (payloadPresent && !queueEdit && hasMcpSetupRequest(sessionId)) {
+      void skipMcpSetupRequest(sessionId)
+    }
+
+    // Approval / sudo / secret prompts also park the turn inside a tool batch,
+    // but typing CANNOT answer them (no message text approves a command or
+    // supplies a password), so there is no skip-and-steer path: a steer would
+    // sit undelivered behind the blocked prompt, and stopping the turn to force
+    // it through resolves the prompt to empty and ends the turn as "Operation
+    // interrupted." — the message looks eaten. Queue the words as the next turn
+    // instead; the prompt stays answerable and the queue drains on settle.
+    const blockingPrompt = !queueEdit && hasBlockingPromptRequest(sessionId)
+
     if (queueEdit) {
       exitQueuedEdit('save')
     } else if (busy) {
@@ -182,14 +199,16 @@ export function useComposerSubmit({
         triggerHaptic('submit')
         clearDraft()
         dispatchSubmit(text)
-      } else if (!compacting && !attachments.length && text.trim()) {
+      } else if (!compacting && !blockingPrompt && !attachments.length && text.trim()) {
         // Cursor-style stop-and-correct: interrupt the live turn and redirect
         // it with this text. redirect() preserves the shown reasoning/work; if
         // the turn already ended, steerDraft re-queues so nothing is lost.
         steerDraft()
       } else if (payloadPresent) {
         // Attachments can't ride a redirect (no tool-result image carriage) —
-        // queue the whole payload for the next turn.
+        // queue the whole payload for the next turn. Same for a turn parked on
+        // an approval/sudo/secret prompt: a steer can't reach the model while
+        // the tool batch is blocked, so the message runs as the next turn.
         queueCurrentDraft()
       } else {
         // Stop button (the only way to reach here while busy with an empty

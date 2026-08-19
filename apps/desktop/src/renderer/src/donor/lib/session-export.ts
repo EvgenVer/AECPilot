@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-export.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { SessionInfo } from '@/hermes'
-import { getSessionMessages } from '@/hermes'
+import { getAllSessionMessages } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { notify, notifyError } from '@/store/notifications'
 
@@ -40,7 +40,7 @@ export async function exportSession(sessionId: string, params: Omit<ExportSessio
 
   try {
     const profile = params.profile ?? params.session?.profile
-    const { messages } = await getSessionMessages(sessionId, profile)
+    const { messages } = await getAllSessionMessages(sessionId, profile)
 
     const payload = {
       exported_at: new Date().toISOString(),

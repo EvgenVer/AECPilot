@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/trigger-popover.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { Unstable_TriggerItem } from '@assistant-ui/core'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 
 import { referenceKind, referenceStyle } from '@/components/assistant-ui/reference-kinds'
 import { Codicon } from '@/components/ui/codicon'
@@ -98,6 +98,62 @@ export function ComposerTriggerPopover({
   const copy = t.composer
   const isSlash = kind === '/'
   const isEmoji = kind === ':'
+  const listRef = useRef<HTMLDivElement>(null)
+  const hoverIndexRef = useRef(-1)
+
+  // Only keyboard navigation should move the drawer. A hover echo already points
+  // at a visible row and scrolling it can shift another row under the pointer.
+  // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
+  useEffect(() => {
+    const list = listRef.current
+
+    if (!list) {
+      return
+    }
+
+    const isHoverEcho = activeIndex === hoverIndexRef.current
+
+    hoverIndexRef.current = -1
+
+    if (isHoverEcho) {
+      return
+    }
+
+    if (activeIndex === 0) {
+      // `nearest` keeps the first row visible but can leave its group header
+      // clipped, so wrapping to the beginning restores the complete top edge.
+      list.scrollTop = 0
+
+      return
+    }
+
+    const highlighted = list.querySelector<HTMLElement>('[data-highlighted]')
+
+    if (!highlighted) {
+      return
+    }
+
+    // Keep scrolling local to the drawer. `scrollIntoView` may also move the
+    // transcript or window because it operates on every scrollable ancestor.
+    const listRect = list.getBoundingClientRect()
+    const highlightedRect = highlighted.getBoundingClientRect()
+    const visibleTop = listRect.top + list.clientTop
+    const visibleBottom = visibleTop + list.clientHeight
+    const topDelta = highlightedRect.top - visibleTop
+    const bottomDelta = highlightedRect.bottom - visibleBottom
+    const overflowsTop = topDelta < 0
+    const overflowsBottom = bottomDelta > 0
+
+    // A row that is fully visible needs no movement. An oversized row that
+    // spans both edges already covers the viewport, so moving it would not
+    // reveal the whole row and would only add churn. Otherwise align whichever
+    // edge requires the shorter movement, matching `block: nearest` semantics.
+    if (overflowsTop === overflowsBottom) {
+      return
+    }
+
+    list.scrollTop += Math.abs(topDelta) < Math.abs(bottomDelta) ? topDelta : bottomDelta
+  }, [activeIndex, items])
 
   let lastGroup: string | undefined
 
@@ -107,6 +163,7 @@ export function ComposerTriggerPopover({
       data-slot="composer-completion-drawer"
       data-state="open"
       onMouseDown={event => event.preventDefault()}
+      ref={listRef}
       role="listbox"
     >
       {scope && <div className={cn(GROUP_HEADER_CLASS, 'pt-0.5')}>{referenceStyle(scope).label}</div>}
@@ -153,7 +210,12 @@ export function ComposerTriggerPopover({
                 className={ROW_CLASS}
                 data-highlighted={active ? '' : undefined}
                 onClick={() => onPick(item)}
-                onMouseEnter={() => onHover(index)}
+                onMouseEnter={() => {
+                  // React bails out when hovering the already-active row. Do
+                  // not leave a marker behind for a later items refresh.
+                  hoverIndexRef.current = index === activeIndex ? -1 : index
+                  onHover(index)
+                }}
                 type="button"
               >
                 {isEmoji ? (

@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-esc-cancel.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useEffect, useRef } from 'react'
 
 import { triggerHaptic } from '@/lib/haptics'
+import { composerFocusBlockedBySurface } from '@/lib/keybinds/composer-focus-keys'
 
 import { type ComposerTarget, getActiveComposer } from '../focus'
 
@@ -54,7 +55,10 @@ export function useComposerEscCancel({ awaitingInput, busy, onCancel, target }: 
       return
     }
 
-    if (document.querySelector('[role="dialog"],[role="alertdialog"],[data-radix-popper-content-wrapper]')) {
+    // An overlay covering the chat owns Esc (its escape layer closes it) —
+    // the composer stays mounted beneath it, so stand down. Same surface
+    // signal as type-to-focus; also covers Radix dialogs/popovers.
+    if (composerFocusBlockedBySurface()) {
       return
     }
 

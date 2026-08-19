@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-popout-drag.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,7 +56,16 @@ function gestureTargetOk(target: EventTarget | null) {
     return false
   }
 
-  return !target.closest('button, a, input, textarea, select, [role="menuitem"], [data-radix-popper-content-wrapper]')
+  return !target.closest(
+    'button, a, input, textarea, select, [contenteditable]:not([contenteditable="false"]), [data-slot="composer-rich-input"], [role="menuitem"], [data-radix-popper-content-wrapper]'
+  )
+}
+
+/** Docked composer only peels from its exposed grab ring. Pointer events from
+ *  the editor and composer surface bubble through the root too, but they belong
+ *  to text selection and controls, never to the pop-out gesture. */
+function isDockDragPlatform(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('[data-slot="composer-drag-region"]'))
 }
 
 /** Floating composer's 5px outer frame — grab here to drag without long-press. */
@@ -221,6 +230,10 @@ export function useComposerPopoutGestures({
         }
         setDragging(true)
 
+        return
+      }
+
+      if (!poppedOut && !isDockDragPlatform(event.target)) {
         return
       }
 

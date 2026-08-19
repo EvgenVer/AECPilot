@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/open-session.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@
  *   - `window` (⇧⌘-click) — pop into its own window; falls back to `tab` when
  *     the bridge has no session-window support.
  */
-import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
+import { $activeSessionId, $selectedStoredSessionId, markSessionRead } from '@/store/session'
 import {
   focusedSessionNeedsRoute,
   focusOpenSession,
@@ -84,6 +84,12 @@ export function openSession(
   if (!storedSessionId) {
     return
   }
+
+  // Any explicit open/focus means the user has seen the finished-turn marker.
+  // Must run BEFORE the focus short-circuits below: clicking a session that is
+  // already on screen (open tile, or the main session) would otherwise return
+  // at focusOpenSession and never clear its unread dot.
+  markSessionRead(storedSessionId)
 
   let resolved: OpenSessionIntent = intent
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/types.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -165,7 +165,7 @@ export type CommandDispatchResponse =
   | SendCommandDispatchResponse
   | PrefillCommandDispatchResponse
 
-export type SidebarNavId = 'artifacts' | 'command-center' | 'messaging' | 'new-session' | 'settings' | 'skills'
+export type SidebarNavId = 'artifacts' | 'command-center' | 'cron' | 'messaging' | 'new-session' | 'settings' | 'skills'
 
 export interface SidebarNavItem {
   /** Built-in view id, or a contributed row's namespaced contribution id. */
@@ -194,6 +194,12 @@ export interface ClientSessionState {
   awaitingResponse: boolean
   streamId: string | null
   sawAssistantPayload: boolean
+  /** This window picked up a turn it did not start — it resumed onto a session
+   *  that was already running somewhere else (leaving HUD mode, opening a
+   *  pop-out mid-turn). It therefore holds the reply but never received the
+   *  prompt, so the usual "I streamed it, my transcript is complete" shortcut
+   *  is false and the turn must hydrate from stored history when it settles. */
+  adoptedRunningTurn: boolean
   pendingBranchGroup: string | null
   interrupted: boolean
   /** True after message.interim finalized a bubble in the still-running turn. */
@@ -204,8 +210,15 @@ export interface ClientSessionState {
   /** Epoch ms the current turn started, or null when idle. Per-session so a
    *  background turn's elapsed timer keeps counting while another session is
    *  focused, and switching sessions doesn't zero a still-running turn's clock.
+   *  Seeded optimistically at submit (before the backend accepts), so it is a
+   *  CLOCK, not proof the turn is live — gate on turnLive for that.
    *  The global $turnStartedAt mirrors whichever session is currently viewed. */
   turnStartedAt: number | null
+  /** The backend has confirmed this turn is running (message.start, a
+   *  running=true session.info edge, or resuming onto an in-flight turn).
+   *  False while a submit is only optimistically armed — the discriminator the
+   *  no-payload settle gate needs now that turnStartedAt is seeded at send. */
+  turnLive: boolean
   /** Cumulative token usage, updated per completed turn. Per-session twin of
    *  the primary-only $currentUsage — the statusbar reads it for a focused
    *  tile's context count. Null until the first turn reports. */

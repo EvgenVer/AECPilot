@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-palette/index.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet page and the two pet commands (HX1)
@@ -420,7 +420,24 @@ const NON_CONFIG_SETTINGS: ReadonlyArray<{
     labelKey: 'providerApiKeys',
     tab: 'providers&pview=keys'
   },
-  { icon: Globe, keywords: ['connection', 'messaging'], labelKey: 'gateway', tab: 'gateway' },
+  {
+    icon: Globe,
+    // The Connections registry merged into the unified Gateways page.
+    keywords: [
+      'connection',
+      'connections',
+      'messaging',
+      'remote',
+      'multi',
+      'instances',
+      'ssh',
+      'cloud',
+      'add gateway',
+      'registry'
+    ],
+    labelKey: 'gateway',
+    tab: 'gateway'
+  },
   {
     icon: KeyRound,
     keywords: ['api', 'secrets', 'tokens', 'credentials', 'browser', 'search'],
@@ -614,7 +631,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   // reopen paints from cache and revalidates in the background.
   const configQuery = useQuery({
     queryKey: ['command-palette', 'config'],
-    queryFn: getHermesConfigRecord
+    queryFn: () => getHermesConfigRecord()
   })
 
   const sessionsQuery = useQuery({

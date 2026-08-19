@@ -38,6 +38,18 @@ export {
 } from '../../donor/hermes-shared/skin'
 
 export {
+  backendScopeKey,
+  backendScopePrefix,
+  LOCAL_CONNECTION_ID,
+  registryBackendScopeKey
+} from '../../donor/hermes-shared/backend-scope'
+export {
+  type CronTriggerController,
+  type CronTriggerRunResult,
+  createCronTriggerController
+} from '../../donor/hermes-shared/cron-trigger-controller'
+
+export {
   GatewayBridge as JsonRpcGatewayClient,
   type DonorConnectionState as ConnectionState,
   type DonorGatewayEvent as GatewayEvent,
@@ -45,3 +57,29 @@ export {
 } from '../gateway-bridge'
 
 export type GatewayEventName = string
+
+// Kind 3 (see the header): a class that lived only inside their un-vendored
+// `json-rpc-gateway.ts`. Their code narrows on it — `use-prompt-actions`
+// asks `err instanceof JsonRpcGatewayError && err.code === 4018` to tell
+// "the message you are rewinding to was compressed away" from any other
+// failure.
+//
+// KNOWN GAP, recorded by task 3.B0: our bridge does not throw it yet. A
+// gateway error crosses `ipcRenderer.invoke` as a plain Error — Electron
+// keeps the message and drops custom fields — so `code` and `data` are lost
+// on the way and the check above is always false. The consequence is a
+// generic error message where theirs is specific; nothing is mis-executed,
+// because false is the conservative branch. Closing it means encoding the
+// JSON-RPC code across our IPC boundary, which is main-process work and does
+// not belong in a pin raise.
+export class JsonRpcGatewayError extends Error {
+  readonly code?: number
+  readonly data?: unknown
+
+  constructor(message: string, options?: { code?: number; data?: unknown }) {
+    super(message)
+    this.name = 'JsonRpcGatewayError'
+    this.code = options?.code
+    this.data = options?.data
+  }
+}

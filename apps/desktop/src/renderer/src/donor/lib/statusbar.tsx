@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/statusbar.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { StableText } from '@/components/chat/stable-text'
+import { useViewedInterval } from '@/hooks/use-viewed-interval'
 import { compactNumber } from '@/lib/format'
 import type { UsageStats } from '@/types/hermes'
 
@@ -68,17 +69,7 @@ export function contextBarLabel(usage: UsageStats): string {
 export function LiveDuration({ since }: { since: number | null | undefined }) {
   const [now, setNow] = useState(() => Date.now())
 
-  useEffect(() => {
-    if (!since) {
-      return
-    }
-
-    const tick = () => setNow(Date.now())
-    tick()
-    const timer = window.setInterval(tick, 1000)
-
-    return () => window.clearInterval(timer)
-  }, [since])
+  useViewedInterval(() => setNow(Date.now()), 1000, Boolean(since))
 
   if (!since) {
     return null

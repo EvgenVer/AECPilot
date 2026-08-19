@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/memory/provider-config-panel.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,7 +27,7 @@ function seedValues(config: MemoryProviderConfig): Record<string, string> {
   )
 }
 
-export function ProviderConfigPanel({ provider }: { provider: string }) {
+export function ProviderConfigPanel({ profile = null, provider }: { profile?: null | string; provider: string }) {
   const [config, setConfig] = useState<MemoryProviderConfig | null>(null)
   const [loadError, setLoadError] = useState<null | string>(null)
   const [values, setValues] = useState<Record<string, string>>({})
@@ -37,7 +37,7 @@ export function ProviderConfigPanel({ provider }: { provider: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      const next = await getMemoryProviderConfig(provider)
+      const next = await getMemoryProviderConfig(provider, profile)
       const seed = seedValues(next)
       setConfig(next)
       setValues(seed)
@@ -47,7 +47,7 @@ export function ProviderConfigPanel({ provider }: { provider: string }) {
       setConfig(null)
       setLoadError(err instanceof Error ? err.message : 'Memory provider settings failed to load')
     }
-  }, [provider])
+  }, [profile, provider])
 
   useEffect(() => {
     setConfig(null)
@@ -63,7 +63,7 @@ export function ProviderConfigPanel({ provider }: { provider: string }) {
       }
 
       try {
-        await saveMemoryProviderConfig(provider, { [field.key]: value })
+        await saveMemoryProviderConfig(provider, { [field.key]: value }, profile)
 
         if (field.kind === 'secret') {
           setValues(current => ({ ...current, [field.key]: '' }))
@@ -81,7 +81,7 @@ export function ProviderConfigPanel({ provider }: { provider: string }) {
         notifyError(err, `Failed to save ${field.label}`)
       }
     },
-    [provider, saved]
+    [profile, provider, saved]
   )
 
   // Providers without a declared config surface (e.g. builtin) render nothing.
@@ -162,6 +162,7 @@ export function ProviderConfigPanel({ provider }: { provider: string }) {
           onOpenChange={setShowModal}
           onSaved={refresh}
           open={showModal}
+          profile={profile}
           provider={provider}
         />
       )}

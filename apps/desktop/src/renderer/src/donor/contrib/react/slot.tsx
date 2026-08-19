@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/react/slot.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { ContribBoundary } from './boundary'
+import { ContribBoundary, ContribRender } from './boundary'
 import { useContributions } from './use-contributions'
 
 export interface SlotProps {
@@ -25,7 +25,7 @@ export function Slot({ area }: SlotProps) {
     <>
       {items.map(c => (
         <ContribBoundary id={c.id} key={`${c.source ?? 'core'}:${c.id}`} variant="chip">
-          {c.render?.()}
+          {c.render && <ContribRender render={c.render} />}
         </ContribBoundary>
       ))}
     </>

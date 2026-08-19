@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/learning/archive-skill-confirm-dialog.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,8 +16,8 @@ export function notifySkillArchived(t: Translations): void {
   notify({ kind: 'success', message: t.skills.skillArchivedMessage, title: t.skills.skillArchivedTitle })
 }
 
-export async function archiveLearningSkill(id: string): Promise<void> {
-  const res = await deleteLearningNode(id)
+export async function archiveLearningSkill(id: string, profile?: null | string): Promise<void> {
+  const res = await deleteLearningNode(id, profile)
 
   if (!res.ok) {
     throw new Error(res.message || 'Archive failed')
@@ -39,6 +39,9 @@ interface ArchiveSkillConfirmDialogProps {
   onFailure?: (err: unknown, skillName: string) => void
   onSuccess?: () => void
   open: boolean
+  /** Capabilities profile-scope override — archive against THIS profile's
+   *  backend; undefined/null keeps the app-wide active profile. */
+  profile?: null | string
   skillId: string
   skillName: string
 }
@@ -50,6 +53,7 @@ export function ArchiveSkillConfirmDialog({
   onFailure,
   onSuccess,
   open,
+  profile,
   skillId,
   skillName
 }: ArchiveSkillConfirmDialogProps) {
@@ -66,7 +70,7 @@ export function ArchiveSkillConfirmDialog({
         const rollback = onApply()
 
         fireOptimistic(
-          archiveLearningSkill(skillId).then(() => {
+          archiveLearningSkill(skillId, profile).then(() => {
             notifySkillArchived(t)
             onSuccess?.()
           }),

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/mcp-dashboard-oauth.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,8 +19,24 @@ interface CompleteOptions {
   start: (name: string) => Promise<McpOAuthFlow>
   status: (flowId: string) => Promise<McpOAuthFlow>
   openExternal: (url: string) => Promise<void>
+  /** Polled between status checks. Returning true cancels: the flow is
+   *  cancelled SERVER-SIDE (freeing the per-server in-progress slot — without
+   *  it a retry 409s until the backend's callback timeout) and the promise
+   *  rejects with `McpOAuthCancelled`. */
+  cancelled?: () => boolean
+  /** Server-side flow cancel, wired to DELETE /api/mcp/oauth/flows/{id}. */
+  cancel?: (flowId: string) => Promise<unknown>
   sleep?: (milliseconds: number) => Promise<void>
   maxPollFailures?: number
+}
+
+/** Thrown when the caller's `cancelled()` tripped — callers branch on this to
+ *  skip error toasts for a deliberate user cancel. */
+export class McpOAuthCancelled extends Error {
+  constructor() {
+    super('OAuth cancelled by user')
+    this.name = 'McpOAuthCancelled'
+  }
 }
 
 const defaultSleep = (milliseconds: number) => new Promise<void>(resolve => window.setTimeout(resolve, milliseconds))
@@ -30,6 +46,8 @@ export async function completeMcpDesktopOAuth({
   start,
   status,
   openExternal,
+  cancelled,
+  cancel,
   sleep = defaultSleep,
   maxPollFailures = 3
 }: CompleteOptions): Promise<McpOAuthFlow> {
@@ -48,6 +66,13 @@ export async function completeMcpDesktopOAuth({
   let pollFailures = 0
 
   for (;;) {
+    if (cancelled?.()) {
+      // Free the backend slot before rejecting; best-effort — the flow also
+      // dies on its own timeout if this request is lost.
+      await cancel?.(started.flow_id).catch(() => {})
+      throw new McpOAuthCancelled()
+    }
+
     let current: McpOAuthFlow
 
     try {

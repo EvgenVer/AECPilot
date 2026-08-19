@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/memory/provider-config-modal.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -53,12 +53,14 @@ function groupFields(fields: MemoryProviderField[]): [string, MemoryProviderFiel
 
 export function ProviderConfigModal({
   config,
+  profile = null,
   provider,
   open,
   onOpenChange,
   onSaved
 }: {
   config: MemoryProviderConfig
+  profile?: null | string
   provider: string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -85,7 +87,7 @@ export function ProviderConfigModal({
     setSaving(true)
 
     try {
-      await saveMemoryProviderConfig(provider, edited)
+      await saveMemoryProviderConfig(provider, edited, profile)
       notify({ kind: 'success', title: `${config.label} saved`, message: 'Memory provider configuration updated.' })
       await onSaved()
       onOpenChange(false)
@@ -98,12 +100,12 @@ export function ProviderConfigModal({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-2xl dt-portal-scrollbar">
+      <DialogContent bodyClassName="dt-portal-scrollbar" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle icon={SlidersHorizontal}>{config.label} — full configuration</DialogTitle>
           <DialogDescription>
-            Every {config.label} option for the <span className="font-medium">{activeProfile}</span> profile. Blank
-            fields fall back to the resolved host or built-in default.
+            Every {config.label} option for the <span className="font-medium">{profile ?? activeProfile}</span> profile.
+            Blank fields fall back to the resolved host or built-in default.
           </DialogDescription>
           {config.docs_url && (
             <a

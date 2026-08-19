@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/status-pulse.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,6 +41,7 @@ const beat = () => {
   for (const subscriber of pulseSubscribers) {
     subscriber.play()
   }
+
   sharedTimer = window.setTimeout(beat, PULSE_PERIOD_MS)
 }
 
@@ -53,6 +54,7 @@ const handleSharedPauseChange = () => {
     for (const subscriber of pulseSubscribers) {
       subscriber.cancel()
     }
+
     return
   }
 

@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/react/boundary.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import type { ReactNode } from 'react'
+import { createElement, type ReactNode } from 'react'
 
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,16 @@ interface ContribBoundaryProps {
   id: string
   /** `chip` = inline bar item (tiny fallback); `pane` = zone body. */
   variant?: 'chip' | 'pane'
+}
+
+interface ContribRenderProps {
+  render: () => ReactNode
+}
+
+/** Mount a contribution callback as a component so its hooks and errors belong
+ * to the contribution, not to whichever host surface happened to call it. */
+export function ContribRender({ render }: ContribRenderProps) {
+  return createElement(render)
 }
 
 /**

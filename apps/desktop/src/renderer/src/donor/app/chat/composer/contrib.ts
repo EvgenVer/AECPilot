@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/contrib.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -43,7 +43,8 @@ export const COMPOSER_AREAS = {
   actions: 'composer.actions',
   middleware: 'composer.middleware',
   attachments: 'composer.attachments',
-  microActions: 'composer.microActions'
+  microActions: 'composer.microActions',
+  atCompletions: 'composer.atCompletions'
 } as const
 
 export interface ComposerDraft {
@@ -55,6 +56,27 @@ export interface ComposerDraft {
 export interface ComposerMiddleware {
   /** Rewrite (return a draft), pass through (same draft), or cancel (null). */
   handler: (draft: ComposerDraft) => ComposerDraft | null | Promise<ComposerDraft | null>
+}
+
+/** One row a `composer.atCompletions` source offers for the current query. */
+export interface ComposerAtCompletionItem {
+  /** Text inserted into the draft when picked (e.g. `@researcher`). */
+  insert: string
+  /** Row label; defaults to `insert`. */
+  display?: string
+  /** Secondary line (e.g. "Bot · Homelab"). */
+  meta?: string
+  /** Icon slug understood by the completion popover; defaults to 'simple'. */
+  icon?: string
+}
+
+/** Payload of a `composer.atCompletions` data contribution — an extra source
+ *  merged into the composer's `@` popover ABOVE the path/reference results.
+ *  `query` is the text typed after `@` (no leading `@`). Sources must be
+ *  fast and synchronous-ish (called per keystroke after the debounce); slow
+ *  lookups belong behind the source's own cache. */
+export interface ComposerAtCompletionSource {
+  provide: (query: string) => ComposerAtCompletionItem[]
 }
 
 export interface ComposerAttachmentContext {

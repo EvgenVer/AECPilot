@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/constants.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,10 @@ import {
 } from '@/lib/icons'
 import { REASONING_EFFORTS } from '@/lib/reasoning-effort'
 import type { ThemeMode } from '@/themes/context'
+
+// Single source of truth for built-in personality names lives in
+// lib/personalities (mirrors hermes_cli/personality.py BUILTIN_PERSONALITIES).
+export { BUILTIN_PERSONALITIES } from '@/lib/personalities'
 
 import { defineFieldCopy } from './field-copy'
 import type { DesktopConfigSection } from './types'
@@ -228,23 +232,6 @@ export const PROVIDER_GROUPS: ProviderPrefix[] = [
     docsUrl: 'https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-regions.html',
     priority: 23
   }
-]
-
-export const BUILTIN_PERSONALITIES = [
-  'helpful',
-  'concise',
-  'technical',
-  'creative',
-  'teacher',
-  'kawaii',
-  'catgirl',
-  'pirate',
-  'shakespeare',
-  'surfer',
-  'noir',
-  'uwu',
-  'philosopher',
-  'hype'
 ]
 
 // Schema-side select overrides for desktop-relevant enum fields whose

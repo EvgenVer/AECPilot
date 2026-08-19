@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/status.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { $backgroundResume } from '@/store/background-delegation'
 import { sessionCompacting } from '@/store/compaction'
 import { sessionAwaitingInput } from '@/store/prompts'
+import { sessionProviderWait } from '@/store/provider-wait'
 import { $turnStartedAt } from '@/store/session'
 import { type DraftingTool, sessionDraftingTool } from '@/store/tool-drafting'
 
@@ -38,7 +39,7 @@ const StatusRow: FC<{ children: ReactNode; label: string } & React.ComponentProp
     aria-label={label}
     aria-live="polite"
     className={cn(
-      'flex max-w-full items-center gap-1.5 self-start leading-(--conversation-line-height)',
+      'flex min-w-0 max-w-full items-center gap-1.5 self-start leading-(--conversation-line-height)',
       'text-(--conversation-scaffold-text)',
       className
     )}
@@ -54,7 +55,7 @@ const StatusRow: FC<{ children: ReactNode; label: string } & React.ComponentProp
 const COMPACTION_LABEL = 'Summarizing thread'
 
 const HintText: FC<{ children: ReactNode }> = ({ children }) => (
-  <span className={cn(SCAFFOLD_LABEL_CLASS, 'shimmer min-w-0 truncate')}>{children}</span>
+  <span className={cn(SCAFFOLD_LABEL_CLASS, 'shimmer min-w-0 flex-1 truncate')}>{children}</span>
 )
 
 /** These indicators render inside whichever transcript mounted them, so every
@@ -65,6 +66,7 @@ function useThreadSessionStatus() {
   const turnStartedAt = useStore($turnStartedAt)
   const compacting = useStore(useMemo(() => sessionCompacting(sessionId), [sessionId]))
   const drafting = useStore(useMemo(() => sessionDraftingTool(sessionId), [sessionId]))
+  const providerWait = useStore(useMemo(() => sessionProviderWait(sessionId), [sessionId]))
   // A pending clarify / approval / sudo / secret means the turn is paused on the
   // user, not working — so don't resurrect the "thinking" timer while they
   // decide (matches the pet's awaitingInput pose taking priority over busy).
@@ -74,6 +76,7 @@ function useThreadSessionStatus() {
     awaitingInput,
     compacting,
     drafting,
+    providerWait,
     turnTimerKey: sessionId && turnStartedAt ? `turn:${sessionId}:${turnStartedAt}` : undefined
   }
 }
@@ -86,7 +89,7 @@ const DRAFTING_REVEAL_MS = 200
  * What to call the wait, if it deserves a name. Compaction outranks a draft —
  * it's rarer, slower, and explains a transcript that looks like it reset.
  */
-function useStatusHint(compacting: boolean, drafting: DraftingTool | null): string {
+function useStatusHint(compacting: boolean, drafting: DraftingTool | null, providerWait: string): string {
   const [revealed, setRevealed] = useState(false)
   const name = drafting?.name ?? ''
 
@@ -104,6 +107,10 @@ function useStatusHint(compacting: boolean, drafting: DraftingTool | null): stri
 
   if (compacting) {
     return COMPACTION_LABEL
+  }
+
+  if (providerWait) {
+    return providerWait
   }
 
   return revealed && name ? toolPresentVerb(name) : ''
@@ -132,9 +139,9 @@ export const CenteredThreadSpinner: FC = () => {
 
 export const ResponseLoadingIndicator: FC = () => {
   const { t } = useI18n()
-  const { compacting, drafting, turnTimerKey } = useThreadSessionStatus()
+  const { compacting, drafting, providerWait, turnTimerKey } = useThreadSessionStatus()
   const elapsed = useElapsedSeconds(true, turnTimerKey)
-  const hint = useStatusHint(compacting, drafting)
+  const hint = useStatusHint(compacting, drafting, providerWait)
 
   return (
     <StatusRow data-slot="aui_response-loading" label={hint || t.assistant.thread.loadingResponse}>
@@ -212,8 +219,8 @@ export const StreamStallIndicator: FC = () => {
   // what lets the timer read "quiet for 12s" rather than the age of this
   // component, which is the whole turn so far.
   const [quietSince, setQuietSince] = useState<number | undefined>(undefined)
-  const { awaitingInput, compacting, drafting, turnTimerKey } = useThreadSessionStatus()
-  const hint = useStatusHint(compacting, drafting)
+  const { awaitingInput, compacting, drafting, providerWait, turnTimerKey } = useThreadSessionStatus()
+  const hint = useStatusHint(compacting, drafting, providerWait)
 
   // A tool run at the tail already narrates the wait — its summary counts the
   // calls, its ticker names the current one, and it carries its own timer. A

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/hub-actions.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -70,7 +70,15 @@ $activeGatewayProfile.subscribe(value => {
 // One self-contained task: spawn → tail its own action log into the store →
 // mark resolved. Concurrency-safe: state is per-key, so parallel installs never
 // stomp each other, and the sources query is invalidated once at the end.
-async function runHubAction(key: string, kind: HubActionKind, spawn: () => Promise<{ name: string }>): Promise<void> {
+// `profile` is the Capabilities profile-scope override — the action (and its
+// status polling) runs against THAT profile's backend; undefined keeps the
+// app-wide active profile (unchanged behavior).
+async function runHubAction(
+  key: string,
+  kind: HubActionKind,
+  spawn: () => Promise<{ name: string }>,
+  profile?: null | string
+): Promise<void> {
   const epoch = _hubEpoch
   const switched = () => _hubEpoch !== epoch
 
@@ -82,7 +90,7 @@ async function runHubAction(key: string, kind: HubActionKind, spawn: () => Promi
     let exitCode: number | null = null
 
     for (;;) {
-      const status = await getActionStatus(started.name, 200)
+      const status = await getActionStatus(started.name, 200, profile)
 
       // Profile switched mid-flight: the store was cleared for the new profile,
       // so drop this A-profile result instead of writing it back into B.
@@ -136,16 +144,16 @@ async function runHubAction(key: string, kind: HubActionKind, spawn: () => Promi
   }
 }
 
-export function installHubSkill(identifier: string): Promise<void> {
-  return runHubAction(identifier, 'install', () => installSkillFromHub(identifier))
+export function installHubSkill(identifier: string, profile?: null | string): Promise<void> {
+  return runHubAction(identifier, 'install', () => installSkillFromHub(identifier, profile), profile)
 }
 
-export function uninstallHubSkill(identifier: string, name: string): Promise<void> {
-  return runHubAction(identifier, 'uninstall', () => uninstallSkillFromHub(name))
+export function uninstallHubSkill(identifier: string, name: string, profile?: null | string): Promise<void> {
+  return runHubAction(identifier, 'uninstall', () => uninstallSkillFromHub(name, profile), profile)
 }
 
-export function updateHubSkills(): Promise<void> {
-  return runHubAction(UPDATE_ALL_KEY, 'update', () => updateSkillsFromHub())
+export function updateHubSkills(profile?: null | string): Promise<void> {
+  return runHubAction(UPDATE_ALL_KEY, 'update', () => updateSkillsFromHub(profile), profile)
 }
 
 export function closeHubLog(): void {

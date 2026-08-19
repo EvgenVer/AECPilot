@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [1] onboarding provider key → our safeStorage bridge (R2)
@@ -16,13 +16,13 @@ import {
   listOAuthProviders,
   pollOAuthSession,
   setEnvVar,
-  setModelAssignment,
   startOAuthLogin,
   submitOAuthCode,
   validateProviderCredential
 } from '@/hermes'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
+import { setMainModelAssignment } from '@/store/cron-model-impact'
 import { notify, notifyError } from '@/store/notifications'
 import type { ModelOptionProvider, OAuthProvider, OAuthStartResponse } from '@/types/hermes'
 
@@ -327,16 +327,16 @@ async function completeWithModelConfirm(
     // config provider (e.g. anthropic from a prior failed setup) cannot make
     // setup.runtime_check validate the wrong backend after a fresh OAuth login.
     try {
-      const res = await setModelAssignment({
-        scope: 'main',
+      const res = await setMainModelAssignment({
         provider: defaults.providerSlug,
         model: defaults.defaultModel
       })
 
       notifyGatewayTools(res.gateway_tools)
-    } catch {
-      // Persistence failed — still run the scoped runtime check below and
-      // show the confirm card so the user can pick something explicitly.
+    } catch (error) {
+      onFail(error instanceof Error ? error.message : 'Hermes could not save the selected model.')
+
+      return
     }
   }
 
@@ -399,14 +399,38 @@ export function requestDesktopOnboarding(reason = DEFAULT_ONBOARDING_REASON) {
   patch({ reason: reason.trim() || DEFAULT_ONBOARDING_REASON, requested: true })
 }
 
+/** Credential warning delivered passively (session create/activate/resume
+ *  runtime info, stream heartbeats) — e.g. right after switching to a
+ *  profile that has no provider configured. Popping the blocking onboarding
+ *  overlay here punishes merely LOOKING at an unconfigured profile, so the
+ *  warning is deferred instead: stashed until the user actually tries to
+ *  chat, where the submit path consumes it and opens onboarding before the
+ *  doomed send. The latest warning wins; a session event without a warning
+ *  clears the stash (the profile became configured, or the user switched
+ *  back to a healthy one). */
+let pendingCredentialWarning: null | string = null
+
 export function requestDesktopOnboardingForCredentialWarning(reason: null | string | undefined) {
   const warning = reason?.trim()
 
   if (!warning || !isProviderSetupErrorMessage(warning)) {
+    pendingCredentialWarning = null
+
     return
   }
 
-  requestDesktopOnboarding(warning)
+  pendingCredentialWarning = warning
+}
+
+/** Submit-time gate: returns the deferred credential warning (and clears it)
+ *  so the caller can open onboarding instead of sending a prompt that the
+ *  gateway already said will fail. Null when the active profile is healthy. */
+export function consumePendingCredentialWarning(): null | string {
+  const warning = pendingCredentialWarning
+
+  pendingCredentialWarning = null
+
+  return warning
 }
 
 // Open the onboarding provider selector on demand from an already-configured
@@ -863,7 +887,7 @@ export async function saveOnboardingLocalEndpoint(baseUrl: string, apiKey: strin
   }
 
   try {
-    await setModelAssignment({ scope: 'main', provider: 'custom', model, base_url: url, api_key: key })
+    await setMainModelAssignment({ provider: 'custom', model, base_url: url, api_key: key })
     await ctx.requestGateway('reload.env').catch(() => undefined)
 
     const runtime = await checkRuntime(ctx)
@@ -900,8 +924,7 @@ export async function setOnboardingModel(model: string) {
   setFlow({ ...flow, currentModel: model, saving: true })
 
   try {
-    await setModelAssignment({
-      scope: 'main',
+    await setMainModelAssignment({
       provider: flow.providerSlug,
       model
     })

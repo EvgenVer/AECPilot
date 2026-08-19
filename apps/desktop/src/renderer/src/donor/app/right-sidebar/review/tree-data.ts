@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/review/tree-data.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -130,4 +130,51 @@ export function buildReviewTree(files: HermesReviewFile[], compact = true): Revi
   }
 
   return finalize(root)
+}
+
+// A row in the virtualized review list: the node plus the indentation depth it
+// renders at (directory nesting level).
+export interface ReviewFlatRow {
+  node: ReviewTreeNode
+  depth: number
+}
+
+// Total node count including every descendant — the cheap upper bound used to
+// decide whether the tree needs virtualization. A single folder holding tens of
+// thousands of untracked files is one top-level node but must still count as
+// heavy.
+export function countAllNodes(nodes: ReviewTreeNode[]): number {
+  let total = 0
+
+  for (const node of nodes) {
+    total += 1
+
+    if (node.children) {
+      total += countAllNodes(node.children)
+    }
+  }
+
+  return total
+}
+
+// Flatten the tree into the rows currently visible: a directory contributes
+// its children only while open (per `isOpen`, which receives node ids), and
+// every row carries its nesting depth. The virtualized scroller mounts only
+// the rows in this list, so an open folder with tens of thousands of files
+// never materializes every row in the DOM.
+export function flattenReviewRows(
+  nodes: ReviewTreeNode[],
+  isOpen: (id: string) => boolean,
+  depth = 0,
+  rows: ReviewFlatRow[] = []
+): ReviewFlatRow[] {
+  for (const node of nodes) {
+    rows.push({ depth, node })
+
+    if (node.isDir && node.children && isOpen(node.id)) {
+      flattenReviewRows(node.children, isOpen, depth + 1, rows)
+    }
+  }
+
+  return rows
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/floating-panes.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@ import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef,
 import { HUD_SURFACE } from '@/app/floating-hud'
 import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
 import { Codicon } from '@/components/ui/codicon'
-import { ContribBoundary } from '@/contrib/react/boundary'
+import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import type { Contribution } from '@/contrib/types'
 import { readJson, writeJson } from '@/lib/storage'
@@ -179,13 +179,13 @@ function FloatingPane({ pane }: { pane: Contribution }) {
           onClick={toggleCollapsed}
           type="button"
         >
-          <Codicon name={collapsed ? 'chevron-down' : 'chevron-up'} size="0.75rem" />
+          <Codicon name={collapsed ? 'chevron-up' : 'chevron-down'} size="0.75rem" />
         </button>
       </header>
 
       {!collapsed && (
         <div className="min-h-0 flex-1 overflow-auto">
-          <ContribBoundary id={pane.id}>{pane.render?.()}</ContribBoundary>
+          <ContribBoundary id={pane.id}>{pane.render && <ContribRender render={pane.render} />}</ContribBoundary>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/index.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the billing section (HX2)
@@ -58,6 +58,9 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   ...SECTIONS.map(s => `config:${s.id}` as SettingsViewId),
   'providers',
   'gateway',
+  // Legacy alias: the Connections page merged into Gateways. Kept in the enum
+  // so saved `?tab=connections` deep links still resolve (redirected below).
+  'connections',
   'keybinds',
   'keys',
   'notifications',
@@ -86,6 +89,14 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
   }, [navigate, search])
 
   const [activeView, setActiveView] = useRouteEnumParam('tab', SETTINGS_VIEWS, 'config:model' as SettingsViewId)
+
+  // Connections merged into the unified Gateways page: land old
+  // `?tab=connections` routes/bookmarks there instead of a dead entry.
+  useEffect(() => {
+    if (activeView === 'connections') {
+      setActiveView('gateway')
+    }
+  }, [activeView, setActiveView])
   // Providers subnav (Accounts vs API keys) lives in its own param so each
   // sub-view is deep-linkable and survives a refresh.
   const [providerView, setProviderView] = useRouteEnumParam<ProviderView>('pview', PROVIDER_VIEWS, 'accounts')
@@ -305,7 +316,9 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             <AppearanceSettings />
           ) : activeView === 'about' ? (
             <AboutSettings />
-          ) : activeView === 'gateway' ? (
+          ) : activeView === 'gateway' || activeView === 'connections' ? (
+            // 'connections' renders the unified page too so the frame before
+            // the alias redirect lands doesn't flash the fallback view.
             <GatewaySettings />
           ) : activeView === 'keybinds' ? (
             <KeybindSettings />

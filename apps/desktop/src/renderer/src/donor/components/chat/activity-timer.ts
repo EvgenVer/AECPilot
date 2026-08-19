@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/activity-timer.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useEffect, useRef, useState } from 'react'
+
+import { useViewedInterval } from '@/hooks/use-viewed-interval'
 
 // Module-level registry so timers survive component unmount/remount (e.g.
 // when a tool row scrolls out and back). Keyed by caller-supplied timerKey;
@@ -60,24 +62,20 @@ export function useElapsedSeconds(active = true, timerKey?: string, since?: numb
     lastKey.current = timerKey
   }
 
-  // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
+  // eslint-disable-next-line no-restricted-syntax -- timer origin is imperative state, not an atom mirror
   useEffect(() => {
-    if (!active) {
-      return
-    }
-
     if (since !== undefined) {
       start.current = since
     } else if (timerKey) {
       start.current = startedAt(timerKey)
     }
 
-    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - start.current) / 1000)))
-    tick()
-    const id = window.setInterval(tick, 1000)
-
-    return () => window.clearInterval(id)
+    if (active) {
+      setElapsed(Math.max(0, Math.floor((Date.now() - start.current) / 1000)))
+    }
   }, [active, since, timerKey])
+
+  useViewedInterval(() => setElapsed(Math.max(0, Math.floor((Date.now() - start.current) / 1000))), 1000, active)
 
   return elapsed
 }
@@ -107,9 +105,11 @@ export function useMeasuredDuration(active: boolean, timerKey: string): null | n
     if (active) {
       setWatching(true)
     } else if (watching) {
+      const finalElapsed = Math.max(elapsed, Math.floor((Date.now() - startedAt(timerKey)) / 1000))
+
       setWatching(false)
-      durationByKey.set(timerKey, elapsed)
-      setMeasured(elapsed)
+      durationByKey.set(timerKey, finalElapsed)
+      setMeasured(finalElapsed)
     }
   }, [active, elapsed, timerKey, watching])
 

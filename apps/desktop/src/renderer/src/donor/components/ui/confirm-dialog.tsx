@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/confirm-dialog.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,10 @@ interface ConfirmDialogProps {
   destructive?: boolean
   /** Close as soon as onConfirm resolves — for optimistic actions that finish in the background. */
   dismissOnConfirm?: boolean
+  /** Focus control for dialogs with no input. Pass `preventCloseButtonAutoFocus`
+   *  so opening doesn't land focus on the close/cancel button (which would pop
+   *  its tooltip with no pointer near it). */
+  onOpenAutoFocus?: (event: Event) => void
 }
 
 // Shared confirmation dialog: Enter confirms (from anywhere in the dialog),
@@ -51,7 +55,8 @@ export function ConfirmDialog({
   doneLabel,
   cancelLabel,
   destructive = false,
-  dismissOnConfirm = false
+  dismissOnConfirm = false,
+  onOpenAutoFocus
 }: ConfirmDialogProps) {
   const { t } = useI18n()
   const [status, setStatus] = useState<'done' | 'idle' | 'saving'>('idle')
@@ -111,6 +116,7 @@ export function ConfirmDialog({
             void run()
           }
         }}
+        onOpenAutoFocus={onOpenAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

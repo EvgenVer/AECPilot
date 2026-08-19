@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-slash-commands.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the /pet and /hatch command registrations (HX1)
@@ -270,6 +270,13 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   {
     name: '/goal',
     description: 'Manage the standing goal for this session',
+    surface: exec(),
+    argumentMode: 'mixed'
+  },
+  {
+    name: '/loop',
+    description: 'Re-run a prompt on a recurring interval in this session',
+    aliases: ['/proactive'],
     surface: exec(),
     argumentMode: 'mixed'
   },

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/flow.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -89,7 +89,7 @@ export function FlowPanel({
         <Input
           autoFocus
           onChange={e => setOnboardingCode(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && void submitOnboardingCode(ctx)}
+          onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && void submitOnboardingCode(ctx)}
           placeholder={t.onboarding.pasteAuthCode}
           value={flow.code}
         />

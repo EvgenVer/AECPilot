@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/notifications.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -149,7 +149,9 @@ function summarizeErrorMessage(message: string, fallback: string) {
   return message.length > 180 ? fallback : message || fallback
 }
 
-function readableError(error: unknown, fallback: string): { message: string; detail?: string } {
+// Exported so flows that surface errors inline (e.g. ConfirmDialog's onConfirm
+// rethrow) can reuse the same IPC-unwrapping + summarizing as notifyError.
+export function readableError(error: unknown, fallback: string): { message: string; detail?: string } {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback
   const unwrapped = raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)?.[1] ?? raw
   const cleaned = cleanErrorText(unwrapped)

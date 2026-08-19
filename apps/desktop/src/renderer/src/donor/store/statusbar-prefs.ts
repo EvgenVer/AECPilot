@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/statusbar-prefs.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,11 +10,10 @@ import { Codecs, persistentAtom } from '@/lib/persisted'
 const STATUSBAR_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden'
 const STATUSBAR_VISIBLE_STORAGE_KEY = 'hermes.desktop.statusbarVisible'
 
-// Whole-bar visibility, VS Code's `workbench.statusBar.visible`. Off by default
-// — the bar is opt-in. Hiding it unmounts the bar (its 15s status poll goes with
-// it), so the way back is the `view.toggleStatusbar` keybind or the ⌘K row,
-// never the bar itself.
-export const $statusbarVisible = persistentAtom(STATUSBAR_VISIBLE_STORAGE_KEY, false, Codecs.bool)
+// Whole-bar visibility, VS Code's `workbench.statusBar.visible`. On by default.
+// Hiding it unmounts the bar (its 15s status poll goes with it), so the way back
+// is the `view.toggleStatusbar` keybind or the ⌘K row, never the bar itself.
+export const $statusbarVisible = persistentAtom(STATUSBAR_VISIBLE_STORAGE_KEY, true, Codecs.bool)
 
 export function toggleStatusbarVisible() {
   $statusbarVisible.set(!$statusbarVisible.get())
@@ -58,4 +57,21 @@ export function setStatusbarItemVisible(id: string, visible: boolean) {
   }
 
   $statusbarHiddenIds.set(visible ? hidden.filter(entry => entry !== id) : [...hidden, id])
+}
+
+/** Pure so the menu can derive its reset row's disabled state from the hidden
+ *  list it already subscribes to, rather than reading the atom out of band.
+ *  Set-compared: order is incidental (items are appended as they're hidden) and
+ *  a duplicated id shouldn't read as a customization. */
+export function isStatusbarLayoutDefault(hidden: readonly string[]) {
+  const ids = new Set(hidden)
+
+  return ids.size === STATUSBAR_HIDDEN_BY_DEFAULT.length && STATUSBAR_HIDDEN_BY_DEFAULT.every(id => ids.has(id))
+}
+
+/** Put the show/hide set back to what ships. Only touches item layout — whole-bar
+ *  visibility is a separate preference, and resetting from the bar's own menu
+ *  shouldn't make the bar the user is right-clicking disappear. */
+export function resetStatusbarLayout() {
+  $statusbarHiddenIds.set([...STATUSBAR_HIDDEN_BY_DEFAULT])
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/slash.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the /hatch and /pet slash commands (HX1)
@@ -36,6 +36,7 @@ import {
   $sessions,
   $yoloActive,
   resolveComposerSessionKey,
+  setActiveSessionId,
   setCurrentUsage,
   setModelPickerOpen,
   setSessionPickerOpen,
@@ -69,7 +70,8 @@ import {
   renderCommandsCatalog,
   renderRpcResult,
   slashStatusText,
-  type SubmitTextOptions
+  type SubmitTextOptions,
+  withSessionNotFoundResume
 } from './utils'
 
 // Manual compression is LLM-bound and routinely outlives the desktop's 30s
@@ -506,7 +508,8 @@ export function useSlashCommand(deps: SlashCommandDeps) {
             return
           }
 
-          const { render: renderSlashOutput, sessionId, storedSessionId } = resolved
+          const { render: renderSlashOutput, sessionId: initialSessionId, storedSessionId } = resolved
+          let sessionId = initialSessionId
           const focusTopic = ctx.arg.trim()
           const noticeId = `session-compress:${sessionId}`
 
@@ -525,14 +528,40 @@ export function useSlashCommand(deps: SlashCommandDeps) {
           })
 
           try {
-            const result = await requestGateway<SessionCompressResponse>(
-              'session.compress',
+            // Same stale-runtime recovery as prompt.submit: after sleep/wake a
+            // dead id 404s session.compress while plain chat still works, so
+            // /compress reported "session not found" on a healthy session.
+            // NOT alsoTimeout — compress is legitimately LLM-slow and a
+            // timeout here must not be retried as a dead session.
+            const { result, sessionId: liveSessionId } = await withSessionNotFoundResume(
+              sessionId,
+              storedSessionId,
+              liveId =>
+                requestGateway<SessionCompressResponse>(
+                  'session.compress',
+                  {
+                    session_id: liveId,
+                    ...(focusTopic ? { focus_topic: focusTopic } : {})
+                  },
+                  SESSION_COMPRESS_TIMEOUT_MS
+                ),
               {
-                session_id: sessionId,
-                ...(focusTopic ? { focus_topic: focusTopic } : {})
-              },
-              SESSION_COMPRESS_TIMEOUT_MS
+                requestGateway,
+                onRecovered: recoveredId => {
+                  // Move the in-flight claim onto the live id so the coalesce
+                  // guard releases the right key in `finally`.
+                  compressInFlightRef.current.delete(sessionId)
+                  compressInFlightRef.current.add(recoveredId)
+
+                  if (activeSessionIdRef.current === initialSessionId) {
+                    activeSessionIdRef.current = recoveredId
+                    setActiveSessionId(recoveredId)
+                  }
+                }
+              }
             )
+
+            sessionId = liveSessionId
 
             // Replace the transcript with the post-compress history so the
             // summarized bubbles actually disappear. `messages` is the same
@@ -666,7 +695,11 @@ export function useSlashCommand(deps: SlashCommandDeps) {
           }
 
           const status = async (): Promise<WakeStatusResponse> => {
-            const current = await requestGateway<WakeStatusResponse>('wake.status', {})
+            const current = await requestGateway<WakeStatusResponse>('wake.status', {
+              client_capture: true,
+              surface: 'gui'
+            })
+
             applyWakeStatus(current)
 
             return current
@@ -684,7 +717,7 @@ export function useSlashCommand(deps: SlashCommandDeps) {
             if (action === 'on') {
               const started = await requestGateway<WakeStartResponse>(
                 'wake.start',
-                { persist: true, surface: 'gui' },
+                { persist: true, surface: 'gui', client_capture: true },
                 WAKE_START_TIMEOUT_MS
               )
 

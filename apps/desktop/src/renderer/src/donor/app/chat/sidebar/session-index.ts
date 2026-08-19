@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-index.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -37,4 +37,47 @@ export function buildSessionByAnyId(
   }
 
   return map
+}
+
+/**
+ * Resolve the Pinned section's rows: the locally stored pin ids first (in the
+ * user's hand-picked order), then any row the SERVER flags `pinned` that the
+ * local set doesn't know about yet.
+ *
+ * The local set (`$pinnedSessionIds` in localStorage) is a UI-ordering hint,
+ * not the source of truth — `sessions.pinned` in the backend's state.db is.
+ * When the two disagree (cold localStorage after a reload, a pin made from
+ * another client, a persist that never landed), every other sidebar list
+ * filters the session out as "pinned" while the Pinned section — resolving
+ * only local ids — renders empty, so the conversation vanishes from the
+ * sidebar entirely (#85969). Falling back to the row flag keeps the invariant:
+ * a session the backend says is pinned is always reachable from the Pinned
+ * section, whatever the local cache holds. session-pin-sync then adopts the
+ * pin into the local set on its next reconcile, restoring ordering control.
+ */
+export function resolvePinnedSessions(
+  pinnedSessionIds: readonly string[],
+  sessionByAnyId: Map<string, SessionInfo>,
+  allSessions: readonly SessionInfo[]
+): SessionInfo[] {
+  const seen = new Set<string>()
+  const out: SessionInfo[] = []
+
+  for (const pinId of pinnedSessionIds) {
+    const session = sessionByAnyId.get(pinId)
+
+    if (session && !seen.has(session.id)) {
+      seen.add(session.id)
+      out.push(session)
+    }
+  }
+
+  for (const session of allSessions) {
+    if (session.pinned === true && !seen.has(session.id)) {
+      seen.add(session.id)
+      out.push(session)
+    }
+  }
+
+  return out
 }

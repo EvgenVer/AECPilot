@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session-switcher.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,10 +12,9 @@ import { useNavigate } from 'react-router'
 
 import { sessionTitle } from '@/lib/chat-runtime'
 import { cn } from '@/lib/utils'
-import { $unreadFinishedSessionIds } from '@/store/session'
-import { $attentionSessionIds, $workingSessionIds } from '@/store/session-states'
 import { $switcherIndex, $switcherOpen, $switcherSessions, closeSwitcher } from '@/store/session-switcher'
 
+import { SessionStatusDot } from './chat/session-status-dot'
 import { HUD_ITEM, HUD_POSITION, HUD_SURFACE, HUD_TEXT } from './floating-hud'
 import { openSession } from './open-session'
 
@@ -25,9 +24,6 @@ export function SessionSwitcher() {
   const open = useStore($switcherOpen)
   const sessions = useStore($switcherSessions)
   const index = useStore($switcherIndex)
-  const working = useStore($workingSessionIds)
-  const attention = useStore($attentionSessionIds)
-  const unread = useStore($unreadFinishedSessionIds)
   const navigate = useNavigate()
 
   const activeRef = useRef<HTMLDivElement>(null)
@@ -39,10 +35,6 @@ export function SessionSwitcher() {
   if (!open || sessions.length === 0) {
     return null
   }
-
-  const workingIds = new Set(working)
-  const attentionIds = new Set(attention)
-  const unreadIds = new Set(unread)
 
   const pick = (sessionId: string) => {
     closeSwitcher()
@@ -84,11 +76,7 @@ export function SessionSwitcher() {
               }}
               ref={selected ? activeRef : undefined}
             >
-              <SwitcherDot
-                attention={attentionIds.has(session.id)}
-                unread={unreadIds.has(session.id)}
-                working={workingIds.has(session.id)}
-              />
+              <SessionStatusDot className="shrink-0" session={session} storedSessionId={session.id} />
               <span className="min-w-0 flex-1 truncate">{sessionTitle(session)}</span>
               {i < 9 && (
                 <span
@@ -106,22 +94,5 @@ export function SessionSwitcher() {
       </div>
     </>,
     document.body
-  )
-}
-
-function SwitcherDot({ attention, working, unread }: { attention: boolean; working: boolean; unread: boolean }) {
-  return (
-    <span
-      className={cn(
-        'size-1 shrink-0 rounded-full',
-        attention
-          ? 'bg-amber-400'
-          : working
-            ? 'animate-pulse bg-(--ui-accent)'
-            : unread
-              ? 'bg-emerald-500'
-              : 'bg-(--ui-text-quaternary)/50'
-      )}
-    />
   )
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/directive-text.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -201,6 +201,15 @@ export const hermesDirectiveFormatter: Unstable_DirectiveFormatter = {
 
       // Simple references like `@diff` / `@staged`.
       if (!insertId) {
+        return rawText
+      }
+
+      // Colon-less completions (`@diff`, `@staged`, agent mentions like
+      // `@researcher`) are plain inline text, not typed references. classify()
+      // gives them `insertId = text`, and the typed-reference branch below
+      // would mint a bogus `@simple:` kind around them — the composer showed
+      // "@simple:`@mr-tester`" for a picked agent mention.
+      if (!rawText.includes(':')) {
         return rawText
       }
 

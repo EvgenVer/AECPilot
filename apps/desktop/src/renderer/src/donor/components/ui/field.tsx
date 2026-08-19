@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/field.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,11 @@ export function Field({
 }) {
   return (
     <div className="grid gap-1.5">
-      <label className="flex items-baseline gap-2 text-xs font-medium text-foreground" htmlFor={htmlFor}>
+      <label
+        className="flex items-baseline gap-2 text-xs font-medium text-foreground"
+        htmlFor={htmlFor}
+        id={htmlFor ? `${htmlFor}-label` : undefined}
+      >
         {label}
         {optional && optionalLabel && (
           <span className="text-[0.65rem] font-normal text-muted-foreground">{optionalLabel}</span>

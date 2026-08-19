@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/route-tile.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,7 @@
 
 import { lazy, type ReactNode, Suspense } from 'react'
 
-import { ContribBoundary } from '@/contrib/react/boundary'
+import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import { $routeTiles, closeRouteTile, type RouteTile } from '@/store/route-tiles'
 
@@ -64,13 +64,19 @@ function RouteTilePane({ path }: { path: string }) {
   if (builtin) {
     return (
       <ContribBoundary id={path}>
-        <Suspense fallback={null}>{builtin.render()}</Suspense>
+        <Suspense fallback={null}>
+          <ContribRender render={builtin.render} />
+        </Suspense>
       </ContribBoundary>
     )
   }
 
   if (contrib) {
-    return <ContribBoundary id={path}>{contrib.render()}</ContribBoundary>
+    return (
+      <ContribBoundary id={path}>
+        <ContribRender render={contrib.render} />
+      </ContribBoundary>
+    )
   }
 
   return (

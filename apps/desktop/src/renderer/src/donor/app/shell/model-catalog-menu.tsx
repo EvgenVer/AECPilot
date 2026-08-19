@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/model-catalog-menu.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,6 +46,14 @@ import { $defaultReasoningEffort } from '@/store/session'
 import type { ModelOptionProvider, ModelOptionsResponse } from '@/types/hermes'
 
 import { type FastControl, ModelEditSubmenu, resolveFastControl } from './model-edit-submenu'
+
+/** Whether a catalog row represents the session's current provider. Custom
+ *  providers report the canonical `custom:<key>` identity from `model.options`
+ *  while the row's slug is the bare config key, so exact slug equality never
+ *  matches — check the row's alias set too (#87035). */
+function isCurrentProvider(provider: ModelOptionProvider, currentProvider: string): boolean {
+  return provider.slug === currentProvider || (provider.aliases?.includes(currentProvider) ?? false)
+}
 
 // Lets the host dropdown (model-pill, a kanban field trigger, …) hand the panel
 // a way to dismiss itself so clicking a model row commits + closes, while the
@@ -250,13 +258,17 @@ export function ModelCatalogMenu({
   // hover can't take rows out from under the keyboard.
   const pointerQuiet = usePointerQuiet()
 
-  const currentKey = current.provider === 'moa' ? `moa:${current.model}` : `${current.provider}:${current.model}`
+  const rowIsCurrent = (row: KbRow) =>
+    row.kind === 'moa'
+      ? current.provider === 'moa' && row.preset === current.model
+      : isCurrentProvider(row.provider, current.provider) &&
+        (row.family.id === current.model || row.family.fastId === current.model)
 
   const autoIndex = q
     ? kbRows.length > 0
       ? 0
       : -1
-    : kbRows.findIndex(row => row.key === currentKey || (row.kind === 'family' && row.family.fastId === current.model))
+    : kbRows.findIndex(row => rowIsCurrent(row) || (row.kind === 'family' && row.family.fastId === current.model))
 
   const kbIndex = kbOverride !== null && kbOverride < kbRows.length ? kbOverride : autoIndex
   const kbActiveKey = kbIndex >= 0 ? kbRows[kbIndex].key : null
@@ -284,7 +296,7 @@ export function ModelCatalogMenu({
       return
     }
 
-    if (row.key !== currentKey && row.family.fastId !== current.model) {
+    if (!rowIsCurrent(row) && row.family.fastId !== current.model) {
       void selectFamily(row.family, row.provider)
     }
 
@@ -391,7 +403,7 @@ export function ModelCatalogMenu({
                     // The active id may be the base or its -fast sibling; either
                     // way this one family row represents both.
                     const activeId =
-                      group.provider.slug === current.provider &&
+                      isCurrentProvider(group.provider, current.provider) &&
                       (current.model === family.id || current.model === family.fastId)
                         ? current.model
                         : null
@@ -568,7 +580,7 @@ function groupModels(
     // stable curated order, so selecting a model can't shuffle the list. While
     // SEARCHING the pin is skipped: a query means "show me matches".
     const activeId =
-      !q && provider.slug === current.provider && current.model
+      !q && isCurrentProvider(provider, current.provider) && current.model
         ? allFamilies.find(family => family.id === current.model || family.fastId === current.model)?.id
         : undefined
 

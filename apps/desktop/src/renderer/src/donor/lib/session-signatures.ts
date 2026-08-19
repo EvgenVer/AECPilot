@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-signatures.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,14 @@ export function sameCronSignature(a: SessionInfo[], b: SessionInfo[]): boolean {
       session.preview === other.preview &&
       session.message_count === other.message_count &&
       session.last_active === other.last_active &&
-      session.ended_at === other.ended_at
+      session.ended_at === other.ended_at &&
+      // Row STATE, not just row content: session-pin-sync reconciles the
+      // sidebar's pins against `pinned` on the rows in this atom, so a page
+      // whose only delta is a flag has to swap in or the reconciler reads a
+      // frozen copy forever. An idle conversation never moves any of the
+      // fields above again, which is exactly when a pin gets toggled (#76919).
+      session.pinned === other.pinned &&
+      session.archived === other.archived
     )
   })
 }

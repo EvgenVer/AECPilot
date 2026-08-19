@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-git.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,6 +9,7 @@ import type {
   HermesGitBaseBranch,
   HermesGitBranch,
   HermesGitWorktree,
+  HermesRepoPullRequests,
   HermesRepoStatus,
   HermesReviewList,
   HermesReviewShipInfo
@@ -99,6 +100,13 @@ const remoteGit: GitBridge = {
 
     shipInfo: repoPath => gitGet<HermesReviewShipInfo>('review/ship-info', { path: repoPath }),
 
+    prList: (repoPath, branches, numbers) =>
+      gitPost<HermesRepoPullRequests>('review/pr-list', { branches, numbers: numbers ?? [], path: repoPath }),
+
+    // Remote gateways have no PR-comment route yet; resolve to null so the
+    // paste degrades to a plain URL instead of throwing mid-paste.
+    fetchPrComment: async () => null,
+
     createPr: repoPath => gitPost('review/create-pr', { path: repoPath })
   },
 
@@ -113,4 +121,21 @@ export function desktopGit(): GitBridge | undefined {
   }
 
   return isDesktopFsRemoteMode() ? remoteGit : window.hermesDesktop?.git
+}
+
+// True only for "the /api/git route does not exist on this backend" shapes:
+// the backend catch-all ('404: {"detail":"No such API endpoint: ...}'), a bare
+// FastAPI 404 (directly or through the IPC bridge's "Error invoking remote
+// method" wrapper), and the Electron JSON-guard ("endpoint is likely
+// missing"). Transient failures (timeouts, 5xx, connection refused) must NOT
+// match — they are retryable, not a capability verdict. Mirrors the sidebar
+// batch-endpoint detector in hermes.ts.
+export function isGitEndpointMissingError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+
+  return (
+    /no such api endpoint/i.test(message) ||
+    /endpoint is likely missing/i.test(message) ||
+    /(?:^\s*|error:\s*)404\b/i.test(message)
+  )
 }

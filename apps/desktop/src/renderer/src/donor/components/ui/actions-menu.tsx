@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/actions-menu.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -106,7 +106,7 @@ export function renderActionItem(
 
 interface ActionsMenuProps extends Pick<
   React.ComponentProps<typeof DropdownMenuContent>,
-  'align' | 'side' | 'sideOffset'
+  'align' | 'side' | 'sideOffset' | 'onCloseAutoFocus'
 > {
   /** The trigger (a kebab button). Wrapped in `DropdownMenuTrigger asChild`. */
   children: React.ReactNode
@@ -129,6 +129,7 @@ export function ActionsMenu({
   children,
   contentClassName,
   items,
+  onCloseAutoFocus,
   onOpenChange,
   open,
   side,
@@ -141,6 +142,7 @@ export function ActionsMenu({
         align={align}
         aria-label={ariaLabel}
         className={contentClassName}
+        onCloseAutoFocus={onCloseAutoFocus}
         side={side}
         sideOffset={sideOffset}
       >
@@ -159,6 +161,7 @@ interface ActionsContextMenuProps {
   contentClassName?: string
   /** Skip the wrapper (render children bare) — e.g. nothing is actionable yet. */
   disabled?: boolean
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 /**
@@ -170,7 +173,8 @@ export function ActionsContextMenu({
   children,
   contentClassName,
   disabled,
-  items
+  items,
+  onCloseAutoFocus
 }: ActionsContextMenuProps) {
   if (disabled) {
     return <>{children}</>
@@ -179,7 +183,7 @@ export function ActionsContextMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent aria-label={ariaLabel} className={contentClassName}>
+      <ContextMenuContent aria-label={ariaLabel} className={contentClassName} onCloseAutoFocus={onCloseAutoFocus}>
         {items(CONTEXT_KIT)}
       </ContextMenuContent>
     </ContextMenu>

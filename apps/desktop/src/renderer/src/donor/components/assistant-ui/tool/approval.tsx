@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/approval.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,6 +31,7 @@ import {
   type ApprovalRequest,
   clearApprovalRequest,
   registerApprovalInlineAnchor,
+  replayPendingApproval,
   sessionApprovalInlineVisible,
   sessionApprovalRequest
 } from '@/store/prompts'
@@ -151,16 +152,18 @@ const ApprovalBar: FC<{ request: ApprovalRequest; surface: 'floating' | 'inline'
       try {
         await gateway.request<{ resolved?: boolean }>('approval.respond', {
           choice,
+          request_id: request.requestId,
           session_id: request.sessionId ?? undefined
         })
         triggerHaptic(choice === 'deny' ? 'cancel' : 'submit')
-        clearApprovalRequest(request.sessionId)
+        clearApprovalRequest(request.sessionId, request.requestId)
+        void replayPendingApproval(gateway, request.sessionId).catch(() => undefined)
       } catch (error) {
         notifyError(error, copy.sendFailed)
         setSubmitting(null)
       }
     },
-    [busy, copy.gatewayDisconnected, copy.sendFailed, gateway, request.sessionId]
+    [busy, copy.gatewayDisconnected, copy.sendFailed, gateway, request.requestId, request.sessionId]
   )
 
   // ⌘/Ctrl+Enter → Run, Esc → Reject.

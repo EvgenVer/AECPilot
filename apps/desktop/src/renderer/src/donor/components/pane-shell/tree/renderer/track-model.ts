@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/track-model.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@
 
 import type * as React from 'react'
 
+import type { PaneStripTool } from '@/components/ui/pane-tab'
 import type { Contribution } from '@/contrib/types'
 
 import type { GroupNode, LayoutNode } from '../model'
@@ -65,6 +66,10 @@ interface PaneChrome extends PaneSizing {
   /** Spawn corner for `placement: 'floating'` (default `'top-right'`). The
    *  pane also TRACKS that corner's edges when the window resizes. */
   anchor?: FloatingAnchor
+  /** Keep this pane mounted when hidden even after the zone's bounded hot
+   *  cache fills. Reserved for stateful resources whose lifetime must not track
+   *  tab visibility (for example terminal PTYs). */
+  lifecycleKeepAlive?: boolean
   /** No Close in the tab menu — the one surface the app can't lose (the
    *  main workspace). Session tiles share `placement: 'main'` but close. */
   uncloseable?: boolean
@@ -87,6 +92,18 @@ interface PaneChrome extends PaneSizing {
    *  the tab and the sidebar row render status/color from the ONE primitive
    *  (self-subscribing — it updates without the strip re-registering). */
   tabLead?: () => React.ReactNode
+  /** This pane's TAB LABEL, when it changes faster than the contribution
+   *  should. A session pane whose draft is being typed renames on every
+   *  debounce beat; re-registering `title` that often would re-render the
+   *  whole panes area, so the label subscribes for itself instead. Absent, or
+   *  returning nothing, falls back to `title`. */
+  tabTitle?: () => React.ReactNode
+  /** Glyph buttons this pane contributes to the strip, rendered after the last
+   *  tab (where "+" sits) while the pane is ACTIVE — controls that act on the
+   *  pane, not on any one tab: a preview's console / DevTools toggles. DATA, not
+   *  markup: `PaneStripGlyph` owns the styling so every glyph on every strip
+   *  matches. Read on each render, so a live store drives `active`/`disabled`. */
+  stripTools?: () => readonly PaneStripTool[]
 }
 
 export const paneChrome = (c: Contribution | undefined) => (c?.data ?? {}) as PaneChrome

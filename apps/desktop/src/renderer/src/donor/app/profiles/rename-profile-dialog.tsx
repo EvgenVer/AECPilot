@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/profiles/rename-profile-dialog.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,7 @@ import { renameProfile } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { AlertTriangle } from '@/lib/icons'
 import { slug } from '@/lib/sanitize'
+import { retireLocalProfileGateways } from '@/store/gateway'
 
 import { isValidProfileName } from './create-profile-dialog'
 
@@ -79,6 +80,11 @@ export function RenameProfileDialog({
     setError(null)
 
     try {
+      // A retained renderer socket for the old name would treat the rename's
+      // backend teardown as a transient drop and redial, resurrecting the
+      // old-name backend whose ensure_hermes_home() recreates the directory
+      // the rename just moved (same class as the delete path, #88638).
+      retireLocalProfileGateways(currentName)
       await renameProfile(currentName, trimmed)
       await onRenamed?.(trimmed)
       setStatus('done')

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/inline-refs.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -143,9 +143,14 @@ function buildRefFragment(
 
 export function insertInlineRefsIntoEditor(editor: HTMLDivElement, refs: readonly InlineRefInput[]) {
   const parsed = refs.map(parseInlineRef).filter((ref): ref is NonNullable<typeof ref> => ref !== null)
+  const hasEmptySentinel = editor.childNodes.length === 1 && editor.firstChild?.nodeName === 'BR'
 
   if (!parsed.length) {
     return null
+  }
+
+  if (hasEmptySentinel) {
+    editor.replaceChildren()
   }
 
   editor.focus({ preventScroll: true })
@@ -153,7 +158,7 @@ export function insertInlineRefsIntoEditor(editor: HTMLDivElement, refs: readonl
   const selection = window.getSelection()
 
   const range =
-    selection?.rangeCount && editor.contains(selection.getRangeAt(0).commonAncestorContainer)
+    !hasEmptySentinel && selection?.rangeCount && editor.contains(selection.getRangeAt(0).commonAncestorContainer)
       ? selection.getRangeAt(0)
       : null
 

@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/markdown-preprocess.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { normalizeMathDelimiters } from '@assistant-ui/react-streamdown'
 
 import { isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
+import { clampHtmlNestingDepth } from '@/lib/markdown-html-depth'
 import { stripPreviewTargets } from '@/lib/preview-targets'
 import { linkifySessionRefs } from '@/lib/session-refs'
 
@@ -517,8 +518,10 @@ export function preprocessMarkdown(text: string): string {
       const trailing = part.match(/\s*$/)?.[0] ?? ''
 
       // Run only on prose segments so `$5` literals and `\(` inside code
-      // blocks stay intact.
-      const transformed = normalizeVisibleProse(stripPreviewTargets(normalizeProseMath(part)))
+      // blocks stay intact. The HTML-depth clamp belongs here for the same
+      // reason: a fenced block renders as code and never reaches rehype-raw,
+      // so escaping tags inside one would corrupt the listing for nothing.
+      const transformed = clampHtmlNestingDepth(normalizeVisibleProse(stripPreviewTargets(normalizeProseMath(part))))
 
       return leading + transformed + trailing
     })

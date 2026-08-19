@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/voice-provider-fields.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,7 +44,7 @@ export function VoiceProviderFields({ section, providerKey }: { section: 'tts' |
 
   const { data: schemaResponse } = useQuery({
     queryKey: ['hermes-config-schema'],
-    queryFn: getHermesConfigSchema,
+    queryFn: () => getHermesConfigSchema(),
     staleTime: 5 * 60 * 1000
   })
 

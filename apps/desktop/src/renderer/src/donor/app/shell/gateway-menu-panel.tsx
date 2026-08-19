@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/gateway-menu-panel.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,8 @@ import { useI18n } from '@/i18n'
 import { LayoutDashboard, RefreshCw } from '@/lib/icons'
 import type { RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { cn } from '@/lib/utils'
+import { reconnectGateway } from '@/store/gateway-reconnect'
+import { notifyError } from '@/store/notifications'
 import { runGatewayRestart } from '@/store/system-actions'
 import type { StatusResponse } from '@/types/hermes'
 
@@ -103,6 +105,7 @@ export function GatewayMenuPanel({
 }: GatewayMenuPanelProps) {
   const { t } = useI18n()
   const copy = t.shell.gatewayMenu
+  const [reconnecting, setReconnecting] = useState(false)
 
   // Both jumps open the system panel, which owns the full view — so dismiss the
   // little status popover on the way out.
@@ -116,6 +119,17 @@ export function GatewayMenuPanel({
   const restart = () => {
     onClose()
     void runGatewayRestart()
+  }
+
+  const reconnect = () => {
+    if (reconnecting) {
+      return
+    }
+
+    setReconnecting(true)
+    void reconnectGateway()
+      .catch(err => notifyError(err, copy.reconnectGateway))
+      .finally(() => setReconnecting(false))
   }
 
   const gatewayOpen = gatewayState === 'open'
@@ -164,6 +178,20 @@ export function GatewayMenuPanel({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
+          {!gatewayOpen && (
+            <Tip label={copy.reconnectGateway}>
+              <Button
+                aria-label={copy.reconnectGateway}
+                className="text-muted-foreground hover:text-foreground"
+                disabled={reconnecting}
+                onClick={reconnect}
+                size="icon-xs"
+                variant="ghost"
+              >
+                <RefreshCw className={cn(reconnecting && 'animate-spin')} />
+              </Button>
+            </Tip>
+          )}
           <Tip label={t.commandCenter.restartGateway}>
             <Button
               aria-label={t.commandCenter.restartGateway}

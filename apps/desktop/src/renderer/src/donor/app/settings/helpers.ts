@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/helpers.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -102,6 +102,31 @@ export function getNested(obj: HermesConfigRecord, path: string): unknown {
   }
 
   return cur
+}
+
+/**
+ * True when an edit clears the entire "Enabled Toolsets" list — i.e. the
+ * previous config had a non-empty toolsets array and the next one is an
+ * explicit empty array.
+ *
+ * A *missing* toolsets key is deliberately NOT a clear: `PUT /api/config`
+ * deep-merges the override onto the stored config (`_deep_merge` preserves base
+ * keys absent from the override), so an import that omits `toolsets` leaves the
+ * existing toolsets intact. Prompting there would warn about a wipe that never
+ * happens. Only an explicit `[]` actually empties the list.
+ *
+ * Clearing every toolset silently disables memory, terminal, web search,
+ * delegation, and most tools, and config auto-saves with no undo, so callers
+ * use this to confirm the destructive transition before applying it. Any edit
+ * that keeps at least one toolset — or that never had one — returns false.
+ */
+export function clearsEnabledToolsets(prev: HermesConfigRecord, next: HermesConfigRecord): boolean {
+  const prevToolsets = getNested(prev, 'toolsets')
+  const nextToolsets = getNested(next, 'toolsets')
+  const hadToolsets = Array.isArray(prevToolsets) && prevToolsets.length > 0
+  const clearsToolsets = Array.isArray(nextToolsets) && nextToolsets.length === 0
+
+  return hadToolsets && clearsToolsets
 }
 
 export function inferFieldSchema(value: unknown): ConfigFieldSchema {

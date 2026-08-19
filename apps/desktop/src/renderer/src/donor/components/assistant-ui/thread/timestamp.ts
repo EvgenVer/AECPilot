@@ -1,11 +1,47 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/timestamp.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { fmtClock, fmtDayTime } from '@/lib/time'
+
+const fmtTimelineClock = new Intl.DateTimeFormat(undefined, {
+  fractionalSecondDigits: 3,
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit'
+})
+
+const timelineDate = (seconds: number | undefined): Date | null => {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {
+    return null
+  }
+
+  const date = new Date(seconds * 1000)
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** Millisecond-precise local clock for transcript activity boundaries. */
+export function formatTimelineTimestamp(seconds: number | undefined): string {
+  const date = timelineDate(seconds)
+
+  return date ? fmtTimelineClock.format(date) : ''
+}
+
+export function formatTimelineRange(start: number | undefined, end: number | undefined): string {
+  const from = formatTimelineTimestamp(start)
+
+  if (!from) {
+    return ''
+  }
+
+  const to = formatTimelineTimestamp(end)
+
+  return to ? `${from} → ${to}` : from
+}
 
 function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()

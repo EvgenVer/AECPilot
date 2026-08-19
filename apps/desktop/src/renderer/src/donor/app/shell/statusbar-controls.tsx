@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/statusbar-controls.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,10 +20,17 @@ import {
 } from '@/components/ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tip, TipKeybindLabel, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { ContribRender } from '@/contrib/react/boundary'
 import { useI18n } from '@/i18n'
 import { useKeybindHint } from '@/lib/keybinds/use-keybind-hint'
 import { cn } from '@/lib/utils'
-import { $statusbarHiddenIds, setStatusbarItemVisible, toggleStatusbarVisible } from '@/store/statusbar-prefs'
+import {
+  $statusbarHiddenIds,
+  isStatusbarLayoutDefault,
+  resetStatusbarLayout,
+  setStatusbarItemVisible,
+  toggleStatusbarVisible
+} from '@/store/statusbar-prefs'
 
 // Shared chrome styling for interactive statusbar items (button / link / menu
 // trigger). The 'text' variant intentionally omits hover/transition/disabled.
@@ -182,6 +189,18 @@ function StatusbarVisibilityMenu({
             </ContextMenuCheckboxItem>
           ))}
           <ContextMenuSeparator />
+          {/* Disabled rather than hidden when nothing is customized: the row is
+              also how you find out there IS a shipped layout to get back to.
+              Groups with the hide row below — both act on the bar, not an item. */}
+          <ContextMenuItem
+            disabled={isStatusbarLayoutDefault(hiddenIds)}
+            onSelect={event => {
+              event.preventDefault()
+              resetStatusbarLayout()
+            }}
+          >
+            <span className="truncate">{copy.resetStatusbar}</span>
+          </ContextMenuItem>
         </>
       )}
       <ContextMenuItem onSelect={toggleStatusbarVisible}>
@@ -216,7 +235,7 @@ const StatusbarItemView = memo(function StatusbarItemView({
 
   // Render escape hatch: the contribution owns its own chrome/state/tooltip.
   if (item.render) {
-    return <>{item.render()}</>
+    return <ContribRender render={item.render} />
   }
 
   const tooltipLabel = item.actionId ? <TipKeybindLabel actionId={item.actionId} text={item.title} /> : item.title

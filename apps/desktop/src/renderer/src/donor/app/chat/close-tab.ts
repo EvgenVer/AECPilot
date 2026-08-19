@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/close-tab.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,6 @@ import { closeActiveTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { $workspaceIsPage } from '@/app/routes'
 import { closeFocusedSessionTab, closeFocusedToolTab } from '@/components/pane-shell/tree/store'
 import { isFocusWithin } from '@/lib/keybinds/combo'
-import { $previewTabs, closeActiveRightRailTab } from '@/store/preview'
 import { requestFreshSession } from '@/store/profile'
 import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
 import { closeSessionTile, nextSessionTileForWorkspace } from '@/store/session-states'
@@ -61,15 +60,17 @@ export function closeWorkspaceTab(loadSessionIntoWorkspace?: (storedSessionId: s
 /**
  * ⌘W — close the tab of the context you're in, by precedence:
  *   1. a focused terminal → its active terminal tab,
- *   2. right-rail tabs (live preview and/or file peeks),
- *   3. the FOCUSED chat zone → its active tab (a session tile stacked into it).
- *   4. a focused TOOL PANEL zone (terminal / logs) → its active tab.
- *   5. the workspace tab itself — see `closeWorkspaceTab`.
+ *   2. the FOCUSED chat zone → its active tab (a session tile stacked into it).
+ *   3. a focused TOOL PANEL zone (terminal / logs) → its active tab.
+ *   4. the workspace tab itself — see `closeWorkspaceTab`.
  * Returns false when nothing closes, so ⌘W is a no-op — it never closes the
  * window. Shared by the keyboard path (Win/Linux) and the macOS
  * menu-accelerator IPC.
  *
- * Steps 3-5 follow the same focused zone ⌘1…⌘9 indexes, so a second chat zone
+ * Preview tabs need no rung of their own: they are layout-tree panes like any
+ * other tab, so the focused-zone rungs close them through `closeTabPane`.
+ *
+ * Steps 2-4 follow the same focused zone ⌘1…⌘9 indexes, so a second chat zone
  * with its own tab strip closes ITS tab instead of main's.
  */
 export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: string) => void): boolean {
@@ -77,13 +78,6 @@ export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: stri
     closeActiveTerminal()
 
     return true
-  }
-
-  // Gate on tab *presence*, not on the selection: a stale `$rightRailActiveTabId`
-  // would otherwise make ⌘W fall through to closeFocusedSessionTab() and look
-  // broken with a tab still on screen. The store resolves which tab that is.
-  if ($previewTabs.get().length > 0) {
-    return closeActiveRightRailTab()
   }
 
   // A closeable tab in the focused chat zone (a session tile that's the active
