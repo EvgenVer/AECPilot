@@ -289,6 +289,20 @@ async def open_index(
         # throughput for finishing at all is the right way round.
         embedding_func_max_async=2,
         embedding_batch_num=8,
+        # Owner decision 2026-08-17, task 4D-22. Their default is 1: after the
+        # first extraction pass, a second call asks "what else is left", and it
+        # carries the entire first answer back into the context. Measured on the
+        # mini corpus (eval/reports/gleaning.md): the second pass costs exactly
+        # double — 30 LLM calls against 15, 262 674 prompt characters against
+        # 127 344 — and returns 47 % more entities. But a good share of that 47 %
+        # is the SAME entities under different names: `VRU-1` and
+        # `Input-Distribution Device VRU-1`, `Installed Capacity` and
+        # `Installed Power`, `Northen Boundary` and `Northern Boundary` (the
+        # second is a typo). Duplicates are not merely surplus in a graph: they
+        # split one entity's relations across two nodes. Half the price for a
+        # graph that is also less fragmented. Re-check with the full eval (task
+        # 6.6) — the phase-2 baseline was taken with gleaning on.
+        entity_extract_max_gleaning=0,
     )
     rag.aec_chunk_registry = registry
     await rag.initialize_storages()
