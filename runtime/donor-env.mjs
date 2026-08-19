@@ -16,11 +16,13 @@ import { HERMES_SHA, HERMES_SRC_DIR } from "./hermes-env.mjs";
 // let the UI and the core drift, which is the failure mode this pin exists to
 // prevent.
 export const DONOR_SHA = HERMES_SHA;
-export const DONOR_TAG = "v2026.8.3";
+export const DONOR_TAG = "v2026.8.18";
 
 // `apps/desktop/package.json` version at DONOR_SHA. Upstream stopped bumping it
-// with the core release train (the core is 0.20.0), so it is recorded as the
-// literal value found in the tree and is NOT a second pin — DONOR_SHA is.
+// with the core release train (the core is 0.20.4), so it is recorded as the
+// literal value found in the tree and is NOT a second pin — DONOR_SHA is. It
+// still read "0.17.0" across the whole 0.20.0 → 0.20.4 window, checked at each
+// tag by task 3.B0 — so an unchanged value here is evidence, not neglect.
 export const DONOR_DESKTOP_VERSION = "0.17.0";
 
 // Read source. Task 1.8.3 originally called for holding a separate clone at

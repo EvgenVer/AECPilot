@@ -35,7 +35,7 @@ const OUT_DIR = path.join(RUNTIME_DIR, "contracts");
 /** The snapshot's own shape. Bumped when a section is added or its meaning
  * changes, so contract-diff can say "this pair is not comparable here" instead
  * of reporting an absent section as a removal. */
-const SNAPSHOT_FORMAT = 2;
+const SNAPSHOT_FORMAT = 3;
 
 /** Where the core's Python actually lives. Since 0.20.0 the install is editable
  * (their build backend refuses to build a wheel — see PLAN §Stack), so the
@@ -222,18 +222,18 @@ function ourRestRoutes() {
   return [...new Set(raw.filter((route) => route.length > 5))].sort();
 }
 
-/** The two event lists the chat reducer keeps, which are also what the parity
- * warning and `hermes-event-diff.mjs` read. */
-function ourEvents() {
-  const source = read(path.join(REPO_DIR, "apps/desktop/src/renderer/src/chat/chat-state.ts"));
-  const pick = (name) => {
-    const start = source.indexOf(`export const ${name}`);
-    if (start === -1) return [];
-    const end = source.indexOf("] as const", start);
-    return [...source.slice(start, end).matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]).sort();
-  };
-  return { handled: pick("HANDLED_GATEWAY_EVENTS"), ignored: pick("IGNORED_GATEWAY_EVENTS") };
-}
+// `ourEvents` used to live here: the two lists our own chat reducer kept in
+// `renderer/src/chat/chat-state.ts`, telling which gateway events we handled and
+// which we deliberately ignored. That file was deleted in 1.8.9 («delete the UI
+// their application replaced») — we took the donor's chat, and their code
+// dispatches events inline instead of declaring a list. So the question «which
+// events does OUR chat handle» no longer has an answer on our side, and the
+// section was reading a path that had not existed for weeks. Found by task 3.B0,
+// the first run of this tool since the migration; `contract-diff` never compared
+// the section, so nothing downstream loses a check. The question it used to
+// answer is now the parity registry's (AC9, `runtime/parity-registry.mjs`),
+// whose unit is a screen rather than an event name.
+// Snapshot format bumped 2 → 3 by that removal.
 
 // ------------------------------------------------------------------------ main
 
@@ -291,7 +291,6 @@ function main() {
     checkpointMarkers: markers,
     ourMethods: ourMethodView,
     ourRestRoutes: ourRouteView,
-    ourEvents: ourEvents(),
   };
 
   if (process.argv.includes("--print")) {
@@ -311,7 +310,6 @@ function main() {
     `маршрутов ${Object.keys(restRoutes).length}, дефолтов конфига ${Object.keys(configDefaults).length}`);
   console.log(`  умолчания параметров записаны у ${withDefaults.length} методов`);
   console.log(`  наша поверхность: методов ${Object.keys(ourMethodView).length}, маршрутов ${Object.keys(ourRouteView).length}`);
-  console.log(`  событий обрабатываем: ${snapshot.ourEvents.handled.length}, игнорируем: ${snapshot.ourEvents.ignored.length}`);
   console.log(`  ядро эмитит событий: ${emitted.length}, маркеров чекпойнтов: ${markers.length}`);
   if (missing.length > 0) {
     console.log(`  ВНИМАНИЕ, метод не найден в ядре: ${missing.map(([k]) => k).join(", ")}`);

@@ -1,0 +1,3061 @@
+{
+  "snapshotFormat": 3,
+  "hermesVersion": "0.20.4",
+  "hermesSha": "e624e9fde561e1add9388384012b295fde669ade",
+  "takenBy": "runtime/contract-snapshot.mjs",
+  "note": "Поверхность ядра и наша зависимость от неё. Сравнивать через runtime/contract-diff.mjs ПЕРЕД обновлением: изменившийся hash обработчика = повод прочитать диф, изменившийся file = метод просто переехал, изменившийся defaults = молчаливая смена умолчания. Отсутствующий метод или маршрут = сломанный экран.",
+  "gatewayModules": [
+    {
+      "name": "__init__.py",
+      "lines": 1,
+      "methods": 0
+    },
+    {
+      "name": "_stdin_recovery.py",
+      "lines": 152,
+      "methods": 0
+    },
+    {
+      "name": "compute_host.py",
+      "lines": 900,
+      "methods": 0
+    },
+    {
+      "name": "entry.py",
+      "lines": 491,
+      "methods": 0
+    },
+    {
+      "name": "event_publisher.py",
+      "lines": 127,
+      "methods": 0
+    },
+    {
+      "name": "git_probe.py",
+      "lines": 203,
+      "methods": 0
+    },
+    {
+      "name": "host_supervisor.py",
+      "lines": 578,
+      "methods": 0
+    },
+    {
+      "name": "loop_noise.py",
+      "lines": 84,
+      "methods": 0
+    },
+    {
+      "name": "mcp_oauth_sessions.py",
+      "lines": 340,
+      "methods": 0
+    },
+    {
+      "name": "mcp_rpc_helpers.py",
+      "lines": 75,
+      "methods": 0
+    },
+    {
+      "name": "method_ctx.py",
+      "lines": 54,
+      "methods": 0
+    },
+    {
+      "name": "methods_complete.py",
+      "lines": 627,
+      "methods": 6
+    },
+    {
+      "name": "methods_config.py",
+      "lines": 427,
+      "methods": 7
+    },
+    {
+      "name": "methods_images.py",
+      "lines": 131,
+      "methods": 1
+    },
+    {
+      "name": "methods_profiles.py",
+      "lines": 992,
+      "methods": 6
+    },
+    {
+      "name": "methods_prompt.py",
+      "lines": 1538,
+      "methods": 20
+    },
+    {
+      "name": "methods_session.py",
+      "lines": 3497,
+      "methods": 64
+    },
+    {
+      "name": "methods_tools.py",
+      "lines": 2538,
+      "methods": 40
+    },
+    {
+      "name": "project_tree.py",
+      "lines": 794,
+      "methods": 0
+    },
+    {
+      "name": "render.py",
+      "lines": 50,
+      "methods": 0
+    },
+    {
+      "name": "server.py",
+      "lines": 15343,
+      "methods": 21
+    },
+    {
+      "name": "slash_fuzzy.py",
+      "lines": 92,
+      "methods": 0
+    },
+    {
+      "name": "slash_worker.py",
+      "lines": 197,
+      "methods": 0
+    },
+    {
+      "name": "synthetic_turn.py",
+      "lines": 232,
+      "methods": 0
+    },
+    {
+      "name": "transport.py",
+      "lines": 220,
+      "methods": 0
+    },
+    {
+      "name": "turn_marker.py",
+      "lines": 160,
+      "methods": 0
+    },
+    {
+      "name": "ws.py",
+      "lines": 477,
+      "methods": 0
+    }
+  ],
+  "gatewayMethods": {
+    "agents.list": {
+      "file": "methods_tools.py",
+      "lines": 24,
+      "hash": "15ae1f6aa9ed",
+      "defaults": {}
+    },
+    "approval.pending": {
+      "file": "methods_prompt.py",
+      "lines": 13,
+      "hash": "dfd0af557b19",
+      "defaults": {}
+    },
+    "approval.received": {
+      "file": "methods_prompt.py",
+      "lines": 19,
+      "hash": "79b4e14a25d7",
+      "defaults": {}
+    },
+    "approval.respond": {
+      "file": "methods_prompt.py",
+      "lines": 53,
+      "hash": "aaacac250953",
+      "defaults": {
+        "all": "False",
+        "choice": "\"deny\""
+      }
+    },
+    "billing.auto_reload": {
+      "file": "methods_session.py",
+      "lines": 22,
+      "hash": "a50a56a36908",
+      "defaults": {}
+    },
+    "billing.charge": {
+      "file": "methods_session.py",
+      "lines": 26,
+      "hash": "8b2895405a5a",
+      "defaults": {}
+    },
+    "billing.charge_status": {
+      "file": "methods_session.py",
+      "lines": 29,
+      "hash": "23ee660cdbf5",
+      "defaults": {}
+    },
+    "billing.state": {
+      "file": "methods_session.py",
+      "lines": 16,
+      "hash": "9498c1709c78",
+      "defaults": {}
+    },
+    "billing.step_up": {
+      "file": "methods_session.py",
+      "lines": 41,
+      "hash": "66c9925cf7db",
+      "defaults": {}
+    },
+    "browser.manage": {
+      "file": "methods_tools.py",
+      "lines": 17,
+      "hash": "656d2057a147",
+      "defaults": {
+        "action": "\"status\""
+      }
+    },
+    "clarify.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "fc55ae6d0d81",
+      "defaults": {}
+    },
+    "cli.exec": {
+      "file": "methods_tools.py",
+      "lines": 41,
+      "hash": "40604b0e3e51",
+      "defaults": {
+        "timeout": "240"
+      }
+    },
+    "clipboard.paste": {
+      "file": "methods_prompt.py",
+      "lines": 40,
+      "hash": "d5b2c0fdde29",
+      "defaults": {
+        "image_counter": "0"
+      }
+    },
+    "command.dispatch": {
+      "file": "methods_tools.py",
+      "lines": 678,
+      "hash": "e15afda318ef",
+      "defaults": {
+        "arg": "\"\"",
+        "command": "\"\"",
+        "content": "\"\"",
+        "focus_view": "False",
+        "history_version": "0",
+        "max_turns": "20",
+        "name": "\"\"",
+        "rewound_count": "0",
+        "session_id": "\"\"",
+        "session_key": "\"\"",
+        "target": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "command.resolve": {
+      "file": "methods_tools.py",
+      "lines": 20,
+      "hash": "b1f698a3a0d3",
+      "defaults": {
+        "name": "\"\""
+      }
+    },
+    "commands.catalog": {
+      "file": "methods_tools.py",
+      "lines": 116,
+      "hash": "101328f3ea52",
+      "defaults": {
+        "description": "\"Skill\"",
+        "type": "\"\""
+      }
+    },
+    "complete.path": {
+      "file": "methods_complete.py",
+      "lines": 289,
+      "hash": "98be4857c297",
+      "defaults": {
+        "word": "\"\""
+      }
+    },
+    "complete.slash": {
+      "file": "methods_complete.py",
+      "lines": 139,
+      "hash": "885bf028d7e0",
+      "defaults": {
+        "text": "\"\""
+      }
+    },
+    "config.get": {
+      "file": "methods_config.py",
+      "lines": 183,
+      "hash": "b4bbe6e09d30",
+      "defaults": {
+        "custom_prompt": "\"\"",
+        "cwd": "\"\"",
+        "details_mode": "\"collapsed\"",
+        "focus_view": "False",
+        "key": "\"\"",
+        "reasoning_effort": "\"\"",
+        "session_id": "\"\"",
+        "show_reasoning": "True",
+        "skin": "\"default\"",
+        "thinking_mode": "\"\"",
+        "tui_compact": "False",
+        "tui_status_indicator": "\"\"",
+        "tui_statusbar": "\"top\"",
+        "tui_theme": "\"auto\""
+      }
+    },
+    "config.set": {
+      "file": "server.py",
+      "lines": 758,
+      "hash": "ea53ab6434f3",
+      "defaults": {
+        "battery": "False",
+        "confirm_expensive_model": "False",
+        "confirm_message": "\"\"",
+        "confirm_required": "False",
+        "focus_view": "False",
+        "key": "\"\"",
+        "mode": "\"manual\"",
+        "scope": "\"session\"",
+        "session_id": "\"\"",
+        "tui_compact": "False",
+        "tui_statusbar": "\"top\"",
+        "value": "\"\""
+      }
+    },
+    "config.show": {
+      "file": "methods_tools.py",
+      "lines": 41,
+      "hash": "3e60fe6a3ac1",
+      "defaults": {
+        "api_key": "\"\"",
+        "base_url": "\"\"",
+        "HERMES_BASE_URL": "\"\"",
+        "verbose": "False"
+      }
+    },
+    "cron.manage": {
+      "file": "methods_tools.py",
+      "lines": 82,
+      "hash": "1cd709ac8b5b",
+      "defaults": {
+        "action": "\"list\"",
+        "include_disabled": "False",
+        "name": "\"\"",
+        "prompt": "\"\"",
+        "repeat": "\"\"",
+        "schedule": "\"\""
+      }
+    },
+    "delegation.pause": {
+      "file": "methods_session.py",
+      "lines": 8,
+      "hash": "211e7dd47773",
+      "defaults": {
+        "paused": "True"
+      }
+    },
+    "delegation.status": {
+      "file": "methods_session.py",
+      "lines": 20,
+      "hash": "1decba9f868a",
+      "defaults": {}
+    },
+    "file.attach": {
+      "file": "methods_prompt.py",
+      "lines": 47,
+      "hash": "1062f10be5f7",
+      "defaults": {
+        "data_url": "\"\"",
+        "name": "\"\"",
+        "path": "\"\""
+      }
+    },
+    "handoff.fail": {
+      "file": "methods_session.py",
+      "lines": 24,
+      "hash": "f07e24893356",
+      "defaults": {}
+    },
+    "handoff.request": {
+      "file": "methods_session.py",
+      "lines": 88,
+      "hash": "1d70bc469dd9",
+      "defaults": {
+        "platform": "\"\""
+      }
+    },
+    "handoff.state": {
+      "file": "methods_session.py",
+      "lines": 27,
+      "hash": "4daa8bc89c2e",
+      "defaults": {}
+    },
+    "image.attach": {
+      "file": "methods_prompt.py",
+      "lines": 43,
+      "hash": "e1fc43eb642c",
+      "defaults": {
+        "path": "\"\""
+      }
+    },
+    "image.attach_bytes": {
+      "file": "methods_prompt.py",
+      "lines": 61,
+      "hash": "7f4a68e4570f",
+      "defaults": {
+        "ext": "\"\"",
+        "filename": "\"\""
+      }
+    },
+    "image.detach": {
+      "file": "methods_prompt.py",
+      "lines": 20,
+      "hash": "32ff3c0166f1",
+      "defaults": {
+        "path": "\"\""
+      }
+    },
+    "image.generate": {
+      "file": "methods_images.py",
+      "lines": 110,
+      "hash": "7a24af0f3bed",
+      "defaults": {
+        "probe": "False"
+      }
+    },
+    "input.detect_drop": {
+      "file": "methods_prompt.py",
+      "lines": 47,
+      "hash": "6b2e4d89fcaf",
+      "defaults": {
+        "text": "\"\""
+      }
+    },
+    "insights.get": {
+      "file": "methods_tools.py",
+      "lines": 25,
+      "hash": "3fb4d8b71649",
+      "defaults": {
+        "days": "30",
+        "message_count": "0"
+      }
+    },
+    "learning.delete": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "4be5ac62bd2c",
+      "defaults": {
+        "id": "\"\""
+      }
+    },
+    "learning.detail": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "4240e5fb18b3",
+      "defaults": {
+        "id": "\"\""
+      }
+    },
+    "learning.edit": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "01474a373ef0",
+      "defaults": {
+        "content": "\"\"",
+        "id": "\"\""
+      }
+    },
+    "learning.frames": {
+      "file": "methods_tools.py",
+      "lines": 24,
+      "hash": "680b72ae6727",
+      "defaults": {
+        "cols": "80",
+        "frames": "48",
+        "rows": "24"
+      }
+    },
+    "llm.oneshot": {
+      "file": "methods_session.py",
+      "lines": 59,
+      "hash": "270ab4fc5139",
+      "defaults": {}
+    },
+    "mcp.catalog": {
+      "file": "methods_tools.py",
+      "lines": 72,
+      "hash": "bf73b841e08e",
+      "defaults": {}
+    },
+    "mcp.servers.add": {
+      "file": "methods_tools.py",
+      "lines": 73,
+      "hash": "c38ca8a23624",
+      "defaults": {}
+    },
+    "mcp.servers.list": {
+      "file": "methods_tools.py",
+      "lines": 30,
+      "hash": "121d7fd87e3e",
+      "defaults": {}
+    },
+    "mcp.servers.oauth.poll": {
+      "file": "methods_tools.py",
+      "lines": 33,
+      "hash": "fae982fa13d3",
+      "defaults": {}
+    },
+    "mcp.servers.oauth.start": {
+      "file": "methods_tools.py",
+      "lines": 61,
+      "hash": "b4f4f45d7466",
+      "defaults": {}
+    },
+    "mcp.servers.remove": {
+      "file": "methods_tools.py",
+      "lines": 26,
+      "hash": "275da316896a",
+      "defaults": {}
+    },
+    "mcp.servers.set_api_key": {
+      "file": "methods_tools.py",
+      "lines": 80,
+      "hash": "26463455de19",
+      "defaults": {}
+    },
+    "mcp.servers.test": {
+      "file": "methods_tools.py",
+      "lines": 79,
+      "hash": "9ef8fc927400",
+      "defaults": {
+        "prompts": "0",
+        "resources": "0"
+      }
+    },
+    "mcp.setup.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "a9be973b9ded",
+      "defaults": {}
+    },
+    "message.react": {
+      "file": "methods_session.py",
+      "lines": 53,
+      "hash": "5d68500d1198",
+      "defaults": {}
+    },
+    "model.disconnect": {
+      "file": "methods_complete.py",
+      "lines": 56,
+      "hash": "5da393b1df68",
+      "defaults": {}
+    },
+    "model.options": {
+      "file": "methods_complete.py",
+      "lines": 23,
+      "hash": "df5c3254b124",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "model.save_key": {
+      "file": "methods_complete.py",
+      "lines": 80,
+      "hash": "935fe93ec1b5",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "paste.collapse": {
+      "file": "methods_complete.py",
+      "lines": 27,
+      "hash": "d12d7b85a50e",
+      "defaults": {
+        "text": "\"\""
+      }
+    },
+    "pdf.attach": {
+      "file": "methods_prompt.py",
+      "lines": 126,
+      "hash": "e1b4bb090fe4",
+      "defaults": {
+        "filename": "\"\"",
+        "path": "\"\""
+      }
+    },
+    "pet.cancel": {
+      "file": "methods_session.py",
+      "lines": 14,
+      "hash": "f465340d8094",
+      "defaults": {}
+    },
+    "pet.cells": {
+      "file": "methods_session.py",
+      "lines": 105,
+      "hash": "54e3d97939b7",
+      "defaults": {
+        "render_mode": "\"auto\"",
+        "slug": "\"\"",
+        "unicode_cols": "0"
+      }
+    },
+    "pet.disable": {
+      "file": "methods_session.py",
+      "lines": 14,
+      "hash": "396e46a06838",
+      "defaults": {}
+    },
+    "pet.export": {
+      "file": "methods_session.py",
+      "lines": 27,
+      "hash": "1cf20a572f8c",
+      "defaults": {}
+    },
+    "pet.gallery": {
+      "file": "methods_session.py",
+      "lines": 83,
+      "hash": "4e996f774fda",
+      "defaults": {
+        "slug": "\"\""
+      }
+    },
+    "pet.generate": {
+      "file": "methods_session.py",
+      "lines": 113,
+      "hash": "9dc561d3056c",
+      "defaults": {}
+    },
+    "pet.generate.status": {
+      "file": "methods_session.py",
+      "lines": 31,
+      "hash": "cb0b6290ba9c",
+      "defaults": {}
+    },
+    "pet.hatch": {
+      "file": "methods_session.py",
+      "lines": 99,
+      "hash": "d48a7183ab8b",
+      "defaults": {
+        "index": "0"
+      }
+    },
+    "pet.info": {
+      "file": "methods_session.py",
+      "lines": 36,
+      "hash": "7b16aed507d7",
+      "defaults": {
+        "knownRevision": "\"\""
+      }
+    },
+    "pet.info.meta": {
+      "file": "methods_session.py",
+      "lines": 23,
+      "hash": "0040939a06f8",
+      "defaults": {}
+    },
+    "pet.remove": {
+      "file": "methods_session.py",
+      "lines": 30,
+      "hash": "3d173a0982cb",
+      "defaults": {}
+    },
+    "pet.rename": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "30c6b7fa24d9",
+      "defaults": {}
+    },
+    "pet.scale": {
+      "file": "methods_session.py",
+      "lines": 21,
+      "hash": "bebf0439783a",
+      "defaults": {}
+    },
+    "pet.select": {
+      "file": "methods_session.py",
+      "lines": 27,
+      "hash": "c6d6d95b0608",
+      "defaults": {}
+    },
+    "pet.thumb": {
+      "file": "methods_session.py",
+      "lines": 35,
+      "hash": "24b3b537e1a6",
+      "defaults": {}
+    },
+    "plugins.list": {
+      "file": "methods_tools.py",
+      "lines": 22,
+      "hash": "7895cc5c51a3",
+      "defaults": {}
+    },
+    "plugins.manage": {
+      "file": "methods_tools.py",
+      "lines": 112,
+      "hash": "1b834424e265",
+      "defaults": {
+        "action": "\"list\""
+      }
+    },
+    "preview.read.respond": {
+      "file": "methods_prompt.py",
+      "lines": 8,
+      "hash": "b865cc644169",
+      "defaults": {}
+    },
+    "preview.restart": {
+      "file": "methods_prompt.py",
+      "lines": 132,
+      "hash": "57f33dc0c29e",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "process.kill": {
+      "file": "methods_tools.py",
+      "lines": 23,
+      "hash": "b858cc9aeadb",
+      "defaults": {}
+    },
+    "process.list": {
+      "file": "methods_tools.py",
+      "lines": 12,
+      "hash": "383b396c3049",
+      "defaults": {}
+    },
+    "process.stop": {
+      "file": "methods_tools.py",
+      "lines": 10,
+      "hash": "0a53426e0c8a",
+      "defaults": {}
+    },
+    "profiles.configure": {
+      "file": "methods_profiles.py",
+      "lines": 203,
+      "hash": "4d6bc87d3bde",
+      "defaults": {}
+    },
+    "profiles.create": {
+      "file": "methods_profiles.py",
+      "lines": 239,
+      "hash": "622163399cc0",
+      "defaults": {
+        "clone_all": "False",
+        "mirror_credentials": "True",
+        "no_skills": "False",
+        "share_auth": "False"
+      }
+    },
+    "profiles.describe": {
+      "file": "methods_profiles.py",
+      "lines": 171,
+      "hash": "c85b29f7d10b",
+      "defaults": {
+        "disabled": "False"
+      }
+    },
+    "profiles.get_asset": {
+      "file": "methods_profiles.py",
+      "lines": 44,
+      "hash": "2ce6ccb59cca",
+      "defaults": {}
+    },
+    "profiles.list": {
+      "file": "methods_profiles.py",
+      "lines": 228,
+      "hash": "f90c00edf2c6",
+      "defaults": {
+        "include_sessions": "True"
+      }
+    },
+    "profiles.set_asset": {
+      "file": "methods_profiles.py",
+      "lines": 86,
+      "hash": "5ccf72d630d9",
+      "defaults": {
+        "clear": "False"
+      }
+    },
+    "project.facts": {
+      "file": "methods_session.py",
+      "lines": 18,
+      "hash": "4c285242f8f3",
+      "defaults": {}
+    },
+    "projects.add_folder": {
+      "file": "server.py",
+      "lines": 13,
+      "hash": "52ed0b29095a",
+      "defaults": {}
+    },
+    "projects.archive": {
+      "file": "server.py",
+      "lines": 7,
+      "hash": "04009597062b",
+      "defaults": {}
+    },
+    "projects.create": {
+      "file": "server.py",
+      "lines": 19,
+      "hash": "a4693f1498c5",
+      "defaults": {}
+    },
+    "projects.delete": {
+      "file": "server.py",
+      "lines": 7,
+      "hash": "535ea9fa6808",
+      "defaults": {}
+    },
+    "projects.discover_repos": {
+      "file": "methods_config.py",
+      "lines": 25,
+      "hash": "4f485ce30341",
+      "defaults": {}
+    },
+    "projects.for_cwd": {
+      "file": "server.py",
+      "lines": 1844,
+      "hash": "9012f5e6bc69",
+      "defaults": {
+        "always": "False",
+        "barge_in": "True",
+        "barge_in_grace_seconds": "0.5",
+        "barge_in_threshold_multiplier": "0",
+        "HERMES_VOICE": "\"\"",
+        "HERMES_VOICE_TTS": "\"\"",
+        "system_prompt": "\"\"",
+        "text": "\"\"",
+        "warning": "\"\""
+      }
+    },
+    "projects.get": {
+      "file": "server.py",
+      "lines": 5,
+      "hash": "c0ced18103d2",
+      "defaults": {}
+    },
+    "projects.list": {
+      "file": "server.py",
+      "lines": 5,
+      "hash": "7eb2c37e2c49",
+      "defaults": {}
+    },
+    "projects.project_sessions": {
+      "file": "methods_config.py",
+      "lines": 26,
+      "hash": "875bfc7ba9f2",
+      "defaults": {}
+    },
+    "projects.record_repos": {
+      "file": "methods_config.py",
+      "lines": 64,
+      "hash": "f73e951f690c",
+      "defaults": {}
+    },
+    "projects.remove_folder": {
+      "file": "server.py",
+      "lines": 7,
+      "hash": "ee5ec8636089",
+      "defaults": {}
+    },
+    "projects.set_active": {
+      "file": "server.py",
+      "lines": 6,
+      "hash": "c197d8d5851d",
+      "defaults": {}
+    },
+    "projects.set_primary": {
+      "file": "server.py",
+      "lines": 7,
+      "hash": "62e652670aba",
+      "defaults": {}
+    },
+    "projects.tree": {
+      "file": "methods_config.py",
+      "lines": 27,
+      "hash": "45a6a67d03c8",
+      "defaults": {}
+    },
+    "projects.update": {
+      "file": "server.py",
+      "lines": 15,
+      "hash": "19c189c8224d",
+      "defaults": {}
+    },
+    "prompt.background": {
+      "file": "methods_prompt.py",
+      "lines": 62,
+      "hash": "43b3bf657655",
+      "defaults": {
+        "session_id": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "prompt.submit": {
+      "file": "methods_prompt.py",
+      "lines": 554,
+      "hash": "874a781e3ed9",
+      "defaults": {
+        "history_version": "0",
+        "message": "\"agent initialization failed\"",
+        "session_id": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "reload.env": {
+      "file": "methods_tools.py",
+      "lines": 21,
+      "hash": "d8cb0cd1cb8b",
+      "defaults": {}
+    },
+    "reload.mcp": {
+      "file": "methods_tools.py",
+      "lines": 150,
+      "hash": "a9f611b1ace4",
+      "defaults": {
+        "confirm": "False",
+        "mcp_reload_confirm": "True",
+        "session_id": "\"\""
+      }
+    },
+    "rollback.diff": {
+      "file": "methods_tools.py",
+      "lines": 23,
+      "hash": "54c6d3bc14fa",
+      "defaults": {
+        "cols": "80",
+        "diff": "\"\"",
+        "hash": "\"\"",
+        "stat": "\"\""
+      }
+    },
+    "rollback.list": {
+      "file": "methods_tools.py",
+      "lines": 30,
+      "hash": "aee976b06688",
+      "defaults": {
+        "hash": "\"\"",
+        "message": "\"\"",
+        "timestamp": "\"\""
+      }
+    },
+    "rollback.restore": {
+      "file": "methods_tools.py",
+      "lines": 57,
+      "hash": "41c96d1ccdea",
+      "defaults": {
+        "file_path": "\"\"",
+        "hash": "\"\"",
+        "history_version": "0"
+      }
+    },
+    "secret.respond": {
+      "file": "methods_prompt.py",
+      "lines": 5,
+      "hash": "11a48aa3890c",
+      "defaults": {}
+    },
+    "session.activate": {
+      "file": "methods_session.py",
+      "lines": 25,
+      "hash": "236a083774aa",
+      "defaults": {
+        "omit_messages": "False"
+      }
+    },
+    "session.active_list": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "a0295bed13ae",
+      "defaults": {}
+    },
+    "session.branch": {
+      "file": "methods_session.py",
+      "lines": 216,
+      "hash": "cba1803953ab",
+      "defaults": {
+        "cols": "80",
+        "name": "\"\"",
+        "role": "\"user\""
+      }
+    },
+    "session.close": {
+      "file": "methods_session.py",
+      "lines": 12,
+      "hash": "477d2426e169",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "session.compress": {
+      "file": "methods_session.py",
+      "lines": 172,
+      "hash": "a8389757cb9f",
+      "defaults": {
+        "focus_topic": "\"\"",
+        "history_version": "0",
+        "session_id": "\"\""
+      }
+    },
+    "session.context_breakdown": {
+      "file": "methods_session.py",
+      "lines": 30,
+      "hash": "ad92f53322d5",
+      "defaults": {
+        "context_max": "0",
+        "context_percent": "0",
+        "context_used": "0",
+        "model": "\"\"",
+        "total": "0"
+      }
+    },
+    "session.create": {
+      "file": "methods_session.py",
+      "lines": 149,
+      "hash": "4e24f726eb66",
+      "defaults": {
+        "close_on_disconnect": "False",
+        "cols": "80",
+        "hidden": "False"
+      }
+    },
+    "session.cwd.set": {
+      "file": "methods_session.py",
+      "lines": 25,
+      "hash": "b1c8b7b46400",
+      "defaults": {
+        "cwd": "\"\"",
+        "session_id": "\"\""
+      }
+    },
+    "session.delete": {
+      "file": "methods_session.py",
+      "lines": 50,
+      "hash": "5efc1b4b99e3",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "session.history": {
+      "file": "methods_session.py",
+      "lines": 32,
+      "hash": "fe359fea9a2c",
+      "defaults": {}
+    },
+    "session.interrupt": {
+      "file": "methods_session.py",
+      "lines": 74,
+      "hash": "f04be6907348",
+      "defaults": {
+        "_queued_prompt_generation": "0",
+        "session_id": "\"\""
+      }
+    },
+    "session.list": {
+      "file": "methods_session.py",
+      "lines": 58,
+      "hash": "7b43b878f9f8",
+      "defaults": {
+        "include_hidden": "False",
+        "limit": "200"
+      }
+    },
+    "session.most_recent": {
+      "file": "methods_session.py",
+      "lines": 49,
+      "hash": "ebdd61c33084",
+      "defaults": {}
+    },
+    "session.redirect": {
+      "file": "methods_session.py",
+      "lines": 42,
+      "hash": "4fcf887f5b0a",
+      "defaults": {}
+    },
+    "session.resume": {
+      "file": "methods_session.py",
+      "lines": 579,
+      "hash": "a7e71103b108",
+      "defaults": {
+        "close_on_disconnect": "False",
+        "cols": "80",
+        "defer_history": "False",
+        "eager_build": "False",
+        "lazy": "False",
+        "omit_messages": "False",
+        "session_id": "\"\""
+      }
+    },
+    "session.save": {
+      "file": "methods_session.py",
+      "lines": 72,
+      "hash": "c8716ab5afa6",
+      "defaults": {}
+    },
+    "session.set_hidden": {
+      "file": "methods_session.py",
+      "lines": 52,
+      "hash": "e1e3bf9e091f",
+      "defaults": {
+        "hidden": "True"
+      }
+    },
+    "session.status": {
+      "file": "methods_session.py",
+      "lines": 76,
+      "hash": "0f4c73ef8eaa",
+      "defaults": {}
+    },
+    "session.steer": {
+      "file": "methods_session.py",
+      "lines": 37,
+      "hash": "efe3124fce82",
+      "defaults": {}
+    },
+    "session.title": {
+      "file": "methods_session.py",
+      "lines": 84,
+      "hash": "abc1ca306f9f",
+      "defaults": {
+        "session_id": "\"\"",
+        "title": "\"\""
+      }
+    },
+    "session.undo": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "0f4a9c9e1eac",
+      "defaults": {
+        "history_version": "0"
+      }
+    },
+    "session.usage": {
+      "file": "methods_session.py",
+      "lines": 24,
+      "hash": "135da014ed1c",
+      "defaults": {}
+    },
+    "session.workspace.move": {
+      "file": "methods_session.py",
+      "lines": 75,
+      "hash": "30d25d6d7160",
+      "defaults": {
+        "cwd": "\"\""
+      }
+    },
+    "setup.runtime_check": {
+      "file": "methods_config.py",
+      "lines": 74,
+      "hash": "1e06e822ea76",
+      "defaults": {}
+    },
+    "setup.status": {
+      "file": "methods_config.py",
+      "lines": 10,
+      "hash": "e4c56e66997b",
+      "defaults": {}
+    },
+    "shell.exec": {
+      "file": "methods_tools.py",
+      "lines": 49,
+      "hash": "0339181fdd16",
+      "defaults": {
+        "command": "\"\""
+      }
+    },
+    "skills.manage": {
+      "file": "methods_tools.py",
+      "lines": 84,
+      "hash": "d6056a17e82e",
+      "defaults": {
+        "action": "\"list\"",
+        "page": "0",
+        "page_size": "20",
+        "query": "\"\""
+      }
+    },
+    "skills.reload": {
+      "file": "methods_tools.py",
+      "lines": 25,
+      "hash": "ff63c4420748",
+      "defaults": {}
+    },
+    "slash.exec": {
+      "file": "methods_tools.py",
+      "lines": 154,
+      "hash": "a23019f8c3fd",
+      "defaults": {
+        "command": "\"\"",
+        "session_id": "\"\""
+      }
+    },
+    "spawn_tree.list": {
+      "file": "methods_session.py",
+      "lines": 51,
+      "hash": "03edb49fbb97",
+      "defaults": {}
+    },
+    "spawn_tree.load": {
+      "file": "methods_session.py",
+      "lines": 24,
+      "hash": "4ec1cdbde789",
+      "defaults": {}
+    },
+    "spawn_tree.save": {
+      "file": "methods_session.py",
+      "lines": 43,
+      "hash": "a01f9d9b791e",
+      "defaults": {}
+    },
+    "subagent.interrupt": {
+      "file": "methods_session.py",
+      "lines": 11,
+      "hash": "a9de3eb68876",
+      "defaults": {}
+    },
+    "subagent.steer": {
+      "file": "methods_session.py",
+      "lines": 46,
+      "hash": "ed4957a58985",
+      "defaults": {}
+    },
+    "subscription.change": {
+      "file": "methods_session.py",
+      "lines": 23,
+      "hash": "249aa8beacb2",
+      "defaults": {}
+    },
+    "subscription.preview": {
+      "file": "methods_session.py",
+      "lines": 25,
+      "hash": "d71953fdbb2e",
+      "defaults": {}
+    },
+    "subscription.resume": {
+      "file": "methods_session.py",
+      "lines": 18,
+      "hash": "5370e171991f",
+      "defaults": {}
+    },
+    "subscription.state": {
+      "file": "methods_session.py",
+      "lines": 16,
+      "hash": "860a99afc26c",
+      "defaults": {}
+    },
+    "subscription.upgrade": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "fe66d7bb1d71",
+      "defaults": {}
+    },
+    "sudo.respond": {
+      "file": "methods_prompt.py",
+      "lines": 5,
+      "hash": "1670ec117c4a",
+      "defaults": {}
+    },
+    "system.battery": {
+      "file": "methods_tools.py",
+      "lines": 25,
+      "hash": "b7f5e4d603e3",
+      "defaults": {}
+    },
+    "terminal.read.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "38e874060ba9",
+      "defaults": {}
+    },
+    "terminal.resize": {
+      "file": "methods_session.py",
+      "lines": 13,
+      "hash": "48fd98ed7689",
+      "defaults": {
+        "cols": "80"
+      }
+    },
+    "tools.configure": {
+      "file": "methods_tools.py",
+      "lines": 69,
+      "hash": "59edc1d88746",
+      "defaults": {
+        "action": "\"\"",
+        "session_id": "\"\""
+      }
+    },
+    "tools.list": {
+      "file": "methods_tools.py",
+      "lines": 31,
+      "hash": "937fc6d88613",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "tools.show": {
+      "file": "methods_tools.py",
+      "lines": 43,
+      "hash": "a487da4c7195",
+      "defaults": {
+        "description": "\"\"",
+        "session_id": "\"\""
+      }
+    },
+    "toolsets.list": {
+      "file": "methods_tools.py",
+      "lines": 30,
+      "hash": "43deee25514f",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "usage.bars": {
+      "file": "methods_session.py",
+      "lines": 15,
+      "hash": "362b68497f7a",
+      "defaults": {}
+    },
+    "verification.status": {
+      "file": "methods_session.py",
+      "lines": 25,
+      "hash": "72069f0ce587",
+      "defaults": {}
+    },
+    "voice.record": {
+      "file": "server.py",
+      "lines": 154,
+      "hash": "174a2b583f5e",
+      "defaults": {
+        "action": "\"start\""
+      }
+    },
+    "voice.toggle": {
+      "file": "server.py",
+      "lines": 114,
+      "hash": "3390f375b9ac",
+      "defaults": {
+        "action": "\"status\""
+      }
+    },
+    "voice.tts": {
+      "file": "server.py",
+      "lines": 336,
+      "hash": "e7edb4883447",
+      "defaults": {
+        "BROWSER_CDP_URL": "\"\"",
+        "cdp_url": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "wake.feed": {
+      "file": "server.py",
+      "lines": 39,
+      "hash": "c43ce0a2066e",
+      "defaults": {}
+    },
+    "wake.pause": {
+      "file": "server.py",
+      "lines": 18,
+      "hash": "431be49c89cf",
+      "defaults": {}
+    },
+    "wake.resume": {
+      "file": "server.py",
+      "lines": 12,
+      "hash": "486fa405d5d3",
+      "defaults": {}
+    },
+    "wake.start": {
+      "file": "server.py",
+      "lines": 149,
+      "hash": "0e7c3b8179d4",
+      "defaults": {
+        "frame_length": "1280",
+        "sample_rate": "16000",
+        "start_new_session": "True"
+      }
+    },
+    "wake.status": {
+      "file": "server.py",
+      "lines": 70,
+      "hash": "21959d538fd8",
+      "defaults": {
+        "frame_length": "1280",
+        "hint": "\"\"",
+        "sample_rate": "16000"
+      }
+    },
+    "wake.stop": {
+      "file": "server.py",
+      "lines": 27,
+      "hash": "f98701ee76f5",
+      "defaults": {}
+    },
+    "window.read.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "9a0f32987194",
+      "defaults": {}
+    }
+  },
+  "gatewayEmittedEvents": [
+    "agent.terminal.output",
+    "approval.request",
+    "background.complete",
+    "billing.step_up.verification",
+    "browser.progress",
+    "error",
+    "message.complete",
+    "message.delta",
+    "message.interim",
+    "message.start",
+    "moa.aggregating",
+    "moa.phase",
+    "moa.progress",
+    "moa.reference",
+    "notice",
+    "notification.clear",
+    "notification.show",
+    "pet.generate.progress",
+    "pet.hatch.progress",
+    "preview.restart.complete",
+    "preview.restart.progress",
+    "reaction",
+    "reasoning.available",
+    "reasoning.delta",
+    "review.summary",
+    "session.info",
+    "session.resume_progress",
+    "session.title",
+    "session.usage",
+    "status.update",
+    "terminal.close",
+    "thinking.delta",
+    "tool.complete",
+    "tool.generating",
+    "tool.output_risk",
+    "tool.start",
+    "voice.interrupted",
+    "voice.status",
+    "voice.transcript",
+    "wake.detected"
+  ],
+  "coreRestRoutes": {
+    "DELETE /api/credentials/pool/{provider}/{index}": "web_server.py",
+    "DELETE /api/cron/jobs/{job_id}": "web_routers/cron.py",
+    "DELETE /api/dashboard/agent-plugins/{name:path}": "web_server.py",
+    "DELETE /api/env": "web_server.py",
+    "DELETE /api/files": "web_server.py",
+    "DELETE /api/learning/node": "web_server.py",
+    "DELETE /api/mcp/oauth/flows/{flow_id}": "web_routers/mcp.py",
+    "DELETE /api/mcp/servers/{name}": "web_routers/mcp.py",
+    "DELETE /api/messaging/telegram/onboarding/{pairing_id}": "web_server.py",
+    "DELETE /api/messaging/whatsapp/onboarding/{pairing_id}": "web_server.py",
+    "DELETE /api/ops/hooks": "web_server.py",
+    "DELETE /api/profiles/{name}": "web_routers/profiles.py",
+    "DELETE /api/providers/custom-endpoints/{endpoint_id}": "web_server.py",
+    "DELETE /api/providers/oauth/{provider_id}": "web_server.py",
+    "DELETE /api/providers/oauth/sessions/{session_id}": "web_server.py",
+    "DELETE /api/sessions/{session_id}": "web_routers/sessions.py",
+    "DELETE /api/sessions/empty": "web_routers/sessions.py",
+    "DELETE /api/webhooks/{name}": "web_server.py",
+    "GET /{full_path:path}": "web_server.py",
+    "GET /api/actions/{name}/status": "web_server.py",
+    "GET /api/analytics/models": "web_server.py",
+    "GET /api/analytics/usage": "web_server.py",
+    "GET /api/audio/elevenlabs/voices": "web_server.py",
+    "GET /api/config": "web_server.py",
+    "GET /api/config/defaults": "web_server.py",
+    "GET /api/config/raw": "web_server.py",
+    "GET /api/config/schema": "web_server.py",
+    "GET /api/credentials/pool": "web_server.py",
+    "GET /api/cron/blueprints": "web_routers/cron.py",
+    "GET /api/cron/delivery-targets": "web_routers/cron.py",
+    "GET /api/cron/jobs": "web_routers/cron.py",
+    "GET /api/cron/jobs/{job_id}": "web_routers/cron.py",
+    "GET /api/cron/jobs/{job_id}/runs": "web_routers/cron.py",
+    "GET /api/curator": "web_server.py",
+    "GET /api/dashboard/font": "web_server.py",
+    "GET /api/dashboard/plugins": "web_server.py",
+    "GET /api/dashboard/plugins/hub": "web_server.py",
+    "GET /api/dashboard/plugins/rescan": "web_server.py",
+    "GET /api/dashboard/themes": "web_server.py",
+    "GET /api/egress/status": "web_server.py",
+    "GET /api/env": "web_server.py",
+    "GET /api/files": "web_server.py",
+    "GET /api/files/download": "web_server.py",
+    "GET /api/files/read": "web_server.py",
+    "GET /api/files/stream": "web_server.py",
+    "GET /api/fs/default-cwd": "web_server.py",
+    "GET /api/fs/download": "web_server.py",
+    "GET /api/fs/git-root": "web_server.py",
+    "GET /api/fs/list": "web_server.py",
+    "GET /api/fs/read-data-url": "web_server.py",
+    "GET /api/fs/read-text": "web_server.py",
+    "GET /api/git/base-branches": "web_routers/git.py",
+    "GET /api/git/branches": "web_routers/git.py",
+    "GET /api/git/file-diff": "web_routers/git.py",
+    "GET /api/git/gh-auth": "web_routers/git.py",
+    "GET /api/git/review/commit-context": "web_routers/git.py",
+    "GET /api/git/review/diff": "web_routers/git.py",
+    "GET /api/git/review/list": "web_routers/git.py",
+    "GET /api/git/review/rev-parse": "web_routers/git.py",
+    "GET /api/git/review/ship-info": "web_routers/git.py",
+    "GET /api/git/status": "web_routers/git.py",
+    "GET /api/git/worktrees": "web_routers/git.py",
+    "GET /api/health": "web_server.py",
+    "GET /api/hermes/update/check": "web_server.py",
+    "GET /api/learning/graph": "web_server.py",
+    "GET /api/learning/node": "web_server.py",
+    "GET /api/logs": "web_server.py",
+    "GET /api/mcp/catalog": "web_routers/mcp.py",
+    "GET /api/mcp/oauth/callback/{server_name:path}": "web_routers/mcp.py",
+    "GET /api/mcp/oauth/flows/{flow_id}": "web_routers/mcp.py",
+    "GET /api/mcp/servers": "web_routers/mcp.py",
+    "GET /api/media": "web_server.py",
+    "GET /api/memory": "web_server.py",
+    "GET /api/memory/providers/{name}/config": "web_server.py",
+    "GET /api/messaging/platforms": "web_server.py",
+    "GET /api/messaging/telegram/onboarding/{pairing_id}": "web_server.py",
+    "GET /api/messaging/whatsapp/onboarding/{pairing_id}": "web_server.py",
+    "GET /api/model/auxiliary": "web_server.py",
+    "GET /api/model/info": "web_server.py",
+    "GET /api/model/moa": "web_server.py",
+    "GET /api/model/options": "web_server.py",
+    "GET /api/model/recommended-default": "web_server.py",
+    "GET /api/ops/backup/download": "web_server.py",
+    "GET /api/ops/checkpoints": "web_server.py",
+    "GET /api/ops/hooks": "web_server.py",
+    "GET /api/pairing": "web_server.py",
+    "GET /api/portal": "web_server.py",
+    "GET /api/profiles": "web_routers/profiles.py",
+    "GET /api/profiles/{name}/desktop-overlay": "web_routers/profiles.py",
+    "GET /api/profiles/{name}/setup-command": "web_routers/profiles.py",
+    "GET /api/profiles/{name}/soul": "web_routers/profiles.py",
+    "GET /api/profiles/active": "web_routers/profiles.py",
+    "GET /api/profiles/projects/tree": "web_routers/profiles.py",
+    "GET /api/profiles/sessions": "web_routers/profiles.py",
+    "GET /api/profiles/sessions/sidebar": "web_routers/profiles.py",
+    "GET /api/providers/custom-endpoints": "web_server.py",
+    "GET /api/providers/oauth": "web_server.py",
+    "GET /api/providers/oauth/{provider_id}/poll/{session_id}": "web_server.py",
+    "GET /api/sessions": "web_routers/sessions.py",
+    "GET /api/sessions/{session_id}": "web_routers/sessions.py",
+    "GET /api/sessions/{session_id}/export": "web_routers/sessions.py",
+    "GET /api/sessions/{session_id}/latest-descendant": "web_routers/sessions.py",
+    "GET /api/sessions/{session_id}/messages": "web_routers/sessions.py",
+    "GET /api/sessions/empty/count": "web_routers/sessions.py",
+    "GET /api/sessions/search": "web_routers/sessions.py",
+    "GET /api/sessions/stats": "web_routers/sessions.py",
+    "GET /api/skills": "web_routers/skills.py",
+    "GET /api/skills/content": "web_routers/skills.py",
+    "GET /api/skills/hub/preview": "web_routers/skills.py",
+    "GET /api/skills/hub/scan": "web_routers/skills.py",
+    "GET /api/skills/hub/search": "web_routers/skills.py",
+    "GET /api/skills/hub/sources": "web_routers/skills.py",
+    "GET /api/ssh/ownership": "web_server.py",
+    "GET /api/status": "web_server.py",
+    "GET /api/system/stats": "web_server.py",
+    "GET /api/tools/computer-use/status": "web_routers/tools.py",
+    "GET /api/tools/terminal/backends": "web_routers/tools.py",
+    "GET /api/tools/toolsets": "web_routers/tools.py",
+    "GET /api/tools/toolsets/{name}/config": "web_routers/tools.py",
+    "GET /api/tools/toolsets/{name}/models": "web_routers/tools.py",
+    "GET /api/webhooks": "web_server.py",
+    "GET /assets/{filename}.css": "web_server.py",
+    "GET /dashboard-plugins/{plugin_name}/{file_path:path}": "web_server.py",
+    "PATCH /api/profiles/{name}": "web_routers/profiles.py",
+    "PATCH /api/sessions/{session_id}": "web_routers/sessions.py",
+    "POST /api/audio/speak": "web_server.py",
+    "POST /api/audio/transcribe": "web_server.py",
+    "POST /api/chat/image-upload": "web_server.py",
+    "POST /api/credentials/pool": "web_server.py",
+    "POST /api/cron/blueprints/instantiate": "web_routers/cron.py",
+    "POST /api/cron/fire": "web_routers/cron.py",
+    "POST /api/cron/jobs": "web_routers/cron.py",
+    "POST /api/cron/jobs/{job_id}/pause": "web_routers/cron.py",
+    "POST /api/cron/jobs/{job_id}/resume": "web_routers/cron.py",
+    "POST /api/cron/jobs/{job_id}/trigger": "web_routers/cron.py",
+    "POST /api/curator/run": "web_server.py",
+    "POST /api/dashboard/agent-plugins/{name:path}/disable": "web_server.py",
+    "POST /api/dashboard/agent-plugins/{name:path}/enable": "web_server.py",
+    "POST /api/dashboard/agent-plugins/{name:path}/update": "web_server.py",
+    "POST /api/dashboard/agent-plugins/install": "web_server.py",
+    "POST /api/dashboard/plugins/{name:path}/visibility": "web_server.py",
+    "POST /api/env/reveal": "web_server.py",
+    "POST /api/files/mkdir": "web_server.py",
+    "POST /api/files/upload": "web_server.py",
+    "POST /api/files/upload-stream": "web_server.py",
+    "POST /api/fs/write-text": "web_server.py",
+    "POST /api/gateway/drain": "web_server.py",
+    "POST /api/gateway/restart": "web_server.py",
+    "POST /api/gateway/start": "web_server.py",
+    "POST /api/gateway/stop": "web_server.py",
+    "POST /api/git/branch/switch": "web_routers/git.py",
+    "POST /api/git/review/commit": "web_routers/git.py",
+    "POST /api/git/review/create-pr": "web_routers/git.py",
+    "POST /api/git/review/pr-list": "web_routers/git.py",
+    "POST /api/git/review/push": "web_routers/git.py",
+    "POST /api/git/review/revert": "web_routers/git.py",
+    "POST /api/git/review/stage": "web_routers/git.py",
+    "POST /api/git/review/unstage": "web_routers/git.py",
+    "POST /api/git/worktree/add": "web_routers/git.py",
+    "POST /api/git/worktree/remove": "web_routers/git.py",
+    "POST /api/hermes/update": "web_server.py",
+    "POST /api/mcp/catalog/install": "web_routers/mcp.py",
+    "POST /api/mcp/servers": "web_routers/mcp.py",
+    "POST /api/mcp/servers/{name}/auth": "web_routers/mcp.py",
+    "POST /api/mcp/servers/{name}/test": "web_routers/mcp.py",
+    "POST /api/memory/providers/{name}/setup": "web_server.py",
+    "POST /api/memory/reset": "web_server.py",
+    "POST /api/messaging/platforms/{platform_id}/test": "web_server.py",
+    "POST /api/messaging/telegram/onboarding/{pairing_id}/apply": "web_server.py",
+    "POST /api/messaging/telegram/onboarding/start": "web_server.py",
+    "POST /api/messaging/whatsapp/onboarding/{pairing_id}/apply": "web_server.py",
+    "POST /api/messaging/whatsapp/onboarding/start": "web_server.py",
+    "POST /api/model/set": "web_server.py",
+    "POST /api/ops/backup": "web_server.py",
+    "POST /api/ops/checkpoints/prune": "web_server.py",
+    "POST /api/ops/config-migrate": "web_server.py",
+    "POST /api/ops/debug-share": "web_server.py",
+    "POST /api/ops/doctor": "web_server.py",
+    "POST /api/ops/dump": "web_server.py",
+    "POST /api/ops/hooks": "web_server.py",
+    "POST /api/ops/import": "web_server.py",
+    "POST /api/ops/import-upload": "web_server.py",
+    "POST /api/ops/prompt-size": "web_server.py",
+    "POST /api/ops/security-audit": "web_server.py",
+    "POST /api/pairing/approve": "web_server.py",
+    "POST /api/pairing/clear-pending": "web_server.py",
+    "POST /api/pairing/revoke": "web_server.py",
+    "POST /api/profiles": "web_routers/profiles.py",
+    "POST /api/profiles/{name}/describe-auto": "web_routers/profiles.py",
+    "POST /api/profiles/{name}/export": "web_routers/profiles.py",
+    "POST /api/profiles/{name}/open-terminal": "web_routers/profiles.py",
+    "POST /api/profiles/active": "web_routers/profiles.py",
+    "POST /api/profiles/import": "web_routers/profiles.py",
+    "POST /api/profiles/sessions/pull-requests": "web_routers/profiles.py",
+    "POST /api/providers/custom-endpoints": "web_server.py",
+    "POST /api/providers/custom-endpoints/{endpoint_id}/activate": "web_server.py",
+    "POST /api/providers/custom-endpoints/validate": "web_server.py",
+    "POST /api/providers/oauth/{provider_id}/start": "web_server.py",
+    "POST /api/providers/oauth/{provider_id}/submit": "web_server.py",
+    "POST /api/providers/validate": "web_server.py",
+    "POST /api/sessions/bulk-delete": "web_routers/sessions.py",
+    "POST /api/sessions/import": "web_routers/sessions.py",
+    "POST /api/sessions/prune": "web_routers/sessions.py",
+    "POST /api/skills": "web_routers/skills.py",
+    "POST /api/skills/hub/install": "web_routers/skills.py",
+    "POST /api/skills/hub/uninstall": "web_routers/skills.py",
+    "POST /api/skills/hub/update": "web_routers/skills.py",
+    "POST /api/tools/computer-use/permissions/grant": "web_routers/tools.py",
+    "POST /api/tools/toolsets/{name}/post-setup": "web_routers/tools.py",
+    "POST /api/webhooks": "web_server.py",
+    "POST /api/webhooks/enable": "web_server.py",
+    "PUT /api/config": "web_server.py",
+    "PUT /api/config/raw": "web_server.py",
+    "PUT /api/cron/jobs/{job_id}": "web_routers/cron.py",
+    "PUT /api/curator/paused": "web_server.py",
+    "PUT /api/dashboard/font": "web_server.py",
+    "PUT /api/dashboard/plugin-providers": "web_server.py",
+    "PUT /api/dashboard/theme": "web_server.py",
+    "PUT /api/env": "web_server.py",
+    "PUT /api/learning/node": "web_server.py",
+    "PUT /api/mcp/servers": "web_routers/mcp.py",
+    "PUT /api/mcp/servers/{name}/enabled": "web_routers/mcp.py",
+    "PUT /api/memory/provider": "web_server.py",
+    "PUT /api/memory/providers/{name}/config": "web_server.py",
+    "PUT /api/messaging/platforms/{platform_id}": "web_server.py",
+    "PUT /api/model/moa": "web_server.py",
+    "PUT /api/profiles/{name}/description": "web_routers/profiles.py",
+    "PUT /api/profiles/{name}/model": "web_routers/profiles.py",
+    "PUT /api/profiles/{name}/soul": "web_routers/profiles.py",
+    "PUT /api/skills/content": "web_routers/skills.py",
+    "PUT /api/skills/toggle": "web_routers/skills.py",
+    "PUT /api/tools/terminal/backend": "web_routers/tools.py",
+    "PUT /api/tools/toolsets/{name}": "web_routers/tools.py",
+    "PUT /api/tools/toolsets/{name}/env": "web_routers/tools.py",
+    "PUT /api/tools/toolsets/{name}/model": "web_routers/tools.py",
+    "PUT /api/tools/toolsets/{name}/provider": "web_routers/tools.py",
+    "PUT /api/webhooks/{name}/enabled": "web_server.py",
+    "WEBSOCKET /api/audio/speak-stream": "web_server.py",
+    "WEBSOCKET /api/console": "web_server.py",
+    "WEBSOCKET /api/events": "web_server.py",
+    "WEBSOCKET /api/pty": "web_server.py",
+    "WEBSOCKET /api/pub": "web_server.py",
+    "WEBSOCKET /api/ws": "web_server.py"
+  },
+  "configDefaults": {
+    "_config_version": 37,
+    "agent.agent_cache.idle_ttl_secs": 3600,
+    "agent.agent_cache.max_evictions_per_pass": 16,
+    "agent.agent_cache.max_size": 128,
+    "agent.agent_cache.memory_high_mb": "auto",
+    "agent.agent_cache.protect_recent": 8,
+    "agent.api_max_retries": 3,
+    "agent.bot_mode_protocol": true,
+    "agent.build_wait_timeout": 600,
+    "agent.clarify_timeout": 3600,
+    "agent.coding_context": "auto",
+    "agent.coding_instructions": "",
+    "agent.cron_drain_timeout": 30,
+    "agent.disabled_toolsets": [],
+    "agent.empty_response_guard.cost_threshold_usd": 0.25,
+    "agent.empty_response_guard.enabled": true,
+    "agent.environment_hint": "",
+    "agent.environment_probe": true,
+    "agent.gateway_auto_continue_freshness": 3600,
+    "agent.gateway_notify_interval": 180,
+    "agent.gateway_startup_restore_drain_timeout": 30,
+    "agent.gateway_timeout": 1800,
+    "agent.gateway_timeout_warning": 900,
+    "agent.gateway_turn_lease_timeout": 1800,
+    "agent.image_input_mode": "auto",
+    "agent.intent_ack_continuation": "auto",
+    "agent.local_stream_stale_timeout": 900,
+    "agent.max_turns": 500,
+    "agent.max_verify_nudges": 3,
+    "agent.parallel_tool_call_guidance": true,
+    "agent.reasoning_overrides": {},
+    "agent.reconnect_attention_after": 7200,
+    "agent.restart_after_turn_timeout": 1800,
+    "agent.restart_drain_timeout": 0,
+    "agent.service_tier": "",
+    "agent.session_stall_timeout": 300,
+    "agent.task_completion_guidance": true,
+    "agent.tool_use_enforcement": "auto",
+    "agent.verify_guidance": true,
+    "agent.verify_on_stop": false,
+    "approvals.cron_mode": "deny",
+    "approvals.denial_breaker_threshold": 3,
+    "approvals.deny": [],
+    "approvals.destructive_slash_confirm": true,
+    "approvals.mcp_reload_confirm": true,
+    "approvals.mode": "smart",
+    "approvals.single_query_mode": "deny",
+    "approvals.smart_policy": "",
+    "approvals.timeout": 300,
+    "auxiliary.approval.api_key": "",
+    "auxiliary.approval.base_url": "",
+    "auxiliary.approval.extra_body": {},
+    "auxiliary.approval.model": "",
+    "auxiliary.approval.provider": "auto",
+    "auxiliary.approval.reasoning_effort": "",
+    "auxiliary.approval.timeout": 30,
+    "auxiliary.background_review.api_key": "",
+    "auxiliary.background_review.base_url": "",
+    "auxiliary.background_review.enabled": true,
+    "auxiliary.background_review.extra_body": {},
+    "auxiliary.background_review.model": "",
+    "auxiliary.background_review.provider": "auto",
+    "auxiliary.background_review.reasoning_effort": "",
+    "auxiliary.background_review.timeout": 120,
+    "auxiliary.compression.api_key": "",
+    "auxiliary.compression.base_url": "",
+    "auxiliary.compression.extra_body": {},
+    "auxiliary.compression.model": "",
+    "auxiliary.compression.provider": "auto",
+    "auxiliary.compression.reasoning_effort": "",
+    "auxiliary.compression.timeout": 120,
+    "auxiliary.curator.api_key": "",
+    "auxiliary.curator.base_url": "",
+    "auxiliary.curator.extra_body": {},
+    "auxiliary.curator.model": "",
+    "auxiliary.curator.provider": "auto",
+    "auxiliary.curator.reasoning_effort": "",
+    "auxiliary.curator.timeout": 600,
+    "auxiliary.free_only": false,
+    "auxiliary.goal_judge.api_key": "",
+    "auxiliary.goal_judge.base_url": "",
+    "auxiliary.goal_judge.extra_body": {},
+    "auxiliary.goal_judge.model": "",
+    "auxiliary.goal_judge.provider": "auto",
+    "auxiliary.goal_judge.reasoning_effort": "",
+    "auxiliary.goal_judge.timeout": 60,
+    "auxiliary.kanban_decomposer.api_key": "",
+    "auxiliary.kanban_decomposer.base_url": "",
+    "auxiliary.kanban_decomposer.extra_body": {},
+    "auxiliary.kanban_decomposer.model": "",
+    "auxiliary.kanban_decomposer.provider": "auto",
+    "auxiliary.kanban_decomposer.reasoning_effort": "",
+    "auxiliary.kanban_decomposer.timeout": 180,
+    "auxiliary.mcp.api_key": "",
+    "auxiliary.mcp.base_url": "",
+    "auxiliary.mcp.extra_body": {},
+    "auxiliary.mcp.model": "",
+    "auxiliary.mcp.provider": "auto",
+    "auxiliary.mcp.reasoning_effort": "",
+    "auxiliary.mcp.timeout": 30,
+    "auxiliary.memory_query_rewrite.api_key": "",
+    "auxiliary.memory_query_rewrite.base_url": "",
+    "auxiliary.memory_query_rewrite.extra_body": {},
+    "auxiliary.memory_query_rewrite.model": "",
+    "auxiliary.memory_query_rewrite.provider": "auto",
+    "auxiliary.memory_query_rewrite.timeout": 8,
+    "auxiliary.moa_aggregator.api_key": "",
+    "auxiliary.moa_aggregator.base_url": "",
+    "auxiliary.moa_aggregator.extra_body": {},
+    "auxiliary.moa_aggregator.model": "",
+    "auxiliary.moa_aggregator.provider": "auto",
+    "auxiliary.moa_aggregator.timeout": 900,
+    "auxiliary.moa_reference.api_key": "",
+    "auxiliary.moa_reference.base_url": "",
+    "auxiliary.moa_reference.extra_body": {},
+    "auxiliary.moa_reference.model": "",
+    "auxiliary.moa_reference.provider": "auto",
+    "auxiliary.moa_reference.timeout": 900,
+    "auxiliary.monitor.api_key": "",
+    "auxiliary.monitor.base_url": "",
+    "auxiliary.monitor.extra_body": {},
+    "auxiliary.monitor.model": "",
+    "auxiliary.monitor.provider": "auto",
+    "auxiliary.monitor.reasoning_effort": "",
+    "auxiliary.monitor.timeout": 60,
+    "auxiliary.openrouter_model": "",
+    "auxiliary.profile_describer.api_key": "",
+    "auxiliary.profile_describer.base_url": "",
+    "auxiliary.profile_describer.extra_body": {},
+    "auxiliary.profile_describer.model": "",
+    "auxiliary.profile_describer.provider": "auto",
+    "auxiliary.profile_describer.reasoning_effort": "",
+    "auxiliary.profile_describer.timeout": 60,
+    "auxiliary.skills_hub.api_key": "",
+    "auxiliary.skills_hub.base_url": "",
+    "auxiliary.skills_hub.extra_body": {},
+    "auxiliary.skills_hub.model": "",
+    "auxiliary.skills_hub.provider": "auto",
+    "auxiliary.skills_hub.reasoning_effort": "",
+    "auxiliary.skills_hub.timeout": 30,
+    "auxiliary.stream_only_base_urls": [],
+    "auxiliary.title_generation.api_key": "",
+    "auxiliary.title_generation.base_url": "",
+    "auxiliary.title_generation.enabled": true,
+    "auxiliary.title_generation.extra_body": {},
+    "auxiliary.title_generation.language": "",
+    "auxiliary.title_generation.model": "",
+    "auxiliary.title_generation.prefer_fast_model": false,
+    "auxiliary.title_generation.provider": "auto",
+    "auxiliary.title_generation.reasoning_effort": "",
+    "auxiliary.title_generation.timeout": 30,
+    "auxiliary.transient_retries": 2,
+    "auxiliary.triage_specifier.api_key": "",
+    "auxiliary.triage_specifier.base_url": "",
+    "auxiliary.triage_specifier.extra_body": {},
+    "auxiliary.triage_specifier.model": "",
+    "auxiliary.triage_specifier.provider": "auto",
+    "auxiliary.triage_specifier.reasoning_effort": "",
+    "auxiliary.triage_specifier.timeout": 120,
+    "auxiliary.tts_audio_tags.api_key": "",
+    "auxiliary.tts_audio_tags.base_url": "",
+    "auxiliary.tts_audio_tags.extra_body": {},
+    "auxiliary.tts_audio_tags.model": "",
+    "auxiliary.tts_audio_tags.provider": "auto",
+    "auxiliary.tts_audio_tags.reasoning_effort": "",
+    "auxiliary.tts_audio_tags.timeout": 30,
+    "auxiliary.vision.api_key": "",
+    "auxiliary.vision.base_url": "",
+    "auxiliary.vision.download_timeout": 30,
+    "auxiliary.vision.extra_body": {},
+    "auxiliary.vision.model": "",
+    "auxiliary.vision.provider": "auto",
+    "auxiliary.vision.reasoning_effort": "",
+    "auxiliary.vision.timeout": 120,
+    "auxiliary.web_extract.api_key": "",
+    "auxiliary.web_extract.base_url": "",
+    "auxiliary.web_extract.extra_body": {},
+    "auxiliary.web_extract.model": "",
+    "auxiliary.web_extract.provider": "auto",
+    "auxiliary.web_extract.reasoning_effort": "",
+    "auxiliary.web_extract.timeout": 360,
+    "bedrock.discovery.enabled": true,
+    "bedrock.discovery.provider_filter": [],
+    "bedrock.discovery.refresh_interval": 3600,
+    "bedrock.guardrail.guardrail_identifier": "",
+    "bedrock.guardrail.guardrail_version": "",
+    "bedrock.guardrail.stream_processing_mode": "async",
+    "bedrock.guardrail.trace": "disabled",
+    "bedrock.region": "",
+    "browser.allow_private_urls": false,
+    "browser.allow_unsafe_evaluate": false,
+    "browser.auto_local_for_private_urls": true,
+    "browser.backend": "",
+    "browser.camofox.adopt_existing_tab": false,
+    "browser.camofox.loopback_host_alias": "host.docker.internal",
+    "browser.camofox.managed_persistence": false,
+    "browser.camofox.rewrite_loopback_urls": false,
+    "browser.camofox.session_key": "",
+    "browser.camofox.user_id": "",
+    "browser.cdp_url": "",
+    "browser.command_timeout": 30,
+    "browser.dialog_policy": "must_respond",
+    "browser.dialog_timeout_s": 300,
+    "browser.engine": "auto",
+    "browser.headed": false,
+    "browser.inactivity_timeout": 120,
+    "browser.record_sessions": false,
+    "browser.restrict_evaluate": false,
+    "checkpoints.auto_prune": true,
+    "checkpoints.enabled": false,
+    "checkpoints.max_file_size_mb": 10,
+    "checkpoints.max_snapshots": 20,
+    "checkpoints.max_total_size_mb": 500,
+    "checkpoints.min_interval_hours": 24,
+    "checkpoints.retention_days": 7,
+    "code_execution.mode": "project",
+    "command_allowlist": [],
+    "compression.abort_on_summary_failure": false,
+    "compression.codex_app_server_auto": "native",
+    "compression.codex_gpt55_autoraise": true,
+    "compression.codex_gpt55_autoraise_notice": true,
+    "compression.codex_responses_compact_threshold": 200000,
+    "compression.codex_responses_native": false,
+    "compression.context_timeout_seconds": 120,
+    "compression.context_total_ceiling_seconds": 600,
+    "compression.enabled": true,
+    "compression.hygiene_failure_cooldown_seconds": 300,
+    "compression.hygiene_hard_message_limit": 5000,
+    "compression.hygiene_timeout_seconds": 30,
+    "compression.hygiene_total_ceiling_seconds": 600,
+    "compression.idle_compact_after_seconds": 0,
+    "compression.in_place": true,
+    "compression.max_attempts": 3,
+    "compression.micro_compact": false,
+    "compression.micro_compact_defrag_threshold_tokens": 2000,
+    "compression.micro_compact_every_n_turns": 1,
+    "compression.min_tail_user_messages": 1,
+    "compression.model_thresholds": {},
+    "compression.proactive_prune_min_reclaim_tokens": 4096,
+    "compression.proactive_prune_min_result_chars": 8000,
+    "compression.proactive_prune_tokens": 0,
+    "compression.progress_notices": false,
+    "compression.protect_first_n": 3,
+    "compression.protect_last_n": 20,
+    "compression.tail_mode": "legacy",
+    "compression.target_ratio": 0.2,
+    "compression.threshold": 0.5,
+    "compression.threshold_tokens": null,
+    "computer_use.capability_manifest": "",
+    "computer_use.capture_after_mode": "som",
+    "computer_use.cua_telemetry": false,
+    "computer_use.grant_existing_profile": false,
+    "computer_use.max_image_dimension": 1456,
+    "computer_use.no_overlay": null,
+    "computer_use.permission_mode": "standard",
+    "context.engine": "compressor",
+    "context.memory_trim.cooldown_seconds": 60,
+    "context.memory_trim.enabled": true,
+    "context.memory_trim.info_log_min_delta_mb": 0,
+    "context.memory_trim.log_every_n": 1,
+    "context_file_max_chars": null,
+    "credential_pool_strategies": {},
+    "cron.allow_agent_scheduling": false,
+    "cron.chronos.callback_url": "",
+    "cron.chronos.expected_audience": "",
+    "cron.chronos.nas_jwks_url": "",
+    "cron.chronos.portal_url": "https://portal.nousresearch.com",
+    "cron.max_parallel_jobs": null,
+    "cron.media_send_timeout_seconds": 300,
+    "cron.mirror_delivery": false,
+    "cron.model": "",
+    "cron.model_drift_guard": true,
+    "cron.model_provider": "",
+    "cron.output_retention": 50,
+    "cron.preflight": true,
+    "cron.provider": "",
+    "cron.script_timeout_seconds": 3600,
+    "cron.session_db_timeout_seconds": 10,
+    "cron.wrap_response": true,
+    "curator.archive_after_days": 90,
+    "curator.archive_ttl_days": 0,
+    "curator.backup.enabled": true,
+    "curator.backup.keep": 5,
+    "curator.consolidate": false,
+    "curator.enabled": true,
+    "curator.interval_hours": 168,
+    "curator.min_idle_hours": 2,
+    "curator.prune_builtins": true,
+    "curator.stale_after_days": 30,
+    "dashboard.basic_auth.password": "",
+    "dashboard.basic_auth.password_hash": "",
+    "dashboard.basic_auth.secret": "",
+    "dashboard.basic_auth.session_ttl_seconds": 0,
+    "dashboard.basic_auth.username": "",
+    "dashboard.compute_host_heartbeat_secs": 15,
+    "dashboard.compute_host_respawn_max": 3,
+    "dashboard.drain_auth.min_secret_chars": 43,
+    "dashboard.drain_auth.scope": "drain",
+    "dashboard.oauth.client_id": "",
+    "dashboard.oauth.portal_url": "",
+    "dashboard.public_url": "",
+    "dashboard.show_token_analytics": false,
+    "dashboard.theme": "default",
+    "dashboard.turn_isolation": false,
+    "database.journal_mode": "wal",
+    "database.journal_size_limit": null,
+    "database.wal_autocheckpoint": null,
+    "delegation.api_key": "",
+    "delegation.api_mode": "",
+    "delegation.base_url": "",
+    "delegation.child_timeout_seconds": 0,
+    "delegation.inherit_mcp_toolsets": true,
+    "delegation.max_concurrent_children": 10,
+    "delegation.max_iterations": 250,
+    "delegation.max_spawn_depth": 1,
+    "delegation.max_summary_chars": 24000,
+    "delegation.model": "",
+    "delegation.orchestrator_enabled": true,
+    "delegation.provider": "",
+    "delegation.reasoning_effort": "",
+    "delegation.subagent_auto_approve": false,
+    "desktop.auto_continue.enabled": true,
+    "desktop.auto_continue.freshness_minutes": 15,
+    "desktop.auto_continue.max_attempts": 2,
+    "desktop.disable_gpu": "auto",
+    "desktop.electron_flags": [],
+    "desktop.macos_signing_identity": "",
+    "desktop.password_store": "auto",
+    "desktop.repo_scan_enabled": true,
+    "desktop.repo_scan_exclude_paths": [],
+    "desktop.repo_scan_roots": [],
+    "discord.allow_any_attachment": false,
+    "discord.allowed_channels": "",
+    "discord.approval_mentions": false,
+    "discord.auto_thread": true,
+    "discord.bots_require_inline_mention": false,
+    "discord.channel_prompts": {},
+    "discord.dm_role_auth_guild": "",
+    "discord.free_response_channels": "",
+    "discord.history_backfill": true,
+    "discord.history_backfill_limit": 50,
+    "discord.max_attachment_bytes": 33554432,
+    "discord.missed_message_backfill.channels": "",
+    "discord.missed_message_backfill.enabled": false,
+    "discord.missed_message_backfill.limit": 100,
+    "discord.missed_message_backfill.max_dispatches": 10,
+    "discord.missed_message_backfill.window_seconds": 21600,
+    "discord.reactions": true,
+    "discord.require_mention": true,
+    "discord.server_actions": "",
+    "discord.thread_require_mention": false,
+    "discord.voice_channel_inactivity_timeout_seconds": 300,
+    "discord.voice_fx.ack_enabled": true,
+    "discord.voice_fx.ack_phrases": [
+      "Let me look into that.",
+      "One moment.",
+      "Checking on that now.",
+      "Give me a sec.",
+      "On it."
+    ],
+    "discord.voice_fx.ambient_enabled": true,
+    "discord.voice_fx.ambient_gain": 0.18,
+    "discord.voice_fx.ambient_path": "",
+    "discord.voice_fx.duck_gain": 0.06,
+    "discord.voice_fx.enabled": false,
+    "discord.voice_fx.speech_gain": 1,
+    "discord.voice_playback_timeout_seconds": 120,
+    "discord.websocket_heartbeat_ack_max_age_seconds": 60,
+    "discord.websocket_liveness_failure_threshold": 2,
+    "discord.websocket_liveness_interval_seconds": 15,
+    "discord.websocket_max_latency_seconds": 30,
+    "display.background_process_notifications": "concise",
+    "display.battery": false,
+    "display.bell_on_complete": false,
+    "display.busy_input_mode": "interrupt",
+    "display.busy_steer_ack_enabled": true,
+    "display.cli_multiline_shortcuts": true,
+    "display.cli_rebuild_scrollback_on_redraw": false,
+    "display.cli_refresh_interval": 1,
+    "display.compact": false,
+    "display.copy_shortcut": "auto",
+    "display.credits_notices": true,
+    "display.ephemeral_system_ttl": 0,
+    "display.file_mutation_verifier": true,
+    "display.final_response_markdown": "strip",
+    "display.focus_saved_tool_progress": "all",
+    "display.focus_view": false,
+    "display.friendly_tool_labels": true,
+    "display.inline_diffs": true,
+    "display.interface": "cli",
+    "display.interim_assistant_messages": true,
+    "display.language": "en",
+    "display.memory_notifications": "on",
+    "display.persist_prompts": true,
+    "display.persistent_output": true,
+    "display.persistent_output_max_lines": 200,
+    "display.personality": "",
+    "display.pet.enabled": false,
+    "display.pet.render_mode": "auto",
+    "display.pet.scale": 0.33,
+    "display.pet.slug": "",
+    "display.pet.unicode_cols": 0,
+    "display.platforms.discord.streaming": false,
+    "display.platforms.slack.streaming": false,
+    "display.platforms.telegram.streaming": true,
+    "display.reasoning_full": false,
+    "display.reasoning_style": "code",
+    "display.resume_display": "full",
+    "display.resume_exchanges": 10,
+    "display.resume_max_assistant_chars": 200,
+    "display.resume_max_assistant_lines": 3,
+    "display.resume_max_user_chars": 300,
+    "display.resume_skip_tool_only": true,
+    "display.runtime_footer.enabled": false,
+    "display.runtime_footer.fields": [
+      "model",
+      "context_pct",
+      "cwd"
+    ],
+    "display.show_commentary": true,
+    "display.show_cost": false,
+    "display.show_reasoning": true,
+    "display.skin": "default",
+    "display.spinner_token_flow": true,
+    "display.status_phrases": {},
+    "display.streaming": false,
+    "display.timestamp_format": "%H:%M",
+    "display.timestamps": false,
+    "display.tool_preview_length": 0,
+    "display.tool_progress_command": false,
+    "display.tool_progress_grouping": "accumulate",
+    "display.tui_agents_nudge": true,
+    "display.tui_auto_resume_recent": false,
+    "display.tui_status_indicator": "kaomoji",
+    "display.turn_completion_explainer": true,
+    "display.turn_summary": true,
+    "display.user_message_preview.first_lines": 2,
+    "display.user_message_preview.last_lines": 2,
+    "doctor.live_probe_timeout": 10,
+    "fallback_providers": [],
+    "file_read_max_chars": 100000,
+    "gateway.api_server.max_concurrent_runs": 10,
+    "gateway.delivery_ledger": true,
+    "gateway.loop_watchdog": true,
+    "gateway.max_inbound_media_bytes": 134217728,
+    "gateway.media_delivery_allow_dirs": [],
+    "gateway.message_timestamps.enabled": false,
+    "gateway.multiplex_profile_allowlist": null,
+    "gateway.platform_connect_timeout": 30,
+    "gateway.respawn_storm.max_starts": 5,
+    "gateway.respawn_storm.window_seconds": 120,
+    "gateway.restart_loop_guard.max_gap_seconds": 300,
+    "gateway.restart_loop_guard.max_restarts": 3,
+    "gateway.restart_loop_guard.window_seconds": 60,
+    "gateway.scale_to_zero.idle_timeout_minutes": 5,
+    "gateway.strict": false,
+    "gateway.trust_recent_files": true,
+    "gateway.trust_recent_files_seconds": 600,
+    "gateway.write_sessions_json": true,
+    "goals.max_turns": 20,
+    "honcho": {},
+    "hooks": {},
+    "hooks_auto_accept": false,
+    "human_delay.max_ms": 2500,
+    "human_delay.min_ms": 800,
+    "human_delay.mode": "off",
+    "kanban.auto_decompose": true,
+    "kanban.auto_decompose_per_tick": 3,
+    "kanban.auto_subscribe_on_create": true,
+    "kanban.default_assignee": "",
+    "kanban.dispatch_in_gateway": true,
+    "kanban.dispatch_interval_seconds": 60,
+    "kanban.dispatch_stale_timeout_seconds": 14400,
+    "kanban.done_sub_retention_days": 30,
+    "kanban.failure_limit": 2,
+    "kanban.max_in_progress": null,
+    "kanban.max_in_progress_per_profile": null,
+    "kanban.orchestrator_profile": "",
+    "kanban.reconcile_orphans": true,
+    "kanban.review_dispatch": true,
+    "kanban.worker_log_backup_count": 1,
+    "kanban.worker_log_rotate_bytes": 2097152,
+    "logging.backup_count": 3,
+    "logging.level": "INFO",
+    "logging.max_size_mb": 5,
+    "loops.max_ticks": 100,
+    "loops.min_interval_seconds": 30,
+    "loops.self_paced_ceiling_seconds": 900,
+    "loops.self_paced_floor_seconds": 60,
+    "lsp.enabled": true,
+    "lsp.idle_timeout": 600,
+    "lsp.install_strategy": "auto",
+    "lsp.servers": {},
+    "lsp.wait_mode": "document",
+    "lsp.wait_timeout": 5,
+    "matrix.allowed_rooms": "",
+    "matrix.free_response_rooms": "",
+    "matrix.require_mention": true,
+    "mattermost.allowed_channels": "",
+    "mattermost.channel_prompts": {},
+    "mattermost.free_response_channels": "",
+    "mattermost.require_mention": true,
+    "max_concurrent_sessions": null,
+    "max_live_sessions": 16,
+    "mcp.auto_reload_on_config_change": true,
+    "mcp_discovery_timeout": 1.5,
+    "mcp_single_query_discovery_timeout": 15,
+    "memory.memory_char_limit": 2200,
+    "memory.memory_enabled": true,
+    "memory.provider": "",
+    "memory.user_char_limit": 1375,
+    "memory.user_profile_enabled": true,
+    "memory.write_approval": false,
+    "moa.active_preset": "",
+    "moa.default_preset": "default",
+    "moa.presets.default.aggregator.model": "anthropic/claude-opus-4.8",
+    "moa.presets.default.aggregator.provider": "openrouter",
+    "moa.presets.default.enabled": true,
+    "moa.presets.default.max_tokens": 4096,
+    "moa.presets.default.reference_models": [
+      {
+        "provider": "openai-codex",
+        "model": "gpt-5.5"
+      },
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4-pro"
+      }
+    ],
+    "moa.privacy_filter": "",
+    "moa.save_traces": false,
+    "moa.trace_dir": "",
+    "model": "",
+    "model_catalog.enabled": true,
+    "model_catalog.providers": {},
+    "model_catalog.ttl_hours": 1,
+    "model_catalog.url": "https://hermes-agent.nousresearch.com/docs/api/model-catalog.json",
+    "model_overrides": {},
+    "models_dev.url": "",
+    "monitoring.export.otlp.enabled": false,
+    "monitoring.export.otlp.endpoint": "",
+    "monitoring.export.otlp.headers_env": {},
+    "monitoring.gateway_health_export.diagnostic_events_enabled": true,
+    "monitoring.gateway_health_export.enabled": false,
+    "monitoring.gateway_health_export.export_interval_seconds": 60,
+    "monitoring.gateway_health_export.logs_export_interval_seconds": 5,
+    "monitoring.gateway_health_export.metrics_enabled": true,
+    "monitoring.gateway_health_export.resource_attributes.deployment.environment.name": "production",
+    "monitoring.gateway_health_export.resource_attributes.service.name": "hermes-gateway",
+    "monitoring.gateway_health_export.warning_error_events_enabled": true,
+    "monitoring.install_id": "",
+    "network.force_ipv4": false,
+    "onboarding.profile_build": "ask",
+    "onboarding.seen": {},
+    "openrouter.min_coding_score": 0.65,
+    "openrouter.response_cache": true,
+    "openrouter.response_cache_ttl": 300,
+    "paste_collapse_char_threshold": 2000,
+    "paste_collapse_threshold": 5,
+    "paste_collapse_threshold_fallback": 5,
+    "personalities": {},
+    "platform_hints": {},
+    "prefill_messages_file": "",
+    "privacy.redact_pii": false,
+    "prompt_caching.cache_ttl": "5m",
+    "providers": {},
+    "proxy.allow_env_fallback": false,
+    "proxy.auto_install": true,
+    "proxy.credential_source": "env",
+    "proxy.enabled": false,
+    "proxy.enforce_on_docker": true,
+    "proxy.extra_allowed_hosts": [],
+    "proxy.tunnel_port": 9090,
+    "proxy.upstream_deny_cidrs": null,
+    "quick_commands": {},
+    "runtime.nofile_soft_limit": 4096,
+    "secrets.bitwarden.access_token_env": "BWS_ACCESS_TOKEN",
+    "secrets.bitwarden.auto_install": true,
+    "secrets.bitwarden.cache_ttl_seconds": 300,
+    "secrets.bitwarden.enabled": false,
+    "secrets.bitwarden.encrypted_cache.enabled": false,
+    "secrets.bitwarden.encrypted_cache.max_stale_seconds": 0,
+    "secrets.bitwarden.override_existing": true,
+    "secrets.bitwarden.project_id": "",
+    "secrets.bitwarden.server_url": "",
+    "secrets.onepassword.account": "",
+    "secrets.onepassword.binary_path": "",
+    "secrets.onepassword.cache_ttl_seconds": 300,
+    "secrets.onepassword.enabled": false,
+    "secrets.onepassword.env": {},
+    "secrets.onepassword.override_existing": true,
+    "secrets.onepassword.service_account_token_env": "OP_SERVICE_ACCOUNT_TOKEN",
+    "security.acked_advisories": [],
+    "security.allow_data_training_tiers_noninteractive": false,
+    "security.allow_lazy_installs": true,
+    "security.allow_private_urls": false,
+    "security.approval.transport": "builtin",
+    "security.approval.transport_fallback": "deny",
+    "security.protected_instruction_extra_patterns": [],
+    "security.protected_instruction_files": true,
+    "security.redact_secrets": true,
+    "security.tirith_enabled": true,
+    "security.tirith_fail_open": true,
+    "security.tirith_path": "tirith",
+    "security.tirith_timeout": 5,
+    "security.website_blocklist.domains": [],
+    "security.website_blocklist.enabled": false,
+    "security.website_blocklist.shared_files": [],
+    "session.terminal_continue": true,
+    "sessions.auto_archive": false,
+    "sessions.auto_archive_days": 3,
+    "sessions.auto_prune": false,
+    "sessions.cjk_fts": true,
+    "sessions.fts_optimize_notice": "advise",
+    "sessions.max_export_messages": 20000,
+    "sessions.max_resume_messages": 20000,
+    "sessions.min_interval_hours": 24,
+    "sessions.min_vacuum_interval_days": 30,
+    "sessions.retention_days": 90,
+    "sessions.search_slow_ms": 1000,
+    "sessions.vacuum_after_prune": true,
+    "sessions.write_json_snapshots": false,
+    "skills.external_dirs": [],
+    "skills.guard_agent_created": false,
+    "skills.inline_shell": false,
+    "skills.inline_shell_timeout": 10,
+    "skills.ledger": true,
+    "skills.project_discovery": true,
+    "skills.template_vars": true,
+    "skills.tier1_advisory": true,
+    "skills.trusted_project_dirs": [],
+    "skills.write_approval": false,
+    "slack.allowed_channels": "",
+    "slack.channel_prompts": {},
+    "slack.free_response_channels": "",
+    "slack.ignore_other_user_mentions": false,
+    "slack.require_mention": true,
+    "slack.require_mention_channels": "",
+    "slack.thread_require_mention": false,
+    "streaming.buffer_threshold": 24,
+    "streaming.cursor": " ▉",
+    "streaming.edit_interval": 0.8,
+    "streaming.enabled": false,
+    "streaming.fresh_final_after_seconds": 0,
+    "streaming.transport": "auto",
+    "stt.cloud_trim_keep_ms": 300,
+    "stt.cloud_trim_silence": true,
+    "stt.cloud_trim_threshold_db": -40,
+    "stt.deepinfra.model": "",
+    "stt.echo_transcripts": true,
+    "stt.elevenlabs.diarize": false,
+    "stt.elevenlabs.language_code": "",
+    "stt.elevenlabs.model_id": "scribe_v2",
+    "stt.elevenlabs.tag_audio_events": false,
+    "stt.enabled": true,
+    "stt.groq.language": "",
+    "stt.groq.model": "whisper-large-v3-turbo",
+    "stt.language": "en",
+    "stt.local.initial_prompt": "",
+    "stt.local.language": "",
+    "stt.local.logprob_threshold": -1,
+    "stt.local.model": "base",
+    "stt.local.no_speech_prob_threshold": 0.6,
+    "stt.local.unload_after_idle_seconds": 0,
+    "stt.local.vad": true,
+    "stt.local.vad_min_silence_ms": 500,
+    "stt.mistral.language": "",
+    "stt.mistral.model": "voxtral-mini-latest",
+    "stt.openai.language": "",
+    "stt.openai.model": "whisper-1",
+    "stt.provider": "local",
+    "stt.xai.language": "",
+    "telegram.allowed_chats": "",
+    "telegram.channel_prompts": {},
+    "telegram.extra.rich_drafts": false,
+    "telegram.extra.rich_messages": false,
+    "telegram.reactions": false,
+    "telemetry.shared_metrics.enabled": false,
+    "terminal.auto_source_bashrc": true,
+    "terminal.backend": "local",
+    "terminal.container_cpu": 1,
+    "terminal.container_disk": 51200,
+    "terminal.container_memory": 5120,
+    "terminal.container_persistent": true,
+    "terminal.cwd": ".",
+    "terminal.daemon_term_grace_seconds": 2,
+    "terminal.daytona_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+    "terminal.degraded_mode": "warn",
+    "terminal.docker_env": {},
+    "terminal.docker_extra_args": [],
+    "terminal.docker_forward_env": [],
+    "terminal.docker_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+    "terminal.docker_mount_cwd_to_workspace": false,
+    "terminal.docker_network": true,
+    "terminal.docker_run_as_host_user": false,
+    "terminal.docker_shm_size": "1g",
+    "terminal.docker_volumes": [],
+    "terminal.env_passthrough": [],
+    "terminal.font_family": "",
+    "terminal.home_mode": "auto",
+    "terminal.modal_image": "nikolaik/python-nodejs:python3.11-nodejs20",
+    "terminal.modal_mode": "auto",
+    "terminal.persistent_shell": true,
+    "terminal.shell_init_files": [],
+    "terminal.singularity_image": "docker://nikolaik/python-nodejs:python3.11-nodejs20",
+    "terminal.timeout": 180,
+    "terminal.vercel_runtime": "node24",
+    "timezone": "",
+    "tool_loop_guardrails.hard_stop_after.exact_failure": 5,
+    "tool_loop_guardrails.hard_stop_after.idempotent_no_progress": 5,
+    "tool_loop_guardrails.hard_stop_after.same_tool_failure": 8,
+    "tool_loop_guardrails.hard_stop_enabled": false,
+    "tool_loop_guardrails.loop_caps.max_subagents": 50,
+    "tool_loop_guardrails.loop_caps.max_web_searches": 50,
+    "tool_loop_guardrails.warn_after.exact_failure": 2,
+    "tool_loop_guardrails.warn_after.idempotent_no_progress": 2,
+    "tool_loop_guardrails.warn_after.same_tool_failure": 3,
+    "tool_loop_guardrails.warnings_enabled": true,
+    "tool_output.max_bytes": 50000,
+    "tool_output.max_line_length": 2000,
+    "tool_output.max_lines": 2000,
+    "tools.tool_search.enabled": "auto",
+    "tools.tool_search.listing": "auto",
+    "tools.tool_search.listing_max_tokens": 4000,
+    "tools.tool_search.max_search_limit": 20,
+    "tools.tool_search.search_default_limit": 5,
+    "tools.tool_search.threshold_pct": 5,
+    "toolsets": [
+      "hermes-cli"
+    ],
+    "tts.deepinfra.model": "",
+    "tts.deepinfra.voice": "default",
+    "tts.edge.voice": "en-US-AriaNeural",
+    "tts.elevenlabs.model_id": "eleven_multilingual_v2",
+    "tts.elevenlabs.voice_id": "pNInz6obpgDQGcFmaJgB",
+    "tts.gemini.audio_tags": false,
+    "tts.gemini.model": "gemini-2.5-flash-preview-tts",
+    "tts.gemini.persona_prompt_file": "",
+    "tts.gemini.voice": "Kore",
+    "tts.kittentts.model": "KittenML/kitten-tts-nano-0.8-int8",
+    "tts.kittentts.voice": "Jasper",
+    "tts.minimax.model": "speech-02-hd",
+    "tts.minimax.voice_id": "English_expressive_narrator",
+    "tts.mistral.model": "voxtral-mini-tts-2603",
+    "tts.mistral.voice_id": "c69964a6-ab8b-4f8a-9465-ec0925096ec8",
+    "tts.neutts.device": "cpu",
+    "tts.neutts.model": "neuphonic/neutts-air-q4-gguf",
+    "tts.neutts.ref_audio": "",
+    "tts.neutts.ref_text": "",
+    "tts.openai.model": "gpt-4o-mini-tts",
+    "tts.openai.voice": "alloy",
+    "tts.piper.voice": "en_US-lessac-medium",
+    "tts.provider": "edge",
+    "tts.xai.auto_speech_tags": false,
+    "tts.xai.bit_rate": 128000,
+    "tts.xai.language": "en",
+    "tts.xai.optimize_streaming_latency": 0,
+    "tts.xai.sample_rate": 24000,
+    "tts.xai.speed": 1,
+    "tts.xai.voice_id": "eve",
+    "updates.auto_switch_parked_branch": true,
+    "updates.backup_keep": 5,
+    "updates.non_interactive_local_changes": "stash",
+    "updates.pre_update_backup": "quick",
+    "updates.refresh_cua_driver": true,
+    "vertex.project_id": "",
+    "vertex.region": "global",
+    "voice.auto_tts": false,
+    "voice.barge_in": true,
+    "voice.barge_in_grace_seconds": 0.5,
+    "voice.barge_in_threshold_multiplier": 3,
+    "voice.beep_enabled": true,
+    "voice.beep_volume": 0.3,
+    "voice.max_recording_seconds": 120,
+    "voice.record_key": "ctrl+b",
+    "voice.silence_duration": 3,
+    "voice.silence_threshold": 200,
+    "voice.stop_phrases": [
+      "stop"
+    ],
+    "voice.submit_mode": "direct",
+    "voice.thinking_sound": true,
+    "wake_word.capture": "auto",
+    "wake_word.confirmation_frames": 3,
+    "wake_word.enabled": false,
+    "wake_word.input_device": null,
+    "wake_word.openwakeword.inference_framework": "",
+    "wake_word.openwakeword.model": "hey_hermes",
+    "wake_word.phrase": "hey hermes",
+    "wake_word.porcupine.keyword": "jarvis",
+    "wake_word.profile_routing": true,
+    "wake_word.provider": "openwakeword",
+    "wake_word.sensitivity": 0.6,
+    "wake_word.sherpa.model_dir": "",
+    "wake_word.start_new_session": true,
+    "wake_word.surface": "auto",
+    "web.backend": "",
+    "web.extract_backend": "",
+    "web.extract_char_limit": 15000,
+    "web.search_backend": "",
+    "whatsapp": {},
+    "x_search.model": "grok-4.5",
+    "x_search.reasoning_effort": null,
+    "x_search.retries": 2,
+    "x_search.timeout_seconds": 180
+  },
+  "requiresDist": [
+    "Markdown==3.10.2",
+    "Pillow==12.3.0",
+    "PyJWT[crypto]==2.13.0",
+    "agent-client-protocol==0.9.0; extra == \"acp\"",
+    "ai-edge-litert==2.1.6; platform_system == \"Darwin\" and extra == \"wake\"",
+    "aiohttp-socks==0.11.0; extra == \"matrix\"",
+    "aiohttp==3.14.3; extra == \"homeassistant\"",
+    "aiohttp==3.14.3; extra == \"matrix\"",
+    "aiohttp==3.14.3; extra == \"messaging\"",
+    "aiohttp==3.14.3; extra == \"slack\"",
+    "aiohttp==3.14.3; extra == \"sms\"",
+    "aiohttp==3.14.3; extra == \"teams\"",
+    "aiosqlite==0.22.1; extra == \"matrix\"",
+    "alibabacloud-dingtalk==2.2.42; extra == \"dingtalk\"",
+    "anthropic==0.87.0; extra == \"anthropic\"",
+    "asyncpg==0.31.0; extra == \"matrix\"",
+    "azure-identity==1.25.3; extra == \"azure-identity\"",
+    "boto3==1.42.89; extra == \"bedrock\"",
+    "brotlicffi==1.2.0.1; extra == \"messaging\"",
+    "certifi==2026.5.20",
+    "concurrent-log-handler==0.9.29; sys_platform == \"win32\"",
+    "croniter==6.0.0",
+    "cryptography==50.0.0",
+    "daytona==0.155.0; extra == \"daytona\"",
+    "debugpy==1.8.20; extra == \"dev\"",
+    "defusedxml==0.7.1; extra == \"wecom\"",
+    "dingtalk-stream==0.24.3; extra == \"dingtalk\"",
+    "discord.py[voice]==2.7.1; extra == \"messaging\"",
+    "edge-tts==7.2.7; extra == \"edge-tts\"",
+    "elevenlabs==1.59.0; extra == \"tts-premium\"",
+    "exa-py==2.10.2; extra == \"exa\"",
+    "fal-client==0.13.1; extra == \"fal\"",
+    "fastapi<1,>=0.104.0",
+    "fastapi==0.133.1; extra == \"web\"",
+    "faster-whisper==1.2.1; extra == \"voice\"",
+    "fire==0.7.1",
+    "firecrawl-py==4.17.0; extra == \"firecrawl\"",
+    "google-api-python-client==2.194.0; extra == \"google\"",
+    "google-auth-httplib2==0.3.1; extra == \"google\"",
+    "google-auth-oauthlib==1.3.1; extra == \"google\"",
+    "google-auth==2.55.1; extra == \"google\"",
+    "google-auth==2.55.1; extra == \"vertex\"",
+    "hermes-agent[acp]; extra == \"all\"",
+    "hermes-agent[acp]; extra == \"termux\"",
+    "hermes-agent[cron]; extra == \"all\"",
+    "hermes-agent[cron]; extra == \"termux\"",
+    "hermes-agent[google]; extra == \"all\"",
+    "hermes-agent[google]; extra == \"termux-all\"",
+    "hermes-agent[homeassistant]; extra == \"all\"",
+    "hermes-agent[homeassistant]; extra == \"termux-all\"",
+    "hermes-agent[honcho]; extra == \"termux\"",
+    "hermes-agent[mcp]; extra == \"all\"",
+    "hermes-agent[mcp]; extra == \"termux\"",
+    "hermes-agent[pty]; extra == \"all\"",
+    "hermes-agent[pty]; extra == \"termux-all\"",
+    "hermes-agent[sms]; extra == \"all\"",
+    "hermes-agent[sms]; extra == \"termux-all\"",
+    "hermes-agent[termux]; extra == \"termux-all\"",
+    "hermes-agent[web]; extra == \"all\"",
+    "hermes-agent[web]; extra == \"termux-all\"",
+    "hermes-agent[youtube]; extra == \"all\"",
+    "hindsight-client==0.6.1; extra == \"hindsight\"",
+    "honcho-ai==2.2.0; extra == \"honcho\"",
+    "httplib2==0.32.0; extra == \"google\"",
+    "httpx2==2.7.0; extra == \"computer-use\"",
+    "httpx2==2.7.0; extra == \"dev\"",
+    "httpx2==2.7.0; extra == \"mcp\"",
+    "httpx[socks]==0.28.1",
+    "jinja2==3.1.6",
+    "lark-oapi==1.6.8; extra == \"feishu\"",
+    "mautrix[encryption]==0.21.1; extra == \"matrix\"",
+    "mcp==2.0.0; extra == \"computer-use\"",
+    "mcp==2.0.0; extra == \"dev\"",
+    "mcp==2.0.0; extra == \"mcp\"",
+    "mem0ai==2.0.10; extra == \"mem0\"",
+    "microsoft-teams-apps==2.0.13.4; extra == \"teams\"",
+    "mistralai==2.4.8; extra == \"mistral\"",
+    "modal==1.3.4; extra == \"modal\"",
+    "nemo-relay<0.8,>=0.7.1; (sys_platform == \"darwin\" and platform_machine == \"arm64\") or (sys_platform == \"linux\" and platform_machine == \"x86_64\" and \"android\" not in platform_release) or (sys_platform == \"linux\" and platform_machine == \"aarch64\" and \"android\" not in platform_release) or (sys_platform == \"win32\" and platform_machine == \"AMD64\") or (sys_platform == \"win32\" and platform_machine == \"ARM64\")",
+    "numpy==2.4.3; extra == \"voice\"",
+    "numpy==2.4.3; extra == \"wake\"",
+    "onnxruntime==1.27.0; extra == \"wake\"",
+    "openai==2.24.0",
+    "opentelemetry-exporter-otlp-proto-http==1.39.1; extra == \"otlp\"",
+    "opentelemetry-sdk==1.39.1; extra == \"otlp\"",
+    "openwakeword==0.6.0; extra == \"wake\"",
+    "packaging==26.0",
+    "parallel-web==0.4.2; extra == \"parallel-web\"",
+    "pathspec==1.1.1",
+    "prompt_toolkit==3.0.52",
+    "psutil==7.2.2",
+    "ptyprocess<1,>=0.7.0; sys_platform != \"win32\"",
+    "pvporcupine==4.0.3; extra == \"wake\"",
+    "pyasn1==0.6.4; extra == \"google\"",
+    "pydantic==2.13.4",
+    "pytest-asyncio==1.3.0; extra == \"dev\"",
+    "pytest==9.1.1; extra == \"dev\"",
+    "python-dotenv==1.2.2",
+    "python-multipart<1,>=0.0.9",
+    "python-multipart==0.0.32; extra == \"web\"",
+    "python-telegram-bot[webhooks]==22.8; extra == \"messaging\"",
+    "python-telegram-bot[webhooks]==22.8; extra == \"termux\"",
+    "pywin32<312,>=306; sys_platform == \"win32\"",
+    "pywinpty<3,>=2.0.0; sys_platform == \"win32\"",
+    "pyyaml==6.0.3",
+    "qrcode==7.4.2; extra == \"dingtalk\"",
+    "qrcode==7.4.2; extra == \"feishu\"",
+    "qrcode==7.4.2; extra == \"messaging\"",
+    "requests==2.33.0",
+    "rich==14.3.3",
+    "ruamel.yaml==0.18.17",
+    "ruff==0.15.10; extra == \"dev\"",
+    "sentencepiece==0.2.2; extra == \"wake\"",
+    "setuptools==83.0.0; extra == \"dev\"",
+    "sherpa-onnx==1.13.4; extra == \"wake\"",
+    "slack-bolt==1.30.0; extra == \"messaging\"",
+    "slack-bolt==1.30.0; extra == \"slack\"",
+    "slack-sdk==3.43.0; extra == \"messaging\"",
+    "slack-sdk==3.43.0; extra == \"slack\"",
+    "sounddevice==0.5.5; extra == \"voice\"",
+    "sounddevice==0.5.5; extra == \"wake\"",
+    "starlette==1.3.1; extra == \"computer-use\"",
+    "starlette==1.3.1; extra == \"dev\"",
+    "starlette==1.3.1; extra == \"mcp\"",
+    "starlette==1.3.1; extra == \"web\"",
+    "supermemory==3.50.0; extra == \"supermemory\"",
+    "tenacity==9.1.4",
+    "ty==0.0.21; extra == \"dev\"",
+    "tzdata==2025.3; sys_platform == \"win32\"",
+    "urllib3<3,>=2.7.0",
+    "uvicorn[standard]<1,>=0.24.0",
+    "uvicorn[standard]==0.41.0; extra == \"web\"",
+    "vercel==0.7.2; extra == \"vercel\"",
+    "websockets==15.0.1",
+    "youtube-transcript-api==1.2.4; extra == \"youtube\""
+  ],
+  "checkpointMarkers": [
+    ".git",
+    ".hg",
+    "Cargo.toml",
+    "Gemfile",
+    "Makefile",
+    "go.mod",
+    "package.json",
+    "pom.xml",
+    "pyproject.toml"
+  ],
+  "ourMethods": {
+    "agents.list": {
+      "file": "methods_tools.py",
+      "lines": 24,
+      "hash": "15ae1f6aa9ed",
+      "defaults": {}
+    },
+    "approval.respond": {
+      "file": "methods_prompt.py",
+      "lines": 53,
+      "hash": "aaacac250953",
+      "defaults": {
+        "all": "False",
+        "choice": "\"deny\""
+      }
+    },
+    "clarify.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "fc55ae6d0d81",
+      "defaults": {}
+    },
+    "clipboard.paste": {
+      "file": "methods_prompt.py",
+      "lines": 40,
+      "hash": "d5b2c0fdde29",
+      "defaults": {
+        "image_counter": "0"
+      }
+    },
+    "command.dispatch": {
+      "file": "methods_tools.py",
+      "lines": 678,
+      "hash": "e15afda318ef",
+      "defaults": {
+        "arg": "\"\"",
+        "command": "\"\"",
+        "content": "\"\"",
+        "focus_view": "False",
+        "history_version": "0",
+        "max_turns": "20",
+        "name": "\"\"",
+        "rewound_count": "0",
+        "session_id": "\"\"",
+        "session_key": "\"\"",
+        "target": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "commands.catalog": {
+      "file": "methods_tools.py",
+      "lines": 116,
+      "hash": "101328f3ea52",
+      "defaults": {
+        "description": "\"Skill\"",
+        "type": "\"\""
+      }
+    },
+    "complete.path": {
+      "file": "methods_complete.py",
+      "lines": 289,
+      "hash": "98be4857c297",
+      "defaults": {
+        "word": "\"\""
+      }
+    },
+    "complete.slash": {
+      "file": "methods_complete.py",
+      "lines": 139,
+      "hash": "885bf028d7e0",
+      "defaults": {
+        "text": "\"\""
+      }
+    },
+    "config.get": {
+      "file": "methods_config.py",
+      "lines": 183,
+      "hash": "b4bbe6e09d30",
+      "defaults": {
+        "custom_prompt": "\"\"",
+        "cwd": "\"\"",
+        "details_mode": "\"collapsed\"",
+        "focus_view": "False",
+        "key": "\"\"",
+        "reasoning_effort": "\"\"",
+        "session_id": "\"\"",
+        "show_reasoning": "True",
+        "skin": "\"default\"",
+        "thinking_mode": "\"\"",
+        "tui_compact": "False",
+        "tui_status_indicator": "\"\"",
+        "tui_statusbar": "\"top\"",
+        "tui_theme": "\"auto\""
+      }
+    },
+    "config.set": {
+      "file": "server.py",
+      "lines": 758,
+      "hash": "ea53ab6434f3",
+      "defaults": {
+        "battery": "False",
+        "confirm_expensive_model": "False",
+        "confirm_message": "\"\"",
+        "confirm_required": "False",
+        "focus_view": "False",
+        "key": "\"\"",
+        "mode": "\"manual\"",
+        "scope": "\"session\"",
+        "session_id": "\"\"",
+        "tui_compact": "False",
+        "tui_statusbar": "\"top\"",
+        "value": "\"\""
+      }
+    },
+    "config.show": {
+      "file": "methods_tools.py",
+      "lines": 41,
+      "hash": "3e60fe6a3ac1",
+      "defaults": {
+        "api_key": "\"\"",
+        "base_url": "\"\"",
+        "HERMES_BASE_URL": "\"\"",
+        "verbose": "False"
+      }
+    },
+    "image.detach": {
+      "file": "methods_prompt.py",
+      "lines": 20,
+      "hash": "32ff3c0166f1",
+      "defaults": {
+        "path": "\"\""
+      }
+    },
+    "learning.delete": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "4be5ac62bd2c",
+      "defaults": {
+        "id": "\"\""
+      }
+    },
+    "learning.detail": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "4240e5fb18b3",
+      "defaults": {
+        "id": "\"\""
+      }
+    },
+    "learning.edit": {
+      "file": "methods_tools.py",
+      "lines": 11,
+      "hash": "01474a373ef0",
+      "defaults": {
+        "content": "\"\"",
+        "id": "\"\""
+      }
+    },
+    "model.options": {
+      "file": "methods_complete.py",
+      "lines": 23,
+      "hash": "df5c3254b124",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "plugins.manage": {
+      "file": "methods_tools.py",
+      "lines": 112,
+      "hash": "1b834424e265",
+      "defaults": {
+        "action": "\"list\""
+      }
+    },
+    "process.kill": {
+      "file": "methods_tools.py",
+      "lines": 23,
+      "hash": "b858cc9aeadb",
+      "defaults": {}
+    },
+    "process.list": {
+      "file": "methods_tools.py",
+      "lines": 12,
+      "hash": "383b396c3049",
+      "defaults": {}
+    },
+    "prompt.submit": {
+      "file": "methods_prompt.py",
+      "lines": 554,
+      "hash": "874a781e3ed9",
+      "defaults": {
+        "history_version": "0",
+        "message": "\"agent initialization failed\"",
+        "session_id": "\"\"",
+        "text": "\"\""
+      }
+    },
+    "reload.mcp": {
+      "file": "methods_tools.py",
+      "lines": 150,
+      "hash": "a9f611b1ace4",
+      "defaults": {
+        "confirm": "False",
+        "mcp_reload_confirm": "True",
+        "session_id": "\"\""
+      }
+    },
+    "rollback.diff": {
+      "file": "methods_tools.py",
+      "lines": 23,
+      "hash": "54c6d3bc14fa",
+      "defaults": {
+        "cols": "80",
+        "diff": "\"\"",
+        "hash": "\"\"",
+        "stat": "\"\""
+      }
+    },
+    "rollback.list": {
+      "file": "methods_tools.py",
+      "lines": 30,
+      "hash": "aee976b06688",
+      "defaults": {
+        "hash": "\"\"",
+        "message": "\"\"",
+        "timestamp": "\"\""
+      }
+    },
+    "rollback.restore": {
+      "file": "methods_tools.py",
+      "lines": 57,
+      "hash": "41c96d1ccdea",
+      "defaults": {
+        "file_path": "\"\"",
+        "hash": "\"\"",
+        "history_version": "0"
+      }
+    },
+    "secret.respond": {
+      "file": "methods_prompt.py",
+      "lines": 5,
+      "hash": "11a48aa3890c",
+      "defaults": {}
+    },
+    "session.activate": {
+      "file": "methods_session.py",
+      "lines": 25,
+      "hash": "236a083774aa",
+      "defaults": {
+        "omit_messages": "False"
+      }
+    },
+    "session.active_list": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "a0295bed13ae",
+      "defaults": {}
+    },
+    "session.branch": {
+      "file": "methods_session.py",
+      "lines": 216,
+      "hash": "cba1803953ab",
+      "defaults": {
+        "cols": "80",
+        "name": "\"\"",
+        "role": "\"user\""
+      }
+    },
+    "session.compress": {
+      "file": "methods_session.py",
+      "lines": 172,
+      "hash": "a8389757cb9f",
+      "defaults": {
+        "focus_topic": "\"\"",
+        "history_version": "0",
+        "session_id": "\"\""
+      }
+    },
+    "session.context_breakdown": {
+      "file": "methods_session.py",
+      "lines": 30,
+      "hash": "ad92f53322d5",
+      "defaults": {
+        "context_max": "0",
+        "context_percent": "0",
+        "context_used": "0",
+        "model": "\"\"",
+        "total": "0"
+      }
+    },
+    "session.create": {
+      "file": "methods_session.py",
+      "lines": 149,
+      "hash": "4e24f726eb66",
+      "defaults": {
+        "close_on_disconnect": "False",
+        "cols": "80",
+        "hidden": "False"
+      }
+    },
+    "session.delete": {
+      "file": "methods_session.py",
+      "lines": 50,
+      "hash": "5efc1b4b99e3",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    },
+    "session.history": {
+      "file": "methods_session.py",
+      "lines": 32,
+      "hash": "fe359fea9a2c",
+      "defaults": {}
+    },
+    "session.list": {
+      "file": "methods_session.py",
+      "lines": 58,
+      "hash": "7b43b878f9f8",
+      "defaults": {
+        "include_hidden": "False",
+        "limit": "200"
+      }
+    },
+    "session.resume": {
+      "file": "methods_session.py",
+      "lines": 579,
+      "hash": "a7e71103b108",
+      "defaults": {
+        "close_on_disconnect": "False",
+        "cols": "80",
+        "defer_history": "False",
+        "eager_build": "False",
+        "lazy": "False",
+        "omit_messages": "False",
+        "session_id": "\"\""
+      }
+    },
+    "session.steer": {
+      "file": "methods_session.py",
+      "lines": 37,
+      "hash": "efe3124fce82",
+      "defaults": {}
+    },
+    "session.title": {
+      "file": "methods_session.py",
+      "lines": 84,
+      "hash": "abc1ca306f9f",
+      "defaults": {
+        "session_id": "\"\"",
+        "title": "\"\""
+      }
+    },
+    "session.undo": {
+      "file": "methods_session.py",
+      "lines": 38,
+      "hash": "0f4a9c9e1eac",
+      "defaults": {
+        "history_version": "0"
+      }
+    },
+    "session.usage": {
+      "file": "methods_session.py",
+      "lines": 24,
+      "hash": "135da014ed1c",
+      "defaults": {}
+    },
+    "setup.runtime_check": {
+      "file": "methods_config.py",
+      "lines": 74,
+      "hash": "1e06e822ea76",
+      "defaults": {}
+    },
+    "skills.reload": {
+      "file": "methods_tools.py",
+      "lines": 25,
+      "hash": "ff63c4420748",
+      "defaults": {}
+    },
+    "sudo.respond": {
+      "file": "methods_prompt.py",
+      "lines": 5,
+      "hash": "1670ec117c4a",
+      "defaults": {}
+    },
+    "terminal.read.respond": {
+      "file": "methods_prompt.py",
+      "lines": 9,
+      "hash": "38e874060ba9",
+      "defaults": {}
+    },
+    "tools.configure": {
+      "file": "methods_tools.py",
+      "lines": 69,
+      "hash": "59edc1d88746",
+      "defaults": {
+        "action": "\"\"",
+        "session_id": "\"\""
+      }
+    },
+    "tools.list": {
+      "file": "methods_tools.py",
+      "lines": 31,
+      "hash": "937fc6d88613",
+      "defaults": {
+        "session_id": "\"\""
+      }
+    }
+  },
+  "ourRestRoutes": {
+    "/api/audio/speak-stream": true,
+    "/api/curator": true,
+    "/api/learning/graph": true,
+    "/api/mcp/servers": true,
+    "/api/profiles": true,
+    "/api/profiles/active": true,
+    "/api/sessions": true,
+    "/api/skills": true,
+    "/api/skills/toggle": true
+  }
+}
