@@ -12,7 +12,7 @@
 // screen that needs one more member is a task that wires it (the explorer's
 // file operations at 1.8.17, profiles at 1.8.11), not a reason to fake it here.
 //
-// Three capabilities are refused on purpose rather than implemented:
+// Four capabilities are refused on purpose rather than implemented:
 //   api({upload}) — multipart upload has no IPC counterpart; attachments go
 //     through our own `pickAttachments` / `pasteAttachment` channels.
 //   readWindowBelow() — reading which OS window sits behind us is out of scope
@@ -22,6 +22,8 @@
 //   git / gitRoot — declared ABSENT (`undefined`), not left unbridged, so their
 //     own no-bridge branches run instead of a proxy that answers "yes" to every
 //     capability probe (SPEC HX6, task 3.3).
+//   themes — the VS Code Marketplace import, absent for the same reason under
+//     SPEC HX14 (task 3.26).
 //
 // And one answers without granting anything: `getConnection` hands back a
 // descriptor that names the IPC bridge and carries no credential, because the
@@ -191,6 +193,37 @@ const IMPLEMENTED: Record<string, unknown> = {
   }): Promise<string[]> {
     return window.aecpilot.selectPaths(options)
   },
+
+  // Task 3.26 (SPEC HX14). Interface scale is accessibility — an engineer reads
+  // drawings for hours — and it is one of the two window-appearance features
+  // SPEC keeps. Main owns the level (it is per-webContents, must survive a
+  // restart and must be the same in a second window), so this is a thin
+  // mapping onto our IPC in their shape: `get` / `setPercent` / `onChanged`.
+  //
+  // Unbridged it was worse than missing: their `store/zoom.ts` checks
+  // `if (window.hermesDesktop?.zoom)` — the stand-in proxy passes — and then
+  // calls `zoom.get().then(…)` with no catch, so every boot raised an
+  // unhandled rejection while the settings row stayed on a number that
+  // nothing could change (finding D-41).
+  zoom: {
+    get(): Promise<{ level: number; percent: number }> {
+      return window.aecpilot.getZoom()
+    },
+    setPercent(percent: number): void {
+      void window.aecpilot.setZoomPercent(percent)
+    },
+    onChanged(callback: (payload: { level: number; percent: number }) => void): () => void {
+      return window.aecpilot.onZoomChanged(callback)
+    }
+  },
+
+  // Task 3.26 (SPEC HX14). Importing a VS Code theme is a Non-Goal: it reads a
+  // foreign config off the marketplace and pulls a network dependency for
+  // decoration. Declared ABSENT rather than left unbridged so their own
+  // `if (!api?.fetchMarketplace)` branch answers with a sentence instead of a
+  // proxy call that rejects — and so the marketplace search resolves to an
+  // empty list through their own `?? Promise.resolve([])`.
+  themes: undefined,
 
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an

@@ -22,6 +22,14 @@ const api: AecpilotApi = {
   declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
+  getZoom: () => ipcRenderer.invoke('zoom:get'),
+  setZoomPercent: (percent) => ipcRenderer.invoke('zoom:set-percent', percent),
+  onZoomChanged: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('zoom:changed', listener)
+    return () => ipcRenderer.removeListener('zoom:changed', listener)
+  },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   openSpeechStream: (id) => ipcRenderer.invoke('speech:open', id),
   sendSpeechFrame: (id, frame) => ipcRenderer.invoke('speech:send', { id, frame }),

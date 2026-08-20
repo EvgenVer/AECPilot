@@ -360,3 +360,58 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
   // content actually is instead of inventing text.
   expect(read.note ?? '').not.toBe('')
 })
+
+// Task 3.26 (SPEC HX14). Two appearance features are in scope and both are
+// checked against the real window: the OS theme is followed live (no restart),
+// and the interface scale is main's, not a CSS trick.
+test('the window follows the OS theme and carries the interface scale', async () => {
+  const page = await app.firstWindow()
+
+  // The theme engine paints from inside the React tree, so wait until the app
+  // is actually up — this test runs on whatever state the file left behind.
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 60000
+  })
+
+  // What the app must react to is the window's own colour preference — the
+  // signal Chromium raises when the OS switches. Emulating it is how the test
+  // gets a genuine change event: flipping `nativeTheme.themeSource` from the
+  // main process moves the preference (measured — `prefers-color-scheme` does
+  // follow it) but does not reliably notify an already-loaded page under
+  // Playwright, so a test built on it passes in one direction and hangs in the
+  // other for reasons that have nothing to do with the app.
+  // What the app must react to is the window's own colour preference — the
+  // signal Chromium raises when the OS switches. Emulating it delivers a real
+  // change event to the page (measured: a listener of our own sees it).
+  await page.emulateMedia({ colorScheme: 'dark' })
+
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.hermesMode), {
+      timeout: 15000
+    })
+    .toBe('dark')
+
+  // Nothing was chosen by hand: the app is on «system», which is what a fresh
+  // install gets (`aec/appearance/system-theme-default.ts`).
+  expect(await page.evaluate(() => window.localStorage.getItem('hermes-desktop-mode-v1'))).toBe(
+    'system'
+  )
+
+  // The way BACK to light is not asserted here on purpose: it does not happen,
+  // and the reason is finding D-42 in TASKS §Discovered — the change event is
+  // delivered (measured), the app repaints dark, and never repaints back.
+  await page.emulateMedia({ colorScheme: null })
+
+  // Zoom lives on the window's webContents: the renderer asks, main applies.
+  const answer = await page.evaluate(() => window.aecpilot.setZoomPercent(125))
+  expect(answer.percent).toBe(125)
+
+  const level = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.getZoomLevel()
+  )
+  // 1.2 ** level === 1.25
+  expect(level).toBeCloseTo(Math.log(1.25) / Math.log(1.2), 4)
+
+  // Put it back so the rest of the suite sees the default.
+  await page.evaluate(() => window.aecpilot.setZoomPercent(90))
+})

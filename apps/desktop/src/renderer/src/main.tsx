@@ -1,3 +1,9 @@
+// ПЕРВЫМ, ДО ЛЮБОГО ИХ МОДУЛЯ (задача 3.26): их тема красит фон уже на
+// загрузке модуля, а этот засев решает, какой режим она возьмёт на чистой
+// установке. Поставить импорт ниже — значит увидеть светлый первый кадр на
+// тёмной системе. Подробности — в самом модуле.
+import './aec/appearance/system-theme-default'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'

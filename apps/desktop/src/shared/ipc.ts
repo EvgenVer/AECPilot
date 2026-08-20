@@ -651,6 +651,16 @@ export interface AecpilotApi {
    * and it is what the criterion asks for. Answers with the state actually in
    * force, so a platform without a blocker cannot be mistaken for a working
    * one. Passing a non-boolean reads the stored preference without changing it. */
+  /** Масштаб интерфейса (задача 3.26, SPEC HX14). Уровнем владеет главный
+   * процесс: он общий для всех окон, переживает перезапуск и меняется ещё и
+   * с клавиатуры (Ctrl +/-/0), поэтому рендерер его не хранит, а зеркалит.
+   * Форма ответа — их контракт (`hermesDesktop.zoom`), чтобы их же экран
+   * настроек работал без правок. */
+  getZoom(): Promise<{ level: number; percent: number }>
+  setZoomPercent(percent: number): Promise<{ level: number; percent: number }>
+  /** Каждое изменение, включая клавиатурное, — чтобы цифра в настройках не
+   * расходилась с экраном. Возвращает функцию отписки. */
+  onZoomChanged(cb: (payload: { level: number; percent: number }) => void): () => void
   setKeepAwake(on: boolean): Promise<{ enabled: boolean }>
   openSpeechStream(id: string): Promise<{ ok: boolean; error?: string }>
   /** One frame of their protocol as JSON: `{text}`, `{done:true}`, `{stop:true}`.

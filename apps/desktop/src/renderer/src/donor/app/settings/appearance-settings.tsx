@@ -5,6 +5,9 @@
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
+ *   [3] dropped the window-translucency row and the VS Code Marketplace theme
+ *       search/import (both HX14) — with their imports, derived state and the
+ *       search box's second job
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -14,7 +17,6 @@ import { useEffect, useState } from 'react'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
-import type { DesktopMarketplaceSearchItem } from '@/global'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
@@ -29,28 +31,10 @@ import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enable
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
 import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
 import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
-import {
-  $translucency,
-  beginTranslucencyPeek,
-  endTranslucencyPeek,
-  GLASS_MATERIALS,
-  GLASS_SCOPES,
-  GLASS_SUPPORTED,
-  pulseTranslucencyPeek,
-  resetTranslucencyPeek,
-  setTranslucency,
-  setTranslucencyMaterial,
-  setTranslucencyMode,
-  setTranslucencyScope,
-  TRANSLUCENCY_MAX,
-  TRANSLUCENCY_MIN,
-  TRANSLUCENCY_STEP
-} from '@/store/translucency'
 import { $zoomPercent, setZoomPercent } from '@/store/zoom'
 import { getBaseColors, useTheme } from '@/themes/context'
-import { installVscodeThemeFromMarketplace } from '@/themes/install'
 import type { DesktopTheme } from '@/themes/types'
-import { $marketplaceInstalls, isUserTheme, removeUserTheme } from '@/themes/user-themes'
+import { isUserTheme, removeUserTheme } from '@/themes/user-themes'
 
 import { MODE_OPTIONS } from './constants'
 import { ListRow, SectionHeading, SettingsContent, ToggleRow } from './primitives'
@@ -120,157 +104,6 @@ function useDebounced<T>(value: T, delayMs: number): T {
 
 const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
 
-/**
- * Live VS Code Marketplace theme search (the same backend as the Cmd-K "Install
- * theme…" page). Renders below the local grid when there's a query: each row
- * downloads + converts + installs via `installVscodeThemeFromMarketplace` and
- * activates it. Extensions already imported locally are marked installed.
- */
-function MarketplaceThemeResults({
-  query,
-  installs,
-  onInstalled
-}: {
-  query: string
-  installs: ReadonlyMap<string, DesktopTheme>
-  onInstalled: (name: string) => void
-}) {
-  const { t } = useI18n()
-  const copy = t.commandCenter.installTheme
-  const debounced = useDebounced(query.trim(), 300)
-  const [installingId, setInstallingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const search = useQuery({
-    enabled: debounced.length > 0,
-    queryFn: () => window.hermesDesktop?.themes?.searchMarketplace(debounced) ?? Promise.resolve([]),
-    queryKey: ['marketplace-themes-settings', debounced],
-    staleTime: 5 * 60 * 1000
-  })
-
-  // Already installed → just re-activate it; never re-download what we have.
-  const select = (item: DesktopMarketplaceSearchItem) => {
-    const owned = installs.get(item.extensionId)
-
-    if (owned) {
-      triggerHaptic('crisp')
-      onInstalled(owned.name)
-
-      return
-    }
-
-    void install(item)
-  }
-
-  const install = async (item: DesktopMarketplaceSearchItem) => {
-    if (installingId) {
-      return
-    }
-
-    setInstallingId(item.extensionId)
-    setError(null)
-
-    try {
-      const theme = await installVscodeThemeFromMarketplace(item.extensionId)
-
-      triggerHaptic('crisp')
-      onInstalled(theme.name)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : copy.error)
-    } finally {
-      setInstallingId(null)
-    }
-  }
-
-  if (!debounced) {
-    return null
-  }
-
-  const header = (
-    <p className="mb-2 mt-4 text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-tertiary)">
-      From the VS Code Marketplace
-    </p>
-  )
-
-  if (search.isLoading) {
-    return (
-      <>
-        {header}
-        <p className="flex items-center gap-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
-          <Loader2 className="size-3.5 animate-spin" />
-          {copy.loading}
-        </p>
-      </>
-    )
-  }
-
-  if (search.isError) {
-    return (
-      <>
-        {header}
-        <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-red)">{copy.error}</p>
-      </>
-    )
-  }
-
-  const results = search.data ?? []
-
-  if (results.length === 0) {
-    return (
-      <>
-        {header}
-        <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">{copy.empty}</p>
-      </>
-    )
-  }
-
-  return (
-    <>
-      {header}
-      {error && <p className="mb-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-red)">{error}</p>}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {results.map(item => {
-          const busy = installingId === item.extensionId
-          const done = installs.has(item.extensionId)
-
-          return (
-            <button
-              className={cn(
-                'flex items-center gap-2.5 px-2.5 py-2 text-left disabled:opacity-60',
-                selectableCardClass({ prominent: done })
-              )}
-              disabled={Boolean(installingId) && !busy}
-              key={item.extensionId}
-              onClick={() => select(item)}
-              type="button"
-            >
-              <Palette className="size-4 shrink-0 text-(--ui-text-tertiary)" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[length:var(--conversation-text-font-size)] font-medium">
-                  {item.displayName}
-                </span>
-                <span className="block truncate text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
-                  {item.publisher}
-                  {item.installs > 0 ? ` · ${copy.installs(compactNumber.format(item.installs))}` : ''}
-                </span>
-              </span>
-              <span className="shrink-0 text-(--ui-text-tertiary)">
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : done ? (
-                  <Check className="size-4 text-(--ui-green)" />
-                ) : (
-                  <Download className="size-4" />
-                )}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </>
-  )
-}
-
 // Keys a range input treats as a step, so the peek can flash the live window
 // for keyboard adjustment the way a pointer drag holds it open.
 const SLIDER_STEP_KEYS = new Set([
@@ -294,39 +127,16 @@ export function AppearanceSettings() {
   const embedMode = useStore($embedMode)
   const embedAllowed = useStore($embedAllowed)
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
-  const translucency = useStore($translucency)
   const reactionsEnabled = useStore($reactionsEnabled)
   const backdrop = useStore($backdrop)
-  const installs = useStore($marketplaceInstalls)
   const profiles = useStore($profiles)
   const activeProfileKey = normalizeProfileKey(useStore($activeGatewayProfile))
   const a = t.settings.appearance
 
-  // A pointer held on the intensity slider when this overlay closes (Escape
-  // mid-drag) never delivers its pointerup here, which would strand the peek
-  // counter above zero and ghost the NEXT settings overlay. Unmount drops
-  // every outstanding hold.
-  useEffect(() => resetTranslucencyPeek, [])
-
-  // Shared by the mode/frost/area pickers: apply the choice, then show it
-  // through the overlay it just altered (a pulse, not a hold — see the peek
-  // notes on the slider itself).
-  const pickTranslucency =
-    <T,>(set: (value: T) => void) =>
-    (value: T) => {
-      triggerHaptic('selection')
-      set(value)
-
-      if (translucency.intensity > 0) {
-        pulseTranslucencyPeek()
-      }
-    }
-
   const [query, setQuery] = useState('')
 
-  // One box does double duty: filter installed themes live (below), and run a
-  // name search against the VS Code Marketplace (the Cmd-K "Install theme…"
-  // backend) for anything not already installed.
+  // EDIT [3]: one box, one job now — filter installed themes. Its second job
+  // (a live VS Code Marketplace search) is HX14 and is gone with that block.
   const needle = normalize(query)
 
   const filteredThemes = availableThemes
@@ -388,13 +198,13 @@ export function AppearanceSettings() {
           <ListRow
             below={
               <>
-                {/* One search box: filters your installed themes (the grid)
-                    and live-searches the VS Code Marketplace below. */}
+                {/* EDIT [3]: the box filters installed themes. Its second job —
+                    a live VS Code Marketplace search — is HX14. */}
                 <div className="mt-3">
                   <input
                     className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
                     onChange={event => setQuery(event.target.value)}
-                    placeholder="Search your themes or the VS Code Marketplace…"
+                    placeholder="Search your themes…"
                     spellCheck={false}
                     value={query}
                   />
@@ -459,7 +269,6 @@ export function AppearanceSettings() {
                       })}
                     </div>
                   )}
-                  <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
                 </div>
                 {showProfileNote && (
                   <p className="mt-3 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
@@ -515,94 +324,6 @@ export function AppearanceSettings() {
             }
             description={a.sessionDensityDesc}
             title={a.sessionDensityTitle}
-          />
-
-          <ListRow
-            action={
-              <div
-                className="flex items-center gap-3"
-                // Arms the peek for the overlay this row lives in — the
-                // ghosting rules in styles.css scope to it, so no other
-                // overlay pays for an opacity transition it never uses.
-                data-translucency-peek-scope=""
-              >
-                {GLASS_SUPPORTED && (
-                  <SegmentedControl
-                    onChange={pickTranslucency(setTranslucencyMode)}
-                    options={[
-                      { id: 'clear' as const, label: a.translucencyModeClear },
-                      { id: 'glass' as const, label: a.translucencyModeGlass }
-                    ]}
-                    value={translucency.mode}
-                  />
-                )}
-                <input
-                  aria-label={a.translucencyTitle}
-                  className="h-1 w-40 cursor-pointer appearance-none rounded-full bg-(--ui-stroke-tertiary)"
-                  max={TRANSLUCENCY_MAX}
-                  min={TRANSLUCENCY_MIN}
-                  // Peek while the hand is on the slider: the overlay (scrim +
-                  // near-opaque card) ghosts so the window behind IS the live
-                  // preview. Pointer pair covers mouse/touch drags; the
-                  // keyboard path pulses per step instead (blur ends any
-                  // residual hold).
-                  onBlur={endTranslucencyPeek}
-                  onChange={event => {
-                    triggerHaptic('selection')
-                    setTranslucency(Number(event.target.value))
-                  }}
-                  onKeyDown={event => {
-                    if (SLIDER_STEP_KEYS.has(event.key)) {
-                      pulseTranslucencyPeek()
-                    }
-                  }}
-                  onLostPointerCapture={endTranslucencyPeek}
-                  onPointerDown={beginTranslucencyPeek}
-                  onPointerUp={endTranslucencyPeek}
-                  step={TRANSLUCENCY_STEP}
-                  style={{ accentColor: 'var(--dt-primary)' }}
-                  type="range"
-                  value={translucency.intensity}
-                />
-                <span className="w-9 text-right text-[length:var(--conversation-caption-font-size)] tabular-nums text-(--ui-text-tertiary)">
-                  {translucency.intensity}%
-                </span>
-              </div>
-            }
-            below={
-              translucency.mode === 'glass' && GLASS_SUPPORTED ? (
-                <div className="mt-3 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-12 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
-                      {a.translucencyFrostTitle}
-                    </span>
-                    <SegmentedControl
-                      onChange={pickTranslucency(setTranslucencyMaterial)}
-                      options={GLASS_MATERIALS.map(material => ({
-                        id: material,
-                        label: a.translucencyFrost[material]
-                      }))}
-                      value={translucency.material}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="w-12 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
-                      {a.translucencyScopeTitle}
-                    </span>
-                    <SegmentedControl
-                      onChange={pickTranslucency(setTranslucencyScope)}
-                      options={GLASS_SCOPES.map(scope => ({
-                        id: scope,
-                        label: a.translucencyScope[scope]
-                      }))}
-                      value={translucency.scope}
-                    />
-                  </div>
-                </div>
-              ) : undefined
-            }
-            description={translucency.mode === 'glass' ? a.translucencyGlassDesc : a.translucencyDesc}
-            title={a.translucencyTitle}
           />
 
           <ListRow

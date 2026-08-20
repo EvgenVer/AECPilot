@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createHermesDesktopBridge } from './hermes-desktop-shim'
 
@@ -109,5 +109,39 @@ describe('hermes-desktop shim: git (SPEC HX6)', () => {
     const bridge = createHermesDesktopBridge() as unknown as Record<string, () => Promise<unknown>>
 
     await expect(bridge.someMemberWeNeverWired()).rejects.toThrow(/not bridged/)
+  })
+})
+
+// Задача 3.26 (SPEC HX14). Зум входит в объём, импорт темы VS Code — нет, и
+// разница между «проброшено» и «объявлено отсутствующим» здесь ровно та же, что
+// у git: непроброшенный член — это ПРОКСИ, то есть истинное значение, и их
+// проверка наличия его пропускает.
+describe('hermes-desktop shim: zoom и themes (SPEC HX14)', () => {
+  it('зум переложен на наш IPC в их форме', async () => {
+    const getZoom = vi.fn().mockResolvedValue({ level: 0, percent: 100 })
+    const setZoomPercent = vi.fn().mockResolvedValue({ level: 1, percent: 120 })
+    const dispose = vi.fn()
+    const onZoomChanged = vi.fn().mockReturnValue(dispose)
+    ;(globalThis as unknown as { window: unknown }).window = {
+      aecpilot: { getZoom, setZoomPercent, onZoomChanged }
+    }
+
+    const zoom = createHermesDesktopBridge().zoom!
+
+    await expect(zoom.get()).resolves.toEqual({ level: 0, percent: 100 })
+    zoom.setPercent(120)
+    expect(setZoomPercent).toHaveBeenCalledWith(120)
+
+    const callback = vi.fn()
+    expect(zoom.onChanged(callback)).toBe(dispose)
+    expect(onZoomChanged).toHaveBeenCalledWith(callback)
+  })
+
+  it('импорт темы VS Code объявлен отсутствующим (HX14)', () => {
+    const bridge = createHermesDesktopBridge()
+
+    expect(bridge.themes).toBeUndefined()
+    // Их собственная ветка отказа: `if (!api?.fetchMarketplace)`.
+    expect(Boolean(bridge.themes?.fetchMarketplace)).toBe(false)
   })
 })

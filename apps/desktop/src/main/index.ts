@@ -14,6 +14,8 @@ import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
+import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
+import { levelForPercent } from './zoom-pure'
 import {
   closeSpeechStream,
   closeSpeechStreamsFor,
@@ -519,6 +521,11 @@ function createWindow(): void {
     }
   })
 
+  // Task 3.26: the saved interface scale applies to every window, including a
+  // second one opened later, and Ctrl +/-/0 changes it from anywhere.
+  applyZoom(win.webContents)
+  installZoomShortcuts(win)
+
   // Task 1.6.4a — the window itself must never leave the app. Since task 1.6.4
   // the transcript renders agent-authored markdown, so a link in that text is
   // content we did not write; a navigation would carry our preload API onto a
@@ -813,6 +820,16 @@ ipcMain.on('quick:hide', () => hideQuickEntry())
 /** Task 3.18. Their settings row mirrors the preference into the renderer's own
  * storage and calls this; main keeps its own copy because the blocker has to be
  * back in force after a restart without anyone visiting Settings. */
+// Task 3.26 (SPEC HX14). Zoom is accessibility, not decoration — an engineer
+// reads drawings for hours. Main owns it: the level lives on `webContents`,
+// survives a restart and must be the same in every window.
+ipcMain.handle('zoom:get', () => ({
+  level: levelForPercent(zoomPercent()),
+  percent: zoomPercent()
+}))
+
+ipcMain.handle('zoom:set-percent', (_event, percent: unknown) => setZoomPercent(percent))
+
 ipcMain.handle('power:keep-awake', (_event, on: unknown) => {
   if (typeof on !== 'boolean') return { enabled: loadKeepAwake() }
 
