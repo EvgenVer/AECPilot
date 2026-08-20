@@ -181,3 +181,57 @@ test('their shell paints and the composer goes live over our bridge', async () =
     timeout: 60000
   })
 })
+
+// Task 3.3 (SPEC UR16/HX6). Runs against the app and project the test above
+// left open — this file has one worker and one `beforeAll` boot, so order is
+// the dependency and there is nothing to re-create.
+//
+// What it proves cannot be proven by a unit test: the pane behind their ⌘G is
+// OURS. `registerChangesPane()` wins the pane id `review` only if it runs after
+// their controller registered it, and that ordering lives in module-evaluation
+// semantics, not in any function this repo can call twice.
+test('Ctrl+G opens the change history, not a git surface', async () => {
+  const page = await app.firstWindow()
+
+  // Their boot overlay never finishes against the mock: it clears on a
+  // readiness answer the mock cannot give (that probe is REST, and this mock
+  // speaks only the socket), so it stays as a full-screen layer over
+  // everything. It is an artifact of the harness, not of the app, and it is not
+  // what this test is about — take it out of the page so the rail underneath is
+  // both visible and clickable.
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll<HTMLElement>('div.fixed.inset-0')) {
+      if (el.className.includes('z-(--z-onboarding)')) el.style.display = 'none'
+    }
+  })
+
+  // Our own getting-started card is a real, dismissible surface sitting in the
+  // bottom-right corner — over the right rail. Closed the way a person closes
+  // it.
+  const guide = page.getByRole('region', { name: /Getting started|С чего начать/ })
+  if (await guide.count()) await guide.getByRole('button', { name: /Close|Закрыть/ }).click()
+
+  await page.keyboard.press('Control+G')
+
+  // The list names snapshots by time (the mock answers two).
+  const newest = page.getByText('06.08.2026, 10:00')
+  await expect(newest).toBeVisible({ timeout: 30000 })
+  await expect(page.getByText('06.08.2026, 09:00')).toBeVisible()
+
+  await newest.click()
+
+  // Line by line, with the changed file named — the UR16 requirement.
+  await expect(page.getByText('wiki/smeta.md').first()).toBeVisible({ timeout: 30000 })
+  await expect(page.getByText('+novoe znachenie')).toBeVisible()
+  await expect(page.getByText('-staroe znachenie')).toBeVisible()
+
+  // …and the way back is offered for the file and for the whole snapshot.
+  await expect(page.getByRole('button', { name: /Восстановить файл|Restore file/ })).toBeVisible()
+
+  // Their review pane's own chrome came with the body we replaced. None of it
+  // is on screen, and neither is the hash the panel used to print.
+  for (const label of [/^Stage all$/, /^Commit$/, /^Push$/, /Create PR/, /Unstage/]) {
+    await expect(page.getByRole('button', { name: label })).toHaveCount(0)
+  }
+  await expect(page.getByText(/a1b2c3d4/)).toHaveCount(0)
+})

@@ -2,6 +2,10 @@
 // What is tested here is the part that can lose a user's work: nothing is
 // overwritten without a confirmation that NAMES what will be overwritten, and
 // the empty list explains itself instead of looking broken.
+//
+// Task 3.3 added one more: a snapshot is named by its TIME everywhere. The
+// hash is an id we pass back to the gateway, and a hash on screen is a git
+// concept this product does not use (SPEC HX6).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
@@ -80,11 +84,30 @@ describe('RollbackPanel', () => {
     )
   })
 
+  it('names snapshots by time and never shows a hash (SPEC HX6)', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
+    expect(screen.getByText('06.08.2026, 09:00')).toBeTruthy()
+
+    // Both fixtures' hashes, in full and abbreviated form.
+    for (const hash of ['abc123deef456', 'abc123de', 'fed654cba321', 'fed654cb']) {
+      expect(screen.queryByText(new RegExp(hash))).toBeNull()
+    }
+
+    await click(/06\.08\.2026, 10:00/)
+    await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
+
+    // The diff header and the confirmation speak the same language.
+    expect(screen.getByText('Что изменилось после 06.08.2026, 10:00')).toBeTruthy()
+    await click('Восстановить всё')
+    expect(screen.getByText(/состоянием на 06\.08\.2026, 10:00/)).toBeTruthy()
+  })
+
   it('shows the diff of the snapshot the user picked', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
 
-    await click(/abc123de/)
+    await click(/06\.08\.2026, 10:00/)
 
     await waitFor(() => expect(diffCheckpoint).toHaveBeenCalledWith('abc123deef456'))
     expect(screen.getByText('docs/а.md')).toBeTruthy()
@@ -92,8 +115,8 @@ describe('RollbackPanel', () => {
 
   it('names what a whole-snapshot restore will overwrite, and only then restores', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
-    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
+    await click(/06\.08\.2026, 10:00/)
     await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
 
     await click('Восстановить всё')
@@ -111,8 +134,8 @@ describe('RollbackPanel', () => {
 
   it('names the single file when only that file is being restored', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
-    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
+    await click(/06\.08\.2026, 10:00/)
     await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
 
     await click('Восстановить файл')
@@ -131,8 +154,8 @@ describe('RollbackPanel', () => {
     // `{ success: false }` on a call that did not throw.
     restoreCheckpoint.mockResolvedValue({ success: false, error: 'рабочая копия занята' })
     renderPanel()
-    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
-    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
+    await click(/06\.08\.2026, 10:00/)
     await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
     await click('Восстановить всё')
     await click('Восстановить')
@@ -144,8 +167,8 @@ describe('RollbackPanel', () => {
 
   it('backs out without touching anything', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('abc123de')).toBeTruthy())
-    await click(/abc123de/)
+    await waitFor(() => expect(screen.getByText('06.08.2026, 10:00')).toBeTruthy())
+    await click(/06\.08\.2026, 10:00/)
     await waitFor(() => expect(screen.getByText('docs/а.md')).toBeTruthy())
     await click('Восстановить всё')
 

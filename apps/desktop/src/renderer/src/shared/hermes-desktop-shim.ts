@@ -12,13 +12,16 @@
 // screen that needs one more member is a task that wires it (the explorer's
 // file operations at 1.8.17, profiles at 1.8.11), not a reason to fake it here.
 //
-// Two capabilities are refused on purpose rather than implemented:
+// Three capabilities are refused on purpose rather than implemented:
 //   api({upload}) — multipart upload has no IPC counterpart; attachments go
 //     through our own `pickAttachments` / `pasteAttachment` channels.
 //   readWindowBelow() — reading which OS window sits behind us is out of scope
 //     by SPEC HX12. It is IMPLEMENTED rather than left unbridged so the refusal
 //     is a truthful sentence instead of the core's "unavailable on this system"
 //     (task 3.25).
+//   git / gitRoot — declared ABSENT (`undefined`), not left unbridged, so their
+//     own no-bridge branches run instead of a proxy that answers "yes" to every
+//     capability probe (SPEC HX6, task 3.3).
 //
 // And one answers without granting anything: `getConnection` hands back a
 // descriptor that names the IPC bridge and carries no credential, because the
@@ -106,6 +109,32 @@ const IMPLEMENTED: Record<string, unknown> = {
       ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
     })
   },
+
+  // Task 3.3 (SPEC HX6). There is no git in this product: no branches, no
+  // worktrees, no commits — and the vault is deliberately not a repository
+  // (PLAN §«Проектные скилы»). Their code MODELS that: `desktopGit()` is typed
+  // `GitBridge | undefined` and every caller guards it (`if (!desktopGit()
+  // ?.repoStatus) return false`, `if (!review?.prList) return`, `if (!status)
+  // return null`). So the honest answer is the absent member their contract
+  // already has a branch for.
+  //
+  // Leaving it unbridged was NOT the same thing and was actively worse: the
+  // stand-in below is a callable PROXY, so `Boolean(desktopGit()?.review
+  // ?.prList)` read as `true` and every capability probe answered "yes, this
+  // machine has git" — the session filter grew a pull-request section
+  // (`sidebar/filter-menu.tsx`), and the review pane declared the working tree
+  // CLEAN (`store/review.ts` swallows the rejection into an empty file list)
+  // for a vault that has no repository at all. A lie in the one direction a
+  // person cannot check.
+  git: undefined,
+
+  // Same decision, the other member: `gitRoot` is "which repository is this
+  // path in", asked by their file tree to apply .gitignore
+  // (`right-sidebar/files/ipc.ts`). Their own line is `desktop.gitRoot ?
+  // desktop.gitRoot(path) : null` — so absence is a supported answer and the
+  // tree simply hides nothing, while the proxy passed the check and then
+  // rejected inside an `await` nobody catches.
+  gitRoot: undefined,
 
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main

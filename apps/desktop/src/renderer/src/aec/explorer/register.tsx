@@ -14,7 +14,6 @@ import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 import { IndexStatus } from '../index-status/IndexStatus'
 import { DocumentViewer } from '../viewers/DocumentViewer'
 import { ProjectMenu } from '../project/ProjectMenu'
-import { RollbackPanel } from '../rollback/RollbackPanel'
 import { ScanWatcher } from '../scan/ScanWatcher'
 
 import { VaultExplorer } from './VaultExplorer'
@@ -24,9 +23,6 @@ import { VaultExplorer } from './VaultExplorer'
 // this case. A language switch retitles it on the next registry mutation.
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'explorer.title', [])
-
-const rollbackTitle = (): string =>
-  translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'rollback.title', [])
 
 const viewerTitle = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'viewer.title', [])
@@ -64,23 +60,11 @@ registry.register({
   render: () => <ScanWatcher />
 })
 
-// Checkpoints go on the right, where their own review-ish panes live. The
-// donor's git surface is excluded (HX6), so this is the only answer to "what
-// did the agent change in my files, and how do I undo it".
-registry.register({
-  id: 'aec-rollback',
-  area: 'panes',
-  source: 'core',
-  title: rollbackTitle(),
-  data: {
-    placement: 'right',
-    collapsible: true,
-    width: '320px',
-    minWidth: '260px',
-    maxWidth: '560px'
-  },
-  render: () => <RollbackPanel />
-})
+// Checkpoints used to be registered here as a pane of our own. Task 3.3 moved
+// them onto THEIR pane id (`review`), so ⌘G, the palette toggle and the
+// transcript's "N files changed" card all open the change history instead of
+// the git surface SPEC excludes (HX6) — see
+// `aec/rollback/register-changes-pane.tsx`. One panel, one place.
 
 registry.register({
   id: 'aec-explorer',

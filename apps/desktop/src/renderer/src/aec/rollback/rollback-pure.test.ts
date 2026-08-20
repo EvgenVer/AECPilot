@@ -10,8 +10,7 @@ import {
   formatCheckpointTime,
   isDiffMaybeTruncated,
   parseDiffFiles,
-  parseDiffLines,
-  shortHash
+  parseDiffLines
 } from './rollback-pure'
 import type { RollbackListing } from '../../../../shared/ipc'
 
@@ -81,12 +80,6 @@ describe('formatCheckpointTime', () => {
 
   it('passes anything unrecognised through rather than printing Invalid Date', () => {
     expect(formatCheckpointTime('позавчера')).toBe('позавчера')
-  })
-})
-
-describe('shortHash', () => {
-  it('abbreviates the way hermes does', () => {
-    expect(shortHash('abcdef1234567890')).toBe('abcdef12')
   })
 })
 

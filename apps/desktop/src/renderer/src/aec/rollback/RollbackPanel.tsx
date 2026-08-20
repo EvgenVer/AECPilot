@@ -15,7 +15,7 @@ import { useCallback, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
-import type { RollbackDiffResult } from '../../../../shared/gateway/types'
+import type { RollbackCheckpoint, RollbackDiffResult } from '../../../../shared/gateway/types'
 
 import {
   DIFF_CHANGE_LABEL,
@@ -25,7 +25,6 @@ import {
   isDiffMaybeTruncated,
   parseDiffFiles,
   parseDiffLines,
-  shortHash,
   type RollbackView
 } from './rollback-pure'
 
@@ -33,8 +32,16 @@ const CHECKPOINTS_KEY = ['aec', 'checkpoints'] as const
 
 /** What the user is being asked to confirm. Restoring overwrites files in the
  * vault, so the confirmation names exactly what will be overwritten — a whole
- * snapshot or one file — rather than asking "are you sure?". */
-type Pending = { hash: string; filePath?: string }
+ * snapshot or one file — rather than asking "are you sure?".
+ *
+ * `when` travels with the hash because the dialog names the snapshot the way
+ * the list does: by its time. The hash is an id, never shown — it is a git
+ * concept, and this screen does not use them (SPEC HX6, task 3.3). */
+type Pending = { hash: string; filePath?: string; when: string }
+
+/** How a snapshot is named on screen. */
+const whenOf = (checkpoint: RollbackCheckpoint): string =>
+  formatCheckpointTime(checkpoint.timestamp)
 
 const LINE_CLASS: Record<string, string> = {
   add: 'text-emerald-500',
@@ -47,7 +54,11 @@ const LINE_CLASS: Record<string, string> = {
 export function RollbackPanel() {
   const t = useAecT()
   const queryClient = useQueryClient()
-  const [selected, setSelected] = useState<string | undefined>(undefined)
+  // The whole checkpoint, not its hash: the screen names a snapshot by its
+  // TIME everywhere (list row, diff header, confirmation), so carrying the row
+  // itself keeps that label always available and needs no lookup back into a
+  // list that a restore may have already changed.
+  const [selected, setSelected] = useState<RollbackCheckpoint | undefined>(undefined)
   const [pending, setPending] = useState<Pending | undefined>(undefined)
   const [outcome, setOutcome] = useState<string | undefined>(undefined)
 
@@ -57,9 +68,9 @@ export function RollbackPanel() {
   })
 
   const { data: diff, isFetching: diffLoading } = useQuery({
-    queryKey: [...CHECKPOINTS_KEY, 'diff', selected],
+    queryKey: [...CHECKPOINTS_KEY, 'diff', selected?.hash],
     enabled: selected !== undefined,
-    queryFn: () => window.aecpilot.diffCheckpoint(selected as string)
+    queryFn: () => window.aecpilot.diffCheckpoint((selected as RollbackCheckpoint).hash)
   })
 
   const restore = useCallback(
@@ -67,7 +78,13 @@ export function RollbackPanel() {
       setPending(undefined)
       setOutcome(undefined)
       try {
-        const result = await window.aecpilot.restoreCheckpoint({ ...target, confirmed: true })
+        // Only the contract's fields go over IPC — `when` is a label for this
+        // screen, not part of the request.
+        const result = await window.aecpilot.restoreCheckpoint({
+          hash: target.hash,
+          ...(target.filePath === undefined ? {} : { filePath: target.filePath }),
+          confirmed: true
+        })
         // Their handler passes the manager's own verdict through, so a refusal
         // arrives as a successful call with `success: false`.
         setOutcome(
@@ -123,16 +140,15 @@ export function RollbackPanel() {
             <li key={checkpoint.hash}>
               <Button
                 className={`h-auto w-full justify-between px-2 py-1 ${
-                  selected === checkpoint.hash ? 'bg-(--chrome-action-hover)' : ''
+                  selected?.hash === checkpoint.hash ? 'bg-(--chrome-action-hover)' : ''
                 }`}
                 onClick={() => {
-                  setSelected(checkpoint.hash)
+                  setSelected(checkpoint)
                   setOutcome(undefined)
                 }}
                 variant="ghost"
               >
                 <span>{formatCheckpointTime(checkpoint.timestamp)}</span>
-                <span className="text-(--ui-text-secondary)">{shortHash(checkpoint.hash)}</span>
               </Button>
             </li>
           ))}
@@ -145,9 +161,11 @@ export function RollbackPanel() {
       {selected && diff && !diffLoading && (
         <DiffView
           diff={diff}
-          hash={selected}
-          onRestoreAll={() => setPending({ hash: selected })}
-          onRestoreFile={(filePath) => setPending({ hash: selected, filePath })}
+          onRestoreAll={() => setPending({ hash: selected.hash, when: whenOf(selected) })}
+          onRestoreFile={(filePath) =>
+            setPending({ hash: selected.hash, filePath, when: whenOf(selected) })
+          }
+          when={whenOf(selected)}
         />
       )}
 
@@ -174,12 +192,13 @@ function ScopeWarning({ scope }: { scope: Parameters<typeof explainScope>[0] }) 
 }
 
 function DiffView({
-  hash,
+  when,
   diff,
   onRestoreFile,
   onRestoreAll
 }: {
-  hash: string
+  /** The snapshot's time, already formatted — the panel never shows a hash. */
+  when: string
   diff: RollbackDiffResult
   onRestoreFile: (filePath: string) => void
   onRestoreAll: () => void
@@ -199,7 +218,7 @@ function DiffView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span>{t('rollback.diffHead', shortHash(hash))}</span>
+        <span>{t('rollback.diffHead', when)}</span>
         <Button onClick={onRestoreAll} size="xs" variant="secondary">
           {t('rollback.restoreAll')}
         </Button>
@@ -254,8 +273,8 @@ function ConfirmRestore({
     >
       <p>
         {pending.filePath
-          ? t('rollback.confirmFile', pending.filePath, shortHash(pending.hash))
-          : t('rollback.confirmAll', shortHash(pending.hash))}
+          ? t('rollback.confirmFile', pending.filePath, pending.when)
+          : t('rollback.confirmAll', pending.when)}
       </p>
       {/* Not a detail: the core does not delete files created AFTER the
           snapshot, so "restore" is not "go back in time". */}

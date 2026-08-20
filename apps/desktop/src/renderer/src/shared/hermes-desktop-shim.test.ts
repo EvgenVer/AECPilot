@@ -85,3 +85,29 @@ describe('hermes-desktop shim: readWindowBelow (SPEC HX12)', () => {
     expect(answer.error).toContain('не из-за ограничений системы')
   })
 })
+
+// Task 3.3 (SPEC HX6). The difference this pins is not cosmetic: an unbridged
+// member answers with a callable proxy, and their capability probes are plain
+// truthiness checks (`Boolean(desktopGit()?.review?.prList)`). A proxy passes
+// them, so "no git here" read as "git is available" everywhere at once.
+describe('hermes-desktop shim: git (SPEC HX6)', () => {
+  it('is declared ABSENT, so their own no-bridge branches run', () => {
+    expect(createHermesDesktopBridge().git).toBeUndefined()
+  })
+
+  it('fails their capability probe the way a machine without git would', () => {
+    const bridge = createHermesDesktopBridge()
+
+    // Verbatim shape from `sidebar/filter-menu.tsx` and `store/review.ts`.
+    expect(Boolean(bridge.git?.review?.prList)).toBe(false)
+    expect(Boolean(bridge.git?.repoStatus)).toBe(false)
+  })
+
+  it('leaves genuinely unbridged members as the named-refusal proxy', async () => {
+    // The contrast: absence is a decision, and everything else still reports
+    // its own name instead of quietly resolving.
+    const bridge = createHermesDesktopBridge() as unknown as Record<string, () => Promise<unknown>>
+
+    await expect(bridge.someMemberWeNeverWired()).rejects.toThrow(/not bridged/)
+  })
+})

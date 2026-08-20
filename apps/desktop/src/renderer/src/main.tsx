@@ -21,6 +21,7 @@ import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
+import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
@@ -34,6 +35,11 @@ installClipboardShim()
 // и до первого рендера — ответ может прийти раньше, чем смонтируется лента.
 registerQuoteCheck()
 registerCoreNotices()
+// Task 3.3: «Изменения в документах» takes the place of their git review pane
+// (SPEC HX6/UR16). Called from the body on purpose — a same-id registration
+// wins only if it runs after their shell module, and module bodies run after
+// every static import. See `register-changes-pane.tsx`.
+registerChangesPane()
 
 // Their provider stack, in their order (main.tsx at DONOR_SHA), with two
 // substitutions: our i18n provider stands in for theirs (same component

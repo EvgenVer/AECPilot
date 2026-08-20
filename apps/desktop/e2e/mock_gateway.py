@@ -6,6 +6,8 @@ of the wire protocol to drive the chat panel through one full turn:
   session.create -> {session_id}
   prompt.submit -> {status: "streaming"}, then a streamed "PONG" reply
   session.close -> {closed: true}
+  rollback.list / rollback.diff -> two snapshots and one file's difference
+    (task 3.3: the change-history pane is what Ctrl+G opens)
 
 Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 """
@@ -42,6 +44,43 @@ async def handle(connection: ServerConnection) -> None:
                 await stream_full_turn(connection, text)
             else:
                 await stream_pong(connection)
+        elif method == "rollback.list":
+            # Two snapshots, newest first — the shape `list_checkpoints` gives
+            # THROUGH the gateway: hash, timestamp, and an always-empty message
+            # (their handler drops the core's reason/files_changed).
+            result = {
+                "enabled": True,
+                "checkpoints": [
+                    {
+                        "hash": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+                        "timestamp": "2026-08-06T10:00:00+03:00",
+                        "message": "",
+                    },
+                    {
+                        "hash": "b2c3d4e5f60718293a4b5c6d7e8f90123456789a",
+                        "timestamp": "2026-08-06T09:00:00+03:00",
+                        "message": "",
+                    },
+                ],
+            }
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+            )
+        elif method == "rollback.diff":
+            result = {
+                "stat": " wiki/smeta.md | 2 +-",
+                "diff": (
+                    "diff --git a/wiki/smeta.md b/wiki/smeta.md\n"
+                    "--- a/wiki/smeta.md\n"
+                    "+++ b/wiki/smeta.md\n"
+                    "@@ -1 +1 @@\n"
+                    "-staroe znachenie\n"
+                    "+novoe znachenie\n"
+                ),
+            }
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+            )
         elif method == "session.close":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})

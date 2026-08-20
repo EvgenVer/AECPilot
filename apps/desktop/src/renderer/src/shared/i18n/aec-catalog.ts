@@ -133,7 +133,7 @@ export const aecLocales: PluginLocaleBundles = {
       diffLoading: 'Computing the difference…',
       diffEmpty:
         'No difference — either nothing changed since this snapshot, or the snapshot is gone (the gateway cannot tell these apart).',
-      diffHead: (hash: string) => `Changes since snapshot ${hash}`,
+      diffHead: (when: string) => `What changed after ${when}`,
       truncated:
         'The gateway cuts the patch at 4000 characters without marking the cut — what is shown below is probably not all of it.',
       binary: 'binary',
@@ -145,10 +145,10 @@ export const aecLocales: PluginLocaleBundles = {
       restoreFailed: (reason: string) => `Could not restore: ${reason}`,
       noReason: 'no reason given',
       confirmLabel: 'Confirm restore',
-      confirmFile: (path: string, hash: string) =>
-        `File ${path} will be overwritten with its state from snapshot ${hash}. The current contents are lost.`,
-      confirmAll: (hash: string) =>
-        `Every file will be overwritten with its state from snapshot ${hash}, and the last turn disappears from the session history. The current contents are lost.`,
+      confirmFile: (path: string, when: string) =>
+        `File ${path} will be overwritten with the state it had at ${when}. The current contents are lost.`,
+      confirmAll: (when: string) =>
+        `Every file will be overwritten with the state it had at ${when}, and the last turn disappears from the session history. The current contents are lost.`,
       confirmNote:
         'Files created AFTER the snapshot are not deleted by a restore — that is the core’s behaviour.'
     },
@@ -359,7 +359,7 @@ export const aecLocales: PluginLocaleBundles = {
       diffLoading: 'Считаю различия…',
       diffEmpty:
         'Различий нет — либо с этого снимка ничего не менялось, либо самого снимка уже нет (шлюз эти два случая не различает).',
-      diffHead: (hash: string) => `Изменения с снимка ${hash}`,
+      diffHead: (when: string) => `Что изменилось после ${when}`,
       truncated:
         'Шлюз обрезает патч по 4000 символов и не помечает обрез — ниже, скорее всего, показана не вся разница.',
       binary: 'двоичный',
@@ -371,10 +371,10 @@ export const aecLocales: PluginLocaleBundles = {
       restoreFailed: (reason: string) => `Не удалось восстановить: ${reason}`,
       noReason: 'причина не названа',
       confirmLabel: 'Подтверждение восстановления',
-      confirmFile: (path: string, hash: string) =>
-        `Файл ${path} будет перезаписан состоянием из снимка ${hash}. Текущее содержимое пропадёт.`,
-      confirmAll: (hash: string) =>
-        `Все файлы будут перезаписаны состоянием из снимка ${hash}, а последний ход исчезнет из истории сессии. Текущее содержимое пропадёт.`,
+      confirmFile: (path: string, when: string) =>
+        `Файл ${path} будет перезаписан состоянием на ${when}. Текущее содержимое пропадёт.`,
+      confirmAll: (when: string) =>
+        `Все файлы будут перезаписаны состоянием на ${when}, а последний ход исчезнет из истории сессии. Текущее содержимое пропадёт.`,
       confirmNote:
         'Файлы, созданные ПОСЛЕ снимка, при восстановлении не удаляются — это поведение ядра.'
     },

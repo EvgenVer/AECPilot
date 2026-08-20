@@ -97,12 +97,6 @@ export function formatCheckpointTime(timestamp: string): string {
   return `${day}.${month}.${year}, ${hour}:${minute}`
 }
 
-/** Short form of a snapshot hash, the way hermes itself abbreviates it in
- * `rollback.restore`'s `restored_to`. */
-export function shortHash(hash: string): string {
-  return hash.slice(0, 8)
-}
-
 /** The gateway slices the patch with `[:4000]` and adds no marker, so a diff
  * that arrives at exactly the limit is almost certainly cut. Treated as "may
  * be truncated" and said so on screen — silently showing a half patch as the
