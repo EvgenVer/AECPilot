@@ -229,6 +229,24 @@ export const aecLocales: PluginLocaleBundles = {
       languageHint:
         'Screens carried over from the Hermes desktop are translated as they arrive; anything not yet translated falls back to English.'
     },
+    blocks: {
+      clause: (number: string) => `Clause ${number}`,
+      clauseNoNumber: 'Standard reference',
+      openAtPlace: 'Open at that place',
+      noSource: 'The answer gave no source for this clause.',
+      conflict: 'Discrepancy',
+      sideLeft: 'First source',
+      sideRight: 'Second source',
+      noValue: 'not stated',
+      table: 'Table',
+      openWhole: 'Open in full',
+      loading: 'Reading the file…',
+      noFile: 'The block names no file.',
+      tableUnsupported: 'This block reads .csv, .tsv and .xlsx.',
+      tableFailed: (reason: string) => `Could not read the file: ${reason}`,
+      tableEmpty: 'The file is empty.',
+      tableHidden: (count: number) => `${count} more rows — open in full`
+    },
     preview: {
       externalTitle: 'External pages do not open here',
       externalBody: (address: string) =>
@@ -459,6 +477,24 @@ export const aecLocales: PluginLocaleBundles = {
       languageLabel: 'Язык интерфейса',
       languageHint:
         'Экраны, перенесённые из десктопа Hermes, переводятся по мере переноса; непереведённое показывается по-английски.'
+    },
+    blocks: {
+      clause: (number: string) => `Пункт ${number}`,
+      clauseNoNumber: 'Ссылка на норматив',
+      openAtPlace: 'Открыть на этом месте',
+      noSource: 'Источник у этого пункта в ответе не назван.',
+      conflict: 'Расхождение',
+      sideLeft: 'Первый источник',
+      sideRight: 'Второй источник',
+      noValue: 'не названо',
+      table: 'Таблица',
+      openWhole: 'Открыть целиком',
+      loading: 'Читаю файл…',
+      noFile: 'В блоке не назван файл.',
+      tableUnsupported: 'Этот блок читает .csv, .tsv и .xlsx.',
+      tableFailed: (reason: string) => `Не удалось прочитать файл: ${reason}`,
+      tableEmpty: 'Файл пуст.',
+      tableHidden: (count: number) => `Ещё строк: ${count} — откройте целиком`
     },
     preview: {
       externalTitle: 'Внешние страницы здесь не открываются',
