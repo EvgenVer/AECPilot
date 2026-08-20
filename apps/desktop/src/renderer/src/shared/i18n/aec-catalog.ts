@@ -232,7 +232,10 @@ export const aecLocales: PluginLocaleBundles = {
     cron: {
       noTickTitle: 'The schedule will not start on its own yet',
       noTickBody:
-        'The core ticks schedules only inside its messenger gateway, which this app does not run — measured on 0.20.4. The job is saved and the "Run now" button works, but the time shown as the next run will pass without anything happening.'
+        'The core ticks schedules only inside its messenger gateway, which this app does not run — measured on 0.20.4. The job is saved and the "Run now" button works, but the time shown as the next run will pass without anything happening.',
+      continuityLabel: 'Schedules remember the previous run',
+      continuityHint:
+        'Each scheduled run starts with the previous run’s answer in front of it, so it reports what CHANGED instead of everything from scratch. Turn it off and every run starts blind — cheaper, but a nightly rescan will keep re-reporting the same findings.'
     }
   },
   ru: {
@@ -455,7 +458,10 @@ export const aecLocales: PluginLocaleBundles = {
     cron: {
       noTickTitle: 'Расписание пока не запустится само',
       noTickBody:
-        'Ядро тикает расписания только внутри своего мессенджер-шлюза, а его это приложение не поднимает — замерено на 0.20.4. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.'
+        'Ядро тикает расписания только внутри своего мессенджер-шлюза, а его это приложение не поднимает — замерено на 0.20.4. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.',
+      continuityLabel: 'Расписания помнят прошлый запуск',
+      continuityHint:
+        'Каждый запуск по расписанию начинается с ответа предыдущего, поэтому задача докладывает, что ИЗМЕНИЛОСЬ, а не всё заново. Выключите — и каждый запуск стартует вслепую: дешевле, но ночной перескан будет каждый раз сообщать одно и то же.'
     }
   }
 }

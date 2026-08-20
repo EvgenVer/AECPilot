@@ -6,6 +6,7 @@
 // scoped to this vault, and a user who has forgotten which one is open can do
 // real damage in the wrong project.
 
+import { useStore } from '@nanostores/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 
@@ -13,6 +14,7 @@ import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -20,6 +22,7 @@ import {
   DropdownMenuTrigger
 } from '../../donor/components/ui/dropdown-menu'
 import { useAecT } from '../../shared/i18n'
+import { $cronContinuity, setCronContinuity } from '../cron-continuity/store'
 
 import CreateProjectDialog from './CreateProjectDialog'
 
@@ -28,6 +31,7 @@ const RECENTS_KEY = ['aec', 'recent-projects'] as const
 
 export function ProjectMenu() {
   const t = useAecT()
+  const continuity = useStore($cronContinuity)
   const queryClient = useQueryClient()
   const [dialog, setDialog] = useState<{ dirPath?: string; name?: string } | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -105,6 +109,19 @@ export function ProjectMenu() {
                 ))}
             </>
           )}
+
+          {/* Задача 3.5а. Общий переключатель, а не галочка на задаче: поля
+              `context_from` нет в их редакторе расписаний, а вшить его туда
+              значило бы завести пятый вид правки вендорного файла. Текст
+              описывает последствие, а не имя поля. */}
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            checked={continuity}
+            onCheckedChange={(next) => void setCronContinuity(next === true)}
+            title={t('cron.continuityHint')}
+          >
+            <span className="max-w-72">{t('cron.continuityLabel')}</span>
+          </DropdownMenuCheckboxItem>
 
           {error && (
             <>

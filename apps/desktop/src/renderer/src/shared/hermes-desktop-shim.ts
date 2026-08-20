@@ -29,6 +29,9 @@
 
 import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
+import { cronContinuityEnabled } from '../aec/cron-continuity/store'
+import { withContinuity } from '../aec/cron-continuity/continuity-pure'
+import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import { noticeCronHasNoTick } from '../aec/cron-tick-notice/notice'
 
 import { gatewayBridge } from './gateway-bridge'
@@ -85,11 +88,21 @@ const IMPLEMENTED: Record<string, unknown> = {
     // of our own, saving a job builds an expectation that never comes true, so
     // the person is told at the moment the expectation forms. The call itself
     // is not blocked: the job IS saved and "run now" works.
-    noticeCronHasNoTick({ method, path: request.path })
+    const cronWrite = cronWriteKind({ method, path: request.path })
+    noticeCronHasNoTick(cronWrite)
+
+    // Task 3.5а (UR18). Continuity is a field on the job (`context_from`) that
+    // their editor never writes — it is not on their screen at all. Our switch
+    // is one for all jobs (owner decision), so the value is stamped here, on
+    // the create their screen already makes, rather than in a form field we are
+    // not allowed to add to a vendored file. An existing `context_from` is left
+    // alone: a job chained to ANOTHER job is not this switch's business.
+    const body =
+      cronWrite === 'create' ? withContinuity(request.body, cronContinuityEnabled()) : request.body
 
     return gatewayBridge().rest<T>(request.path, {
       method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
-      ...(request.body === undefined ? {} : { body: request.body }),
+      ...(body === undefined ? {} : { body }),
       ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
     })
   },

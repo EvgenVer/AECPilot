@@ -7,7 +7,7 @@ import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { notify } from '../../donor/store/notifications'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
-import { cronWriteKind, type CronWriteRequest } from './cron-tick-notice-pure'
+import type { CronWriteKind } from './cron-tick-notice-pure'
 
 /** Их нереактивный переводчик: перехват живёт в шиме, вне React. */
 function t(key: string): string {
@@ -18,12 +18,14 @@ function t(key: string): string {
  * заводящий пять задач подряд, не должен получить пять одинаковых плашек. */
 let shown = false
 
-/** Показывает предупреждение, если этот вызов заводит или включает расписание.
- * Возвращает true, если показал, — для тестов и для будущего снятия: когда
- * свой тик появится, отсюда уйдёт вызов, а не разъедется логика. */
-export function noticeCronHasNoTick(request: CronWriteRequest): boolean {
+/** Показывает предупреждение, если вызов заводит или включает расписание.
+ * Вид вызова определяет `cronWriteKind` — он же решает, применять ли
+ * непрерывность (задача 3.5а), поэтому считается один раз в шиме и передаётся
+ * сюда. Возвращает true, если показал, — для тестов и для будущего снятия:
+ * когда свой тик появится (3.6а), отсюда уйдёт вызов, а не разъедется логика. */
+export function noticeCronHasNoTick(kind: CronWriteKind | null): boolean {
   if (shown) return false
-  if (!cronWriteKind(request)) return false
+  if (!kind) return false
 
   shown = true
   // `warning` у них висит до закрытия рукой, а не тает — здесь это и нужно:
