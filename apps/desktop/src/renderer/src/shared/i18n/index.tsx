@@ -23,9 +23,17 @@ import { createI18nConfigClient, readStoredLocale } from './config-client'
 export { useI18n }
 export type { Locale }
 
-/** The locales this build offers. SPEC C7 requires en + ru; the rest came with
- * the donor's catalog and are complete, so they are not hidden. */
-export const UI_LOCALES = LOCALE_OPTIONS
+/** The locales this build offers — en + ru (SPEC C7).
+ *
+ * Their catalog also ships Japanese, Chinese and Arabic, and until 2026-08-20
+ * those were offered too. They are hidden now for one reason: every one of them
+ * names THEIR product, and this is ours (owner decision that day). Rewriting
+ * four foreign translations to say our name would be four translations we
+ * cannot read — the two locales SPEC actually requires are the two we check
+ * (`no-hermes.test.ts`). */
+export const UI_LOCALES = LOCALE_OPTIONS.filter(
+  (locale) => locale.id === 'en' || locale.id === 'ru'
+)
 
 /** Translator for our own surfaces: `t('welcome.tagline')`. Re-renders on a
  * language switch, like their own `useI18n`. */

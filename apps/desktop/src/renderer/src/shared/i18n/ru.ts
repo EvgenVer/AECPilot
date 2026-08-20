@@ -1,8 +1,10 @@
 // Russian catalog for the donor's own strings (SPEC C7: the UI is en + ru).
 //
-// `defineLocale` merges these over their English catalog, so this file is a
+// `debrandedEnBase` merges these over OUR English catalog, so this file is a
 // PARTIAL: a key that is not here falls back to English, type-checked against
-// their `Translations` contract. That is deliberate — their catalog is ~2900
+// their `Translations` contract. The base is ours and not theirs on purpose —
+// an untranslated key must fall back to a string that does not name their
+// product (`debrand.ts`). That is deliberate — their catalog is ~2900
 // lines written for screens that arrive across tasks 1.8.9–1.8.15, and
 // translating a string before its screen exists means translating it blind.
 // The full pass is task 6.7 ("i18n polish across every screen, including the
@@ -11,9 +13,9 @@
 // What is here now: the strings a Russian user meets before any donor screen
 // is mounted — the language picker itself and the shared shell vocabulary.
 
-import { defineLocale } from '../../donor/i18n/define-locale'
+import { debrandedEnBase } from './locale-base'
 
-export const ru = defineLocale({
+export const ru = debrandedEnBase({
   common: {
     apply: 'Применить',
     back: 'Назад',

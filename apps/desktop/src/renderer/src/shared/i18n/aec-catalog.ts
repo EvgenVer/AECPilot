@@ -227,7 +227,7 @@ export const aecLocales: PluginLocaleBundles = {
     settings: {
       languageLabel: 'Interface language',
       languageHint:
-        'Screens carried over from the Hermes desktop are translated as they arrive; anything not yet translated falls back to English.'
+        'Screens are translated as they are built; anything not translated yet falls back to English.'
     },
     blocks: {
       clause: (number: string) => `Clause ${number}`,
@@ -487,7 +487,7 @@ export const aecLocales: PluginLocaleBundles = {
     settings: {
       languageLabel: 'Язык интерфейса',
       languageHint:
-        'Экраны, перенесённые из десктопа Hermes, переводятся по мере переноса; непереведённое показывается по-английски.'
+        'Экраны переводятся по мере готовности; непереведённое показывается по-английски.'
     },
     blocks: {
       clause: (number: string) => `Пункт ${number}`,

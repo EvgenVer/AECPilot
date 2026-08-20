@@ -1,0 +1,48 @@
+// Английский каталог интерфейса — их строки без их имени (требование владельца
+// 2026-08-20; механика — `debrand.ts`).
+//
+// Ручные замены ниже — те места, где механическая подстановка сочинила бы
+// неправду: путь на диске, команда терминала, адрес установщика, переменная
+// окружения их сборки. Каждая переписана так, чтобы говорить правду о НАШЕМ
+// продукте либо не называть частность вовсе.
+
+import { en as donorEn } from '../../donor/i18n/en'
+
+import { debrandTranslations } from './debrand'
+
+const OVERRIDES: Record<string, string> = {
+  // Путь `~/.hermes/config.yaml` в нашей сборке неверен и без переименования:
+  // профиль ядра лежит в каталоге приложения. Диалог подтверждения — экран, до
+  // которого человек доходит, поэтому строка переписана, а не подставлена.
+  'assistant.approval.alwaysDescription':
+    'This adds the pattern to the permanent allowlist, so commands like this are not asked about again — in this session or any later one.',
+
+  // Команда их CLI. У нас восстановление живёт на экране навыков.
+  'skills.skillArchivedMessage': 'Can be restored from the skills screen.',
+
+  // `Is \`hermes gateway\` running?` — их команда; у нас ядро поднимает само
+  // приложение.
+  'desktop.handoff.timedOut': 'Timed out waiting for the agent core to answer.',
+
+  // Слэш-команда выхода.
+  'composer.commandDescs./quit': 'exit the app',
+
+  // Переменные окружения их сборки; у нас таких нет.
+  'settings.gateway.envOverrideDesc':
+    'A remote address set in the environment overrides the setting below. Clear it to use the saved value.',
+
+  // Адрес их установщика — сочинять свой нельзя, а называть чужой незачем.
+  'settings.gateway.sshErrNotInstalled':
+    'The agent core is not installed on the remote host. Install it there, or set the path to it below.',
+  'settings.gateway.sshHermesPathTitle': 'Path to the agent core (optional)',
+  'settings.gateway.sshHermesPathDesc':
+    'Full path to the core’s binary on the remote host. Blank = auto-detect.',
+
+  // Примеры адресов и идентификаторов.
+  'settings.gateway.remoteUrlDesc':
+    'Base URL of the remote backend. Path prefixes are supported, for example /agent.',
+  'install.remoteUrlPlaceholder': 'https://gateway.example.com/agent',
+  'messaging.fieldCopy.MATRIX_USER_ID.placeholder': '@bot:example.org'
+}
+
+export const en = debrandTranslations(donorEn, OVERRIDES)
