@@ -8,6 +8,10 @@ of the wire protocol to drive the chat panel through one full turn:
   session.close -> {closed: true}
   rollback.list / rollback.diff -> two snapshots and one file's difference
     (task 3.3: the change-history pane is what Ctrl+G opens)
+  prompt "artifact" -> a turn whose answer carries an HTML artifact fence
+  prompt "readpreview" -> a preview.read.request event; the app's
+    preview.read.respond is printed on stdout for the test to read
+    (task 3.4: read_preview must be ANSWERED for an artifact tab)
 
 Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 """
@@ -19,6 +23,8 @@ import sys
 from websockets.asyncio.server import ServerConnection, serve
 
 SESSION_ID = "e2e-1"
+BT = "```"
+NL = "\n"
 
 
 async def handle(connection: ServerConnection) -> None:
@@ -42,6 +48,8 @@ async def handle(connection: ServerConnection) -> None:
             text = (request.get("params") or {}).get("text") or ""
             if text.startswith("turn"):
                 await stream_full_turn(connection, text)
+            elif text.startswith("artifact"):
+                await stream_artifact_turn(connection)
             else:
                 await stream_pong(connection)
         elif method == "rollback.list":
@@ -80,6 +88,14 @@ async def handle(connection: ServerConnection) -> None:
             }
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+            )
+        elif method == "preview.read.respond":
+            # The app's answer to read_preview. Printed so the test can read it
+            # from stdout: proving the round trip is the point of task 3.4.
+            answer = (request.get("params") or {}).get("text") or ""
+            print("PREVIEW_READ_RESPOND " + json.dumps(answer), flush=True)
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
             )
         elif method == "session.close":
             await connection.send(
@@ -138,6 +154,88 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
         "message.complete",
         {"text": f"Готово: расхождение найдено ({prompt}).", "status": "complete"},
     )
+
+
+ARTIFACT_HTML = (
+    "<!doctype html>\n"
+    "<html><head><title>Vedomost</title></head>\n"
+    "<body><h1>Vedomost peremychek</h1>\n"
+    "<table><tr><td>PR-1</td><td>12</td></tr>\n"
+    "<tr><td>PR-2</td><td>7</td></tr></table>\n"
+    "<p>Sgenerirovano agentom dlya proverki predprosmotra.</p>\n"
+    "</body></html>"
+)
+
+# The answer carries two things at once: the fenced document their transcript
+# turns into an artifact card, and an explicit preview link to an EXTERNAL
+# address — the path SPEC HX13 closes. One turn, both halves of task 3.4.
+# The address stays UNENCODED on purpose: their message only looks for preview
+# links when the text itself contains "https://" or "file://"
+# (`assistant-message.tsx`), so a percent-encoded href renders nothing.
+EXTERNAL_PREVIEW_LINK = (
+    "[Preview: vneshnyaya-stranica](#preview/https://example.com/vneshnyaya-stranica)"
+)
+
+ARTIFACT_ANSWER = (
+    "Vot vedomost:"
+    + NL
+    + NL
+    + BT
+    + "html"
+    + NL
+    + ARTIFACT_HTML
+    + NL
+    + BT
+    + NL
+    + NL
+    + EXTERNAL_PREVIEW_LINK
+    + NL
+)
+
+
+async def stream_artifact_turn(connection: ServerConnection) -> None:
+    """An answer carrying a fenced HTML document — what their transcript turns
+    into an artifact card, and the card into a sandboxed preview tab (UR22)."""
+
+    async def push(event_type: str, payload: dict | None = None) -> None:
+        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        if payload is not None:
+            params["payload"] = payload
+        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
+        await asyncio.sleep(0.03)
+
+    await push("message.start")
+    await push("message.delta", {"text": ARTIFACT_ANSWER})
+    await push("message.complete", {"text": ARTIFACT_ANSWER, "status": "complete"})
+    asyncio.create_task(poll_preview_reads(connection))
+
+
+async def poll_preview_reads(connection: ServerConnection) -> None:
+    """Keep asking read_preview, the way the agent could at any moment.
+
+    Repeating instead of asking once removes the race the test would otherwise
+    have to win: the answer is only interesting once a preview tab is open, and
+    opening it is several UI steps away. Early answers are empty and simply not
+    the line the test waits for.
+    """
+    for index in range(20):
+        await asyncio.sleep(3)
+        try:
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "event",
+                        "params": {
+                            "type": "preview.read.request",
+                            "session_id": SESSION_ID,
+                            "payload": {"request_id": f"preview-read-{index}"},
+                        },
+                    }
+                )
+            )
+        except Exception:
+            return
 
 
 async def main() -> None:

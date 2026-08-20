@@ -229,6 +229,11 @@ export const aecLocales: PluginLocaleBundles = {
       languageHint:
         'Screens carried over from the Hermes desktop are translated as they arrive; anything not yet translated falls back to English.'
     },
+    preview: {
+      externalTitle: 'External pages do not open here',
+      externalBody: (address: string) =>
+        `The preview tab shows only what the agent produced: an HTML artifact, a project file, an image. ${address} was not opened — that is where this product draws its line, not a failure. Open it in a browser if you need it.`
+    },
     cron: {
       noTickTitle: 'The schedule will not start on its own yet',
       noTickBody:
@@ -454,6 +459,11 @@ export const aecLocales: PluginLocaleBundles = {
       languageLabel: 'Язык интерфейса',
       languageHint:
         'Экраны, перенесённые из десктопа Hermes, переводятся по мере переноса; непереведённое показывается по-английски.'
+    },
+    preview: {
+      externalTitle: 'Внешние страницы здесь не открываются',
+      externalBody: (address: string) =>
+        `Во вкладке предпросмотра показывается только то, что сделал агент: HTML-артефакт, файл проекта, изображение. Адрес ${address} не открыт — это граница продукта, а не сбой. Откройте его в браузере, если он нужен.`
     },
     cron: {
       noTickTitle: 'Расписание пока не запустится само',

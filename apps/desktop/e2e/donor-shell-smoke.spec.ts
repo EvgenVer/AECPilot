@@ -15,13 +15,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ElectronApplication } from 'playwright'
+import type { ElectronApplication, Page } from 'playwright'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
 const closeGraceMs = 90000
 
 let mock: ChildProcessWithoutNullStreams
+let mockOutput = ''
 let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
 let projectDir = ''
@@ -43,6 +44,58 @@ function listElectronPids(): Set<number> {
   } catch {
     return new Set()
   }
+}
+
+/** Wait for a line the mock printed — how the test sees what the APP sent it
+ *  (task 3.4: read_preview's answer travels app → gateway, not the other way). */
+async function waitForMockLine(pattern: RegExp, timeoutMs = 30000): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    const line = mockOutput.split(/\r?\n/).find((candidate) => pattern.test(candidate))
+
+    if (line) return line
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+
+  throw new Error(`mock never printed ${pattern} — got:\n${mockOutput}`)
+}
+
+/** Type a prompt into their composer and send it. */
+async function send(page: Page, text: string): Promise<void> {
+  const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+
+  await composer.click()
+  await page.keyboard.type(text)
+  // Their send button, not Enter: once a turn has run, the composer offers
+  // "Queue message" as well, and Enter lands on the queue instead of the wire.
+  await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
+}
+
+/** Clear the toast stack. Their notifications float over the transcript's top
+ *  edge, and the boot ones ("Backend out of date" against this mock) sit there
+ *  until dismissed — a real overlay for a real reason, just not this test's
+ *  subject. */
+async function clearNotifications(page: Page): Promise<void> {
+  const dismiss = page.getByRole('button', { name: /Dismiss notification|Закрыть уведомление/ })
+
+  for (let guard = 0; guard < 10 && (await dismiss.count()) > 0; guard += 1) {
+    await dismiss.first().click()
+  }
+}
+
+/** How many preview tabs the store holds — the observable HX13 acts on. */
+function previewTabCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    try {
+      const raw = window.localStorage.getItem('hermes.desktop.previewTabs.v2')
+
+      return raw ? (JSON.parse(raw) as unknown[]).length : 0
+    } catch {
+      return 0
+    }
+  })
 }
 
 function getFreePort(): Promise<number> {
@@ -83,16 +136,15 @@ test.beforeAll(async () => {
       () => reject(new Error('mock_gateway.py did not print MOCK_READY within 15s')),
       15000
     )
-    let output = ''
     mock.stdout.on('data', (chunk: Buffer) => {
-      output += chunk.toString()
-      if (output.includes('MOCK_READY')) {
+      mockOutput += chunk.toString()
+      if (mockOutput.includes('MOCK_READY')) {
         clearTimeout(timeout)
         resolve()
       }
     })
     mock.stderr.on('data', (chunk: Buffer) => {
-      output += chunk.toString()
+      mockOutput += chunk.toString()
     })
     mock.on('error', (error) => {
       clearTimeout(timeout)
@@ -234,4 +286,77 @@ test('Ctrl+G opens the change history, not a git surface', async () => {
     await expect(page.getByRole('button', { name: label })).toHaveCount(0)
   }
   await expect(page.getByText(/a1b2c3d4/)).toHaveCount(0)
+})
+
+// Task 3.4 (SPEC UR22/HX13/C9). Three claims in one turn, because one turn is
+// what produces all three: an HTML artifact card, the sandboxed tab it opens,
+// and an explicit preview link to an external address that must NOT open.
+test('an HTML artifact previews in a sandbox, an external address does not open', async () => {
+  const page = await app.firstWindow()
+
+  await clearNotifications(page)
+  await send(page, 'artifact')
+
+  // Their transcript promotes a substantial fenced document into a card.
+  const card = page.locator('[data-slot="aui_artifact-card"]')
+  await expect(card).toBeVisible({ timeout: 30000 })
+
+  await clearNotifications(page)
+  await card.click()
+
+  // The preview runs in an iframe with an opaque origin: scripts may run, but
+  // there is no same-origin access, no top navigation, no form submission out
+  // of the frame — the app is unreachable from the generated page.
+  const frame = page.locator('iframe[sandbox]')
+  await expect(frame).toBeVisible({ timeout: 30000 })
+  await expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
+  const srcdoc = await frame.getAttribute('srcdoc')
+  expect(srcdoc).toContain('Vedomost peremychek')
+
+  // The window itself keeps the hardening SPEC C9 requires, and never gained
+  // `webviewTag` — the one switch that would let a <webview> load a page.
+  const prefs = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const wp = win.webContents.getLastWebPreferences() ?? {}
+
+    return {
+      contextIsolation: wp.contextIsolation,
+      sandbox: wp.sandbox,
+      webviewTag: wp.webviewTag,
+      nodeIntegration: wp.nodeIntegration
+    }
+  })
+  expect(prefs.contextIsolation).not.toBe(false)
+  expect(prefs.sandbox).not.toBe(false)
+  expect(prefs.nodeIntegration).not.toBe(true)
+  expect(prefs.webviewTag).not.toBe(true)
+
+  // The same answer carries `[Preview: example.com](#preview/https://…)`. It is
+  // a real, clickable door to their preview pipeline — and it must stay shut.
+  await clearNotifications(page)
+  const beforeTabs = await previewTabCount(page)
+  await page
+    .getByRole('button', { name: /Open preview|Открыть предпросмотр/ })
+    .first()
+    .click()
+
+  await expect(
+    page.getByText(/Внешние страницы здесь не открываются|External pages do not open here/)
+  ).toBeVisible({
+    timeout: 15000
+  })
+  expect(await previewTabCount(page)).toBe(beforeTabs)
+
+  // read_preview must be ANSWERED for the artifact tab (SPEC UR22). The mock
+  // has been asking every three seconds since the turn landed, so the line we
+  // wait for is the first one answered while the tab was open.
+  const line = await waitForMockLine(/PREVIEW_READ_RESPOND .*artifact/)
+  const answer = JSON.parse(line.slice('PREVIEW_READ_RESPOND '.length)) as string
+
+  const read = JSON.parse(answer) as { kind: string; note?: string; title: string }
+  expect(read.kind).toBe('artifact')
+  expect(read.title).toContain('Vedomost')
+  // No live page behind a sandboxed frame — the honest answer says where the
+  // content actually is instead of inventing text.
+  expect(read.note ?? '').not.toBe('')
 })

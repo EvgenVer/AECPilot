@@ -22,6 +22,7 @@ import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 import './aec/explorer/register'
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
+import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
@@ -40,6 +41,10 @@ registerCoreNotices()
 // wins only if it runs after their shell module, and module bodies run after
 // every static import. See `register-changes-pane.tsx`.
 registerChangesPane()
+// Задача 3.4 (SPEC HX13): вкладка предпросмотра открывает только то, что
+// сделал агент. Надзор ставится до первого рендера — вкладка могла остаться в
+// хранилище от прошлого запуска.
+installPreviewBoundary()
 
 // Their provider stack, in their order (main.tsx at DONOR_SHA), with two
 // substitutions: our i18n provider stands in for theirs (same component
