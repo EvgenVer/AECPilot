@@ -147,6 +147,22 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.openExternalLink(url)
   },
 
+  // Task 3.17. Their composer's paperclip menu adds files and folders to the
+  // agent's CONTEXT (as `@file:` / `@folder:` references, not uploads) through
+  // this member. Unbridged it rejected a promise nobody awaits, so "Files" and
+  // "Folder" quietly did nothing — the same silent failure `openExternal` had
+  // before 3.19. The dialog itself runs in main: a path the renderer did not
+  // get from a human through a trusted dialog is a path it must not have.
+  selectPaths(options?: {
+    title?: string
+    defaultPath?: string
+    directories?: boolean
+    multiple?: boolean
+    filters?: Array<{ name: string; extensions: string[] }>
+  }): Promise<string[]> {
+    return window.aecpilot.selectPaths(options)
+  },
+
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.

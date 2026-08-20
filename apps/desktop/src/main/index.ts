@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences } from 'electron'
+import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -10,6 +11,7 @@ import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-
 import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
+import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import {
@@ -2200,6 +2202,27 @@ ipcMain.handle('attachments:read-data-url', async (_event, payload: unknown) => 
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+})
+
+// Task 3.17. Their composer adds files and folders to the context through
+// `window.hermesDesktop.selectPaths`; the dialog runs HERE for the same reason
+// `attach:pick` does — the renderer must never be handed a path it did not get
+// from a human through a trusted dialog. What the request may ask for is
+// translated by `planSelectPaths`, which is tested: a swapped
+// `openFile`/`openDirectory` is a button doing the wrong thing quietly.
+ipcMain.handle('dialog:select-paths', async (event, request: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+  const plan = planSelectPaths(request as SelectPathsRequest | undefined)
+  const options = {
+    ...(plan.title === undefined ? {} : { title: plan.title }),
+    ...(plan.defaultPath === undefined ? {} : { defaultPath: plan.defaultPath }),
+    ...(plan.filters === undefined ? {} : { filters: plan.filters }),
+    properties: plan.properties as OpenDialogOptions['properties']
+  }
+  const result = win
+    ? await dialog.showOpenDialog(win, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled ? [] : result.filePaths
 })
 
 ipcMain.handle('project:pick-directory', async (event) => {

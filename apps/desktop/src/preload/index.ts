@@ -34,6 +34,7 @@ const api: AecpilotApi = {
   },
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   completePath: (word) => ipcRenderer.invoke('chat:complete-path', word),
+  selectPaths: (options) => ipcRenderer.invoke('dialog:select-paths', options),
   pickAttachments: () => ipcRenderer.invoke('attach:pick'),
   pasteAttachment: () => ipcRenderer.invoke('attach:paste'),
   detachAttachment: (path) => ipcRenderer.invoke('attach:detach', path),

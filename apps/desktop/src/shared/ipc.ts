@@ -663,6 +663,19 @@ export interface AecpilotApi {
    * list, because this runs on every keystroke and must not put an error over
    * the composer. */
   completeSlash(text: string): Promise<{ items: SlashCompletionItem[] }>
+  /** Native path picker behind the donor's `hermesDesktop.selectPaths`
+   * (task 3.17): their composer adds files and folders to the agent's context
+   * with it. The dialog runs in main for the same reason `pickAttachments`
+   * does — a path the renderer did not get from a human through a trusted
+   * dialog is a path it must not have. Cancel comes back as an empty array,
+   * not a rejection: their caller checks `paths?.length`. */
+  selectPaths(options?: {
+    title?: string
+    defaultPath?: string
+    directories?: boolean
+    multiple?: boolean
+    filters?: Array<{ name: string; extensions: string[] }>
+  }): Promise<string[]>
   /** Attachments (task 1.6.A4). The list lives in the gateway's session and is
    * folded into the next message by `prompt.submit`, so `count` from these
    * calls is the truth and the composer only mirrors it.
