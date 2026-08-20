@@ -4,7 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the agents/Command Center/cron/webhooks surfaces (N10, UR18, UR19)
+ *   [3] dropped the agents/Command Center/webhooks surfaces (N10, UR19)
  *   [3] removed the pet surface (HX1)
  * (no other edits)
  */
@@ -150,10 +150,11 @@ import type { WiringActions, WiringApi } from './types'
 // Overlay views the controller mounts over the shell — lazy, load on demand.
 // The workspace-route full-page views (skills/messaging/artifacts) are the
 // ChatRoutesSurface's and live in ./surfaces.
-// EDIT [3]: agents and Command Center (SPEC N10 — post-MVP, phase 7), cron
-// schedules (UR18) and webhooks (UR19) are not in this phase's scope. Their
-// lazy views and the registrations below are removed; re-copy this file when
-// phase 3 brings them in.
+// EDIT [3]: agents and Command Center (SPEC N10 — post-MVP, phase 7) and
+// webhooks (UR19) are not in this phase's scope. Their lazy views and the
+// registrations below are removed; re-copy this file when a phase brings them
+// in. Cron came back that way at task 3.5 — it is UR18 and no longer dropped.
+const CronView = lazy(async () => ({ default: (await import('../cron')).CronView }))
 const ProfilesView = lazy(async () => ({ default: (await import('../profiles')).ProfilesView }))
 const SettingsView = lazy(async () => ({ default: (await import('../settings')).SettingsView }))
 const StarmapView = lazy(async () => ({ default: (await import('../starmap')).StarmapView }))
@@ -1103,6 +1104,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
               void refreshCurrentModel()
               void queryClient.invalidateQueries({ queryKey: ['model-options'] })
             }}
+          />
+        </Suspense>
+      )}
+
+      {cronOpen && (
+        <Suspense fallback={null}>
+          <CronView
+            onClose={closeOverlayToPreviousRoute}
+            onOpenSession={sessionId => openSession(sessionId, navigate)}
           />
         </Suspense>
       )}
