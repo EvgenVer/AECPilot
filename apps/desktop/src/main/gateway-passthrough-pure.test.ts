@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   checkRestCall,
   checkRpcCall,
-  explainProfileDeleteFailure
+  explainProfileDeleteFailure,
+  sanitizeRpcParams
 } from './gateway-passthrough-pure'
 
 describe('checkRpcCall', () => {
@@ -21,6 +22,32 @@ describe('checkRpcCall', () => {
     // No namespace, and no room for a smuggled path or frame field.
     expect(() => checkRpcCall('submit')).toThrow(/not a gateway method name/)
     expect(() => checkRpcCall('session.list; drop')).toThrow(/not a gateway method name/)
+  })
+})
+
+describe('sanitizeRpcParams (задача 3.4в, риск R19)', () => {
+  it('снимает пометку скрытого хода — второй рубеж после перехвата в окне', () => {
+    expect(
+      sanitizeRpcParams({ session_id: 's1', text: 'пересчитай', display_kind: 'hidden' })
+    ).toEqual({ session_id: 's1', text: 'пересчитай' })
+  })
+
+  it('не трогает остальные виды строк — их ставит ядро, а не окно', () => {
+    const params = { session_id: 's1', display_kind: 'model_switch' }
+
+    expect(sanitizeRpcParams(params)).toEqual(params)
+  })
+
+  it('прочие параметры проходят как есть', () => {
+    const params = { session_id: 's1', text: 'вопрос', interrupted: true }
+
+    expect(sanitizeRpcParams(params)).toEqual(params)
+  })
+
+  it('мусор вместо объекта даёт пустые параметры, а не бросок', () => {
+    expect(sanitizeRpcParams(undefined)).toEqual({})
+    expect(sanitizeRpcParams('строка')).toEqual({})
+    expect(sanitizeRpcParams([1, 2])).toEqual({})
   })
 })
 

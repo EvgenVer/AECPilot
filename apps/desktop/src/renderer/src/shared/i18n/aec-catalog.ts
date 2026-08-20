@@ -235,6 +235,17 @@ export const aecLocales: PluginLocaleBundles = {
       openAtPlace: 'Open at that place',
       noSource: 'The answer gave no source for this clause.',
       conflict: 'Discrepancy',
+      ask: 'Sort this out',
+      askConflict: (
+        subject: string,
+        leftLabel: string,
+        leftValue: string,
+        rightLabel: string,
+        rightValue: string
+      ) =>
+        `Sort out the discrepancy in «${subject}»: ${leftLabel} says ${leftValue}, ` +
+        `${rightLabel} says ${rightValue}. Which one governs, and on what grounds? ` +
+        `Cite the source of the answer.`,
       sideLeft: 'First source',
       sideRight: 'Second source',
       noValue: 'not stated',
@@ -484,6 +495,17 @@ export const aecLocales: PluginLocaleBundles = {
       openAtPlace: 'Открыть на этом месте',
       noSource: 'Источник у этого пункта в ответе не назван.',
       conflict: 'Расхождение',
+      ask: 'Разобрать подробнее',
+      askConflict: (
+        subject: string,
+        leftLabel: string,
+        leftValue: string,
+        rightLabel: string,
+        rightValue: string
+      ) =>
+        `Разбери расхождение по «${subject}»: ${leftLabel} даёт ${leftValue}, ` +
+        `${rightLabel} даёт ${rightValue}. Какое значение главнее и на каком основании? ` +
+        `Приведи источник ответа.`,
       sideLeft: 'Первый источник',
       sideRight: 'Второй источник',
       noValue: 'не названо',

@@ -24,6 +24,7 @@ import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'
 import { registerTranscriptBlocks } from './aec/transcript-blocks/register-blocks'
+import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
@@ -49,6 +50,10 @@ installPreviewBoundary()
 // Задача 3.4б (SPEC UR28): живые блоки в ленте. Регистрация в их области
 // `transcript.directives` — тем же вкладом, каким это делал бы плагин.
 registerTranscriptBlocks()
+// Задача 3.4в (SPEC AC13, риск R19): ход, отправленный блоком, виден в ленте.
+// Ставится до первого рендера — их обработчик подписывается позже, когда
+// монтируется композер, и наш перехват обязан быть в очереди первым.
+installVisibleTurns()
 
 // Their provider stack, in their order (main.tsx at DONOR_SHA), with two
 // substitutions: our i18n provider stands in for theirs (same component

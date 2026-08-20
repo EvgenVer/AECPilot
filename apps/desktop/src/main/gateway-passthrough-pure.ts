@@ -53,6 +53,29 @@ export function checkRpcCall(method: unknown): string {
   return method
 }
 
+/** Parameters the renderer may never send, whatever the donor's code does.
+ *
+ * `display_kind: 'hidden'` types the persisted user row so no client renders
+ * it as a bubble — the donor's off-screen channel for widget intents. This
+ * product has no invisible turns (SPEC UR28/AC13, risk R19): a live block in
+ * the transcript is code the AGENT wrote from documents it read, so a hidden
+ * turn would let a command embedded in a source document reach the agent
+ * without ever passing a human. The flag is stripped rather than refused —
+ * the message still goes, it just arrives visible, which is exactly the
+ * requirement.
+ *
+ * The renderer strips it too (`aec/transcript-blocks/visible-turns.ts`), so
+ * the bubble appears immediately; this second rubezh is what keeps a hidden
+ * row out of the session history if that one is ever bypassed. */
+export function sanitizeRpcParams(params: unknown): Record<string, unknown> {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return {}
+
+  const record = { ...(params as Record<string, unknown>) }
+  if (record.display_kind === 'hidden') delete record.display_kind
+
+  return record
+}
+
 /** Validates a REST call arriving from the renderer and returns the method and
  * path to forward. The path is required to be under `/api/` and free of `..`:
  * not a trust boundary (everything on that host is the same local core), but

@@ -43,7 +43,8 @@ import { GatewayClient } from '../shared/gateway/client'
 import {
   checkRestCall,
   checkRpcCall,
-  explainProfileDeleteFailure
+  explainProfileDeleteFailure,
+  sanitizeRpcParams
 } from './gateway-passthrough-pure'
 import type {
   AgentProcessEntry,
@@ -1971,7 +1972,8 @@ ipcMain.handle(
   async (_event, payload: { method?: unknown; params?: unknown; timeoutMs?: unknown }) => {
     if (!gateway) throw new Error('gateway is not connected')
     const method = checkRpcCall(payload?.method)
-    const params = (payload?.params ?? {}) as never
+    // A hidden turn is not a thing this product has (task 3.4в, risk R19).
+    const params = sanitizeRpcParams(payload?.params) as never
     const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
     return gateway.request(method as never, params, timeoutMs)
   }

@@ -4,7 +4,13 @@
 // Абзацем это читается как рассуждение, карточкой — как факт: предмет сверху,
 // две стороны рядом, у каждой своё значение и свой источник, который
 // открывается на нужном месте.
+//
+// Задача 3.4в: у карточки есть обратный канал к агенту — «разобрать подробнее».
+// Он идёт их обычным путём отправки, БЕЗ пометки скрытого хода, поэтому вопрос
+// появляется в переписке как обычное сообщение (SPEC AC13, риск R19). Снятие
+// пометки со всех остальных путей — `visible-turns.ts`.
 
+import { requestComposerSubmit } from '../../donor/app/chat/composer/focus'
 import { openDocument } from '../viewers/viewer-store'
 import { useAecT } from '../../shared/i18n'
 
@@ -66,6 +72,25 @@ export function ConflictBlockView({ attrs }: { attrs: DirectiveAttrs }): React.J
         <div className="w-px shrink-0 bg-(--ui-stroke-secondary)" />
         <Side side={block.right} />
       </div>
+
+      <button
+        className="self-start rounded border border-(--ui-stroke-secondary) px-1.5 py-0.5 text-(--ui-text-secondary) transition-colors hover:text-(--ui-text-primary)"
+        onClick={() =>
+          requestComposerSubmit(
+            t(
+              'blocks.askConflict',
+              block.subject || t('blocks.conflict'),
+              block.left.label,
+              block.left.value || t('blocks.noValue'),
+              block.right.label,
+              block.right.value || t('blocks.noValue')
+            )
+          )
+        }
+        type="button"
+      >
+        {t('blocks.ask')}
+      </button>
     </div>
   )
 }
