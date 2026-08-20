@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/starmap/share-code.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { type BitReader, type BitWriter, createLoadout, Dict, idxOf, indexBits, LoadoutError } from '@/lib/loadout'
 import type { StarmapEdge, StarmapGraph, StarmapNode } from '@/types/hermes'
@@ -19,7 +21,7 @@ import type { StarmapEdge, StarmapGraph, StarmapNode } from '@/types/hermes'
 // text almost free. A 60-skill map is a few hundred chars.
 
 const VERSION = 3
-const PREFIX = 'HML' // "Hermes Memory Loadout" — namespaces our codes like WoW's leading bytes.
+const PREFIX = 'HML' // "AECPilot Memory Loadout" — namespaces our codes like WoW's leading bytes.
 const MAX_LABEL = 64 // trim runaway memory titles so one card can't bloat the code.
 
 const trim = (s: string): string => (s.length > MAX_LABEL ? s.slice(0, MAX_LABEL) : s)

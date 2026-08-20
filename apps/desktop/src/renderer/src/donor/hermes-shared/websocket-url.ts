@@ -3,7 +3,9 @@
  * Source:  apps/shared/src/websocket-url.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 export type GatewayAuthMode = 'oauth' | 'token' | (string & {})
 
@@ -49,7 +51,7 @@ export async function resolveGatewayWsUrl(deps: ResolveGatewayWsUrlDeps, conn: G
 
   if (conn.authMode === 'oauth') {
     if (!mint) {
-      throw new Error('This Desktop build cannot refresh OAuth WebSocket tickets. Update Hermes Desktop and try again.')
+      throw new Error('This Desktop build cannot refresh OAuth WebSocket tickets. Update AECPilot and try again.')
     }
 
     try {

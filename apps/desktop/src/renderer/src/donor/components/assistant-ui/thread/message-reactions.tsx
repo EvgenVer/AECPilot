@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/components/assistant-ui/thread/message-reactions.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { EmojiPicker } from 'frimousse'
 import { type FC, useState } from 'react'
@@ -204,7 +206,7 @@ export const ReactionBadge: FC<{
           <span
             className="reaction-pop leading-none"
             key={`${reaction.author}-${reaction.emoji}`}
-            title="Reacted by Hermes"
+            title="Reacted by AECPilot"
           >
             {reaction.emoji}
           </span>

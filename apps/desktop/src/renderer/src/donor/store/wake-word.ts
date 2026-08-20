@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/store/wake-word.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { atom } from 'nanostores'
 
@@ -149,7 +151,7 @@ const gatewayRequester: WakeRequester = async <T>(method: string, params: Record
   const gateway = $gateway.get()
 
   if (!gateway) {
-    throw new Error('Hermes gateway unavailable')
+    throw new Error('Agent gateway unavailable')
   }
 
   return method === 'wake.start'

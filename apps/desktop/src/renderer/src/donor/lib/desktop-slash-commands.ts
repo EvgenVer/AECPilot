@@ -4,6 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [3] removed the /pet and /hatch command registrations (HX1)
  * (no other edits)
  */
@@ -188,7 +189,7 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     surface: action('handoff'),
     argumentMode: 'options'
   },
-  { name: '/profile', description: 'Switch the active Hermes profile', surface: action('profile') },
+  { name: '/profile', description: 'Switch the active profile', surface: action('profile') },
   {
     name: '/skin',
     description: 'Switch desktop theme or cycle to the next one',
@@ -321,7 +322,7 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   },
   { name: '/undo', description: 'Remove the last user/assistant exchange', surface: exec() },
   { name: '/usage', description: 'Show token usage for this session', surface: exec() },
-  { name: '/version', description: 'Show Hermes Agent version', surface: exec() },
+  { name: '/version', description: 'Show AECPilot version', surface: exec() },
 
   // No desktop surface, but carry an alias (underscore spelling variants).
   { name: '/reload-mcp', aliases: ['/reload_mcp'], surface: unavailable('advanced') },

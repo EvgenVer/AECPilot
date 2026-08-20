@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/contrib/context.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { createContext, memo, useContext } from 'react'
 
@@ -34,7 +36,7 @@ export const WiredPane = memo(function WiredPane({ part }: { part: keyof WiringA
 
     return (
       <div className="grid h-full place-items-center">
-        <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="HERMES" />
+        <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="AECPILOT" />
       </div>
     )
   }

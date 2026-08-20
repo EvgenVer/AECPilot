@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/store/profile-share.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 /**
  * Profile share: export/import a profile as a portable bundle.
@@ -159,7 +161,7 @@ export function activeProfileKey(): string {
 // item all funnel here). Toasts via the shared notification store; strings via
 // translateNow so the flows stay callable from non-React surfaces.
 
-const ARCHIVE_FILTERS = [{ extensions: ['tar.gz', 'tgz'], name: 'Hermes profile' }]
+const ARCHIVE_FILTERS = [{ extensions: ['tar.gz', 'tgz'], name: 'profile' }]
 
 /** Pick a save location and export `profile` (default: the active one).
  *  Returns the archive path, or null when the user cancelled. */

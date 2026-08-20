@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/uninstall-section.tsx
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { useEffect, useState } from 'react'
 
@@ -28,22 +30,22 @@ const OPTIONS: ModeOption[] = [
   {
     mode: 'gui',
     title: 'Uninstall Chat GUI only',
-    description: 'Remove this desktop app. The Hermes agent, your config, and chats all stay.',
+    description: 'Remove this desktop app. The AECPilot agent, your config, and chats all stay.',
     consequence: 'the desktop Chat GUI (this app and its data)',
     needsAgent: false
   },
   {
     mode: 'lite',
     title: 'Uninstall GUI + agent, keep my data',
-    description: 'Remove the app and the Hermes agent, but keep config, chats, and secrets for a future reinstall.',
-    consequence: 'the Chat GUI and the Hermes agent (config, chats, and secrets are kept)',
+    description: 'Remove the app and the AECPilot agent, but keep config, chats, and secrets for a future reinstall.',
+    consequence: 'the Chat GUI and the AECPilot agent (config, chats, and secrets are kept)',
     needsAgent: true
   },
   {
     mode: 'full',
     title: 'Uninstall everything',
     description: 'Remove the app, the agent, and all user data — config, chats, scheduled jobs, secrets, logs.',
-    consequence: 'EVERYTHING — the Chat GUI, the Hermes agent, and all of your config, chats, secrets, and logs',
+    consequence: 'EVERYTHING — the Chat GUI, the AECPilot agent, and all of your config, chats, secrets, and logs',
     // full removes the agent (and user data), so it's an agent-removing option:
     // hide it on a lite client with no local agent, same as lite. A lite client
     // connecting to a remote backend has no local agent OR local user data the

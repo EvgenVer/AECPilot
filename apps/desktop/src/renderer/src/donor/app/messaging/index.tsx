@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/messaging/index.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in five platform descriptions → ours (SPEC C12)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import type * as React from 'react'
@@ -827,11 +829,11 @@ const PLATFORM_INTRO: Record<string, string> = {
     'On your Mattermost server, create a bot account or personal access token, then paste the server URL and token here.',
   matrix: 'Sign in to your homeserver with the bot account, then copy the access token, user ID, and homeserver URL.',
   signal:
-    'Run a signal-cli REST bridge somewhere reachable, then point Hermes at the URL and the registered phone number.',
+    'Run a signal-cli REST bridge somewhere reachable, then point the agent core at the URL and the registered phone number.',
   whatsapp:
-    'Start the WhatsApp bridge that ships with Hermes, scan the QR code on first run, then enable the platform.',
+    'Start the WhatsApp bridge that ships with the agent core, scan the QR code on first run, then enable the platform.',
   bluebubbles:
-    'Run BlueBubbles Server on a Mac with iMessage, expose its API, then point Hermes at the URL with the server password.',
+    'Run BlueBubbles Server on a Mac with iMessage, expose its API, then point the agent core at the URL with the server password.',
   homeassistant:
     'In Home Assistant, open your profile and create a long-lived access token. Paste it here along with your HA URL.',
   email:
@@ -845,10 +847,10 @@ const PLATFORM_INTRO: Record<string, string> = {
   wecom_callback:
     'Set up a WeCom self-built app, expose its callback URL, and provide the corp ID, secret, agent ID, and AES key.',
   weixin:
-    "Run `hermes gateway setup`, select Weixin, then scan and confirm the QR code with a personal WeChat account. Hermes connects through Tencent's iLink Bot API and saves the credentials.",
+    "Set up the Weixin channel in the agent core, then scan and confirm the QR code with a personal WeChat account. The connection goes through Tencent's iLink Bot API and the credentials are saved there.",
   qqbot: 'Register an app on the QQ Open Platform (q.qq.com) and copy the App ID and Client Secret.',
   api_server:
-    'Expose Hermes as an OpenAI-compatible API. Set an auth key, then point Open WebUI / LobeChat / etc. at the host:port.',
+    'Expose the agent core as an OpenAI-compatible API. Set an auth key, then point Open WebUI / LobeChat / etc. at the host:port.',
   webhook:
     'Run an HTTP server that other tools (GitHub, GitLab, custom apps) can POST to. Use the secret to verify signatures.'
 }

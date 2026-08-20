@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/sdk/index.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 /**
  * @hermes/plugin-sdk — THE plugin language. The vscode-module model: plugin
@@ -345,7 +347,7 @@ export const host = {
     const bridge = window.hermesDesktop?.connections
 
     if (!bridge) {
-      throw new Error('This Desktop build has no connection registry. Update Hermes Desktop.')
+      throw new Error('This Desktop build has no connection registry. Update AECPilot.')
     }
 
     return bridge.list()
@@ -359,7 +361,7 @@ export const host = {
     const roster = window.hermesDesktop?.getAgentRoster
 
     if (!roster) {
-      throw new Error('This Desktop build cannot enumerate multi-source agents. Update Hermes Desktop.')
+      throw new Error('This Desktop build cannot enumerate multi-source agents. Update AECPilot.')
     }
 
     return roster()
@@ -496,7 +498,7 @@ export const host = {
     const getProfileRoutes = desktop?.getProfileRoutes
 
     if (!getProfileRoutes) {
-      throw new Error('Hermes Desktop connection routing unavailable')
+      throw new Error('AECPilot connection routing unavailable')
     }
 
     let profiles = $profiles.get()
@@ -527,7 +529,7 @@ export const host = {
     const gateway = $gateway.get()
 
     if (!gateway) {
-      throw new Error('Hermes gateway unavailable')
+      throw new Error('Agent gateway unavailable')
     }
 
     return gateway.request<T>(method, params)

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/constants.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import {
   Box,
@@ -53,7 +55,7 @@ export const PROVIDER_GROUPS: ProviderPrefix[] = [
   {
     prefix: 'NOUS_',
     name: 'Nous Portal',
-    description: 'Hosted Hermes & Nous-trained models',
+    description: 'Hosted AECPilot & Nous-trained models',
     docsUrl: 'https://portal.nousresearch.com',
     priority: 0
   },
@@ -563,7 +565,7 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   timezone: 'IANA timezone identifier. Blank uses the system timezone.',
   agent: {
     imageInputMode: 'Controls how image attachments are sent to the model.',
-    maxTurns: 'Upper bound for tool-calling turns before Hermes stops a run.'
+    maxTurns: 'Upper bound for tool-calling turns before AECPilot stops a run.'
   },
   terminal: {
     cwd: 'Default project folder for tool and terminal work.',
@@ -577,9 +579,9 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   codeExecution: {
     mode: 'How strictly code execution is scoped to the current project.'
   },
-  fileReadMaxChars: 'Maximum characters Hermes can read from one file request.',
+  fileReadMaxChars: 'Maximum characters AECPilot can read from one file request.',
   approvals: {
-    mode: 'How Hermes handles commands that need explicit approval.',
+    mode: 'How AECPilot handles commands that need explicit approval.',
     timeout: 'How long approval prompts wait before timing out.'
   },
   security: {
@@ -624,7 +626,7 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   },
   updates: {
     nonInteractiveLocalChanges:
-      'When Hermes updates itself from the app (no terminal prompt), keep local source edits (stash) or throw them away (discard). Terminal updates always ask.'
+      'When AECPilot updates itself from the app (no terminal prompt), keep local source edits (stash) or throw them away (discard). Terminal updates always ask.'
   }
 })
 

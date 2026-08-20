@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/lib/yolo-session.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { $gateway } from '@/store/gateway'
 import { $activeSessionId, setYoloActive } from '@/store/session'
@@ -76,7 +78,7 @@ export async function setYoloEnabled(enabled: boolean): Promise<boolean> {
   const gateway = $gateway.get()
 
   if (!gateway) {
-    throw new Error('Hermes gateway unavailable')
+    throw new Error('Agent gateway unavailable')
   }
 
   return setSessionYolo((method, params) => gateway.request(method, params), sessionId, enabled)

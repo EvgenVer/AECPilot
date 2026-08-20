@@ -3,14 +3,16 @@
  * Source:  apps/desktop/src/app/learning/archive-skill-confirm-dialog.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in the archive notice → ours (SPEC C12)
+ * (no other edits)
  */
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { deleteLearningNode } from '@/hermes'
 import { type Translations, useI18n } from '@/i18n'
 import { notify } from '@/store/notifications'
 
-export const ARCHIVE_SKILL_DESCRIPTION = 'The skill is archived and can be restored with `hermes curator restore`.'
+export const ARCHIVE_SKILL_DESCRIPTION = 'The skill is archived and can be restored from the skills screen.'
 
 export function notifySkillArchived(t: Translations): void {
   notify({ kind: 'success', message: t.skills.skillArchivedMessage, title: t.skills.skillArchivedTitle })

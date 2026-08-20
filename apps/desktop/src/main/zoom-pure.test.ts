@@ -56,6 +56,7 @@ describe('steppedPercent', () => {
     expect(steppedPercent(100, 'in')).toBe(110)
     expect(steppedPercent(110, 'out')).toBe(100)
     expect(steppedPercent(90, 'out')).toBe(ZOOM_MIN_PERCENT)
+    expect(steppedPercent(ZOOM_DEFAULT_PERCENT, 'out')).toBe(90)
   })
 
   it('за краями списка упирается в границы, а не уходит дальше', () => {

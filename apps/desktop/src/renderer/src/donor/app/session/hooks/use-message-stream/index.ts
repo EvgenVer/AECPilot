@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/index.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import type { QueryClient } from '@tanstack/react-query'
 import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
@@ -792,7 +794,7 @@ export function useMessageStream({
         const streamId = state.streamId ?? `assistant-error-${Date.now()}`
         const groupId = state.pendingBranchGroup ?? undefined
         const prev = state.messages
-        const error = errorMessage.trim() || 'Hermes reported an error'
+        const error = errorMessage.trim() || 'AECPilot reported an error'
 
         const durationS = state.turnStartedAt
           ? Math.max(1, Math.round((Date.now() - state.turnStartedAt) / 1000))

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/themes/skin.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 /**
  * Hermes skin → DesktopTheme converter.
@@ -115,7 +117,7 @@ export function skinToDesktopTheme(skin: HermesSkin): DesktopTheme | null {
   return {
     name,
     label: titleCase(name),
-    description: 'Hermes skin',
+    description: 'AECPilot skin',
     // Single palette in both slots: a skin is one-mode, so the light/dark toggle
     // shouldn't invert it. renderedModeFor still paints `.dark` from luminance.
     colors: palette,

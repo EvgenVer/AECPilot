@@ -4,6 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [1] onboarding provider key → our safeStorage bridge (R2)
  * (no other edits)
  */
@@ -201,7 +202,7 @@ function shouldPreserveConfiguredOnFallback(runtime: RuntimeReadinessResult, sta
 }
 
 function notifyReady(provider: string) {
-  notify({ kind: 'success', title: 'Hermes is ready', message: `${provider} connected.` })
+  notify({ kind: 'success', title: 'AECPilot is ready', message: `${provider} connected.` })
 }
 
 // Human-friendly labels for tools auto-routed through the Nous Tool Gateway,
@@ -334,7 +335,7 @@ async function completeWithModelConfirm(
 
       notifyGatewayTools(res.gateway_tools)
     } catch (error) {
-      onFail(error instanceof Error ? error.message : 'Hermes could not save the selected model.')
+      onFail(error instanceof Error ? error.message : 'AECPilot could not save the selected model.')
 
       return
     }
@@ -370,8 +371,8 @@ function providerResolutionFailure(reason: null | string) {
   const detail = reason?.trim()
 
   return detail
-    ? `Connected, but Hermes still cannot resolve a usable provider. ${detail}`
-    : 'Connected, but Hermes still cannot resolve a usable provider.'
+    ? `Connected, but AECPilot still cannot resolve a usable provider. ${detail}`
+    : 'Connected, but AECPilot still cannot resolve a usable provider.'
 }
 
 async function refreshProviders() {
@@ -570,7 +571,7 @@ export async function refreshOnboarding(ctx: OnboardingContext) {
       kind: 'error',
       title: 'Runtime not ready',
       message:
-        'Hermes Desktop could not verify the running backend on startup. Some features may be unavailable until the gateway is reachable.'
+        'AECPilot could not verify the running backend on startup. Some features may be unavailable until the gateway is reachable.'
     })
 
     return false
@@ -772,7 +773,7 @@ export async function recheckExternalSignin(ctx: OnboardingContext) {
       provider,
       message:
         reason?.trim() ||
-        `Hermes still cannot reach ${provider.name}. Run \`${provider.cli_command}\` in a terminal first.`
+        `AECPilot still cannot reach ${provider.name}. Run \`${provider.cli_command}\` in a terminal first.`
     })
   )
 }
@@ -895,7 +896,7 @@ export async function saveOnboardingLocalEndpoint(baseUrl: string, apiKey: strin
     if (!runtime.ready) {
       const detail = (runtime.reason ?? '').trim()
 
-      return { ok: false, message: detail || `Saved, but Hermes still cannot reach ${url}.` }
+      return { ok: false, message: detail || `Saved, but AECPilot still cannot reach ${url}.` }
     }
 
     notifyReady('Local / custom endpoint')

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/tree-group.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 /**
  * Group node renderer — a ZONE: header strip (tabs when stacked, minimize
@@ -609,7 +611,7 @@ export function TreeGroup({
           {isEmpty ? (
             <div className="grid h-full place-items-center">
               {/* Same decode primitive as the CONNECTING boot overlay. */}
-              <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="HERMES" />
+              <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="AECPILOT" />
             </div>
           ) : (
             keptPanes.map(paneId => {

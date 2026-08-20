@@ -26,6 +26,7 @@ let mockOutput = ''
 let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
 let projectDir = ''
+let userDataDir = ''
 
 function listElectronPids(): Set<number> {
   if (process.platform !== 'win32') return new Set()
@@ -60,6 +61,27 @@ async function waitForMockLine(pattern: RegExp, timeoutMs = 30000): Promise<stri
   }
 
   throw new Error(`mock never printed ${pattern} — got:\n${mockOutput}`)
+}
+
+/** Take the two first-run surfaces out of the way for good.
+ *
+ * A CSS rule, not a style patch on the nodes: React re-creates both while the
+ * app boots, so an inline `display:none` set once is gone with the next render
+ * — which is how these tests started failing on clicks that had nothing to do
+ * with either surface.
+ *
+ * Their boot overlay never finishes against this mock (its readiness probe is
+ * REST and the mock speaks only the socket); our getting-started card is a real
+ * surface that simply sits over the right rail.
+ */
+async function hideFirstRunSurfaces(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      .z-\\(--z-onboarding\\) { display: none !important }
+      [role='region'][aria-label='Getting started'],
+      [role='region'][aria-label='С чего начать'] { display: none !important }
+    `
+  })
 }
 
 /** Type a prompt into their composer and send it. */
@@ -154,8 +176,14 @@ test.beforeAll(async () => {
 
   preExistingElectronPids = listElectronPids()
 
+  // A fresh profile per run. Without it the app reuses the developer's real
+  // userData: the persisted pane tree, the locale, the preview tabs and the
+  // recent-project list all survive between runs, and a layout left over from
+  // an older build silently decides where this run's panes land.
+  userDataDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-profile-'))
+
   app = await _electron.launch({
-    args: ['.'],
+    args: ['.', `--user-data-dir=${userDataDir}`],
     cwd: desktopDir,
     env: { ...process.env, AEC_GATEWAY_URL: `ws://127.0.0.1:${mockPort}/api/ws` }
   })
@@ -181,6 +209,7 @@ test.afterAll(async () => {
       if (!preExistingElectronPids.has(pid)) killProcessTree(pid)
     }
     if (projectDir) rmSync(projectDir, { force: true, recursive: true })
+    if (userDataDir) rmSync(userDataDir, { force: true, recursive: true })
   }
 })
 
@@ -245,23 +274,7 @@ test('their shell paints and the composer goes live over our bridge', async () =
 test('Ctrl+G opens the change history, not a git surface', async () => {
   const page = await app.firstWindow()
 
-  // Their boot overlay never finishes against the mock: it clears on a
-  // readiness answer the mock cannot give (that probe is REST, and this mock
-  // speaks only the socket), so it stays as a full-screen layer over
-  // everything. It is an artifact of the harness, not of the app, and it is not
-  // what this test is about — take it out of the page so the rail underneath is
-  // both visible and clickable.
-  await page.evaluate(() => {
-    for (const el of document.querySelectorAll<HTMLElement>('div.fixed.inset-0')) {
-      if (el.className.includes('z-(--z-onboarding)')) el.style.display = 'none'
-    }
-  })
-
-  // Our own getting-started card is a real, dismissible surface sitting in the
-  // bottom-right corner — over the right rail. Closed the way a person closes
-  // it.
-  const guide = page.getByRole('region', { name: /Getting started|С чего начать/ })
-  if (await guide.count()) await guide.getByRole('button', { name: /Close|Закрыть/ }).click()
+  await hideFirstRunSurfaces(page)
 
   await page.keyboard.press('Control+G')
 
@@ -294,6 +307,7 @@ test('Ctrl+G opens the change history, not a git surface', async () => {
 test('an HTML artifact previews in a sandbox, an external address does not open', async () => {
   const page = await app.firstWindow()
 
+  await hideFirstRunSurfaces(page)
   await clearNotifications(page)
   await send(page, 'artifact')
 
@@ -366,6 +380,8 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
 // and the interface scale is main's, not a CSS trick.
 test('the window follows the OS theme and carries the interface scale', async () => {
   const page = await app.firstWindow()
+
+  await hideFirstRunSurfaces(page)
 
   // The theme engine paints from inside the React tree, so wait until the app
   // is actually up — this test runs on whatever state the file left behind.

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in the wake-word fallback → ours (SPEC C12)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 
@@ -310,7 +312,7 @@ function WakeWordButton({ disabled, pausedForVoice = false }: { disabled: boolea
   const c = t.composer
   const wake = useStore($wakeWord)
 
-  const phrase = wake.phrase || 'hey hermes'
+  const phrase = wake.phrase || 'hey pilot'
 
   const label = pausedForVoice
     ? c.wakeWordPausedVoice(phrase)

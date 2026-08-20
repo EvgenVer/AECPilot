@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/skills/index.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
@@ -657,7 +659,7 @@ export function SkillsView({
           <SelectContent>
             {profiles.map(p => (
               <SelectItem key={p.name} value={p.name}>
-                {p.is_default ? 'Hermes (default)' : p.name}
+                {p.is_default ? 'AECPilot (default)' : p.name}
               </SelectItem>
             ))}
           </SelectContent>

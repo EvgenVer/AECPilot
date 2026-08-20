@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import type { BillingBlock } from '@hermes/shared'
 import { registryBackendScopeKey } from '@hermes/shared'
@@ -1000,7 +1002,7 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
         const failure =
           payload?.status === 'error'
             ? {
-                error: coerceGatewayText(payload.error).trim() || finalText || 'Hermes reported an error',
+                error: coerceGatewayText(payload.error).trim() || finalText || 'AECPilot reported an error',
                 partial: Boolean(payload.partial)
               }
             : undefined
@@ -1531,7 +1533,7 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
         // straight to dismissNotification(key).
         clearAgentNotice((event.payload as AgentNoticePayload | undefined)?.key)
       } else if (event.type === 'error') {
-        const errorMessage = payload?.message || 'Hermes reported an error'
+        const errorMessage = payload?.message || 'AECPilot reported an error'
         const looksLikeProviderSetup = isProviderSetupErrorMessage(errorMessage)
 
         // A turn that errors out has also ended — drop any open blocking prompt
@@ -1569,7 +1571,7 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
           notify({
             id: `gateway-error:${errorMessage}`,
             kind: 'error',
-            title: 'Hermes error',
+            title: 'AECPilot error',
             message: errorMessage
           })
         }

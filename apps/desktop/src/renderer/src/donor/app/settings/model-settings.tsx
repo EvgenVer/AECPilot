@@ -4,6 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [1] provider key → our safeStorage bridge instead of the core's env store (R2)
  * (no other edits)
  */
@@ -886,7 +887,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile = null }: Model
           <p className="mt-2 text-xs text-muted-foreground">
             {selectedProviderRow?.auth_type === 'api_key'
               ? `${selectedProviderRow?.name} needs an API key — set it up to choose a model.`
-              : `${selectedProviderRow?.name} signs in through your browser — Hermes runs the flow for you.`}
+              : `${selectedProviderRow?.name} signs in through your browser — AECPilot runs the flow for you.`}
           </p>
         )}
         {config && mainModel && (reasoningSupported || fastSupported) && (

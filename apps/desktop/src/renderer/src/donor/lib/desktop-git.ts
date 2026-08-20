@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/lib/desktop-git.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import type {
   HermesGitBaseBranch,
@@ -29,7 +31,7 @@ function desktopApi<T>(path: string, body?: Record<string, unknown>): Promise<T>
   const desktop = window.hermesDesktop
 
   if (!desktop) {
-    throw new Error('Hermes Desktop bridge is unavailable')
+    throw new Error('AECPilot bridge is unavailable')
   }
 
   return desktop.api<T>(

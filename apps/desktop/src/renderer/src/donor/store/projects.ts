@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/store/projects.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { atom } from 'nanostores'
 
@@ -342,7 +344,7 @@ async function gatewayRequest<T>(method: string, params: Record<string, unknown>
   }
 
   if (!gateway) {
-    throw new Error('Hermes gateway is not connected')
+    throw new Error('Agent gateway is not connected')
   }
 
   return gateway.request<T>(method, params)
@@ -370,7 +372,7 @@ async function activeProjectsContext(): Promise<ActiveProjectsContext> {
   }
 
   if (!gateway || gateway !== activeGateway() || profile !== ($activeGatewayProfile.get() || 'default')) {
-    throw new Error('Active Hermes profile changed while connecting')
+    throw new Error('Active AECPilot profile changed while connecting')
   }
 
   return { gateway, profile }

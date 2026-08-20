@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/gateway-settings.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in the gateway URL placeholder → ours (SPEC C12)
+ * (no other edits)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -1243,7 +1245,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
                 className={cn('h-8', CONTROL_TEXT)}
                 disabled={state.envOverride}
                 onChange={event => setState(current => ({ ...current, remoteUrl: event.target.value }))}
-                placeholder="https://gateway.example.com/hermes"
+                placeholder="https://gateway.example.com/agent"
                 value={state.remoteUrl}
               />
             }

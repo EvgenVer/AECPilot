@@ -4,6 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [3] removed `revealEnvVar` — plaintext credential read-back (R2)
  *   [3] removed `pluginSocket` (core plugin catalog is a non-goal, HX5) and the
  *       now-unused `reconnectBackoffDelayMs` import it was the only caller of
@@ -247,10 +248,10 @@ export type {
 export class HermesGateway extends JsonRpcGatewayClient {
   constructor() {
     super({
-      closedErrorMessage: 'Hermes gateway connection closed',
-      connectErrorMessage: 'Could not connect to Hermes gateway',
+      closedErrorMessage: 'Agent gateway connection closed',
+      connectErrorMessage: 'Could not connect to agent gateway',
       createRequestId: nextId => nextId,
-      notConnectedErrorMessage: 'Hermes gateway is not connected',
+      notConnectedErrorMessage: 'Agent gateway is not connected',
       requestTimeoutMs: DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS
     })
   }
@@ -358,7 +359,7 @@ function pluginPathSuffix(caller: string, path: string): string {
  *  declared-capability seam; today the namespace IS the boundary. */
 export async function pluginRest<T>(pluginId: string, path: string, opts: PluginRestOptions = {}): Promise<T> {
   if (!window.hermesDesktop?.api) {
-    throw new Error('Hermes desktop bridge unavailable')
+    throw new Error('AECPilot desktop bridge unavailable')
   }
 
   const suffix = pluginPathSuffix('pluginRest', path)

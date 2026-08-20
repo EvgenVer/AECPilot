@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/components/assistant-ui/thread/status.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
@@ -254,7 +256,7 @@ export const StreamStallIndicator: FC = () => {
   }
 
   return (
-    <StatusRow data-slot="aui_stream-stall" label={hint || 'Hermes is thinking'}>
+    <StatusRow data-slot="aui_stream-stall" label={hint || 'AECPilot is thinking'}>
       <StatusPulse
         aria-hidden="true"
         className="dither inline-block size-3 rounded-[2px] text-midground/80"

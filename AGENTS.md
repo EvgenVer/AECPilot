@@ -213,12 +213,15 @@ Skills live in `.agents/skills/<name>/SKILL.md`; the installer copies them to
 MIT. Rules — full text in `donor/README.md`, policy in `PLAN.md` §«Слой донора»:
 1. Every vendored file carries a provenance header: source path, commit, license, and the
    list of edits made to it. A file copied unchanged says `Edits: none`.
-2. **Exactly four edits are allowed**: (1) their backend client → our IPC bridge
+2. **Exactly five edits are allowed**: (1) their backend client → our IPC bridge
    (their gateway client, or a single call a SPEC constraint sends elsewhere);
    (2) their i18n → our catalog; (3) registration tables — dropping a contribution that
    lands in SPEC §Non-Goals or registering one of ours (a locale, a surface) in the same
    table;
-   (4) dropping imports we do not have (their cloud, brand, telemetry). Anything else means
+   (4) dropping imports we do not have (their cloud, brand, telemetry);
+   (5) replacing the donor's product name in a string a person can see (SPEC C12, owner
+   decision 2026-08-20) — only the name, only in user-visible text, never in a storage key,
+   attribute, module path or anything else the product depends on. Anything else means
    the file is a rewrite and does not belong in this zone.
 3. **Never patch a vendored file toward a newer upstream version** — re-copy it from the new
    `DONOR_SHA` and re-apply the edits its header lists.

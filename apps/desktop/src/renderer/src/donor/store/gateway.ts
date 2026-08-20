@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/store/gateway.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
+ * (no other edits)
  */
 import { type ConnectionState, type GatewayEvent, registryBackendScopeKey, resolveGatewayWsUrl } from '@hermes/shared'
 import { atom } from 'nanostores'
@@ -527,7 +529,7 @@ export async function requestGatewayForProfile<T>(
 
   try {
     if (!route.gateway) {
-      throw new Error(`Hermes gateway unavailable for profile "${route.key}"`)
+      throw new Error(`agent gateway unavailable for profile "${route.key}"`)
     }
 
     const routedParams = route.scopeProfile ? { ...params, profile: route.key } : params
@@ -558,7 +560,7 @@ export async function requestGatewayForAgent<T>(
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {
-    throw new Error('This Desktop build cannot dial registry connections. Update Hermes Desktop.')
+    throw new Error('This Desktop build cannot dial registry connections. Update AECPilot.')
   }
 
   const entry = g.secondaries.get(scope) ?? createSecondary(key, connectionId)
@@ -619,7 +621,7 @@ export async function openGatewayForAgent(connectionId: null | string, profile: 
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {
-    throw new Error('This Desktop build cannot dial registry connections. Update Hermes Desktop.')
+    throw new Error('This Desktop build cannot dial registry connections. Update AECPilot.')
   }
 
   const entry = g.secondaries.get(scope) ?? createSecondary(profile, connectionId)
@@ -641,7 +643,7 @@ export async function ensureGatewayForAgent(connectionId: null | string, profile
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {
-    throw new Error('This Desktop build cannot dial registry connections. Update Hermes Desktop.')
+    throw new Error('This Desktop build cannot dial registry connections. Update AECPilot.')
   }
 
   const activationEpoch = beginGatewayActivation()

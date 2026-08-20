@@ -4,6 +4,7 @@
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [3] removed the /hatch and /pet slash commands (HX1)
  * (no other edits)
  */
@@ -95,7 +96,7 @@ const renderWakeStatus = (status: WakeStatusResponse): string => {
   const lines = [
     'Wake Word Status',
     `State: ${status.listening ? 'LISTENING' : 'OFF'}`,
-    `Phrase: "${status.phrase?.trim() || 'hey hermes'}"`,
+    `Phrase: "${status.phrase?.trim() || 'hey pilot'}"`,
     `Provider: ${status.provider?.trim() || 'unknown'}`,
     `Surface: ${status.owner_surface?.trim() || status.configured_surface?.trim() || 'auto'}`,
     `Input: ${wakeDeviceLabel(status.input_device)}`

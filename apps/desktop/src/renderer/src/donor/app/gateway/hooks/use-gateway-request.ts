@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/gateway/hooks/use-gateway-request.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [5] their product name in the unavailable-gateway error → ours (SPEC C12)
+ * (no other edits)
  */
 import { isGatewayReauthRequired, resolveGatewayWsUrl } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
@@ -115,7 +117,7 @@ export function useGatewayRequest() {
       const gateway = gatewayRef.current
 
       if (!gateway) {
-        throw new Error('Hermes gateway unavailable')
+        throw new Error('Agent gateway unavailable')
       }
 
       try {
