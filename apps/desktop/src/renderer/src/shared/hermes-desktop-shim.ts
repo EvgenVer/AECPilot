@@ -29,6 +29,7 @@
 
 import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
+import { noticeCronHasNoTick } from '../aec/cron-tick-notice/notice'
 
 import { gatewayBridge } from './gateway-bridge'
 
@@ -78,6 +79,13 @@ const IMPLEMENTED: Record<string, unknown> = {
           : Promise.reject(new Error(CHANNEL_ENABLE_DECLINED))
       )
     }
+
+    // Task 3.6 (O6). The core ticks schedules only inside its messenger
+    // gateway, which we do not run — measured, not read. Until we host a tick
+    // of our own, saving a job builds an expectation that never comes true, so
+    // the person is told at the moment the expectation forms. The call itself
+    // is not blocked: the job IS saved and "run now" works.
+    noticeCronHasNoTick({ method, path: request.path })
 
     return gatewayBridge().rest<T>(request.path, {
       method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',

@@ -228,6 +228,11 @@ export const aecLocales: PluginLocaleBundles = {
       languageLabel: 'Interface language',
       languageHint:
         'Screens carried over from the Hermes desktop are translated as they arrive; anything not yet translated falls back to English.'
+    },
+    cron: {
+      noTickTitle: 'The schedule will not start on its own yet',
+      noTickBody:
+        'The core ticks schedules only inside its messenger gateway, which this app does not run — measured on 0.20.4. The job is saved and the "Run now" button works, but the time shown as the next run will pass without anything happening.'
     }
   },
   ru: {
@@ -446,6 +451,11 @@ export const aecLocales: PluginLocaleBundles = {
       languageLabel: 'Язык интерфейса',
       languageHint:
         'Экраны, перенесённые из десктопа Hermes, переводятся по мере переноса; непереведённое показывается по-английски.'
+    },
+    cron: {
+      noTickTitle: 'Расписание пока не запустится само',
+      noTickBody:
+        'Ядро тикает расписания только внутри своего мессенджер-шлюза, а его это приложение не поднимает — замерено на 0.20.4. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.'
     }
   }
 }
