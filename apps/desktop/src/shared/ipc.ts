@@ -69,6 +69,17 @@ export interface CompressOutcome {
 export type AttachmentOutcome =
   { ok: true; path?: string; count: number } | { ok: false; error: string }
 
+/** Чем кончилось «сохранить наружу» (задача 3.27). Отказ и отмена — значения,
+ * а не исключения, по той же причине, что у `AttachmentOutcome`: и то и другое
+ * здесь нормальный ход событий. Отмена — `saved: false` БЕЗ `error`: про
+ * закрытый диалог человеку не сообщают. */
+export interface SaveOutResult {
+  saved: boolean
+  canceled?: boolean
+  path?: string
+  error?: string
+}
+
 /** The currently-open project (tasks 1.3/1.4) — set by `createProject` or
  * `openProject`. */
 export interface OpenProject {
@@ -552,6 +563,29 @@ export interface AecpilotApi {
   readAttachmentDataUrl(
     path: string
   ): Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>
+  /** Картинка из буфера обмена ОС (задача 3.27, их `saveClipboardImage`): их
+   * композер вставляет её как вложение. Пишется туда же, куда падают
+   * перетащенные картинки, — иначе `readAttachmentDataUrl` не сможет её
+   * прочитать для предпросмотра. Пустой буфер — это `path: ''`, а не ошибка:
+   * их вызывающая сторона показывает на него «в буфере нет картинки». */
+  saveClipboardImage(): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Нативный диалог «сохранить как» (задача 3.27, их `selectSavePath`).
+   * Возвращает выбранный путь или `null`, если человек закрыл диалог. Пишет по
+   * этому пути тот, кто спрашивал: экспорт профиля отдаёт путь шлюзу. */
+  selectSavePath(options?: {
+    title?: string
+    defaultPath?: string
+    filters?: Array<{ name: string; extensions: string[] }>
+  }): Promise<string | null>
+  /** Сохранить наружу картинку из ленты (задача 3.27, их `saveImageFromUrl`).
+   * `source` — это `src` показанного `<img>`: `data:` сохраняется как байты,
+   * локальный путь — копированием после проверки принадлежности проекту,
+   * адрес в интернете отказывается (ссылки уходят в браузер). */
+  saveImageOut(source: string): Promise<SaveOutResult>
+  /** Сохранить наружу файл, который сделал агент (задача 3.27, их
+   * `saveGatewayFile`). Путь проходит ту же двухслойную проверку, что и
+   * предпросмотр артефактов. */
+  saveFileOut(payload: { path: string; suggestedName?: string }): Promise<SaveOutResult>
   pickProjectDirectory(): Promise<string | null>
   /** Creates a new vault at `dirPath` named `name`, records it as the
    * most-recent project, and makes it the current open project (see

@@ -1,4 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  session,
+  shell,
+  systemPreferences
+} from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -12,6 +21,7 @@ import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
+import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
@@ -2221,6 +2231,47 @@ ipcMain.handle('attachments:read-data-url', async (_event, payload: unknown) => 
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+})
+
+// Задача 3.27. Картинка из буфера обмена ОС. Пишется туда же, куда падают
+// перетащенные, — иначе `attachments:read-data-url` откажется её читать для
+// предпросмотра, и вставленная картинка окажется вложением без картинки.
+// Пустой буфер — это ответ `path: ''`, а не ошибка: их композер показывает на
+// него «в буфере нет картинки».
+ipcMain.handle('attachments:save-clipboard', async () => {
+  const image = clipboard.readImage()
+  if (image.isEmpty()) return { ok: true, path: '' }
+  try {
+    return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, image.toPNG(), 'png') }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Задача 3.27. Три глагола «наружу»: спросить место, сохранить картинку из
+// ленты, сохранить файл агента. Решения — в `save-out-pure.ts`, работа с
+// диалогом и диском — в `save-out.ts`; здесь только `currentProject`, которого
+// ни тот, ни другой модуль не знает.
+ipcMain.handle('dialog:select-save-path', async (event, request: unknown) =>
+  selectSavePath(BrowserWindow.fromWebContents(event.sender) ?? undefined, request as never)
+)
+
+ipcMain.handle('save:image', async (event, payload: unknown) => {
+  const { source } = (payload ?? {}) as { source?: unknown }
+  return saveImageOut(
+    BrowserWindow.fromWebContents(event.sender) ?? undefined,
+    currentProject?.vaultPath,
+    source
+  )
+})
+
+ipcMain.handle('save:file', async (event, payload: unknown) => {
+  const request = (payload ?? {}) as { path?: unknown; suggestedName?: unknown }
+  return saveFileOut(
+    BrowserWindow.fromWebContents(event.sender) ?? undefined,
+    currentProject?.vaultPath,
+    request
+  )
 })
 
 // Task 3.17. Their composer adds files and folders to the context through

@@ -60,6 +60,10 @@ const api: AecpilotApi = {
   saveAttachmentImage: (bytes, extension) =>
     ipcRenderer.invoke('attachments:save-image', { bytes, extension }),
   readAttachmentDataUrl: (path) => ipcRenderer.invoke('attachments:read-data-url', { path }),
+  saveClipboardImage: () => ipcRenderer.invoke('attachments:save-clipboard'),
+  selectSavePath: (options) => ipcRenderer.invoke('dialog:select-save-path', options),
+  saveImageOut: (source) => ipcRenderer.invoke('save:image', { source }),
+  saveFileOut: (payload) => ipcRenderer.invoke('save:file', payload),
   pickProjectDirectory: () => ipcRenderer.invoke('project:pick-directory'),
   createProject: (dirPath, name, confirmed) =>
     ipcRenderer.invoke('project:create', { dirPath, name, confirmed }),

@@ -11,7 +11,7 @@
 
 import { test, expect, _electron } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -396,9 +396,6 @@ test('the window follows the OS theme and carries the interface scale', async ()
   // follow it) but does not reliably notify an already-loaded page under
   // Playwright, so a test built on it passes in one direction and hangs in the
   // other for reasons that have nothing to do with the app.
-  // What the app must react to is the window's own colour preference — the
-  // signal Chromium raises when the OS switches. Emulating it delivers a real
-  // change event to the page (measured: a listener of our own sees it).
   await page.emulateMedia({ colorScheme: 'dark' })
 
   await expect
@@ -430,4 +427,100 @@ test('the window follows the OS theme and carries the interface scale', async ()
 
   // Put it back so the rest of the suite sees the default.
   await page.evaluate(() => window.aecpilot.setZoomPercent(90))
+})
+
+/** Их часть моста «наружу» (задача 3.27), проверенная там, где она живёт: путь
+ *  записи называет только диалог, а путь ЧТЕНИЯ приходит из ответа модели и
+ *  потому проходит проверку принадлежности проекту. */
+interface SaveBridge {
+  saveGatewayFile: (payload: {
+    path: string
+  }) => Promise<{ canceled?: boolean; path?: string; saved: boolean }>
+  saveImageFromUrl: (url: string) => Promise<boolean>
+}
+
+test('a file the agent made goes out where the person chose, and only from inside the project', async () => {
+  const page = await app.firstWindow()
+
+  const insideProject = join(projectDir, 'plan.txt')
+  writeFileSync(insideProject, 'plan bytes')
+
+  const outsideDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-outside-'))
+  const outsideProject = join(outsideDir, 'secret.txt')
+  writeFileSync(outsideProject, 'secret bytes')
+
+  // The test stands in for the human at the only place a write path is ever
+  // named — the native dialog — exactly as the create-project test does. The
+  // counter is the second half of the assertion: a refusal must not even get
+  // as far as asking where to put the file.
+  await app.evaluate(({ dialog }) => {
+    const bag = globalThis as unknown as { saveTarget?: string; saveCalls?: number }
+    bag.saveCalls = 0
+    dialog.showSaveDialog = (async () => {
+      bag.saveCalls = (bag.saveCalls ?? 0) + 1
+      return { canceled: false, filePath: bag.saveTarget ?? '' }
+    }) as never
+  })
+
+  const chosen = join(outsideDir, 'saved-plan.txt')
+  // The first argument of `electronApp.evaluate` is always the electron module
+  // itself — the value passed in comes second.
+  await app.evaluate((_electron, target) => {
+    ;(globalThis as unknown as { saveTarget?: string }).saveTarget = target
+  }, chosen)
+
+  const saved = await page.evaluate(
+    (path) =>
+      (window as unknown as { hermesDesktop: SaveBridge }).hermesDesktop.saveGatewayFile({ path }),
+    insideProject
+  )
+  expect(saved).toEqual({ saved: true, path: chosen })
+  expect(readFileSync(chosen, 'utf8'), 'the chosen place holds the file itself').toBe('plan bytes')
+
+  // A path outside the project is refused, and the refusal is a sentence the
+  // person can read — not a silent `false` that looks like a cancelled dialog.
+  const refusal = await page.evaluate(
+    (path) =>
+      (window as unknown as { hermesDesktop: SaveBridge }).hermesDesktop
+        .saveGatewayFile({ path })
+        .then(
+          () => '',
+          (error: Error) => error.message
+        ),
+    outsideProject
+  )
+  expect(refusal).toContain('внутри рабочей папки проекта')
+
+  // An image on the web is a LINK: it opens in a browser. Fetching it in main
+  // would hand the window a network channel around its own CSP.
+  const remote = await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: SaveBridge }).hermesDesktop
+      .saveImageFromUrl('https://example.com/cat.png')
+      .then(
+        () => '',
+        (error: Error) => error.message
+      )
+  )
+  expect(remote).toContain('браузере')
+
+  // Bytes already inside the window save without asking anyone anything.
+  const imageTarget = join(outsideDir, 'pasted.png')
+  await app.evaluate((_electron, target) => {
+    ;(globalThis as unknown as { saveTarget?: string }).saveTarget = target
+  }, imageTarget)
+
+  const savedImage = await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: SaveBridge }).hermesDesktop.saveImageFromUrl(
+      'data:image/png;base64,iVBORw0KGgo='
+    )
+  )
+  expect(savedImage).toBe(true)
+  expect(readFileSync(imageTarget).length).toBeGreaterThan(0)
+
+  const calls = await app.evaluate(
+    () => (globalThis as unknown as { saveCalls?: number }).saveCalls
+  )
+  expect(calls, 'a refused source must never open a save dialog').toBe(2)
+
+  rmSync(outsideDir, { force: true, recursive: true })
 })

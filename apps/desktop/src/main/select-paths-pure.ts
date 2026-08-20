@@ -25,7 +25,9 @@ export interface DialogPlan {
   filters?: Array<{ name: string; extensions: string[] }>
 }
 
-function cleanFilters(raw: unknown): Array<{ name: string; extensions: string[] }> | undefined {
+export function cleanFilters(
+  raw: unknown
+): Array<{ name: string; extensions: string[] }> | undefined {
   if (!Array.isArray(raw)) return undefined
 
   const filters = raw

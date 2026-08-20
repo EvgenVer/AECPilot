@@ -26,14 +26,7 @@ const ZONE = join(__dirname, '..', '..', 'donor')
 
 /** Чужие каталоги переводов: их языки не предлагаются (SPEC C7), а английский
  * переписывается на лету (`debrand.ts`). */
-const SKIP_FILES = new Set([
-  'en.ts',
-  'ar.ts',
-  'ja.ts',
-  'zh.ts',
-  'zh-hant.ts',
-  'voice-stop-word.ts'
-])
+const SKIP_FILES = new Set(['en.ts', 'ar.ts', 'ja.ts', 'zh.ts', 'zh-hant.ts', 'voice-stop-word.ts'])
 
 const TECHNICAL = new RegExp(
   [

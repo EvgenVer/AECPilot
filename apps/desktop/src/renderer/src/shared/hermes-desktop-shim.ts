@@ -247,6 +247,59 @@ const IMPLEMENTED: Record<string, unknown> = {
     return result.dataUrl
   },
 
+  // Задача 3.27 — четыре члена «наружу». Три из них разбирал бы один и тот же
+  // вопрос: что делать с отказом. Их код различает три исхода, и шим обязан
+  // отвечать в их форме, иначе кнопка врёт:
+  //   получилось  → значение (`true` / путь) — их код показывает уведомление;
+  //   отменили    → `false` / `''` / `{saved:false}` — про закрытый диалог
+  //                 человеку не сообщают, и молчание здесь правильное;
+  //   отказ/сбой  → ИСКЛЮЧЕНИЕ, потому что их `notifyError(error, …)` берёт
+  //                 текст из `error.message`. Вернуть здесь `false` значило бы
+  //                 показать отказ как отмену — то есть промолчать о том, что
+  //                 файл не сохранён.
+  //
+  // Без этих четырёх кнопка «сохранить» у картинки была сломана в третью
+  // сторону (находка D-41): заглушка-прокси ПРАВДИВА на вид, их проверка
+  // `if (window.hermesDesktop?.saveImageFromUrl)` проходила, вызов отклонялся,
+  // и человек получал «не удалось скачать картинку» вместо диалога.
+
+  selectSavePath(options?: {
+    defaultPath?: string
+    filters?: Array<{ extensions: string[]; name: string }>
+    title?: string
+  }): Promise<null | string> {
+    return window.aecpilot.selectSavePath(options)
+  },
+
+  async saveImageFromUrl(url: string): Promise<boolean> {
+    const result = await window.aecpilot.saveImageOut(url)
+    if (result.error !== undefined) throw new Error(result.error)
+    return result.saved
+  },
+
+  async saveClipboardImage(): Promise<string> {
+    const result = await window.aecpilot.saveClipboardImage()
+    if (!result.ok) throw new Error(result.error)
+    return result.path
+  },
+
+  async saveGatewayFile(payload: {
+    path: string
+    profile?: null | string
+    suggestedName?: string
+  }): Promise<{ canceled?: boolean; path?: string; saved: boolean }> {
+    const result = await window.aecpilot.saveFileOut({
+      path: payload.path,
+      ...(payload.suggestedName === undefined ? {} : { suggestedName: payload.suggestedName })
+    })
+    if (result.error !== undefined) throw new Error(result.error)
+    return {
+      saved: result.saved,
+      ...(result.canceled === undefined ? {} : { canceled: result.canceled }),
+      ...(result.path === undefined ? {} : { path: result.path })
+    }
+  },
+
   // Task 3.25 (SPEC HX12). We do not enumerate OS windows — no `get-windows`,
   // no native module, no reading what the person has open behind us. But the
   // request still has to be ANSWERED: their handler for `window.read.request`
