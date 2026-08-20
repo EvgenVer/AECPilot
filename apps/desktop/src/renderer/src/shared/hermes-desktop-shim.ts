@@ -12,9 +12,13 @@
 // screen that needs one more member is a task that wires it (the explorer's
 // file operations at 1.8.17, profiles at 1.8.11), not a reason to fake it here.
 //
-// One capability is refused on purpose rather than implemented:
+// Two capabilities are refused on purpose rather than implemented:
 //   api({upload}) — multipart upload has no IPC counterpart; attachments go
 //     through our own `pickAttachments` / `pasteAttachment` channels.
+//   readWindowBelow() — reading which OS window sits behind us is out of scope
+//     by SPEC HX12. It is IMPLEMENTED rather than left unbridged so the refusal
+//     is a truthful sentence instead of the core's "unavailable on this system"
+//     (task 3.25).
 //
 // And one answers without granting anything: `getConnection` hands back a
 // descriptor that names the IPC bridge and carries no credential, because the
@@ -142,6 +146,33 @@ const IMPLEMENTED: Record<string, unknown> = {
     const result = await window.aecpilot.readAttachmentDataUrl(filePath)
     if (!result.ok) throw new Error(result.error)
     return result.dataUrl
+  },
+
+  // Task 3.25 (SPEC HX12). We do not enumerate OS windows — no `get-windows`,
+  // no native module, no reading what the person has open behind us. But the
+  // request still has to be ANSWERED: their handler for `window.read.request`
+  // (`gateway-event.ts`) calls this and passes the result to
+  // `window.read.respond`, and a request that never gets a response stalls the
+  // tool for its full 30-second timeout.
+  //
+  // Answering `null` would already avoid the stall — the unbridged stand-in
+  // rejects and their `.catch` sends an empty text. What that buys the person
+  // is a LIE: on an empty text the core answers "the desktop app did not
+  // answer, or window enumeration is unavailable on this system"
+  // (`tools/read_window_tool.py`), so the agent relays a system limitation that
+  // does not exist and may retry. An object goes through the core verbatim, so
+  // this is the one place where the refusal can be truthful.
+  //
+  // `platform` (the other field their schema names) is deliberately absent: the
+  // refusal is the same on every OS, and naming one would re-frame a product
+  // decision as a platform quirk.
+  readWindowBelow(): Promise<{ error: string }> {
+    return Promise.resolve({
+      error:
+        'AECPilot не читает окна других приложений — этой возможности в продукте нет ' +
+        'по решению о границах доступа, а не из-за ограничений системы. Повторный вызов ' +
+        'ничего не изменит: спросите у человека, что открыто у него на экране.'
+    })
   },
 
   profile: {
