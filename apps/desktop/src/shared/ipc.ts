@@ -73,6 +73,27 @@ export type AttachmentOutcome =
  * а не исключения, по той же причине, что у `AttachmentOutcome`: и то и другое
  * здесь нормальный ход событий. Отмена — `saved: false` БЕЗ `error`: про
  * закрытый диалог человеку не сообщают. */
+/** Один файл инструкций проекта, каким его видит человек перед решением
+ * (задача 3.8а). `tools` пуст — значит скил себя НЕ ограничивает, и тот, кто
+ * это показывает, обязан сказать именно так. */
+export interface ProjectSkillEntry {
+  rel: string
+  name: string
+  description: string
+  tools: string[]
+  hash: string
+}
+
+export interface ProjectSkillsView {
+  state: 'changed' | 'none' | 'trusted' | 'untrusted'
+  skills: ProjectSkillEntry[]
+  difference?: { added: string[]; changed: string[]; removed: string[] }
+  /** Имена, перекрытые одноимённым скилом профиля: замерено, что при совпадении
+   * имён побеждает профильный, и проектная инструкция в этом случае не
+   * действует. Называется человеку, а не решается за него. */
+  shadowed: string[]
+}
+
 export interface SaveOutResult {
   saved: boolean
   canceled?: boolean
@@ -704,6 +725,14 @@ export interface AecpilotApi {
    * `enabled` — выбор человека, переживает перезапуск; `running` — живёт ли
    * процесс сейчас. Они различаются намеренно: «включено, но не поднялось» —
    * это то, что человеку надо показать, а не скрыть. */
+  /** Инструкции, которые проект несёт для агента (задача 3.8а, SPEC UR29).
+   *
+   * `state`: `none` — их в проекте нет; `untrusted` — есть, но человек их не
+   * видел; `trusted` — доверены и с тех пор не менялись; `changed` — доверены,
+   * но содержимое разошлось с тем, что человек видел. Последнее ведёт себя как
+   * «не доверено»: агент их не видит, пока человек не посмотрит заново. */
+  getProjectSkills(): Promise<ProjectSkillsView>
+  setProjectSkillsTrust(trusted: boolean): Promise<ProjectSkillsView>
   getCronRunner(): Promise<{ enabled: boolean; running: boolean }>
   setCronRunner(on: boolean): Promise<{ enabled: boolean; running: boolean }>
   onCronRunnerChanged(cb: (state: { enabled: boolean; running: boolean }) => void): () => void

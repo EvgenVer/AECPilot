@@ -27,6 +27,8 @@
 // Удаление, выключение и чтение не гейтятся: они работают в сторону «меньше
 // прав» и без нас.
 
+export { requiredToolsOf } from '../../../../shared/skill-frontmatter'
+
 export type InstallKind = 'mcp-catalog' | 'mcp-server' | 'skill' | 'skill-update'
 
 export interface InstallRequest {
@@ -83,50 +85,6 @@ export function installBeingRequested(request: {
   }
 
   return null
-}
-
-/** Инструменты, которые скил просит у агента.
- *
- * Живут во фронт-маттере `SKILL.md` — `allowed-tools:` списком или строкой
- * через запятую. Это и есть «какие инструменты требует» из UR23: скил без
- * ограничения получает всё, что есть у агента, и именно это человек должен
- * увидеть до установки, а не после.
- *
- * Разбор нарочно узкий: фронт-маттер — первый блок между `---`, и ничего
- * больше из него нам не нужно. Полноценный разбор YAML ради одного поля был бы
- * лишней зависимостью и лишним поведением. */
-export function requiredToolsOf(skillMd: unknown): string[] {
-  if (typeof skillMd !== 'string') return []
-
-  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(skillMd.trimStart())
-  if (!front) return []
-
-  const inline = /^allowed-tools:[ \t]*(.+)$/m.exec(front[1])
-  if (inline) {
-    const value = inline[1].trim()
-    if (value !== '' && !value.startsWith('#')) {
-      return splitTools(value.replace(/^\[|\]$/g, ''))
-    }
-  }
-
-  const block = /^allowed-tools:[ \t]*\r?\n((?:[ \t]*-[ \t]*.+\r?\n?)+)/m.exec(front[1])
-  if (block) {
-    return splitTools(
-      block[1]
-        .split(/\r?\n/)
-        .map((line) => line.replace(/^[ \t]*-[ \t]*/, ''))
-        .join(',')
-    )
-  }
-
-  return []
-}
-
-function splitTools(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim().replace(/^["']|["']$/g, ''))
-    .filter((item) => item !== '')
 }
 
 /** Имена переменных окружения сервера — БЕЗ значений.

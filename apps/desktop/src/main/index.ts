@@ -27,6 +27,12 @@ import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
 import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
 import {
+  applyProjectSkills,
+  configureProjectSkills,
+  projectSkillsView,
+  setProjectSkillsTrust
+} from './project-skills'
+import {
   cronRunnerState,
   onCronRunnerChanged,
   restoreCronRunner,
@@ -2324,6 +2330,12 @@ ipcMain.on('theme:set-native', (_event, mode: unknown) => {
   if (mode === 'system' || mode === 'light' || mode === 'dark') nativeTheme.themeSource = mode
 })
 
+// Задача 3.8а (SPEC UR29). Инструкции, которые проект несёт для агента.
+ipcMain.handle('project-skills:get', () => projectSkillsView(currentProject?.vaultPath))
+ipcMain.handle('project-skills:trust', (_event, trusted: unknown) =>
+  setProjectSkillsTrust(currentProject?.vaultPath, trusted === true)
+)
+
 // Задача 3.6а. Кто запускает задачи по расписанию. Разбор — PLAN §«Свой тик
 // расписаний»: тикает их планировщик в отдельном процессе, и человек решает,
 // поднимать ли его.
@@ -2447,6 +2459,10 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (!result.ok) return result
 
   currentProject = result.project
+  // Задача 3.8а (UR29): в конфиге ядра стоят каталоги скилов РОВНО текущего
+  // проекта — и только если он доверен и не менялся. Отсюда и «скилы одного
+  // проекта не видны в другом», и «отзыв доверия отключает их немедленно».
+  applyProjectSkills(result.project.vaultPath)
   startScanSchedulerForProject(result.project.vaultPath)
   // Task 1.20: register aec-sources against THIS project's project.json
   // (mechanic 1.12) and abandon any session tied to whatever was open
@@ -2498,6 +2514,10 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   if (!result.ok) return result
 
   currentProject = result.project
+  // Задача 3.8а (UR29): в конфиге ядра стоят каталоги скилов РОВНО текущего
+  // проекта — и только если он доверен и не менялся. Отсюда и «скилы одного
+  // проекта не видны в другом», и «отзыв доверия отключает их немедленно».
+  applyProjectSkills(result.project.vaultPath)
   startScanSchedulerForProject(result.project.vaultPath)
   // Task 1.20 — see the matching comment in project:create above.
   await registerAecSourcesForProject(result.project.vaultPath)
@@ -3056,6 +3076,14 @@ app
     // Задача 3.29. Первым делом: всё, что записано раньше, в журнал не попадёт,
     // а самое интересное происходит как раз на старте.
     console.log(`aecpilot: app log at ${installAppLog(app.getPath('logs'))}`)
+
+    // Задача 3.8а: где лежит их конфиг и где мы храним доверие. Модуль шлюза
+    // грузится тут же, откуда его берут все остальные — он знает их домашний
+    // каталог, а мы этот путь не выдумываем.
+    configureProjectSkills({
+      homeDir: (await loadServeModule()).HERMES_HOME_DIR,
+      userDataDir: app.getPath('userData')
+    })
 
     installPermissionPolicy()
 

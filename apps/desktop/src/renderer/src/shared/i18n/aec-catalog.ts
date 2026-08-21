@@ -203,6 +203,29 @@ export const aecLocales: PluginLocaleBundles = {
       confirm: 'Install',
       declined: 'Not installed — you did not confirm it.'
     },
+    projectSkills: {
+      title: 'Trust this project’s instructions for the agent?',
+      changedTitle: 'The project’s instructions have changed',
+      lead: 'This folder carries instructions the agent will follow while working here — and nowhere else. They are loaded only after you say yes.',
+      foundTitle: 'This project carries instructions for the agent',
+      foundBody: 'Until you look at them, the agent does not see them.',
+      changedBody:
+        'They were trusted before, but the files have changed since. The agent has stopped seeing them until you look again.',
+      review: 'Look at them',
+      wasChanged: (rel: string) => `changed: ${rel}`,
+      wasAdded: (rel: string) => `new: ${rel}`,
+      wasRemoved: (rel: string) => `gone: ${rel}`,
+      tools: (tools: string) => `Tools it asks for: ${tools}`,
+      toolsUnrestricted: 'It does not restrict its tools — anything the agent has.',
+      trust: 'Trust them',
+      revoke: 'Stop trusting',
+      later: 'Not now',
+      badgeTrusted: (count: number) => `Project instructions: ${count}`,
+      badgeUntrusted: (count: number) => `Project instructions: ${count}, not trusted`,
+      badgeHint: 'Who wrote them, what they ask for, and whether the agent sees them',
+      shadowed: (names: string) =>
+        `Your profile already has skills with these names: ${names}. While they are there, the project instructions with those names do NOT apply — the core takes the profile ones. Rename the project ones or turn the profile ones off in settings.`
+    },
     citations: {
       unverified: 'This phrase is not in the cited place:'
     },
@@ -493,6 +516,29 @@ export const aecLocales: PluginLocaleBundles = {
       env: (keys: string) => `Получит переменные окружения: ${keys} (значения не показаны)`,
       confirm: 'Установить',
       declined: 'Не установлено — вы не подтвердили установку.'
+    },
+    projectSkills: {
+      title: 'Доверять инструкциям этого проекта?',
+      changedTitle: 'Инструкции проекта изменились',
+      lead: 'В этой папке лежат инструкции, которым агент будет следовать, работая здесь, — и больше нигде. Они загружаются только после вашего согласия.',
+      foundTitle: 'Проект несёт инструкции для агента',
+      foundBody: 'Пока вы их не посмотрели, агент их не видит.',
+      changedBody:
+        'Раньше вы им доверились, но файлы с тех пор изменились. Агент перестал их видеть — до тех пор, пока вы не посмотрите заново.',
+      review: 'Посмотреть',
+      wasChanged: (rel: string) => `изменён: ${rel}`,
+      wasAdded: (rel: string) => `появился: ${rel}`,
+      wasRemoved: (rel: string) => `исчез: ${rel}`,
+      tools: (tools: string) => `Просит инструменты: ${tools}`,
+      toolsUnrestricted: 'Инструменты не ограничены — любой, который есть у агента.',
+      trust: 'Доверять',
+      revoke: 'Перестать доверять',
+      later: 'Не сейчас',
+      badgeTrusted: (count: number) => `Инструкции проекта: ${count}`,
+      badgeUntrusted: (count: number) => `Инструкции проекта: ${count}, без доверия`,
+      badgeHint: 'Кто их написал, что они просят и видит ли их агент',
+      shadowed: (names: string) =>
+        `В профиле уже есть скилы с такими именами: ${names}. Пока они там, проектные инструкции с этими именами НЕ действуют — ядро берёт профильные. Переименуйте проектные или выключите профильные в настройках.`
     },
     citations: {
       unverified: 'Этой фразы в процитированном месте нет:'

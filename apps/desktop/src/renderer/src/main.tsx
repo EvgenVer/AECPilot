@@ -26,6 +26,9 @@ import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosure
 import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
 // Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
 import './aec/cron-runner/register'
+// Задача 3.8а: уведомление и строка состояния для инструкций проекта.
+import './aec/project-skills/register'
+import ProjectSkillsDialog from './aec/project-skills/ProjectSkillsDialog'
 import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
@@ -94,6 +97,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         просит — до подтверждения. Спрашивается из моста, поэтому
                         стоит здесь, а не внутри их экрана скилов. */}
                     <InstallConsentDialog />
+                    {/* Задача 3.8а (UR29): что за инструкции несёт папка
+                        проекта и доверяем ли мы им. */}
+                    <ProjectSkillsDialog />
                     {/* Task 3.20: шаги от пустой установки до первого ответа.
                         Здесь же, а не внутри их экрана: два шага из шести —
                         их собственный оверлей, и мастер должен стоять рядом
