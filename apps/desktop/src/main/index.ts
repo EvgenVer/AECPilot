@@ -4,6 +4,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  nativeTheme,
   session,
   shell,
   systemPreferences
@@ -22,6 +23,8 @@ import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
+import { installNotifications, showNativeNotification } from './native-notify'
+import { installPowerWatch, isOnBattery } from './power'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
@@ -292,6 +295,7 @@ function resetActiveSessionForProjectSwitch(): void {
 }
 
 let serveHandle: ServeHandle | undefined
+let gatewayUrl: string | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
@@ -388,6 +392,10 @@ let gatewayState: GatewayConnectionState = 'closed'
  * (task 0.16), which points this at a mock gateway instead of spawning
  * `hermes serve`. */
 async function connectGateway(url: string): Promise<void> {
+  // SECURITY: the url embeds the gateway auth token. It is remembered HERE, in
+  // main, so a re-dial after the machine wakes (task 3.28) has something to
+  // dial; it never crosses IPC and is never logged.
+  gatewayUrl = url
   gateway = new GatewayClient({ url })
   gateway.onEvent((event: GatewayEvent) => {
     // Only forward events for the active session, plus session-less
@@ -408,6 +416,51 @@ async function connectGateway(url: string): Promise<void> {
     // opens, the chat just won't be able to connect yet.
     console.error('aecpilot: gateway connect FAIL', error)
   }
+}
+
+/** Одно сообщение всем живым окнам. */
+function broadcastToWindows(channel: string, payload: unknown): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(channel, payload)
+  }
+}
+
+/** Сколько ждать ответа на проверочный вопрос после пробуждения. Секунда с
+ * запасом: шлюз локальный, и если он жив, он отвечает мгновенно. */
+const RESUME_PROBE_TIMEOUT_MS = 5000
+/** Сколько раз пробовать перезвонить и с каким промежутком. Шлюз просыпается
+ * вместе с машиной и может быть ещё не готов принимать соединения. */
+const RESUME_REDIAL_ATTEMPTS = 5
+const RESUME_REDIAL_DELAY_MS = 3000
+
+/** Проверка связи после пробуждения машины (задача 3.28).
+ *
+ * Спрашивать имеет смысл ТОЛЬКО когда клиент считает себя подключённым: если он
+ * уже переподключается, у него свой отсчёт с нарастающей паузой, и вмешиваться
+ * значит его сбить. А `close()` выключает автоматическое переподключение —
+ * поэтому за ним обязан идти собственный цикл повторов, иначе неудачный первый
+ * звонок оставил бы приложение отключённым навсегда.
+ */
+async function revalidateGatewayAfterResume(): Promise<void> {
+  if (!gateway || !gatewayUrl || gatewayState !== 'ready') return
+
+  try {
+    await gateway.request('session.list', { limit: 1 }, RESUME_PROBE_TIMEOUT_MS)
+    return
+  } catch {
+    console.warn('aecpilot: gateway did not answer after resume — re-dialing')
+  }
+
+  const url = gatewayUrl
+  gateway.close()
+
+  for (let attempt = 0; attempt < RESUME_REDIAL_ATTEMPTS; attempt += 1) {
+    await connectGateway(url)
+    if (gatewayState === 'ready') return
+    await new Promise((resolve) => setTimeout(resolve, RESUME_REDIAL_DELAY_MS))
+  }
+
+  console.error('aecpilot: gateway still unreachable after resume')
 }
 
 /** Reads `<homeDir>/config.yaml`, merges in the saved model/baseUrl override
@@ -2248,6 +2301,29 @@ ipcMain.handle('attachments:save-clipboard', async () => {
   }
 })
 
+// Задача 3.26 (находка D-42). Их тема красит НЕ только страницу: рамка окна,
+// подложка до первой отрисовки и материал окна на macOS живут в главном
+// процессе, и их `syncNativeTheme` держит их в согласии с выбранным режимом.
+//
+// `send`, а не `invoke`, потому что их контракт объявляет этот член
+// возвращающим `void`, а их же вызов стоит ТЕЛОМ эффекта:
+// `useEffect(() => syncNativeTheme(...), [...])`. Промис оттуда становится
+// «функцией уборки» эффекта, и на ВТОРОМ срабатывании React зовёт его как
+// функцию — приложение падало в их аварийный экран ровно на возврате темы ОС
+// из тёмной в светлую. Отсюда правило: член, объявленный `=> void`, обязан
+// возвращать `void`.
+ipcMain.on('theme:set-native', (_event, mode: unknown) => {
+  if (mode === 'system' || mode === 'light' || mode === 'dark') nativeTheme.themeSource = mode
+})
+
+// Задача 3.28. Показ уведомления ОС. КОГДА показывать, решает их хранилище
+// (виды, молчание при видимом окне, защита от повторов) — здесь только показ и
+// маршрут щелчка. `false` значит «не показали», а не «сломалось».
+ipcMain.handle('notify:show', (_event, payload: unknown) => showNativeNotification(payload))
+
+// Задача 3.28. На батарее их страховочные опросы растягиваются вчетверо.
+ipcMain.handle('power:on-battery', () => isOnBattery())
+
 // Задача 3.27. Три глагола «наружу»: спросить место, сохранить картинку из
 // ленты, сохранить файл агента. Решения — в `save-out-pure.ts`, работа с
 // диалогом и диском — в `save-out.ts`; здесь только `currentProject`, которого
@@ -3024,6 +3100,16 @@ app
     // Task 3.18: an overnight run must survive a restart of the app, so the
     // blocker comes back from main's own copy of the preference.
     if (restoreKeepAwake()) console.log('aecpilot: keep-awake restored')
+
+    // Task 3.28: the OS side of working in the background.
+    installNotifications()
+    installPowerWatch({
+      onBatteryChanged: (value) => broadcastToWindows('power:battery-changed', value),
+      onResume: () => {
+        broadcastToWindows('power:resume', undefined)
+        void revalidateGatewayAfterResume()
+      }
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

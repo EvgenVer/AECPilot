@@ -97,6 +97,14 @@ async def handle(connection: ServerConnection) -> None:
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
             )
+        elif method == "session.list":
+            # The app asks this after the machine wakes up, to find out whether
+            # the socket is still alive (task 3.28). A real gateway answers it,
+            # so the mock must too — otherwise every resume looks like a dead
+            # connection and the app re-dials for nothing.
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"sessions": []}})
+            )
         elif method == "session.close":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})

@@ -213,6 +213,19 @@ test.afterAll(async () => {
   }
 })
 
+/** Жив ли ещё рендерер — не заменило ли его их аварийным экраном.
+ *
+ * Стоит в конце КАЖДОГО теста, и это не перестраховка. Приложение уже один раз
+ * умирало посреди набора (D-42): проверки теста проходили, потому что все они
+ * шли через `page.evaluate`, а тому мёртвое дерево React не мешает. Следующий
+ * тест падал на пустом месте, и причина искалась не там. */
+async function assertRendererAlive(page: Page, label: string): Promise<void> {
+  const broken = await page
+    .getByRole('heading', { name: /Something broke|Что-то сломалось/ })
+    .count()
+  if (broken > 0) throw new Error(`RENDERER DIED at ${label}`)
+}
+
 test('their shell paints and the composer goes live over our bridge', async () => {
   const page = await app.firstWindow()
 
@@ -261,6 +274,7 @@ test('their shell paints and the composer goes live over our bridge', async () =
   await expect(composer).not.toHaveAttribute('data-placeholder', /Starting|Reconnecting|Запуск/, {
     timeout: 60000
   })
+  await assertRendererAlive(page, 'end of test 1')
 })
 
 // Task 3.3 (SPEC UR16/HX6). Runs against the app and project the test above
@@ -299,6 +313,7 @@ test('Ctrl+G opens the change history, not a git surface', async () => {
     await expect(page.getByRole('button', { name: label })).toHaveCount(0)
   }
   await expect(page.getByText(/a1b2c3d4/)).toHaveCount(0)
+  await assertRendererAlive(page, 'end of test 2')
 })
 
 // Task 3.4 (SPEC UR22/HX13/C9). Three claims in one turn, because one turn is
@@ -373,6 +388,7 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
   // No live page behind a sandboxed frame — the honest answer says where the
   // content actually is instead of inventing text.
   expect(read.note ?? '').not.toBe('')
+  await assertRendererAlive(page, 'end of test 3')
 })
 
 // Task 3.26 (SPEC HX14). Two appearance features are in scope and both are
@@ -410,9 +426,20 @@ test('the window follows the OS theme and carries the interface scale', async ()
     'system'
   )
 
-  // The way BACK to light is not asserted here on purpose: it does not happen,
-  // and the reason is finding D-42 in TASKS §Discovered — the change event is
-  // delivered (measured), the app repaints dark, and never repaints back.
+  // And back. This direction is the one that used to KILL the app (D-42): their
+  // `useEffect(() => syncNativeTheme(...))` returned the shim's rejected promise,
+  // React kept it as the effect's cleanup, and the second run called a promise
+  // as a function. The app did not "fail to repaint" — it died into their error
+  // boundary, which is why the check at the end of this test matters as much as
+  // the colour.
+  await page.emulateMedia({ colorScheme: 'light' })
+
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.hermesMode), {
+      timeout: 15000
+    })
+    .toBe('light')
+
   await page.emulateMedia({ colorScheme: null })
 
   // Zoom lives on the window's webContents: the renderer asks, main applies.
@@ -427,6 +454,7 @@ test('the window follows the OS theme and carries the interface scale', async ()
 
   // Put it back so the rest of the suite sees the default.
   await page.evaluate(() => window.aecpilot.setZoomPercent(90))
+  await assertRendererAlive(page, 'end of test 4')
 })
 
 /** Их часть моста «наружу» (задача 3.27), проверенная там, где она живёт: путь
@@ -523,4 +551,79 @@ test('a file the agent made goes out where the person chose, and only from insid
   expect(calls, 'a refused source must never open a save dialog').toBe(2)
 
   rmSync(outsideDir, { force: true, recursive: true })
+  await assertRendererAlive(page, 'end of test 5')
+})
+
+test('the app hears the machine: battery, wake-up, and a notification it can show', async () => {
+  const page = await app.firstWindow()
+
+  // Subscribe first, from the page, through the same bridge their code uses.
+  await page.evaluate(() => {
+    const seen = globalThis as unknown as { power?: { battery: boolean[]; resumes: number } }
+    seen.power = { battery: [], resumes: 0 }
+    window.aecpilot.onBatteryChanged((value) => seen.power?.battery.push(value))
+    window.aecpilot.onPowerResume(() => {
+      if (seen.power) seen.power.resumes += 1
+    })
+  })
+
+  // A notification with nothing to show is refused BEFORE it reaches the OS —
+  // an empty frame on screen is worse than silence.
+  expect(
+    await page.evaluate(() => window.aecpilot.showNotification({ body: 'без заголовка' }))
+  ).toBe(false)
+  expect(
+    await page.evaluate(() =>
+      window.aecpilot.showNotification({ title: 'AECPilot', body: 'прогон завершён', silent: true })
+    ),
+    'a notification with a title reaches the OS'
+  ).toBe(true)
+
+  // The machine's own signals. `powerMonitor` is an emitter, so the test can
+  // raise exactly the event the OS raises — no sleeping laptop required.
+  await app.evaluate(({ powerMonitor }) => {
+    powerMonitor.emit('on-battery')
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (globalThis as unknown as { power?: { battery: boolean[] } }).power?.battery ?? []
+      )
+    )
+    .toEqual([true])
+
+  // Repeats are not forwarded: the renderer mirrors a value, it does not need
+  // to be told the same thing twice.
+  await app.evaluate(({ powerMonitor }) => {
+    powerMonitor.emit('on-battery')
+  })
+  await app.evaluate(({ powerMonitor }) => {
+    powerMonitor.emit('on-ac')
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (globalThis as unknown as { power?: { battery: boolean[] } }).power?.battery ?? []
+      )
+    )
+    .toEqual([true, false])
+
+  // Waking up: the renderer is told, and main asks the gateway whether the
+  // socket it holds is still alive. The mock answers `session.list`, so the
+  // link survives — the composer must still be live afterwards.
+  await app.evaluate(({ powerMonitor }) => {
+    powerMonitor.emit('resume')
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (globalThis as unknown as { power?: { resumes: number } }).power?.resumes ?? 0
+      )
+    )
+    .toBe(1)
+
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeEnabled({
+    timeout: 15000
+  })
+  await assertRendererAlive(page, 'end of test 6')
 })

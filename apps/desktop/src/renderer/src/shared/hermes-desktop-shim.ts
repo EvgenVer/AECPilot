@@ -228,8 +228,106 @@ const IMPLEMENTED: Record<string, unknown> = {
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
-  setKeepAwake(on: boolean): Promise<unknown> {
-    return window.aecpilot.setKeepAwake(on)
+  setKeepAwake(on: boolean): void {
+    void window.aecpilot.setKeepAwake(on)
+  },
+
+  // ЧЛЕН, ОБЪЯВЛЕННЫЙ `=> void`, ОБЯЗАН ВОЗВРАЩАТЬ `void`.
+  //
+  // Восемь членов их моста объявлены `=> void`, и их код зовёт такой член в том
+  // числе ТЕЛОМ эффекта: `useEffect(() => syncNativeTheme(mode, rendered), […])`.
+  // Что вернёт член, то React запомнит как «функцию уборки» этого эффекта. У
+  // непроброшенного члена заглушка возвращает ОТКЛОНЁННЫЙ ПРОМИС — и на втором
+  // срабатывании эффекта React зовёт промис как функцию.
+  //
+  // Так и умирало приложение (находка D-42, разобрана 2026-08-21): тема ОС
+  // менялась на тёмную — эффект срабатывал первый раз, промис оседал уборкой;
+  // тема возвращалась в светлую — второе срабатывание, `destroy_ is not a
+  // function`, всё дерево заменялось их аварийным экраном. Снаружи это
+  // выглядело как «в тёмную уходит, обратно не возвращается».
+  //
+  // Поэтому ниже нет ни одного `=> void`-члена, оставленного заглушке: те, что
+  // нужны, реализованы и возвращают `void`; те, что исключены объёмом,
+  // объявлены ОТСУТСТВУЮЩИМИ — и тогда их же `?.` не доходит до вызова.
+  // Проверяется тестом `void-members.test.tsx`.
+
+  // Задача 3.26. Тема красит не только страницу: рамка окна, подложка до первой
+  // отрисовки и материал окна на macOS живут в главном процессе. Это не
+  // «отдельная тема тайтлбара» из HX14, а та же тема, доведённая до рамки.
+  setNativeTheme(mode: 'dark' | 'light' | 'system'): void {
+    window.aecpilot.setNativeTheme(mode)
+  },
+
+  // SPEC HX14: прозрачность окна и отдельная тема тайтлбара — Non-Goals. Плюс
+  // окно у нас с обычной рамкой ОС, так что их `setTitleBarOverlay` не на что
+  // накладывать.
+  setTitleBarTheme: undefined,
+  setTranslucency: undefined,
+
+  // SPEC HX15: индикатор активной работы и запрет F12 — служебная механика без
+  // сценария. Строка про F12 убрана и с их экрана настроек (правка [3]).
+  setActiveWork: undefined,
+  setDisableF12: undefined,
+
+  // macOS: перехват ⌘W ради выбора «вкладка или окно». На нашей платформе
+  // решать нечего, и обещать перехват мы не будем.
+  setPreviewShortcutActive: undefined,
+
+  // Задача 3.29 (журнал приложения) — их аварийный экран отдаёт сюда причину
+  // падения. До неё член объявлен отсутствующим, а не оставлен заглушке: падение
+  // рендерера не должно вдобавок рождать необработанное отклонение промиса.
+  reportRendererError: undefined,
+
+  // Задача 3.28 — работа, пока на приложение никто не смотрит.
+  //
+  // `notify` — единственный способ сказать «готово» человеку, который отошёл от
+  // машины; КОГДА показывать, решает их собственное хранилище уведомлений, а
+  // это только показ. Два подписчика рядом с ним — маршрут щелчка: по телу
+  // уведомления их код открывает нужную сессию, по кнопке (macOS) отвечает на
+  // запрос подтверждения.
+  //
+  // `getOnBattery` был непроброшен, и это не «кнопка молчит», а необработанное
+  // отклонение промиса на КАЖДОМ старте: их `store/power.ts` зовёт его без
+  // `catch` (тот же подвид D-41, что был у зума). Заодно возвращается смысл:
+  // на батарее их страховочные опросы растягиваются вчетверо.
+  //
+  // `onPowerResume` возвращает приложение к жизни после сна машины. Их половина
+  // — пересобрать своё состояние; наша, более важная в этой сборке, — в главном
+  // процессе: сокет к шлюзу мог остаться открытым и мёртвым, и это проверяется
+  // вопросом, а не верой (`revalidateGatewayAfterResume`).
+
+  notify(payload: {
+    title?: string
+    body?: string
+    silent?: boolean
+    kind?: string
+    sessionId?: string
+    tag?: string
+    actions?: { id: string; text: string }[]
+  }): Promise<boolean> {
+    return window.aecpilot.showNotification(payload)
+  },
+
+  onFocusSession(callback: (sessionId: string) => void): () => void {
+    return window.aecpilot.onNotificationFocusSession(callback)
+  },
+
+  onNotificationAction(
+    callback: (payload: { actionId: string; sessionId?: string }) => void
+  ): () => void {
+    return window.aecpilot.onNotificationAction(callback)
+  },
+
+  getOnBattery(): Promise<boolean> {
+    return window.aecpilot.getOnBattery()
+  },
+
+  onBatteryChanged(callback: (onBattery: boolean) => void): () => void {
+    return window.aecpilot.onBatteryChanged(callback)
+  },
+
+  onPowerResume(callback: () => void): () => void {
+    return window.aecpilot.onPowerResume(callback)
   },
 
   // Task 4D-15. Their composer's drop engine calls these two; without them a

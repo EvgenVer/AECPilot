@@ -31,6 +31,30 @@ const api: AecpilotApi = {
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
+  setNativeTheme: (mode) => ipcRenderer.send('theme:set-native', mode),
+  showNotification: (payload) => ipcRenderer.invoke('notify:show', payload),
+  onNotificationFocusSession: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string): void => cb(sessionId)
+    ipcRenderer.on('notification:focus-session', listener)
+    return () => ipcRenderer.removeListener('notification:focus-session', listener)
+  },
+  onNotificationAction: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('notification:action', listener)
+    return () => ipcRenderer.removeListener('notification:action', listener)
+  },
+  getOnBattery: () => ipcRenderer.invoke('power:on-battery'),
+  onBatteryChanged: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, onBattery: boolean): void => cb(onBattery)
+    ipcRenderer.on('power:battery-changed', listener)
+    return () => ipcRenderer.removeListener('power:battery-changed', listener)
+  },
+  onPowerResume: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('power:resume', listener)
+    return () => ipcRenderer.removeListener('power:resume', listener)
+  },
   openSpeechStream: (id) => ipcRenderer.invoke('speech:open', id),
   sendSpeechFrame: (id, frame) => ipcRenderer.invoke('speech:send', { id, frame }),
   closeSpeechStream: (id) => ipcRenderer.invoke('speech:close', id),

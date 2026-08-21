@@ -696,6 +696,39 @@ export interface AecpilotApi {
    * расходилась с экраном. Возвращает функцию отписки. */
   onZoomChanged(cb: (payload: { level: number; percent: number }) => void): () => void
   setKeepAwake(on: boolean): Promise<{ enabled: boolean }>
+  /** Тема рамки окна и подложки до первой отрисовки (задача 3.26, находка
+   * D-42). Без ответа — `send`, а не `invoke`: их контракт объявляет этот член
+   * возвращающим `void`, и промис на его месте убивал приложение (см.
+   * `main/index.ts`, обработчик `theme:set-native`). */
+  setNativeTheme(mode: 'dark' | 'light' | 'system'): void
+  /** Уведомление операционной системы (задача 3.28, их `notify`). КОГДА
+   * показывать, решает рендерер — их хранилище держит переключатели по видам,
+   * молчание при видимом окне и защиту от повторов. Здесь только показ:
+   * `false` значит «показывать было нечего» или «система уведомления не
+   * поддерживает», и это ответ, а не ошибка. */
+  showNotification(payload: {
+    title?: string
+    body?: string
+    silent?: boolean
+    kind?: string
+    sessionId?: string
+    tag?: string
+    actions?: Array<{ id: string; text: string }>
+  }): Promise<boolean>
+  /** Щелчок по уведомлению: окно поднято, и рендереру назван номер сессии,
+   * чтобы он открыл именно её. */
+  onNotificationFocusSession(cb: (sessionId: string) => void): () => void
+  /** Нажата кнопка в уведомлении. Только macOS: на Windows кнопки в тосте
+   * Electron не рисуются — см. `main/native-notify.ts`. */
+  onNotificationAction(cb: (payload: { actionId: string; sessionId?: string }) => void): () => void
+  /** Машина на батарее (задача 3.28). Их страховочные опросы на батарее
+   * растягиваются вчетверо, чтобы ноутбук в фоне не тратил заряд на проверки. */
+  getOnBattery(): Promise<boolean>
+  onBatteryChanged(cb: (onBattery: boolean) => void): () => void
+  /** Машина проснулась после сна. Рендерер на этом пересобирает своё
+   * состояние; связь со шлюзом перепроверяет главный процесс — сокет мог
+   * остаться открытым и мёртвым. */
+  onPowerResume(cb: () => void): () => void
   openSpeechStream(id: string): Promise<{ ok: boolean; error?: string }>
   /** One frame of their protocol as JSON: `{text}`, `{done:true}`, `{stop:true}`.
    * Anything else is refused in main rather than forwarded. */

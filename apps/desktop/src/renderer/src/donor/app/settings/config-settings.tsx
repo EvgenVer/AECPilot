@@ -3,7 +3,11 @@
  * Source:  apps/desktop/src/app/settings/config-settings.tsx
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *  [3] Убрана строка «запретить F12»: служебная механика без сценария
+ *      (SPEC HX15), а переключатель, который ничего не выключает, — обещание,
+ *      которое интерфейс не держит. Вместе со строкой убраны её импорт и чтение
+ *      хранилища; сам член моста объявлен отсутствующим в шиме.
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
@@ -25,7 +29,6 @@ import {
   refreshDataUrlReadMaxMb,
   setDataUrlReadMaxMb
 } from '@/store/data-url-read-max'
-import { $disableF12, setDisableF12 } from '@/store/disable-f12'
 import { $keepAwake, setKeepAwake } from '@/store/keep-awake'
 import { notify, notifyError } from '@/store/notifications'
 import { normalizeProfileKey } from '@/store/profile'
@@ -114,7 +117,6 @@ function ConfigSettingsInner({
   const { t } = useI18n()
   const c = t.settings.config
   const keepAwake = useStore($keepAwake)
-  const disableF12 = useStore($disableF12)
   // The editable draft is local (debounced autosave watches it), but it's seeded
   // from — and saved back through — the shared config cache, so edits are visible
   // in the MCP/model surfaces and reopening the page doesn't reload-flash.
@@ -382,12 +384,6 @@ function ConfigSettingsInner({
             description={c.keepAwakeDesc}
             label={c.keepAwakeTitle}
             onChange={setKeepAwake}
-          />
-          <ToggleRow
-            checked={disableF12}
-            description={c.disableF12Desc}
-            label={c.disableF12Title}
-            onChange={setDisableF12}
           />
           <QuickEntrySettings />
         </>
