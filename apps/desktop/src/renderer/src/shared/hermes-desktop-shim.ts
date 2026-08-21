@@ -34,6 +34,7 @@
 
 import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
+import { agentInstallInFlight } from '../aec/install-consent/agent-initiated'
 import { installBeingRequested } from '../aec/install-consent/install-consent-pure'
 import { askInstallConsent } from '../aec/install-consent/store'
 import { cronContinuityEnabled } from '../aec/cron-continuity/store'
@@ -103,8 +104,11 @@ const IMPLEMENTED: Record<string, unknown> = {
     // Перехват в мосте, а не в их экране, по той же причине, что и у согласия
     // на канал: правка вендорного файла умерла бы при следующем переносе, а мост
     // переживёт его и покроет любую их будущую поверхность установки.
+    // Установку, начатую агентом, наш гейт не переспрашивает: человек в этот
+    // момент отвечает на их карточку об этой же установке (решение владельца
+    // 2026-08-21, разбор — `aec/install-consent/agent-initiated.ts`).
     const install = installBeingRequested(request)
-    if (install) {
+    if (install && !agentInstallInFlight()) {
       return askInstallConsent(install).then((allowed) =>
         allowed
           ? gatewayBridge().rest<T>(request.path, {

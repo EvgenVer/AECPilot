@@ -24,6 +24,8 @@ import { queryClient } from './donor/lib/query-client'
 import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
 import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
+// Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
+import './aec/cron-runner/register'
 import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'

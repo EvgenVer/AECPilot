@@ -26,6 +26,13 @@ import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
 import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
+import {
+  cronRunnerState,
+  onCronRunnerChanged,
+  restoreCronRunner,
+  setCronRunner,
+  stopCronRunner
+} from './cron-runner'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
@@ -2317,6 +2324,12 @@ ipcMain.on('theme:set-native', (_event, mode: unknown) => {
   if (mode === 'system' || mode === 'light' || mode === 'dark') nativeTheme.themeSource = mode
 })
 
+// Задача 3.6а. Кто запускает задачи по расписанию. Разбор — PLAN §«Свой тик
+// расписаний»: тикает их планировщик в отдельном процессе, и человек решает,
+// поднимать ли его.
+ipcMain.handle('cron-runner:get', () => cronRunnerState())
+ipcMain.handle('cron-runner:set', (_event, on: unknown) => setCronRunner(on))
+
 // Задача 3.29. Журнал приложения. Три глагола их контракта: открыть папку,
 // отдать хвост (их экран восстановления после неудачного старта показывает
 // последние строки) и записать падение рендерера — единственную запись,
@@ -3094,6 +3107,21 @@ app
           // because GatewayClient errors do not include the url; keep that
           // invariant if you touch it.
           await connectGateway(serveHandle.wsUrl)
+
+          // Задача 3.6а. Их планировщик живёт в отдельном процессе, и человек
+          // решает, поднимать ли его. Поднимается ПОСЛЕ шлюза: задача,
+          // стрельнувшая раньше, чем ядро готово, не найдёт, к чему обратиться.
+          const { HERMES_BIN } = (await import(
+            /* @vite-ignore */ pathToFileURL(join(__dirname, '../../../../runtime/hermes-env.mjs'))
+              .href
+          )) as { HERMES_BIN: string }
+
+          const runner = restoreCronRunner({
+            binary: HERMES_BIN,
+            homeDir: HERMES_HOME_DIR,
+            userDataDir: app.getPath('userData')
+          })
+          if (runner.enabled) console.log('aecpilot: cron runner restored')
         } catch (error: unknown) {
           // Backend failing to start must not take the window down — the chat
           // just won't be able to connect yet (see task 0.8).
@@ -3122,6 +3150,10 @@ app
     // Task 3.18: an overnight run must survive a restart of the app, so the
     // blocker comes back from main's own copy of the preference.
     if (restoreKeepAwake()) console.log('aecpilot: keep-awake restored')
+
+    // Задача 3.6а: состояние планировщика видно в интерфейсе, поэтому его смена
+    // доезжает до окна сама — включая неожиданный выход процесса.
+    onCronRunnerChanged((state) => broadcastToWindows('cron-runner:changed', state))
 
     // Task 3.28: the OS side of working in the background.
     installNotifications()
@@ -3155,6 +3187,9 @@ let quitting = false
 app.on('will-quit', () => {
   unregisterQuickEntry()
   releaseKeepAwake()
+  // Задача 3.6а: осиротевший планировщик, продолжающий запускать задачи агента
+  // после закрытия окна, — это не «работа в фоне», а потеря контроля.
+  stopCronRunner()
 })
 
 app.on('before-quit', (event) => {

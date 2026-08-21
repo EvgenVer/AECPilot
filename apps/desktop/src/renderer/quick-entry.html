@@ -3,9 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Что окну разрешено грузить. `img-src` добавлен 2026-08-21 (решение
+         владельца, замечание D-43): без него не показывалась НИ ОДНА картинка —
+         ни превью вложения, ни изображение от агента, ни результат инструмента.
+         Разрешены только источники с этой машины: `data:` — байты, которые окно
+         уже держит (наш `readFileDataUrl` отдаёт превью именно так), `blob:` —
+         то же самое, но ссылкой на объект в памяти страницы. Удалённые адреса
+         НЕ разрешены намеренно: это оставило бы окно ходить в сеть за
+         содержимым, а такое закрыто решением HX13. С этим согласован и отказ
+         `save-out` скачивать картинку по http(s) — менять надо оба места разом. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:"
     />
     <title>AECPilot — быстрый ввод</title>
   </head>

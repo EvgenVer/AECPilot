@@ -702,6 +702,29 @@ test('a renderer crash outlives the window, and the log carries no token', async
     await app.evaluate(() => (globalThis as unknown as { openedPath?: string }).openedPath)
   ).toBe(revealed.path)
 
+  // Замечание D-43 и решение владельца 2026-08-21: картинки с ЭТОЙ машины
+  // показываются, удалённые — нет. Проверяется настоящей загрузкой в живом
+  // окне: политика записана в разметке, а действует она в браузере.
+  const images = await page.evaluate(async () => {
+    const load = (src: string): Promise<string> =>
+      new Promise((resolve) => {
+        const image = new Image()
+        image.onload = () => resolve('loaded')
+        image.onerror = () => resolve('blocked')
+        image.src = src
+        setTimeout(() => resolve('timeout'), 5000)
+      })
+
+    return {
+      local: await load(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+      ),
+      remote: await load('https://example.com/x.png')
+    }
+  })
+  expect(images.local, 'an attachment preview must actually appear').toBe('loaded')
+  expect(images.remote, 'the window must not fetch pictures off the network').toBe('blocked')
+
   await assertRendererAlive(page, 'end of test 7')
 })
 

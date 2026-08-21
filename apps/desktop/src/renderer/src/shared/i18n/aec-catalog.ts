@@ -285,9 +285,20 @@ export const aecLocales: PluginLocaleBundles = {
         `The preview tab shows only what the agent produced: an HTML artifact, a project file, an image. ${address} was not opened — that is where this product draws its line, not a failure. Open it in a browser if you need it.`
     },
     cron: {
-      noTickTitle: 'The schedule will not start on its own yet',
+      noTickTitle: 'Scheduled jobs are not being run',
       noTickBody:
-        'The core ticks schedules only inside its messenger gateway, which this app does not run — measured on 0.20.4. The job is saved and the "Run now" button works, but the time shown as the next run will pass without anything happening.',
+        'Running them needs a background process, and it is off. The job is saved and "Run now" works, but the time shown as the next run will pass without anything happening.',
+      runner: {
+        enable: 'Run scheduled jobs',
+        command: 'Scheduled jobs: run them / leave them off',
+        on: 'Schedules: on',
+        off: 'Schedules: off',
+        broken: 'Schedules: not running',
+        turnOff: 'Stop running scheduled jobs',
+        brokenTitle: 'Scheduled jobs are on, but nothing is running them',
+        brokenBody:
+          'The background process that runs them is not alive — it either failed to start or exited. Jobs will not fire until it is back. Details are in the app log.'
+      },
       continuityLabel: 'Schedules remember the previous run',
       continuityHint:
         'Each scheduled run starts with the previous run’s answer in front of it, so it reports what CHANGED instead of everything from scratch. Turn it off and every run starts blind — cheaper, but a nightly rescan will keep re-reporting the same findings.'
@@ -565,9 +576,20 @@ export const aecLocales: PluginLocaleBundles = {
         `Во вкладке предпросмотра показывается только то, что сделал агент: HTML-артефакт, файл проекта, изображение. Адрес ${address} не открыт — это граница продукта, а не сбой. Откройте его в браузере, если он нужен.`
     },
     cron: {
-      noTickTitle: 'Расписание пока не запустится само',
+      noTickTitle: 'Задачи по расписанию сейчас никто не запускает',
       noTickBody:
-        'Ядро тикает расписания только внутри своего мессенджер-шлюза, а его это приложение не поднимает — замерено на 0.20.4. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.',
+        'Для запуска нужен фоновый процесс, и он выключен. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.',
+      runner: {
+        enable: 'Запускать по расписанию',
+        command: 'Задачи по расписанию: запускать или нет',
+        on: 'Расписания: работают',
+        off: 'Расписания: выключены',
+        broken: 'Расписания: не работают',
+        turnOff: 'Перестать запускать задачи по расписанию',
+        brokenTitle: 'Расписания включены, но их никто не запускает',
+        brokenBody:
+          'Фоновый процесс, который их запускает, не жив — он либо не поднялся, либо завершился. Пока его нет, задачи не сработают. Подробности в журнале приложения.'
+      },
       continuityLabel: 'Расписания помнят прошлый запуск',
       continuityHint:
         'Каждый запуск по расписанию начинается с ответа предыдущего, поэтому задача докладывает, что ИЗМЕНИЛОСЬ, а не всё заново. Выключите — и каждый запуск стартует вслепую: дешевле, но ночной перескан будет каждый раз сообщать одно и то же.'
