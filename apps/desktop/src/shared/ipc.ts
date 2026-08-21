@@ -731,6 +731,19 @@ export interface AecpilotApi {
    * видел; `trusted` — доверены и с тех пор не менялись; `changed` — доверены,
    * но содержимое разошлось с тем, что человек видел. Последнее ведёт себя как
    * «не доверено»: агент их не видит, пока человек не посмотрит заново. */
+  /** Ещё одно полноценное окно приложения (задача 3.14). Одно ядро, один
+   * шлюз, несколько окон — «работать с двумя разговорами рядом» это про окна,
+   * а не про второй запуск программы. */
+  openAppWindow(): Promise<{ ok: boolean; error?: string }>
+  /** Занять разовую подсказку — звук конца хода, чтение ответа вслух (задача
+   * 3.14). Отвечает `true` первому окну и `false` остальным: событие ядра одно,
+   * и подсказка на него должна быть одна, сколько бы окон ни было открыто. */
+  claimAmbientCue(key: string): Promise<boolean>
+  /** Окно, открытое НА КОНКРЕТНОЙ сессии. Второй вызов на ту же сессию
+   * поднимает уже открытое окно, а не плодит копии. `watch` — окно-наблюдатель
+   * за чужой идущей сессией: их рендерер поднимает её лениво, без сборки
+   * агента. */
+  openSessionWindow(sessionId: string, watch?: boolean): Promise<{ ok: boolean; error?: string }>
   getProjectSkills(): Promise<ProjectSkillsView>
   setProjectSkillsTrust(trusted: boolean): Promise<ProjectSkillsView>
   getCronRunner(): Promise<{ enabled: boolean; running: boolean }>

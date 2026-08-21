@@ -31,6 +31,10 @@ const api: AecpilotApi = {
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
+  openAppWindow: () => ipcRenderer.invoke('window:open'),
+  claimAmbientCue: (key) => ipcRenderer.invoke('ambient:claim', key),
+  openSessionWindow: (sessionId, watch) =>
+    ipcRenderer.invoke('window:open-session', { sessionId, watch }),
   getProjectSkills: () => ipcRenderer.invoke('project-skills:get'),
   setProjectSkillsTrust: (trusted) => ipcRenderer.invoke('project-skills:trust', trusted),
   getCronRunner: () => ipcRenderer.invoke('cron-runner:get'),

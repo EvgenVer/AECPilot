@@ -27,6 +27,7 @@ let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
 let projectDir = ''
 let userDataDir = ''
+let mainOutput = ''
 
 function listElectronPids(): Set<number> {
   if (process.platform !== 'win32') return new Set()
@@ -187,6 +188,9 @@ test.beforeAll(async () => {
     cwd: desktopDir,
     env: { ...process.env, AEC_GATEWAY_URL: `ws://127.0.0.1:${mockPort}/api/ws` }
   })
+
+  app.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
+  app.process().stderr?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
 })
 
 test.afterAll(async () => {
@@ -581,32 +585,34 @@ test('the app hears the machine: battery, wake-up, and a notification it can sho
 
   // The machine's own signals. `powerMonitor` is an emitter, so the test can
   // raise exactly the event the OS raises — no sleeping laptop required.
-  await app.evaluate(({ powerMonitor }) => {
-    powerMonitor.emit('on-battery')
-  })
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as { power?: { battery: boolean[] } }).power?.battery ?? []
-      )
+  //
+  // The starting value is READ, not assumed: this suite runs on laptops too,
+  // and a machine that is already on battery would make a hard-coded
+  // expectation fail for a reason that has nothing to do with the app (it did
+  // — the app was fine and the developer had unplugged the charger).
+  const startedOnBattery = await page.evaluate(() => window.aecpilot.getOnBattery())
+  const away = startedOnBattery ? 'on-ac' : 'on-battery'
+  const back = startedOnBattery ? 'on-battery' : 'on-ac'
+
+  const seenBattery = (): Promise<boolean[]> =>
+    page.evaluate(
+      () => (globalThis as unknown as { power?: { battery: boolean[] } }).power?.battery ?? []
     )
-    .toEqual([true])
+
+  await app.evaluate(({ powerMonitor }, event) => {
+    powerMonitor.emit(event)
+  }, away)
+  await expect.poll(seenBattery).toEqual([!startedOnBattery])
 
   // Repeats are not forwarded: the renderer mirrors a value, it does not need
   // to be told the same thing twice.
-  await app.evaluate(({ powerMonitor }) => {
-    powerMonitor.emit('on-battery')
-  })
-  await app.evaluate(({ powerMonitor }) => {
-    powerMonitor.emit('on-ac')
-  })
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as { power?: { battery: boolean[] } }).power?.battery ?? []
-      )
-    )
-    .toEqual([true, false])
+  await app.evaluate(({ powerMonitor }, event) => {
+    powerMonitor.emit(event)
+  }, away)
+  await app.evaluate(({ powerMonitor }, event) => {
+    powerMonitor.emit(event)
+  }, back)
+  await expect.poll(seenBattery).toEqual([!startedOnBattery, startedOnBattery])
 
   // Waking up: the renderer is told, and main asks the gateway whether the
   // socket it holds is still alive. The mock answers `session.list`, so the
@@ -782,4 +788,85 @@ test('the MCP consent request reaches the window and the answer reaches the gate
   expect(answered, 'the answer must be the refusal, not an install').toContain('declined')
 
   await assertRendererAlive(page, 'end of test 8')
+})
+
+/** Их часть моста «несколько окон» (задача 3.14). */
+interface WindowBridge {
+  openWindow: () => Promise<{ ok: boolean; error?: string }>
+  openSessionWindow: (
+    sessionId: string,
+    opts?: { watch?: boolean }
+  ) => Promise<{ ok: boolean; error?: string }>
+  claimAmbientCue: (key: string) => Promise<boolean>
+}
+
+test('a second window opens, a session window opens once, and one cue sounds once', async () => {
+  const page = await app.firstWindow()
+  const before = app.windows().length
+
+  // Второе полноценное окно — то же приложение против того же ядра.
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.openWindow()
+    )
+  ).toMatchObject({ ok: true })
+  await expect.poll(() => app.windows().length).toBe(before + 1)
+
+  // Окно ОДНОЙ сессии: их флаг стоит перед решёткой, иначе рендерер прочитает
+  // его уже после маршрутизатора и покажет обычное главное окно.
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.openSessionWindow(
+        'e2e-1'
+      )
+    )
+  ).toMatchObject({ ok: true })
+  await expect.poll(() => app.windows().length).toBe(before + 2)
+
+  const urls = app.windows().map((candidate) => candidate.url())
+  expect(urls.some((url) => url.includes('win=secondary') && url.includes('#/e2e-1'))).toBe(true)
+  expect(
+    urls.filter((url) => url.includes('win=')).length,
+    'обычное второе окно флага не несёт'
+  ).toBe(1)
+
+  // Второй вызов на ту же сессию поднимает открытое окно, а не плодит копии.
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.openSessionWindow(
+        'e2e-1'
+      )
+    )
+  ).toMatchObject({ ok: true })
+  await page.waitForTimeout(500)
+  expect(app.windows().length, 'копии одного разговора не открываются').toBe(before + 2)
+
+  // Пустой номер — отказ, а не второе главное окно.
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.openSessionWindow('')
+    )
+  ).toMatchObject({ ok: false })
+
+  // Разовая подсказка достаётся ровно одному окну.
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.claimAmbientCue(
+        'e2e-cue'
+      )
+    )
+  ).toBe(true)
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.claimAmbientCue(
+        'e2e-cue'
+      )
+    ),
+    'второму окну — нет'
+  ).toBe(false)
+
+  for (const extra of app.windows().slice(before)) await extra.close()
+  await expect.poll(() => app.windows().length).toBe(before)
+
+  await assertRendererAlive(page, 'end of test 9')
 })

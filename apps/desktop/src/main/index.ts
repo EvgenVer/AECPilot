@@ -22,6 +22,8 @@ import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
+import { claimCue, type ClaimState } from './ambient-claim-pure'
+import { planAppWindow, planSessionWindow, windowUrl, type WindowPlan } from './windows-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
@@ -585,7 +587,12 @@ async function ensureSession(): Promise<string> {
   return ensureSessionPromise
 }
 
-function createWindow(): void {
+/** Окна, открытые НА КОНКРЕТНОЙ сессии (задача 3.14). Их контракт говорит
+ * «открыть ИЛИ показать»: второй вызов на ту же сессию обязан поднять уже
+ * открытое окно, иначе кнопка плодит копии одного разговора. */
+const sessionWindows = new Map<string, BrowserWindow>()
+
+function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -597,6 +604,17 @@ function createWindow(): void {
       sandbox: true
     }
   })
+
+  // Задача 3.29. Падение САМОГО процесса окна их аварийный экран поймать не
+  // может — он умирает вместе с ним. Здесь остаётся единственный след, и без
+  // него «окно вдруг стало пустым» не отличить ни от чего другого.
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error(
+      `aecpilot: renderer process gone (${details.reason}, exitCode ${details.exitCode})`
+    )
+  })
+
+  win.webContents.on('unresponsive', () => console.warn('aecpilot: renderer unresponsive'))
 
   // Task 3.26: the saved interface scale applies to every window, including a
   // second one opened later, and Ctrl +/-/0 changes it from anywhere.
@@ -635,11 +653,22 @@ function createWindow(): void {
     })
   }
 
+  // Вид окна их рендерер читает из строки запроса ДО маршрутизатора, поэтому
+  // параметры передаются загрузчику по отдельности, а не склеиваются в адрес
+  // (задача 3.14, разбор — `windows-pure.ts`).
   if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    void win.loadURL(windowUrl(process.env.ELECTRON_RENDERER_URL, plan))
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
+    // Пустые `query`/`hash` НЕ передаются: они меняют адрес окна (`index.html?#/`
+    // вместо `index.html`), а главное окно должно открываться ровно тем адресом,
+    // которым открывалось до появления второго.
+    void win.loadFile(join(__dirname, '../renderer/index.html'), {
+      ...(Object.keys(plan.query).length === 0 ? {} : { query: plan.query }),
+      ...(plan.hash === '' ? {} : { hash: plan.hash })
+    })
   }
+
+  return win
 }
 
 /** The packaged entry point as a URL, so `will-navigate` can tell "our own
@@ -2328,6 +2357,39 @@ ipcMain.handle('attachments:save-clipboard', async () => {
 // возвращать `void`.
 ipcMain.on('theme:set-native', (_event, mode: unknown) => {
   if (mode === 'system' || mode === 'light' || mode === 'dark') nativeTheme.themeSource = mode
+})
+
+// Задача 3.14. Разовые подсказки (звук конца хода, чтение ответа вслух)
+// принадлежат ОДНОМУ окну: главный процесс — единственный, кто может решить
+// гонку между ними. Разбор — `ambient-claim-pure.ts`.
+const ambientClaims: ClaimState = new Map()
+
+ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims, key, Date.now()))
+
+// Задача 3.14. Ещё одно окно приложения — полноценное, против того же ядра.
+ipcMain.handle('window:open', () => {
+  createWindow()
+  return { ok: true }
+})
+
+// Окно одной сессии: открыть или, если оно уже есть, показать.
+ipcMain.handle('window:open-session', (_event, payload: unknown) => {
+  const { sessionId, watch } = (payload ?? {}) as { sessionId?: unknown; watch?: unknown }
+  const planned = planSessionWindow(sessionId, { watch })
+  if (!planned.ok) return { ok: false, error: planned.error }
+
+  const key = `${String(sessionId)}${watch === true ? ':watch' : ''}`
+  const existing = sessionWindows.get(key)
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore()
+    existing.focus()
+    return { ok: true }
+  }
+
+  const win = createWindow(planned.plan)
+  sessionWindows.set(key, win)
+  win.on('closed', () => sessionWindows.delete(key))
+  return { ok: true }
 })
 
 // Задача 3.8а (SPEC UR29). Инструкции, которые проект несёт для агента.

@@ -260,6 +260,37 @@ const IMPLEMENTED: Record<string, unknown> = {
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
+  // Задача 3.14. Их проверка возможности — `typeof
+  // window.hermesDesktop?.openWindow === 'function'` (`store/windows.ts`), и на
+  // заглушке она проходит: та ВЫЗЫВАЕМА. То есть пункт «открыть в новом окне»
+  // показывался и раньше — он просто ничего не делал (подвид D-41).
+  openWindow(): Promise<{ ok: boolean; error?: string }> {
+    return window.aecpilot.openAppWindow()
+  },
+
+  openSessionWindow(
+    sessionId: string,
+    options?: { watch?: boolean }
+  ): Promise<{ ok: boolean; error?: string }> {
+    return window.aecpilot.openSessionWindow(sessionId, options?.watch === true)
+  },
+
+  // Задача 3.14. Пока окно было одно, вопроса не было. Теперь их может быть
+  // несколько, и каждое получает те же события ядра — без этого члена звук
+  // конца хода и чтение вслух срабатывали бы в КАЖДОМ окне (их же
+  // `ownsAmbientCue` на непроброшенном члене отвечает «занимай», чтобы не
+  // замолчать совсем).
+  claimAmbientCue(key: string): Promise<boolean> {
+    return window.aecpilot.claimAmbientCue(key)
+  },
+
+  // Задача 3.14, SPEC HX7. Запуск их текстового интерфейса в СТОРОННЕМ
+  // терминале — не наша поверхность: интерфейс здесь мы. Объявлено
+  // отсутствующим, а не оставлено заглушке, потому что их проверка возможности
+  // — `typeof … === 'function'`, и на заглушке она проходит: пункт «открыть в
+  // терминале» показывался бы и не работал.
+  openSessionInTerminal: undefined,
+
   setKeepAwake(on: boolean): void {
     void window.aecpilot.setKeepAwake(on)
   },
