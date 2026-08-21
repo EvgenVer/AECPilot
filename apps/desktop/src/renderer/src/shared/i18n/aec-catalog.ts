@@ -182,6 +182,27 @@ export const aecLocales: PluginLocaleBundles = {
         confirm: 'Open the channel'
       }
     },
+    install: {
+      skillTitle: (name: string) => `Install the “${name}” skill?`,
+      serverTitle: (name: string) => `Add the “${name}” MCP server?`,
+      updateTitle: 'Update every installed skill?',
+      skillLead:
+        'A skill is a set of instructions the agent will follow in this project — including which tools it may reach for.',
+      serverLead:
+        'An MCP server is a program that will run on this machine and answer the agent’s calls.',
+      updateLead:
+        'Every installed skill will be fetched again from its source. Their instructions may have changed since you read them.',
+      source: (source: string, trust: string) => `Source: ${source} · trust: ${trust}`,
+      files: (count: number) => `Files in the package: ${count}`,
+      tools: (tools: string) => `Tools it asks for: ${tools}`,
+      toolsUnrestricted:
+        'It does not restrict its tools — the skill can reach for anything the agent has.',
+      previewFailed:
+        'The core did not describe this package. Installing without knowing what is inside is your call.',
+      env: (keys: string) => `Environment it receives: ${keys} (values are not shown)`,
+      confirm: 'Install',
+      declined: 'Not installed — you did not confirm it.'
+    },
     citations: {
       unverified: 'This phrase is not in the cited place:'
     },
@@ -441,6 +462,26 @@ export const aecLocales: PluginLocaleBundles = {
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
       }
+    },
+    install: {
+      skillTitle: (name: string) => `Установить скил «${name}»?`,
+      serverTitle: (name: string) => `Добавить MCP-сервер «${name}»?`,
+      updateTitle: 'Обновить все установленные скилы?',
+      skillLead:
+        'Скил — это инструкции, которым агент будет следовать в этом проекте, включая то, к каким инструментам он может обращаться.',
+      serverLead:
+        'MCP-сервер — это программа, которая запустится на этой машине и будет отвечать на вызовы агента.',
+      updateLead:
+        'Каждый установленный скил будет заново скачан из своего источника. Инструкции могли измениться с тех пор, как вы их читали.',
+      source: (source: string, trust: string) => `Источник: ${source} · доверие: ${trust}`,
+      files: (count: number) => `Файлов в пакете: ${count}`,
+      tools: (tools: string) => `Просит инструменты: ${tools}`,
+      toolsUnrestricted:
+        'Инструменты не ограничены — скил сможет обратиться к любому, который есть у агента.',
+      previewFailed: 'Ядро не описало этот пакет. Ставить, не зная содержимого, — ваше решение.',
+      env: (keys: string) => `Получит переменные окружения: ${keys} (значения не показаны)`,
+      confirm: 'Установить',
+      declined: 'Не установлено — вы не подтвердили установку.'
     },
     citations: {
       unverified: 'Этой фразы в процитированном месте нет:'

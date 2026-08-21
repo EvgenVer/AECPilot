@@ -50,6 +50,8 @@ async def handle(connection: ServerConnection) -> None:
                 await stream_full_turn(connection, text)
             elif text.startswith("artifact"):
                 await stream_artifact_turn(connection)
+            elif text.startswith("mcp"):
+                await stream_mcp_setup(connection)
             else:
                 await stream_pong(connection)
         elif method == "rollback.list":
@@ -102,8 +104,48 @@ async def handle(connection: ServerConnection) -> None:
             # the socket is still alive (task 3.28). A real gateway answers it,
             # so the mock must too — otherwise every resume looks like a dead
             # connection and the app re-dials for nothing.
+            # The list must contain the session this mock actually serves. An
+            # empty answer is not "no data" to the app — it is "the session you
+            # are in does not exist", and their sidebar drops it.
             await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"sessions": []}})
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "sessions": [
+                                {
+                                    "id": SESSION_ID,
+                                    "title": "e2e",
+                                    "preview": "",
+                                    "started_at": 0,
+                                    "message_count": 0,
+                                    "source": "desktop",
+                                }
+                            ]
+                        },
+                    }
+                )
+            )
+        elif method == "mcp.setup.respond":
+            # The consent card's answer (task 3.8, SPEC UR23). Printed so the
+            # test can prove the app sent NOTHING until the person answered.
+            print("MCP_SETUP_RESPOND " + json.dumps(request.get("params") or {}), flush=True)
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "ok"}})
+            )
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "event",
+                        "params": {
+                            "type": "message.complete",
+                            "session_id": SESSION_ID,
+                            "payload": {"text": "", "status": "complete"},
+                        },
+                    }
+                )
             )
         elif method == "session.close":
             await connection.send(
@@ -123,6 +165,32 @@ async def stream_pong(connection: ServerConnection) -> None:
     await push("message.delta", {"text": "PO"})
     await push("message.delta", {"text": "NG"})
     await push("message.complete", {"text": "PONG", "status": "complete"})
+
+
+async def stream_mcp_setup(connection: ServerConnection) -> None:
+    """The `setup_mcp` tool's blocking request (task 3.8, SPEC UR23).
+
+    The real core blocks inside the tool until `mcp.setup.respond` arrives, so
+    the turn deliberately stays open here: the test's whole point is that the
+    app installs nothing while it waits for a person.
+    """
+    async def push(event_type: str, payload: dict | None = None) -> None:
+        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        if payload is not None:
+            params["payload"] = payload
+        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
+        await asyncio.sleep(0.03)
+
+    await push("message.start")
+    await push(
+        "mcp.setup.request",
+        {
+            "request_id": "mcp-req-1",
+            "server": "filesystem",
+            "action": "install",
+            "reason": "нужен доступ к файлам сметы",
+        },
+    )
 
 
 async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:

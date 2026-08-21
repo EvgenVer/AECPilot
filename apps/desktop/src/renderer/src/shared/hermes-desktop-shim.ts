@@ -34,6 +34,8 @@
 
 import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
+import { installBeingRequested } from '../aec/install-consent/install-consent-pure'
+import { askInstallConsent } from '../aec/install-consent/store'
 import { cronContinuityEnabled } from '../aec/cron-continuity/store'
 import { withContinuity } from '../aec/cron-continuity/continuity-pure'
 import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
@@ -48,6 +50,10 @@ const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 /** Shown by their own error toast when someone reads the list and backs out.
  * A sentence, not a code: it is the whole feedback the person gets. */
 export const CHANNEL_ENABLE_DECLINED = 'Канал не включён — вы отменили включение.'
+
+/** То же для установки (задача 3.8): их код ловит эту ошибку и показывает её
+ * текст, поэтому отказ обязан читаться как решение человека, а не как сбой. */
+export const INSTALL_DECLINED = 'Не установлено — вы не подтвердили установку.'
 
 /** The members our main process actually serves today. Typed loosely on
  * purpose: their contract is wide and precise (90-odd members), ours is a
@@ -85,6 +91,28 @@ const IMPLEMENTED: Record<string, unknown> = {
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
           : Promise.reject(new Error(CHANNEL_ENABLE_DECLINED))
+      )
+    }
+
+    // Задача 3.8 (SPEC UR23). Установка — это либо инструкции, которым агент
+    // будет следовать в чужом проекте, либо процесс, который запустится на этой
+    // машине. У донора это один щелчок по карточке во встроенном хабе, без
+    // описания и без подтверждения. Здесь стоит наш гейт: что ставится, из
+    // какого источника и какие инструменты просит — до, а не после.
+    //
+    // Перехват в мосте, а не в их экране, по той же причине, что и у согласия
+    // на канал: правка вендорного файла умерла бы при следующем переносе, а мост
+    // переживёт его и покроет любую их будущую поверхность установки.
+    const install = installBeingRequested(request)
+    if (install) {
+      return askInstallConsent(install).then((allowed) =>
+        allowed
+          ? gatewayBridge().rest<T>(request.path, {
+              method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+              ...(request.body === undefined ? {} : { body: request.body }),
+              ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
+            })
+          : Promise.reject(new Error(INSTALL_DECLINED))
       )
     }
 
@@ -272,6 +300,22 @@ const IMPLEMENTED: Record<string, unknown> = {
   // macOS: перехват ⌘W ради выбора «вкладка или окно». На нашей платформе
   // решать нечего, и обещать перехват мы не будем.
   setPreviewShortcutActive: undefined,
+
+  // Задача 3.8 (SPEC UR23, третий вход). Установка по внешней ссылке — канал, в
+  // котором инициатор не человек и не агент, а содержимое, пришедшее снаружи.
+  // У НАС ЭТОГО КАНАЛА НЕТ: приложение не регистрирует ни одной схемы в
+  // операционной системе (`app.setAsDefaultProtocolClient` не вызывается — это
+  // проверяется тестом `main/no-protocol-client.test.ts`), поэтому ссылке
+  // неоткуда прийти.
+  //
+  // Объявлено ОТСУТСТВУЮЩИМ, а не оставлено заглушке, по двум причинам. Первая
+  // — правда: их код спрашивает `?.`, и отсутствие члена читается как «канала
+  // нет», тогда как заглушка притворяется подписчиком, который просто молчит.
+  // Вторая — `signalDeepLinkReady` возвращает промис, и `void …?.()` на
+  // заглушке давал НЕОБРАБОТАННОЕ ОТКЛОНЕНИЕ на каждом старте (тот же подвид
+  // D-41, что у батареи).
+  onDeepLink: undefined,
+  signalDeepLinkReady: undefined,
 
   // Задача 3.29. Журнал приложения. `reportRendererError` зовёт их аварийный
   // экран в `componentDidCatch`: без него причина падения жила ровно столько,

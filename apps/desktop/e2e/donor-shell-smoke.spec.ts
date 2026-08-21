@@ -614,6 +614,7 @@ test('the app hears the machine: battery, wake-up, and a notification it can sho
   await app.evaluate(({ powerMonitor }) => {
     powerMonitor.emit('resume')
   })
+
   await expect
     .poll(() =>
       page.evaluate(
@@ -702,4 +703,60 @@ test('a renderer crash outlives the window, and the log carries no token', async
   ).toBe(revealed.path)
 
   await assertRendererAlive(page, 'end of test 7')
+})
+
+/** SPEC UR23, второй вход: агент предлагает поставить MCP-сервер, ядро
+ *  блокируется на ответе, а решение принимает человек.
+ *
+ *  Проверяется НАША половина этого пути — та, что могла бы его тихо оборвать:
+ *  доходит ли запрос ядра до окна и доходит ли ответ окна до шлюза. Сама
+ *  карточка согласия — их компонент, и её вид проверяет ручной блок 29: тест не
+ *  может отличить «карточка не отрисовалась» от «в этой сборке нет сессии, в
+ *  которой ей рисоваться» (композер против мока прерывает второй ход
+ *  собственным `submit-drift-abort`, и это свойство стенда, а не продукта).
+ */
+test('the MCP consent request reaches the window and the answer reaches the gateway', async () => {
+  const page = await app.firstWindow()
+
+  // Половина первая: событие ядра доходит до окна нетронутым. Главный процесс
+  // фильтрует события по сессии, и запрос, потерянный этим фильтром, оставил бы
+  // агента ждать ответа, которого никто не даст.
+  const received = page.evaluate(
+    () =>
+      new Promise<Record<string, unknown>>((resolve) => {
+        const stop = window.aecpilot.onChatEvent((event) => {
+          if (event.type === 'mcp.setup.request') {
+            stop()
+            resolve(event as unknown as Record<string, unknown>)
+          }
+        })
+      })
+  )
+
+  await page.evaluate(() =>
+    window.aecpilot.gatewayRpc('prompt.submit', { text: 'mcp', session_id: 'e2e-1' })
+  )
+
+  const event = (await received) as { payload?: { server?: string; reason?: string } }
+  expect(event.payload?.server).toBe('filesystem')
+  expect(event.payload?.reason, 'why the agent wants it must survive the trip').toBe(
+    'нужен доступ к файлам сметы'
+  )
+
+  // Половина вторая: ответ человека доходит до шлюза. Наш проход RPC работает
+  // по списку ЗАПРЕЩЁННЫХ методов, и `mcp.setup.respond` в него не входит —
+  // иначе отказ бы не дошёл и ядро висело бы на инструменте до таймаута.
+  await page.evaluate(() =>
+    window.aecpilot.gatewayRpc('mcp.setup.respond', {
+      request_id: 'mcp-req-1',
+      status: 'declined',
+      server: 'filesystem'
+    })
+  )
+
+  const answered = await waitForMockLine(/MCP_SETUP_RESPOND/)
+  expect(answered).toContain('mcp-req-1')
+  expect(answered, 'the answer must be the refusal, not an install').toContain('declined')
+
+  await assertRendererAlive(page, 'end of test 8')
 })

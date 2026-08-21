@@ -23,6 +23,7 @@ import { queryClient } from './donor/lib/query-client'
 
 import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
+import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
 import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
@@ -87,6 +88,10 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         root rather than inside the screen that triggers it —
                         the screen is theirs and must stay unedited. */}
                     <ChannelDisclosureDialog />
+                    {/* Задача 3.8 (UR23): что ставится и какие инструменты
+                        просит — до подтверждения. Спрашивается из моста, поэтому
+                        стоит здесь, а не внутри их экрана скилов. */}
+                    <InstallConsentDialog />
                     {/* Task 3.20: шаги от пустой установки до первого ответа.
                         Здесь же, а не внутри их экрана: два шага из шести —
                         их собственный оверлей, и мастер должен стоять рядом
