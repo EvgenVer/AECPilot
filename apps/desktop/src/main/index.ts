@@ -25,6 +25,7 @@ import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
+import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
@@ -2316,6 +2317,23 @@ ipcMain.on('theme:set-native', (_event, mode: unknown) => {
   if (mode === 'system' || mode === 'light' || mode === 'dark') nativeTheme.themeSource = mode
 })
 
+// Задача 3.29. Журнал приложения. Три глагола их контракта: открыть папку,
+// отдать хвост (их экран восстановления после неудачного старта показывает
+// последние строки) и записать падение рендерера — единственную запись,
+// приходящую снаружи главного процесса.
+ipcMain.handle('log:reveal', async () => {
+  const directory = logDirectory()
+  if (directory === '') return { ok: false, path: '', error: 'журнал ещё не заведён' }
+  const failure = await shell.openPath(directory)
+  return failure === ''
+    ? { ok: true, path: directory }
+    : { ok: false, path: directory, error: failure }
+})
+
+ipcMain.handle('log:recent', () => recentLogs())
+
+ipcMain.on('log:renderer-error', (_event, report: unknown) => logRendererError(report))
+
 // Задача 3.28. Показ уведомления ОС. КОГДА показывать, решает их хранилище
 // (виды, молчание при видимом окне, защита от повторов) — здесь только показ и
 // маршрут щелчка. `false` значит «не показали», а не «сломалось».
@@ -3022,6 +3040,10 @@ function installPermissionPolicy(): void {
 app
   .whenReady()
   .then(async () => {
+    // Задача 3.29. Первым делом: всё, что записано раньше, в журнал не попадёт,
+    // а самое интересное происходит как раз на старте.
+    console.log(`aecpilot: app log at ${installAppLog(app.getPath('logs'))}`)
+
     installPermissionPolicy()
 
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.

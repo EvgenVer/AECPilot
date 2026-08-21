@@ -273,10 +273,26 @@ const IMPLEMENTED: Record<string, unknown> = {
   // решать нечего, и обещать перехват мы не будем.
   setPreviewShortcutActive: undefined,
 
-  // Задача 3.29 (журнал приложения) — их аварийный экран отдаёт сюда причину
-  // падения. До неё член объявлен отсутствующим, а не оставлен заглушке: падение
-  // рендерера не должно вдобавок рождать необработанное отклонение промиса.
-  reportRendererError: undefined,
+  // Задача 3.29. Журнал приложения. `reportRendererError` зовёт их аварийный
+  // экран в `componentDidCatch`: без него причина падения жила ровно столько,
+  // сколько окно, и после перезапуска рассказать о случившемся было нечем.
+  // Возвращает `void` — см. правило выше.
+  reportRendererError(report: {
+    label?: string
+    boundary?: string
+    message?: string
+    componentStack?: string
+  }): void {
+    window.aecpilot.reportRendererError(report)
+  },
+
+  revealLogs(): Promise<{ ok: boolean; path: string; error?: string }> {
+    return window.aecpilot.revealLogs()
+  },
+
+  getRecentLogs(): Promise<{ path: string; lines: string[] }> {
+    return window.aecpilot.getRecentLogs()
+  },
 
   // Задача 3.28 — работа, пока на приложение никто не смотрит.
   //

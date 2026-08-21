@@ -32,6 +32,9 @@ const api: AecpilotApi = {
   },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   setNativeTheme: (mode) => ipcRenderer.send('theme:set-native', mode),
+  revealLogs: () => ipcRenderer.invoke('log:reveal'),
+  getRecentLogs: () => ipcRenderer.invoke('log:recent'),
+  reportRendererError: (report) => ipcRenderer.send('log:renderer-error', report),
   showNotification: (payload) => ipcRenderer.invoke('notify:show', payload),
   onNotificationFocusSession: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, sessionId: string): void => cb(sessionId)

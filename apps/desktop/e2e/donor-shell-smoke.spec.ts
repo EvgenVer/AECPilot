@@ -627,3 +627,79 @@ test('the app hears the machine: battery, wake-up, and a notification it can sho
   })
   await assertRendererAlive(page, 'end of test 6')
 })
+
+/** Их часть журнала (задача 3.29). */
+interface LogBridge {
+  reportRendererError: (report: {
+    label?: string
+    boundary?: string
+    message?: string
+    componentStack?: string
+  }) => void
+  getRecentLogs: () => Promise<{ path: string; lines: string[] }>
+  revealLogs: () => Promise<{ ok: boolean; path: string; error?: string }>
+}
+
+test('a renderer crash outlives the window, and the log carries no token', async () => {
+  const page = await app.firstWindow()
+
+  // `app.evaluate` runs inside the main process, which has no access to this
+  // file's imports — so it returns the directory and the join happens here.
+  const logDir = await app.evaluate(({ app: electronApp }) => electronApp.getPath('logs'))
+  const logFile = join(logDir, 'desktop.log')
+  expect(logFile).toContain(userDataDir)
+
+  // The report their error boundary sends from `componentDidCatch`.
+  await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: LogBridge }).hermesDesktop.reportRendererError({
+      label: 'main',
+      boundary: 'root',
+      message: 'e2e synthetic crash',
+      componentStack: 'at SomeComponent'
+    })
+  )
+
+  // Read the FILE, not the app: surviving the window is the whole point.
+  await expect
+    .poll(() => readFileSync(logFile, 'utf-8'), { timeout: 10000 })
+    .toContain('renderer crashed [main/root] e2e synthetic crash')
+
+  // Anything main prints lands there too — and a token never does. The line is
+  // raised through main's own console, which is what the redaction wraps.
+  await app.evaluate(() => {
+    console.error('e2e probe: connect ws://127.0.0.1:1/api/ws?token=deadbeefcafe failed')
+  })
+  await expect
+    .poll(() => readFileSync(logFile, 'utf-8'), { timeout: 10000 })
+    .toContain('ws://127.0.0.1:1/api/ws?token=*** failed')
+  expect(
+    readFileSync(logFile, 'utf-8'),
+    'the token itself must never reach the file'
+  ).not.toContain('deadbeefcafe')
+
+  // What their recovery overlay shows after a failed start.
+  const recent = await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: LogBridge }).hermesDesktop.getRecentLogs()
+  )
+  expect(recent.path).toBe(logFile)
+  expect(recent.lines.some((line) => line.includes('e2e synthetic crash'))).toBe(true)
+
+  // "Open logs" opens the folder. Stubbed rather than really opened: a test
+  // must not leave an Explorer window on the developer's screen.
+  await app.evaluate(({ shell }) => {
+    ;(globalThis as unknown as { openedPath?: string }).openedPath = ''
+    shell.openPath = (async (target: string) => {
+      ;(globalThis as unknown as { openedPath?: string }).openedPath = target
+      return ''
+    }) as never
+  })
+  const revealed = await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: LogBridge }).hermesDesktop.revealLogs()
+  )
+  expect(revealed.ok).toBe(true)
+  expect(
+    await app.evaluate(() => (globalThis as unknown as { openedPath?: string }).openedPath)
+  ).toBe(revealed.path)
+
+  await assertRendererAlive(page, 'end of test 7')
+})
