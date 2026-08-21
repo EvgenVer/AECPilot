@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatLine,
   formatRendererError,
-  redactSecrets,
+  redactLogLine,
   RECENT_LINES,
   tailLines,
   textOfArgs
@@ -14,34 +14,38 @@ import {
 
 describe('в журнал не попадает секрет', () => {
   it('токен в адресе шлюза', () => {
-    expect(redactSecrets('connect ws://127.0.0.1:8765/api/ws?token=deadbeefcafe1234')).toBe(
+    expect(redactLogLine('connect ws://127.0.0.1:8765/api/ws?token=deadbeefcafe1234')).toBe(
       'connect ws://127.0.0.1:8765/api/ws?token=***'
     )
   })
 
   it('токен вторым параметром', () => {
-    expect(redactSecrets('GET /api/x?a=1&access_token=abc.def-ghi&b=2')).toBe(
+    expect(redactLogLine('GET /api/x?a=1&access_token=abc.def-ghi&b=2')).toBe(
       'GET /api/x?a=1&access_token=***&b=2'
     )
   })
 
   it('переменная окружения с токеном', () => {
-    expect(redactSecrets('env HERMES_DASHBOARD_SESSION_TOKEN=0123456789abcdef')).toBe(
+    expect(redactLogLine('env HERMES_DASHBOARD_SESSION_TOKEN=0123456789abcdef')).toBe(
       'env HERMES_DASHBOARD_SESSION_TOKEN=***'
     )
   })
 
   it('заголовок авторизации', () => {
-    expect(redactSecrets('Authorization: Bearer zzz999')).toBe('Authorization: ***')
+    expect(redactLogLine('Authorization: Bearer zzz999')).toBe('Authorization: ***')
   })
 
-  it('ключ поставщика модели в тексте ошибки', () => {
-    expect(redactSecrets('bad key sk-abcd1234EFGH5678ijkl')).toBe('bad key sk-abcd1234***')
+  it('ключ поставщика модели — второй слой гасит его целиком', () => {
+    expect(redactLogLine('bad key sk-abcd1234EFGH5678ijkl')).toBe('bad key [скрыто]')
+  })
+
+  it('токен, напечатанный БЕЗ имени поля, — то, чего прицельные правила не видят', () => {
+    expect(redactLogLine('token 0123456789abcdef0123456789abcdef')).toBe('token [скрыто]')
   })
 
   it('обычная строка не портится', () => {
     const line = 'aecpilot: window created (project D:\\work\\smeta)'
-    expect(redactSecrets(line)).toBe(line)
+    expect(redactLogLine(line)).toBe(line)
   })
 
   it('вырезание работает и внутри собранной строки журнала', () => {
