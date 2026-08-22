@@ -94,6 +94,35 @@ export interface ProjectSkillsView {
   shadowed: string[]
 }
 
+/** Настройка подключения, какой её видит окно (задача 3.12). Поля с токеном
+ * здесь нет физически — не «есть пустое», а нет: поле, которое нельзя забыть
+ * очистить, безопаснее поля, которое надо помнить очистить. */
+export interface ConnectionView {
+  mode: 'local' | 'remote'
+  remoteUrl: string
+  remoteAuthMode: 'token'
+  remoteTokenSet: boolean
+  remoteTokenPreview: string | null
+  secureTokenStorage: boolean
+  remoteTokenPlainText: boolean
+  envOverride: boolean
+}
+
+export interface ConnectionInputView {
+  mode: 'local' | 'remote'
+  remoteUrl?: string
+  /** Пустое поле значит «не менял», а не «стереть» — стирает `clearToken`. */
+  remoteToken?: string
+  allowPlainTextToken?: boolean
+  clearToken?: boolean
+}
+
+export interface ConnectionSaveResult {
+  ok: boolean
+  config: ConnectionView
+  error?: string
+}
+
 export interface SaveOutResult {
   saved: boolean
   canceled?: boolean
@@ -745,6 +774,27 @@ export interface AecpilotApi {
    * слово-активатор работает при свёрнутом главном окне, и значок внутри него
    * не виден — то есть не делает своей работы. Открытый микрофон, о котором не
    * сказано, человек не прощает. */
+  /** К какому ядру подключено приложение (задача 3.12, SPEC UR20). Ядро может
+   * стоять на другой машине — сервере организации, куда пускают по адресу с
+   * токеном.
+   *
+   * ТОКЕНА ЗДЕСЬ НЕТ И НЕ БУДЕТ: в ответе только признак «задан» и четыре
+   * последних знака. Он нужен главному процессу — тот открывает сокет и ставит
+   * заголовок; окну он не нужен никогда. */
+  getConnection(): Promise<ConnectionView>
+  saveConnection(input: ConnectionInputView): Promise<ConnectionSaveResult>
+  /** Сохранить И переподключиться. Отдельный глагол: сохранённая, но не
+   * применённая настройка не должна молча менять то, с чем человек работает. */
+  applyConnection(input: ConnectionInputView): Promise<ConnectionSaveResult>
+  /** Проверить адрес и токен ДО сохранения — иначе об опечатке человек узнаёт
+   * уже заменив ею рабочее подключение. */
+  testConnection(input: ConnectionInputView): Promise<{
+    ok: boolean
+    reachable?: boolean
+    version?: string | null
+    baseUrl?: string
+    error?: string
+  }>
   setWakeIndicator(state: 'capturing' | 'detected' | 'hidden'): void
   getWakeIndicator(): Promise<'capturing' | 'detected' | 'hidden'>
   openHud(request?: { sessionId?: string | null; profile?: string | null }): Promise<{

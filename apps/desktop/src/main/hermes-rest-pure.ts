@@ -16,6 +16,10 @@ export interface RestTarget {
   host: string
   port: number
   token: string
+  /** Полный базовый адрес — задан только у УДАЛЁННОГО ядра (задача 3.12).
+   * Локальное всегда `http://host:port`, а удалённое может стоять за TLS, и
+   * собирать его схему из полей значило бы догадываться. */
+  baseUrl?: string
 }
 
 /** Their auth header. The legacy `Bearer` form is also accepted by the server,
@@ -35,7 +39,7 @@ export function buildRestUrl(
   query?: Record<string, string>
 ): string {
   if (!path.startsWith('/')) throw new Error(`REST path must start with "/": ${path}`)
-  const url = new URL(`http://${target.host}:${target.port}${path}`)
+  const url = new URL(`${target.baseUrl ?? `http://${target.host}:${target.port}`}${path}`)
   for (const [key, value] of Object.entries(query ?? {})) {
     url.searchParams.set(key, value)
   }

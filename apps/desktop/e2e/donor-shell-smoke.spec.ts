@@ -996,3 +996,45 @@ test('an open microphone says so in a window of its own', async () => {
 
   await assertRendererAlive(page, 'end of test 11')
 })
+
+test('a gateway token never reaches the window and never lands in plain text', async () => {
+  const page = await app.firstWindow()
+
+  const TOKEN = 'e2e-gateway-token-9f8e7d6c'
+
+  const saved = await page.evaluate(
+    (token) =>
+      window.aecpilot.saveConnection({
+        mode: 'remote',
+        remoteUrl: 'https://gateway.example.org',
+        remoteToken: token
+      }),
+    TOKEN
+  )
+  expect(saved.ok, saved.error ?? '').toBe(true)
+
+  // Первое обещание задачи: окну токен не отдаётся ни в каком виде.
+  const view = await page.evaluate(() => window.aecpilot.getConnection())
+  expect(JSON.stringify(view)).not.toContain(TOKEN)
+  expect(view.remoteTokenSet).toBe(true)
+  expect(view.remoteTokenPreview).toBe('••••7d6c')
+
+  // Второе: на диске он не лежит открытым текстом. Файл читается из node —
+  // именно то, что увидел бы всякий, кто откроет папку профиля.
+  const userData = await app.evaluate(({ app: electronApp }) => electronApp.getPath('userData'))
+  const onDisk = readFileSync(join(userData, 'connection.json'), 'utf-8')
+  expect(onDisk, 'токен в файле настроек — это и есть провал').not.toContain(TOKEN)
+  expect(onDisk).toContain('"tokenEncoding": "safe"')
+
+  // Настройку можно вернуть обратно, не потеряв её.
+  const back = await page.evaluate(() =>
+    window.aecpilot.saveConnection({ mode: 'local', remoteUrl: 'https://gateway.example.org' })
+  )
+  expect(back.ok).toBe(true)
+  expect(back.config.mode).toBe('local')
+  expect(back.config.remoteUrl, 'адрес помнится — возвращаться без перенабора').toBe(
+    'https://gateway.example.org'
+  )
+
+  await assertRendererAlive(page, 'end of test 12')
+})

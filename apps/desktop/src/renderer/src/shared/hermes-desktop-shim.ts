@@ -46,6 +46,42 @@ import { gatewayBridge } from './gateway-bridge'
 
 type HermesDesktop = Window['hermesDesktop']
 
+/** Наша настройка подключения в их форме (задача 3.12). Поля, которых у нас нет
+ * (облако, ssh), отдаются пустыми: их экран читает `mode` и рисует по нему, а
+ * выдуманные значения увели бы его в ветку, которой у нас не существует. */
+function asDonorConnection(view: import('../../../shared/ipc').ConnectionView): unknown {
+  return {
+    ...view,
+    profile: null,
+    remoteOauthConnected: false,
+    cloudOrg: '',
+    sshHost: '',
+    sshUser: '',
+    sshPort: null,
+    sshKeyPath: '',
+    sshRemoteHermesPath: '',
+    sshRemoteProfile: ''
+  }
+}
+
+/** Их запрос — в наш. Режимы, которых у нас нет, читаются как локальный: это
+ * честнее, чем принять «cloud» и подключиться неизвестно куда. */
+function toOurInput(payload: {
+  mode?: string
+  remoteUrl?: string
+  remoteToken?: string
+  allowPlainTextToken?: boolean
+}): import('../../../shared/ipc').ConnectionInputView {
+  return {
+    mode: payload.mode === 'remote' ? 'remote' : 'local',
+    ...(payload.remoteUrl === undefined ? {} : { remoteUrl: payload.remoteUrl }),
+    ...(payload.remoteToken === undefined ? {} : { remoteToken: payload.remoteToken }),
+    ...(payload.allowPlainTextToken === undefined
+      ? {}
+      : { allowPlainTextToken: payload.allowPlainTextToken })
+  }
+}
+
 const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 
 /** Shown by their own error toast when someone reads the list and backs out.
@@ -260,6 +296,58 @@ const IMPLEMENTED: Record<string, unknown> = {
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
+  // Задача 3.12 (SPEC UR20). К какому ядру подключено приложение.
+  //
+  // Их форма ответа шире нашей: там ещё облако (SPEC HX3 — исключено) и ssh
+  // (вторая половина этой задачи). Недостающие поля отдаются пустыми, а не
+  // выдумываются: их экран читает `mode` и рисует ту вкладку, которая нужна.
+  getConnectionConfig(_profile?: null | string): Promise<unknown> {
+    return window.aecpilot.getConnection().then(asDonorConnection)
+  },
+
+  saveConnectionConfig(payload: {
+    mode?: string
+    remoteUrl?: string
+    remoteToken?: string
+    allowPlainTextToken?: boolean
+  }): Promise<unknown> {
+    return window.aecpilot.saveConnection(toOurInput(payload)).then((result) => {
+      if (!result.ok) throw new Error(result.error ?? 'настройка не сохранена')
+      return asDonorConnection(result.config)
+    })
+  },
+
+  applyConnectionConfig(payload: {
+    mode?: string
+    remoteUrl?: string
+    remoteToken?: string
+    allowPlainTextToken?: boolean
+  }): Promise<unknown> {
+    return window.aecpilot.applyConnection(toOurInput(payload)).then((result) => {
+      if (!result.ok) throw new Error(result.error ?? 'настройка не применена')
+      return asDonorConnection(result.config)
+    })
+  },
+
+  testConnectionConfig(payload: {
+    mode?: string
+    remoteUrl?: string
+    remoteToken?: string
+  }): Promise<unknown> {
+    return window.aecpilot.testConnection(toOurInput(payload))
+  },
+
+  // Вход по OAuth — это их облако (SPEC HX3). Объявлено отсутствующим, а не
+  // оставлено заглушке: их экран проверяет наличие члена и без него не рисует
+  // кнопку входа вместо поля токена.
+  oauthLoginConnectionConfig: undefined,
+  oauthLogoutConnectionConfig: undefined,
+
+  // Подключение через ssh — вторая половина задачи 3.12. Пока его нет, их
+  // экран не должен предлагать вкладку, которая ничего не сделает.
+  sshConfigHosts: undefined,
+  sshResolveHost: undefined,
+
   // Задача 3.7b. Слово-активатор слушает микрофон, когда на приложение никто не
   // смотрит, поэтому о работающем захвате говорит отдельное окно поверх всех.
   // Непроброшенным этот член ничего не ломал — и в этом была вся беда: захват

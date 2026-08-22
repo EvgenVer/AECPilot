@@ -5,6 +5,7 @@ import {
   dialog,
   ipcMain,
   nativeTheme,
+  safeStorage,
   session,
   shell,
   systemPreferences
@@ -47,6 +48,14 @@ import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
 import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
+import {
+  configureConnection,
+  connectionToken,
+  connectionView,
+  remoteTarget,
+  saveConnection
+} from './connection'
+import { readConnectionInput, wsUrlFor } from './connection-pure'
 import {
   applyProjectSkills,
   configureProjectSkills,
@@ -1444,6 +1453,15 @@ function rememberMcpStatus(event: GatewayEvent): void {
 }
 
 function restTarget(): RestTarget | undefined {
+  // Задача 3.12: удалённое ядро отвечает по своему адресу и своим токеном.
+  // Проверяется ПЕРВЫМ: когда человек подключился к серверу, локальный процесс
+  // мы не поднимаем вовсе, и `serveHandle` пуст — но если бы он остался с
+  // прошлого режима, запрос обязан уйти туда, куда человек подключён.
+  const remote = remoteTarget()
+  if (remote) {
+    return { host: '', port: 0, token: remote.token, baseUrl: remote.baseUrl }
+  }
+
   return serveHandle
     ? { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
     : undefined
@@ -2214,6 +2232,41 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
   return restartBackend(next)
 })
 
+/**
+ * Переподключается к тому ядру, которое выбрано сейчас (задача 3.12).
+ *
+ * ДВА РАЗНЫХ МИРА. В удалённом режиме своего процесса быть НЕ ДОЛЖНО: он не
+ * просто лишний — он второй агент на тех же файлах, со своими расписаниями и
+ * своим индексом. Поэтому переход в удалённый режим его останавливает, а не
+ * оставляет «на всякий случай».
+ *
+ * Обратный переход поднимает его заново — той же последовательностью, что и
+ * старт приложения, иначе получилось бы два способа завести один процесс.
+ */
+async function reconnectForConnection(): Promise<void> {
+  gateway?.close()
+  gateway = undefined
+  sessionId = undefined
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+
+  const remote = remoteTarget()
+
+  if (remote) {
+    if (serveHandle && stopServeFn) {
+      const handle = serveHandle
+      serveHandle = undefined
+      await stopServeFn(handle)
+    }
+    // SECURITY: адрес сокета несёт токен. Он собирается здесь и здесь же
+    // остаётся — ни в журнал, ни через IPC он не уходит (см. `app-log`).
+    await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
+    return
+  }
+
+  await restartBackend()
+}
+
 /** Stops the hermes backend, applies `configOverride` to the profile's
  * config.yaml if given, and starts it again with the current credential env.
  *
@@ -2419,6 +2472,57 @@ ipcMain.on('theme:set-native', (_event, mode: unknown) => {
 const ambientClaims: ClaimState = new Map()
 
 ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims, key, Date.now()))
+
+// Задача 3.12 (SPEC UR20). К какому ядру подключено приложение. Токен живёт
+// только здесь: окну отдаётся признак «задан» и четыре последних знака.
+ipcMain.handle('connection:get', () => connectionView())
+
+ipcMain.handle('connection:save', (_event, input: unknown) => saveConnection(input))
+
+// «Проверить» — до сохранения и без него. Иначе человек узнавал бы об
+// опечатке в адресе только после того, как ею заменил рабочее подключение.
+ipcMain.handle('connection:test', async (_event, input: unknown) => {
+  const request = readConnectionInput(input)
+
+  if (request.mode === 'local') return { ok: true, reachable: true }
+  if (request.remoteUrl === '') return { ok: false, error: 'Адрес не похож на адрес сервера' }
+
+  // Токен берётся из запроса, а если его там нет — сохранённый: человек может
+  // проверять новый адрес со старым токеном, не набирая его заново.
+  const token = request.remoteToken !== '' ? request.remoteToken : connectionToken()
+  if (token === '') return { ok: false, error: 'Токен не задан' }
+
+  try {
+    const status = await hermesRest<{ version?: string }>(
+      { host: '', port: 0, token, baseUrl: request.remoteUrl },
+      '/api/status',
+      { timeoutMs: 10000 }
+    )
+    return {
+      ok: true,
+      reachable: true,
+      version: status?.version ?? null,
+      baseUrl: request.remoteUrl
+    }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      reachable: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+})
+
+// «Применить» — это сохранить и переподключиться. Отдельный глагол их экрана:
+// сохранённая, но не применённая настройка не должна молча менять то, с чем
+// человек сейчас работает.
+ipcMain.handle('connection:apply', async (_event, input: unknown) => {
+  const outcome = saveConnection(input)
+  if (!outcome.ok) return outcome
+
+  await reconnectForConnection()
+  return outcome
+})
 
 // Задача 3.7b. Табличка «микрофон слушает». Отдельное окно, потому что слово-
 // активатор работает при свёрнутом главном: значок внутри свёрнутого окна не
@@ -3215,6 +3319,14 @@ app
     // а самое интересное происходит как раз на старте.
     console.log(`aecpilot: app log at ${installAppLog(app.getPath('logs'))}`)
 
+    // Задача 3.12: к какому ядру подключаться, решается ДО того, как что-то
+    // запускается: в удалённом режиме свой процесс не поднимается вовсе.
+    configureConnection({
+      userDataDir: app.getPath('userData'),
+      secure: safeStorage,
+      envOverride: Boolean(process.env.AEC_GATEWAY_URL)
+    })
+
     // Задача 3.8а: где лежит их конфиг и где мы храним доверие. Модуль шлюза
     // грузится тут же, откуда его берут все остальные — он знает их домашний
     // каталог, а мы этот путь не выдумываем.
@@ -3231,9 +3343,15 @@ app
       // client at a pre-started server (a mock gateway in tests) instead of
       // spawning `hermes serve`. serveHandle/stopServeFn stay undefined in
       // this mode — existing shutdown guards already tolerate that.
+      const remote = remoteTarget()
+
       if (process.env.AEC_GATEWAY_URL) {
         console.warn('aecpilot: AEC_GATEWAY_URL override active — skipping hermes serve')
         await connectGateway(process.env.AEC_GATEWAY_URL)
+      } else if (remote) {
+        // Задача 3.12: ядро на другой машине — свой процесс не нужен.
+        console.log('aecpilot: connecting to a remote gateway')
+        await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
       } else {
         try {
           const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
