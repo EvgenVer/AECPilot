@@ -741,6 +741,12 @@ export interface AecpilotApi {
    * `setIgnoreMouse` решает рендерер: он один знает, что под курсором, — окно
    * поверх всех иначе съедает щелчки по чужому содержимому под своей
    * прозрачной частью. */
+  /** Табличка «микрофон слушает» (задача 3.7b). Отдельное окно поверх всех:
+   * слово-активатор работает при свёрнутом главном окне, и значок внутри него
+   * не виден — то есть не делает своей работы. Открытый микрофон, о котором не
+   * сказано, человек не прощает. */
+  setWakeIndicator(state: 'capturing' | 'detected' | 'hidden'): void
+  getWakeIndicator(): Promise<'capturing' | 'detected' | 'hidden'>
   openHud(request?: { sessionId?: string | null; profile?: string | null }): Promise<{
     ok: boolean
   }>

@@ -31,6 +31,8 @@ const api: AecpilotApi = {
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
+  setWakeIndicator: (state) => ipcRenderer.send('wake-indicator:set', state),
+  getWakeIndicator: () => ipcRenderer.invoke('wake-indicator:get'),
   openHud: (request) => ipcRenderer.invoke('hud:open', request),
   closeHud: () => ipcRenderer.invoke('hud:close'),
   getHudState: () => ipcRenderer.invoke('hud:get-state'),

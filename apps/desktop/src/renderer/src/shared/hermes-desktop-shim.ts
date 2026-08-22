@@ -260,6 +260,24 @@ const IMPLEMENTED: Record<string, unknown> = {
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
+  // Задача 3.7b. Слово-активатор слушает микрофон, когда на приложение никто не
+  // смотрит, поэтому о работающем захвате говорит отдельное окно поверх всех.
+  // Непроброшенным этот член ничего не ломал — и в этом была вся беда: захват
+  // шёл, а сказать об этом было нечем.
+  wakeIndicator: {
+    getState(): Promise<'capturing' | 'detected' | 'hidden'> {
+      return window.aecpilot.getWakeIndicator()
+    },
+    setState(state: 'capturing' | 'detected' | 'hidden'): void {
+      window.aecpilot.setWakeIndicator(state)
+    },
+    onState(_callback: (state: 'capturing' | 'detected' | 'hidden') => void): () => void {
+      // Состояние читает САМО окно-индикатор через свой крошечный мост; главному
+      // окну слушать нечего — оно это состояние и задаёт.
+      return () => {}
+    }
+  },
+
   // Задача 3.24. Плавающая лента. Их проверка возможности — `typeof
   // …hud?.open === 'function'`, и на заглушке она проходит: переключатель HUD в
   // заголовке показывался и ничего не делал (подвид D-41).

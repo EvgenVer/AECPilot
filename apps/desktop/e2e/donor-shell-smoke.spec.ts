@@ -957,3 +957,42 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
 
   await assertRendererAlive(page, 'end of test 10')
 })
+
+test('an open microphone says so in a window of its own', async () => {
+  const page = await app.firstWindow()
+
+  const before = app.windows().length
+
+  // Захват начался — табличка появляется. Отдельным окном: слово-активатор
+  // работает при свёрнутом главном окне, и значок внутри него не виден.
+  await page.evaluate(() => window.aecpilot.setWakeIndicator('capturing'))
+  await expect.poll(() => app.windows().length).toBe(before + 1)
+
+  const shape = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes('wake-indicator')
+    )
+    return win ? { onTop: win.isAlwaysOnTop(), visible: win.isVisible() } : null
+  })
+  expect(shape?.onTop, 'её должно быть видно поверх чужой программы').toBe(true)
+  expect(shape?.visible).toBe(true)
+
+  expect(await page.evaluate(() => window.aecpilot.getWakeIndicator())).toBe('capturing')
+
+  // Захват кончился — табличка уходит. Оставшаяся табличка сообщала бы об
+  // открытом микрофоне, которого нет.
+  await page.evaluate(() => window.aecpilot.setWakeIndicator('hidden'))
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows().find((candidate) =>
+          candidate.webContents.getURL().includes('wake-indicator')
+        )
+        return win ? win.isVisible() : false
+      })
+    )
+    .toBe(false)
+  expect(await page.evaluate(() => window.aecpilot.getWakeIndicator())).toBe('hidden')
+
+  await assertRendererAlive(page, 'end of test 11')
+})

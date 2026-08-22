@@ -20,6 +20,13 @@ import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
+import { ensureSectionScalar } from './config-yaml-pure'
+import {
+  DEFAULT_WAKE_PHRASE,
+  setWakeIndicatorState,
+  stopWakeIndicator,
+  wakeIndicatorState
+} from './wake-indicator'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { claimCue, type ClaimState } from './ambient-claim-pure'
@@ -549,6 +556,41 @@ function applyDefaultSpeechVoice(homeDir: string): void {
     writeFileSync(configPath, merged.text, 'utf-8')
   } catch (error: unknown) {
     console.error('aecpilot: could not write config.yaml with the default voice', error)
+  }
+}
+
+/** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
+ *
+ * Их умолчание называет ИХ продукт, и оно попадает не в код, а на экран: фразу
+ * показывает подпись кнопки и подсказка слэш-команды, беря её из ответа ядра.
+ * То есть без этой правки требование C12 («имени чужого продукта в интерфейсе
+ * нет») обходится с той стороны, с которой его не сторожит ни один тест
+ * каталога — через данные.
+ *
+ * Как и с голосом: однажды выбранная человеком фраза переживает все следующие
+ * запуски, а неудача здесь никогда не блокирует старт. */
+function applyDefaultWakePhrase(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the wake phrase', error)
+    return
+  }
+
+  const merged = ensureSectionScalar(original, 'wake_word', 'phrase', DEFAULT_WAKE_PHRASE)
+  if (merged.unexpectedStructure) {
+    console.warn('aecpilot: config.yaml has a wake_word: scalar — leaving the phrase untouched')
+    return
+  }
+  if (!merged.changed) return
+
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the wake phrase', error)
   }
 }
 
@@ -2378,6 +2420,12 @@ const ambientClaims: ClaimState = new Map()
 
 ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims, key, Date.now()))
 
+// Задача 3.7b. Табличка «микрофон слушает». Отдельное окно, потому что слово-
+// активатор работает при свёрнутом главном: значок внутри свёрнутого окна не
+// виден, то есть не делает своей работы.
+ipcMain.on('wake-indicator:set', (_event, state: unknown) => setWakeIndicatorState(state))
+ipcMain.handle('wake-indicator:get', () => wakeIndicatorState())
+
 // Задача 3.24. Плавающая лента поверх чужих окон. Решения о границах и
 // прозрачности — в `hud.ts` и `hud-pure.ts`.
 ipcMain.handle('hud:open', (_event, request: unknown) =>
@@ -3197,6 +3245,7 @@ app
           // to disk. This must happen before startServe spawns hermes.
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
           applyDefaultSpeechVoice(HERMES_HOME_DIR)
+          applyDefaultWakePhrase(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
@@ -3314,6 +3363,8 @@ app.on('will-quit', () => {
   // после закрытия окна, — это не «работа в фоне», а потеря контроля.
   stopCronRunner()
   stopHud()
+  // Табличка, пережившая программу, сообщает о микрофоне, которого больше нет.
+  stopWakeIndicator()
 })
 
 app.on('before-quit', (event) => {

@@ -27,7 +27,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/preload/index.ts'),
-          'quick-entry': path.resolve(here, 'src/preload/quick-entry.ts')
+          'quick-entry': path.resolve(here, 'src/preload/quick-entry.ts'),
+          'wake-indicator': path.resolve(here, 'src/preload/wake-indicator.ts')
         }
       }
     }
@@ -42,7 +43,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/renderer/index.html'),
-          'quick-entry': path.resolve(here, 'src/renderer/quick-entry.html')
+          'quick-entry': path.resolve(here, 'src/renderer/quick-entry.html'),
+          'wake-indicator': path.resolve(here, 'src/renderer/wake-indicator.html')
         }
       }
     }
