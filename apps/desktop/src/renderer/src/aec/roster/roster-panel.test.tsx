@@ -38,6 +38,9 @@ const useProfile = vi.fn()
 const selectPaths = vi.fn()
 const setSpecialistAvatar = vi.fn()
 const getSpecialistAvatar = vi.fn()
+const getModelOptions = vi.fn()
+const listSkills = vi.fn()
+const listToolsets = vi.fn()
 
 beforeEach(() => {
   listRoster.mockResolvedValue([
@@ -52,6 +55,19 @@ beforeEach(() => {
   selectPaths.mockResolvedValue(['C:/картинки/лицо.png'])
   setSpecialistAvatar.mockResolvedValue({ ok: true, outcome: 'server' })
   getSpecialistAvatar.mockResolvedValue('data:image/png;base64,AAA')
+  getModelOptions.mockResolvedValue({
+    providers: [
+      { slug: 'openai', name: 'OpenAI', models: ['gpt-5'], authenticated: true },
+      { slug: 'nokey', name: 'Без ключа', models: ['x'], authenticated: false }
+    ]
+  })
+  listSkills.mockResolvedValue([{ name: 'aec-qa' }, { name: 'aec-docgen' }])
+  listToolsets.mockResolvedValue({
+    toolsets: [
+      { name: 'files', description: '', tool_count: 3, enabled: true, tools: [] },
+      { name: 'shell', description: '', tool_count: 2, enabled: true, tools: [] }
+    ]
+  })
 
   window.aecpilot = {
     listRoster,
@@ -62,7 +78,10 @@ beforeEach(() => {
     useProfile,
     selectPaths,
     setSpecialistAvatar,
-    getSpecialistAvatar
+    getSpecialistAvatar,
+    getModelOptions,
+    listSkills,
+    listToolsets
   } as unknown as typeof window.aecpilot
 })
 
@@ -296,5 +315,87 @@ describe('лицо специалиста', () => {
     fireEvent.click(screen.getByLabelText('Новый специалист'))
 
     expect(screen.queryByText('Картинкой')).toBeNull()
+  })
+})
+
+// Задача 3C.2. Расширенные возможности живут за одной кнопкой: человеку с одним
+// специалистом они не нужны, а тому, кто их ищет, — нужны все сразу.
+describe('расширенные возможности', () => {
+  async function openAdvanced(): Promise<void> {
+    renderPanel()
+    await screen.findByText('Смета')
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    fireEvent.click(screen.getByText('Возможности'))
+  }
+
+  it('модель выбирается парой провайдер+модель', async () => {
+    await openAdvanced()
+
+    // Ждём именно ВАРИАНТ, а не поле: список моделей приходит запросом, а
+    // выбор значения, которого в списке ещё нет, jsdom молча проглатывает.
+    await screen.findByText(/OpenAI/)
+    fireEvent.change(screen.getByLabelText('Модель'), { target: { value: 'openai gpt-5' } })
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    await waitFor(() =>
+      expect(saveSpecialist).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'openai', model: 'gpt-5' })
+      )
+    )
+  })
+
+  it('провайдер без доступов не предлагается — иначе специалист не ответит ни разу', async () => {
+    await openAdvanced()
+
+    await screen.findByLabelText('Модель')
+    expect(screen.queryByText(/Без ключа/)).toBeNull()
+  })
+
+  it('выключенный скил уходит замещающим списком', async () => {
+    await openAdvanced()
+
+    fireEvent.click(await screen.findByLabelText('aec-qa'))
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    await waitFor(() =>
+      expect(saveSpecialist).toHaveBeenCalledWith(
+        expect.objectContaining({ disabledSkills: ['aec-qa'] })
+      )
+    )
+  })
+
+  it('первый снятый набор инструментов превращает «все» в явный список', async () => {
+    await openAdvanced()
+
+    fireEvent.click(await screen.findByLabelText('shell'))
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    await waitFor(() =>
+      expect(saveSpecialist).toHaveBeenCalledWith(
+        expect.objectContaining({ enabledToolsets: ['files'] })
+      )
+    )
+  })
+
+  it('неприменённый раздел назван по имени, а не спрятан за «не удалось»', async () => {
+    saveSpecialist.mockResolvedValue({ ok: false, failed: ['model'] })
+    await openAdvanced()
+
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    expect(await screen.findByText(/Не применилось: model/)).toBeTruthy()
+  })
+
+  it('клонировать можно только при создании', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    expect(screen.queryByLabelText('Клонировать с')).toBeNull()
+
+    fireEvent.click(screen.getByText('Отмена'))
+    fireEvent.click(screen.getByLabelText('Новый специалист'))
+
+    expect(screen.getByLabelText('Клонировать с')).toBeTruthy()
   })
 })

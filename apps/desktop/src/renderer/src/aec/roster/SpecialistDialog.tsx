@@ -5,9 +5,17 @@
 // Переименование значило бы перенос всего этого; подпись на экране (`title`)
 // меняется свободно и делает ровно то, чего человек ждёт от переименования.
 
+import { useState } from 'react'
+
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
-import type { SpecialistFaceView, SpecialistInputView } from '../../../../shared/ipc'
+import type {
+  SpecialistFaceView,
+  SpecialistInputView,
+  SpecialistView
+} from '../../../../shared/ipc'
+
+import { AdvancedSpecialist } from './AdvancedSpecialist'
 
 export interface SpecialistDraft {
   isNew: boolean
@@ -37,7 +45,8 @@ export function SpecialistDialog({
   onCancel,
   onChange,
   onPickPicture,
-  onSubmit
+  onSubmit,
+  roster
 }: {
   busy: boolean
   draft: SpecialistDraft
@@ -45,8 +54,10 @@ export function SpecialistDialog({
   onChange: (draft: SpecialistDraft) => void
   onPickPicture?: () => void
   onSubmit: () => void
+  roster?: SpecialistView[]
 }): React.JSX.Element {
   const t = useAecT()
+  const [advanced, setAdvanced] = useState(false)
 
   const set = (patch: Partial<SpecialistInputView>): void =>
     onChange({ ...draft, input: { ...draft.input, ...patch } })
@@ -164,6 +175,31 @@ export function SpecialistDialog({
           value={draft.input.description ?? ''}
         />
       </label>
+
+      {draft.isNew && (roster?.length ?? 0) > 0 && (
+        <label className="flex flex-col gap-0.5 text-[11px] text-(--ui-text-secondary)">
+          {t('roster.cloneFrom')}
+          <select
+            aria-label={t('roster.cloneFrom')}
+            className="rounded-[4px] bg-(--ui-bg-tertiary) px-2 py-1 text-xs text-(--ui-text-primary)"
+            onChange={(event) => set({ cloneFrom: event.target.value })}
+            value={draft.input.cloneFrom ?? ''}
+          >
+            <option value="">{t('roster.cloneNone')}</option>
+            {(roster ?? []).map((source) => (
+              <option key={source.name} value={source.name}>
+                {source.title.trim() === '' ? source.name : source.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <Button onClick={() => setAdvanced((on) => !on)} size="sm" variant="text">
+        {t('roster.advanced')}
+      </Button>
+
+      {advanced && <AdvancedSpecialist input={draft.input} onChange={set} />}
 
       <div className="flex justify-end gap-2">
         <Button disabled={busy} onClick={onCancel} size="sm" variant="text">

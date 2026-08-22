@@ -44,8 +44,17 @@ export function RosterPanel(): React.JSX.Element {
   // Ответ ядра о том, куда легли поля, — это три исхода, а не два (их урок
   // `bot-meta-persistence`): старое ядро сохраняет только здесь, и это не отказ.
   const report = useCallback(
-    (result: { ok: boolean; outcome?: string; error?: string }): boolean => {
-      setError(result.ok ? undefined : (result.error ?? t('roster.failed')))
+    (result: { ok: boolean; outcome?: string; error?: string; failed?: string[] }): boolean => {
+      // Раздел, который не лёг, называется по имени: «не сохранилось» без
+      // «что именно» человеку делать нечего (их урок `model-inherit`).
+      const sections = result.failed ?? []
+      setError(
+        result.ok
+          ? undefined
+          : sections.length > 0
+            ? t('roster.sectionsFailed', sections.join(', '))
+            : (result.error ?? t('roster.failed'))
+      )
       setNotice(result.ok && result.outcome === 'local-only' ? t('roster.localOnly') : undefined)
       return result.ok
     },
@@ -233,6 +242,7 @@ export function RosterPanel(): React.JSX.Element {
           onChange={setEditing}
           onPickPicture={() => pickPicture.mutate(editing.input.name)}
           onSubmit={() => save.mutate(editing)}
+          roster={roster}
         />
       )}
     </div>

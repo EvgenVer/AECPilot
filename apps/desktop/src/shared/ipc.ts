@@ -188,11 +188,28 @@ export interface SpecialistInputView {
   role?: string
   description?: string
   face?: SpecialistFaceView | null
+  // --- расширенные возможности (задача 3C.2) ---
+  /** Своя модель. Ядро назначает её ТОЛЬКО парой с провайдером. Снять
+   * назначение нечем: публичной поверхности для этого у ядра 0.20.4 нет, и
+   * «наследовать» — это состояние «ещё не назначали», а не действие. */
+  model?: string
+  provider?: string
+  /** Свой характер: полная замена SOUL, а не дополнение. */
+  soul?: string
+  /** Замещающая семантика: присланный список СТАНОВИТСЯ списком. */
+  disabledSkills?: string[]
+  enabledToolsets?: string[]
+  enabledMcpServers?: string[]
+  /** С кого клонировать при создании — умеет само ядро. */
+  cloneFrom?: string
 }
 
 export interface SpecialistResultView {
   ok: boolean
   name?: string
+  /** Разделы, которые ядро не применило: оно применяет их по одному, и неудача
+   * одного не должна выглядеть как общий успех. */
+  failed?: string[]
   /** Куда легли наши поля: `server` — на сервер; `local-only` — старое ядро, и
    * это НЕ отказ; `refused` — не легли. */
   outcome?: 'server' | 'local-only' | 'refused'

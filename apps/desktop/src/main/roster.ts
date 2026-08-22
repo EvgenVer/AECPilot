@@ -16,6 +16,7 @@
 import {
   displayNameOf,
   duplicateName,
+  failedSections,
   isValidSpecialistName,
   metaPatch,
   parseRoster,
@@ -59,6 +60,20 @@ export interface SpecialistInput {
   role?: string
   description?: string
   face?: SpecialistFace | null
+  // --- расширенные возможности (задача 3C.2) ---
+  /** Своя модель. Ядро пишет её ТОЛЬКО парой с провайдером — по одному полю
+   * назначения не происходит вовсе. */
+  model?: string
+  provider?: string
+  /** Свой SOUL: полная замена файла, а не дополнение. */
+  soul?: string
+  /** Замещающая семантика: присланный список СТАНОВИТСЯ списком. */
+  disabledSkills?: string[]
+  enabledToolsets?: string[]
+  enabledMcpServers?: string[]
+  /** С кого клонировать при создании. Умеет само ядро: копирует настройки,
+   * скилы и (по умолчанию) доступы, чтобы новый специалист мог думать сразу. */
+  cloneFrom?: string
 }
 
 export interface SpecialistOutcome {
@@ -66,6 +81,9 @@ export interface SpecialistOutcome {
   name?: string
   /** Куда легли наши поля: на сервер, только сюда или никуда. */
   outcome?: SaveOutcome
+  /** Разделы, которые ядро не применило: модель легла, а скилы нет — и человек
+   * должен увидеть именно это, а не общее «сохранено». */
+  failed?: string[]
   error?: string
 }
 
@@ -81,7 +99,19 @@ export async function createSpecialist(input: SpecialistInput): Promise<Speciali
   }
 
   try {
-    await core().request('profiles.create', { name: input.name })
+    // Клонирование, SOUL и модель ядро умеет прямо при создании — и делает это
+    // лучше, чем мы вторым шагом: `clone_from` копирует настройки и скилы, а
+    // `mirror_credentials` (по умолчанию) даёт новому специалисту доступы, без
+    // которых он не смог бы ответить ни разу.
+    await core().request('profiles.create', {
+      name: input.name,
+      ...(input.description === undefined ? {} : { description: input.description }),
+      ...(input.cloneFrom === undefined || input.cloneFrom === ''
+        ? {}
+        : { clone_from: input.cloneFrom }),
+      ...(input.soul === undefined ? {} : { soul: input.soul }),
+      ...(input.model && input.provider ? { model: input.model, provider: input.provider } : {})
+    })
   } catch (error: unknown) {
     return { ok: false, error: describe(error) }
   }
@@ -109,10 +139,28 @@ export async function saveSpecialist(input: SpecialistInput): Promise<Specialist
     })
   }
   if (input.description !== undefined) params.description = input.description
+  if (input.soul !== undefined) params.soul = input.soul
+  // Модель уходит ТОЛЬКО парой: ядро молча пропускает половину назначения, и
+  // отправить одну провайдера значит ничего не сделать, отчитавшись успехом.
+  if (input.model && input.provider) {
+    params.model = input.model
+    params.provider = input.provider
+  }
+  if (input.disabledSkills !== undefined) params.disabled_skills = input.disabledSkills
+  if (input.enabledToolsets !== undefined) params.enabled_toolsets = input.enabledToolsets
+  if (input.enabledMcpServers !== undefined) params.enabled_mcp_servers = input.enabledMcpServers
 
   try {
     const answer = await core().request('profiles.configure', params)
-    return { ok: true, name: input.name, outcome: saveOutcome(answer) }
+    const failed = failedSections(answer)
+    return {
+      // Раздел, который не лёг, — это не успех: их урок про «противоречивое
+      // сообщение об успехе» (`model-inherit`).
+      ok: failed.length === 0,
+      name: input.name,
+      outcome: saveOutcome(answer),
+      ...(failed.length === 0 ? {} : { failed })
+    }
   } catch (error: unknown) {
     return { ok: false, name: input.name, outcome: 'refused', error: describe(error) }
   }

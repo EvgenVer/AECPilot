@@ -204,3 +204,68 @@ describe('удаление', () => {
     expect(request).not.toHaveBeenCalled()
   })
 })
+
+// Задача 3C.2. Расширенные возможности специалиста: своя модель, свой SOUL,
+// поштучный выбор скилов, тулсетов и MCP, клонирование с существующего.
+describe('расширенные возможности', () => {
+  it('модель уходит ТОЛЬКО парой с провайдером', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await saveSpecialist({ name: 'smeta', model: 'gpt-5' })
+
+    expect(
+      request.mock.calls[0][1],
+      'половина назначения — это ничего не сделать, отчитавшись успехом'
+    ).not.toHaveProperty('model')
+
+    await saveSpecialist({ name: 'smeta', model: 'gpt-5', provider: 'openai' })
+
+    expect(request.mock.calls[1][1]).toMatchObject({ model: 'gpt-5', provider: 'openai' })
+  })
+
+  it('скилы, тулсеты и MCP идут замещением, как их понимает ядро', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await saveSpecialist({
+      name: 'smeta',
+      disabledSkills: ['aec-qa'],
+      enabledToolsets: ['files'],
+      enabledMcpServers: ['aec-sources']
+    })
+
+    expect(request.mock.calls[0][1]).toMatchObject({
+      disabled_skills: ['aec-qa'],
+      enabled_toolsets: ['files'],
+      enabled_mcp_servers: ['aec-sources']
+    })
+  })
+
+  it('пустой список — это «ничего не выбрано», а не «не менять»', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await saveSpecialist({ name: 'smeta', enabledToolsets: [] })
+
+    expect(request.mock.calls[0][1]).toMatchObject({ enabled_toolsets: [] })
+  })
+
+  it('неудачный раздел гасит «сохранено», а не прячется за ним', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true, model: false, skills: true } })
+
+    const result = await saveSpecialist({ name: 'smeta', model: 'gpt-5', provider: 'openai' })
+
+    expect(result.ok, 'иначе человек уходит уверенным в том, чего не произошло').toBe(false)
+    expect(result.failed).toEqual(['model'])
+  })
+
+  it('клонирование делает само ядро — вместе с доступами', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await createSpecialist({ name: 'norm', cloneFrom: 'smeta', soul: 'Ты нормоконтролёр.' })
+
+    expect(request.mock.calls[0][1]).toMatchObject({
+      name: 'norm',
+      clone_from: 'smeta',
+      soul: 'Ты нормоконтролёр.'
+    })
+  })
+})

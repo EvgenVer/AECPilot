@@ -148,6 +148,34 @@ export function metaPatch(input: {
  * надо сказать именно это, а не «не удалось». */
 export type SaveOutcome = 'server' | 'local-only' | 'refused'
 
+/** Названия разделов ядра, как оно их отдаёт в `applied`. Порядок — тот, в
+ * котором человек их видит на карточке. */
+export const CONFIGURE_SECTIONS = [
+  'model',
+  'soul',
+  'description',
+  'skills',
+  'toolsets',
+  'mcp_servers'
+] as const
+
+/**
+ * Какие разделы ядро НЕ применило.
+ *
+ * Ядро применяет каждый раздел отдельно и «по возможности»: модель могла лечь, а
+ * скилы — нет. Их урок (`model-inherit`): неудача раздела обязана погасить
+ * бодрое «сохранено», иначе человек уходит с экрана уверенным в том, чего не
+ * произошло. `ui_meta` сюда не входит — у него свой ответ на три исхода. */
+export function failedSections(answer: unknown): string[] {
+  if (typeof answer !== 'object' || answer === null) return []
+
+  const applied = (answer as { applied?: unknown }).applied
+  if (typeof applied !== 'object' || applied === null) return []
+
+  const rows = applied as Record<string, unknown>
+  return CONFIGURE_SECTIONS.filter((section) => rows[section] === false)
+}
+
 export function saveOutcome(answer: unknown): SaveOutcome {
   if (typeof answer !== 'object' || answer === null) return 'local-only'
 
