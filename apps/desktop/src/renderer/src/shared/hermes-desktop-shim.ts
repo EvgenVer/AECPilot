@@ -32,7 +32,11 @@
 // opened to this" — `donor/lib/voice-playback.ts` did, and its speech stream
 // went from "unavailable, fall back" to "throws" (task 3.7a).
 
-import { channelBeingEnabled } from '../aec/channels-disclosure/disclosure-pure'
+import {
+  channelBeingEnabled,
+  isPlatformListing,
+  shortlistPlatforms
+} from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
 import { agentInstallInFlight } from '../aec/install-consent/agent-initiated'
 import { installBeingRequested } from '../aec/install-consent/install-consent-pure'
@@ -267,11 +271,20 @@ const IMPLEMENTED: Record<string, unknown> = {
     const body =
       cronWrite === 'create' ? withContinuity(request.body, cronContinuityEnabled()) : request.body
 
-    return gatewayBridge().rest<T>(request.path, {
+    const answer = gatewayBridge().rest<T>(request.path, {
       method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
       ...(body === undefined ? {} : { body }),
       ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
     })
+
+    // Задача 3.11 (решение владельца 2026-08-22). Ядро знает 33 канала;
+    // показываем те, за которые отвечаем. Фильтр стоит здесь, а не в их экране,
+    // по той же причине, что и оба гейта выше: правка вендорного файла умерла бы
+    // при следующем переносе. Уже ВКЛЮЧЁННЫЙ канал не прячется никогда — иначе
+    // у человека пропал бы выключатель от того, что прямо сейчас работает.
+    return isPlatformListing(request)
+      ? answer.then((value) => shortlistPlatforms(value) as T)
+      : answer
   },
 
   // Task 3.3 (SPEC HX6). There is no git in this product: no branches, no

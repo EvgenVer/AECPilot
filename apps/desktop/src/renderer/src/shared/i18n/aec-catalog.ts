@@ -187,6 +187,13 @@ export const aecLocales: PluginLocaleBundles = {
           'the agent’s access to the project: it reads and writes vault files while answering a message that arrived through the channel',
         remoteStart:
           'the ability to start it from outside — anyone who can write into that chat can set the agent to work',
+        a2aPort:
+          'an open network port on this machine (9900 by default): the caller is not a ' +
+          'person in a chat but another program, and the machine advertises an agent card ' +
+          'describing what it can do',
+        a2aSession:
+          'a task from that program lands in the SAME live session as your own ' +
+          'conversation, with its memory and its access to your files',
         reversible:
           'You can turn the channel off at any time, but what has already left the machine stays where it went.',
         confirm: 'Open the channel'
@@ -512,6 +519,13 @@ export const aecLocales: PluginLocaleBundles = {
           'доступ агента к проекту: отвечая на пришедшее по каналу сообщение, он читает и пишет файлы vault',
         remoteStart:
           'возможность запустить его снаружи — любой, кто может писать в тот чат, может дать агенту работу',
+        a2aPort:
+          'открытый сетевой порт на этой машине (по умолчанию 9900): с той стороны не ' +
+          'человек в переписке, а другая программа, и машина рассказывает о себе ' +
+          'карточкой агента — что он умеет',
+        a2aSession:
+          'задача от той программы попадает в ТУ ЖЕ живую сессию, в которой идёт ваш ' +
+          'разговор, — с её памятью и её доступом к вашим файлам',
         reversible:
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'

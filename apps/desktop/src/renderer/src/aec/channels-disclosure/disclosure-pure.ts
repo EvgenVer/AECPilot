@@ -44,3 +44,67 @@ export const CHANNEL_DISCLOSURE_ITEMS = [
 ] as const
 
 export type ChannelDisclosureItem = (typeof CHANNEL_DISCLOSURE_ITEMS)[number]
+
+/**
+ * Что добавляется к перечню для отдельных платформ (задача 3.11).
+ *
+ * Три пункта выше верны для любого канала, но A2A отличается по СУЩЕСТВУ, а не
+ * по степени: с той стороны не человек в переписке, а ДРУГАЯ ПРОГРАММА, и
+ * приходит она не в чат, а на сетевой порт этой машины. Ядро к тому же
+ * рассказывает о себе карточкой агента — что он умеет и как к нему обратиться.
+ * Человек, включающий канал, должен понимать именно это; общими словами про
+ * «сообщения» такого не скажешь.
+ *
+ * Замерено на ядре 0.20.4 (`plugins/platforms/a2a`): порт по умолчанию 9900,
+ * без токена слушает только 127.0.0.1, задача попадает в ЖИВУЮ сессию — ту же,
+ * в которой идёт разговор человека, со всей её памятью и файлами.
+ */
+export function extraDisclosureItems(platformId: string): readonly string[] {
+  return platformId === 'a2a'
+    ? (['channels.disclosure.a2aPort', 'channels.disclosure.a2aSession'] as const)
+    : []
+}
+
+/**
+ * Каналы, которые приложение показывает (задача 3.11, решение владельца
+ * 2026-08-22).
+ *
+ * Ядро знает 33 платформы. Показывать все — значит обещать то, чего мы не
+ * проверяли: у половины список нужен китайский аккаунт разработчика, и
+ * подсказки к ним написаны не для нашего человека. Поэтому список НАШ, и за
+ * каждый пункт в нём мы отвечаем.
+ *
+ * ВКЛЮЧЁННЫЙ канал не прячется никогда, даже если он не в списке. Спрятать
+ * работающий канал значило бы отобрать у человека выключатель от того, что
+ * прямо сейчас выносит его переписку наружу.
+ */
+export const CHANNEL_SHORTLIST = ['telegram', 'email', 'webhook', 'a2a'] as const
+
+/** Их экран запрашивает список платформ этим GET. */
+export function isPlatformListing(request: { path: string; method?: string }): boolean {
+  return (
+    (request.method ?? 'GET').toUpperCase() === 'GET' &&
+    /^\/api\/messaging\/platforms(\?|$)/.test(request.path)
+  )
+}
+
+/** Оставляет в ответе ядра только показываемые каналы. Ответ чужой формы
+ * возвращается как есть: перехват не должен превращать неожиданный ответ в
+ * пустой список. */
+export function shortlistPlatforms(answer: unknown): unknown {
+  if (typeof answer !== 'object' || answer === null) return answer
+
+  const platforms = (answer as { platforms?: unknown }).platforms
+  if (!Array.isArray(platforms)) return answer
+
+  const allowed = new Set<string>(CHANNEL_SHORTLIST)
+
+  return {
+    ...answer,
+    platforms: platforms.filter((platform) => {
+      if (typeof platform !== 'object' || platform === null) return false
+      const row = platform as { id?: unknown; enabled?: unknown }
+      return allowed.has(String(row.id)) || row.enabled === true
+    })
+  }
+}
