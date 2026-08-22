@@ -122,3 +122,40 @@ describe('вспомогательные', () => {
     expect(mediaTypeFor('x.bin')).toBe('application/octet-stream')
   })
 })
+
+// Задача 3.13b. При удалённом ядре вложение уезжает БАЙТАМИ: путь этой машины
+// на той не значит ничего. Читать их может только главный процесс — и только
+// потому, что этот файл человек выбрал сам в его же диалоге.
+describe('файл, выбранный человеком', () => {
+  it('читается — иначе вложение при удалённом ядре не уедет вовсе', async () => {
+    const root = makeDir()
+    const outside = path.join(root, 'не-вложение.png')
+    fs.writeFileSync(outside, Buffer.from([1, 2, 3]))
+
+    const dataUrl = await readAttachmentDataUrl(
+      path.join(root, 'attachments'),
+      outside,
+      (candidate) => candidate === outside
+    )
+
+    expect(dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('чужой путь по-прежнему не читается — общего чтения файлов окну не дано', async () => {
+    const root = makeDir()
+    const outside = path.join(root, 'секрет.png')
+    fs.writeFileSync(outside, Buffer.from([1]))
+
+    await expect(
+      readAttachmentDataUrl(path.join(root, 'attachments'), outside, () => false)
+    ).rejects.toThrow(/выбранные вами/)
+  })
+
+  it('без разрешающей проверки поведение прежнее', async () => {
+    const root = makeDir()
+    const outside = path.join(root, 'ещё.png')
+    fs.writeFileSync(outside, Buffer.from([1]))
+
+    await expect(readAttachmentDataUrl(path.join(root, 'attachments'), outside)).rejects.toThrow()
+  })
+})

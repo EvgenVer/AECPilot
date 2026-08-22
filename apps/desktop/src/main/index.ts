@@ -94,6 +94,7 @@ import {
 } from './artifact-files-pure'
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
+import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
   CuratorStatus,
@@ -163,7 +164,7 @@ import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
 import { readAttachmentDataUrl, saveAttachment } from './attachments'
-import { rememberPickedDirectory, wasPickedByUser } from './picked-paths'
+import { rememberPickedPath, wasPickedByUser } from './picked-paths'
 import { resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -426,6 +427,12 @@ const scanScheduler = new ScanScheduler<ScanReportEnvelope>(
 const MAX_SET_TIMEOUT_MS = 2 ** 31 - 1
 function startScanSchedulerForProject(vaultPath: string): void {
   lastScanReport = null
+  // То же основание, что и у `scan:trigger`: расписание, которое молча
+  // перечитывает чужие документы для чужого ядра, — это трата и путаница.
+  if (filesAreRemote()) {
+    scanScheduler.stop()
+    return
+  }
   scanScheduler.start(Math.min(getScanIntervalSeconds(vaultPath) * 1000, MAX_SET_TIMEOUT_MS))
 }
 
@@ -1244,7 +1251,11 @@ ipcMain.handle('goal:dispatch', async (_event, action: unknown) => {
 // parameter; `checkpointScope()` is what lets the screen explain an empty
 // list instead of just showing one.
 
-function checkpointScope(): CheckpointScope | { kind: 'unknown' } {
+function checkpointScope(): CheckpointScope | { kind: 'remote' } | { kind: 'unknown' } {
+  // Задача 3.13b. Диагноз — это обход ДИСКА в поисках папки-признака. При ядре
+  // на другой машине обходить надо её диск, а не наш: наш ответ описывал бы
+  // чужую машину с полной уверенностью. Уверенная неправда хуже отказа.
+  if (filesAreRemote()) return { kind: 'remote' }
   if (!currentProject) return { kind: 'unknown' }
   try {
     return resolveCheckpointScope(
@@ -2543,7 +2554,10 @@ ipcMain.handle('attachments:read-data-url', async (_event, payload: unknown) => 
     return { ok: false, error: 'path must be a non-empty string' }
   }
   try {
-    return { ok: true, dataUrl: await readAttachmentDataUrl(ATTACHMENTS_DIR, filePath) }
+    return {
+      ok: true,
+      dataUrl: await readAttachmentDataUrl(ATTACHMENTS_DIR, filePath, wasPickedByUser)
+    }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -2785,7 +2799,14 @@ ipcMain.handle('dialog:select-paths', async (event, request: unknown) => {
   const result = win
     ? await dialog.showOpenDialog(win, options)
     : await dialog.showOpenDialog(options)
-  return result.canceled ? [] : result.filePaths
+  if (result.canceled) return []
+
+  // Задача 3.13b: главный процесс запоминает, что показал человеку. При
+  // удалённом ядре вложение уедет байтами, и прочитать их можно будет только
+  // потому, что этот файл выбрал человек, — а не потому, что окно назвало путь.
+  for (const picked of result.filePaths) rememberPickedPath(picked)
+
+  return result.filePaths
 })
 
 ipcMain.handle('project:pick-directory', async (event) => {
@@ -2796,7 +2817,7 @@ ipcMain.handle('project:pick-directory', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null
   // Task 4D-11: main remembers what it just showed a human, so `project:create`
   // below can tell a chosen folder from one the renderer made up.
-  rememberPickedDirectory(result.filePaths[0])
+  rememberPickedPath(result.filePaths[0])
   return result.filePaths[0]
 })
 
@@ -2917,6 +2938,11 @@ ipcMain.handle('project:get-current', () => currentProject ?? null)
 // hydrate-on-mount pattern for the renderer's minimal "идёт сканирование"
 // indicator.
 ipcMain.handle('scan:trigger', () => {
+  // Задача 3.13b. Сканер строит индекс по МЕСТНЫМ путям для ядра, которое
+  // сейчас работает не здесь: индекс, который никто не спросит, из документов,
+  // которых агент не видит. Решение 3.13a — серверная поставка (фаза 6), а до
+  // неё честный отказ вместо бессмысленной работы.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   void scanScheduler.triggerNow()
   return { ok: true }
@@ -2929,6 +2955,12 @@ ipcMain.handle('project:list-recents', () => loadRecents())
 // Task 1.7: lists the current project's connected sources. Empty array if no
 // project is open or the config can't be read/validated.
 ipcMain.handle('sources:list', () => {
+  // Источники — это папки ЭТОЙ машины, которые читают наши расширения. Их
+  // запускает само ядро, значит при удалённом ядре они живут там же, и здешний
+  // список к его работе отношения не имеет (решение 3.13a: серверная поставка,
+  // фаза 6). Пустой список — не «источников нет», а «спрашивать надо не здесь»;
+  // словами это говорит окно.
+  if (filesAreRemote()) return []
   return currentProject ? listProjectSources(currentProject.vaultPath) : []
 })
 
@@ -3289,6 +3321,10 @@ ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
 // shows an empty-state instead of calling these, but a stale renderer call
 // (e.g. after the project was closed mid-flight) must never throw.
 ipcMain.handle('vault:tree', () => {
+  // Задача 3.13b: при ядре на другой машине это дерево описывало бы НАШ диск.
+  // Объяснение показывает окно (VaultExplorer); здесь важно, что чужих файлов
+  // оно не получит даже от рендерера, который не в курсе.
+  if (filesAreRemote()) return []
   if (!currentProject) return []
   try {
     return buildVaultTree(currentProject.vaultPath)
@@ -3299,6 +3335,9 @@ ipcMain.handle('vault:tree', () => {
 })
 
 ipcMain.handle('vault:create-file', (_event, payload: unknown) => {
+  // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
+  // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3317,6 +3356,9 @@ ipcMain.handle('vault:create-file', (_event, payload: unknown) => {
 })
 
 ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
+  // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
+  // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3336,6 +3378,9 @@ ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
 
 // Задача 4.5: сохранение из MD-редактора.
 ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
+  // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
+  // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3358,6 +3403,9 @@ ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
 })
 
 ipcMain.handle('vault:rename', (_event, payload: unknown) => {
+  // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
+  // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3379,6 +3427,9 @@ ipcMain.handle('vault:rename', (_event, payload: unknown) => {
 // first. `resolveVaultEntryRel` rejects an escaping/empty/`.aecpilot` `rel`
 // before shell.trashItem ever sees a path.
 ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
+  // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
+  // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3408,6 +3459,9 @@ ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
 // operations) — read-only, opens the OS file manager with the item
 // highlighted.
 ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
+  // Проводник открылся бы ЗДЕСЬ, а файл лежит там. Пустая папка вместо ответа —
+  // это не «показали», это молчаливая неправда.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3429,6 +3483,8 @@ ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
 // `sources:get-entry-path`'s contract exactly (the renderer never builds the
 // path itself).
 ipcMain.handle('vault:get-entry-path', (_event, payload: unknown) => {
+  // Путь этой машины для файла на той — та же неправда, только в виде строки.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
   if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
@@ -3461,9 +3517,17 @@ function installPermissionPolicy(): void {
   })
 }
 
+// Задача 3.13b: схема для звука и видео с машины ядра. Регистрируется ДО
+// готовности приложения — позже `<video>` уже не примет её как источник потока.
+registerMediaScheme()
+
 app
   .whenReady()
   .then(async () => {
+    // Проигрывателю нужен источник с перемоткой, а не файл в памяти; токен при
+    // этом остаётся здесь (SPEC C9). Разбор — `media-proxy.ts`.
+    installMediaProtocol(session.defaultSession, restTarget)
+
     // Задача 3.29. Первым делом: всё, что записано раньше, в журнал не попадёт,
     // а самое интересное происходит как раз на старте.
     console.log(`aecpilot: app log at ${installAppLog(app.getPath('logs'))}`)

@@ -340,6 +340,11 @@ export type CheckpointScopeInfo =
   | { kind: 'blocked'; dir: string }
   | { kind: 'unmarked' }
   | { kind: 'unknown' }
+  /** Ядро на другой машине (задача 3.13b): снимки собираются ТАМ, и обойти её
+   * диск отсюда нечем. Отдельный ответ, а не `unknown`: разница между «не
+   * смогли посмотреть» и «смотреть надо не здесь» — это разница между
+   * растерянностью и пониманием. */
+  | { kind: 'remote' }
 
 /** `rollback.list`'s answer plus the local diagnosis above. */
 export interface RollbackListing {

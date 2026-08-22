@@ -60,11 +60,21 @@ export const aecLocales: PluginLocaleBundles = {
       deleteConfirm: 'Delete this entry?',
       reveal: 'Show in Explorer',
       search: 'Filter by name',
-      noMatches: 'Nothing matches'
+      noMatches: 'Nothing matches',
+      remoteTitle: 'The files are on the core machine',
+      remoteDetail:
+        'The core runs on another machine, so this list would show files from YOUR ' +
+        'computer — not the ones the agent edits. Use the project tree: it reads the ' +
+        'core machine.'
     },
     sources: {
       title: 'Sources',
       empty: 'No sources connected — the agent has nothing to read yet.',
+      remoteTitle: 'Sources live on the core machine',
+      remoteDetail:
+        'Our extensions are launched by the core itself, so with a remote core they ' +
+        'run there and index that machine. Folders connected here would be indexed ' +
+        'for nobody.',
       add: 'Connect a folder',
       addAnyway: 'Connect anyway',
       remove: 'Disconnect',
@@ -374,11 +384,21 @@ export const aecLocales: PluginLocaleBundles = {
       deleteConfirm: 'Удалить эту запись?',
       reveal: 'Показать в проводнике',
       search: 'Фильтр по имени',
-      noMatches: 'Ничего не найдено'
+      noMatches: 'Ничего не найдено',
+      remoteTitle: 'Файлы — на машине ядра',
+      remoteDetail:
+        'Ядро работает на другой машине, и этот список показал бы файлы ВАШЕГО ' +
+        'компьютера — не те, которые правит агент. Смотрите дерево проекта: оно ' +
+        'читает машину ядра.'
     },
     sources: {
       title: 'Источники',
       empty: 'Источники не подключены — агенту пока нечего читать.',
+      remoteTitle: 'Источники — на машине ядра',
+      remoteDetail:
+        'Наши расширения запускает само ядро, поэтому при удалённом ядре они живут ' +
+        'там же и читают ту машину. Папки, подключённые здесь, индексировались бы ни ' +
+        'для кого.',
       add: 'Подключить папку',
       addAnyway: 'Подключить всё равно',
       remove: 'Отключить',

@@ -119,9 +119,20 @@ export function SourcesPanel() {
   >(undefined)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
+  // Задача 3.13b. Наши расширения запускает само ядро — значит при удалённом
+  // ядре они живут там же и читают ту машину. Здешний список к его работе
+  // отношения не имеет, и показывать «источников нет» было бы неправдой о
+  // другом вопросе. Полный ответ — серверная поставка (PLAN, фаза 6).
+  const { data: connection, isError: connectionUnknown } = useQuery({
+    queryKey: ['aec', 'connection'],
+    queryFn: () => window.aecpilot.getConnection()
+  })
+  const filesAreRemote = connection !== undefined && connection.mode !== 'local'
+
   const { data: sources } = useQuery({
     queryKey: SOURCES_KEY,
-    queryFn: () => window.aecpilot.listSources()
+    queryFn: () => window.aecpilot.listSources(),
+    enabled: connectionUnknown || connection?.mode === 'local'
   })
 
   // Status is a second, cheaper call per source — kept separate so a slow or
@@ -235,7 +246,12 @@ export function SourcesPanel() {
         </div>
       )}
 
-      {sources === undefined ? (
+      {filesAreRemote ? (
+        <div className="flex flex-col gap-1 rounded-[4px] bg-(--ui-bg-quaternary) p-2 text-xs">
+          <strong className="text-(--ui-text-primary)">{t('sources.remoteTitle')}</strong>
+          <p className="text-(--ui-text-secondary)">{t('sources.remoteDetail')}</p>
+        </div>
+      ) : sources === undefined ? (
         <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
       ) : sources.length === 0 ? (
         <div className="text-xs text-(--ui-text-secondary)">{t('sources.empty')}</div>

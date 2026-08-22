@@ -28,8 +28,14 @@ function normalize(p: string): string {
   return process.platform === 'win32' ? abs.toLowerCase() : abs
 }
 
-/** Records a directory a native dialog just handed to the user. */
-export function rememberPickedDirectory(dirPath: string): void {
+/** Records a path a native dialog just handed to the user.
+ *
+ * Задача 3.13b: тот же список теперь хранит и ФАЙЛЫ. Причина та же самая —
+ * человек выбрал их в диалоге, который открыл главный процесс, — а нужда новая:
+ * при удалённом ядре вложение уезжает БАЙТАМИ (путь этой машины там ничего не
+ * значит), и чтобы их прочитать, главному процессу надо знать, что этот файл
+ * показал человеку он сам. */
+export function rememberPickedPath(dirPath: string): void {
   const key = normalize(dirPath)
   const at = picked.indexOf(key)
   if (at !== -1) picked.splice(at, 1)
@@ -37,13 +43,13 @@ export function rememberPickedDirectory(dirPath: string): void {
   if (picked.length > MAX_REMEMBERED) picked.shift()
 }
 
-/** Whether `dirPath` is a directory this process showed a human in a dialog. */
+/** Whether `dirPath` is a path this process showed a human in a dialog. */
 export function wasPickedByUser(dirPath: string): boolean {
   return picked.includes(normalize(dirPath))
 }
 
 /** Tests only: the list is process-global by design (it mirrors what the user
  * did in this run of the app), so a test that fills it has to empty it. */
-export function forgetPickedDirectories(): void {
+export function forgetPickedPaths(): void {
   picked.length = 0
 }

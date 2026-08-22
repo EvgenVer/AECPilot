@@ -22,6 +22,7 @@ const tree: VaultTreeNode[] = [
 ]
 
 const getVaultTree = vi.fn()
+const getConnection = vi.fn()
 const showVaultEntryInExplorer = vi.fn()
 const createVaultFile = vi.fn()
 const createVaultDir = vi.fn()
@@ -31,12 +32,14 @@ const deleteVaultEntry = vi.fn()
 beforeEach(() => {
   window.localStorage.clear()
   getVaultTree.mockResolvedValue(tree)
+  getConnection.mockResolvedValue({ mode: 'local' })
   createVaultFile.mockResolvedValue({ ok: true })
   createVaultDir.mockResolvedValue({ ok: true })
   renameVaultEntry.mockResolvedValue({ ok: true })
   deleteVaultEntry.mockResolvedValue({ ok: true })
   window.aecpilot = {
     getVaultTree,
+    getConnection,
     showVaultEntryInExplorer,
     createVaultFile,
     createVaultDir,
@@ -237,5 +240,34 @@ describe('VaultExplorer', () => {
     prompt.mockReturnValue('ПРАВИЛА.md')
     await clickRowAction('AGENTS.md', 'Переименовать')
     expect(renameVaultEntry).toHaveBeenCalledWith('AGENTS.md', 'ПРАВИЛА.md')
+  })
+})
+
+// Задача 3.13b. Хранилище проекта — понятие ЭТОЙ машины. При ядре на другой
+// машине дерево показывало бы местные файлы, выглядя исправным, — а агент в это
+// время правит совсем другие.
+describe('ядро на другой машине', () => {
+  it('дерево не показывается вовсе, и сказано почему', async () => {
+    getConnection.mockResolvedValue({ mode: 'remote' })
+
+    renderExplorer()
+
+    expect(await screen.findByText(/Файлы — на машине ядра/)).toBeTruthy()
+    expect(screen.getByText(/дерево проекта/)).toBeTruthy()
+  })
+
+  it('за местным деревом даже не ходим — его нечем показать правильно', async () => {
+    getConnection.mockResolvedValue({ mode: 'ssh' })
+
+    renderExplorer()
+
+    await screen.findByText(/Файлы — на машине ядра/)
+    expect(getVaultTree).not.toHaveBeenCalled()
+  })
+
+  it('локальное ядро — дерево на месте', async () => {
+    renderExplorer()
+
+    expect(await screen.findByText('AGENTS.md')).toBeTruthy()
   })
 })

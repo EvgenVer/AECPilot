@@ -16,6 +16,7 @@ const addSource = vi.fn()
 const removeSource = vi.fn()
 const getSourceStatus = vi.fn()
 const pickProjectDirectory = vi.fn()
+const getConnection = vi.fn()
 
 const source = { id: 's1', root_path: 'D:/проект/чертежи', added_at: '2026-08-06T00:00:00Z' }
 
@@ -26,8 +27,10 @@ beforeEach(() => {
   addSource.mockResolvedValue({ ok: true, sources: [source] })
   removeSource.mockResolvedValue({ ok: true })
   pickProjectDirectory.mockResolvedValue('D:/проект/новая-папка')
+  getConnection.mockResolvedValue({ mode: 'local' })
   window.aecpilot = {
     listSources,
+    getConnection,
     addSource,
     removeSource,
     getSourceStatus,
@@ -129,5 +132,26 @@ describe('SourcesPanel', () => {
 
     expect(removeSource).toHaveBeenCalledWith('s1')
     await waitFor(() => expect(screen.getByText('источник занят индексацией')).toBeTruthy())
+  })
+})
+
+// Задача 3.13b. Источники читают наши расширения, а их запускает ядро: при
+// удалённом ядре они живут там же. Здешний список к его работе не относится.
+describe('ядро на другой машине', () => {
+  it('вместо списка — объяснение, и за списком не ходим', async () => {
+    getConnection.mockResolvedValue({ mode: 'remote' })
+
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <AecI18nProvider>
+          <SourcesPanel />
+        </AecI18nProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText(/Источники — на машине ядра/)).toBeTruthy()
+    expect(listSources).not.toHaveBeenCalled()
   })
 })

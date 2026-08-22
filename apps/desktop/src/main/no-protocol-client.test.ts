@@ -23,8 +23,19 @@ import { describe, expect, it } from 'vitest'
 
 const MAIN_DIR = __dirname
 
-/** Как открывается канал внешних ссылок в Electron. */
-const PROTOCOL_REGISTRATION = /setAsDefaultProtocolClient|protocol\.(?:register|handle)\b/
+/** Как открывается канал внешних ссылок в Electron: приложение объявляет себя
+ * ОПЕРАЦИОННОЙ СИСТЕМЕ обработчиком схемы, и после этого `hermes://…`, нажатый
+ * в почте или в браузере, приходит сюда. Это и есть третий вход. */
+const OS_PROTOCOL_REGISTRATION = /setAsDefaultProtocolClient/
+
+/** Схемы, которые приложение обслуживает ВНУТРИ СЕБЯ. Это не третий вход: такой
+ * обработчик виден только нашим же страницам, снаружи по нему не постучаться, и
+ * система о схеме не знает вовсе. Список закрытый — новая схема здесь роняет
+ * тест, и это правильно: заводить её нужно решением, а не правкой «заодно». */
+const IN_APP_SCHEMES = new Set(['hermes-media'])
+
+const IN_APP_HANDLER = /protocol\.(?:registerSchemesAsPrivileged|handle)\b/
+const SCHEME_LITERAL = /MEDIA_SCHEME = '([a-z-]+)'/
 
 function mainSources(): string[] {
   return readdirSync(MAIN_DIR)
@@ -33,14 +44,34 @@ function mainSources(): string[] {
 }
 
 describe('канал внешних ссылок закрыт (SPEC UR23, третий вход)', () => {
-  it('главный процесс не регистрирует ни одной схемы в системе', () => {
+  it('главный процесс не объявляет себя системе обработчиком ни одной схемы', () => {
     const offenders = mainSources().filter((file) =>
-      PROTOCOL_REGISTRATION.test(readFileSync(file, 'utf-8'))
+      OS_PROTOCOL_REGISTRATION.test(readFileSync(file, 'utf-8'))
     )
 
     expect(
       offenders.map((file) => file.slice(MAIN_DIR.length + 1)),
       'схема в системе — это вход установки снаружи; сначала гейт доверия (UR23)'
     ).toEqual([])
+  })
+
+  // Внутренняя схема появилась в задаче 3.13b: проигрывателю нужен источник с
+  // перемоткой, а прямой адрес ядра нести нельзя — он с токеном (SPEC C9).
+  // Снаружи по ней не постучаться, но список всё равно закрытый.
+  it('внутренние схемы — только из закрытого списка', () => {
+    const handlers = mainSources().filter((file) =>
+      IN_APP_HANDLER.test(readFileSync(file, 'utf-8'))
+    )
+
+    expect(handlers.length, 'обработчик схемы должен быть ровно один — media-proxy').toBe(1)
+
+    for (const file of handlers) {
+      const declared = SCHEME_LITERAL.exec(readFileSync(file, 'utf-8'))?.[1]
+
+      expect(
+        declared !== undefined && IN_APP_SCHEMES.has(declared),
+        `${file.slice(MAIN_DIR.length + 1)}: новая схема — это решение, а не правка «заодно»`
+      ).toBe(true)
+    }
   })
 })

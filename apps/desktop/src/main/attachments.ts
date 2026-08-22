@@ -80,11 +80,21 @@ export async function saveAttachment(
   return target
 }
 
-/** Reads back a file this process wrote, as a data URL. Anything outside the
- * attachments directory is refused — see this module's header. */
-export async function readAttachmentDataUrl(dir: string, filePath: string): Promise<string> {
-  if (!isInsideAttachmentsDir(dir, filePath)) {
-    throw new Error('читать можно только вложения этого сеанса')
+/** Reads a file as a data URL. Разрешены ровно два случая, и оба означают
+ * «этот файл назвал человек, а не окно»: файл, который сюда же записал
+ * `saveAttachment` (перетаскивание, буфер обмена), и файл, который человек
+ * выбрал в диалоге главного процесса (`pickedByUser`, задача 3.13b).
+ *
+ * Второй случай появился не ради удобства: при ядре на другой машине путь этой
+ * машины там не значит ничего, и вложение уезжает БАЙТАМИ — прочитать их
+ * больше некому. Общего чтения файлов окну это по-прежнему не даёт. */
+export async function readAttachmentDataUrl(
+  dir: string,
+  filePath: string,
+  pickedByUser: (candidate: string) => boolean = () => false
+): Promise<string> {
+  if (!isInsideAttachmentsDir(dir, filePath) && !pickedByUser(filePath)) {
+    throw new Error('читать можно только вложения этого сеанса и выбранные вами файлы')
   }
   const bytes = await fs.readFile(filePath)
   if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error('файл слишком велик')

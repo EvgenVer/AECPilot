@@ -216,11 +216,28 @@ export function VaultExplorer() {
   const [query, setQuery] = useState('')
   const [actionError, setActionError] = useState<string | undefined>(undefined)
 
+  // Задача 3.13b. Хранилище проекта — понятие ЭТОЙ машины: путь, который человек
+  // выбрал в местном диалоге. Когда ядро работает на другой машине, агент правит
+  // файлы ТАМ, и это дерево показывало бы чужие — свои собственные, местные, —
+  // выглядя при этом исправным. Поэтому оно молчит и говорит, куда смотреть: их
+  // дерево проекта уже читает машину ядра.
+  const { data: connection, isError: connectionUnknown } = useQuery({
+    queryKey: ['aec', 'connection'],
+    queryFn: () => window.aecpilot.getConnection()
+  })
+  const filesAreRemote = connection !== undefined && connection.mode !== 'local'
+
   // Server state through React Query, like every screen of theirs — our surface
   // is written in their stack, and main is the server here (PLAN §Слой донора).
   const { data: tree, error: loadError } = useQuery({
     queryKey: VAULT_TREE_KEY,
-    queryFn: () => window.aecpilot.getVaultTree()
+    queryFn: () => window.aecpilot.getVaultTree(),
+    // Ждём ответа о подключении, а не считаем «локально» по умолчанию: иначе при
+    // удалённом ядре местное дерево успело бы мелькнуть на экране — то самое
+    // «показывает чужие файлы», ради которого всё и делается. Если спросить не
+    // удалось, дерево показываем: сломанный мост — отдельная беда, и молчащий
+    // проводник её не лечит.
+    enabled: connectionUnknown || connection?.mode === 'local'
   })
 
   const reload = useCallback(
@@ -342,7 +359,12 @@ export function VaultExplorer() {
           </div>
         )}
 
-        {tree === undefined ? (
+        {filesAreRemote ? (
+          <div className="flex flex-col gap-1 rounded-[4px] bg-(--ui-bg-quaternary) p-2 text-xs">
+            <strong className="text-(--ui-text-primary)">{t('explorer.remoteTitle')}</strong>
+            <p className="text-(--ui-text-secondary)">{t('explorer.remoteDetail')}</p>
+          </div>
+        ) : tree === undefined ? (
           <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
         ) : tree.length === 0 ? (
           <div className="text-xs text-(--ui-text-secondary)">{t('explorer.empty')}</div>
