@@ -12,6 +12,7 @@ import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { RosterPanel } from './RosterPanel'
 import { registerCanonicalChatGuard } from './register-canonical-guard'
+import { registerMentionCompletions } from './register-mentions'
 
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'roster.title', [])
@@ -34,3 +35,7 @@ registry.register({
 // Задача 3C.4. Сторож «нового чата» в постоянном чате специалиста. Регистрируется
 // здесь же, чтобы жил ровно столько, сколько оболочка.
 registerCanonicalChatGuard()
+
+// Задача 3C.7. Подсказка `@имя`: обращение к специалисту начинается с того, что
+// его надо вспомнить.
+registerMentionCompletions()

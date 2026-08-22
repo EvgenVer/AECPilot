@@ -19,6 +19,7 @@ import { useAecT } from '../../shared/i18n'
 import type { SpecialistView } from '../../../../shared/ipc'
 
 import { setCanonicalChats } from './register-canonical-guard'
+import { setMentionRoster } from './register-mentions'
 import { SpecialistDialog, type SpecialistDraft } from './SpecialistDialog'
 import { SpecialistFace } from './SpecialistFace'
 
@@ -160,6 +161,17 @@ export function RosterPanel(): React.JSX.Element {
   // туда, где его никто не ждёт.
   useEffect(() => {
     setCanonicalChats((roster ?? []).map((specialist) => specialist.chatSessionId))
+    // Скрытые в подсказке ОСТАЮТСЯ: скрытие убирает специалиста из списка, но
+    // не из работы — обращение по имени до него доходит (задача 3C.8).
+    setMentionRoster(
+      (roster ?? []).map((specialist) => ({
+        handle: specialist.name,
+        title: specialist.title,
+        role: specialist.role,
+        device: ''
+      })),
+      ''
+    )
   }, [roster])
 
   return (
