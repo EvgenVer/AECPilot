@@ -11,7 +11,8 @@ import {
   duplicateSpecialist,
   listRoster,
   openCanonicalChat,
-  saveSpecialist
+  saveSpecialist,
+  setSpecialistHidden
 } from './roster'
 
 const request = vi.fn()
@@ -364,6 +365,38 @@ describe('постоянный чат', () => {
 
   it('негодное имя до ядра не доходит', async () => {
     expect((await openCanonicalChat('../побег')).ok).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
+})
+
+// Задача 3C.8. Скрытие — это поле в метаданных профиля, то есть на сервере:
+// скрытый здесь скрыт и на другой машине. И ничего, кроме места в списке, оно
+// не меняет.
+describe('скрытие', () => {
+  it('пишется в наши поля профиля, а не локально', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    expect(await setSpecialistHidden('smeta', true)).toEqual({
+      ok: true,
+      name: 'smeta',
+      outcome: 'server'
+    })
+    expect(request).toHaveBeenCalledWith('profiles.configure', {
+      name: 'smeta',
+      ui_meta: { aecpilot: { hidden: true } }
+    })
+  })
+
+  it('возврат в список — то же поле со значением «нет»', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await setSpecialistHidden('smeta', false)
+
+    expect(request.mock.calls[0][1]).toMatchObject({ ui_meta: { aecpilot: { hidden: false } } })
+  })
+
+  it('негодное имя до ядра не доходит', async () => {
+    expect((await setSpecialistHidden('../побег', true)).ok).toBe(false)
     expect(request).not.toHaveBeenCalled()
   })
 })

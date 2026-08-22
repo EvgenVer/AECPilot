@@ -43,6 +43,7 @@ const api: AecpilotApi = {
   setSpecialistAvatar: (payload) => ipcRenderer.invoke('roster:set-avatar', payload),
   getSpecialistAvatar: (name) => ipcRenderer.invoke('roster:avatar', name),
   openSpecialistChat: (payload) => ipcRenderer.invoke('roster:open-chat', payload),
+  hideSpecialist: (payload) => ipcRenderer.invoke('roster:hide', payload),
   sshHosts: () => ipcRenderer.invoke('connection:ssh-hosts'),
   sshResolveHost: (alias) => ipcRenderer.invoke('connection:ssh-resolve', alias),
   setWakeIndicator: (state) => ipcRenderer.send('wake-indicator:set', state),

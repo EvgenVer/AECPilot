@@ -266,6 +266,34 @@ export async function specialistAvatar(name: string): Promise<string | null> {
 }
 
 /**
+ * Скрыть специалиста или вернуть его в список (задача 3C.8).
+ *
+ * Скрытие НЕ отключает специалиста: обращения по имени доходят, рутины идут,
+ * группы работают, метаданные синхронизируются. Оно убирает его из списка и из
+ * уведомлений — не более. Их тринадцать правил на эту тему сводятся к одному:
+ * скрытый специалист продолжает работать, просто не мозолит глаза.
+ *
+ * Состояние живёт в полях профиля, то есть на сервере: скрытый здесь скрыт и на
+ * другой машине, подключённой к тому же ядру.
+ */
+export async function setSpecialistHidden(
+  name: string,
+  hidden: boolean
+): Promise<SpecialistOutcome> {
+  if (!isValidSpecialistName(name)) return { ok: false, error: 'Недопустимое имя специалиста' }
+
+  try {
+    const answer = await core().request('profiles.configure', {
+      name,
+      ui_meta: metaPatch({ hidden })
+    })
+    return { ok: true, name, outcome: saveOutcome(answer) }
+  } catch (error: unknown) {
+    return { ok: false, name, outcome: 'refused', error: describe(error) }
+  }
+}
+
+/**
  * Постоянный чат специалиста (задача 3C.4).
  *
  * Возвращает сессию, которую надо открыть, — и, если её пришлось завести или

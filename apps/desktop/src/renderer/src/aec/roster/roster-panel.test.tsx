@@ -42,6 +42,7 @@ const getModelOptions = vi.fn()
 const listSkills = vi.fn()
 const listToolsets = vi.fn()
 const openSpecialistChat = vi.fn()
+const hideSpecialist = vi.fn()
 
 beforeEach(() => {
   listRoster.mockResolvedValue([
@@ -64,6 +65,7 @@ beforeEach(() => {
   })
   listSkills.mockResolvedValue([{ name: 'aec-qa' }, { name: 'aec-docgen' }])
   openSpecialistChat.mockResolvedValue({ ok: true, sessionId: 'с-1', created: false })
+  hideSpecialist.mockResolvedValue({ ok: true, outcome: 'server' })
   listToolsets.mockResolvedValue({
     toolsets: [
       { name: 'files', description: '', tool_count: 3, enabled: true, tools: [] },
@@ -84,7 +86,8 @@ beforeEach(() => {
     getModelOptions,
     listSkills,
     listToolsets,
-    openSpecialistChat
+    openSpecialistChat,
+    hideSpecialist
   } as unknown as typeof window.aecpilot
 })
 
@@ -412,5 +415,38 @@ describe('расширенные возможности', () => {
     fireEvent.click(screen.getByLabelText('Новый специалист'))
 
     expect(screen.getByLabelText('Клонировать с')).toBeTruthy()
+  })
+})
+
+// Задача 3C.8. Скрытый специалист продолжает работать: скрытие — это только про
+// место в списке, а не про то, отвечает ли он.
+describe('скрытие', () => {
+  it('скрывает по кнопке и говорит ядру именно это', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Скрыть из списка')[0])
+
+    await waitFor(() =>
+      expect(hideSpecialist).toHaveBeenCalledWith({ name: 'smeta', hidden: true })
+    )
+  })
+
+  it('скрытого возвращает та же кнопка с другой подписью', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getByLabelText('Показать скрытых'))
+    fireEvent.click(await screen.findByLabelText('Вернуть в список'))
+
+    await waitFor(() => expect(hideSpecialist).toHaveBeenCalledWith({ name: 'gip', hidden: false }))
+  })
+
+  it('кнопка «показать скрытых» появляется только когда скрытые есть', async () => {
+    listRoster.mockResolvedValue([specialist()])
+    renderPanel()
+    await screen.findByText('Смета')
+
+    expect(screen.queryByLabelText('Показать скрытых')).toBeNull()
   })
 })

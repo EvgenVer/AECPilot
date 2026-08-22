@@ -120,6 +120,17 @@ export function RosterPanel(): React.JSX.Element {
     }
   })
 
+  // Задача 3C.8. Скрыть — не значит выключить: обращения по имени доходят,
+  // рутины идут. Это только про место в списке.
+  const hide = useMutation({
+    mutationFn: (specialist: SpecialistView) =>
+      window.aecpilot.hideSpecialist({ name: specialist.name, hidden: !specialist.hidden }),
+    onSuccess: async (result) => {
+      report(result)
+      await reload()
+    }
+  })
+
   const remove = useMutation({
     mutationFn: (name: string) => window.aecpilot.deleteSpecialist({ name, confirmed: true }),
     onSuccess: async (result) => {
@@ -232,6 +243,15 @@ export function RosterPanel(): React.JSX.Element {
                     variant="ghost"
                   >
                     <Codicon name="edit" />
+                  </Button>
+                  <Button
+                    aria-label={specialist.hidden ? t('roster.unhide') : t('roster.hide')}
+                    onClick={() => hide.mutate(specialist)}
+                    size="icon-xs"
+                    title={specialist.hidden ? t('roster.unhide') : t('roster.hide')}
+                    variant="ghost"
+                  >
+                    <Codicon name={specialist.hidden ? 'eye' : 'eye-closed'} />
                   </Button>
                   <Button
                     aria-label={t('roster.duplicate')}

@@ -103,6 +103,7 @@ import {
   openCanonicalChat,
   saveSpecialist,
   setSpecialistAvatar,
+  setSpecialistHidden,
   specialistAvatar,
   type SpecialistInput
 } from './roster'
@@ -2286,6 +2287,13 @@ ipcMain.handle('roster:open-chat', (_event, payload: unknown) => {
     typeof name === 'string' ? name : '',
     typeof pin === 'string' ? pin : undefined
   )
+})
+
+// Задача 3C.8. Скрытый специалист продолжает работать: обращения по имени
+// доходят, рутины идут. Он лишь не занимает место в списке.
+ipcMain.handle('roster:hide', (_event, payload: unknown) => {
+  const { name, hidden } = (payload ?? {}) as { name?: unknown; hidden?: unknown }
+  return setSpecialistHidden(typeof name === 'string' ? name : '', hidden === true)
 })
 
 ipcMain.handle('roster:delete', (_event, payload: unknown) => {
