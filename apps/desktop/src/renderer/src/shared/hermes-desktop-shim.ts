@@ -46,40 +46,60 @@ import { gatewayBridge } from './gateway-bridge'
 
 type HermesDesktop = Window['hermesDesktop']
 
-/** Наша настройка подключения в их форме (задача 3.12). Поля, которых у нас нет
- * (облако, ssh), отдаются пустыми: их экран читает `mode` и рисует по нему, а
- * выдуманные значения увели бы его в ветку, которой у нас не существует. */
+/** Наша настройка подключения в их форме (задача 3.12). Полей облака у нас нет
+ * (SPEC HX3) — они отдаются пустыми, а не выдумываются: их экран читает `mode`
+ * и рисует ту вкладку, которая нужна. */
 function asDonorConnection(view: import('../../../shared/ipc').ConnectionView): unknown {
   return {
     ...view,
     profile: null,
     remoteOauthConnected: false,
-    cloudOrg: '',
-    sshHost: '',
-    sshUser: '',
-    sshPort: null,
-    sshKeyPath: '',
-    sshRemoteHermesPath: '',
-    sshRemoteProfile: ''
+    cloudOrg: ''
   }
 }
 
-/** Их запрос — в наш. Режимы, которых у нас нет, читаются как локальный: это
- * честнее, чем принять «cloud» и подключиться неизвестно куда. */
-function toOurInput(payload: {
+/** Их запрос — в наш. Облако читается как локальный режим: это честнее, чем
+ * принять `cloud` и подключиться неизвестно куда. */
+function toOurInput(
+  payload: DonorConnectionInput
+): import('../../../shared/ipc').ConnectionInputView {
+  const optional = [
+    'remoteUrl',
+    'remoteToken',
+    'allowPlainTextToken',
+    'sshHost',
+    'sshUser',
+    'sshPort',
+    'sshKeyPath',
+    'sshRemoteHermesPath',
+    'sshRemoteProfile'
+  ] as const
+
+  const input: import('../../../shared/ipc').ConnectionInputView = {
+    mode: payload.mode === 'remote' || payload.mode === 'ssh' ? payload.mode : 'local'
+  }
+
+  // Поле, которого в запросе не было, не должно появиться в нём пустым: у
+  // токена пустая строка значит «не менял», и разница между «не прислал» и
+  // «прислал пустое» здесь существенная.
+  for (const key of optional) {
+    if (payload[key] !== undefined) Object.assign(input, { [key]: payload[key] })
+  }
+
+  return input
+}
+
+interface DonorConnectionInput {
   mode?: string
   remoteUrl?: string
   remoteToken?: string
   allowPlainTextToken?: boolean
-}): import('../../../shared/ipc').ConnectionInputView {
-  return {
-    mode: payload.mode === 'remote' ? 'remote' : 'local',
-    ...(payload.remoteUrl === undefined ? {} : { remoteUrl: payload.remoteUrl }),
-    ...(payload.remoteToken === undefined ? {} : { remoteToken: payload.remoteToken }),
-    ...(payload.allowPlainTextToken === undefined
-      ? {}
-      : { allowPlainTextToken: payload.allowPlainTextToken })
-  }
+  sshHost?: string
+  sshUser?: string
+  sshPort?: number | null
+  sshKeyPath?: string
+  sshRemoteHermesPath?: string
+  sshRemoteProfile?: string
 }
 
 const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
@@ -298,42 +318,28 @@ const IMPLEMENTED: Record<string, unknown> = {
   // overnight run survives a restart of the app.
   // Задача 3.12 (SPEC UR20). К какому ядру подключено приложение.
   //
-  // Их форма ответа шире нашей: там ещё облако (SPEC HX3 — исключено) и ssh
-  // (вторая половина этой задачи). Недостающие поля отдаются пустыми, а не
-  // выдумываются: их экран читает `mode` и рисует ту вкладку, которая нужна.
+  // Их форма ответа шире нашей: там ещё облако (SPEC HX3 — исключено).
+  // Недостающие поля отдаются пустыми, а не выдумываются: их экран читает
+  // `mode` и рисует ту вкладку, которая нужна.
   getConnectionConfig(_profile?: null | string): Promise<unknown> {
     return window.aecpilot.getConnection().then(asDonorConnection)
   },
 
-  saveConnectionConfig(payload: {
-    mode?: string
-    remoteUrl?: string
-    remoteToken?: string
-    allowPlainTextToken?: boolean
-  }): Promise<unknown> {
+  saveConnectionConfig(payload: DonorConnectionInput): Promise<unknown> {
     return window.aecpilot.saveConnection(toOurInput(payload)).then((result) => {
       if (!result.ok) throw new Error(result.error ?? 'настройка не сохранена')
       return asDonorConnection(result.config)
     })
   },
 
-  applyConnectionConfig(payload: {
-    mode?: string
-    remoteUrl?: string
-    remoteToken?: string
-    allowPlainTextToken?: boolean
-  }): Promise<unknown> {
+  applyConnectionConfig(payload: DonorConnectionInput): Promise<unknown> {
     return window.aecpilot.applyConnection(toOurInput(payload)).then((result) => {
       if (!result.ok) throw new Error(result.error ?? 'настройка не применена')
       return asDonorConnection(result.config)
     })
   },
 
-  testConnectionConfig(payload: {
-    mode?: string
-    remoteUrl?: string
-    remoteToken?: string
-  }): Promise<unknown> {
+  testConnectionConfig(payload: DonorConnectionInput): Promise<unknown> {
     return window.aecpilot.testConnection(toOurInput(payload))
   },
 
@@ -343,10 +349,16 @@ const IMPLEMENTED: Record<string, unknown> = {
   oauthLoginConnectionConfig: undefined,
   oauthLogoutConnectionConfig: undefined,
 
-  // Подключение через ssh — вторая половина задачи 3.12. Пока его нет, их
-  // экран не должен предлагать вкладку, которая ничего не сделает.
-  sshConfigHosts: undefined,
-  sshResolveHost: undefined,
+  // Подключение через ssh (задача 3.12). Список берётся из `~/.ssh/config`
+  // человека: имена, которые он уже настроил, — то, чем он и мыслит. Читается
+  // только config; приватные ключи не открываются никогда и ни для чего.
+  sshConfigHosts(): Promise<unknown> {
+    return window.aecpilot.sshHosts()
+  },
+
+  sshResolveHost(host: string): Promise<unknown> {
+    return window.aecpilot.sshResolveHost(host)
+  },
 
   // Задача 3.7b. Слово-активатор слушает микрофон, когда на приложение никто не
   // смотрит, поэтому о работающем захвате говорит отдельное окно поверх всех.

@@ -50,12 +50,16 @@ import { installPowerWatch, isOnBattery } from './power'
 import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
 import {
   configureConnection,
+  connectionMode,
   connectionToken,
   connectionView,
   remoteTarget,
-  saveConnection
+  saveConnection,
+  sshSettings
 } from './connection'
-import { readConnectionInput, wsUrlFor } from './connection-pure'
+import { readConnectionInput, wsUrlFor, type SshSettings } from './connection-pure'
+import { probeSsh, sshConfigHosts, sshResolveHost, startSshTunnel, stopSshTunnel } from './ssh'
+import { readSshTarget, type SshTarget } from './ssh-pure'
 import {
   applyProjectSkills,
   configureProjectSkills,
@@ -2243,6 +2247,42 @@ ipcMain.handle('settings:save', async (_event, payload: unknown) => {
  * Обратный переход поднимает его заново — той же последовательностью, что и
  * старт приложения, иначе получилось бы два способа завести один процесс.
  */
+/** Настройка ssh в том виде, в каком её понимает транспорт. Один перевод на
+ * всё приложение: поля у нас и у них называются по-разному, и делать этот
+ * перевод в каждом месте — верный способ развести их со временем. */
+function sshTargetOf(settings: SshSettings): SshTarget | null {
+  return readSshTarget({
+    sshHost: settings.host,
+    sshUser: settings.user,
+    sshPort: settings.port,
+    sshKeyPath: settings.keyPath,
+    sshRemoteHermesPath: settings.remoteHermesPath,
+    sshRemoteProfile: settings.remoteProfile
+  })
+}
+
+/** Поднимает ядро на той машине и подключается к нему через туннель.
+ *
+ * Возвращает ответ, а не бросает: отказ сервера — это то, что человеку надо
+ * показать словами, а не запись в журнале при пустом окне. */
+async function connectViaSsh(): Promise<{ ok: boolean; error?: string }> {
+  const target = sshTargetOf(sshSettings())
+  if (!target) return { ok: false, error: 'Не указана машина, к которой подключаться' }
+
+  const result = await startSshTunnel(target)
+  if (!result.ok) {
+    console.warn('aecpilot: ssh tunnel FAIL', result.sshError)
+    return { ok: false, error: result.error }
+  }
+
+  const remote = remoteTarget()
+  if (!remote) return { ok: false, error: 'Туннель поднялся, но подключение не состоялось' }
+
+  // SECURITY: адрес сокета несёт токен — он собирается здесь и здесь остаётся.
+  await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
+  return { ok: true }
+}
+
 async function reconnectForConnection(): Promise<void> {
   gateway?.close()
   gateway = undefined
@@ -2250,14 +2290,30 @@ async function reconnectForConnection(): Promise<void> {
   sessionEpoch += 1
   ensureSessionPromise = undefined
 
-  const remote = remoteTarget()
-
-  if (remote) {
+  // Свой процесс не нужен ни в одном удалённом режиме — останавливаем до того,
+  // как подключаться: два агента на тех же файлах это два индекса и два
+  // расписания.
+  const stopLocal = async (): Promise<void> => {
     if (serveHandle && stopServeFn) {
       const handle = serveHandle
       serveHandle = undefined
       await stopServeFn(handle)
     }
+  }
+
+  if (connectionMode() === 'ssh') {
+    await stopLocal()
+    await connectViaSsh()
+    return
+  }
+
+  // Возврат из ssh: туннель, оставшийся жить, держал бы ядро на той машине.
+  await stopSshTunnel()
+
+  const remote = remoteTarget()
+
+  if (remote) {
+    await stopLocal()
     // SECURITY: адрес сокета несёт токен. Он собирается здесь и здесь же
     // остаётся — ни в журнал, ни через IPC он не уходит (см. `app-log`).
     await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
@@ -2477,6 +2533,12 @@ ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims
 // только здесь: окну отдаётся признак «задан» и четыре последних знака.
 ipcMain.handle('connection:get', () => connectionView())
 
+// Задача 3.12. Имена из `~/.ssh/config` — те, что человек уже настроил сам.
+// Приватные ключи при этом не открываются: `IdentityFile` для нас путь, а не
+// содержимое (см. шапку `ssh-pure.ts`).
+ipcMain.handle('connection:ssh-hosts', () => sshConfigHosts())
+ipcMain.handle('connection:ssh-resolve', (_event, alias: unknown) => sshResolveHost(alias))
+
 ipcMain.handle('connection:save', (_event, input: unknown) => saveConnection(input))
 
 // «Проверить» — до сохранения и без него. Иначе человек узнавал бы об
@@ -2485,6 +2547,14 @@ ipcMain.handle('connection:test', async (_event, input: unknown) => {
   const request = readConnectionInput(input)
 
   if (request.mode === 'local') return { ok: true, reachable: true }
+
+  if (request.mode === 'ssh') {
+    // Проверяется то, что человек СЕЙЧАС видит в форме, поверх сохранённого:
+    // поля, которых в запросе не было, он не менял.
+    const target = sshTargetOf({ ...sshSettings(), ...request.ssh })
+    if (!target) return { ok: false, error: 'Не указана машина, к которой подключаться' }
+    return probeSsh(target)
+  }
   if (request.remoteUrl === '') return { ok: false, error: 'Адрес не похож на адрес сервера' }
 
   // Токен берётся из запроса, а если его там нет — сохранённый: человек может
@@ -3348,6 +3418,14 @@ app
       if (process.env.AEC_GATEWAY_URL) {
         console.warn('aecpilot: AEC_GATEWAY_URL override active — skipping hermes serve')
         await connectGateway(process.env.AEC_GATEWAY_URL)
+      } else if (connectionMode() === 'ssh') {
+        // Задача 3.12: ядро поднимается на той машине. Отказ здесь не должен
+        // мешать окну открыться — человек увидит его и сможет починить
+        // настройку; окно, не открывшееся из-за недоступного сервера, чинить
+        // нечем.
+        console.log('aecpilot: connecting over ssh')
+        const outcome = await connectViaSsh()
+        if (!outcome.ok) console.warn('aecpilot: ssh connect FAIL', outcome.error)
       } else if (remote) {
         // Задача 3.12: ядро на другой машине — свой процесс не нужен.
         console.log('aecpilot: connecting to a remote gateway')
@@ -3480,6 +3558,9 @@ app.on('will-quit', () => {
   // Задача 3.6а: осиротевший планировщик, продолжающий запускать задачи агента
   // после закрытия окна, — это не «работа в фоне», а потеря контроля.
   stopCronRunner()
+  // Задача 3.12: та же причина, но на чужой машине — ядро, оставшееся там
+  // работать после закрытия окна, не остановит уже никто.
+  void stopSshTunnel()
   stopHud()
   // Табличка, пережившая программу, сообщает о микрофоне, которого больше нет.
   stopWakeIndicator()

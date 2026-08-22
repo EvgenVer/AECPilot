@@ -18,6 +18,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { activeSshTunnel } from './ssh'
 import {
   connectionReady,
   DEFAULT_CONNECTION,
@@ -26,6 +27,7 @@ import {
   readConnectionInput,
   serializeStoredConnection,
   type PublicConnection,
+  type SshSettings,
   type StoredConnection
 } from './connection-pure'
 
@@ -90,10 +92,24 @@ export function connectionView(): PublicConnection {
   })
 }
 
-/** Куда подключаться. `undefined` — «локально», то есть своим процессом. */
+/** Куда подключаться. `undefined` — «локально», то есть своим процессом.
+ *
+ * У ssh ответ зависит от ЖИВОГО туннеля, а не от настройки: пока сессии нет,
+ * подключаться некуда, и притвориться, что есть, значило бы отправлять запросы
+ * в закрытый порт. */
 export function remoteTarget(): { baseUrl: string; token: string } | undefined {
+  if (stored.mode === 'ssh') return activeSshTunnel()
   if (stored.mode !== 'remote' || !connectionReady(stored)) return undefined
   return { baseUrl: stored.remoteUrl, token: connectionToken() }
+}
+
+/** Настройка ssh — её читает тот, кто поднимает туннель. */
+export function sshSettings(): SshSettings {
+  return stored.ssh
+}
+
+export function connectionMode(): 'local' | 'remote' | 'ssh' {
+  return stored.mode
 }
 
 export interface SaveOutcome {
@@ -103,9 +119,12 @@ export interface SaveOutcome {
 }
 
 /**
- * Сохраняет настройку. Токен не трогается, если его не прислали: их экран
- * присылает поле только когда человек его правил, и «пустое поле» там значит
- * «не менял», а не «стереть».
+ * Сохраняет настройку.
+ *
+ * ОДНО ПРАВИЛО НА ВСЮ ФОРМУ: чего в запросе не было — то не менялось. Их экран
+ * присылает поля по частям (токен — только когда человек его правил), и молчание
+ * о поле не должно его стирать. Иначе переключение режима заставляло бы
+ * набирать адрес и настройку ssh заново.
  */
 export function saveConnection(raw: unknown): SaveOutcome {
   const input = readConnectionInput(raw)
@@ -113,9 +132,12 @@ export function saveConnection(raw: unknown): SaveOutcome {
 
   const next: StoredConnection = {
     mode: input.mode,
-    remoteUrl: input.remoteUrl,
+    // Присланное заменяет, отсутствующее остаётся: переключить режим — не
+    // значит стереть настройку, к которой человек собирается вернуться.
+    remoteUrl: input.remoteUrl ?? stored.remoteUrl,
     tokenEncoding: stored.tokenEncoding,
-    token: stored.token
+    token: stored.token,
+    ssh: { ...stored.ssh, ...input.ssh }
   }
 
   if (input.clearToken) {

@@ -98,7 +98,7 @@ export interface ProjectSkillsView {
  * здесь нет физически — не «есть пустое», а нет: поле, которое нельзя забыть
  * очистить, безопаснее поля, которое надо помнить очистить. */
 export interface ConnectionView {
-  mode: 'local' | 'remote'
+  mode: ConnectionModeView
   remoteUrl: string
   remoteAuthMode: 'token'
   remoteTokenSet: boolean
@@ -106,15 +106,56 @@ export interface ConnectionView {
   secureTokenStorage: boolean
   remoteTokenPlainText: boolean
   envOverride: boolean
+  /** Настройка ssh. Секрета здесь нет: путь к ключу — это путь, а не ключ, и
+   * токен для ssh не хранится вовсе (его назначает главный процесс на каждое
+   * подключение). */
+  sshHost: string
+  sshUser: string
+  sshPort: number | null
+  sshKeyPath: string
+  sshRemoteHermesPath: string
+  sshRemoteProfile: string
 }
 
+/** Облако (`cloud`) исключено — SPEC HX3. */
+export type ConnectionModeView = 'local' | 'remote' | 'ssh'
+
 export interface ConnectionInputView {
-  mode: 'local' | 'remote'
+  mode: ConnectionModeView
   remoteUrl?: string
   /** Пустое поле значит «не менял», а не «стереть» — стирает `clearToken`. */
   remoteToken?: string
   allowPlainTextToken?: boolean
   clearToken?: boolean
+  sshHost?: string
+  sshUser?: string
+  sshPort?: number | null
+  sshKeyPath?: string
+  sshRemoteHermesPath?: string
+  sshRemoteProfile?: string
+}
+
+/** Ответ на «проверить». Для ssh это НЕ запуск ядра: проверка спрашивает, пустит
+ * ли сервер и есть ли там ядро, — и потому не мешает живому подключению. */
+export interface ConnectionTestResult {
+  ok: boolean
+  reachable?: boolean
+  version?: string | null
+  baseUrl?: string
+  error?: string
+  host?: string
+  remoteHermesPath?: string
+  remoteHermesVersion?: string
+  remotePlatform?: string
+  sshError?:
+    | 'auth-failed'
+    | 'hermes-not-found'
+    | 'host-key-changed'
+    | 'timeout'
+    | 'unknown'
+    | 'unreachable'
+    | 'unsupported-platform'
+    | 'update-required'
 }
 
 export interface ConnectionSaveResult {
@@ -788,12 +829,15 @@ export interface AecpilotApi {
   applyConnection(input: ConnectionInputView): Promise<ConnectionSaveResult>
   /** Проверить адрес и токен ДО сохранения — иначе об опечатке человек узнаёт
    * уже заменив ею рабочее подключение. */
-  testConnection(input: ConnectionInputView): Promise<{
-    ok: boolean
-    reachable?: boolean
-    version?: string | null
-    baseUrl?: string
-    error?: string
+  testConnection(input: ConnectionInputView): Promise<ConnectionTestResult>
+  /** Имена машин из `~/.ssh/config` человека. Читается только config —
+   * приватные ключи не открываются никогда и ни для чего. */
+  sshHosts(): Promise<{ hosts: string[] }>
+  sshResolveHost(alias: string): Promise<{
+    hostname: string | null
+    identityFile: string | null
+    port: number | null
+    user: string | null
   }>
   setWakeIndicator(state: 'capturing' | 'detected' | 'hidden'): void
   getWakeIndicator(): Promise<'capturing' | 'detected' | 'hidden'>

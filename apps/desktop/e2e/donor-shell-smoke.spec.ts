@@ -1038,3 +1038,41 @@ test('a gateway token never reaches the window and never lands in plain text', a
 
   await assertRendererAlive(page, 'end of test 12')
 })
+
+test('the ssh surface answers, and a key path is a path — never a key', async () => {
+  const page = await app.firstWindow()
+
+  // Список машин читается из ~/.ssh/config самого человека. На машине сборки
+  // его может не быть вовсе — тогда пустой список, и это ответ, а не ошибка.
+  const hosts = await page.evaluate(() => window.aecpilot.sshHosts())
+  expect(Array.isArray(hosts.hosts)).toBe(true)
+
+  const unknown = await page.evaluate(() =>
+    window.aecpilot.sshResolveHost('такой-машины-точно-нет-9f8e7d')
+  )
+  expect(unknown).toEqual({ hostname: null, identityFile: null, port: null, user: null })
+
+  const saved = await page.evaluate(() =>
+    window.aecpilot.saveConnection({
+      mode: 'ssh',
+      sshHost: 'build',
+      sshUser: 'ivan',
+      sshPort: 2222,
+      sshKeyPath: '~/.ssh/id_build',
+      sshRemoteHermesPath: '/opt/hermes'
+    })
+  )
+  expect(saved.ok, saved.error ?? '').toBe(true)
+  expect(saved.config.mode).toBe('ssh')
+  expect(saved.config.sshHost).toBe('build')
+  expect(saved.config.sshPort).toBe(2222)
+  // Путь к ключу окну виден — секрет не он, а сам ключ, который мы не читаем.
+  expect(saved.config.sshKeyPath).toBe('~/.ssh/id_build')
+
+  // Возврат в локальный режим: иначе следующий запуск полез бы на 'build'.
+  const back = await page.evaluate(() => window.aecpilot.saveConnection({ mode: 'local' }))
+  expect(back.ok).toBe(true)
+  expect(back.config.sshHost, 'настройка помнится — возвращаться без перенабора').toBe('build')
+
+  await assertRendererAlive(page, 'end of test 13')
+})

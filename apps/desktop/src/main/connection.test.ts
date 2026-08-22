@@ -118,6 +118,44 @@ describe('машина с хранилищем ключей', () => {
   })
 })
 
+describe('подключение через ssh', () => {
+  beforeEach(() => {
+    configureConnection({ userDataDir: dir, secure: fakeSecure(true), envOverride: false })
+  })
+
+  it('настройка ssh переживает перезапуск', () => {
+    saveConnection({
+      mode: 'ssh',
+      sshHost: 'build',
+      sshUser: 'ivan',
+      sshPort: 2222,
+      sshKeyPath: '~/.ssh/id_build',
+      sshRemoteHermesPath: '/opt/hermes'
+    })
+
+    configureConnection({ userDataDir: dir, secure: fakeSecure(true), envOverride: false })
+
+    const view = connectionView()
+    expect(view.mode).toBe('ssh')
+    expect(view.sshHost).toBe('build')
+    expect(view.sshPort).toBe(2222)
+    expect(view.sshKeyPath).toBe('~/.ssh/id_build')
+  })
+
+  it('без живого туннеля подключаться некуда — притворяться нельзя', () => {
+    saveConnection({ mode: 'ssh', sshHost: 'build' })
+
+    expect(remoteTarget(), 'иначе запросы уйдут в закрытый порт').toBeUndefined()
+  })
+
+  it('токен для ssh не хранится: его назначает главный процесс на каждый раз', () => {
+    saveConnection({ mode: 'ssh', sshHost: 'build' })
+
+    expect(connectionToken()).toBe('')
+    expect(stored()).toContain('"tokenEncoding": "none"')
+  })
+})
+
 describe('машина без хранилища ключей', () => {
   beforeEach(() => {
     configureConnection({ userDataDir: dir, secure: fakeSecure(false), envOverride: false })

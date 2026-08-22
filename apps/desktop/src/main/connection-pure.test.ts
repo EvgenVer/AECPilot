@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   connectionReady,
+  NO_SSH,
   DEFAULT_CONNECTION,
   normalizeRemoteUrl,
   parseStoredConnection,
@@ -21,7 +22,8 @@ const REMOTE: StoredConnection = {
   mode: 'remote',
   remoteUrl: 'https://hermes.example.org',
   tokenEncoding: 'safe',
-  token: 'ZW5jcnlwdGVk'
+  token: 'ZW5jcnlwdGVk',
+  ssh: { ...NO_SSH }
 }
 
 describe('токен не пересекает границу окна', () => {
@@ -119,13 +121,53 @@ describe('запрос от окна', () => {
       remoteUrl: 'https://h.example.org',
       remoteToken: 'tok',
       allowPlainTextToken: true,
-      clearToken: false
+      clearToken: false,
+      ssh: {}
     })
   })
 
+  it('чего в запросе не было — то не менялось', () => {
+    const input = readConnectionInput({ mode: 'local' })
+
+    expect(input.remoteUrl, 'иначе переключение режима стирало бы адрес').toBeUndefined()
+    expect(input.ssh).toEqual({})
+  })
+
   it('незнакомый режим — локальный', () => {
-    expect(readConnectionInput({ mode: 'cloud' }).mode).toBe('local')
+    expect(readConnectionInput({ mode: 'cloud' }).mode, 'облака у нас нет').toBe('local')
     expect(readConnectionInput(null).mode).toBe('local')
+  })
+
+  it('поля ssh разбираются и доезжают до окна', () => {
+    const input = readConnectionInput({
+      mode: 'ssh',
+      sshHost: ' build ',
+      sshUser: 'ivan',
+      sshPort: 2222,
+      sshKeyPath: '~/.ssh/id_build',
+      sshRemoteHermesPath: '/opt/hermes',
+      sshRemoteProfile: '/srv/h'
+    })
+
+    expect(input.mode).toBe('ssh')
+    expect(input.ssh).toEqual({
+      host: 'build',
+      user: 'ivan',
+      port: 2222,
+      keyPath: '~/.ssh/id_build',
+      remoteHermesPath: '/opt/hermes',
+      remoteProfile: '/srv/h'
+    })
+  })
+
+  it('путь к ключу — это путь, и окну он виден: секрет не он, а ключ', () => {
+    const view = publicConfig(
+      { ...REMOTE, mode: 'ssh', ssh: { ...NO_SSH, host: 'build', keyPath: '~/.ssh/id_build' } },
+      { secureAvailable: true, envOverride: false, plainToken: '' }
+    )
+
+    expect(view.sshHost).toBe('build')
+    expect(view.sshKeyPath).toBe('~/.ssh/id_build')
   })
 })
 
@@ -154,5 +196,16 @@ describe('готовность к подключению', () => {
     expect(connectionReady(REMOTE)).toBe(true)
     expect(connectionReady({ ...REMOTE, token: '', tokenEncoding: 'none' })).toBe(false)
     expect(connectionReady({ ...REMOTE, remoteUrl: '' })).toBe(false)
+  })
+
+  it('ssh — с именем машины: токен там наш, хранить его незачем', () => {
+    const ssh: StoredConnection = {
+      ...DEFAULT_CONNECTION,
+      mode: 'ssh',
+      ssh: { ...NO_SSH, host: 'build' }
+    }
+
+    expect(connectionReady(ssh)).toBe(true)
+    expect(connectionReady({ ...ssh, ssh: { ...NO_SSH } })).toBe(false)
   })
 })
