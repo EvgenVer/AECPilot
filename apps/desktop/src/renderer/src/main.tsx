@@ -32,6 +32,8 @@ import ProjectSkillsDialog from './aec/project-skills/ProjectSkillsDialog'
 import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
+// То же для роестра специалистов (задача 3C.1).
+import './aec/roster/register'
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'

@@ -288,6 +288,29 @@ export interface GatewayMethodMap {
   'session.steer': { params: SessionSteerParams; result: SessionSteerResult }
   'commands.catalog': { params: CommandsCatalogParams; result: CommandsCatalogResult }
   'terminal.read.respond': { params: TerminalReadRespondParams; result: InteractiveRespondResult }
+  // Роестр специалистов (задача 3C.1, SPEC UR27, контракт — specs/agent-roster.md).
+  // Формы намеренно широкие: ряд профиля несёт свободный блок `ui_meta`, куда
+  // каждый клиент кладёт своё, и описывать чужие поля типом мы не вправе.
+  // Разбирает ответ `roster-pure.ts` — там же и проверки.
+  //
+  // `profiles.delete` в этом списке НЕТ, и это не пропуск: такого метода у ядра
+  // 0.20.4 нет вовсе (замерено в реестре шлюза), удаление идёт по REST.
+  'profiles.list': { params: ProfilesListParams; result: unknown }
+  'profiles.create': { params: { name: string }; result: unknown }
+  'profiles.configure': { params: ProfilesConfigureParams; result: unknown }
+}
+
+export interface ProfilesListParams {
+  include_sessions?: boolean
+  /** Привязки постоянных чатов: ядро вернёт по ним сводку сессии или `null`,
+   * если она пропала (задача 3C.4). */
+  preferred_session_ids?: Record<string, string>
+}
+
+export interface ProfilesConfigureParams {
+  name: string
+  description?: string
+  ui_meta?: Record<string, unknown>
 }
 
 // `process.stop` is DELIBERATELY absent from the map above (owner decision R8,

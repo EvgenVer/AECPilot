@@ -14,10 +14,32 @@ export const AEC_I18N_NAMESPACE = 'aec'
 
 export const aecLocales: PluginLocaleBundles = {
   en: {
+    roster: {
+      title: 'Specialists',
+      create: 'New specialist',
+      edit: 'Edit',
+      duplicate: 'Duplicate',
+      delete: 'Delete',
+      deleteConfirm: (name: string) =>
+        `Delete ${name}? Their profile goes too: settings, keys, skills and chat history.`,
+      search: 'Search by name or role',
+      empty: 'No specialists yet — the first one is the default agent.',
+      noMatches: 'Nothing matches',
+      showHidden: 'Show hidden',
+      name: 'Profile name (latin, cannot be changed later)',
+      nameRule: 'Latin letters, digits, hyphen and underscore; starts with a letter or digit',
+      nameFixed: (name: string) => `Profile: ${name} — the name stays as it is`,
+      displayName: 'Name on screen',
+      role: 'Role',
+      description: 'What they do',
+      localOnly: 'Saved on this machine only: this core cannot store it server-side yet.',
+      failed: 'Could not save'
+    },
     common: {
       cancel: 'Cancel',
       close: 'Close',
       retry: 'Retry',
+      save: 'Save',
       loading: 'Loading…',
       refresh: 'Refresh'
     },
@@ -345,10 +367,32 @@ export const aecLocales: PluginLocaleBundles = {
     }
   },
   ru: {
+    roster: {
+      title: 'Специалисты',
+      create: 'Новый специалист',
+      edit: 'Изменить',
+      duplicate: 'Дублировать',
+      delete: 'Удалить',
+      deleteConfirm: (name: string) =>
+        `Удалить ${name}? Вместе с ним удалится его профиль: настройки, ключи, скилы и история переписки.`,
+      search: 'Поиск по имени или роли',
+      empty: 'Специалистов пока нет — первый из них агент по умолчанию.',
+      noMatches: 'Ничего не найдено',
+      showHidden: 'Показать скрытых',
+      name: 'Имя профиля (латиницей, потом не меняется)',
+      nameRule: 'Латинские буквы, цифры, дефис и подчёркивание; начинается с буквы или цифры',
+      nameFixed: (name: string) => `Профиль: ${name} — имя остаётся как есть`,
+      displayName: 'Имя на экране',
+      role: 'Роль',
+      description: 'Чем занимается',
+      localOnly: 'Сохранено только на этой машине: это ядро пока не умеет хранить такое у себя.',
+      failed: 'Не удалось сохранить'
+    },
     common: {
       cancel: 'Отмена',
       close: 'Закрыть',
       retry: 'Повторить',
+      save: 'Сохранить',
       loading: 'Загрузка…',
       refresh: 'Обновить'
     },

@@ -158,6 +158,47 @@ export interface ConnectionTestResult {
     | 'update-required'
 }
 
+export interface SpecialistFaceView {
+  shape: 'circle' | 'square' | 'hex' | 'diamond'
+  color: string
+}
+
+/** Специалист, каким его видит окно. */
+export interface SpecialistView {
+  /** Имя профиля в ядре — идентификатор, а не подпись. */
+  name: string
+  /** Как его зовут на экране; пусто — показываем имя профиля. */
+  title: string
+  role: string
+  description: string
+  isDefault: boolean
+  model: string
+  provider: string
+  face: SpecialistFaceView | null
+  hasAvatar: boolean
+  hidden: boolean
+  chatSessionId: string
+  preview: string
+  previewAt: string
+}
+
+export interface SpecialistInputView {
+  name: string
+  title?: string
+  role?: string
+  description?: string
+  face?: SpecialistFaceView | null
+}
+
+export interface SpecialistResultView {
+  ok: boolean
+  name?: string
+  /** Куда легли наши поля: `server` — на сервер; `local-only` — старое ядро, и
+   * это НЕ отказ; `refused` — не легли. */
+  outcome?: 'server' | 'local-only' | 'refused'
+  error?: string
+}
+
 export interface ConnectionSaveResult {
   ok: boolean
   config: ConnectionView
@@ -840,6 +881,15 @@ export interface AecpilotApi {
   testConnection(input: ConnectionInputView): Promise<ConnectionTestResult>
   /** Имена машин из `~/.ssh/config` человека. Читается только config —
    * приватные ключи не открываются никогда и ни для чего. */
+  /** Роестр специалистов (задача 3C.1, SPEC UR27, контракт —
+   * specs/agent-roster.md). Специалист — это профиль ядра с именем, ролью и
+   * обликом; всё, что здесь есть, живёт НА СЕРВЕРЕ и потому одинаково на всех
+   * машинах, подключённых к этому ядру. */
+  listRoster(): Promise<SpecialistView[]>
+  createSpecialist(input: SpecialistInputView): Promise<SpecialistResultView>
+  saveSpecialist(input: SpecialistInputView): Promise<SpecialistResultView>
+  duplicateSpecialist(name: string): Promise<SpecialistResultView>
+  deleteSpecialist(payload: { name: string; confirmed: boolean }): Promise<SpecialistResultView>
   sshHosts(): Promise<{ hosts: string[] }>
   sshResolveHost(alias: string): Promise<{
     hostname: string | null

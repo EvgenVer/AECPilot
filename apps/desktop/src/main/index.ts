@@ -94,6 +94,15 @@ import {
 } from './artifact-files-pure'
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
+import {
+  configureRoster,
+  createSpecialist,
+  deleteSpecialist,
+  duplicateSpecialist,
+  listRoster,
+  saveSpecialist,
+  type SpecialistInput
+} from './roster'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
@@ -2205,6 +2214,42 @@ ipcMain.handle('profiles:use', async (_event, payload: unknown) => {
   sessionProfile = name === current ? undefined : name
   resetActiveSessionForProjectSwitch()
   return { ok: true, current: sessionProfile ?? current }
+})
+
+// Задача 3C.1 (SPEC UR27). Роестр специалистов: профиль ядра с именем, ролью и
+// обликом. Контракт — `specs/agent-roster.md`; здесь только проводка.
+//
+// Зависимости вносятся здесь, потому что здесь живут шлюз и REST-цель: модуль
+// роестра не должен знать, к какому ядру мы сейчас подключены.
+configureRoster({
+  request: async (method, params) => {
+    if (!gateway) throw new Error('нет связи с ядром')
+    // Метод приходит строкой из модуля роестра, а карта методов типизирована по
+    // именам. Сужение здесь, в одном месте: проверять имя метода в каждом
+    // вызове значило бы повторять карту вторым списком.
+    return gateway.request(method as Parameters<typeof gateway.request>[0], params as never)
+  },
+  deleteProfile: (name) =>
+    hermesRest(restTarget(), `/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' })
+})
+
+ipcMain.handle('roster:list', () => listRoster())
+
+ipcMain.handle('roster:create', (_event, input: unknown) =>
+  createSpecialist((input ?? {}) as SpecialistInput)
+)
+
+ipcMain.handle('roster:save', (_event, input: unknown) =>
+  saveSpecialist((input ?? {}) as SpecialistInput)
+)
+
+ipcMain.handle('roster:duplicate', (_event, name: unknown) =>
+  duplicateSpecialist(typeof name === 'string' ? name : '')
+)
+
+ipcMain.handle('roster:delete', (_event, payload: unknown) => {
+  const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
+  return deleteSpecialist(name, confirmed)
 })
 
 ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
