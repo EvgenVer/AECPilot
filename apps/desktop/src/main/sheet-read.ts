@@ -46,11 +46,26 @@ function cellText(value: unknown): string {
 }
 
 export async function readSheets(absPath: string): Promise<SheetReadResult> {
+  return readWorkbook((workbook) => workbook.xlsx.readFile(absPath))
+}
+
+/** Та же книга, но из байтов: при удалённом ядре файл приходит по сети, и
+ * класть его во временный ради разбора значило бы оставлять у себя копию
+ * чужого документа (задача 3.13b). */
+export async function readSheetsFromBuffer(bytes: Buffer): Promise<SheetReadResult> {
+  // Приведение из-за собственных типов exceljs: их `Buffer` объявлен старой
+  // формой, без параметра. Значение то же самое.
+  return readWorkbook((workbook) => workbook.xlsx.load(bytes as unknown as ArrayBuffer))
+}
+
+async function readWorkbook(
+  load: (workbook: import('exceljs').Workbook) => Promise<unknown>
+): Promise<SheetReadResult> {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.default.Workbook()
 
   try {
-    await workbook.xlsx.readFile(absPath)
+    await load(workbook)
   } catch (cause: unknown) {
     return { error: cause instanceof Error ? cause.message : String(cause), ok: false }
   }

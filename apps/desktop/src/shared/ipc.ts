@@ -162,6 +162,9 @@ export interface ConnectionSaveResult {
   ok: boolean
   config: ConnectionView
   error?: string
+  /** Код ошибки ssh, если подключение не состоялось: по нему экран показывает
+   * своё объяснение с нужным действием. */
+  sshError?: string
 }
 
 export interface SaveOutResult {

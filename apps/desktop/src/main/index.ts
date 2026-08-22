@@ -93,6 +93,8 @@ import {
   resolveArtifactPath
 } from './artifact-files-pure'
 import { hermesRest, type RestTarget } from './hermes-rest'
+import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
+import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
   CuratorStatus,
   IngestState,
@@ -847,6 +849,26 @@ ipcMain.handle('speech:close', (event, id: unknown) => {
 // artifact opens through `shell:open-external`, which validates the scheme.
 
 ipcMain.handle('artifacts:stat', async (_event, value: unknown) => {
+  // Задача 3.13b. Артефакт — файл, который создал агент; при удалённом ядре он
+  // лежит там же, где агент работал. Проверять его наличие здесь бессмысленно:
+  // ответ был бы про чужой диск.
+  if (filesAreRemote()) {
+    const path = typeof value === 'string' ? value : ''
+    if (path === '') return { ok: false, error: 'Пустой путь' }
+    const info = await statRemoteFile(restTarget(), path)
+    return {
+      ok: true,
+      exists: info.exists,
+      isFile: info.isFile,
+      size: info.size,
+      // «Внутри проекта» — понятие этой машины; на той стороне проекта в нашем
+      // смысле нет, и притворяться, что есть, значило бы обещать проверку,
+      // которой не делается.
+      insideProject: false,
+      previewable: info.exists && info.isFile && isPreviewableImage(path)
+    }
+  }
+
   const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   try {
@@ -874,6 +896,11 @@ ipcMain.handle('artifacts:stat', async (_event, value: unknown) => {
 })
 
 ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
+  // «Показать в проводнике» при удалённом ядре не значит ничего: проводник
+  // открылся бы на ЭТОЙ машине, где файла нет. Решение 3.13a — выключить и
+  // объяснить, а не открывать пустую папку.
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+
   const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   try {
@@ -886,6 +913,18 @@ ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
 })
 
 ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
+  if (filesAreRemote()) {
+    const path = typeof value === 'string' ? value : ''
+    if (path === '') return { ok: false, error: 'Пустой путь' }
+    if (!isPreviewableImage(path)) {
+      return { ok: false, error: 'Предпросмотр умеет только растровые картинки' }
+    }
+    // Размер ограничивает ядро (`_FS_DATA_URL_MAX_BYTES`), и его отказ приходит
+    // сюда словами — своего предела мы не заводим: два предела на одну картинку
+    // разошлись бы при первом же обновлении ядра.
+    return readRemoteDataUrl(restTarget(), path)
+  }
+
   const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   if (!resolved.insideProject) return { ok: false, error: PREVIEW_OUTSIDE_PROJECT_ERROR }
@@ -1454,6 +1493,15 @@ function rememberMcpStatus(event: GatewayEvent): void {
   if (event.type !== 'session.info') return
   const servers = (event.payload as { mcp_servers?: unknown } | undefined)?.mcp_servers
   if (Array.isArray(servers)) lastMcpStatus = servers as McpLiveStatus[]
+}
+
+/** Файлы сейчас на машине ядра, а не на этой (задача 3.13b).
+ *
+ * Один вопрос на все файловые поверхности. Раньше каждая из них молча
+ * предполагала «локально» — и при удалённом ядре показывала бы МЕСТНЫЙ файл с
+ * тем же именем: не отказ, а уверенный неверный ответ. */
+function filesAreRemote(): boolean {
+  return remoteTarget() !== undefined
 }
 
 function restTarget(): RestTarget | undefined {
@@ -2265,14 +2313,14 @@ function sshTargetOf(settings: SshSettings): SshTarget | null {
  *
  * Возвращает ответ, а не бросает: отказ сервера — это то, что человеку надо
  * показать словами, а не запись в журнале при пустом окне. */
-async function connectViaSsh(): Promise<{ ok: boolean; error?: string }> {
+async function connectViaSsh(): Promise<ReconnectOutcome> {
   const target = sshTargetOf(sshSettings())
   if (!target) return { ok: false, error: 'Не указана машина, к которой подключаться' }
 
   const result = await startSshTunnel(target)
   if (!result.ok) {
     console.warn('aecpilot: ssh tunnel FAIL', result.sshError)
-    return { ok: false, error: result.error }
+    return { ok: false, error: result.error, sshError: result.sshError }
   }
 
   const remote = remoteTarget()
@@ -2283,7 +2331,16 @@ async function connectViaSsh(): Promise<{ ok: boolean; error?: string }> {
   return { ok: true }
 }
 
-async function reconnectForConnection(): Promise<void> {
+/** Чем закончилась попытка подключиться. `sshError` — их код ошибки: их экран
+ * по нему показывает СВОЙ текст с нужным действием, и терять его значило бы
+ * заменять шесть разных советов одним «не получилось». */
+interface ReconnectOutcome {
+  ok: boolean
+  error?: string
+  sshError?: string
+}
+
+async function reconnectForConnection(): Promise<ReconnectOutcome> {
   gateway?.close()
   gateway = undefined
   sessionId = undefined
@@ -2303,8 +2360,7 @@ async function reconnectForConnection(): Promise<void> {
 
   if (connectionMode() === 'ssh') {
     await stopLocal()
-    await connectViaSsh()
-    return
+    return connectViaSsh()
   }
 
   // Возврат из ssh: туннель, оставшийся жить, держал бы ядро на той машине.
@@ -2317,10 +2373,11 @@ async function reconnectForConnection(): Promise<void> {
     // SECURITY: адрес сокета несёт токен. Он собирается здесь и здесь же
     // остаётся — ни в журнал, ни через IPC он не уходит (см. `app-log`).
     await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
-    return
+    return { ok: true }
   }
 
-  await restartBackend()
+  const restarted = await restartBackend()
+  return { ok: restarted.ok, error: restarted.error }
 }
 
 /** Stops the hermes backend, applies `configOverride` to the profile's
@@ -2590,8 +2647,13 @@ ipcMain.handle('connection:apply', async (_event, input: unknown) => {
   const outcome = saveConnection(input)
   if (!outcome.ok) return outcome
 
-  await reconnectForConnection()
-  return outcome
+  // Настройка сохранена — но «применить» значит ПОДКЛЮЧИТЬСЯ, и неудача здесь
+  // обязана вернуться отказом. Молчание превратило бы недоступный сервер в
+  // бодрое «перезапускаю…», после которого не работает ничего.
+  const connected = await reconnectForConnection()
+  if (connected.ok) return outcome
+
+  return { ...outcome, ok: false, error: connected.error, sshError: connected.sshError }
 })
 
 // Задача 3.7b. Табличка «микрофон слушает». Отдельное окно, потому что слово-
@@ -3138,7 +3200,6 @@ async function resolveViewerPath(
 // `rel` arrives from agent-authored citation text, which is exactly the input
 // class the anti-traversal helpers exist for.
 ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -3146,6 +3207,13 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
   if (typeof rel !== 'string' || rel.length === 0) {
     return { ok: false, error: 'rel must be a non-empty string' }
   }
+
+  // Задача 3.13b: ядро на другой машине — документ читается ТАМ. Цитата,
+  // которая не открывается, ломает главный сценарий продукта, а открытая
+  // «не та» — хуже: путь в цитате пришёл от ядра и относится к его машине.
+  if (filesAreRemote()) return readRemoteDocument(restTarget(), rel)
+
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
 
   const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved
@@ -3175,7 +3243,6 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
 
 // Задача 4.3: XLSX разбирается здесь, а не в окне — exceljs это Node.
 ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -3183,6 +3250,18 @@ ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
   if (typeof rel !== 'string' || rel.length === 0) {
     return { ok: false, error: 'rel must be a non-empty string' }
   }
+
+  // Книга приходит по сети целиком и разбирается здесь же, из байтов: файла на
+  // этой машине нет, а класть его во временный только ради разбора значит
+  // оставлять копию чужого документа у себя.
+  if (filesAreRemote()) {
+    const remote = await readRemoteDocument(restTarget(), rel)
+    if (!remote.ok || !remote.bytes) return { ok: false, error: remote.error }
+    const { readSheetsFromBuffer } = await import('./sheet-read')
+    return readSheetsFromBuffer(Buffer.from(remote.bytes))
+  }
+
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
 
   const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved

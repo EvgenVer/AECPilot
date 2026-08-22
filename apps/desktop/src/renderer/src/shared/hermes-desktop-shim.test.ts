@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createHermesDesktopBridge } from './hermes-desktop-shim'
 
@@ -10,6 +10,71 @@ import { createHermesDesktopBridge } from './hermes-desktop-shim'
 // shim's behavior has already gone stale once (`voice-playback.ts`, task 3.7a,
 // where reading the descriptor as "a socket can be opened to this" turned a
 // graceful fallback into a throw).
+
+// Задача 3.13b. Второй половиной этого же ответа их код решает, ЧЬИ файлы
+// показывать: этой машины или той, где работает ядро. `mode` спрашивается у них
+// в 42 местах, и «local» при удалённом ядре — не отказ, а уверенный неверный
+// ответ: приложение показало бы местные файлы, выглядя исправным.
+
+function withConnectionView(view: Record<string, unknown>): void {
+  const globals = globalThis as unknown as { window?: unknown }
+  globals.window = { aecpilot: { getConnection: () => Promise.resolve(view) } }
+}
+
+function withoutWindow(): void {
+  delete (globalThis as unknown as { window?: unknown }).window
+}
+
+describe('hermes-desktop shim: getConnection — чьи файлы показывать', () => {
+  afterEach(() => withoutWindow())
+
+  it('локальное ядро — режим локальный', async () => {
+    withConnectionView({ mode: 'local', remoteUrl: '', sshHost: '', sshUser: '' })
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(conn.mode).toBe('local')
+    expect(conn.remoteKind).toBeUndefined()
+  })
+
+  it('ядро по адресу — режим удалённый, и видно, где оно', async () => {
+    withConnectionView({
+      mode: 'remote',
+      remoteUrl: 'https://hermes.example.org:8443',
+      sshHost: '',
+      sshUser: ''
+    })
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(conn.mode, 'вот от этого зависят 42 их ветки').toBe('remote')
+    expect(conn.remoteKind).toBe('url')
+    expect(conn.remoteHost).toBe('hermes.example.org:8443')
+    expect(conn.token, 'SPEC C9 — токен остаётся в главном процессе').toBe('')
+  })
+
+  it('ядро через ssh — тоже удалённое, и различается по имени, а не по порту', async () => {
+    withConnectionView({ mode: 'ssh', remoteUrl: '', sshHost: 'build', sshUser: 'ivan' })
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(conn.mode).toBe('remote')
+    expect(conn.remoteKind).toBe('ssh')
+    expect(
+      conn.remoteIdentity,
+      'порт туннеля каждый раз новый — ключ кэша по нему рассыпался бы'
+    ).toBe('ivan@build')
+  })
+
+  it('моста ещё нет — отвечаем локальным, а не отказом', async () => {
+    withoutWindow()
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(conn).not.toBeNull()
+    expect(conn.mode).toBe('local')
+  })
+})
 
 describe('hermes-desktop shim: getConnection', () => {
   it('answers with a descriptor for every profile, secondaries included', async () => {

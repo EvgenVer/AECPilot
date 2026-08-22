@@ -102,6 +102,80 @@ interface DonorConnectionInput {
   sshRemoteProfile?: string
 }
 
+/**
+ * Живое подключение в их форме (задача 3.13b).
+ *
+ * ЭТО САМЫЙ ВАЖНЫЙ ОТВЕТ ШИМА. Их код спрашивает `mode` в 42 местах, и по нему
+ * решает, ЧЬИ файлы показывать: этой машины или той, где работает ядро.
+ * Пока мы отвечали «local» всегда, приложение при удалённом ядре показывало бы
+ * ЧУЖИЕ файлы — свои собственные, местные, выглядя при этом исправным. Это
+ * худший вид неправды: не отказ, а уверенный неверный ответ.
+ *
+ * Токена здесь по-прежнему нет (SPEC C9), и сокет по-прежнему не отсюда:
+ * `wsUrl` — заглушка, которую наш мост перехватывает. Их `authMode: 'token'`
+ * оставлен нарочно: при `oauth` их код полез бы обновлять билет через член,
+ * которого у нас нет, и падал бы на старте.
+ */
+function runtimeConnection(
+  view: import('../../../shared/ipc').ConnectionView | null,
+  profile: null | string
+): unknown {
+  const base = {
+    authMode: 'token' as const,
+    profile,
+    // SPEC C9: пусто и всегда будет пусто — токен живёт в главном процессе.
+    token: '',
+    // Сокет открывает main; их `connect()` у нас пустышка (см. gateway-bridge).
+    wsUrl: 'ws://ipc/api/ws'
+  }
+
+  if (!view || view.mode === 'local') return { ...base, baseUrl: 'ipc://main', mode: 'local' }
+
+  if (view.mode === 'ssh') {
+    // `remoteIdentity` — то, чем они различают ssh-подключения в ключах кэша.
+    // Адрес туннеля для этого не годится: порт у него каждый раз новый, и кэш
+    // рассыпался бы на каждое подключение.
+    const identity = view.sshUser === '' ? view.sshHost : `${view.sshUser}@${view.sshHost}`
+    return {
+      ...base,
+      baseUrl: `ssh://${identity}`,
+      mode: 'remote',
+      remoteKind: 'ssh',
+      remoteHost: view.sshHost,
+      remoteIdentity: identity
+    }
+  }
+
+  return {
+    ...base,
+    baseUrl: view.remoteUrl,
+    mode: 'remote',
+    remoteKind: 'url',
+    remoteHost: hostOf(view.remoteUrl)
+  }
+}
+
+/** Имя машины из адреса — для строки состояния. Разбор без исключений: адрес
+ * уже проверен главным процессом, но строка состояния не то место, где стоит
+ * падать. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+/** Отказ подключения в том виде, в каком его читает их экран: он ищет поле
+ * `sshError` на брошенном значении и по нему выбирает объяснение — «настройте
+ * вход по ключу», «ключ хоста изменился», «ядра там нет». Обычный `Error`
+ * заменил бы все шесть советов одним «не получилось». */
+function connectionFailure(message: string | undefined, sshError: string | undefined): Error {
+  const error = new Error(message ?? 'настройка не применена')
+  if (sshError !== undefined) Object.assign(error, { sshError })
+  return error
+}
+
 const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 
 /** Shown by their own error toast when someone reads the list and backs out.
@@ -233,13 +307,15 @@ const IMPLEMENTED: Record<string, unknown> = {
   // `api` below, their plugin socket is removed, and the speech stream is
   // main's socket reached over IPC (task 3.7a).
   getConnection(profile?: null | string): Promise<unknown> {
-    return Promise.resolve({
-      authMode: 'token',
-      baseUrl: 'ipc://main',
-      profile: profile ?? null,
-      token: '',
-      wsUrl: 'ws://ipc/api/ws'
-    })
+    const local = (): unknown => runtimeConnection(null, profile ?? null)
+
+    // Мост может ещё не стоять (ранний вызов, тест) — это не повод отвечать
+    // отказом: их пул читает ответ и без него не открывает клиента вовсе.
+    if (!globalThis.window?.aecpilot) return Promise.resolve(local())
+
+    return window.aecpilot
+      .getConnection()
+      .then((view) => runtimeConnection(view, profile ?? null), local)
   },
 
   // No pool to keep warm: one backend, owned by main, alive for as long as the
@@ -334,7 +410,7 @@ const IMPLEMENTED: Record<string, unknown> = {
 
   applyConnectionConfig(payload: DonorConnectionInput): Promise<unknown> {
     return window.aecpilot.applyConnection(toOurInput(payload)).then((result) => {
-      if (!result.ok) throw new Error(result.error ?? 'настройка не применена')
+      if (!result.ok) throw connectionFailure(result.error, result.sshError)
       return asDonorConnection(result.config)
     })
   },
