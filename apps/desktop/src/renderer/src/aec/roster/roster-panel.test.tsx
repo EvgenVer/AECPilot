@@ -35,6 +35,9 @@ const saveSpecialist = vi.fn()
 const duplicateSpecialist = vi.fn()
 const deleteSpecialist = vi.fn()
 const useProfile = vi.fn()
+const selectPaths = vi.fn()
+const setSpecialistAvatar = vi.fn()
+const getSpecialistAvatar = vi.fn()
 
 beforeEach(() => {
   listRoster.mockResolvedValue([
@@ -46,6 +49,9 @@ beforeEach(() => {
   saveSpecialist.mockResolvedValue({ ok: true, outcome: 'server' })
   duplicateSpecialist.mockResolvedValue({ ok: true, name: 'smeta-2' })
   deleteSpecialist.mockResolvedValue({ ok: true })
+  selectPaths.mockResolvedValue(['C:/картинки/лицо.png'])
+  setSpecialistAvatar.mockResolvedValue({ ok: true, outcome: 'server' })
+  getSpecialistAvatar.mockResolvedValue('data:image/png;base64,AAA')
 
   window.aecpilot = {
     listRoster,
@@ -53,7 +59,10 @@ beforeEach(() => {
     saveSpecialist,
     duplicateSpecialist,
     deleteSpecialist,
-    useProfile
+    useProfile,
+    selectPaths,
+    setSpecialistAvatar,
+    getSpecialistAvatar
   } as unknown as typeof window.aecpilot
 })
 
@@ -215,5 +224,77 @@ describe('дубль и удаление', () => {
       expect(deleteSpecialist).toHaveBeenCalledWith({ name: 'smeta', confirmed: true })
     )
     confirm.mockRestore()
+  })
+})
+
+// Задача 3C.3. Лицо: форма и цвет либо картинка. Питомца и генерации портрета
+// в выборе нет — это отдельным тестом (`no-portrait-generation`), потому что
+// проверяется ОТСУТСТВИЕ, а его на экране не видно.
+describe('лицо специалиста', () => {
+  it('форма и цвет уходят в те же поля, что и остальная правка', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    fireEvent.click(screen.getByLabelText('hex'))
+    fireEvent.click(screen.getByLabelText('#22A06B'))
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    await waitFor(() =>
+      expect(saveSpecialist).toHaveBeenCalledWith(
+        expect.objectContaining({ face: { shape: 'hex', color: '#22A06B' } })
+      )
+    )
+  })
+
+  it('лицо можно убрать', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    fireEvent.click(screen.getByLabelText('circle'))
+    fireEvent.click(screen.getByLabelText('Без лица'))
+    fireEvent.click(screen.getByText('Сохранить'))
+
+    await waitFor(() =>
+      expect(saveSpecialist).toHaveBeenCalledWith(expect.objectContaining({ face: null }))
+    )
+  })
+
+  it('картинка выбирается диалогом главного процесса и уходит отдельно', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    fireEvent.click(screen.getByText('Картинкой'))
+
+    await waitFor(() =>
+      expect(setSpecialistAvatar).toHaveBeenCalledWith({
+        name: 'smeta',
+        filePath: 'C:/картинки/лицо.png'
+      })
+    )
+    expect(saveSpecialist, 'картинка не едет через форму — она тяжёлая').not.toHaveBeenCalled()
+  })
+
+  it('отменённый диалог ничего не меняет', async () => {
+    selectPaths.mockResolvedValue([])
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+    fireEvent.click(screen.getByText('Картинкой'))
+
+    await waitFor(() => expect(selectPaths).toHaveBeenCalled())
+    expect(setSpecialistAvatar).not.toHaveBeenCalled()
+  })
+
+  it('у нового специалиста картинки не предлагают — профиля ещё нет', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getByLabelText('Новый специалист'))
+
+    expect(screen.queryByText('Картинкой')).toBeNull()
   })
 })

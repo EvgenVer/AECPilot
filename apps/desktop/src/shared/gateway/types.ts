@@ -298,6 +298,8 @@ export interface GatewayMethodMap {
   'profiles.list': { params: ProfilesListParams; result: unknown }
   'profiles.create': { params: { name: string }; result: unknown }
   'profiles.configure': { params: ProfilesConfigureParams; result: unknown }
+  'profiles.set_asset': { params: ProfilesSetAssetParams; result: unknown }
+  'profiles.get_asset': { params: { name: string; asset?: string }; result: unknown }
 }
 
 export interface ProfilesListParams {
@@ -311,6 +313,15 @@ export interface ProfilesConfigureParams {
   name: string
   description?: string
   ui_meta?: Record<string, unknown>
+}
+
+export interface ProfilesSetAssetParams {
+  name: string
+  asset?: 'avatar'
+  /** `data:`-адрес картинки. Ядро принимает PNG/JPEG/WebP и режет по 2 МБ. */
+  data?: string
+  /** Убрать картинку. */
+  clear?: boolean
 }
 
 // `process.stop` is DELIBERATELY absent from the map above (owner decision R8,

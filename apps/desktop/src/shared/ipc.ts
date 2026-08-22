@@ -890,6 +890,14 @@ export interface AecpilotApi {
   saveSpecialist(input: SpecialistInputView): Promise<SpecialistResultView>
   duplicateSpecialist(name: string): Promise<SpecialistResultView>
   deleteSpecialist(payload: { name: string; confirmed: boolean }): Promise<SpecialistResultView>
+  /** Лицо картинкой (задача 3C.3). Путь — только из нашего диалога: главный
+   * процесс читает лишь то, что сам показал человеку. */
+  setSpecialistAvatar(payload: {
+    name: string
+    filePath?: string
+    clear?: boolean
+  }): Promise<SpecialistResultView>
+  getSpecialistAvatar(name: string): Promise<string | null>
   sshHosts(): Promise<{ hosts: string[] }>
   sshResolveHost(alias: string): Promise<{
     hostname: string | null

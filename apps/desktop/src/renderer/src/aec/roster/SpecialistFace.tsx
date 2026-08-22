@@ -9,6 +9,8 @@
 // здесь — последняя страховка: неизвестное значение рисуется умолчанием, а не
 // подставляется в CSS как есть.
 
+import { useQuery } from '@tanstack/react-query'
+
 import type { SpecialistView } from '../../../../shared/ipc'
 
 const FALLBACK_COLOR = '#5B8DEF'
@@ -21,6 +23,20 @@ const SHAPE_CLASS: Record<string, string> = {
 }
 
 export function SpecialistFace({ specialist }: { specialist: SpecialistView }): React.JSX.Element {
+  // Картинка спрашивается ТОЛЬКО когда ядро сказало, что она есть: у него для
+  // этого отдельный дешёвый признак в ряду, чтобы роестр не делал по запросу на
+  // каждого специалиста при каждой перерисовке.
+  const { data: picture } = useQuery({
+    queryKey: ['aec', 'roster', 'avatar', specialist.name],
+    queryFn: () => window.aecpilot.getSpecialistAvatar(specialist.name),
+    enabled: specialist.hasAvatar,
+    staleTime: 5 * 60 * 1000
+  })
+
+  if (specialist.hasAvatar && typeof picture === 'string' && picture !== '') {
+    return <img alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" src={picture} />
+  }
+
   const face = specialist.face
   const color =
     face && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(face.color) ? face.color : FALLBACK_COLOR

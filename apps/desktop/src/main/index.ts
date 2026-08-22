@@ -101,6 +101,8 @@ import {
   duplicateSpecialist,
   listRoster,
   saveSpecialist,
+  setSpecialistAvatar,
+  specialistAvatar,
   type SpecialistInput
 } from './roster'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
@@ -2245,6 +2247,33 @@ ipcMain.handle('roster:save', (_event, input: unknown) =>
 
 ipcMain.handle('roster:duplicate', (_event, name: unknown) =>
   duplicateSpecialist(typeof name === 'string' ? name : '')
+)
+
+// Задача 3C.3. Картинка лица. Читается тем же путём, что и вложения: главный
+// процесс открывает диалог, помнит, что показал человеку, и читает только это
+// (`picked-paths`) — окну общего чтения файлов по-прежнему не дано.
+ipcMain.handle('roster:set-avatar', async (_event, payload: unknown) => {
+  const { name, filePath, clear } = (payload ?? {}) as {
+    name?: unknown
+    filePath?: unknown
+    clear?: unknown
+  }
+  if (typeof name !== 'string') return { ok: false, error: 'Не указан специалист' }
+  if (clear === true) return setSpecialistAvatar(name, null)
+  if (typeof filePath !== 'string' || filePath === '') {
+    return { ok: false, error: 'Не выбран файл' }
+  }
+
+  try {
+    const dataUrl = await readAttachmentDataUrl(ATTACHMENTS_DIR, filePath, wasPickedByUser)
+    return await setSpecialistAvatar(name, dataUrl)
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('roster:avatar', (_event, name: unknown) =>
+  specialistAvatar(typeof name === 'string' ? name : '')
 )
 
 ipcMain.handle('roster:delete', (_event, payload: unknown) => {

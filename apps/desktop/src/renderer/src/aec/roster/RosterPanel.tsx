@@ -71,6 +71,26 @@ export function RosterPanel(): React.JSX.Element {
     }
   })
 
+  // Задача 3C.3. Картинка выбирается диалогом ГЛАВНОГО процесса: путь, который
+  // окно не получило от человека через доверенный диалог, — это путь, которого у
+  // него быть не должно. Уходит она сразу и отдельно от формы: весит больше, чем
+  // помещается в метаданные профиля.
+  const pickPicture = useMutation({
+    mutationFn: async (name: string) => {
+      const picked = await window.aecpilot.selectPaths({
+        filters: [
+          { name: t('roster.facePictureFilter'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }
+        ]
+      })
+      if (picked.length === 0) return { ok: true }
+      return window.aecpilot.setSpecialistAvatar({ name, filePath: picked[0] })
+    },
+    onSuccess: async (result) => {
+      report(result)
+      await reload()
+    }
+  })
+
   const remove = useMutation({
     mutationFn: (name: string) => window.aecpilot.deleteSpecialist({ name, confirmed: true }),
     onSuccess: async (result) => {
@@ -207,10 +227,11 @@ export function RosterPanel(): React.JSX.Element {
 
       {editing && (
         <SpecialistDialog
-          busy={save.isPending}
+          busy={save.isPending || pickPicture.isPending}
           draft={editing}
           onCancel={() => setEditing(null)}
           onChange={setEditing}
+          onPickPicture={() => pickPicture.mutate(editing.input.name)}
           onSubmit={() => save.mutate(editing)}
         />
       )}

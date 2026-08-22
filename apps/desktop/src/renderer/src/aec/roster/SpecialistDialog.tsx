@@ -7,24 +7,43 @@
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
-import type { SpecialistInputView } from '../../../../shared/ipc'
+import type { SpecialistFaceView, SpecialistInputView } from '../../../../shared/ipc'
 
 export interface SpecialistDraft {
   isNew: boolean
   input: SpecialistInputView
 }
 
+/** Формы и цвета лица (задача 3C.3). Список закрытый и короткий: выбор из
+ * четырёх форм и восьми цветов человек делает за секунду, а палитра на 16
+ * миллионов оттенков — это работа, которой он не просил.
+ *
+ * ПИТОМЦА И ГЕНЕРАЦИИ ПОРТРЕТА ЗДЕСЬ НЕТ И НЕ БУДЕТ: SPEC HX1 и HX11. */
+const SHAPES: SpecialistFaceView['shape'][] = ['circle', 'square', 'hex', 'diamond']
+const COLORS = [
+  '#5B8DEF',
+  '#22A06B',
+  '#C9721A',
+  '#B4406B',
+  '#7A5AF8',
+  '#0F8B8D',
+  '#B03A2E',
+  '#5A6472'
+]
+
 export function SpecialistDialog({
   busy,
   draft,
   onCancel,
   onChange,
+  onPickPicture,
   onSubmit
 }: {
   busy: boolean
   draft: SpecialistDraft
   onCancel: () => void
   onChange: (draft: SpecialistDraft) => void
+  onPickPicture?: () => void
   onSubmit: () => void
 }): React.JSX.Element {
   const t = useAecT()
@@ -79,6 +98,61 @@ export function SpecialistDialog({
           value={draft.input.role ?? ''}
         />
       </label>
+
+      <div className="flex flex-col gap-1 text-[11px] text-(--ui-text-secondary)">
+        {t('roster.face')}
+        <div className="flex gap-1">
+          {SHAPES.map((shape) => (
+            <button
+              aria-label={shape}
+              aria-pressed={draft.input.face?.shape === shape}
+              className={`h-5 w-5 border ${
+                draft.input.face?.shape === shape
+                  ? 'border-(--ui-text-primary)'
+                  : 'border-transparent'
+              }`}
+              key={shape}
+              onClick={() => set({ face: { shape, color: draft.input.face?.color ?? COLORS[0] } })}
+              style={{ backgroundColor: draft.input.face?.color ?? COLORS[0] }}
+              type="button"
+            />
+          ))}
+          <Button
+            aria-label={t('roster.faceNone')}
+            onClick={() => set({ face: null })}
+            size="icon-xs"
+            title={t('roster.faceNone')}
+            variant="ghost"
+          >
+            ×
+          </Button>
+          {/* Картинка живёт не в этой форме: она уходит на сервер сразу и
+              отдельно (`profiles.set_asset`), потому что весит больше, чем
+              помещается в метаданные. У нового специалиста профиля ещё нет —
+              значит и класть картинку некуда. */}
+          {!draft.isNew && onPickPicture && (
+            <Button onClick={onPickPicture} size="sm" variant="text">
+              {t('roster.facePicture')}
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {COLORS.map((color) => (
+            <button
+              aria-label={color}
+              className={`h-4 w-4 rounded-full border ${
+                draft.input.face?.color === color
+                  ? 'border-(--ui-text-primary)'
+                  : 'border-transparent'
+              }`}
+              key={color}
+              onClick={() => set({ face: { shape: draft.input.face?.shape ?? 'circle', color } })}
+              style={{ backgroundColor: color }}
+              type="button"
+            />
+          ))}
+        </div>
+      </div>
 
       <label className="flex flex-col gap-0.5 text-[11px] text-(--ui-text-secondary)">
         {t('roster.description')}

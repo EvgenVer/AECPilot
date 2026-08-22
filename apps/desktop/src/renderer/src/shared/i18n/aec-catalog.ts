@@ -31,6 +31,10 @@ export const aecLocales: PluginLocaleBundles = {
       nameFixed: (name: string) => `Profile: ${name} — the name stays as it is`,
       displayName: 'Name on screen',
       role: 'Role',
+      face: 'Face',
+      faceNone: 'No face',
+      facePicture: 'Use a picture',
+      facePictureFilter: 'Images',
       description: 'What they do',
       localOnly: 'Saved on this machine only: this core cannot store it server-side yet.',
       failed: 'Could not save'
@@ -384,6 +388,10 @@ export const aecLocales: PluginLocaleBundles = {
       nameFixed: (name: string) => `Профиль: ${name} — имя остаётся как есть`,
       displayName: 'Имя на экране',
       role: 'Роль',
+      face: 'Лицо',
+      faceNone: 'Без лица',
+      facePicture: 'Картинкой',
+      facePictureFilter: 'Картинки',
       description: 'Чем занимается',
       localOnly: 'Сохранено только на этой машине: это ядро пока не умеет хранить такое у себя.',
       failed: 'Не удалось сохранить'

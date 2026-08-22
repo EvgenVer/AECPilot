@@ -169,6 +169,52 @@ export async function deleteSpecialist(
   }
 }
 
+/**
+ * Картинка вместо геометрического лица.
+ *
+ * Хранится НА СЕРВЕРЕ, в каталоге профиля, — как и всё остальное про
+ * специалиста: одна картинка на все машины, подключённые к этому ядру. В
+ * `ui_meta` ей не место: там предел 64 КБ на весь блок, и блок этот едет с
+ * каждым обновлением списка.
+ *
+ * Отправляется ТОЛЬКО когда изменилась (их урок `bot-meta-asset-sync`): иначе
+ * каждое открытие карточки — лишняя запись на диск машины ядра.
+ */
+export async function setSpecialistAvatar(
+  name: string,
+  dataUrl: string | null
+): Promise<SpecialistOutcome> {
+  if (!isValidSpecialistName(name)) return { ok: false, error: 'Недопустимое имя специалиста' }
+
+  try {
+    await core().request(
+      'profiles.set_asset',
+      dataUrl === null
+        ? { name, asset: 'avatar', clear: true }
+        : { name, asset: 'avatar', data: dataUrl }
+    )
+    return { ok: true, name, outcome: 'server' }
+  } catch (error: unknown) {
+    return { ok: false, name, outcome: 'refused', error: describe(error) }
+  }
+}
+
+/** Картинка специалиста, если она есть. `null` — её нет, и это ответ, а не
+ * ошибка: у большинства специалистов лицо геометрическое. */
+export async function specialistAvatar(name: string): Promise<string | null> {
+  if (!isValidSpecialistName(name)) return null
+
+  try {
+    const answer = (await core().request('profiles.get_asset', { name, asset: 'avatar' })) as {
+      found?: boolean
+      data?: string
+    }
+    return answer?.found === true && typeof answer.data === 'string' ? answer.data : null
+  } catch {
+    return null
+  }
+}
+
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
