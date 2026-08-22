@@ -10,6 +10,7 @@ import {
   deleteSpecialist,
   duplicateSpecialist,
   listRoster,
+  openCanonicalChat,
   saveSpecialist
 } from './roster'
 
@@ -267,5 +268,102 @@ describe('расширенные возможности', () => {
       clone_from: 'smeta',
       soul: 'Ты нормоконтролёр.'
     })
+  })
+})
+
+// Задача 3C.4. Постоянный чат: у специалиста один непрерывный разговор, и он
+// обязан пережить перезапуск, сжатие и молчание ядра.
+describe('постоянный чат', () => {
+  it('живая привязка открывается как есть — ничего не создаём и не пишем', async () => {
+    request.mockResolvedValue({
+      profiles: [
+        profileRow('smeta', {
+          ui_meta: { aecpilot: { chat: 'с-1' } },
+          preferred_session: { session_id: 'с-1' }
+        })
+      ]
+    })
+
+    const result = await openCanonicalChat('smeta', 'с-1')
+
+    expect(result).toEqual({ ok: true, sessionId: 'с-1', created: false })
+    expect(request.mock.calls.map((call) => call[0])).toEqual(['profiles.list'])
+  })
+
+  it('известная привязка избавляет от лишнего вопроса ядру', async () => {
+    request.mockResolvedValue({
+      profiles: [profileRow('smeta', { preferred_session: { session_id: 'с-1' } })]
+    })
+
+    await openCanonicalChat('smeta', 'с-1')
+
+    expect(request.mock.calls[0][1]).toMatchObject({ preferred_session_ids: { smeta: 'с-1' } })
+  })
+
+  it('ядро молчит — открываем привязку и НИЧЕГО не переписываем', async () => {
+    request.mockImplementation(async () => {
+      throw new Error('нет связи')
+    })
+
+    expect(await openCanonicalChat('smeta', 'с-1')).toEqual({
+      ok: true,
+      sessionId: 'с-1',
+      created: false
+    })
+  })
+
+  it('сессия пропала — перепривязка на показанную, без новой', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') {
+        return {
+          profiles: [
+            profileRow('smeta', {
+              preferred_session: null,
+              last_session: { session_id: 'с-2' }
+            })
+          ]
+        }
+      }
+      return { applied: { ui_meta: true } }
+    })
+
+    const result = await openCanonicalChat('smeta', 'с-1')
+
+    expect(result).toEqual({ ok: true, sessionId: 'с-2', created: false })
+
+    const configured = request.mock.calls.find((call) => call[0] === 'profiles.configure')
+    expect(
+      (configured?.[1] as { ui_meta: { aecpilot: { chat: string } } }).ui_meta.aecpilot.chat
+    ).toBe('с-2')
+  })
+
+  it('нового специалиста ведём в СКРЫТУЮ сессию его профиля', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') return { profiles: [profileRow('smeta')] }
+      if (method === 'session.create') return { session_id: 'с-новая' }
+      return { applied: { ui_meta: true } }
+    })
+
+    const result = await openCanonicalChat('smeta', '')
+
+    expect(result).toEqual({ ok: true, sessionId: 'с-новая', created: true })
+
+    const created = request.mock.calls.find((call) => call[0] === 'session.create')
+    expect(created?.[1]).toMatchObject({ hidden: true, profile: 'smeta' })
+  })
+
+  it('привязка не легла — чат всё равно открыт', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') return { profiles: [profileRow('smeta')] }
+      if (method === 'session.create') return { session_id: 'с-новая' }
+      throw new Error('метаданные не сохранились')
+    })
+
+    expect((await openCanonicalChat('smeta', '')).sessionId).toBe('с-новая')
+  })
+
+  it('негодное имя до ядра не доходит', async () => {
+    expect((await openCanonicalChat('../побег')).ok).toBe(false)
+    expect(request).not.toHaveBeenCalled()
   })
 })

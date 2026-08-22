@@ -62,6 +62,10 @@ export interface SessionCreateParams {
    * 1.6.B5.23). Omitted means the profile the gateway was launched with —
    * their `_profile_home(None)` — which is the only behaviour before batch 5. */
   profile?: string
+  /** Сессия рождается скрытой: в общем списке её нет, но она полностью
+   * доступна тому, кто ей владеет (задача 3C.4). Так заводятся постоянные чаты
+   * специалистов — иначе общий список сессий превращается в свалку. */
+  hidden?: boolean
 }
 
 export interface SessionCreateResult {

@@ -9,14 +9,16 @@
 // Порядок списка — от ядра и НЕ по активности: список, прыгающий от каждой
 // реплики, нельзя читать глазами (их же урок, `active-now-strip`).
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { openSession } from '../../donor/app/open-session'
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
 import type { SpecialistView } from '../../../../shared/ipc'
 
+import { setCanonicalChats } from './register-canonical-guard'
 import { SpecialistDialog, type SpecialistDraft } from './SpecialistDialog'
 import { SpecialistFace } from './SpecialistFace'
 
@@ -100,6 +102,24 @@ export function RosterPanel(): React.JSX.Element {
     }
   })
 
+  // Задача 3C.4. Щелчок по специалисту открывает ЕГО постоянный чат: какую
+  // сессию — решает главный процесс (там привязка и там видно, ответило ли
+  // ядро), а открывает её их же оболочка, как любую другую.
+  const openChat = useMutation({
+    mutationFn: (specialist: SpecialistView) =>
+      window.aecpilot.openSpecialistChat({
+        name: specialist.name,
+        pin: specialist.chatSessionId
+      }),
+    onSuccess: async (result) => {
+      if (!report(result)) return
+      if (result.sessionId) openSession(result.sessionId, () => {}, 'in-place')
+      // Новая сессия меняет привязку — список надо перечитать, иначе сторож
+      // `/new` будет сторожить вчерашний чат.
+      if (result.created) await reload()
+    }
+  })
+
   const remove = useMutation({
     mutationFn: (name: string) => window.aecpilot.deleteSpecialist({ name, confirmed: true }),
     onSuccess: async (result) => {
@@ -123,6 +143,13 @@ export function RosterPanel(): React.JSX.Element {
   }, [roster, query, showHidden])
 
   const anyHidden = (roster ?? []).some((specialist) => specialist.hidden)
+
+  // Сторож `/new` держит привязки у себя: он стоит на пути каждого сообщения, и
+  // спрашивать главный процесс перед отправкой значило бы добавить обход IPC
+  // туда, где его никто не ждёт.
+  useEffect(() => {
+    setCanonicalChats((roster ?? []).map((specialist) => specialist.chatSessionId))
+  }, [roster])
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-auto p-2 text-(--ui-text-primary)">
@@ -182,7 +209,12 @@ export function RosterPanel(): React.JSX.Element {
 
                 <button
                   className="flex min-w-0 flex-1 flex-col items-start text-left"
-                  onClick={() => void window.aecpilot.useProfile(specialist.name)}
+                  onClick={() => {
+                    // Новые сессии тоже уходят этому специалисту: человек,
+                    // открывший его чат, обращается к НЕМУ.
+                    void window.aecpilot.useProfile(specialist.name)
+                    openChat.mutate(specialist)
+                  }}
                   type="button"
                 >
                   <span className="truncate text-xs font-medium">{displayName(specialist)}</span>

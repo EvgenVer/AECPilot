@@ -11,6 +11,7 @@ import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { RosterPanel } from './RosterPanel'
+import { registerCanonicalChatGuard } from './register-canonical-guard'
 
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'roster.title', [])
@@ -29,3 +30,7 @@ registry.register({
   },
   render: () => <RosterPanel />
 })
+
+// Задача 3C.4. Сторож «нового чата» в постоянном чате специалиста. Регистрируется
+// здесь же, чтобы жил ровно столько, сколько оболочка.
+registerCanonicalChatGuard()

@@ -13,6 +13,7 @@
 // шаг не удался, профиль ОСТАЁТСЯ: он уже создан, и делать вид, что нет, значило
 // бы потерять его молча.
 
+import { planCanonicalChat } from './canonical-chat-pure'
 import {
   displayNameOf,
   duplicateName,
@@ -20,6 +21,7 @@ import {
   isValidSpecialistName,
   metaPatch,
   parseRoster,
+  parseSpecialist,
   refuseSpecialistDeletion,
   saveOutcome,
   type SaveOutcome,
@@ -261,6 +263,113 @@ export async function specialistAvatar(name: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/**
+ * Постоянный чат специалиста (задача 3C.4).
+ *
+ * Возвращает сессию, которую надо открыть, — и, если её пришлось завести или
+ * перепривязать, ЗАПИСЫВАЕТ привязку. Решение принимает `planCanonicalChat` по
+ * фактам; здесь только сбор фактов и действие.
+ *
+ * Сессия создаётся СКРЫТОЙ (`hidden: true`) и всегда, без настройки: постоянные
+ * чаты специалистов в общем списке сессий — это свалка, в которой не найти
+ * собственную переписку. Их код делает так же и по той же причине.
+ */
+export async function openCanonicalChat(
+  name: string,
+  knownPin?: string
+): Promise<{
+  ok: boolean
+  sessionId?: string
+  created?: boolean
+  error?: string
+}> {
+  if (!isValidSpecialistName(name)) return { ok: false, error: 'Недопустимое имя специалиста' }
+
+  let pin = typeof knownPin === 'string' ? knownPin : ''
+  let facts: Parameters<typeof planCanonicalChat>[0] = { pin, answered: false }
+
+  try {
+    // Привязку надо ЗНАТЬ, чтобы о ней спросить: ядро проверяет её по
+    // `preferred_session_ids` и отвечает сводкой сессии или `null`. Окно обычно
+    // уже держит список и присылает привязку с собой — тогда лишнего вызова
+    // нет; на холодную приходится спросить список дважды.
+    if (pin === '') {
+      const known = parseRoster(await core().request('profiles.list', { include_sessions: true }))
+      pin = known.find((specialist) => specialist.name === name)?.chatSessionId ?? ''
+    }
+
+    const answer = (await core().request('profiles.list', {
+      include_sessions: true,
+      ...(pin === '' ? {} : { preferred_session_ids: { [name]: pin } })
+    })) as { profiles?: unknown[] }
+
+    const row = (answer?.profiles ?? []).find(
+      (candidate) => parseSpecialist(candidate)?.name === name
+    ) as Record<string, unknown> | undefined
+
+    const preferred = row?.preferred_session as
+      { session_id?: string; id?: string } | null | undefined
+    const latest = row?.last_session as { session_id?: string; id?: string } | null | undefined
+
+    facts = {
+      pin,
+      answered: true,
+      ...(pin === '' || preferred === undefined
+        ? {}
+        : { preferred: preferred === null ? null : { id: idOf(preferred) } }),
+      ...(latest ? { latest: { id: idOf(latest) } } : { latest: null })
+    }
+  } catch (error: unknown) {
+    // Ядро молчит — это НЕ повод терять привязку (см. `planCanonicalChat`).
+    console.warn('aecpilot: roster canonical chat lookup FAIL', error)
+    facts = { pin, answered: false }
+  }
+
+  const plan = planCanonicalChat(facts)
+
+  if (plan.action === 'open') return { ok: true, sessionId: plan.sessionId, created: false }
+
+  if (plan.action === 'adopt') {
+    await rememberChat(name, plan.sessionId)
+    return { ok: true, sessionId: plan.sessionId, created: false }
+  }
+
+  try {
+    const created = (await core().request('session.create', {
+      source: 'aecpilot-roster',
+      hidden: true,
+      profile: name
+    })) as { session_id?: string }
+
+    const sessionId = typeof created?.session_id === 'string' ? created.session_id : ''
+    if (sessionId === '') return { ok: false, error: 'Ядро не вернуло сессию' }
+
+    await rememberChat(name, sessionId)
+    return { ok: true, sessionId, created: true }
+  } catch (error: unknown) {
+    return { ok: false, error: describe(error) }
+  }
+}
+
+/** Привязка пишется в наши поля профиля — то есть на сервер, и потому одна на
+ * все машины. */
+async function rememberChat(name: string, sessionId: string): Promise<void> {
+  try {
+    await core().request('profiles.configure', {
+      name,
+      ui_meta: metaPatch({ chat: sessionId })
+    })
+  } catch (error: unknown) {
+    // Привязка не легла — чат всё равно открыт. Молча потерять его нельзя, но
+    // и отменять открытие не за что.
+    console.warn('aecpilot: roster chat pin not saved', error)
+  }
+}
+
+function idOf(row: { session_id?: string; id?: string }): string {
+  return row.session_id ?? row.id ?? ''
 }
 
 function describe(error: unknown): string {

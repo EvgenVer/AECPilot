@@ -915,6 +915,15 @@ export interface AecpilotApi {
     clear?: boolean
   }): Promise<SpecialistResultView>
   getSpecialistAvatar(name: string): Promise<string | null>
+  /** Постоянный чат специалиста (задача 3C.4): какую сессию открыть. Привязка
+   * присылается, если она уже известна окну, — тогда обходится одним вызовом
+   * ядра вместо двух. Заводит сессию, если её нет, и запоминает привязку. */
+  openSpecialistChat(payload: { name: string; pin?: string }): Promise<{
+    ok: boolean
+    sessionId?: string
+    created?: boolean
+    error?: string
+  }>
   sshHosts(): Promise<{ hosts: string[] }>
   sshResolveHost(alias: string): Promise<{
     hostname: string | null

@@ -41,6 +41,7 @@ const getSpecialistAvatar = vi.fn()
 const getModelOptions = vi.fn()
 const listSkills = vi.fn()
 const listToolsets = vi.fn()
+const openSpecialistChat = vi.fn()
 
 beforeEach(() => {
   listRoster.mockResolvedValue([
@@ -62,6 +63,7 @@ beforeEach(() => {
     ]
   })
   listSkills.mockResolvedValue([{ name: 'aec-qa' }, { name: 'aec-docgen' }])
+  openSpecialistChat.mockResolvedValue({ ok: true, sessionId: 'с-1', created: false })
   listToolsets.mockResolvedValue({
     toolsets: [
       { name: 'files', description: '', tool_count: 3, enabled: true, tools: [] },
@@ -81,7 +83,8 @@ beforeEach(() => {
     getSpecialistAvatar,
     getModelOptions,
     listSkills,
-    listToolsets
+    listToolsets,
+    openSpecialistChat
   } as unknown as typeof window.aecpilot
 })
 
@@ -132,12 +135,24 @@ describe('список', () => {
     expect(screen.queryByText('Агент')).toBeNull()
   })
 
-  it('щелчок по специалисту переводит на него новые сессии', async () => {
+  it('щелчок по специалисту переводит на него новые сессии и открывает его чат', async () => {
     renderPanel()
 
     fireEvent.click(await screen.findByText('Смета'))
 
     expect(useProfile).toHaveBeenCalledWith('smeta')
+    await waitFor(() => expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta', pin: '' }))
+  })
+
+  it('известная привязка уходит вместе с просьбой — ядру меньше работы', async () => {
+    listRoster.mockResolvedValue([specialist({ chatSessionId: 'с-7' })])
+    renderPanel()
+
+    fireEvent.click(await screen.findByText('Смета'))
+
+    await waitFor(() =>
+      expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta', pin: 'с-7' })
+    )
   })
 })
 

@@ -100,6 +100,7 @@ import {
   deleteSpecialist,
   duplicateSpecialist,
   listRoster,
+  openCanonicalChat,
   saveSpecialist,
   setSpecialistAvatar,
   specialistAvatar,
@@ -2275,6 +2276,17 @@ ipcMain.handle('roster:set-avatar', async (_event, payload: unknown) => {
 ipcMain.handle('roster:avatar', (_event, name: unknown) =>
   specialistAvatar(typeof name === 'string' ? name : '')
 )
+
+// Задача 3C.4. Постоянный чат специалиста: главный процесс решает, какую сессию
+// открыть (или заводит её), окно — открывает. Решение здесь, потому что здесь
+// живёт привязка и здесь же видно, ответило ли ядро.
+ipcMain.handle('roster:open-chat', (_event, payload: unknown) => {
+  const { name, pin } = (payload ?? {}) as { name?: unknown; pin?: unknown }
+  return openCanonicalChat(
+    typeof name === 'string' ? name : '',
+    typeof pin === 'string' ? pin : undefined
+  )
+})
 
 ipcMain.handle('roster:delete', (_event, payload: unknown) => {
   const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
