@@ -43,6 +43,10 @@ const listSkills = vi.fn()
 const listToolsets = vi.fn()
 const openSpecialistChat = vi.fn()
 const hideSpecialist = vi.fn()
+const listRoutines = vi.fn()
+const createRoutine = vi.fn()
+const setRoutineEnabled = vi.fn()
+const runRoutineNow = vi.fn()
 
 beforeEach(() => {
   listRoster.mockResolvedValue([
@@ -66,6 +70,10 @@ beforeEach(() => {
   listSkills.mockResolvedValue([{ name: 'aec-qa' }, { name: 'aec-docgen' }])
   openSpecialistChat.mockResolvedValue({ ok: true, sessionId: 'с-1', created: false })
   hideSpecialist.mockResolvedValue({ ok: true, outcome: 'server' })
+  listRoutines.mockResolvedValue({ routines: [], totalOfAll: 0 })
+  createRoutine.mockResolvedValue({ ok: true })
+  setRoutineEnabled.mockResolvedValue({ ok: true })
+  runRoutineNow.mockResolvedValue({ ok: true })
   listToolsets.mockResolvedValue({
     toolsets: [
       { name: 'files', description: '', tool_count: 3, enabled: true, tools: [] },
@@ -87,7 +95,11 @@ beforeEach(() => {
     listSkills,
     listToolsets,
     openSpecialistChat,
-    hideSpecialist
+    hideSpecialist,
+    listRoutines,
+    createRoutine,
+    setRoutineEnabled,
+    runRoutineNow
   } as unknown as typeof window.aecpilot
 })
 
@@ -448,5 +460,91 @@ describe('скрытие', () => {
     await screen.findByText('Смета')
 
     expect(screen.queryByLabelText('Показать скрытых')).toBeNull()
+  })
+})
+
+// Задача 3C.5. Рутина принадлежит специалисту, при котором её завели, и живёт в
+// его карточке: общий список отвечает «что запланировано», этот — «чем занят он».
+describe('рутины специалиста', () => {
+  async function openCard(): Promise<void> {
+    renderPanel()
+    await screen.findByText('Смета')
+    fireEvent.click(screen.getAllByLabelText('Изменить')[0])
+  }
+
+  it('спрашиваются рутины ЕГО профиля', async () => {
+    await openCard()
+
+    await waitFor(() => expect(listRoutines).toHaveBeenCalledWith('smeta'))
+  })
+
+  it('«рутин нет» и «рутины есть, но у других» — разные фразы', async () => {
+    listRoutines.mockResolvedValue({ routines: [], totalOfAll: 0 })
+    await openCard()
+    expect(await screen.findByText(/Рутин нет/)).toBeTruthy()
+
+    cleanup()
+    listRoutines.mockResolvedValue({ routines: [], totalOfAll: 3 })
+    await openCard()
+    expect(await screen.findByText(/у других специалистов/)).toBeTruthy()
+  })
+
+  it('новая рутина уходит с профилем специалиста', async () => {
+    await openCard()
+
+    fireEvent.click(await screen.findByLabelText('Новая рутина'))
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Пересчёт' } })
+    fireEvent.change(screen.getByLabelText('Что сделать'), { target: { value: 'посчитай' } })
+    fireEvent.change(screen.getByLabelText('Расписание'), { target: { value: 'каждую пятницу' } })
+    fireEvent.click(screen.getAllByText('Сохранить')[0])
+
+    await waitFor(() =>
+      expect(createRoutine).toHaveBeenCalledWith({
+        profile: 'smeta',
+        name: 'Пересчёт',
+        prompt: 'посчитай',
+        schedule: 'каждую пятницу'
+      })
+    )
+  })
+
+  it('рутину можно приостановить и выполнить сейчас', async () => {
+    listRoutines.mockResolvedValue({
+      routines: [
+        {
+          id: 'j1',
+          name: 'Пересчёт',
+          prompt: 'п',
+          schedule: 'пт',
+          enabled: true,
+          nextRunAt: '',
+          lastRunAt: '',
+          lastError: ''
+        }
+      ],
+      totalOfAll: 1
+    })
+    await openCard()
+
+    fireEvent.click(await screen.findByLabelText('Приостановить'))
+    await waitFor(() =>
+      expect(setRoutineEnabled).toHaveBeenCalledWith({
+        profile: 'smeta',
+        id: 'j1',
+        enabled: false
+      })
+    )
+
+    fireEvent.click(screen.getByLabelText('Выполнить сейчас'))
+    await waitFor(() => expect(runRoutineNow).toHaveBeenCalledWith({ profile: 'smeta', id: 'j1' }))
+  })
+
+  it('у нового специалиста рутин не предлагают — привязаться не к кому', async () => {
+    renderPanel()
+    await screen.findByText('Смета')
+
+    fireEvent.click(screen.getByLabelText('Новый специалист'))
+
+    expect(screen.queryByText('Рутины')).toBeNull()
   })
 })

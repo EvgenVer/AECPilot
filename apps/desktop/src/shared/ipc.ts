@@ -204,6 +204,19 @@ export interface SpecialistInputView {
   cloneFrom?: string
 }
 
+export interface RoutineView {
+  id: string
+  name: string
+  prompt: string
+  /** Человеческая запись расписания, если ядро её дало; иначе выражение cron —
+   * молчать о том, когда она сработает, нельзя. */
+  schedule: string
+  enabled: boolean
+  nextRunAt: string
+  lastRunAt: string
+  lastError: string
+}
+
 export interface SpecialistResultView {
   ok: boolean
   name?: string
@@ -922,6 +935,21 @@ export interface AecpilotApi {
    * отключает его: обращения по имени доходят, рутины идут — он лишь не
    * занимает место в списке. */
   hideSpecialist(payload: { name: string; hidden: boolean }): Promise<SpecialistResultView>
+  /** Рутины специалиста (задача 3C.5): расписания, привязанные к тому, кто их
+   * выполняет. Профиль передаётся явно — ядро хранит их по профилям. */
+  listRoutines(profile: string): Promise<{ routines: RoutineView[]; totalOfAll: number }>
+  createRoutine(payload: {
+    profile: string
+    name: string
+    prompt: string
+    schedule: string
+  }): Promise<{ ok: boolean; error?: string }>
+  setRoutineEnabled(payload: {
+    profile: string
+    id: string
+    enabled: boolean
+  }): Promise<{ ok: boolean; error?: string }>
+  runRoutineNow(payload: { profile: string; id: string }): Promise<{ ok: boolean; error?: string }>
   openSpecialistChat(payload: { name: string; pin?: string }): Promise<{
     ok: boolean
     sessionId?: string

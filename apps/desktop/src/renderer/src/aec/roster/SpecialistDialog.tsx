@@ -16,6 +16,7 @@ import type {
 } from '../../../../shared/ipc'
 
 import { AdvancedSpecialist } from './AdvancedSpecialist'
+import { SpecialistRoutines } from './SpecialistRoutines'
 
 export interface SpecialistDraft {
   isNew: boolean
@@ -200,6 +201,10 @@ export function SpecialistDialog({
       </Button>
 
       {advanced && <AdvancedSpecialist input={draft.input} onChange={set} />}
+
+      {/* Рутины — у существующего специалиста: у нового ещё нет профиля, а
+          значит и расписанию не к кому привязаться. */}
+      {!draft.isNew && <SpecialistRoutines profile={draft.input.name} />}
 
       <div className="flex justify-end gap-2">
         <Button disabled={busy} onClick={onCancel} size="sm" variant="text">

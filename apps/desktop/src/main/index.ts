@@ -108,6 +108,13 @@ import {
   type SpecialistInput
 } from './roster'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
+import {
+  configureRoutines,
+  createRoutine,
+  listRoutines,
+  runRoutineNow,
+  setRoutineEnabled
+} from './routines'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
   CuratorStatus,
@@ -2238,6 +2245,41 @@ configureRoster({
 })
 
 ipcMain.handle('roster:list', () => listRoster())
+
+// Задача 3C.5. Рутины специалиста. Профиль передаётся ЯВНО в каждом вызове: ядро
+// хранит расписания по профилям, и «текущий» здесь означало бы поручить рутину
+// не тому агенту.
+configureRoutines({
+  rest: (path, options) => hermesRest(restTarget(), path, options as never),
+  target: restTarget
+})
+
+ipcMain.handle('roster:routines', (_event, profile: unknown) =>
+  listRoutines(typeof profile === 'string' ? profile : '')
+)
+
+ipcMain.handle('roster:routine-create', (_event, payload: unknown) => {
+  const { profile, name, prompt, schedule } = (payload ?? {}) as Record<string, unknown>
+  return createRoutine(typeof profile === 'string' ? profile : '', {
+    name: typeof name === 'string' ? name : '',
+    prompt: typeof prompt === 'string' ? prompt : '',
+    schedule: typeof schedule === 'string' ? schedule : ''
+  })
+})
+
+ipcMain.handle('roster:routine-enabled', (_event, payload: unknown) => {
+  const { profile, id, enabled } = (payload ?? {}) as Record<string, unknown>
+  return setRoutineEnabled(
+    typeof profile === 'string' ? profile : '',
+    typeof id === 'string' ? id : '',
+    enabled === true
+  )
+})
+
+ipcMain.handle('roster:routine-run', (_event, payload: unknown) => {
+  const { profile, id } = (payload ?? {}) as Record<string, unknown>
+  return runRoutineNow(typeof profile === 'string' ? profile : '', typeof id === 'string' ? id : '')
+})
 
 ipcMain.handle('roster:create', (_event, input: unknown) =>
   createSpecialist((input ?? {}) as SpecialistInput)
