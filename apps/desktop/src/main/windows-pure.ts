@@ -73,6 +73,22 @@ export function planSessionWindow(
   return { ok: true, plan: { query, hash: `${SESSION_ROUTE_PREFIX}${encodeURIComponent(id)}` } }
 }
 
+/** Плавающая лента (задача 3.24). Их флаг `win=hud` переключает рендерер на
+ * узкую раскладку — композер и лента без дерева панелей; `profile` нужен
+ * потому, что HUD это ПОЛНЫЙ рендерер со своим соединением, и разговор из
+ * непервичного профиля иначе разрешится не тем ядром (их #82285). */
+export function planHudWindow(sessionId: unknown, profile: unknown): WindowPlan {
+  const query: Record<string, string> = { win: 'hud' }
+
+  if (typeof profile === 'string' && profile.trim() !== '') query.profile = profile.trim()
+
+  const id = typeof sessionId === 'string' ? sessionId.trim() : ''
+  const hash =
+    id === '' || hasControlChar(id) ? '' : `${SESSION_ROUTE_PREFIX}${encodeURIComponent(id)}`
+
+  return { query, hash }
+}
+
 /** Собирает адрес для `loadURL` — путь разработки, где рендерер живёт на
  * сервере. В сборке те же величины уходят в `loadFile` по отдельности. */
 export function windowUrl(base: string, plan: WindowPlan): string {

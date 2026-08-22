@@ -734,6 +734,26 @@ export interface AecpilotApi {
   /** Ещё одно полноценное окно приложения (задача 3.14). Одно ядро, один
    * шлюз, несколько окон — «работать с двумя разговорами рядом» это про окна,
    * а не про второй запуск программы. */
+  /** Плавающая лента поверх чужих окон (задача 3.24). Отдельное окно, потому
+   * что смысл поверхности — быть НАД другой программой; панель внутри нашего
+   * окна этого не умеет.
+   *
+   * `setIgnoreMouse` решает рендерер: он один знает, что под курсором, — окно
+   * поверх всех иначе съедает щелчки по чужому содержимому под своей
+   * прозрачной частью. */
+  openHud(request?: { sessionId?: string | null; profile?: string | null }): Promise<{
+    ok: boolean
+  }>
+  closeHud(): Promise<{ ok: boolean }>
+  getHudState(): Promise<{ open: boolean; sessionId: null | string }>
+  setHudIgnoreMouse(ignore: boolean): void
+  moveHudBy(delta: { x: number; y: number; width: number; height: number }): void
+  setHudBounds(bounds: { x: number; y: number; width: number; height: number }): void
+  /** Материал окна macOS. На других системах отвечает `ok:false`, чтобы их
+   * стекло не считало, что применилось. */
+  setHudVibrancy(on: boolean): Promise<{ ok: boolean }>
+  setHudSession(sessionId: null | string): void
+  onHudChanged(cb: (state: { open: boolean; sessionId: null | string }) => void): () => void
   openAppWindow(): Promise<{ ok: boolean; error?: string }>
   /** Занять разовую подсказку — звук конца хода, чтение ответа вслух (задача
    * 3.14). Отвечает `true` первому окну и `false` остальным: событие ядра одно,

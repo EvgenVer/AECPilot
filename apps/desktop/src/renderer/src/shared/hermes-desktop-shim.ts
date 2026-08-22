@@ -260,6 +260,51 @@ const IMPLEMENTED: Record<string, unknown> = {
   // Task 3.18. Their settings row writes the preference into their own storage
   // and calls this; main owns the real blocker and its own copy, so an
   // overnight run survives a restart of the app.
+  // Задача 3.24. Плавающая лента. Их проверка возможности — `typeof
+  // …hud?.open === 'function'`, и на заглушке она проходит: переключатель HUD в
+  // заголовке показывался и ничего не делал (подвид D-41).
+  //
+  // `onCursor` проброшен, но на Windows и macOS не приходит НИКОГДА — и это их
+  // замысел, а не пробел: там поток `mousemove` держит `forward: true`, а
+  // подмена курсора нужна только Linux, где этой опции нет.
+  hud: {
+    open(request?: { sessionId?: null | string; profile?: null | string }): Promise<{
+      ok: boolean
+    }> {
+      return window.aecpilot.openHud(request)
+    },
+    close(): Promise<{ ok: boolean }> {
+      return window.aecpilot.closeHud()
+    },
+    setIgnoreMouse(ignore: boolean): void {
+      window.aecpilot.setHudIgnoreMouse(ignore)
+    },
+    moveBy(delta: { x: number; y: number; width: number; height: number }): void {
+      window.aecpilot.moveHudBy(delta)
+    },
+    setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+      window.aecpilot.setHudBounds(bounds)
+    },
+    setVibrancy(on: boolean): Promise<{ ok: boolean }> {
+      return window.aecpilot.setHudVibrancy(on)
+    },
+    setSession(sessionId: null | string): void {
+      window.aecpilot.setHudSession(sessionId)
+    },
+    onGoto(_callback: (sessionId: string) => void): () => void {
+      // Их «перейти к разговору из ленты» ведёт в ГЛАВНОЕ окно. Пока лента
+      // одна и открывается на нужной сессии сразу, отдельного перехода нет —
+      // подписка честно ничего не присылает.
+      return () => {}
+    },
+    onChanged(callback: (state: { open: boolean; sessionId: null | string }) => void): () => void {
+      return window.aecpilot.onHudChanged(callback)
+    },
+    onCursor(_callback: (point: { x: number; y: number } | null) => void): () => void {
+      return () => {}
+    }
+  },
+
   // Задача 3.14. Их проверка возможности — `typeof
   // window.hermesDesktop?.openWindow === 'function'` (`store/windows.ts`), и на
   // заглушке она проходит: та ВЫЗЫВАЕМА. То есть пункт «открыть в новом окне»

@@ -31,6 +31,20 @@ const api: AecpilotApi = {
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
+  openHud: (request) => ipcRenderer.invoke('hud:open', request),
+  closeHud: () => ipcRenderer.invoke('hud:close'),
+  getHudState: () => ipcRenderer.invoke('hud:get-state'),
+  setHudIgnoreMouse: (ignore) => ipcRenderer.send('hud:ignore-mouse', ignore),
+  moveHudBy: (delta) => ipcRenderer.send('hud:move-by', delta),
+  setHudBounds: (bounds) => ipcRenderer.send('hud:set-bounds', bounds),
+  setHudVibrancy: (on) => ipcRenderer.invoke('hud:vibrancy', on),
+  setHudSession: (sessionId) => ipcRenderer.send('hud:set-session', sessionId),
+  onHudChanged: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
+      cb(state)
+    ipcRenderer.on('hud:changed', listener)
+    return () => ipcRenderer.removeListener('hud:changed', listener)
+  },
   openAppWindow: () => ipcRenderer.invoke('window:open'),
   claimAmbientCue: (key) => ipcRenderer.invoke('ambient:claim', key),
   openSessionWindow: (sessionId, watch) =>

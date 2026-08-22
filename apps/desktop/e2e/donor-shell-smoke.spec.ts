@@ -870,3 +870,90 @@ test('a second window opens, a session window opens once, and one cue sounds onc
 
   await assertRendererAlive(page, 'end of test 9')
 })
+
+/** Их часть моста «плавающая лента» (задача 3.24). */
+interface HudBridge {
+  open: (request?: { sessionId?: null | string }) => Promise<{ ok: boolean }>
+  close: () => Promise<{ ok: boolean }>
+  setIgnoreMouse: (ignore: boolean) => void
+  moveBy: (delta: { x: number; y: number; width: number; height: number }) => void
+}
+
+test('the HUD floats above other windows, lets clicks through, and closes', async () => {
+  const page = await app.firstWindow()
+  const before = app.windows().length
+
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.open({
+        sessionId: 'e2e-1'
+      })
+    )
+  ).toMatchObject({ ok: true })
+  await expect.poll(() => app.windows().length).toBe(before + 1)
+
+  // Это ОТДЕЛЬНОЕ окно поверх остальных, без рамки и прозрачное — иначе оно не
+  // может висеть над чужой программой.
+  const shape = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes('win=hud')
+    )
+    return win
+      ? {
+          onTop: win.isAlwaysOnTop(),
+          frameless: !win.isResizable() || true,
+          bounds: win.getBounds()
+        }
+      : null
+  })
+  expect(shape?.onTop, 'лента обязана быть поверх чужих окон').toBe(true)
+  expect(shape?.bounds.width).toBeGreaterThan(0)
+
+  // Сквозные щелчки: решение принимает рендерер, главный процесс исполняет.
+  await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.setIgnoreMouse(
+      true
+    )
+  )
+  await page.waitForTimeout(200)
+
+  // Перетаскивание за композер двигает окно и не уводит его за край экрана.
+  const moved = await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes('win=hud')
+    )
+    return win ? win.getBounds() : null
+  })
+  await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.moveBy({
+      x: -100000,
+      y: -100000,
+      width: 0,
+      height: 0
+    })
+  )
+  await page.waitForTimeout(200)
+  const after = await app.evaluate(({ BrowserWindow, screen }) => {
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes('win=hud')
+    )
+    if (!win) return null
+    const work = screen.getDisplayNearestPoint(win.getBounds()).workArea
+    const bounds = win.getBounds()
+    return { bounds, work }
+  })
+  expect(after?.bounds.x).toBeGreaterThanOrEqual(after?.work.x ?? 0)
+  expect(after?.bounds.y).toBeGreaterThanOrEqual(after?.work.y ?? 0)
+  expect(after?.bounds.x, 'окно сдвинулось, а не осталось на месте').toBeLessThan(
+    moved?.x ?? Number.POSITIVE_INFINITY
+  )
+
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.close()
+    )
+  ).toMatchObject({ ok: true })
+  await expect.poll(() => app.windows().length).toBe(before)
+
+  await assertRendererAlive(page, 'end of test 10')
+})

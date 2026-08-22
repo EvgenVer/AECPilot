@@ -23,6 +23,18 @@ import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { claimCue, type ClaimState } from './ambient-claim-pure'
+import {
+  closeHud,
+  hudState,
+  moveHudBy,
+  onHudChanged,
+  openHud,
+  setHudBounds,
+  setHudIgnoreMouse,
+  setHudSession,
+  setHudVibrancy,
+  stopHud
+} from './hud'
 import { planAppWindow, planSessionWindow, windowUrl, type WindowPlan } from './windows-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
@@ -2366,6 +2378,22 @@ const ambientClaims: ClaimState = new Map()
 
 ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims, key, Date.now()))
 
+// Задача 3.24. Плавающая лента поверх чужих окон. Решения о границах и
+// прозрачности — в `hud.ts` и `hud-pure.ts`.
+ipcMain.handle('hud:open', (_event, request: unknown) =>
+  openHud(
+    (request ?? {}) as { sessionId?: unknown; profile?: unknown },
+    process.env.ELECTRON_RENDERER_URL ?? rendererFileUrl()
+  )
+)
+ipcMain.handle('hud:close', () => closeHud())
+ipcMain.handle('hud:vibrancy', (_event, on: unknown) => setHudVibrancy(on))
+ipcMain.on('hud:ignore-mouse', (_event, ignore: unknown) => setHudIgnoreMouse(ignore))
+ipcMain.on('hud:move-by', (_event, delta: unknown) => moveHudBy(delta))
+ipcMain.on('hud:set-bounds', (_event, bounds: unknown) => setHudBounds(bounds))
+ipcMain.on('hud:set-session', (_event, value: unknown) => setHudSession(value))
+ipcMain.handle('hud:get-state', () => hudState())
+
 // Задача 3.14. Ещё одно окно приложения — полноценное, против того же ядра.
 ipcMain.handle('window:open', () => {
   createWindow()
@@ -3245,6 +3273,11 @@ app
     // доезжает до окна сама — включая неожиданный выход процесса.
     onCronRunnerChanged((state) => broadcastToWindows('cron-runner:changed', state))
 
+    // Задача 3.24: обе стороны должны знать, открыта ли лента, — иначе
+    // переключатель в заголовке главного окна расходится с правдой, когда её
+    // закрыли из неё самой.
+    onHudChanged((state) => broadcastToWindows('hud:changed', state))
+
     // Task 3.28: the OS side of working in the background.
     installNotifications()
     installPowerWatch({
@@ -3280,6 +3313,7 @@ app.on('will-quit', () => {
   // Задача 3.6а: осиротевший планировщик, продолжающий запускать задачи агента
   // после закрытия окна, — это не «работа в фоне», а потеря контроля.
   stopCronRunner()
+  stopHud()
 })
 
 app.on('before-quit', (event) => {
