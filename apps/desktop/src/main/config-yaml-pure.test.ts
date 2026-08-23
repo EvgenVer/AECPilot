@@ -74,4 +74,14 @@ describe('дописать поле в их конфиг', () => {
     const result = ensureSectionScalar('', 'wake_word', 'phrase', 'скажи "пилот"')
     expect(result.text).toContain(String.raw`phrase: "скажи \"пилот\""`)
   })
+
+  // Задача 3.B1д. Число обязано лечь числом: ядро стерпело бы и `"3600"`
+  // (`float(value)`), но этот файл читает человек, и число в кавычках он
+  // прочитает как чужую ошибку — и «поправит».
+  it('число пишется без кавычек, строка — в кавычках', () => {
+    expect(ensureSectionScalar('', 'agent', 'run_budget_seconds', 3600).text).toContain(
+      'run_budget_seconds: 3600'
+    )
+    expect(ensureSectionScalar('', 'agent', 'note', '3600').text).toContain('note: "3600"')
+  })
 })

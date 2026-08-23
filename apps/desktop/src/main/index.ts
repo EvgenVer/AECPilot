@@ -601,6 +601,51 @@ function applyDefaultSpeechVoice(homeDir: string): void {
   }
 }
 
+/** Задача 3.B1д — граница длительности одного прогона агента.
+ *
+ * ЗАЧЕМ. До 0.20.5 у агента был предел ходов (500), и он был единственной
+ * встроенной границей цикла. В 0.20.5 ядро его сняло — обоснованно: предел
+ * рвал задачу на середине. Взамен появился бюджет по часам, но ВЫКЛЮЧЕННЫЙ,
+ * а сторожа от зацикливания только помечают повтор, никогда не останавливая.
+ * Итог без этой правки: зациклившийся агент считает деньги на платной модели,
+ * пока человек не остановит его руками. Решение владельца 2026-08-23 — бюджет.
+ *
+ * ПОЧЕМУ ЧАС. Их же таймаут зависшего ХОДА — 1800 секунд, значит бюджет на
+ * весь прогон обязан быть заметно больше одного хода, иначе он будет срабатывать
+ * на честной длинной работе. Час даёт запас на многошаговую задачу и при этом
+ * превращает «бесконечно» в «до часа». Значение подобрано, а не измерено: точку
+ * даст ручная приёмка на настоящем проекте, и менять его человек может прямо в
+ * этом файле — правило ниже его выбор не трогает.
+ *
+ * ЧЕГО ЭТО НЕ ДЕЛАЕТ: не обрывает на полуслове. За 80% бюджета ядро само
+ * предупреждает агента, и тот успевает свернуть мысль. */
+const RUN_BUDGET_SECONDS = 3600
+
+function applyRunBudget(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the run budget', error)
+    return
+  }
+
+  const merged = ensureSectionScalar(original, 'agent', 'run_budget_seconds', RUN_BUDGET_SECONDS)
+  if (merged.unexpectedStructure) {
+    console.warn('aecpilot: config.yaml has an agent: scalar — leaving the run budget untouched')
+    return
+  }
+  if (!merged.changed) return
+
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the run budget', error)
+  }
+}
+
 /** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
  *
  * Их умолчание называет ИХ продукт, и оно попадает не в код, а на экран: фразу
@@ -3721,6 +3766,7 @@ app
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
           applyDefaultSpeechVoice(HERMES_HOME_DIR)
           applyDefaultWakePhrase(HERMES_HOME_DIR)
+          applyRunBudget(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't

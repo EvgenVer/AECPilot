@@ -29,17 +29,23 @@ const TOP_LEVEL_LINE = /^\S/
  * Ничего не делает, если ключ уже есть — с любым значением. Это половина
  * смысла: правило зовётся на каждом старте, и однажды выбранное человеком
  * значение обязано пережить все следующие запуски.
+ *
+ * Число пишется числом, строка — в кавычках. Разница не косметическая: этот
+ * файл человек читает и правит руками, и `run_budget_seconds: "3600"` он
+ * прочитает как чужую ошибку. Ядро-то стерпит (`float(value)`), а человек
+ * поверит, что число здесь почему-то текст.
  */
 export function ensureSectionScalar(
   yamlText: string,
   section: string,
   key: string,
-  value: string
+  value: number | string
 ): ConfigScalarResult {
   const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
   const keyLine = new RegExp(`^\\s+${key}:`)
 
+  const written = typeof value === 'number' ? String(value) : JSON.stringify(value)
   const lines = yamlText.split('\n')
 
   if (lines.some((line) => sectionScalar.test(line))) {
@@ -50,7 +56,7 @@ export function ensureSectionScalar(
 
   if (start === -1) {
     const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
-    const block = `${section}:\n  ${key}: ${JSON.stringify(value)}\n`
+    const block = `${section}:\n  ${key}: ${written}\n`
     return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
   }
 
@@ -69,7 +75,7 @@ export function ensureSectionScalar(
 
   const next = [
     ...lines.slice(0, start + 1),
-    `  ${key}: ${JSON.stringify(value)}`,
+    `  ${key}: ${written}`,
     ...body,
     ...lines.slice(end)
   ]
