@@ -293,6 +293,19 @@ export async function setSpecialistHidden(
   }
 }
 
+/** Метка источника, которой помечены СОЗДАННЫЕ НАМИ постоянные чаты.
+ *
+ * Это опознавательный знак чата, и он выбран вместо заголовка сознательно
+ * (задача 3C.4б). У донора личность канонического чата — его заголовок
+ * «Bot Chat», и именно на этом раскрутился их бесконечный цикл: заголовок
+ * переименовывает автоименователь модели, после чего чат перестаёт узнаваться
+ * и создаётся заново. Источник не переименовывает никто, включая модель.
+ *
+ * Отсюда же ответ, почему мы НЕ берём их прибавку 0.20.5 — поиск сессии по
+ * точному заголовку (`session.list` с `title`). Она лечит их болезнь, которой у
+ * нас нет: нашим чатам заголовок вообще не назначается. */
+const OUR_CHAT_SOURCE = 'aecpilot-roster'
+
 /**
  * Постоянный чат специалиста (задача 3C.4).
  *
@@ -349,6 +362,12 @@ export async function openCanonicalChat(
         : { preferred: preferred === null ? null : { id: idOf(preferred) } }),
       ...(latest ? { latest: { id: idOf(latest) } } : { latest: null })
     }
+
+    // Наш ли чат уже есть — спрашиваем ТОЛЬКО когда иначе пришлось бы усыновлять
+    // или создавать. При живой привязке (самый частый случай) лишнего вызова нет.
+    if (pin === '' || facts.preferred === null) {
+      facts = { ...facts, ours: await findOurChat(name) }
+    }
   } catch (error: unknown) {
     // Ядро молчит — это НЕ повод терять привязку (см. `planCanonicalChat`).
     console.warn('aecpilot: roster canonical chat lookup FAIL', error)
@@ -366,7 +385,7 @@ export async function openCanonicalChat(
 
   try {
     const created = (await core().request('session.create', {
-      source: 'aecpilot-roster',
+      source: OUR_CHAT_SOURCE,
       hidden: true,
       profile: name
     })) as { session_id?: string }
@@ -378,6 +397,47 @@ export async function openCanonicalChat(
     return { ok: true, sessionId, created: true }
   } catch (error: unknown) {
     return { ok: false, error: describe(error) }
+  }
+}
+
+/**
+ * Ищет чат, созданный НАМИ для этого специалиста (задача 3C.4б).
+ *
+ * `include_hidden` обязателен: наши чаты рождаются скрытыми, и без него список
+ * их не показывает вовсе — то есть проверка «есть ли уже чат» всегда отвечала бы
+ * «нет», и чаты плодились бы при каждой потере привязки.
+ *
+ * Неудача здесь — это `null`, а не исключение: не нашли и не смогли спросить
+ * различаются выше, в `planCanonicalChat`, по флагу `answered`; здесь ответ
+ * означает только «нашего чата не видно».
+ */
+async function findOurChat(name: string): Promise<{ id: string } | null> {
+  try {
+    const answer = (await core().request('session.list', {
+      profile: name,
+      include_hidden: true
+    })) as { sessions?: unknown[] }
+
+    const rows = Array.isArray(answer?.sessions) ? answer.sessions : []
+    const mine = rows
+      .map((row) => row as Record<string, unknown>)
+      .find((row) => typeof row.source === 'string' && row.source === OUR_CHAT_SOURCE)
+
+    if (!mine) return null
+
+    // `resolved_id` — живая вершина сжатой переписки. В обычной выдаче ядро
+    // 0.20.5 её НЕ отдаёт (замер `runtime/own-chat-probe.mjs`: поля строки —
+    // id, title, preview, started_at, message_count, source); поле читается на
+    // случай, если начнёт отдавать. Сжатие в основном пути разрешает привязка.
+    const id = idOf({
+      session_id: typeof mine.resolved_id === 'string' ? mine.resolved_id : undefined,
+      id: typeof mine.id === 'string' ? mine.id : undefined
+    })
+
+    return id === '' ? null : { id }
+  } catch (error: unknown) {
+    console.warn('aecpilot: roster own-chat lookup FAIL', error)
+    return null
   }
 }
 

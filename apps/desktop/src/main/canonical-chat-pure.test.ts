@@ -63,6 +63,53 @@ describe('какую сессию открыть', () => {
   })
 })
 
+// Задача 3C.4б — по их регрессии `canonical-chat-adopt-before-mint`.
+describe('привязка потерялась, а чат — нет', () => {
+  it('усыновляется НАШ чат, а не последний разговор человека', () => {
+    // Ровно их случай: последняя сессия профиля — обычная переписка человека,
+    // а постоянный чат специалиста лежит старее.
+    expect(
+      planCanonicalChat({
+        pin: '',
+        answered: true,
+        ours: { id: 'постоянный' },
+        latest: { id: 'разговор-человека' }
+      })
+    ).toEqual({ action: 'adopt', sessionId: 'постоянный' })
+  })
+
+  it('то же при заведомо мёртвой привязке', () => {
+    expect(
+      planCanonicalChat({
+        pin: 'умершая',
+        answered: true,
+        preferred: null,
+        ours: { id: 'постоянный' },
+        latest: { id: 'разговор-человека' }
+      })
+    ).toEqual({ action: 'adopt', sessionId: 'постоянный' })
+  })
+
+  it('дедушкино правило цело: нашего чата нет — усыновляем последнюю', () => {
+    // У специалиста, заведённого до появления постоянного чата, нашей сессии
+    // нет по определению, и новый пустой чат выглядел бы как потеря переписки.
+    expect(
+      planCanonicalChat({ pin: '', answered: true, ours: null, latest: { id: 'старая' } })
+    ).toEqual({ action: 'adopt', sessionId: 'старая' })
+  })
+
+  it('живая привязка сильнее всего: наш чат её не подменяет', () => {
+    expect(
+      planCanonicalChat({
+        pin: 'живая',
+        answered: true,
+        preferred: { id: 'живая' },
+        ours: { id: 'другая-наша' }
+      })
+    ).toEqual({ action: 'open', sessionId: 'живая' })
+  })
+})
+
 describe('«новый чат» в постоянном чате', () => {
   it('подменяется очисткой контекста', () => {
     expect(rerouteNewInCanonicalChat('/new', 'с-1', 'с-1')).toBe('/compact')

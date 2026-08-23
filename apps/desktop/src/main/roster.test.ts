@@ -367,6 +367,68 @@ describe('постоянный чат', () => {
     expect((await openCanonicalChat('../побег')).ok).toBe(false)
     expect(request).not.toHaveBeenCalled()
   })
+
+  // Задача 3C.4б. Их регрессия `canonical-chat-adopt-before-mint`: потеря
+  // привязки не должна ни плодить второй чат, ни забирать чужую переписку.
+  it('привязки нет, но НАШ чат есть — усыновляем его, а не разговор человека', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') {
+        return {
+          profiles: [profileRow('smeta', { last_session: { session_id: 'разговор-человека' } })]
+        }
+      }
+      if (method === 'session.list') {
+        return {
+          sessions: [
+            { id: 'разговор-человека', source: 'chat' },
+            { id: 'постоянный', source: 'aecpilot-roster' }
+          ]
+        }
+      }
+      return { applied: { ui_meta: true } }
+    })
+
+    const result = await openCanonicalChat('smeta', '')
+
+    expect(result).toEqual({ ok: true, sessionId: 'постоянный', created: false })
+    expect(request.mock.calls.some((call) => call[0] === 'session.create')).toBe(false)
+  })
+
+  it('скрытые сессии обязаны попасть в выдачу — иначе свой чат не найти', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') return { profiles: [profileRow('smeta')] }
+      if (method === 'session.list') return { sessions: [] }
+      if (method === 'session.create') return { session_id: 'с-новая' }
+      return { applied: { ui_meta: true } }
+    })
+
+    await openCanonicalChat('smeta', '')
+
+    const listed = request.mock.calls.find((call) => call[0] === 'session.list')
+    expect(listed?.[1]).toEqual({ profile: 'smeta', include_hidden: true })
+  })
+
+  it('сжатый чат открывается живой вершиной, а не отрезанным хвостом', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'profiles.list') return { profiles: [profileRow('smeta')] }
+      if (method === 'session.list') {
+        return { sessions: [{ id: 'хвост', resolved_id: 'вершина', source: 'aecpilot-roster' }] }
+      }
+      return { applied: { ui_meta: true } }
+    })
+
+    expect((await openCanonicalChat('smeta', '')).sessionId).toBe('вершина')
+  })
+
+  it('при живой привязке лишнего вопроса о своих сессиях НЕТ', async () => {
+    request.mockResolvedValue({
+      profiles: [profileRow('smeta', { preferred_session: { session_id: 'с-1' } })]
+    })
+
+    await openCanonicalChat('smeta', 'с-1')
+
+    expect(request.mock.calls.some((call) => call[0] === 'session.list')).toBe(false)
+  })
 })
 
 // Задача 3C.8. Скрытие — это поле в метаданных профиля, то есть на сервере:
