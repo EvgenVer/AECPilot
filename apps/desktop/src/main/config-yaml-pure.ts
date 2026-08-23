@@ -73,12 +73,7 @@ export function ensureSectionScalar(
     return { text: yamlText, changed: false, unexpectedStructure: false }
   }
 
-  const next = [
-    ...lines.slice(0, start + 1),
-    `  ${key}: ${written}`,
-    ...body,
-    ...lines.slice(end)
-  ]
+  const next = [...lines.slice(0, start + 1), `  ${key}: ${written}`, ...body, ...lines.slice(end)]
 
   return { text: next.join('\n'), changed: true, unexpectedStructure: false }
 }
