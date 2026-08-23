@@ -272,6 +272,45 @@ async function loadRegisterAecRagModule(): Promise<RegisterAecRagModule> {
   return (await import(/* @vite-ignore */ specifier)) as RegisterAecRagModule
 }
 
+interface RegisterAecRosterModule {
+  registerAecRoster: () => { changed: boolean; configPaths: string[] }
+  writeRosterSnapshot: (specialists: { name: string; title?: string }[]) => boolean
+}
+
+// Same dynamic-import rationale as the loaders above (task 3C.7).
+async function loadRegisterAecRosterModule(): Promise<RegisterAecRosterModule> {
+  const specifier = pathToFileURL(
+    join(__dirname, '../../../../runtime/register-aec-roster.mjs')
+  ).href
+  return (await import(/* @vite-ignore */ specifier)) as RegisterAecRosterModule
+}
+
+/**
+ * Держит инструмент обращения в рабочем состоянии (задача 3C.7).
+ *
+ * ДВЕ РАЗНЫЕ ВЕЩИ, И ТОЛЬКО ОДНА ИЗ НИХ ТРЕБУЕТ ПЕРЕЗАПУСКА:
+ *
+ * * снимок роестра инструмент читает при каждом вызове — новая запись видна
+ *   сразу, перезагружать нечего;
+ * * запись в `config.yaml` профиля видна ядру только после `reload.mcp` — оно
+ *   держит подключённый MCP-сервер по имени всю жизнь процесса. Поэтому
+ *   перезапуск идёт ровно тогда, когда появился профиль без инструмента, то
+ *   есть после создания специалиста.
+ *
+ * Всё лучшее-из-возможного: без собранного пакета (`uv sync` не прогоняли) или
+ * при недоступном `config.yaml` роестр обязан открыться и работать — просто
+ * обращения по имени не будет, пока условие не поправят.
+ */
+async function syncRosterTool(specialists: { name: string; title: string }[]): Promise<void> {
+  try {
+    const { registerAecRoster, writeRosterSnapshot } = await loadRegisterAecRosterModule()
+    writeRosterSnapshot(specialists)
+    if (registerAecRoster().changed) await reloadMcp()
+  } catch (error: unknown) {
+    console.error('aecpilot: could not sync the aec-roster tool', error)
+  }
+}
+
 // reload.mcp shuts down every configured MCP server process-wide (not just
 // aec-sources) and reconnects them — cheap enough (local stdio spawns) that
 // 15s is generous, but still bounded well under the client's 60s default so
@@ -2289,7 +2328,14 @@ configureRoster({
     hermesRest(restTarget(), `/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' })
 })
 
-ipcMain.handle('roster:list', () => listRoster())
+ipcMain.handle('roster:list', async () => {
+  const roster = await listRoster()
+  // Снимок пишется из ТОГО ЖЕ ответа, из которого нарисован список: второго
+  // источника правды не заводим. Скрытые тоже попадают — скрытие убирает из
+  // списка, но не из работы, и `@имя` до скрытого доходит (задача 3C.8).
+  await syncRosterTool(roster)
+  return roster
+})
 
 // Задача 3C.5. Рутины специалиста. Профиль передаётся ЯВНО в каждом вызове: ядро
 // хранит расписания по профилям, и «текущий» здесь означало бы поручить рутину
