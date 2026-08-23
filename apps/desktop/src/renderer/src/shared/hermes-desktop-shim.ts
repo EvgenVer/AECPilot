@@ -119,6 +119,16 @@ interface DonorConnectionInput {
  * `wsUrl` — заглушка, которую наш мост перехватывает. Их `authMode: 'token'`
  * оставлен нарочно: при `oauth` их код полез бы обновлять билет через член,
  * которого у нас нет, и падал бы на старте.
+ *
+ * `connectionId` — ТОТ ЖЕ УРОК, ЧТО И `mode`, второй раз (задача 3.B1в).
+ * В 0.20.5 у них появился реестр нескольких ядер, и `$activeConnectionId`
+ * читает это поле. Пустое поле даёт `null` — значение стабильное, то есть
+ * эффекты, у которых оно стоит в зависимостях (обновление списка сессий в
+ * боковой панели, фоновая синхронизация), при смене ядра НЕ СРАБОТАЮТ. Опять
+ * не отказ, а тихая неправда: переключились на серверное ядро, а список сессий
+ * остался от прежнего. Подключение у нас одно за раз (SPEC O10), но
+ * идентификатор обязан меняться, когда меняется цель, и переживать перезапуск —
+ * поэтому он выводится из самой цели, а не выдаётся случайным.
  */
 function runtimeConnection(
   view: import('../../../shared/ipc').ConnectionView | null,
@@ -133,7 +143,9 @@ function runtimeConnection(
     wsUrl: 'ws://ipc/api/ws'
   }
 
-  if (!view || view.mode === 'local') return { ...base, baseUrl: 'ipc://main', mode: 'local' }
+  if (!view || view.mode === 'local') {
+    return { ...base, baseUrl: 'ipc://main', connectionId: 'local', mode: 'local' }
+  }
 
   if (view.mode === 'ssh') {
     // `remoteIdentity` — то, чем они различают ssh-подключения в ключах кэша.
@@ -143,6 +155,7 @@ function runtimeConnection(
     return {
       ...base,
       baseUrl: `ssh://${identity}`,
+      connectionId: `ssh:${identity}`,
       mode: 'remote',
       remoteKind: 'ssh',
       remoteHost: view.sshHost,
@@ -153,6 +166,9 @@ function runtimeConnection(
   return {
     ...base,
     baseUrl: view.remoteUrl,
+    // Полный адрес, а не только имя машины: два ядра на одной машине различаются
+    // портом, и по имени они слились бы в одно подключение.
+    connectionId: `url:${view.remoteUrl}`,
     mode: 'remote',
     remoteKind: 'url',
     remoteHost: hostOf(view.remoteUrl)

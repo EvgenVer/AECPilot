@@ -74,6 +74,55 @@ describe('hermes-desktop shim: getConnection — чьи файлы показы�
     expect(conn).not.toBeNull()
     expect(conn.mode).toBe('local')
   })
+
+  // Задача 3.B1в. Их `$activeConnectionId` читает это поле, и на нём стоят
+  // эффекты обновления списка сессий и фоновой синхронизации. Пустое поле —
+  // стабильный `null`, то есть при смене ядра они НЕ СРАБОТАЮТ, и список
+  // сессий останется от прежнего подключения.
+  it('у каждой цели свой устойчивый идентификатор — иначе смена ядра пройдёт незамеченной', async () => {
+    const bridge = createHermesDesktopBridge()
+
+    withConnectionView({ mode: 'local', remoteUrl: '', sshHost: '', sshUser: '' })
+    const local = await bridge.getConnection()
+
+    withConnectionView({ mode: 'ssh', remoteUrl: '', sshHost: 'build', sshUser: 'ivan' })
+    const ssh = await bridge.getConnection()
+
+    withConnectionView({
+      mode: 'remote',
+      remoteUrl: 'https://hermes.example.org:8443',
+      sshHost: '',
+      sshUser: ''
+    })
+    const url = await bridge.getConnection()
+
+    expect([local.connectionId, ssh.connectionId, url.connectionId]).toEqual([
+      'local',
+      'ssh:ivan@build',
+      'url:https://hermes.example.org:8443'
+    ])
+  })
+
+  it('идентификатор выведен из цели, а не выдан случайным — иначе не переживёт перезапуск', async () => {
+    withConnectionView({ mode: 'ssh', remoteUrl: '', sshHost: 'build', sshUser: 'ivan' })
+
+    const first = await createHermesDesktopBridge().getConnection()
+    const second = await createHermesDesktopBridge().getConnection()
+
+    expect(second.connectionId).toBe(first.connectionId)
+  })
+
+  it('два ядра на одной машине различаются портом, а не сливаются в одно', async () => {
+    const bridge = createHermesDesktopBridge()
+
+    withConnectionView({ mode: 'remote', remoteUrl: 'http://box:8080', sshHost: '', sshUser: '' })
+    const first = await bridge.getConnection()
+
+    withConnectionView({ mode: 'remote', remoteUrl: 'http://box:9090', sshHost: '', sshUser: '' })
+    const second = await bridge.getConnection()
+
+    expect(second.connectionId).not.toBe(first.connectionId)
+  })
 })
 
 describe('hermes-desktop shim: getConnection', () => {
