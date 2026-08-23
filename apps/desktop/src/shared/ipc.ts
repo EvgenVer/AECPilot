@@ -180,6 +180,13 @@ export interface SpecialistView {
   chatSessionId: string
   preview: string
   previewAt: string
+  /** Специалист сейчас работает фоном (задача 3C.4в). Отдельно от «идёт ход в
+   * его чате»: рабочие сессии в списках разговоров не показываются никогда. */
+  busy: boolean
+  /** Версия наших метаданных, на которой основано то, что видит человек.
+   * Возвращается при записи как условие «поле никто не менял». Отсутствует —
+   * ядро версий не считает, и запись идёт без условия. */
+  revision?: number
 }
 
 export interface SpecialistInputView {
@@ -202,6 +209,10 @@ export interface SpecialistInputView {
   enabledMcpServers?: string[]
   /** С кого клонировать при создании — умеет само ядро. */
   cloneFrom?: string
+  /** Версия метаданных, на которой основана правка (задача 3C.4в). Приходит из
+   * роестра, который человек видел; прочитать её перед самой записью значило бы
+   * никогда не поймать чужую правку. */
+  revision?: number
 }
 
 export interface RoutineView {
@@ -934,7 +945,11 @@ export interface AecpilotApi {
   /** Скрыть специалиста или вернуть в список (задача 3C.8). Скрытие не
    * отключает его: обращения по имени доходят, рутины идут — он лишь не
    * занимает место в списке. */
-  hideSpecialist(payload: { name: string; hidden: boolean }): Promise<SpecialistResultView>
+  hideSpecialist(payload: {
+    name: string
+    hidden: boolean
+    revision?: number
+  }): Promise<SpecialistResultView>
   /** Рутины специалиста (задача 3C.5): расписания, привязанные к тому, кто их
    * выполняет. Профиль передаётся явно — ядро хранит их по профилям. */
   listRoutines(profile: string): Promise<{ routines: RoutineView[]; totalOfAll: number }>

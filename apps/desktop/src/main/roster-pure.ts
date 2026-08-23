@@ -41,6 +41,19 @@ export interface Specialist {
   /** Последняя реплика для строки списка. */
   preview: string
   previewAt: string
+  /**
+   * Специалист СЕЙЧАС РАБОТАЕТ фоном (задача 3C.4в).
+   *
+   * Отдельно от «идёт ход в его чате»: рабочие сессии в списках разговоров не
+   * показываются никогда, и без этого признака роестр показывал бы покой у
+   * занятого специалиста.
+   */
+  busy: boolean
+  /**
+   * Версия наших полей метаданных. `undefined` — ядро версий не считает
+   * (до 0.20.5), и тогда пишем без условия.
+   */
+  revision?: number
 }
 
 export const DEFAULT_FACE: SpecialistFace = { shape: 'circle', color: '#5B8DEF' }
@@ -106,7 +119,12 @@ export function parseSpecialist(raw: unknown): Specialist | null {
     hidden: ours.hidden === true,
     chatSessionId: text(ours.chat),
     preview: text(last.preview),
-    previewAt: text(last.updated_at)
+    previewAt: text(last.updated_at),
+    // Само присутствие строки рабочей сессии и означает «работает»: ядро кладёт
+    // туда самую свежую, а её живость подтверждается тем, что работник
+    // отмечается не реже раза в минуту.
+    busy: typeof row.worker_session === 'object' && row.worker_session !== null,
+    ...(metaRevision(row) === undefined ? {} : { revision: metaRevision(row) })
   }
 }
 
@@ -141,12 +159,17 @@ export function metaPatch(input: {
   return { [OUR_META_KEY]: ours }
 }
 
-/** Три исхода сохранения, а не два.
+/** Четыре исхода сохранения, а не два.
  *
  * Их же тесты настаивают на различии: старое ядро, которое не умеет `ui_meta`, —
  * это НЕ отказ. Настройка сохранена здесь и будет видна на этой машине; человеку
- * надо сказать именно это, а не «не удалось». */
-export type SaveOutcome = 'server' | 'local-only' | 'refused'
+ * надо сказать именно это, а не «не удалось».
+ *
+ * `conflict` добавлен задачей 3C.4в: ядро 0.20.5 умеет отвергнуть запись, если
+ * поле изменил кто-то ещё. Сваливать это в `local-only` было бы худшей из
+ * возможных неправд — человеку сказали бы «сохранено здесь», тогда как его
+ * правка не сохранена НИГДЕ, а поверх лежит чужая. */
+export type SaveOutcome = 'server' | 'local-only' | 'refused' | 'conflict'
 
 /** Названия разделов ядра, как оно их отдаёт в `applied`. Порядок — тот, в
  * котором человек их видит на карточке. */
@@ -182,11 +205,37 @@ export function saveOutcome(answer: unknown): SaveOutcome {
   const applied = (answer as { applied?: unknown }).applied
   if (typeof applied !== 'object' || applied === null) return 'local-only'
 
-  const flag = (applied as { ui_meta?: unknown }).ui_meta
-  if (flag === true) return 'server'
-  if (flag === false) return 'local-only'
+  const rows = applied as { ui_meta?: unknown; ui_meta_conflicts?: unknown }
+
+  // Расхождение версий ядро сообщает НЕ ошибкой вызова: ответ приходит
+  // успешным, а отказ лежит внутри (замерено на 0.20.5). Читатель, который
+  // смотрит только на исключение, примет отвергнутую запись за сохранённую —
+  // поэтому конфликт разбирается раньше самого флага.
+  const conflicts = rows.ui_meta_conflicts
+  if (typeof conflicts === 'object' && conflicts !== null && Object.keys(conflicts).length > 0) {
+    return 'conflict'
+  }
+
+  if (rows.ui_meta === true) return 'server'
 
   return 'local-only'
+}
+
+/**
+ * Версии наших полей метаданных из ответа `profiles.list` (задача 3C.4в).
+ *
+ * Пусто — не «версия ноль», а «ядро версий не считает»: поле появилось в 0.20.5,
+ * и его ОТСУТСТВИЕ и есть признак того, что проверять нечем. Отсюда правило
+ * вызывающего: нет версии — пишем без условия, как писали всегда.
+ */
+export function metaRevision(raw: unknown): number | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+
+  const revisions = (raw as { ui_meta_revisions?: unknown }).ui_meta_revisions
+  if (typeof revisions !== 'object' || revisions === null) return undefined
+
+  const ours = (revisions as Record<string, unknown>)[OUR_META_KEY]
+  return typeof ours === 'number' && Number.isInteger(ours) && ours >= 0 ? ours : undefined
 }
 
 /** Поиск по роестру: по видимому имени и по имени профиля, порядок сохраняется.

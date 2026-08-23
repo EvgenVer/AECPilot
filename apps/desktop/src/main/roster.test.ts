@@ -105,6 +105,57 @@ describe('создание', () => {
   })
 })
 
+// Задача 3C.4в. Весь роестр живёт в ОДНОМ поле метаданных, и запись туда — это
+// запись поля целиком: без условия две правки из разных окон молча оставляли
+// последнюю.
+describe('одновременная правка из двух окон', () => {
+  it('версия, на которой основана правка, уходит условием', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await saveSpecialist({ name: 'smeta', title: 'Смета', revision: 7 })
+
+    expect(request.mock.calls[0][1]).toMatchObject({
+      ui_meta_expected_revisions: { aecpilot: 7 }
+    })
+  })
+
+  it('версии нет — условия нет: ноль требовал бы, чтобы поле не трогали НИКОГДА', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await saveSpecialist({ name: 'smeta', title: 'Смета' })
+
+    expect(request.mock.calls[0][1]).not.toHaveProperty('ui_meta_expected_revisions')
+  })
+
+  it('расхождение — это отказ, а не «сохранено только здесь»', async () => {
+    // Ядро сообщает расхождение УСПЕШНЫМ ответом, отказ лежит внутри
+    // (замерено на 0.20.5). Читатель, смотрящий только на исключение, принял бы
+    // отвергнутую запись за сохранённую.
+    request.mockResolvedValue({
+      ok: false,
+      applied: {
+        ui_meta: false,
+        ui_meta_conflicts: { aecpilot: { expected: 0, actual: 1 } }
+      }
+    })
+
+    expect(await saveSpecialist({ name: 'smeta', title: 'Смета', revision: 0 })).toMatchObject({
+      ok: false,
+      outcome: 'conflict'
+    })
+  })
+
+  it('скрытие тоже идёт с условием', async () => {
+    request.mockResolvedValue({ applied: { ui_meta: true } })
+
+    await setSpecialistHidden('smeta', true, 4)
+
+    expect(request.mock.calls[0][1]).toMatchObject({
+      ui_meta_expected_revisions: { aecpilot: 4 }
+    })
+  })
+})
+
 describe('правка', () => {
   it('старое ядро — сохранено только здесь, а не «не удалось»', async () => {
     request.mockResolvedValue({ applied: { ui_meta: false } })

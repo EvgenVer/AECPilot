@@ -20,6 +20,7 @@ import {
   failedSections,
   isValidSpecialistName,
   metaPatch,
+  OUR_META_KEY,
   parseRoster,
   parseSpecialist,
   refuseSpecialistDeletion,
@@ -76,6 +77,15 @@ export interface SpecialistInput {
   /** С кого клонировать при создании. Умеет само ядро: копирует настройки,
    * скилы и (по умолчанию) доступы, чтобы новый специалист мог думать сразу. */
   cloneFrom?: string
+  /**
+   * Версия наших метаданных, НА КОТОРОЙ основана эта правка (задача 3C.4в).
+   *
+   * Приходит из роестра, который человек видел, — и только так она имеет смысл:
+   * прочитать версию непосредственно перед записью значило бы всегда посылать
+   * текущую и не поймать ни одного расхождения. Не указана — пишем без условия
+   * (ядро постарше проверять всё равно нечем).
+   */
+  revision?: number
 }
 
 export interface SpecialistOutcome {
@@ -124,6 +134,17 @@ export async function createSpecialist(input: SpecialistInput): Promise<Speciali
   return { ok: true, name: input.name, outcome: saved.outcome, error: saved.error }
 }
 
+/**
+ * Условие «поле никто не менял с тех пор, как я его прочитал» (задача 3C.4в).
+ *
+ * Отсутствие версии — не ноль, а «условия нет»: посылать ноль значило бы
+ * требовать, чтобы поле не трогали НИКОГДА, и первая же запись после первой
+ * стала бы конфликтом.
+ */
+function expectedRevision(revision: number | undefined): Record<string, unknown> {
+  return revision === undefined ? {} : { ui_meta_expected_revisions: { [OUR_META_KEY]: revision } }
+}
+
 /** Меняет наши поля и описание. Отсутствующее поле не отправляется вовсе — см.
  * `metaPatch`: ядро сливает `ui_meta` по ключам, и пустое значение затёрло бы
  * то, что поставили на другой машине. */
@@ -138,7 +159,8 @@ export async function saveSpecialist(input: SpecialistInput): Promise<Specialist
       ...(input.title === undefined ? {} : { title: input.title }),
       ...(input.role === undefined ? {} : { role: input.role }),
       ...(input.face === undefined ? {} : { face: input.face })
-    })
+    }),
+    ...expectedRevision(input.revision)
   }
   if (input.description !== undefined) params.description = input.description
   if (input.soul !== undefined) params.soul = input.soul
@@ -155,12 +177,14 @@ export async function saveSpecialist(input: SpecialistInput): Promise<Specialist
   try {
     const answer = await core().request('profiles.configure', params)
     const failed = failedSections(answer)
+    const outcome = saveOutcome(answer)
     return {
       // Раздел, который не лёг, — это не успех: их урок про «противоречивое
-      // сообщение об успехе» (`model-inherit`).
-      ok: failed.length === 0,
+      // сообщение об успехе» (`model-inherit`). Расхождение версий — тем более:
+      // правка не сохранена нигде.
+      ok: failed.length === 0 && outcome !== 'conflict',
       name: input.name,
-      outcome: saveOutcome(answer),
+      outcome,
       ...(failed.length === 0 ? {} : { failed })
     }
   } catch (error: unknown) {
@@ -278,16 +302,19 @@ export async function specialistAvatar(name: string): Promise<string | null> {
  */
 export async function setSpecialistHidden(
   name: string,
-  hidden: boolean
+  hidden: boolean,
+  revision?: number
 ): Promise<SpecialistOutcome> {
   if (!isValidSpecialistName(name)) return { ok: false, error: 'Недопустимое имя специалиста' }
 
   try {
     const answer = await core().request('profiles.configure', {
       name,
-      ui_meta: metaPatch({ hidden })
+      ui_meta: metaPatch({ hidden }),
+      ...expectedRevision(revision)
     })
-    return { ok: true, name, outcome: saveOutcome(answer) }
+    const outcome = saveOutcome(answer)
+    return { ok: outcome !== 'conflict', name, outcome }
   } catch (error: unknown) {
     return { ok: false, name, outcome: 'refused', error: describe(error) }
   }

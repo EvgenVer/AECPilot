@@ -25,6 +25,7 @@ function specialist(overrides: Partial<SpecialistView> = {}): SpecialistView {
     chatSessionId: '',
     preview: '',
     previewAt: '',
+    busy: false,
     ...overrides
   }
 }

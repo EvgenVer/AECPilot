@@ -54,9 +54,14 @@ export function RosterPanel(): React.JSX.Element {
       setError(
         result.ok
           ? undefined
-          : sections.length > 0
-            ? t('roster.sectionsFailed', sections.join(', '))
-            : (result.error ?? t('roster.failed'))
+          : // Расхождение версий — не «не сохранилось», а «сохранять было уже
+            // некуда»: пока человек правил, это изменили в другом окне. Сказать
+            // ему надо именно это, иначе он нажмёт ещё раз и затрёт чужое.
+            result.outcome === 'conflict'
+            ? t('roster.saveConflict')
+            : sections.length > 0
+              ? t('roster.sectionsFailed', sections.join(', '))
+              : (result.error ?? t('roster.failed'))
       )
       setNotice(result.ok && result.outcome === 'local-only' ? t('roster.localOnly') : undefined)
       return result.ok
@@ -125,7 +130,13 @@ export function RosterPanel(): React.JSX.Element {
   // рутины идут. Это только про место в списке.
   const hide = useMutation({
     mutationFn: (specialist: SpecialistView) =>
-      window.aecpilot.hideSpecialist({ name: specialist.name, hidden: !specialist.hidden }),
+      window.aecpilot.hideSpecialist({
+        name: specialist.name,
+        hidden: !specialist.hidden,
+        // Версия того, что человек ВИДИТ. Если пока он смотрел на список, поле
+        // изменили с другой машины, ядро откажет вместо тихой перезаписи.
+        revision: specialist.revision
+      }),
     onSuccess: async (result) => {
       report(result)
       await reload()
@@ -240,7 +251,19 @@ export function RosterPanel(): React.JSX.Element {
                   }}
                   type="button"
                 >
-                  <span className="truncate text-xs font-medium">{displayName(specialist)}</span>
+                  <span className="flex min-w-0 items-center gap-1 text-xs font-medium">
+                    <span className="truncate">{displayName(specialist)}</span>
+                    {specialist.busy && (
+                      // Задача 3C.4в. Работа специалиста идёт в сессии, которой
+                      // в списках разговоров не видно вообще, — без этой метки
+                      // роестр показывал бы покой у занятого.
+                      <span
+                        aria-label={t('roster.busy')}
+                        className="size-1.5 shrink-0 rounded-full bg-(--ui-accent)"
+                        title={t('roster.busy')}
+                      />
+                    )}
+                  </span>
                   <span className="truncate text-[11px] text-(--ui-text-secondary)">
                     {specialist.role || specialist.preview}
                   </span>
@@ -329,7 +352,10 @@ function draftOf(specialist: SpecialistView): SpecialistDraft {
       title: specialist.title,
       role: specialist.role,
       description: specialist.description,
-      face: specialist.face
+      face: specialist.face,
+      // Версия ТОГО, что человек открыл на правку. Дальше она едет с формой до
+      // самой записи: правка основана на этом, а не на том, что стало потом.
+      revision: specialist.revision
     }
   }
 }

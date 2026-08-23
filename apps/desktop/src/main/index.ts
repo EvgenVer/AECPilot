@@ -2379,8 +2379,16 @@ ipcMain.handle('roster:open-chat', (_event, payload: unknown) => {
 // Задача 3C.8. Скрытый специалист продолжает работать: обращения по имени
 // доходят, рутины идут. Он лишь не занимает место в списке.
 ipcMain.handle('roster:hide', (_event, payload: unknown) => {
-  const { name, hidden } = (payload ?? {}) as { name?: unknown; hidden?: unknown }
-  return setSpecialistHidden(typeof name === 'string' ? name : '', hidden === true)
+  const { name, hidden, revision } = (payload ?? {}) as {
+    name?: unknown
+    hidden?: unknown
+    revision?: unknown
+  }
+  return setSpecialistHidden(
+    typeof name === 'string' ? name : '',
+    hidden === true,
+    typeof revision === 'number' ? revision : undefined
+  )
 })
 
 ipcMain.handle('roster:delete', (_event, payload: unknown) => {

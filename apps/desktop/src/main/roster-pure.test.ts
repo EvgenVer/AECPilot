@@ -1,7 +1,8 @@
 // Задача 3C.1 (SPEC UR27, контракт — specs/agent-roster.md). Проверяется то, от
 // чего зависит, увидит ли человек своих специалистов такими, какими их оставил:
-// разбор ответа ядра, наши поля рядом с чужими, три исхода сохранения и запрет
-// удалить того, на ком всё держится.
+// разбор ответа ядра, наши поля рядом с чужими, исходы сохранения и запрет
+// удалить того, на ком всё держится. Исходов стало четыре (3C.4в): расхождение
+// версий — не «сохранено локально», а «сохранять было уже некуда».
 
 import { describe, expect, it } from 'vitest'
 
@@ -50,6 +51,7 @@ function specialist(overrides: Partial<Specialist> = {}): Specialist {
     chatSessionId: '',
     preview: '',
     previewAt: '',
+    busy: false,
     ...overrides
   }
 }
@@ -71,8 +73,28 @@ describe('разбор ответа ядра', () => {
       hidden: false,
       chatSessionId: '',
       preview: 'посчитал раздел 3',
-      previewAt: '2026-08-22T10:00:00Z'
+      previewAt: '2026-08-22T10:00:00Z',
+      busy: false
     })
+  })
+
+  // Задача 3C.4в. Ядро 0.20.5 отдаёт в строке профиля рабочую сессию и версию
+  // наших метаданных; ядро постарше — нет, и это не ошибка, а «проверять нечем».
+  it('рабочая сессия читается как «сейчас занят»', () => {
+    expect(parseSpecialist(row({ worker_session: { id: 'w-1', source: 'kanban' } }))?.busy).toBe(
+      true
+    )
+    expect(parseSpecialist(row({ worker_session: null }))?.busy).toBe(false)
+    expect(parseSpecialist(row())?.busy).toBe(false)
+  })
+
+  it('версия метаданных читается, а её отсутствие — это отсутствие, а не ноль', () => {
+    expect(parseSpecialist(row({ ui_meta_revisions: { aecpilot: 3 } }))?.revision).toBe(3)
+    expect(parseSpecialist(row({ ui_meta_revisions: {} }))?.revision).toBeUndefined()
+    expect(parseSpecialist(row())?.revision).toBeUndefined()
+    expect(
+      parseSpecialist(row({ ui_meta_revisions: { aecpilot: 'три' } }))?.revision
+    ).toBeUndefined()
   })
 
   it('ряд без имени — не специалист, а мусор', () => {
@@ -150,13 +172,22 @@ describe('запись наших полей', () => {
   })
 })
 
-describe('три исхода сохранения', () => {
+describe('четыре исхода сохранения', () => {
   it('сервер принял', () => {
     expect(saveOutcome({ applied: { ui_meta: true } })).toBe('server')
   })
 
   it('старое ядро — сохранено только здесь, и это НЕ отказ', () => {
     expect(saveOutcome({ applied: { ui_meta: false } })).toBe('local-only')
+    // Задача 3C.4в: расхождение версий — НЕ «сохранено только здесь». Правка не
+    // сохранена нигде, и поверх лежит чужая; сказать «локально» значит соврать.
+    expect(
+      saveOutcome({
+        ok: false,
+        applied: { ui_meta: false, ui_meta_conflicts: { aecpilot: { expected: 0, actual: 1 } } }
+      })
+    ).toBe('conflict')
+    expect(saveOutcome({ applied: { ui_meta: true, ui_meta_conflicts: {} } })).toBe('server')
     expect(saveOutcome({ applied: {} })).toBe('local-only')
     expect(saveOutcome(null)).toBe('local-only')
   })
