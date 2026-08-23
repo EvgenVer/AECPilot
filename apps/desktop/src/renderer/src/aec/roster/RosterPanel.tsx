@@ -179,9 +179,17 @@ export function RosterPanel(): React.JSX.Element {
         handle: specialist.name,
         title: specialist.title,
         role: specialist.role,
+        // Машина пуста, пока подключение одно (решение владельца 2026-08-23:
+        // реестр из одной записи). Двух одновременных подключений не бывает,
+        // значит и одинаковых имён рядом — тоже; `@имя-машина` появится вместе
+        // со вторым подключением, а не раньше.
         device: ''
       })),
-      ''
+      Object.fromEntries(
+        (roster ?? [])
+          .filter((specialist) => specialist.chatSessionId !== '')
+          .map((specialist) => [specialist.chatSessionId, specialist.name])
+      )
     )
   }, [roster])
 

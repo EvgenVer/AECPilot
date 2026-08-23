@@ -11,6 +11,7 @@
 
 import { registry } from '../../donor/contrib/registry'
 import { COMPOSER_AREAS } from '../../donor/app/chat/composer/contrib'
+import { $activeSessionId } from '../../donor/store/session'
 import {
   mentionCompletions,
   mentionHandle,
@@ -20,11 +21,24 @@ import {
 /** Роестр для подсказки. Держится здесь: источник зовут на каждое нажатие после
  * паузы, и обход IPC на каждую букву — это задержка в поле ввода. */
 let candidates: MentionCandidate[] = []
-let activeHandle = ''
 
-export function setMentionRoster(roster: readonly MentionCandidate[], active: string): void {
+/** Постоянный чат специалиста → его имя. Открытый чат — это и есть ответ на
+ * «с кем человек говорит сейчас»: тот же приём, что у сторожа постоянного чата
+ * (`register-canonical-guard.ts`), и другого источника у окна нет. */
+let chats: Record<string, string> = {}
+
+export function setMentionRoster(
+  roster: readonly MentionCandidate[],
+  canonicalChats: Readonly<Record<string, string>> = {}
+): void {
   candidates = [...roster]
-  activeHandle = active
+  chats = { ...canonicalChats }
+}
+
+/** Кому принадлежит открытый чат. Пусто — обычная сессия или чат не из роестра;
+ * тогда предлагаются все, и это правильно: себя там нет. */
+function activeHandle(): string {
+  return chats[$activeSessionId.get() ?? ''] ?? ''
 }
 
 export function registerMentionCompletions(): () => void {
@@ -37,7 +51,7 @@ export function registerMentionCompletions(): () => void {
     order: -100,
     data: {
       provide: (query: string) =>
-        mentionCompletions(candidates, query, activeHandle).map((candidate) => ({
+        mentionCompletions(candidates, query, activeHandle()).map((candidate) => ({
           insert: `@${mentionHandle(candidate)}`,
           display: mentionHandle(candidate),
           meta:
