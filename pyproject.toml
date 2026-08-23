@@ -12,6 +12,7 @@ members = ["mcp/*"]
 [tool.uv.sources]
 aec-sources = { workspace = true }
 aec-rag = { workspace = true }
+aec-roster = { workspace = true }
 
 [dependency-groups]
 # python-docx, openpyxl and pillow build the test fixtures; `anyio` carries the
@@ -34,6 +35,7 @@ dev = [
     "pillow>=10,<13",
     "aec-sources",
     "aec-rag",
+    "aec-roster",
 ]
 
 [tool.pytest.ini_options]

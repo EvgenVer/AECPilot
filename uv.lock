@@ -11,6 +11,7 @@ resolution-markers = [
 [manifest]
 members = [
     "aec-rag",
+    "aec-roster",
     "aec-sources",
     "aecpilot",
 ]
@@ -55,6 +56,17 @@ requires-dist = [
 ]
 
 [[package]]
+name = "aec-roster"
+version = "0.1.0"
+source = { editable = "mcp/aec_roster" }
+dependencies = [
+    { name = "mcp" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "mcp", specifier = ">=2,<3" }]
+
+[[package]]
 name = "aec-sources"
 version = "0.1.0"
 source = { editable = "mcp/aec_sources" }
@@ -73,6 +85,7 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "aec-rag" },
+    { name = "aec-roster" },
     { name = "aec-sources" },
     { name = "anyio" },
     { name = "openpyxl" },
@@ -87,6 +100,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aec-rag", editable = "mcp/aec_rag" },
+    { name = "aec-roster", editable = "mcp/aec_roster" },
     { name = "aec-sources", editable = "mcp/aec_sources" },
     { name = "anyio", specifier = ">=4,<5" },
     { name = "openpyxl", specifier = ">=3.1,<4" },

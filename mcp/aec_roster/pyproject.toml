@@ -1,0 +1,15 @@
+[project]
+name = "aec-roster"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+# Только протокол MCP. Разговор со специалистом идёт через их же CLI (см.
+# specs/agent-roster.md §Р6), поэтому ни клиента шлюза, ни разбора YAML, ни
+# токена этому серверу не нужно — и ни одной зависимости под них не заведено.
+dependencies = ["mcp>=2,<3"]
+
+[project.scripts]
+aec-roster = "aec_roster.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
