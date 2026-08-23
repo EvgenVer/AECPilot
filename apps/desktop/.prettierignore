@@ -2,8 +2,8 @@ out/
 test-results/
 
 # Vendored donor code keeps THEIR formatting (printWidth 120, arrowParens
-# avoid). Reformatting it to ours would be a fifth kind of edit and would make
-# the next re-copy a merge — see AGENTS §14. Our own files in that directory
+# avoid). Reformatting it to ours would be a SIXTH kind of edit — one AGENTS §14
+# does not allow — and would make the next re-copy a merge. Our own files in that directory
 # (README, this zone's docs) stay formatted normally.
 src/renderer/src/donor/**/*.ts
 src/renderer/src/donor/**/*.tsx

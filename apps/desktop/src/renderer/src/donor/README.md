@@ -33,12 +33,12 @@ their intra-tree imports survive the copy unedited.
  */
 ```
 
-`Edits:` lists **only** the four allowed kinds below, by number, one line each,
+`Edits:` lists **only** the five allowed kinds below, by number, one line each,
 each naming what was touched. `(no other edits)` closes the list — the diff of
 our changes must be reconstructible from this header alone when the file is
 re-copied from a newer commit. A file copied unchanged says `Edits: none`.
 
-## Exactly four allowed edits
+## Exactly five allowed edits
 
 Anything else is not an edit — it means the file does not belong in this zone.
 
@@ -60,6 +60,11 @@ Anything else is not an edit — it means the file does not belong in this zone.
    list is exactly such a table.
 4. **Missing imports** — dropping imports we do not have: their cloud, their
    brand (`@nous-research/ui`), their telemetry.
+5. **Their product name in a string a person can see** → ours (SPEC C12, owner
+   decision 2026-08-20). Only the name, only in user-visible text. Never in a
+   storage key, a data attribute, a module path, an event name, or anything else
+   the product depends on — renaming one of those is a rewrite wearing this
+   edit's number. The most common kind by count: 32 of the 57 edits in this zone.
 
 Not allowed, and not negotiable per-file: renaming, reformatting, restyling,
 "while I'm here" fixes, adapting to our lint preferences, or replacing their
@@ -68,7 +73,7 @@ state atoms with ours.
 Our formatter and linter therefore skip `*.ts`/`*.tsx`/`*.css` in this
 directory (`.prettierignore`, `eslint.config.mjs`) — their config is not ours,
 and the only legal response to a finding inside their file is to leave it. What
-still guards this code: the provenance header, the four edits above, the
+still guards this code: the provenance header, the five edits above, the
 renderer socket guard (`shared/renderer-socket-guard.test.ts`, SPEC C9), and
 the tests that come with the file.
 
