@@ -1,16 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/keys-settings.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { $settingsScopeOverride } from '@/store/settings-scope'
-import type { EnvVarInfo } from '@/types/hermes'
 
 import { CredentialKeyCard, credentialPlaceholder, credentialRowLabel } from './credential-key-ui'
 import { useEnvCredentials } from './env-credentials'
@@ -38,6 +37,8 @@ const VIEW_CATEGORIES: Record<KeysView, readonly string[]> = {
   tools: ['tool']
 }
 
+const credentialElementId = (key: string) => `credential-key-${key}`
+
 export function KeysSettings({ view }: KeysSettingsProps) {
   const { t } = useI18n()
   // Shared settings "Applies to" scope: fetch + edit the selected profile's
@@ -50,48 +51,51 @@ export function KeysSettings({ view }: KeysSettingsProps) {
     setOpenKey(null)
   }, [scopeProfile, view])
 
-  // Deep link from Capabilities env-var rows (?tab=keys&key=<ENV_KEY>): scroll
-  // the credential card into view, flash it, and expand it. Same mechanism the
-  // command palette uses for config fields / archived sessions.
-  useDeepLinkHighlight({
-    elementId: key => `credential-key-${key}`,
-    onResolve: key => setOpenKey(key),
-    param: 'key',
-    ready: key => Boolean(vars && key in vars)
-  })
-
-  const groups = useMemo(() => {
+  const entries = useMemo(() => {
     if (!vars) {
       return []
     }
 
-    return KEYS_VIEWS.flatMap(v => {
-      const cats = VIEW_CATEGORIES[v]
+    const cats = VIEW_CATEGORIES[view]
 
-      const entries = Object.entries(vars)
-        .filter(([, info]) => !info.channel_managed && cats.includes(asText(info.category)))
-        .sort(([a], [b]) => a.localeCompare(b))
+    return Object.entries(vars)
+      .filter(([, info]) => !info.channel_managed && cats.includes(asText(info.category)))
+      .sort(([a], [b]) => a.localeCompare(b))
+  }, [vars, view])
 
-      return entries.length === 0 ? [] : [{ category: v, entries }]
-    })
-  }, [vars])
+  const renderableKeys = useMemo(() => new Set(entries.map(([key]) => key)), [entries])
+
+  const resolveDeepLink = useCallback((key: string) => {
+    setOpenKey(key)
+  }, [])
+
+  const deepLinkReady = useCallback((key: string) => renderableKeys.has(key), [renderableKeys])
+
+  // Deep link from ⌘K / Capabilities env-var rows (?tab=keys&key=<ENV_KEY>):
+  // scroll the credential card into view, flash it, and expand it. Only
+  // consume keys rendered by this sub-view so a stale Tools/Settings pairing
+  // cannot keep trying to mount a target this pane never shows.
+  useDeepLinkHighlight({
+    elementId: credentialElementId,
+    onResolve: resolveDeepLink,
+    param: 'key',
+    ready: deepLinkReady
+  })
 
   if (!vars) {
     return <SettingsSkeleton sections={[{ rows: 5 }]} />
   }
 
-  const visible = groups.filter(g => g.category === view)
-
   return (
     <SettingsContent>
       <SettingsProfileScope className="mb-5" />
-      {visible.map(group => (
-        <div className="grid gap-2" key={group.category}>
-          {group.entries.map(([key, info]: [string, EnvVarInfo]) => {
+      {entries.length > 0 ? (
+        <div className="grid gap-2">
+          {entries.map(([key, info]) => {
             const label = credentialRowLabel(key, info)
 
             return (
-              <div className="scroll-mt-6 rounded-[6px]" id={`credential-key-${key}`} key={key}>
+              <div className="scroll-mt-6 rounded-[6px]" id={credentialElementId(key)} key={key}>
                 <CredentialKeyCard
                   expanded={openKey === key}
                   info={info}
@@ -106,9 +110,7 @@ export function KeysSettings({ view }: KeysSettingsProps) {
             )
           })}
         </div>
-      ))}
-
-      {visible.length === 0 && (
+      ) : (
         <div className="rounded-lg border border-dashed border-(--ui-stroke-tertiary) px-4 py-8 text-center text-[length:var(--conversation-caption-font-size)] text-muted-foreground">
           {t.settings.keys.empty}
         </div>

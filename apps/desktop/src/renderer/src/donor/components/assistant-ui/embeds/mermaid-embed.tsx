@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/mermaid-embed.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,7 +11,7 @@ import mermaid from 'mermaid'
 import { useEffect, useState } from 'react'
 
 import { Zoomable } from '@/components/ui/zoomable'
-import { copySvgAsPng } from '@/lib/svg-image'
+import { copySvgAsPng, normalizeSvgSize } from '@/lib/svg-image'
 import { cn } from '@/lib/utils'
 
 import type { RichFenceProps } from './types'
@@ -70,7 +70,7 @@ export default function MermaidRenderer({ code, streaming }: RichFenceProps) {
         const result = await mermaid.render(id, code)
 
         if (!cancelled) {
-          setSvg(result.svg)
+          setSvg(normalizeSvgSize(result.svg))
         }
       } catch {
         if (!cancelled) {

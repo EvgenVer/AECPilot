@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/chrome.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,9 +30,19 @@ export function SidebarSectionMeta({ children }: { children: React.ReactNode }) 
 // Height lives ONLY on SidebarRowShell (min-h-[1.625rem]). Inset children
 // stretch to fill the cell and center content internally — never items-center
 // on the shell grid, or short clusters (projects) float 1–2px off sessions.
+//
+// `rowPadX` is the BODY's padding: the lead's inset, plus the gap the label
+// keeps from the actions column, both inside the row's click target.
+// `rowPadTrail` is the row's own trailing inset and belongs to the SHELL — the
+// only box containing both the actions column AND the card's in-body cluster,
+// so one class insets every trailing thing a row can render. Owned anywhere
+// else, the age / chips / kebab sit flush on the border box, which is exactly
+// where a working row paints its arc (`.arc-row` has zero standoff) — the ring
+// ran through the text.
 
 const rowMinH = 'min-h-[1.625rem]'
-const rowPadX = 'pl-2 pr-1'
+const rowPadX = 'pl-2 pr-2'
+const rowPadTrail = 'pr-2'
 const rowGap = 'gap-1.5'
 const rowLead = 'grid size-3.5 shrink-0 place-items-center'
 const rowInset = cn(rowPadX, rowGap, 'flex h-full min-w-0 items-center self-stretch py-0.5')
@@ -78,9 +88,11 @@ export function SidebarDateDivider({
   )
 }
 
-/** Outer grid — sole owner of row height. The trailing `actions` slot is
- *  marked `data-row-actions` so a row-wide drag gesture can exclude it with
- *  one selector: it holds real controls, never grab surface. */
+/** Outer grid — sole owner of row height and of the trailing inset. The
+ *  `actions` slot is marked `data-row-actions` so a row-wide drag gesture can
+ *  exclude it with one selector: it holds real controls, never grab surface.
+ *  It stretches so that exclusion covers the column, not just its tallest
+ *  control. */
 export function SidebarRowShell({
   actions,
   actionsClassName,
@@ -89,10 +101,13 @@ export function SidebarRowShell({
   ...props
 }: React.ComponentProps<'div'> & { actions?: React.ReactNode; actionsClassName?: string }) {
   return (
-    <div className={cn(rowMinH, 'grid grid-cols-[minmax(0,1fr)_auto] items-stretch rounded-md', className)} {...props}>
+    <div
+      className={cn(rowMinH, rowPadTrail, 'grid grid-cols-[minmax(0,1fr)_auto] items-stretch rounded-md', className)}
+      {...props}
+    >
       {children}
       {actions ? (
-        <div className={cn('flex shrink-0 items-center self-center', actionsClassName)} data-row-actions>
+        <div className={cn('flex shrink-0 items-center self-stretch', actionsClassName)} data-row-actions>
           {actions}
         </div>
       ) : null}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/model-catalog-menu.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -465,6 +465,7 @@ export function ModelCatalogMenu({
                           ) : null}
                         </DropdownMenuSubTrigger>
                         <ModelEditSubmenu
+                          canDisableReasoning={caps?.can_disable_reasoning}
                           defaultEffort={defaultEffort}
                           effort={effEffort}
                           fastControl={fastControl}

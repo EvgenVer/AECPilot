@@ -23,9 +23,29 @@ interface SeenSubmit {
 let uninstall: (() => void) | undefined
 let unsubscribe: (() => void) | undefined
 let seen: SeenSubmit[] = []
+let surface: HTMLElement | undefined
+
+/**
+ * Композер, в который целится отправка.
+ *
+ * Понадобился при подъёме донора на 0.20.5: их `requestComposerSubmit` теперь
+ * ЗАКРЫВАЕТСЯ, если в документе нет ВИДИМОЙ поверхности композера с этой целью
+ * — без неё просьба отправить не рождается вовсе (у них это защита от того,
+ * чтобы задачу подхватил не тот композер после переключения вкладки). Проверять
+ * перехват в обход этой защиты значило бы проверять путь, которого в продукте
+ * нет, поэтому поверхность создаётся здесь, а не отключается там.
+ */
+function mountComposerSurface(): HTMLElement {
+  const node = document.createElement('div')
+  node.dataset.composerTarget = 'main'
+  node.dataset.composerSurfaceId = 'test-surface'
+  document.body.append(node)
+  return node
+}
 
 beforeEach(() => {
   seen = []
+  surface = mountComposerSurface()
   // Порядок как в приложении: перехват ставится из тела `main.tsx`, их
   // обработчик подписывается позже — когда монтируется композер.
   uninstall = installVisibleTurns()
@@ -39,10 +59,13 @@ afterEach(() => {
   vi.useRealTimers()
   unsubscribe?.()
   uninstall?.()
+  surface?.remove()
   cleanup()
 })
 
-/** Их отправка идёт через `setTimeout(…, 0)` — прокручиваем таймеры. */
+/** Прокрутка таймеров. Сама отправка с 0.20.5 идёт СРАЗУ (их `dispatchNow`:
+ * откладывать её нельзя, иначе клик по вкладке успеет сменить видимый чат), но
+ * остальная шина у них по-прежнему на `setTimeout(…, 0)`. */
 function flush(): void {
   vi.advanceTimersByTime(1)
 }
@@ -75,7 +98,10 @@ describe('скрытых ходов не существует', () => {
     requestComposerSubmit('обычный вопрос', { target: 'main' })
     flush()
 
-    expect(seen).toEqual([{ target: 'main', text: 'обычный вопрос' }])
+    // `surfaceId` — их поле, появившееся в 0.20.5 вместе с проверкой видимости:
+    // отправка адресуется КОНКРЕТНОЙ поверхности, а не просто цели. Нас в этой
+    // проверке интересует, что кроме снятой пометки мы не тронули ничего.
+    expect(seen).toEqual([{ surfaceId: 'test-surface', target: 'main', text: 'обычный вопрос' }])
   })
 })
 

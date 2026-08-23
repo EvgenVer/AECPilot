@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-palette/marketplace-theme-page.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,9 +17,11 @@
 
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
+import { StatusRow } from '@/app/command-palette/status-row'
 import { HUD_ITEM, HUD_TEXT } from '@/app/floating-hud'
+import { useDebounced } from '@/app/hooks/use-debounced'
 import type { DesktopMarketplaceSearchItem } from '@/global'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
@@ -29,18 +31,6 @@ import { installVscodeThemeFromMarketplace } from '@/themes/install'
 import { $marketplaceInstalls } from '@/themes/user-themes'
 
 const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
-
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs)
-
-    return () => clearTimeout(handle)
-  }, [value, delayMs])
-
-  return debounced
-}
 
 interface MarketplaceThemePageProps {
   search: string
@@ -97,17 +87,17 @@ export function MarketplaceThemePage({ search, onPickTheme }: MarketplaceThemePa
   }
 
   if (query.isLoading) {
-    return <Status icon={<Loader2 className="size-3.5 animate-spin" />} text={copy.loading} />
+    return <StatusRow icon={<Loader2 className="size-3.5 animate-spin" />} text={copy.loading} />
   }
 
   if (query.isError) {
-    return <Status text={copy.error} tone="error" />
+    return <StatusRow text={copy.error} tone="error" />
   }
 
   const results = query.data ?? []
 
   if (results.length === 0) {
-    return <Status text={copy.empty} />
+    return <StatusRow text={copy.empty} />
   }
 
   return (
@@ -160,20 +150,6 @@ export function MarketplaceThemePage({ search, onPickTheme }: MarketplaceThemePa
           </button>
         )
       })}
-    </div>
-  )
-}
-
-function Status({ icon, text, tone }: { icon?: React.ReactNode; text: string; tone?: 'error' }) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-center gap-2 px-2 py-6 text-xs',
-        tone === 'error' ? 'text-(--ui-red)' : 'text-muted-foreground'
-      )}
-    >
-      {icon}
-      {text}
     </div>
   )
 }

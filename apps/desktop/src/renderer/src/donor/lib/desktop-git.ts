@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-git.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -123,21 +123,4 @@ export function desktopGit(): GitBridge | undefined {
   }
 
   return isDesktopFsRemoteMode() ? remoteGit : window.hermesDesktop?.git
-}
-
-// True only for "the /api/git route does not exist on this backend" shapes:
-// the backend catch-all ('404: {"detail":"No such API endpoint: ...}'), a bare
-// FastAPI 404 (directly or through the IPC bridge's "Error invoking remote
-// method" wrapper), and the Electron JSON-guard ("endpoint is likely
-// missing"). Transient failures (timeouts, 5xx, connection refused) must NOT
-// match — they are retryable, not a capability verdict. Mirrors the sidebar
-// batch-endpoint detector in hermes.ts.
-export function isGitEndpointMissingError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err)
-
-  return (
-    /no such api endpoint/i.test(message) ||
-    /endpoint is likely missing/i.test(message) ||
-    /(?:^\s*|error:\s*)404\b/i.test(message)
-  )
 }

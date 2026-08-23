@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/decode-text.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { type ComponentProps, useEffect, useState } from 'react'
 
+import { prefersReducedMotion } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 /**
@@ -29,10 +30,6 @@ import { cn } from '@/lib/utils'
 export const DECODE_SCRAMBLE_CHARS = '/\\|-_=+<>~:*'
 const TICK_MS = 45
 const HOLD_TICKS = 16
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
-}
 
 function scrambled(tail: string, resolvedCount: number): string {
   return Array.from(tail, (ch, i) =>

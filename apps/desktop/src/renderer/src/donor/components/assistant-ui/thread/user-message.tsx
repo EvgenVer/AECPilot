@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/user-message.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -460,6 +460,11 @@ export const UserMessage: FC<{
             >
               <div
                 className="relative w-full"
+                // The app context menu skips PLAIN right-clicks here (the
+                // attr below) so this handler keeps the picker gesture; a
+                // link/image/selection inside the bubble still gets the app
+                // menu, and this handler's selection guard keeps ⌘C flows.
+                data-context-menu-skip=""
                 onContextMenu={
                   // Right-click is the desktop stand-in for iOS touch-and-hold —
                   // but only when there's nothing selected. A live highlight

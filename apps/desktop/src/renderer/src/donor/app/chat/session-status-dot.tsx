@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-status-dot.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -66,10 +66,13 @@ const DOT_VARIANTS: Record<SessionDotState, DotVariant> = {
     role: 'status',
     title: r => r.backgroundRunning
   },
-  // Emerald — the turn finished while the user was looking elsewhere.
+  // Emerald — the turn finished while the user was looking elsewhere. The
+  // color is theme-derived (`--ui-success`, a success green rotated toward the
+  // accent) so eight finished dots can't sit in the sidebar fighting a palette
+  // they don't belong to. Under a green accent it stays emerald.
   unread: {
     ariaLabel: r => r.finishedUnread,
-    className: `${DOT_BASE} bg-emerald-500`,
+    className: `${DOT_BASE} bg-(--ui-success)`,
     role: 'status',
     title: r => r.finishedUnread
   },

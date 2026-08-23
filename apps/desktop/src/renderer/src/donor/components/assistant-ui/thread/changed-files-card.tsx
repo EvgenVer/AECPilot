@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/changed-files-card.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { type FC, useMemo } from 'react'
 
+import { useComposerScope } from '@/app/chat/composer/scope'
 import { useSessionView } from '@/app/chat/session-view'
 import { deriveChangedFiles } from '@/components/assistant-ui/thread/changed-files'
 import { WIDGET_SHELL_CLASS } from '@/components/chat/widget-shell'
@@ -40,6 +41,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
   const view = useSessionView()
   const viewCwd = useStore(view.$cwd)
   const scopeCwd = view.kind === 'primary' ? null : viewCwd || null
+  const composerScope = useComposerScope()
 
   if (files.length === 0) {
     return null
@@ -54,7 +56,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
         <span className="min-w-0 flex-1 truncate text-(--ui-text-primary)">{copy.filesChanged(files.length)}</span>
         <button
           className="shrink-0 cursor-pointer text-(--ui-text-tertiary) transition-colors hover:text-(--ui-text-primary)"
-          onClick={() => revealReview(scopeCwd)}
+          onClick={() => revealReview(scopeCwd, composerScope.target)}
           type="button"
         >
           {copy.reviewChanges}
@@ -65,7 +67,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
           <button
             className="row-hover flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 text-left"
             key={file.path}
-            onClick={() => void openReviewForPath(file.path, scopeCwd)}
+            onClick={() => void openReviewForPath(file.path, scopeCwd, composerScope.target)}
             title={displayPath(file.path)}
             type="button"
           >

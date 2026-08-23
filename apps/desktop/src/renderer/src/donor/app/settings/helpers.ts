@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/helpers.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -127,6 +127,24 @@ export function clearsEnabledToolsets(prev: HermesConfigRecord, next: HermesConf
   const clearsToolsets = Array.isArray(nextToolsets) && nextToolsets.length === 0
 
   return hadToolsets && clearsToolsets
+}
+
+// Voice renders only fields for the selected TTS/STT provider. Search and the
+// page share this rule so every indexed field can actually mount when opened.
+export function voiceFieldVisible(key: string, config: HermesConfigRecord): boolean {
+  const match = /^(tts|stt)\.([^.]+)\./.exec(key)
+
+  if (!match) {
+    return true
+  }
+
+  const [, domain, provider] = match
+
+  if (domain === 'stt' && !getNested(config, 'stt.enabled')) {
+    return false
+  }
+
+  return provider === String(getNested(config, `${domain}.provider`) ?? '')
 }
 
 export function inferFieldSchema(value: unknown): ConfigFieldSchema {

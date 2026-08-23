@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
@@ -14,6 +14,7 @@ import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { useDebounced } from '@/app/hooks/use-debounced'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -26,6 +27,7 @@ import { cn } from '@/lib/utils'
 import { $backdrop, setBackdrop } from '@/store/backdrop'
 import { $composerPopoutGesturesEnabled, setComposerPopoutGesturesEnabled } from '@/store/composer-popout'
 import { $embedAllowed, $embedMode, clearEmbedAllowed, type EmbedMode, setEmbedMode } from '@/store/embed-consent'
+import { $introSplash, setIntroSplash } from '@/store/intro-splash'
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
 import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enabled'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
@@ -38,7 +40,9 @@ import { isUserTheme, removeUserTheme } from '@/themes/user-themes'
 
 import { MODE_OPTIONS } from './constants'
 import { ListRow, SectionHeading, SettingsContent, ToggleRow } from './primitives'
+import { APPEARANCE_SETTING_IDS } from './settings-search'
 import { TerminalFontSetting } from './terminal-font-setting'
+import { useDeepLinkHighlight } from './use-deep-link-highlight'
 
 function ThemePreview({ name, mode }: { name: string; mode: 'light' | 'dark' }) {
   // Preview in the *current* mode: the dark palette in Dark, and the light
@@ -83,6 +87,8 @@ function ThemePreview({ name, mode }: { name: string; mode: 'light' | 'dark' }) 
 // presets highlights nothing, and the row description keeps showing the
 // exact current percent.
 const UI_SCALE_PRESETS = ['90', '100', '110', '125', '150', '175'] as const
+const APPEARANCE_SEARCH_TARGETS = new Set<string>(Object.values(APPEARANCE_SETTING_IDS))
+const appearanceSettingElementId = (id: string) => `setting-field-${id}`
 
 type UiScalePreset = (typeof UI_SCALE_PRESETS)[number]
 
@@ -90,32 +96,10 @@ function matchUiScalePreset(percent: number): UiScalePreset | null {
   return UI_SCALE_PRESETS.find(preset => Number(preset) === percent) ?? null
 }
 
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs)
-
-    return () => clearTimeout(handle)
-  }, [value, delayMs])
-
-  return debounced
-}
-
 const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
 
-// Keys a range input treats as a step, so the peek can flash the live window
-// for keyboard adjustment the way a pointer drag holds it open.
-const SLIDER_STEP_KEYS = new Set([
-  'ArrowDown',
-  'ArrowLeft',
-  'ArrowRight',
-  'ArrowUp',
-  'End',
-  'Home',
-  'PageDown',
-  'PageUp'
-])
+// EDIT [3]: `SLIDER_STEP_KEYS`, `TranslucencySlider` and `GlassRow` are gone
+// with the translucency row they served — window translucency is HX14.
 
 export function AppearanceSettings() {
   const { t, isSavingLocale } = useI18n()
@@ -129,11 +113,18 @@ export function AppearanceSettings() {
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
   const reactionsEnabled = useStore($reactionsEnabled)
   const backdrop = useStore($backdrop)
+  const introSplash = useStore($introSplash)
   const profiles = useStore($profiles)
   const activeProfileKey = normalizeProfileKey(useStore($activeGatewayProfile))
   const a = t.settings.appearance
 
   const [query, setQuery] = useState('')
+
+  useDeepLinkHighlight({
+    elementId: appearanceSettingElementId,
+    param: 'setting',
+    ready: id => APPEARANCE_SEARCH_TARGETS.has(id)
+  })
 
   // EDIT [3]: one box, one job now — filter installed themes. Its second job
   // (a live VS Code Marketplace search) is HX14 and is gone with that block.
@@ -192,6 +183,7 @@ export function AppearanceSettings() {
           <ListRow
             action={<LanguageSwitcher />}
             description={isSavingLocale ? t.language.saving : t.language.description}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.language)}
             title={t.language.label}
           />
 
@@ -278,6 +270,7 @@ export function AppearanceSettings() {
               </>
             }
             description={a.themeDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.theme)}
             title={
               <div className="flex items-center justify-between gap-3">
                 <span>{a.themeTitle}</span>
@@ -306,6 +299,7 @@ export function AppearanceSettings() {
               />
             }
             description={a.uiScaleDesc(zoomPercent)}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.uiScale)}
             title={a.uiScaleTitle}
           />
 
@@ -326,6 +320,8 @@ export function AppearanceSettings() {
             title={a.sessionDensityTitle}
           />
 
+          {/* EDIT [3]: the window-translucency row is removed — HX14. */}
+
           <ListRow
             action={
               <SegmentedControl
@@ -341,7 +337,27 @@ export function AppearanceSettings() {
               />
             }
             description={a.backdropDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.backdrop)}
             title={a.backdropTitle}
+          />
+
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={id => {
+                  triggerHaptic('selection')
+                  setIntroSplash(id === 'on')
+                }}
+                options={[
+                  { id: 'off', label: t.common.off },
+                  { id: 'on', label: t.common.on }
+                ]}
+                value={introSplash ? 'on' : 'off'}
+              />
+            }
+            description={a.introSplashDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.introSplash)}
+            title={a.introSplashTitle}
           />
 
           <ToggleRow
@@ -381,6 +397,7 @@ export function AppearanceSettings() {
               />
             }
             description={a.toolViewDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.toolView)}
             title={a.toolViewTitle}
           />
 
@@ -428,6 +445,7 @@ export function AppearanceSettings() {
               </div>
             }
             description={a.embedsDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.embeds)}
             title={a.embedsTitle}
           />
         </div>

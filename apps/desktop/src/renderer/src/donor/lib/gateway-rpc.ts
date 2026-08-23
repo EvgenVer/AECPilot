@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-rpc.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,24 @@ export function isMissingRpcMethod(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
 
   return /method not found|-32601|unknown method|no such method/i.test(message)
+}
+
+/** REST twin of isMissingRpcMethod: the route does not exist on this backend.
+ *  Matches the backend catch-all ('404: {"detail":"No such API endpoint: …}'),
+ *  FastAPI's bare 404 on headless serve — directly, or wrapped as "Error
+ *  invoking remote method 'hermes:api': Error: 404: …" through the IPC bridge
+ *  — and the Electron JSON-guard ("endpoint is likely missing"). Transient
+ *  failures (timeouts, 5xx, connection refused) must NOT match: they are
+ *  retryable, not a capability verdict. Only sound for calls where a 404 can
+ *  mean nothing else — a route with path params can 404 on a bad id. */
+export function isMissingRestEndpoint(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return (
+    /no such api endpoint/i.test(message) ||
+    /endpoint is likely missing/i.test(message) ||
+    /(?:^\s*|error:\s*)404\b/i.test(message)
+  )
 }
 
 /** True when a prompt response raced a backend-side timeout / completion. */

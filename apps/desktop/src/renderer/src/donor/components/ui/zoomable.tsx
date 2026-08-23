@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/zoomable.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -87,7 +87,7 @@ function ZoomPanViewer({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        bodyClassName="flex min-h-0 flex-col gap-0 overflow-hidden p-0"
+        bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
         className="h-[85vh] w-[90vw] max-w-[90vw]"
         showCloseButton={false}
       >

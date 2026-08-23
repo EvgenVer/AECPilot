@@ -1,0 +1,205 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.ts
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits:
+ *   [3] removed the `tour.request` branch (agent walking the interface, HX16)
+ *   [3] removed the `preview.act.request` branch and its engine loader
+ *       (agent pressing inside the preview, HX17)
+ *   [4] dropped the imports of both engines
+ * (no other edits)
+ */
+import { readActivePreview } from '@/app/chat/right-rail/preview-reader'
+import { writeAgentTerminalChunk } from '@/app/right-sidebar/terminal/agent-terminal-stream'
+import { readActiveTerminal } from '@/app/right-sidebar/terminal/buffer'
+import { closeAgentTerminalByProc } from '@/app/right-sidebar/terminal/terminals'
+import { $gateway } from '@/store/gateway'
+import { applyDesktopLayoutPreset, revealDesktopPane } from '@/store/pane-focus'
+import { recordAgentReaction } from '@/store/reactions-local'
+import { setMessages } from '@/store/session'
+
+import type { GatewayEventContext } from './types'
+
+/** The preview engine, loaded on demand so ~25KB of page-injectable source stays
+ *  off the boot path.
+ *
+ *  In dev that lazy chunk is also a trap. The browser caches a dynamic import by
+ *  URL for the life of the page, so this bridge would hand every action to
+ *  whichever build of the engine loaded first, and no edit to it — or to the
+ *  overlay whose source it stringifies into the page — would reach the guest
+ *  until the whole window reloaded. Asking for a fresh copy is more reliable
+ *  than trusting hot-update propagation to reach a module nothing statically
+ *  imports; the dev server stamps the dependency URLs it has invalidated, so a
+ *  fresh engine pulls a fresh overlay down with it.
+ *
+ *  The literal path is what a bare specifier can't be here, and it has to track
+ *  this module's real location — hence the fall back to the static import, which
+ *  is also the only branch production keeps, `import.meta.hot` being stripped
+ *  there along with everything it guards. */
+/** Desktop-surface bridge events: read-back requests the agent blocks on
+ *  (terminal/preview/window), agent terminal streaming, pane reveal, and
+ *  message reactions. */
+export function handleDesktopBridgeEvent(ctx: GatewayEventContext): boolean {
+  const { event, payload, isActiveEvent } = ctx
+
+  if (event.type === 'terminal.read.request') {
+    // read_terminal tool: serialize the renderer's xterm buffer and answer
+    // immediately (Python blocks on the respond). Empty text = no live pane.
+    const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+
+    if (requestId) {
+      const start = typeof payload?.start === 'number' ? payload.start : undefined
+      const count = typeof payload?.count === 'number' ? payload.count : undefined
+      const result = readActiveTerminal({ start, count })
+
+      void $gateway.get()?.request('terminal.read.respond', {
+        request_id: requestId,
+        text: result ? JSON.stringify(result) : ''
+      })
+    }
+
+    return true
+  }
+
+  if (event.type === 'preview.read.request') {
+    // read_preview tool: serialize the active preview tab (a Browser
+    // webview's page text is async) and answer. Empty text = nothing open.
+    const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+
+    if (requestId) {
+      const start = typeof payload?.start === 'number' ? payload.start : undefined
+      const count = typeof payload?.count === 'number' ? payload.count : undefined
+
+      void readActivePreview({ count, start }).then(result => {
+        void $gateway.get()?.request('preview.read.respond', {
+          request_id: requestId,
+          text: result ? JSON.stringify(result) : ''
+        })
+      })
+    }
+
+    return true
+  }
+
+  // EDIT [3]: the `preview.act.request` branch is removed — the agent pressing
+  // inside the preview page is SPEC HX17. The core still offers the tool; with
+  // no handler here the request is simply not ours to answer.
+
+  if (event.type === 'window.read.request') {
+    // read_window_below tool: main owns native window enumeration, so ask
+    // it over IPC and answer. Empty text = unavailable (no bridge, or
+    // enumeration unsupported on this system e.g. Wayland).
+    const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+
+    if (requestId) {
+      const read = window.hermesDesktop?.readWindowBelow
+
+      const answer = (result: unknown) =>
+        $gateway.get()?.request('window.read.respond', {
+          request_id: requestId,
+          text: result ? JSON.stringify(result) : ''
+        })
+
+      // .catch: ipcRenderer.invoke rejects on an older shell without the
+      // handler or a main-side throw — without an empty answer the tool
+      // would stall its full 30s timeout.
+      void Promise.resolve(read ? read() : null).then(answer, () => answer(null))
+    }
+
+    return true
+  }
+
+  if (event.type === 'agent.terminal.output') {
+    // Live chunk from a background process → its read-only agent terminal tab.
+    writeAgentTerminalChunk(payload?.process_id ?? '', payload?.chunk ?? '')
+
+    return true
+  }
+
+  if (event.type === 'terminal.close') {
+    // Agent closed its own read-only tab via the desktop-gated close_terminal tool.
+    // The process is untouched — this only drops the view.
+    closeAgentTerminalByProc(payload?.process_id ?? '')
+
+    return true
+  }
+
+  // EDIT [3]: the `tour.request` branch is removed — the agent walking the
+  // interface is SPEC HX16, and its engine would pull in driver.js.
+
+  if (event.type === 'pane.reveal') {
+    // Agent revealed a pane via the desktop-gated focus_pane tool, in
+    // response to an explicit user request. Active session only — a
+    // background turn must never move the user's focus (desktop AGENTS.md:
+    // offer, don't hijack).
+    if (isActiveEvent) {
+      revealDesktopPane(payload?.pane ?? '')
+    }
+
+    return true
+  }
+
+  if (event.type === 'layout.apply') {
+    // Agent applied a layout preset via the desktop-gated apply_layout
+    // tool. Same contract as pane.reveal: active session only, and the
+    // preset resolves against the SAME layouts registry the picker reads,
+    // so core, plugin, and user presets are all addressable.
+    if (isActiveEvent) {
+      applyDesktopLayoutPreset(typeof payload?.preset === 'string' ? payload.preset : '')
+    }
+
+    return true
+  }
+
+  if (event.type === 'message.reaction') {
+    // The agent reacted to a message via the desktop-gated
+    // react_to_message tool. Already persisted — this only paints it now
+    // instead of at the next resume. Fresh ChatMessage object per change:
+    // the runtime repository caches normalized ThreadMessages in a WeakMap
+    // keyed by ChatMessage identity.
+    const reactedRowId = payload?.row_id
+
+    if (typeof reactedRowId === 'number') {
+      const nextReactions = Array.isArray(payload?.reactions) ? payload.reactions : []
+      const reactedRole = payload?.role === 'assistant' ? 'assistant' : 'user'
+
+      setMessages(messages => {
+        // Preferred leg: the message already knows its durable row id
+        // (rehydrated transcript, or a live row that has round-tripped).
+        const byRowId = messages.find(message => message.rowId === reactedRowId)
+
+        if (byRowId) {
+          // Overlay survives the end-of-turn resume, which rebuilds from
+          // in-memory history that doesn't carry this mid-turn DB write.
+          recordAgentReaction(reactedRowId, nextReactions)
+
+          return messages.map(message =>
+            message.rowId === reactedRowId ? { ...message, reactions: nextReactions } : message
+          )
+        }
+
+        // Live leg: the targeted message is still optimistic (no rowId —
+        // it hasn't round-tripped through a resume). The agent's default
+        // target is the newest message of that role, so stamp the reaction
+        // AND the now-known row id onto it. Without this the event matches
+        // nothing and the reaction only appears after a reload.
+        const lastIndex = messages.findLastIndex(message => message.role === reactedRole && message.rowId === undefined)
+
+        if (lastIndex === -1) {
+          return messages
+        }
+
+        recordAgentReaction(reactedRowId, nextReactions)
+
+        return messages.map((message, index) =>
+          index === lastIndex ? { ...message, rowId: reactedRowId, reactions: nextReactions } : message
+        )
+      })
+    }
+
+    return true
+  }
+
+  return false
+}

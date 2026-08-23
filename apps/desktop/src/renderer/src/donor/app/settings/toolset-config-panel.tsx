@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/toolset-config-panel.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2)
@@ -19,6 +19,7 @@ import {
   getToolsetConfig,
   getToolsetModels,
   pollOAuthSession,
+  type ProfileScope,
   runToolsetPostSetup,
   selectToolsetModel,
   selectToolsetProvider,
@@ -29,6 +30,7 @@ import { useI18n } from '@/i18n'
 import { Check, Loader2, Save, Terminal } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { upsertDesktopActionTask } from '@/store/activity'
+import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type {
   ActionStatusResponse,
@@ -51,7 +53,7 @@ interface ToolsetConfigPanelProps {
   /** Capabilities profile-scope override: configure THIS profile instead of the
    *  app-wide active one. Omitted (every other caller) → app-wide active
    *  profile, so behavior is unchanged. Threaded into every fetch below. */
-  profile?: null | string
+  profile?: ProfileScope
 }
 
 /** Toolsets whose backends expose a selectable model catalog (mirrors the
@@ -109,7 +111,7 @@ interface EnvVarFieldProps {
   isSet: boolean
   onSaved: (key: string) => void
   onCleared: (key: string) => void
-  profile?: null | string
+  profile?: ProfileScope
 }
 
 function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarFieldProps) {
@@ -148,7 +150,7 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarField
   }
 
   async function handleClear() {
-    if (!window.confirm(copy.removeConfirm(envVar.key))) {
+    if (!(await confirm({ destructive: true, title: copy.removeConfirm(envVar.key) }))) {
       return
     }
 
@@ -249,7 +251,7 @@ interface PostSetupRunnerProps {
   /** Refresh the parent config after the install finishes (a backend may now
    *  report itself configured). */
   onComplete?: () => void
-  profile?: null | string
+  profile?: ProfileScope
 }
 
 /**
@@ -388,7 +390,7 @@ interface ModelCatalogPickerProps {
   /** True when this provider is the one written to config — selecting a model
    *  only makes sense for the active backend. */
   isActiveBackend: boolean
-  profile?: null | string
+  profile?: ProfileScope
 }
 
 /**

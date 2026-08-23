@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/plugin-i18n.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -111,13 +111,15 @@ export function createPluginI18n(pluginId: string, track: (dispose: () => void) 
  *  late bundle registration. Pass your plugin id (your default export's `id`). */
 export function usePluginI18n(pluginId: string): PluginTranslate {
   const { locale } = useI18n()
+  const version = useStore($version)
 
-  // Subscribe so a bundle registered after mount repaints; `translatePlugin`
-  // reads the live registry, so the memoized closure needs only id + locale.
-  useStore($version)
-
+  // `version` is the registry's change token and must key the translator's
+  // identity: memoized consumers (React.memo, React Compiler output) cache
+  // render slices on `t` itself, so a stable `t` over a mutated registry
+  // serves stale strings after a late bundle registration.
   return useCallback(
     (key: string, ...args: unknown[]) => translatePlugin(pluginId, locale, key, args),
-    [pluginId, locale]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pluginId, locale, version]
   )
 }

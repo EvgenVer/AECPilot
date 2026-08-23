@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/live-sync.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,11 +10,11 @@ import { atom } from 'nanostores'
 // Event-driven "backend data changed" signals — the workspace-events twin for
 // gateway-side state. The change watcher in tui_gateway broadcasts
 // `pet.changed` / `cron.changed` / `sessions.changed` when its on-disk
-// signatures move (see server._broadcast_watched_changes), gateway-event.ts
-// routes them here, and the surfaces that used to poll (cron sidebar/page,
-// messaging lists, pet sprite, live session statuses) subscribe to these ticks
-// and refresh — so they move exactly when the backend acts and stay idle
-// otherwise.
+// signatures move (see server._broadcast_watched_changes), the gateway-event
+// lifecycle handler routes them here, and the surfaces that used to poll (cron
+// sidebar/page, messaging lists, pet sprite, live session statuses) subscribe
+// to these ticks and refresh — so they move exactly when the backend acts and
+// stay idle otherwise.
 //
 // `$changeEventsAvailable` is the compat gate: gateway.ready advertises
 // `change_events: true` on backends that broadcast. Consumers keep their old

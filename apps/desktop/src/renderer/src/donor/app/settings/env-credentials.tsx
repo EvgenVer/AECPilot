@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/env-credentials.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2)
@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { deleteEnvVar, getEnvVars, setEnvVar } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { type IconComponent } from '@/lib/icons'
+import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type { EnvVarInfo } from '@/types/hermes'
 
@@ -151,7 +152,7 @@ export function useEnvCredentials(profile: null | string = null): UseEnvCredenti
   }
 
   async function handleClear(key: string) {
-    if (!window.confirm(toolsets.removeConfirm(key))) {
+    if (!(await confirm({ destructive: true, title: toolsets.removeConfirm(key) }))) {
       return
     }
 

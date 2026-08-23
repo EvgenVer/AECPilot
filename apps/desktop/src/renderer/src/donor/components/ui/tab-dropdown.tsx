@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/tab-dropdown.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -121,7 +121,14 @@ export function ResponsiveTabs({
     <>
       <div className={cn('hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:flex', wideClassName)}>
         {tabs.map(tab => (
-          <TextTab active={tab.id === value} key={tab.id} onClick={() => onChange(tab.id)}>
+          <TextTab
+            active={tab.id === value}
+            // Names each tab by its own id, so a tour can walk them one by one
+            // (`[data-tour="tab-images"]`) on every page that uses this row.
+            data-tour={`tab-${tab.id}`}
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+          >
             {tab.label}
             {tab.meta !== undefined && <TextTabMeta>{tabMetaContent(tab.meta)}</TextTabMeta>}
           </TextTab>

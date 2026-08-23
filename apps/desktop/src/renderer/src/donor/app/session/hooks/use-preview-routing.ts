@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-preview-routing.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,9 +9,12 @@ import { useCallback } from 'react'
 
 import { gatewayEventCompletedFileDiff } from '@/lib/gateway-events'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
+import { reachablePreviewUrl } from '@/lib/preview-reach'
 import {
   $previewTabs,
   beginPreviewServerRestart,
+  closePreviewMatching,
+  closeRightRail,
   completePreviewServerRestart,
   openPreview,
   progressPreviewServerRestart,
@@ -31,6 +34,14 @@ interface PreviewRoutingOptions {
 
 function asRecord(payload: unknown): Record<string, unknown> {
   return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+}
+
+function sessionIsOnScreen(sessionId: string): boolean {
+  return (
+    sessionId === $focusedRuntimeId.get() ||
+    sessionId === $activeSessionId.get() ||
+    $sessionTiles.get().some(tile => tile.runtimeId === sessionId)
+  )
 }
 
 export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestGateway }: PreviewRoutingOptions) {
@@ -82,19 +93,64 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
         const { url, label } = asRecord(event.payload)
         const target = typeof url === 'string' ? url.trim() : ''
 
-        const onScreen = (sid: string) =>
-          sid === $focusedRuntimeId.get() ||
-          sid === $activeSessionId.get() ||
-          $sessionTiles.get().some(tile => tile.runtimeId === sid)
+        if (target && (!event.session_id || sessionIsOnScreen(event.session_id))) {
+          void normalizeOrLocalPreviewTarget(target, $currentCwd.get() || currentCwd || undefined).then(
+            async resolved => {
+              if (!resolved) {
+                return
+              }
 
-        if (target && (!event.session_id || onScreen(event.session_id))) {
-          void normalizeOrLocalPreviewTarget(target, $currentCwd.get() || currentCwd || undefined).then(resolved => {
-            if (resolved) {
               const trimmedLabel = typeof label === 'string' ? label.trim() : ''
-              openPreview(trimmedLabel ? { ...resolved, label: trimmedLabel } : resolved, 'tool-result')
+              // The agent's loopback is the GATEWAY's loopback. Give the pane a
+              // URL this machine can load, keeping the original as the label so
+              // the user still sees the address the agent named.
+              const url = resolved.kind === 'url' ? await reachablePreviewUrl(resolved.url) : resolved.url
+              const reached = url === resolved.url ? resolved : { ...resolved, label: resolved.label || target, url }
+
+              openPreview(trimmedLabel ? { ...reached, label: trimmedLabel } : reached, 'tool-result')
             }
-          })
+          )
         }
+
+        return
+      }
+
+      if (event.type === 'preview.close') {
+        // Agent-driven close via close_preview. Same on-screen gate as open:
+        // a session the user can see may tidy the pane it opened; a hidden
+        // background turn must not dismiss the user's preview.
+        const { url } = asRecord(event.payload)
+        const target = typeof url === 'string' ? url.trim() : ''
+
+        if (event.session_id && !sessionIsOnScreen(event.session_id)) {
+          return
+        }
+
+        if (!target) {
+          closeRightRail()
+
+          return
+        }
+
+        if (closePreviewMatching(target)) {
+          return
+        }
+
+        void normalizeOrLocalPreviewTarget(target, $currentCwd.get() || currentCwd || undefined).then(
+          async resolved => {
+            const candidates = [target]
+
+            if (resolved) {
+              candidates.push(resolved.source, resolved.url)
+
+              if (resolved.kind === 'url') {
+                candidates.push(await reachablePreviewUrl(resolved.url))
+              }
+            }
+
+            closePreviewMatching(...candidates)
+          }
+        )
 
         return
       }

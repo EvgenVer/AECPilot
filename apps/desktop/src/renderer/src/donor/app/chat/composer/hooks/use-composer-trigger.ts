@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-trigger.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -43,6 +43,26 @@ import { detectTrigger, textBeforeCaret, type TriggerState } from '../text-utils
  * prose off and stranded a partial `folder:` in front of the chip, because the
  * window it removed wasn't the token the user was typing.
  */
+/** The keyup half of trigger detection, shared by both composers.
+ *
+ *  If the open popover already consumed this key in keydown (Arrow/Enter/Tab/
+ *  Escape), skip the refresh: those keys never edit text, and for Escape the
+ *  keydown already closed the menu — refreshing here would re-detect the
+ *  still-present `/` and instantly reopen it. It reads a ref set during keydown
+ *  rather than `trigger`, because by keyup time React has re-rendered and
+ *  `trigger` may already be null. */
+export function triggerKeyUpHandler(consumedRef: MutableRefObject<boolean>, refreshTrigger: () => void) {
+  return () => {
+    if (consumedRef.current) {
+      consumedRef.current = false
+
+      return
+    }
+
+    window.setTimeout(refreshTrigger, 0)
+  }
+}
+
 export function rebuildAroundCaret(editor: HTMLDivElement, tokenLength: number, insert: DocumentFragment | string) {
   const current = composerPlainText(editor)
   const caret = caretOffsetInEditor(editor)

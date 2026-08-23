@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/notifications.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -126,7 +126,7 @@ function TopCenterStack({
       aria-label={copy.region}
       className={cn(
         REGION_BASE,
-        'left-1/2 top-[calc(var(--titlebar-height,34px)+0.75rem)] w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 flex-col'
+        'left-1/2 top-[calc(var(--titlebar-height,34px)+0.75rem)] w-[min(40rem,calc(100%-2rem))] -translate-x-1/2 flex-col'
       )}
       role="region"
     >
@@ -194,6 +194,13 @@ function renderMessage(message: string, accent?: string): ReactNode {
   )
 }
 
+// AlertTitle defaults to a single-line clamp. Toast errors are often a full
+// sentence, so the toast wraps — then caps height and scrolls instead of
+// growing down the chat or clipping with an ellipsis.
+export function toastTitleClassName() {
+  return 'col-start-auto line-clamp-none max-h-[4.5em] overflow-y-auto overscroll-contain whitespace-normal wrap-break-word'
+}
+
 function NotificationItem({ notification }: { notification: AppNotification }) {
   const styles = tone[notification.kind]
   const Icon = styles.icon
@@ -220,9 +227,13 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
         <Icon className={styles.iconClass} style={iconStyle} />
       )}
       <div className="col-start-2 min-w-0">
-        {notification.title && <AlertTitle className="col-start-auto">{notification.title}</AlertTitle>}
+        {notification.title && (
+          <AlertTitle className={toastTitleClassName()} title={notification.title}>
+            {notification.title}
+          </AlertTitle>
+        )}
         <AlertDescription className="col-start-auto">
-          <p className="m-0">{renderMessage(notification.message, accent)}</p>
+          <p className="m-0 wrap-break-word">{renderMessage(notification.message, accent)}</p>
           {notification.meta && <p className="m-0 text-xs text-muted-foreground tabular-nums">{notification.meta}</p>}
           {hasDetail && <NotificationDetail detail={notification.detail || ''} />}
           {notification.action && (

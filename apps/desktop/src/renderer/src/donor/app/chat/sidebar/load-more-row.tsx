@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/load-more-row.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,7 +18,9 @@ interface SidebarLoadMoreRowProps {
 
 // Compact "load more" affordance shared by recents, messaging, and cron. Kept
 // intentionally identical to workspace "show more" controls (ellipsis button)
-// so pagination reads as one interaction everywhere.
+// so pagination reads as one interaction everywhere. It hangs off the list
+// instead of sitting in a row, so it repeats the row's trailing inset
+// (SidebarRowShell's `pr-2`) to stay on the edge the rows stop at.
 export function SidebarLoadMoreRow({ step, onClick, loading = false }: SidebarLoadMoreRowProps) {
   const { t } = useI18n()
   const label = loading ? t.sidebar.loading : step > 0 ? t.sidebar.loadCount(step) : t.sidebar.loadMore
@@ -27,7 +29,7 @@ export function SidebarLoadMoreRow({ step, onClick, loading = false }: SidebarLo
     <Tip label={label}>
       <button
         aria-label={label}
-        className="ml-auto grid size-5 place-items-center rounded-sm bg-transparent text-(--ui-text-tertiary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-(--ui-text-tertiary)"
+        className="mr-2 ml-auto grid size-5 place-items-center rounded-sm bg-transparent text-(--ui-text-tertiary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-(--ui-text-tertiary)"
         disabled={loading}
         onClick={onClick}
         type="button"

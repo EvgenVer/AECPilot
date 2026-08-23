@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/open-session.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,7 +32,7 @@ import { canOpenSessionWindow, openSessionInNewWindow } from '@/store/windows'
 
 import { $workspaceIsPage, sessionRoute } from './routes'
 
-export type OpenSessionIntent = 'in-place' | 'stack' | 'tab' | 'window'
+export type OpenSessionIntent = 'in-place' | 'main' | 'stack' | 'tab' | 'window'
 
 export type OpenSessionNavigate = (to: string, options?: { replace?: boolean }) => void
 
@@ -102,6 +102,15 @@ export function openSession(
 
     // No pop-out support → treat like a new tab.
     resolved = 'tab'
+  }
+
+  if (resolved === 'main') {
+    // Canonical relationship chats explicitly own the main workspace. Route
+    // even when the session is already open as a tile; resumeSession removes
+    // that redundant tile when the main surface binds.
+    navigate(sessionRoute(storedSessionId))
+
+    return
   }
 
   // A `stack` open arrives from outside the workspace, so unlike a sidebar

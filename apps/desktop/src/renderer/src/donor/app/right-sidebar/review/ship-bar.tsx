@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/review/ship-bar.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import {
   $reviewCommitDefault,
   $reviewCommitMsgBusy,
   $reviewFiles,
+  $reviewScopeTarget,
   $reviewShipBusy,
   $reviewShipInfo,
   cancelCommitMessage,
@@ -42,6 +43,7 @@ export function ReviewShipBar() {
   const c = t.statusStack.coding
   const files = useStore($reviewFiles)
   const ship = useStore($reviewShipInfo)
+  const scopeTarget = useStore($reviewScopeTarget)
   const busy = useStore($reviewShipBusy)
   const generating = useStore($reviewCommitMsgBusy)
   const commitDefault = useStore($reviewCommitDefault)
@@ -136,7 +138,11 @@ export function ReviewShipBar() {
         <Button
           className="min-w-0 flex-1 justify-center px-7 text-[0.7rem] text-muted-foreground/85 hover:text-foreground"
           disabled={!hasFiles}
-          onClick={() => requestComposerSubmit(c.agentShipPrompt, { target: 'main' })}
+          onClick={() => {
+            if (!requestComposerSubmit(c.agentShipPrompt, { target: scopeTarget })) {
+              notifyError(new Error(c.agentShipUnavailable), c.agentShip)
+            }
+          }}
           size="sm"
           variant="ghost"
         >

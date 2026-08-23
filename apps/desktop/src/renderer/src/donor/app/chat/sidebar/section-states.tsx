@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/section-states.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,19 +11,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
+import { SidebarRowCluster, SidebarRowShell, SidebarRowStack } from './chrome'
+
+// Stands in for session rows, so it borrows their chrome instead of copying
+// the grid — a placeholder on a different edge than the rows it resolves into
+// makes the list step sideways on load.
 export function SidebarSessionSkeletons() {
   return (
-    <div aria-hidden="true" className="grid gap-px">
+    <SidebarRowStack aria-hidden="true">
       {['w-32', 'w-40', 'w-28', 'w-36', 'w-24'].map((width, i) => (
-        <div
-          className="grid min-h-[1.625rem] grid-cols-[minmax(0,1fr)_1.375rem] items-center rounded-md pl-2"
-          key={`${width}-${i}`}
-        >
-          <Skeleton className={cn('h-3 rounded-sm', width)} />
-          <Skeleton className="mx-auto size-3.5 rounded-sm opacity-60" />
-        </div>
+        <SidebarRowShell actions={<Skeleton className="size-3.5 rounded-sm opacity-60" />} key={`${width}-${i}`}>
+          <SidebarRowCluster>
+            <Skeleton className={cn('h-3 rounded-sm', width)} />
+          </SidebarRowCluster>
+        </SidebarRowShell>
       ))}
-    </div>
+    </SidebarRowStack>
   )
 }
 

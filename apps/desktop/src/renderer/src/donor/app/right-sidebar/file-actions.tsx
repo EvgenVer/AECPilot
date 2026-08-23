@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/file-actions.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,11 +26,13 @@ import {
   cancelInlineRename,
   closeFileActionDialog,
   copyFilePath,
+  downloadRemoteFile,
   executeFileDelete,
   executeFileRename,
   type FileActionTarget,
   requestFileDelete,
   revealFile,
+  shouldOfferRemoteFileDownload,
   toRelativePath
 } from '@/store/file-actions'
 import { notifyError } from '@/store/notifications'
@@ -64,8 +66,10 @@ export function FileEntryContextMenu({ children, isDirectory, name, path, relati
   const { t } = useI18n()
   const m = t.fileMenu
   // Reveal / rename / delete need the local filesystem; hide them on a remote
-  // backend (copy-path still works everywhere).
+  // backend (copy-path still works everywhere). Download uses the existing
+  // gateway save bridge so a remote file can land on this machine.
   const localFs = !isDesktopFsRemoteMode()
+  const remoteDownload = shouldOfferRemoteFileDownload(isDirectory)
   const target: FileActionTarget = { isDirectory, name, path }
   const revealLabel = pickRevealLabel(m.revealFinder, m.revealExplorer, m.revealFileManager)
 
@@ -86,6 +90,12 @@ export function FileEntryContextMenu({ children, isDirectory, name, path, relati
           <ContextMenuItem onSelect={() => void copyFilePath(toRelativePath(path, relativeTo))}>
             {m.copyRelativePath}
           </ContextMenuItem>
+        )}
+        {remoteDownload && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => void downloadRemoteFile(path)}>{m.download}</ContextMenuItem>
+          </>
         )}
         {localFs && (
           <>

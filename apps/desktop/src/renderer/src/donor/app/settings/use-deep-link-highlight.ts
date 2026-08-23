@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/use-deep-link-highlight.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,6 +68,12 @@ export function useDeepLinkHighlight({
 
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block })
+
+        if (!element.hasAttribute('tabindex')) {
+          element.tabIndex = -1
+        }
+
+        element.focus({ preventScroll: true })
         element.classList.add('setting-field-highlight')
         window.setTimeout(() => element.classList.remove('setting-field-highlight'), 1600)
 

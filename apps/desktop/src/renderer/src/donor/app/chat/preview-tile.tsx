@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/preview-tile.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,7 @@ import { $previewTabs, closeRightRailTab, type PreviewTarget } from '@/store/pre
 
 import { paneMirror } from './pane-mirror'
 import { PreviewTilePane } from './right-rail/preview'
-import { forgetPreviewStripTools, previewStripTools } from './right-rail/preview-strip-tools'
+import { forgetPreviewConsole } from './right-rail/preview-console-store'
 
 /** The target behind a tile id, or null once its tab is gone. */
 function targetFor(tabId: string): PreviewTarget | null {
@@ -139,12 +139,9 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   minWidth: '22rem',
   title: previewTitle,
   tabLead: tabId => <PreviewTabLead tabId={tabId} />,
-  // Console + DevTools as bare strip glyphs after the last tab, where "+" sits.
-  // Only a URL preview has a webview behind it, so a file/artifact tab gets none.
-  stripTools: tabId => (targetFor(tabId)?.kind === 'url' ? previewStripTools(tabId) : []),
   render: tabId => <PreviewTilePane tabId={tabId} />,
   close: tabId => {
-    forgetPreviewStripTools(tabId)
+    forgetPreviewConsole(tabId)
     closeRightRailTab(tabId)
   }
 })

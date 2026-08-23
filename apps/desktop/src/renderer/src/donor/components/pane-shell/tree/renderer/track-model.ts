@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/track-model.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,6 @@
 
 import type * as React from 'react'
 
-import type { PaneStripTool } from '@/components/ui/pane-tab'
 import type { Contribution } from '@/contrib/types'
 
 import type { GroupNode, LayoutNode } from '../model'
@@ -73,6 +72,13 @@ interface PaneChrome extends PaneSizing {
   /** No Close in the tab menu — the one surface the app can't lose (the
    *  main workspace). Session tiles share `placement: 'main'` but close. */
   uncloseable?: boolean
+  /** Hide the hover ✕ while retaining explicit close behavior for this pane. */
+  showCloseButton?: boolean
+  /** Standing chrome tab (sessions / Bots) whose tab shows NO ✕ and no Close
+   *  verbs — it is shown/hidden instead (the zone menu's Show/Hide rows and a
+   *  ⌘K toggle, via `setStripTabHidden`). Close was too destructive for these:
+   *  an accidental ✕ removed Bot Mode until the next launch. */
+  hideOnly?: boolean
   /** Wrap this pane's TAB (e.g. in a domain context menu — a session tile's
    *  pin/branch/rename/archive/delete). The wrapper must render `tab` as its
    *  interactive child; the zone's own strip menu still owns non-tab space. */
@@ -98,12 +104,6 @@ interface PaneChrome extends PaneSizing {
    *  whole panes area, so the label subscribes for itself instead. Absent, or
    *  returning nothing, falls back to `title`. */
   tabTitle?: () => React.ReactNode
-  /** Glyph buttons this pane contributes to the strip, rendered after the last
-   *  tab (where "+" sits) while the pane is ACTIVE — controls that act on the
-   *  pane, not on any one tab: a preview's console / DevTools toggles. DATA, not
-   *  markup: `PaneStripGlyph` owns the styling so every glyph on every strip
-   *  matches. Read on each render, so a live store drives `active`/`disabled`. */
-  stripTools?: () => readonly PaneStripTool[]
 }
 
 export const paneChrome = (c: Contribution | undefined) => (c?.data ?? {}) as PaneChrome

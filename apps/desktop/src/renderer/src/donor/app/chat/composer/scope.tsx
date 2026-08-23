@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/scope.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -50,3 +50,15 @@ const ComposerScopeContext = createContext<ComposerScope>(MAIN_COMPOSER_SCOPE)
 export const ComposerScopeProvider = ComposerScopeContext.Provider
 
 export const useComposerScope = (): ComposerScope => useContext(ComposerScopeContext)
+
+/**
+ * Unique identity for one mounted ChatView/composer pair. Session ids cannot
+ * fill this role: a fresh chat has no id yet, and the same stored session can
+ * be rendered in more than one layout pane. External submit requests pin this
+ * surface id at click time so exactly one composer can claim the task.
+ */
+const ComposerSurfaceContext = createContext<string | null>(null)
+
+export const ComposerSurfaceProvider = ComposerSurfaceContext.Provider
+
+export const useComposerSurfaceId = (): string | null => useContext(ComposerSurfaceContext)

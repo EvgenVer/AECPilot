@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/mcp-install-deeplink-dialog.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,18 +23,11 @@ import { getHermesConfigRecord, saveMcpServers } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { AlertTriangle } from '@/lib/icons'
 import { MCP_DEEPLINK_NAME_RE } from '@/lib/mcp-deeplink'
+import { getServers } from '@/lib/mcp-servers'
 import { $mcpInstallRequest } from '@/store/mcp-deeplink-install'
 import { notify, readableError } from '@/store/notifications'
 
 import { setHermesConfigCache } from '../hooks/use-config-record'
-
-type McpServers = Record<string, Record<string, unknown>>
-
-const getServers = (config: { mcp_servers?: unknown } | null): McpServers => {
-  const raw = config?.mcp_servers
-
-  return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as McpServers) : {}
-}
 
 /**
  * Explicit-confirm gate for `hermes://mcp/install` deep links. The payload is

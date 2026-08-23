@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/thinking-sound.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,39 +18,12 @@
 // stopThinkingSound() — callers fire it the moment TTS starts, the mic re-arms,
 // or the conversation ends.
 
+import { getAudioContext } from '@/lib/audio-context'
 import { $hapticsMuted } from '@/store/haptics'
 import { $thinkingSoundEnabled } from '@/store/voice-prefs'
 
-let ctx: AudioContext | null = null
 let timer: number | null = null
 let blipIndex = 0
-
-function getCtx(): AudioContext | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  try {
-    if (!ctx) {
-      const Ctor =
-        window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-
-      if (!Ctor) {
-        return null
-      }
-
-      ctx = new Ctor()
-    }
-
-    if (ctx.state === 'suspended') {
-      void ctx.resume().catch(() => undefined)
-    }
-
-    return ctx
-  } catch {
-    return null
-  }
-}
 
 // One soft "blub": short sine with a gentle downward pitch glide and a smooth
 // attack into an exponential decay — no clicks, deliberately quiet.
@@ -86,7 +59,7 @@ export function startThinkingSound(): void {
 
   const tick = () => {
     if ($hapticsMuted.get() === false) {
-      const ac = getCtx()
+      const ac = getAudioContext()
 
       if (ac) {
         try {

@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/todos.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom, computed } from 'nanostores'
 
+import { keyedTimeouts } from '@/lib/keyed-timeouts'
 import { stableRecord } from '@/lib/stable-array'
 import type { TodoItem } from '@/lib/todos'
 
@@ -73,38 +74,23 @@ export function todosForHydration(todos: readonly TodoItem[] | null): TodoItem[]
 // lingers just long enough to see the last checkmark land, then the group
 // drops out of the stack on its own.
 const FINISHED_LINGER_MS = 4_000
-const clearTimers = new Map<string, ReturnType<typeof setTimeout>>()
-
-function cancelScheduledClear(sid: string) {
-  const timer = clearTimers.get(sid)
-
-  if (timer !== undefined) {
-    clearTimeout(timer)
-    clearTimers.delete(sid)
-  }
-}
+const clearTimers = keyedTimeouts()
 
 export function setSessionTodos(sid: string, todos: TodoItem[]) {
   if (!sid) {
     return
   }
 
-  cancelScheduledClear(sid)
+  clearTimers.cancel(sid)
   $todosBySession.set({ ...$todosBySession.get(), [sid]: todos })
 
   if (!todoListActive(todos)) {
-    clearTimers.set(
-      sid,
-      setTimeout(() => {
-        clearTimers.delete(sid)
-        clearSessionTodos(sid)
-      }, FINISHED_LINGER_MS)
-    )
+    clearTimers.schedule(sid, FINISHED_LINGER_MS, () => clearSessionTodos(sid))
   }
 }
 
 export function clearSessionTodos(sid: string) {
-  cancelScheduledClear(sid)
+  clearTimers.cancel(sid)
 
   const map = $todosBySession.get()
 

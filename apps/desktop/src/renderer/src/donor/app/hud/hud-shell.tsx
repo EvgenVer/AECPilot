@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hud/hud-shell.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,18 +9,12 @@ import { useStore } from '@nanostores/react'
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { TitlebarIcon } from '@/app/shell/titlebar-icon'
-import { Button } from '@/components/ui/button'
-import { Tip } from '@/components/ui/tooltip'
-import { useI18n } from '@/i18n'
 import { chatMessageText } from '@/lib/chat-messages'
-import { closeHud } from '@/store/hud'
 import { $activeSessionAwaitingInput } from '@/store/prompts'
 import { $busy, $messages } from '@/store/session'
 
 import { RICH_INPUT_SLOT } from '../chat/composer/rich-editor'
 import { WiredPane } from '../contrib/wiring'
-import { titlebarButtonClass } from '../shell/titlebar'
 
 import { useHudClickThrough } from './click-through'
 import { useHudGlass } from './glass'
@@ -177,7 +171,6 @@ function useHudHeld(): boolean {
  * `useRecentActivity`).
  */
 export function HudShell() {
-  const { t } = useI18n()
   const [recent, holdBand] = useRecentActivity()
   const held = useHudHeld()
 
@@ -394,22 +387,6 @@ export function HudShell() {
       <div aria-hidden data-hud-glass />
 
       <WiredPane part="chatRoutes" />
-
-      {/* The way back — without it the only exits are ⌘⇧H and ⌘W, both
-          invisible. Placed and revealed entirely from styles.css. */}
-      <Tip label={t.titlebar.exitHud}>
-        <Button
-          aria-label={t.titlebar.exitHud}
-          className={`${titlebarButtonClass} absolute z-20`}
-          data-hud-exit=""
-          onClick={closeHud}
-          size="icon-titlebar"
-          type="button"
-          variant="ghost"
-        >
-          <TitlebarIcon name="screen-normal" />
-        </Button>
-      </Tip>
 
       {/* The resize handle: bottom-right corner, the one sanctioned way to
           change the HUD's size. Invisible chrome — a hot corner, not a

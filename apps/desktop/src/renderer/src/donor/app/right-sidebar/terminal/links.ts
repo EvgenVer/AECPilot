@@ -1,14 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/links.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { ILinkHandler } from '@xterm/xterm'
 
-import { openExternalLink } from '@/lib/external-link'
+import { openLink } from '@/lib/external-link'
 
 import { isMacPlatform } from './selection'
 
@@ -17,8 +17,8 @@ import { isMacPlatform } from './selection'
 // activate through `window.open()`, which the window's setWindowOpenHandler
 // denies: a click did nothing but log "Opening link blocked as opener could not
 // be cleared", and OSC 8 fronted that dead end with a raw confirm() dialog.
-// Route both through the desktop bridge, the path every other external link in
-// the app takes.
+// Route both through the shared link router, the path every other link in the
+// app takes.
 //
 // ⌘-click on macOS, Ctrl-click elsewhere — VS Code's integrated terminal,
 // Terminal.app, and iTerm2 all agree. A bare click belongs to the selection, so
@@ -31,9 +31,14 @@ export function isTerminalLinkActivation(
   return isMac ? event.metaKey : event.ctrlKey
 }
 
+// The terminal spends the ⌘/Ctrl modifier on activation itself, so it has no
+// second chord left to mean "native browser" — ⇧ takes that job here. Elsewhere
+// a bare click opens in-app and ⌘ escapes to the OS; here it's ⌘ to open and
+// ⇧⌘ to escape, which keeps both gestures reachable without stealing the
+// selection back from a plain click.
 const activate = (event: MouseEvent, uri: string) => {
   if (isTerminalLinkActivation(event)) {
-    openExternalLink(uri)
+    openLink(uri, { native: event.shiftKey })
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/review/file-tree.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,7 +27,14 @@ import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { displayPath } from '@/lib/display-path'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
-import { $renamingPath, copyFilePath, revealFile, toRelativePath } from '@/store/file-actions'
+import {
+  $renamingPath,
+  copyFilePath,
+  downloadRemoteFile,
+  revealFile,
+  shouldOfferRemoteFileDownload,
+  toRelativePath
+} from '@/store/file-actions'
 import { $sidebarWorkspaceNodeOpen, revealFileInTree, toggleWorkspaceNodeCollapsed } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { openPreview } from '@/store/preview'
@@ -520,6 +527,12 @@ function ReviewFileContextMenu({
           <ContextMenuItem onSelect={() => void copyFilePath(toRelativePath(dragPath, cwd))}>
             {m.copyRelativePath}
           </ContextMenuItem>
+        )}
+        {shouldOfferRemoteFileDownload(false) && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => void downloadRemoteFile(dragPath)}>{m.download}</ContextMenuItem>
+          </>
         )}
       </ContextMenuContent>
     </ContextMenu>

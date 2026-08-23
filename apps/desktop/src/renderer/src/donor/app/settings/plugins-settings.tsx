@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/plugins-settings.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -31,6 +31,7 @@ import {
   $agentPluginsStatus,
   type AgentPluginRow,
   type GatewayRequest,
+  isDesktopRelevantPlugin,
   loadAgentPlugins,
   toggleAgentPlugin
 } from '@/store/agent-plugins'
@@ -39,35 +40,18 @@ import { $activeGatewayProfile } from '@/store/profile'
 import { $connection, $gatewayState } from '@/store/session'
 
 import { EmptyState, ListRowSkeleton, Pill, SettingsContent, SettingsSection } from './primitives'
+import { useDeepLinkHighlight } from './use-deep-link-highlight'
 
 const KIND_ORDER: Record<PluginRecord['kind'], number> = { disk: 0, runtime: 1, bundled: 2 }
 
 // User-installed plugins first — mirrors `hermes plugins list --user`.
 const SOURCE_ORDER: Record<string, number> = { user: 0, git: 0, project: 1, entrypoint: 2 }
 
-// Fallback for older backends whose rows predate a reliable `source` field:
-// plugin categories (by registry key prefix) that only exist bundled in the
-// repo — same curation stance as desktop-slash-commands.ts.
-const HIDDEN_KEY_PREFIXES = ['dashboard_auth/', 'model-providers/', 'platforms/']
-
-// This section is the control panel for plugins the USER installed
-// (~/.hermes/plugins, git, project, pip entry points, portable packages).
-// Repo-bundled built-ins (browser backends, cron providers, model providers,
-// platform adapters, image/video backends…) ship enabled-by-default and are
-// configured from their own surfaces (Settings → Models, Messaging, `hermes
-// tools`…), so listing dozens of them here is pure noise — hide them.
-const isDesktopRelevant = (row: AgentPluginRow) => {
-  if (row.source === 'bundled') {
-    return false
-  }
-
-  const key = row.key
-
-  return !key || !HIDDEN_KEY_PREFIXES.some(prefix => key.startsWith(prefix))
-}
-
 const agentPluginRowKey = (row: AgentPluginRow) =>
   row.key ?? [row.name, row.source, row.version, row.description].join('\0')
+
+/** Deep-link anchor for a plugin row (`?tab=plugins&plugin=<id>`). */
+export const pluginElementId = (target: string) => `plugin-${target}`
 
 function reveal(file: string) {
   void window.hermesDesktop?.revealPath?.(file)?.catch(() => undefined)
@@ -127,14 +111,16 @@ async function revealAgentPluginsDir(request: GatewayRequest) {
 function PluginLine({
   title,
   description,
-  controls
+  controls,
+  id
 }: {
   title: ReactNode
   description?: ReactNode
   controls: ReactNode
+  id?: string
 }) {
   return (
-    <div className="flex items-start gap-3 py-2">
+    <div className="flex items-start gap-3 rounded-lg py-2" id={id}>
       <div className="min-w-0 flex-1 pr-4">
         <div className="flex flex-wrap items-center gap-2 text-[length:var(--conversation-text-font-size)] font-medium text-foreground">
           {title}
@@ -181,6 +167,7 @@ function AgentPluginRowView({ row, profile }: { row: AgentPluginRow; profile: st
     <PluginLine
       controls={key ? toggle : <Tip label={p.agent.updateBackendToManage}>{toggle}</Tip>}
       description={row.description || (row.version ? `v${row.version}` : undefined)}
+      id={pluginElementId(key ?? row.name)}
       title={
         <>
           <span>{row.name}</span>
@@ -240,7 +227,7 @@ function AgentPluginsSection() {
   const needle = normalize(query)
 
   const sorted = rows
-    .filter(isDesktopRelevant)
+    .filter(isDesktopRelevantPlugin)
     .filter(
       row =>
         !needle ||
@@ -364,6 +351,7 @@ function PluginRow({ record }: { record: PluginRecord }) {
           (record.description ?? record.file ?? record.id)
         )
       }
+      id={pluginElementId(record.id)}
       title={
         <>
           <span>{record.name}</span>
@@ -379,6 +367,15 @@ export function PluginsSettings() {
   const { t } = useI18n()
   const p = t.settings.plugins
   const records = useStore($pluginRecords)
+
+  // Deep-link from settings search (?plugin=<id or key>): rows render as soon
+  // as their store hydrates, so "ready" is simply target-present; the polling
+  // in the hook rides out the async list loads (agent rows arrive via RPC).
+  useDeepLinkHighlight({
+    param: 'plugin',
+    ready: () => true,
+    elementId: pluginElementId
+  })
 
   const rows = Object.values(records).sort(
     (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name)

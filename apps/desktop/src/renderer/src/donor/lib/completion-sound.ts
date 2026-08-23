@@ -1,49 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/completion-sound.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 // Completion sound bank for agent turn-end cues.
 // Fourteen curated presets for A/B in Settings → Appearance. Default is variant 1.
 
+import { getAudioContext } from '@/lib/audio-context'
 import { ownsAmbientCue } from '@/store/ambient'
 import { $completionSoundVariantId, resolveCompletionSoundVariantId } from '@/store/completion-sound'
 import { $hapticsMuted } from '@/store/haptics'
 
 type OscType = OscillatorType
-
-let ctx: AudioContext | null = null
-
-function getCtx(): AudioContext | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  try {
-    if (!ctx) {
-      const Ctor =
-        window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-
-      if (!Ctor) {
-        return null
-      }
-
-      ctx = new Ctor()
-    }
-
-    // Autoplay policies can leave the context suspended until a gesture; a
-    // resume() here recovers it once the user has interacted with the window.
-    if (ctx.state === 'suspended') {
-      void ctx.resume().catch(() => undefined)
-    }
-
-    return ctx
-  } catch {
-    return null
-  }
-}
 
 // One enveloped oscillator voice → master. Linear attack into an exponential
 // decay keeps the tail smooth and avoids the click you get ramping to zero.
@@ -424,7 +394,7 @@ function playVariant(variantId: number) {
     return
   }
 
-  const ac = getCtx()
+  const ac = getAudioContext()
 
   if (!ac) {
     return

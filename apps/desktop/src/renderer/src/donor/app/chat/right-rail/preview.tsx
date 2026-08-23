@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,9 +22,10 @@ interface PreviewTilePaneProps {
  * drag/stack/split and ⌘W — belongs to the ZONE (see `preview-tile.tsx`), so
  * this renders only the body and a preview tab behaves like every other tab.
  *
- * The console / DevTools glyphs live in the zone STRIP (`preview-strip-tools`),
- * keyed by `tabId`; the restart handler arrives through the atom bridge the old
- * rail wrapper used, since the mirror renders this pane with no props to thread.
+ * The console / DevTools toggles live in the pane's own browser bar beside the
+ * address (`preview-browser-bar`); the restart handler arrives through the atom
+ * bridge the old rail wrapper used, since the mirror renders this pane with no
+ * props to thread.
  */
 export function PreviewTilePane({ tabId }: PreviewTilePaneProps) {
   const previewReloadRequest = useStore($previewReloadRequest)

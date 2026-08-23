@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-center/maintenance.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,6 +30,7 @@ import { useI18n } from '@/i18n'
 import { AlertCircle } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { upsertDesktopActionTask } from '@/store/activity'
+import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type { ActionStatusResponse } from '@/types/hermes'
 
@@ -176,7 +177,7 @@ export function MaintenancePanel() {
 
   const doResetMemory = useCallback(
     async (target: 'all' | 'memory' | 'user', label: string) => {
-      if (!window.confirm(mm.resetConfirm(label))) {
+      if (!(await confirm({ destructive: true, title: mm.resetConfirm(label) }))) {
         return
       }
 

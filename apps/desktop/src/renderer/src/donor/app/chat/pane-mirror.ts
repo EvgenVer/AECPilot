@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/pane-mirror.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,7 +18,6 @@ import type { ReactElement, ReactNode, PointerEvent as ReactPointerEvent } from 
 
 import type { DoubleTapContext } from '@/components/pane-shell/tree/renderer/drag-session'
 import { registerPaneCloser, removeTreePane, treePanesWithPrefix } from '@/components/pane-shell/tree/store'
-import type { PaneStripTool } from '@/components/ui/pane-tab'
 import { registry } from '@/contrib/registry'
 import type { TileDock } from '@/store/session-states'
 
@@ -47,11 +46,6 @@ export interface PaneMirror<T> {
    *  as `tabLead` — a name that moves faster than re-registration (see
    *  PaneChrome.tabTitle). Falls back to `title`. */
   tabTitle?: (key: string) => ReactNode
-  /** Glyph buttons the tile contributes to the strip, after the last tab (where
-   *  "+" sits), while it is the ACTIVE pane — e.g. a preview's console /
-   *  DevTools toggles. DATA, not markup: the strip's `PaneStripGlyph` owns the
-   *  styling so every glyph on every strip matches. */
-  stripTools?: (key: string) => readonly PaneStripTool[]
   render: (key: string) => ReactNode
   /** Wrap the tile's TAB (domain context menu — session verbs). */
   tabWrap?: (key: string, tab: ReactElement) => ReactNode
@@ -94,7 +88,6 @@ export function paneMirror<T>(cfg: PaneMirror<T>): () => void {
         data: {
           tabLead: cfg.tabLead ? () => cfg.tabLead!(key) : undefined,
           tabTitle: cfg.tabTitle ? () => cfg.tabTitle!(key) : undefined,
-          stripTools: cfg.stripTools ? () => cfg.stripTools!(key) : undefined,
           dock: {
             before: cfg.before?.(tile),
             pane: cfg.anchor?.(tile) ?? 'workspace',

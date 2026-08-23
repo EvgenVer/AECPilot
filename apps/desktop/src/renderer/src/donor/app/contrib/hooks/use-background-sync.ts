@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-background-sync.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -291,6 +291,7 @@ export function resetLiveRuntimeTracking(): void {
 }
 
 interface BackgroundSyncParams {
+  activeConnectionId: null | string
   activeGatewayProfile: string
   activeIsMessaging: boolean
   activeSessionId: null | string
@@ -358,6 +359,7 @@ function visiblePoll(intervalMs: number, tick: () => void): () => void {
  * All the "the desktop websocket won't tell us, so poll" logic in one place.
  */
 export function useBackgroundSync({
+  activeConnectionId,
   activeGatewayProfile,
   activeIsMessaging,
   activeSessionId,
@@ -448,7 +450,7 @@ export function useBackgroundSync({
         })
         .catch(() => undefined)
     }
-  }, [activeGatewayProfile, gatewayState, refreshCurrentModel, refreshSessions, requestGateway])
+  }, [activeConnectionId, activeGatewayProfile, gatewayState, refreshCurrentModel, refreshSessions, requestGateway])
 
   // A reconnect loses renderer-only working/attention atoms while the backend
   // keeps the actual turns alive. Re-seed from the gateway's in-memory session

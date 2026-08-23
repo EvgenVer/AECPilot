@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/goals.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
+
+import { keyedTimeouts } from '@/lib/keyed-timeouts'
 
 import { $gateway } from './gateway'
 
@@ -21,38 +23,23 @@ export interface SessionGoal {
 export const $goalsBySession = atom<Record<string, SessionGoal>>({})
 
 const DONE_LINGER_MS = 8_000
-const clearTimers = new Map<string, ReturnType<typeof setTimeout>>()
-
-function cancelScheduledClear(sid: string) {
-  const timer = clearTimers.get(sid)
-
-  if (timer !== undefined) {
-    clearTimeout(timer)
-    clearTimers.delete(sid)
-  }
-}
+const clearTimers = keyedTimeouts()
 
 export function setSessionGoal(sid: string, goal: SessionGoal) {
   if (!sid) {
     return
   }
 
-  cancelScheduledClear(sid)
+  clearTimers.cancel(sid)
   $goalsBySession.set({ ...$goalsBySession.get(), [sid]: goal })
 
   if (goal.status === 'done') {
-    clearTimers.set(
-      sid,
-      setTimeout(() => {
-        clearTimers.delete(sid)
-        clearSessionGoal(sid)
-      }, DONE_LINGER_MS)
-    )
+    clearTimers.schedule(sid, DONE_LINGER_MS, () => clearSessionGoal(sid))
   }
 }
 
 export function clearSessionGoal(sid: string) {
-  cancelScheduledClear(sid)
+  clearTimers.cancel(sid)
 
   const map = $goalsBySession.get()
 

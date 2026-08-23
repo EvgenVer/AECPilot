@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-agent-terminal.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import { makeTerminalReader, registerTerminalReader } from './buffer'
 import { mirrorSelection, terminalClipboardIntent } from './clipboard'
 import { terminalLinkHandler, terminalWebLinksAddon } from './links'
 import { isMacPlatform, resolveSurfaceColor, terminalTheme } from './selection'
+import { registerTerminalContextMenu } from './terminal-context-menu'
 import { prepareTerminalFontFamily } from './terminal-font'
 import { useTerminalFontController } from './use-terminal-font'
 
@@ -89,6 +90,15 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
     // Read-only mirror, but the output is exactly what people want to copy.
     // No paste path: this terminal has no PTY to paste into.
     const selectionDisposable = term.onSelectionChange(() => mirrorSelection(host, term.getSelection()))
+
+    // Right-clicks resolve through the app context menu; the handle carries
+    // the xterm selection the DOM resolver cannot see. paste stays null —
+    // there is nothing to paste into.
+    const contextMenuDisposable = registerTerminalContextMenu(host, {
+      getSelection: () => term.getSelection(),
+      paste: null,
+      selectAll: () => term.selectAll()
+    })
 
     term.attachCustomKeyEventHandler(event => {
       const intent = terminalClipboardIntent(event, {
@@ -168,6 +178,7 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
       unregister()
       unregisterReader()
       selectionDisposable.dispose()
+      contextMenuDisposable()
       fitRef.current = null
       term.dispose()
       termRef.current = null

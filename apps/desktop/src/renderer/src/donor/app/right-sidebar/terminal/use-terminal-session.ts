@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-session.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,6 +33,7 @@ import {
   terminalSelectionLabel,
   terminalTheme
 } from './selection'
+import { registerTerminalContextMenu } from './terminal-context-menu'
 import { prepareTerminalFontFamily } from './terminal-font'
 import { closeTerminal, updateTerminalRestoreCwd, updateTerminalReviveBuffer } from './terminals'
 import { useTerminalFontController } from './use-terminal-font'
@@ -799,6 +800,21 @@ export function useTerminalSession({
     })
 
     cleanup.push(() => selectionDisposable.dispose())
+
+    // The app context menu resolves right-clicks on this host through the
+    // registered handle: xterm's selection is not a DOM selection, so the
+    // DOM resolver would see nothing here.
+    cleanup.push(
+      registerTerminalContextMenu(host, {
+        getSelection: () => term.getSelection(),
+        paste: text => {
+          hasSessionActivityRef.current = true
+          term.focus()
+          term.paste(text)
+        },
+        selectAll: () => term.selectAll()
+      })
+    )
 
     // Copy/paste chords. Returning false stops xterm from also sending the key
     // to the PTY; every path that doesn't copy or paste returns true, so plain

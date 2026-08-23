@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/hooks/use-status-snapshot.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,13 +18,23 @@ const REFRESH_MS = 60_000
 
 type GatewayRequester = <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
 
-export function useStatusSnapshot(gatewayState: string | undefined, requestGateway: GatewayRequester) {
+export function useStatusSnapshot(
+  gatewayState: string | undefined,
+  requestGateway: GatewayRequester,
+  gatewayScope = ''
+) {
   const [statusSnapshot, setStatusSnapshot] = useState<StatusResponse | null>(null)
   const [inferenceStatus, setInferenceStatus] = useState<RuntimeReadinessResult | null>(null)
 
   useEffect(() => {
     let cancelled = false
     let timer: number | undefined
+
+    // Status and inference readiness belong to one backend. A source switch
+    // can keep gatewayState="open" throughout, so clear the previous source's
+    // snapshot and start a fresh scoped request explicitly.
+    setStatusSnapshot(null)
+    setInferenceStatus(null)
 
     // A closed/connecting gateway cannot have an authoritative live-runtime
     // result. Clear readiness before starting the REST status leg so a hung
@@ -109,7 +119,7 @@ export function useStatusSnapshot(gatewayState: string | undefined, requestGatew
         window.clearTimeout(timer)
       }
     }
-  }, [gatewayState, requestGateway])
+  }, [gatewayScope, gatewayState, requestGateway])
 
   return { inferenceStatus, statusSnapshot }
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/context-menu.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,8 +19,15 @@ function ContextMenuPortal({ ...props }: React.ComponentProps<typeof ContextMenu
   return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
 }
 
+/** Coordinator marker that survives Radix `asChild` Slot merges.
+ * `data-slot` is overwritten when the child sets its own `data-slot`
+ * (status bar footer); this attribute is not. */
+export const HERMES_CONTEXT_MENU_TRIGGER_ATTR = 'data-hermes-context-menu-trigger'
+
 function ContextMenuTrigger({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
-  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
+  return (
+    <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} data-hermes-context-menu-trigger="" />
+  )
 }
 
 function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Group>) {

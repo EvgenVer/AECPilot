@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/settings-scope.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@ import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 // picking a profile on one page carries to the next instead of resetting per
 // page. `null` means "follow the app's active profile" — the default, which
 // keeps single-profile users on the exact pre-existing code path (requests
-// fall back to the app-wide active profile in hermes.ts `profileScoped`).
+// fall back to the app-wide active profile in api/client.ts `profileScoped`).
 export const $settingsScopeOverride = atom<null | string>(null)
 
 // The profile the settings pages are currently editing (a concrete key).

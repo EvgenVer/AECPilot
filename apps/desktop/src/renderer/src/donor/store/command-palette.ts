@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/command-palette.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,13 +15,22 @@ export const $commandPaletteOpen = atom(false)
 /** Optional nested page to open when the palette next opens (e.g. `pets`). */
 export const $commandPalettePage = atom<string | null>(null)
 
+/** Optional search text to prefill when the palette next opens (type-to-search
+ *  from a surface: the keystroke that opened the palette must not be lost). */
+export const $commandPaletteSeed = atom<string | null>(null)
+
 export function openCommandPalette(): void {
   $commandPaletteOpen.set(true)
 }
 
 /** Open the palette directly on a nested page (`theme`, `pets`, …). */
-export function openCommandPalettePage(page: string): void {
+export function openCommandPalettePage(page: string, seed?: string): void {
   $commandPalettePage.set(page)
+
+  if (seed) {
+    $commandPaletteSeed.set(seed)
+  }
+
   $commandPaletteOpen.set(true)
 }
 
@@ -36,6 +45,7 @@ function setOpen(open: boolean): void {
 
   if (!open) {
     $commandPalettePage.set(null)
+    $commandPaletteSeed.set(null)
 
     if (wasOpen) {
       releaseTypingFocus()

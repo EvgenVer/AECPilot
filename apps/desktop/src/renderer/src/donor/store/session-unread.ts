@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-unread.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -71,6 +71,9 @@ type SeenCounts = Record<string, Record<string, number>>
 /** profile key → durable ids flagged by the live busy→idle edge. */
 type Markers = Record<string, string[]>
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
 export const $sessionSeenCounts = persistentAtom<SeenCounts>(
   'hermes.desktop.sessionSeenCounts',
   {},
@@ -82,9 +85,6 @@ export const $unreadFinishedMarkers = persistentAtom<Markers>(
   {},
   Codecs.json(sanitizeMarkers)
 )
-
-const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 // Also the migration: a pre-profile-scoping flat record (durable id → number)
 // has non-object values, so it drops wholesale rather than mis-attributing

@@ -14,6 +14,12 @@
 // will say so by name.
 
 export type { BillingBlock } from '../../donor/hermes-shared/billing-types'
+export {
+  clampDataUrlReadMaxMb,
+  DATA_URL_READ_DEFAULT_MAX_MB,
+  DATA_URL_READ_MAX_MAX_MB,
+  DATA_URL_READ_MIN_MAX_MB
+} from '../../donor/hermes-shared/data-url-read-max'
 export { skillInvocationText } from '../../donor/hermes-shared/skill-scaffold'
 export {
   buildHermesWebSocketUrl,

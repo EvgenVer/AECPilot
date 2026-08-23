@@ -21,7 +21,9 @@ const DONOR_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 /** Files allowed to call `setEnvVar`, each with the reason it is not a
  * provider key. Anything else means a new write path arrived with an update. */
 const ENV_WRITE_ALLOWED: Record<string, string> = {
-  'hermes.ts': 'the wrapper itself — the call, not a use of it',
+  // 0.20.5 split hermes.ts into api/**; the wrapper moved to api/config.ts and
+  // hermes.ts is now a re-export barrel that declares no call of its own.
+  'api/config.ts': 'the wrapper itself — the call, not a use of it',
   'app/settings/env-credentials.tsx': 'tool API keys and server env vars, not provider keys',
   'app/settings/toolset-config-panel.tsx': 'one toolset’s own env var',
   'store/onboarding.ts': 'import kept for the non-provider branches; the key branch uses our bridge'

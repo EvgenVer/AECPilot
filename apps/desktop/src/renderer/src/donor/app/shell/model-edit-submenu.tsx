@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/model-edit-submenu.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -66,6 +66,10 @@ export function resolveFastControl(
 }
 
 interface ModelEditSubmenuProps {
+  /** Whether this model can turn thinking off. False on reasoning-mandatory
+   *  routes, whose upstream rejects a disable — the toggle is hidden rather
+   *  than offered as a control that silently does nothing. */
+  canDisableReasoning?: boolean
   /** The profile's configured default effort — what an unset row inherits.
    *  Passed in (not read from a store) so this submenu stays pure. */
   defaultEffort: string
@@ -105,6 +109,7 @@ export function ModelEditSubmenu(props: ModelEditSubmenuProps) {
 }
 
 function ModelEditSubmenuBody({
+  canDisableReasoning,
   defaultEffort,
   effort,
   fastControl,
@@ -118,6 +123,7 @@ function ModelEditSubmenuBody({
 
   const effortValue = resolveReasoningEffort(effort, defaultEffort)
   const thinkingOn = isThinkingEnabled(effort, defaultEffort)
+  const showThinkingToggle = reasoning && canDisableReasoning !== false
 
   const setFast = (enabled: boolean) => {
     if (fastControl.kind === 'variant') {
@@ -146,7 +152,7 @@ function ModelEditSubmenuBody({
   ) : (
     <>
       <DropdownMenuLabel className={dropdownMenuSectionLabel}>{copy.options}</DropdownMenuLabel>
-      {reasoning ? (
+      {showThinkingToggle ? (
         <DropdownMenuItem className={dropdownMenuRow} onSelect={event => event.preventDefault()}>
           {copy.thinking}
           <Switch

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-dot-state.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,7 @@ import { computed } from 'nanostores'
 import { stableArray, stableRecord } from '@/lib/stable-array'
 
 import { $backgroundRunningSessionIds } from './composer-status'
-import { $sessions, $unreadFinishedSessionIds, lineageAliases } from './session'
+import { $cronSessions, $messagingSessions, $sessions, $unreadFinishedSessionIds, lineageAliases } from './session'
 import {
   $attentionSessionIds,
   $draftSessionIds,
@@ -188,4 +188,28 @@ export const $sessionDotStateById = computed(
 
     return (dotStates = stableRecord(dotStates, next))
   }
+)
+
+/** Listed, non-archived rows whose resolved status is unread. Alias keys in
+ *  `$sessionDotStateById` are ignored unless they are themselves a listed row. */
+export function unreadSessionCount(
+  byId: Readonly<Record<string, SessionDotState>>,
+  ...lists: Array<readonly { archived?: boolean; id: string }[]>
+): number {
+  let n = 0
+
+  for (const rows of lists) {
+    for (const row of rows) {
+      if (!row.archived && byId[row.id] === 'unread') {
+        n++
+      }
+    }
+  }
+
+  return n
+}
+
+export const $unreadSessionCount = computed(
+  [$sessionDotStateById, $sessions, $cronSessions, $messagingSessions],
+  (byId, sessions, cron, messaging) => unreadSessionCount(byId, sessions, cron, messaging)
 )

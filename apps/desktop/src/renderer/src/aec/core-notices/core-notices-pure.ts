@@ -2,11 +2,12 @@
 // in this app was listening to.
 //
 // Why this lives in our code and not in the donor's stream handler
-// (`donor/app/session/hooks/use-message-stream/gateway-event.ts`): that file
-// handles `status.update` for `compacting`/`compacted`/`process`/`goal` and
-// stops there — `lifecycle` and `warn` fall off the end, and `tool.output_risk`
-// is not mentioned at all. Adding branches to it would be a fifth kind of edit
-// to a vendored file (AGENTS §14), and the next re-copy would drop them. Our
+// (`donor/app/session/hooks/use-message-stream/gateway-event/status.ts`, one
+// file until 0.20.5 split it): that file handles `status.update` for
+// `compacting`/`compacted`/`process`/`goal` and stops there — `lifecycle` and
+// `warn` fall off the end, and `tool.output_risk` is not mentioned at all.
+// Adding branches to it would be a SIXTH kind of edit to a vendored file — one
+// AGENTS §14 does not allow — and the next re-copy would drop them. Our
 // own subscriber, pushing into their notification store, is the sanctioned
 // shape: our surface, their component.
 //

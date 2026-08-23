@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-index.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -54,11 +54,19 @@ export function buildSessionByAnyId(
  * a session the backend says is pinned is always reachable from the Pinned
  * section, whatever the local cache holds. session-pin-sync then adopts the
  * pin into the local set on its next reconcile, restoring ordering control.
+ *
+ * `unconfirmedPinWrites` is that same module's fence, and the fallback has to
+ * respect it. Unpinning drops the id from the local set immediately, but the
+ * loaded row keeps saying `pinned: true` until a page issued after the PATCH
+ * lands — so an unfenced fallback reads the user's own unpin as a foreign pin
+ * and parks the session at the bottom of Pinned for a refresh cycle before it
+ * finally moves to Sessions.
  */
 export function resolvePinnedSessions(
   pinnedSessionIds: readonly string[],
   sessionByAnyId: Map<string, SessionInfo>,
-  allSessions: readonly SessionInfo[]
+  allSessions: readonly SessionInfo[],
+  unconfirmedPinWrites: ReadonlySet<string>
 ): SessionInfo[] {
   const seen = new Set<string>()
   const out: SessionInfo[] = []
@@ -73,10 +81,21 @@ export function resolvePinnedSessions(
   }
 
   for (const session of allSessions) {
-    if (session.pinned === true && !seen.has(session.id)) {
-      seen.add(session.id)
-      out.push(session)
+    if (session.pinned !== true || seen.has(session.id)) {
+      continue
     }
+
+    // A pin write of ours the row predates — under either identity, since the
+    // fence is keyed on the durable id and the row may surface as its tip.
+    if (
+      unconfirmedPinWrites.has(session.id) ||
+      (session._lineage_root_id != null && unconfirmedPinWrites.has(session._lineage_root_id))
+    ) {
+      continue
+    }
+
+    seen.add(session.id)
+    out.push(session)
   }
 
   return out

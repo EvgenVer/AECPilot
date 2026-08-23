@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/index.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -37,6 +37,7 @@ import { resolveProfileColor } from '@/lib/profile-color'
 import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
 import { cn } from '@/lib/utils'
+import { $activeConnectionId } from '@/store/connections'
 import { $cronJobs } from '@/store/cron'
 import { $bindings } from '@/store/keybinds'
 import {
@@ -132,6 +133,7 @@ import {
   setCurrentCwd
 } from '@/store/session'
 import { $sessionDotStateById, sessionStatusBucket } from '@/store/session-dot-state'
+import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
 import { $focusedStoredSessionId, $workingSessionIds, type SplitDir } from '@/store/session-states'
 import { ackAllSessionsRead } from '@/store/session-unread'
 import { markSessionUnread } from '@/store/session-unread-remote'
@@ -263,6 +265,16 @@ const HEADER_NAV_BTN =
 // FTS results cover sessions that aren't in the loaded page; synthesize a
 // minimal SessionInfo so they render in the same row component (resume works
 // by id; the snippet stands in for the preview).
+
+// The backend's FTS layer wraps matched terms in literal '>>>' / '<<<'
+// highlight markers (sqlite snippet() delimiters — see hermes_state_search.py).
+// The sidebar renders the snippet as plain text, so the markers must be
+// stripped or a search for "foo" paints rows titled ">>>foo<<<".
+// Exported for tests.
+export function stripFtsMarkers(snippet: string): string {
+  return snippet.replaceAll('>>>', '').replaceAll('<<<', '')
+}
+
 function searchResultToSession(result: SessionSearchResult): SessionInfo {
   const ts = result.session_started ?? Date.now() / 1000
 
@@ -278,7 +290,7 @@ function searchResultToSession(result: SessionSearchResult): SessionInfo {
     message_count: 0,
     model: result.model ?? null,
     output_tokens: 0,
-    preview: result.snippet?.trim() || null,
+    preview: stripFtsMarkers(result.snippet ?? '').trim() || null,
     source: result.source ?? null,
     started_at: ts,
     title: null,
@@ -366,6 +378,7 @@ export function ChatSidebar({
   const sortOrderIds = useStore($sidebarSessionRankIds)
   const agentsGrouped = grouping === 'project'
   const pinnedSessionIds = useStore($pinnedSessionIds)
+  const unconfirmedPinWrites = useStore($unconfirmedPinWrites)
   const pinsOpen = useStore($sidebarPinsOpen)
   const agentsOpen = useStore($sidebarRecentsOpen)
   const cronOpen = useStore($sidebarCronOpen)
@@ -384,6 +397,7 @@ export function ChatSidebar({
   const profiles = useStore($profiles)
   const profileColors = useStore($profileColors)
   const profileScope = useStore($profileScope)
+  const activeConnectionId = useStore($activeConnectionId)
 
   // Toggle the persisted read-state watermark from a row menu. The row's own
   // `unread` prop mirrors what the dot paints; flip it and let the backend
@@ -472,16 +486,19 @@ export function ChatSidebar({
 
   // Profile scope = the "workspace switcher" context. Concrete scope shows only
   // that profile's sessions (clean rows, no per-row tags); ALL fans every
-  // profile in, grouped by profile below. Single-profile users land here with
-  // scope === their only profile, so nothing is filtered out.
+  // profile in. Grouped rendering stays gated on `showAllProfiles` (multi-profile
+  // + ALL) so a single-profile user is never stranded in a grouped view with no
+  // rail — but the *data* still has to fan in when the persisted scope is ALL
+  // (Grouping → Profile). Filtering that pool against the `__all__` sentinel
+  // matches nothing and empties recents + pins.
   // Archived rows are excluded from the sessions query, so Archived is a view of
   // its own set rather than a filter over this one — a flat list of archived
   // rows, no project tree, no date or status dividers.
   const scopedSessions = useMemo(() => {
     const pool = showArchived ? archivedSessions : sessions
 
-    return showAllProfiles ? pool : pool.filter(s => normalizeProfileKey(s.profile) === profileScope)
-  }, [sessions, archivedSessions, showArchived, showAllProfiles, profileScope])
+    return filterSessionsByProfileScope(pool, profileScope)
+  }, [sessions, archivedSessions, showArchived, profileScope])
 
   // One predicate for the status/project filters, so the flat list and the
   // project lanes narrow by the same rule. A project lane holds rows the loaded
@@ -553,15 +570,17 @@ export function ChatSidebar({
 
   // Local pin ids first (hand-picked order), then server-flagged pins the
   // local set doesn't know about — a backend `pinned=1` row must never be
-  // invisible just because localStorage is cold or was clobbered (#85969).
+  // invisible just because localStorage is cold or was clobbered (#85969) —
+  // minus the rows whose flag our own in-flight pin write already contradicts.
   const pinnedSessions = useMemo(
     () =>
-      resolvePinnedSessions(pinnedSessionIds, sessionByAnyId, [
-        ...visibleSessions,
-        ...cronSessions,
-        ...messagingSessions
-      ]),
-    [pinnedSessionIds, sessionByAnyId, visibleSessions, cronSessions, messagingSessions]
+      resolvePinnedSessions(
+        pinnedSessionIds,
+        sessionByAnyId,
+        [...visibleSessions, ...cronSessions, ...messagingSessions],
+        unconfirmedPinWrites
+      ),
+    [pinnedSessionIds, sessionByAnyId, visibleSessions, cronSessions, messagingSessions, unconfirmedPinWrites]
   )
 
   // Every id a pin is reachable under: the raw stored ids, plus BOTH identities
@@ -749,7 +768,7 @@ export function ChatSidebar({
     const warm = window.setTimeout(() => void refreshProjectTree(), PROJECT_TREE_WARM_MS)
 
     return () => window.clearTimeout(warm)
-  }, [worktreeGroupingActive, showAllProfiles, profileScope, gatewayReady])
+  }, [activeConnectionId, worktreeGroupingActive, showAllProfiles, profileScope, gatewayReady])
 
   // Sessions the branch join can't answer for get one look at their own
   // transcript — a `gh pr create` in there names the PR outright. Backfills
@@ -1686,7 +1705,10 @@ export function ChatSidebar({
                 grouping={showArchived || rankedGlobally ? 'none' : grouping === 'status' ? 'status' : 'date'}
                 groups={displayAgentGroups}
                 headerAction={
-                  <>
+                  // One cluster, not a fragment: the header is justify-between,
+                  // so two children (mark-all + the rest) park the check-all in
+                  // the middle as a blank 24px hole until hover.
+                  <div className="flex shrink-0 items-center gap-0.5">
                     {unreadCount > 0 && (
                       <Tip label={s.markAllRead}>
                         <Button
@@ -1736,7 +1758,7 @@ export function ChatSidebar({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex shrink-0 items-center gap-0.5">
+                      <>
                         {!showAllProfiles ? (
                           <Tip label={agentsGrouped ? s.projects.newButton : s.nav['new-session']}>
                             <Button
@@ -1761,9 +1783,9 @@ export function ChatSidebar({
                         <div className="grid size-6 place-items-center">
                           <SidebarFilterMenu className={HEADER_NAV_BTN} />
                         </div>
-                      </div>
+                      </>
                     )}
-                  </>
+                  </div>
                 }
                 label={sessionsLabel}
                 labelMeta={

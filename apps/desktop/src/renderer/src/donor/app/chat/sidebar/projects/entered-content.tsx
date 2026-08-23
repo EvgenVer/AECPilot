@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/entered-content.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,16 +9,8 @@ import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 import { useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { HermesGitWorktree } from '@/global'
 import type { SessionInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
@@ -197,43 +189,26 @@ function RepoFlatSection({
     destructiveLabel: string,
     onDestructive: (group: SidebarSessionGroup) => void
   ) => (
-    <Dialog onOpenChange={isOpen => !isOpen && setTarget(null)} open={Boolean(target)}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{`${s.projects.removeWorktree} "${target?.label ?? ''}"?`}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button onClick={() => setTarget(null)} variant="ghost">
-            {t.common.cancel}
-          </Button>
-          <Button
-            onClick={() => {
-              if (target) {
-                dismissWorktree(target.id)
-              }
-
-              setTarget(null)
-            }}
-            variant="secondary"
-          >
-            {s.projects.removeFromSidebar}
-          </Button>
-          <Button
-            onClick={() => {
-              setTarget(null)
-
-              if (target) {
-                onDestructive(target)
-              }
-            }}
-            variant="destructive"
-          >
-            {destructiveLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      confirmLabel={destructiveLabel}
+      description={description}
+      destructive
+      // removeViaGit finishes on its own: it either dismisses the lane, escalates
+      // to the force prompt, or toasts. Nothing left for the dialog to wait on.
+      dismissOnConfirm
+      onClose={() => setTarget(null)}
+      onConfirm={() => {
+        if (target) {
+          onDestructive(target)
+        }
+      }}
+      open={Boolean(target)}
+      secondaryAction={{
+        label: s.projects.removeFromSidebar,
+        onClick: () => target && dismissWorktree(target.id)
+      }}
+      title={`${s.projects.removeWorktree} "${target?.label ?? ''}"?`}
+    />
   )
 
   const removeDialog = (

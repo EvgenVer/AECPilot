@@ -1,12 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/pane-focus.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { setTerminalTakeover } from '@/app/right-sidebar/store'
+import { isLayoutNode, type LayoutNode } from '@/components/pane-shell/tree/model'
+import { applyLayoutPreset, LAYOUTS_AREA } from '@/components/pane-shell/tree/presets'
 import { revealTreePane } from '@/components/pane-shell/tree/store'
+import { registry } from '@/contrib/registry'
 
 import { setFileBrowserOpen, setSidebarOpen } from './layout'
 import { openReview } from './review'
@@ -32,6 +35,29 @@ export function revealDesktopPane(pane: string): boolean {
   }
 
   reveal()
+
+  return true
+}
+
+/** Apply a layout preset by id, resolved against the layouts contribution
+ *  registry — the SAME list the layout picker renders, so core presets
+ *  (default/focus/terminal-deck/quad), plugin presets, and user-saved presets
+ *  are all addressable by the backend `apply_layout` tool. Returns false for
+ *  an unknown id. */
+export function applyDesktopLayoutPreset(preset: string): boolean {
+  if (!preset) {
+    return false
+  }
+
+  const entry = registry
+    .getArea(LAYOUTS_AREA)
+    .find(candidate => candidate.id === preset && isLayoutNode(candidate.data))
+
+  if (!entry) {
+    return false
+  }
+
+  applyLayoutPreset(entry.id, entry.data as LayoutNode)
 
   return true
 }

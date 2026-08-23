@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/windows.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -89,6 +89,18 @@ export function isWatchWindow(): boolean {
 // belong to the primary alone: two windows answering one channel turns one
 // keystroke into N prompts, and a HUD is the last place to paint onboarding.
 export const isAuxiliaryWindow = (): boolean => isSecondaryWindow() || isHudWindow()
+
+// A full peer window renders the ordinary app shell against the backend that
+// Electron already has running. It is not an auxiliary/specialized renderer,
+// but it must not replay the primary window's app-launch source restoration
+// after boot and silently re-home itself to another registered gateway.
+export function isPeerInstanceWindow(search = typeof window === 'undefined' ? '' : window.location.search): boolean {
+  try {
+    return new URLSearchParams(search).get('peer') === '1'
+  } catch {
+    return false
+  }
+}
 
 // The profile a helper window (the HUD) was asked to boot against, carried in
 // the query string by the main process (see hudUrl). The HUD is a full app

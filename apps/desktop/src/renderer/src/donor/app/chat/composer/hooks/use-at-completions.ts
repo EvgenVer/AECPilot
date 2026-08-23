@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-at-completions.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,8 @@ import { useLiveCompletionAdapter } from './use-live-completion-adapter'
 
 const KIND_RE = /^@(file|folder|url|image|tool|git):(.*)$/
 const REF_STARTERS = new Set(['file', 'folder', 'url', 'image', 'tool', 'git'])
+// These bare tokens are context actions, not profile handles.
+const SIMPLE_CONTEXT_REFS = new Set(['@diff', '@staged'])
 
 const STARTER_META: Record<string, string> = {
   file: 'Attach a file reference',
@@ -42,6 +44,26 @@ function starterEntries(query: string): CompletionEntry[] {
     display: `@${kind}:`,
     meta: STARTER_META[kind] || ''
   }))
+}
+
+function mergeCompletionEntries(preferred: CompletionEntry[], fallback: CompletionEntry[]): CompletionEntry[] {
+  const seenHandles = new Set<string>()
+
+  return [...preferred, ...fallback].filter(entry => {
+    const key = normalize(entry.text)
+
+    if (!/^@[^:\s]+$/.test(key) || SIMPLE_CONTEXT_REFS.has(key)) {
+      return true
+    }
+
+    if (seenHandles.has(key)) {
+      return false
+    }
+
+    seenHandles.add(key)
+
+    return true
+  })
 }
 
 interface AtItemMetadata extends Record<string, string> {
@@ -154,7 +176,7 @@ export function useAtCompletions(options: {
       const extras = contributedEntries(query)
 
       if (!gateway) {
-        return { items: [...extras, ...starters], query }
+        return { items: mergeCompletionEntries(extras, starters), query }
       }
 
       const word = REF_STARTERS.has(query) ? `@${query}:` : `@${query}`
@@ -181,9 +203,9 @@ export function useAtCompletions(options: {
         const items = result.items ?? []
         const base = items.length > 0 ? items : starters
 
-        return { items: [...extras, ...base], query }
+        return { items: mergeCompletionEntries(extras, base), query }
       } catch {
-        return { items: [...extras, ...starters], query }
+        return { items: mergeCompletionEntries(extras, starters), query }
       }
     },
     [cacheKey, contributedEntries, gateway, sessionId, cwd]

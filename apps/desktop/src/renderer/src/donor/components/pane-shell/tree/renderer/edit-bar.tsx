@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/edit-bar.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import { type PointerEvent as ReactPointerEvent, useCallback, useRef, useState }
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n'
 import { formatCombo } from '@/lib/keybinds/combo'
+import { startPointerDrag } from '@/lib/pointer-drag'
 import { $bindings, bindingsFor } from '@/store/keybinds'
 
 import { $layoutEditMode } from '../../edit-mode'
@@ -68,13 +69,7 @@ export function TreeEditBar() {
       setPos(next)
     }
 
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove, true)
-      window.removeEventListener('pointerup', onUp, true)
-    }
-
-    window.addEventListener('pointermove', onMove, true)
-    window.addEventListener('pointerup', onUp, true)
+    startPointerDrag(onMove)
   }, [])
 
   if (!editMode) {

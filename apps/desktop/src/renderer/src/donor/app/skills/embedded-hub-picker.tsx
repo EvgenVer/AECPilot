@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/skills/embedded-hub-picker.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,6 +9,7 @@ import { useStore } from '@nanostores/react'
 import { memo, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import type { ProfileScope } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Loader2 } from '@/lib/icons'
 import { useStoreSelector } from '@/lib/use-session-slice'
@@ -60,7 +61,7 @@ interface EmbeddedHubPickerProps {
   installedNames: ReadonlySet<string>
   /** Capabilities profile-scope override — installs land in THIS profile;
    *  undefined/null targets the app-wide active profile. */
-  profile?: null | string
+  profile?: ProfileScope
 }
 
 /** The Skills Hub browser for the Skills tab: a resizable iframe of the live
