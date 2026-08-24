@@ -70,22 +70,12 @@ export type GatewayEventName = string
 // "the message you are rewinding to was compressed away" from any other
 // failure.
 //
-// KNOWN GAP, recorded by task 3.B0: our bridge does not throw it yet. A
-// gateway error crosses `ipcRenderer.invoke` as a plain Error — Electron
-// keeps the message and drops custom fields — so `code` and `data` are lost
-// on the way and the check above is always false. The consequence is a
-// generic error message where theirs is specific; nothing is mis-executed,
-// because false is the conservative branch. Closing it means encoding the
-// JSON-RPC code across our IPC boundary, which is main-process work and does
-// not belong in a pin raise.
-export class JsonRpcGatewayError extends Error {
-  readonly code?: number
-  readonly data?: unknown
-
-  constructor(message: string, options?: { code?: number; data?: unknown }) {
-    super(message)
-    this.name = 'JsonRpcGatewayError'
-    this.code = options?.code
-    this.data = options?.data
-  }
-}
+// GAP CLOSED 2026-08-24 (finding D-37). It used to be recorded here as a known
+// gap: a gateway error crossed `ipcRenderer.invoke` as a plain Error — Electron
+// keeps the message and drops custom fields — so `code` and `data` were lost on
+// the way and the check above was false ALWAYS. The fix is that the failure now
+// crosses our IPC boundary as DATA (`GatewayRpcOutcome` in `shared/ipc.ts`) and
+// is turned back into this error in `gateway-bridge.ts`, code and data intact.
+// The definition lives there because that is what throws it; re-exported here so
+// `@hermes/shared` keeps resolving for their files.
+export { JsonRpcGatewayError } from '../gateway-bridge'

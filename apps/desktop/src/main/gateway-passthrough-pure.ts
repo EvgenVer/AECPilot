@@ -136,3 +136,33 @@ export function explainProfileDeleteFailure(
     'затем повторите удаление.'
   )
 }
+
+/** Отказ вызова — в форму, которая переживёт `ipcRenderer.invoke` (находка D-37).
+ *
+ * Electron доносит через границу только текст исключения, поэтому `code` и
+ * `data` едут отсюда ДАННЫМИ (`GatewayRpcOutcome`), а обратно в исключение их
+ * собирает `gateway-bridge.ts`.
+ *
+ * `data` пропускается через JSON: нагрузка отказа приходит из ядра по проводу и
+ * заведомо сериализуема, но сюда попадают и НАШИ ошибки (запрет метода,
+ * «шлюз не подключён»). Несериализуемое `data` уронило бы весь ответ IPC —
+ * тогда вместо точного отказа человек получил бы пустоту. Лучше потерять
+ * нагрузку, чем ответ. */
+export function describeRpcFailure(error: unknown): {
+  message: string
+  code?: number
+  data?: unknown
+} {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: unknown })?.code
+  if (typeof code !== 'number') return { message }
+
+  const raw = (error as { data?: unknown }).data
+  if (raw === undefined) return { message, code }
+
+  try {
+    return { message, code, data: JSON.parse(JSON.stringify(raw)) as unknown }
+  } catch {
+    return { message, code }
+  }
+}

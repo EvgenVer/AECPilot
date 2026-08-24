@@ -25,7 +25,43 @@
 // back the same descriptor for every profile, secondaries included, and never
 // null. Pinned by `hermes-desktop-shim.test.ts`.
 
+import type { GatewayRpcOutcome } from '../../../shared/ipc'
 import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
+
+/**
+ * Отказ шлюза в ИХ форме. Класс жил только внутри их невендоренного
+ * `json-rpc-gateway.ts`, и их код на него смотрит: `use-prompt-actions`
+ * спрашивает `err instanceof JsonRpcGatewayError && err.code === 4018`, чтобы
+ * отличить «сообщение, к которому откатываются, съела компакция» от любого
+ * другого отказа, и читает `data.segment_ordinal`.
+ *
+ * Живёт здесь, а не в `hermes-shared/index.ts`, потому что бросает его этот
+ * файл: обратный порядок дал бы кольцо импортов (`hermes-shared` уже
+ * реэкспортирует отсюда `GatewayBridge`). Под именем `@hermes/shared` он
+ * по-прежнему доступен — там стоит реэкспорт.
+ */
+export class JsonRpcGatewayError extends Error {
+  readonly code?: number
+  readonly data?: unknown
+
+  constructor(message: string, options?: { code?: number; data?: unknown }) {
+    super(message)
+    this.name = 'JsonRpcGatewayError'
+    this.code = options?.code
+    this.data = options?.data
+  }
+}
+
+/** Итог вызова из главного процесса — обратно в значение или в исключение
+ * (находка D-37). Отказ едет через IPC данными, потому что `invoke` доносит
+ * только текст; здесь он снова становится ошибкой, и код с данными при нём. */
+export function unwrapRpcOutcome<T>(outcome: GatewayRpcOutcome<T>): T {
+  if (outcome.ok) return outcome.value
+  throw new JsonRpcGatewayError(outcome.error.message, {
+    code: outcome.error.code,
+    data: outcome.error.data
+  })
+}
 
 /** Their event envelope. Generic in the payload because their code annotates
  * per-subscription (`on<{ done?: string }>('pet.hatch.progress', …)`), and
@@ -131,7 +167,7 @@ export class GatewayBridge {
       return Promise.reject(new DOMException('Aborted', 'AbortError'))
     }
 
-    const call = this.api.gatewayRpc<T>(method, params, timeoutMs)
+    const call = this.api.gatewayRpc<T>(method, params, timeoutMs).then(unwrapRpcOutcome<T>)
     if (!signal) return call
 
     // The IPC call itself cannot be cancelled — main will finish it and drop

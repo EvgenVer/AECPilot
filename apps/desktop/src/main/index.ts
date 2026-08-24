@@ -130,6 +130,7 @@ import {
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
   CuratorStatus,
+  GatewayRpcOutcome,
   IngestState,
   LearningGraph,
   McpLiveStatus,
@@ -141,6 +142,7 @@ import { GatewayClient } from '../shared/gateway/client'
 import {
   checkRestCall,
   checkRpcCall,
+  describeRpcFailure,
   explainProfileDeleteFailure,
   sanitizeRpcParams
 } from './gateway-passthrough-pure'
@@ -2632,13 +2634,23 @@ ipcMain.handle('gateway:get-state', () => gatewayState)
 // — live in `gateway-passthrough-pure.ts`; the token and the socket stay here.
 ipcMain.handle(
   'gateway:rpc',
-  async (_event, payload: { method?: unknown; params?: unknown; timeoutMs?: unknown }) => {
-    if (!gateway) throw new Error('gateway is not connected')
-    const method = checkRpcCall(payload?.method)
-    // A hidden turn is not a thing this product has (task 3.4в, risk R19).
-    const params = sanitizeRpcParams(payload?.params) as never
-    const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
-    return gateway.request(method as never, params, timeoutMs)
+  async (
+    _event,
+    payload: { method?: unknown; params?: unknown; timeoutMs?: unknown }
+  ): Promise<GatewayRpcOutcome<unknown>> => {
+    // Отказ возвращается ЗНАЧЕНИЕМ, а не исключением: `ipcRenderer.invoke`
+    // доносит только текст, и код с данными JSON-RPC терялись по дороге
+    // (находка D-37). Собирает их обратно `gateway-bridge.ts`.
+    try {
+      if (!gateway) throw new Error('gateway is not connected')
+      const method = checkRpcCall(payload?.method)
+      // A hidden turn is not a thing this product has (task 3.4в, risk R19).
+      const params = sanitizeRpcParams(payload?.params) as never
+      const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
+      return { ok: true, value: await gateway.request(method as never, params, timeoutMs) }
+    } catch (error: unknown) {
+      return { ok: false, error: describeRpcFailure(error) }
+    }
   }
 )
 
@@ -2827,7 +2839,11 @@ async function restartBackend(configOverride?: {
     if (configOverride) applyModelConfigOverride(HERMES_HOME_DIR, configOverride)
     serveHandle = await startServe({ extraEnv: buildExtraEnv() })
     stopServeFn = stopServe
-    await waitHealthy(serveHandle, 30000)
+    // Без числа — окно берётся из `serve.mjs` (`HEALTH_TIMEOUT_MS`), где рядом
+    // лежит замер холодного старта. Здесь стояло 30000, и это ровно тот случай,
+    // ради которого находка D-36 заведена: человек меняет модель, шлюз
+    // перезапускается, и на холодной машине «не поднялся» читается как поломка.
+    await waitHealthy(serveHandle)
 
     // Close the old gateway client before wiring a new one — avoids two
     // live clients racing to forward events/state to the same windows.

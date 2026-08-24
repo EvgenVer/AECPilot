@@ -25,6 +25,11 @@ export interface GatewayResultFrame<R = unknown> {
 export interface GatewayRpcError {
   code: number
   message: string
+  /** Необязательная нагрузка JSON-RPC-отказа. Ядро её присылает (например при
+   * 4018 — `data=_stale_target_data()` в `tui_gateway/methods_prompt.py`), и
+   * код донора её читает, поэтому она обязана доехать до рендерера целиком, а
+   * не свернуться в текст сообщения (находка D-37). */
+  data?: unknown
 }
 
 /** An error response frame from the gateway (JSON-RPC protocol-level error —

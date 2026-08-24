@@ -38,6 +38,28 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>
 }
 
+/**
+ * Отказ шлюза с сохранённым КОДОМ и ДАННЫМИ JSON-RPC (находка D-37).
+ *
+ * Раньше отказ сворачивался в одну строку `gateway error <code>: <message>`, и
+ * код с данными оставались только внутри текста. Между тем код донора на них
+ * СМОТРИТ: `use-prompt-actions` отличает «сообщение, к которому откатываются,
+ * съела компакция» от любого другого отказа по `code === 4018` и читает из
+ * `data.segment_ordinal`. Текст сообщения оставлен прежним намеренно — на него
+ * смотрят и наши проверки, и разбор чужих отказов по подстроке.
+ */
+export class GatewayRequestError extends Error {
+  readonly code: number
+  readonly data?: unknown
+
+  constructor(code: number, message: string, data?: unknown) {
+    super(`gateway error ${code}: ${message}`)
+    this.name = 'GatewayRequestError'
+    this.code = code
+    this.data = data
+  }
+}
+
 /** Parses a raw WS message payload into a gateway frame, or returns
  * `undefined` for anything that isn't a well-formed JSON-RPC frame — such
  * frames are ignored rather than crashing the client. */
@@ -259,7 +281,9 @@ export class GatewayClient {
     clearTimeout(pending.timer)
 
     if ('error' in frame) {
-      pending.reject(new Error(`gateway error ${frame.error.code}: ${frame.error.message}`))
+      pending.reject(
+        new GatewayRequestError(frame.error.code, frame.error.message, frame.error.data)
+      )
     } else {
       pending.resolve(frame.result)
     }

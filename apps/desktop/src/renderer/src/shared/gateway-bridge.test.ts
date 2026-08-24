@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { GatewayBridge, toDonorState } from './gateway-bridge'
+import { GatewayBridge, JsonRpcGatewayError, toDonorState } from './gateway-bridge'
 import type { AecpilotApi } from '../../../shared/ipc'
 import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
 
 /** A stand-in for the preload bridge: records RPC/REST calls and lets a test
  * push events and state the way main does. */
 function stubApi(state: GatewayConnectionState = 'ready') {
-  const rpc = vi.fn(async () => ({ ok: true }))
+  const rpc = vi.fn(async () => ({ ok: true, value: { ok: true } }))
   const rest = vi.fn(async () => ({ ok: true }))
   let emitEvent: ((event: GatewayEvent) => void) | undefined
   let emitState: ((state: GatewayConnectionState) => void) | undefined
@@ -153,5 +153,66 @@ describe('toDonorState', () => {
     // Their components treat 'error' as terminal and stop retrying; ours is
     // mid-backoff and comes back on its own.
     expect(toDonorState('reconnecting')).toBe('connecting')
+  })
+})
+
+/** Ловит отказ вызова типизированно: `request` объявлен `Promise<unknown>`, и
+ * `.catch(err => err)` схлопывает объединение обратно в `unknown`. */
+async function failureOf(call: Promise<unknown>): Promise<JsonRpcGatewayError | undefined> {
+  try {
+    await call
+    return undefined
+  } catch (err) {
+    return err as JsonRpcGatewayError
+  }
+}
+
+// Находка D-37. Их `use-prompt-actions` отличает «сообщение, к которому
+// откатываются, съела компакция» от любого другого отказа по `code === 4018` и
+// читает `data.segment_ordinal`. Пока отказ ехал через IPC исключением, Electron
+// доносил только текст — проверка была ложна ВСЕГДА.
+describe('отказ шлюза через границу IPC (находка D-37)', () => {
+  it('код и данные JSON-RPC доезжают до рендерера', async () => {
+    const stub = stubApi()
+    stub.rpc.mockResolvedValue({
+      ok: false,
+      error: {
+        message: 'target user message is no longer in session history',
+        code: 4018,
+        data: { segment_ordinal: -1 }
+      }
+    } as never)
+
+    const bridge = new GatewayBridge(stub.api)
+    const failure = await failureOf(bridge.request('prompt.submit', { text: 'hi' }))
+
+    expect(failure).toBeInstanceOf(JsonRpcGatewayError)
+    expect(failure?.code, 'по нему их код и ветвится').toBe(4018)
+    expect(failure?.data).toEqual({ segment_ordinal: -1 })
+    expect(failure?.message).toBe('target user message is no longer in session history')
+  })
+
+  it('отказ без кода остаётся обычной ошибкой с тем же текстом', async () => {
+    const stub = stubApi()
+    stub.rpc.mockResolvedValue({
+      ok: false,
+      error: { message: 'gateway is not connected' }
+    } as never)
+
+    const bridge = new GatewayBridge(stub.api)
+    const failure = await failureOf(bridge.request('session.list'))
+
+    expect(failure).toBeInstanceOf(JsonRpcGatewayError)
+    expect(failure?.code).toBeUndefined()
+    expect(failure?.message).toBe('gateway is not connected')
+  })
+
+  it('удачный вызов отдаёт значение, а не обёртку итога', async () => {
+    const stub = stubApi()
+    stub.rpc.mockResolvedValue({ ok: true, value: { sessions: [1, 2] } } as never)
+
+    const bridge = new GatewayBridge(stub.api)
+
+    await expect(bridge.request('session.list')).resolves.toEqual({ sessions: [1, 2] })
   })
 })

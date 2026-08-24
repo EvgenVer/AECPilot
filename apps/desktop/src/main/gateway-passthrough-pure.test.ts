@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkRestCall,
   checkRpcCall,
+  describeRpcFailure,
   explainProfileDeleteFailure,
   sanitizeRpcParams
 } from './gateway-passthrough-pure'
@@ -111,5 +112,42 @@ describe('explainProfileDeleteFailure', () => {
 
   it('still matches when the path carries a query string', () => {
     expect(explainProfileDeleteFailure('DELETE', '/api/profiles/dev?force=1', busy)).not.toBeNull()
+  })
+})
+
+// Находка D-37. Отказ обязан пережить `ipcRenderer.invoke`, который доносит
+// только текст: код и данные едут отдельными полями.
+describe('describeRpcFailure', () => {
+  it('код и данные JSON-RPC сохраняются', () => {
+    const error = Object.assign(new Error('gateway error 4018: gone'), {
+      code: 4018,
+      data: { segment_ordinal: -1 }
+    })
+
+    expect(describeRpcFailure(error)).toEqual({
+      message: 'gateway error 4018: gone',
+      code: 4018,
+      data: { segment_ordinal: -1 }
+    })
+  })
+
+  it('обычная ошибка едет одним текстом', () => {
+    expect(describeRpcFailure(new Error('gateway is not connected'))).toEqual({
+      message: 'gateway is not connected'
+    })
+  })
+
+  it('не-число в поле code не выдаётся за код JSON-RPC', () => {
+    const error = Object.assign(new Error('нет'), { code: 'ENOENT' })
+
+    expect(describeRpcFailure(error)).toEqual({ message: 'нет' })
+  })
+
+  it('несериализуемая нагрузка отбрасывается, а ответ доезжает', () => {
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    const error = Object.assign(new Error('кольцо'), { code: 4018, data: cyclic })
+
+    expect(describeRpcFailure(error)).toEqual({ message: 'кольцо', code: 4018 })
   })
 })

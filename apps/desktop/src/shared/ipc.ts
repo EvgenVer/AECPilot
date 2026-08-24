@@ -653,6 +653,25 @@ export interface QuoteVerdict {
 export type QuoteCheckResult =
   { available: true; quotes: QuoteVerdict[] } | { available: false; reason: string; quotes: [] }
 
+/**
+ * Итог одного вызова JSON-RPC через нашу границу IPC (находка D-37).
+ *
+ * ПОЧЕМУ ОТКАЗ ЕДЕТ ДАННЫМИ, А НЕ ИСКЛЮЧЕНИЕМ. `ipcRenderer.invoke` доносит из
+ * главного процесса только ТЕКСТ ошибки — `code` и `data` теряются по дороге. А
+ * код донора на них смотрит: `use-prompt-actions` отличает «сообщение, к
+ * которому откатываются, съела компакция» по `code === 4018` и читает
+ * `data.segment_ordinal`. Пока отказ ехал исключением, эта проверка была ЛОЖНА
+ * ВСЕГДА, и человек видел общий текст вместо точного.
+ *
+ * Развёртывает это обратно в исключение `gateway-bridge.ts` — единственный, кто
+ * зовёт `gatewayRpc`. Тип-объединение здесь для того, чтобы будущий второй
+ * вызывающий получил ошибку КОМПИЛЯЦИИ, а не молча принял объект-итог за
+ * значение: молчаливая неправда в этом проекте уже стоила дороже громкой.
+ */
+export type GatewayRpcOutcome<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { message: string; code?: number; data?: unknown } }
+
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
    * workspace shell (task 1.0). Read once from `process.env.AEC_SHOW_WELCOME`
@@ -691,7 +710,11 @@ export interface AecpilotApi {
    * Prefer the purpose-built methods on this API where one exists: they carry
    * our own rules (session scoping, redaction, project binding) that a raw
    * method name does not. */
-  gatewayRpc<T = unknown>(method: string, params?: unknown, timeoutMs?: number): Promise<T>
+  gatewayRpc<T = unknown>(
+    method: string,
+    params?: unknown,
+    timeoutMs?: number
+  ): Promise<GatewayRpcOutcome<T>>
   /** One REST call against the same process as the gateway, for the routes
    * JSON-RPC does not cover (profiles, MCP CRUD, stored sessions, learning
    * graph). Same door, same rules, same caveat as `gatewayRpc`. */
