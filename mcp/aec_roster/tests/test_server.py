@@ -16,6 +16,7 @@ from aec_roster.server import build_server
 from mcp_harness import connected_session
 
 HERMES = "hermes"
+HOME = "/дом/ядра"
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def text_of(result) -> str:
 
 @pytest.mark.anyio
 async def test_the_agent_is_given_exactly_one_action(roster_file) -> None:
-    async with connected_session(build_server(roster_file, HERMES)) as client:
+    async with connected_session(build_server(roster_file, HERMES, HOME)) as client:
         tools = (await client.list_tools()).tools
 
     assert [tool.name for tool in tools] == ["ask_specialist"]
@@ -46,7 +47,7 @@ async def test_the_answer_says_who_gave_it(roster_file, monkeypatch) -> None:
         server_module, "ask", lambda *_: Reply(answer="Считаю по ГЭСН", session_id="с-1")
     )
 
-    async with connected_session(build_server(roster_file, HERMES)) as client:
+    async with connected_session(build_server(roster_file, HERMES, HOME)) as client:
         result = await client.call_tool("ask_specialist", {"name": "@Смета", "question": "почём"})
 
     assert not result.is_error
@@ -56,23 +57,27 @@ async def test_the_answer_says_who_gave_it(roster_file, monkeypatch) -> None:
 
 @pytest.mark.anyio
 async def test_only_the_roster_name_reaches_the_command(roster_file, monkeypatch) -> None:
-    seen: list[str] = []
+    seen: list[tuple[str, str]] = []
     monkeypatch.setattr(
         server_module,
         "ask",
-        lambda _bin, profile, _q: seen.append(profile) or Reply(answer="да", session_id=""),
+        lambda _bin, profile, _q, home: (
+            seen.append((profile, home)) or Reply(answer="да", session_id="")
+        ),
     )
 
-    async with connected_session(build_server(roster_file, HERMES)) as client:
+    async with connected_session(build_server(roster_file, HERMES, HOME)) as client:
         await client.call_tool("ask_specialist", {"name": "Смета", "question": "?"})
 
     # Не «Смета» и не то, что придумала модель, — имя профиля из снимка.
-    assert seen == ["smeta"]
+    # И дом ядра назван явно: без него разговор ушёл бы в личную установку
+    # человека, потому что ядро вырезает `HERMES_HOME` у дочернего сервера.
+    assert seen == [("smeta", HOME)]
 
 
 @pytest.mark.anyio
 async def test_unknown_name_comes_back_as_an_answerable_error(roster_file) -> None:
-    async with connected_session(build_server(roster_file, HERMES)) as client:
+    async with connected_session(build_server(roster_file, HERMES, HOME)) as client:
         result = await client.call_tool("ask_specialist", {"name": "Бухгалтерия", "question": "?"})
 
     assert result.is_error
@@ -87,7 +92,7 @@ async def test_a_failed_talk_names_the_specialist(roster_file, monkeypatch) -> N
 
     monkeypatch.setattr(server_module, "ask", refuse)
 
-    async with connected_session(build_server(roster_file, HERMES)) as client:
+    async with connected_session(build_server(roster_file, HERMES, HOME)) as client:
         result = await client.call_tool("ask_specialist", {"name": "Смета", "question": "?"})
 
     assert result.is_error

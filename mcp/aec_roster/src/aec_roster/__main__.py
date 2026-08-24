@@ -20,13 +20,18 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Исполняемый файл ядра: разговор идёт его командой, а не через шлюз",
     )
+    parser.add_argument(
+        "--home",
+        required=True,
+        help="Дом ядра: своё окружение ядро дочернему серверу не отдаёт",
+    )
     args = parser.parse_args(argv)
 
-    if not args.hermes.strip():
-        print("aec-roster: --hermes пустой", file=sys.stderr)
+    if not args.hermes.strip() or not args.home.strip():
+        print("aec-roster: --hermes и --home обязательны", file=sys.stderr)
         return 1
 
-    build_server(args.roster, args.hermes).run("stdio")
+    build_server(args.roster, args.hermes, args.home).run("stdio")
     return 0
 
 

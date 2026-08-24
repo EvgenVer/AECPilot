@@ -20,10 +20,13 @@
 //      owns the roster writes it out as a file and the tool reads that. Same
 //      shape as `aec-sources --project <project.json>`.
 //
-// The `hermes` executable is passed by path for the same reason `aec-rag` gets
-// AEC_HERMES_HOME as a literal: the core strips its environment before
-// spawning an MCP child (`tools/mcp_tool._build_safe_env`), and our core lives
-// in an isolated venv that is not on anyone's PATH.
+// The `hermes` executable AND the core's home are passed by path for the same
+// reason `aec-rag` gets AEC_HERMES_HOME as a literal: the core strips its
+// environment before spawning an MCP child (`tools/mcp_tool._build_safe_env`,
+// whose allowlist has no HERMES_HOME — measured). Our core lives in an isolated
+// venv that is on nobody's PATH, and without the home the tool would talk to
+// `~/.hermes` — the person's own install, outside this workspace entirely.
+// Paths, not secrets.
 //
 // Usage:
 //   node runtime/register-aec-roster.mjs
@@ -89,7 +92,7 @@ export function registerAecRoster({ homeDir = HERMES_HOME_DIR, hermesBin = HERME
     const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : ''
     const merged = mergeMcpServerIntoConfigYaml(existing, 'aec-roster', {
       command: AEC_ROSTER_BIN,
-      args: ['--roster', ROSTER_SNAPSHOT_PATH, '--hermes', hermesBin],
+      args: ['--roster', ROSTER_SNAPSHOT_PATH, '--hermes', hermesBin, '--home', homeDir],
       enabled: true
     })
     if (!merged.changed) continue

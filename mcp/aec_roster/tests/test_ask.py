@@ -3,6 +3,10 @@
 Главное, что здесь пиннится, — разбор ИХ вывода. Он замерен вживую на 0.20.5, и
 если следующая версия ядра его изменит, упадёт этот файл, а не поведение у
 человека.
+
+Формы взяты из настоящих прогонов, а не придуманы: служебная строка ядра в
+начале stdout, рамка «Reasoning» и строки размышления с их тускло-курсивной
+меткой, ответ без метки — и `session_id` в ДРУГОМ потоке.
 """
 
 from __future__ import annotations
@@ -15,11 +19,20 @@ from aec_roster.ask import (
     check_name,
     parse_chat_id,
     parse_reply,
+    parse_session_id,
     signed,
 )
 
 DIM = "\x1b[2;3m"
 RESET = "\x1b[0m"
+
+# Ровно то, что печатает ядро рядом с ответом (замерено).
+SERVICE = "Warning: Unknown toolsets: a2a\r\n"
+STDERR = (
+    "Config ref '${env:OPENAI_API_KEY}': OPENAI_API_KEY is not set; keeping the placeholder\r\n"
+    "\r\n"
+    "session_id: 20260823_195609_95e5b3\r\n"
+)
 
 
 def test_question_never_reaches_the_command_line() -> None:
@@ -65,40 +78,50 @@ def test_no_permanent_chat_yet_is_an_answer_not_a_failure() -> None:
     assert parse_chat_id("") == ""
 
 
-def test_reasoning_is_dropped_by_their_own_marker() -> None:
-    # Ровно та форма, что замерена: размышление помечено тускло-курсивной
-    # последовательностью, ответ — нет.
+def test_the_session_line_lives_in_the_other_stream() -> None:
+    # Замерено: `session_id:` печатается в stderr. Разбор, искавший его в
+    # stdout, на живом запуске не находил ответа вовсе — и это было молчание,
+    # а не ошибка.
+    assert parse_session_id(STDERR) == "20260823_195609_95e5b3"
+    assert parse_session_id("") == ""
+
+
+def test_reasoning_and_their_prologue_are_dropped_by_measured_marks() -> None:
     stdout = (
-        f"{DIM}The user asks for the capital of Italy.{RESET}\r\n"
-        "\r\n"
-        "session_id: 20260823_175839_18a063\r\n"
-        f"{DIM}I'll say Rome.{RESET}\r\n"
-        "Рим\r\n"
+        SERVICE
+        + "\r\n"
+        + f"{DIM}┌─ Reasoning ───────────────────────────────┐{RESET}\r\n"
+        + f"{DIM}**Considering the question**{RESET}\r\n"
+        + f"{DIM}{RESET}\r\n"
+        + f"{DIM}Two plus two is four.{RESET}\r\n"
+        + "четыре\r\n"
     )
 
-    reply = parse_reply(stdout)
+    reply = parse_reply(stdout, STDERR)
 
-    assert reply.answer == "Рим"
-    assert reply.session_id == "20260823_175839_18a063"
-
-
-def test_multi_line_answer_survives_whole() -> None:
-    stdout = "session_id: с-1\r\nПервая строка\r\nВторая строка\r\n"
-
-    assert parse_reply(stdout).answer == "Первая строка\nВторая строка"
+    assert reply.answer == "четыре"
+    assert reply.session_id == "20260823_195609_95e5b3"
 
 
-def test_everything_before_the_session_line_is_service_noise() -> None:
-    stdout = "Config ref: что-то про окружение\r\nsession_id: с-1\r\nОтвет\r\n"
+def test_multi_line_answer_survives_whole_with_its_own_blank_lines() -> None:
+    stdout = SERVICE + "\r\nПервая строка\r\n\r\nВторая строка\r\n"
 
-    assert parse_reply(stdout).answer == "Ответ"
+    assert parse_reply(stdout, "").answer == "Первая строка\n\nВторая строка"
+
+
+def test_a_warning_inside_the_answer_belongs_to_the_specialist() -> None:
+    # Отбрасывается только вступление. Такая же строка ПОСЛЕ начала ответа —
+    # это слова специалиста, и съесть их было бы хуже, чем оставить лишнее.
+    stdout = SERVICE + "Смотри смету:\r\nWarning: перерасход по разделу 5\r\n"
+
+    assert parse_reply(stdout, "").answer == "Смотри смету:\nWarning: перерасход по разделу 5"
 
 
 def test_silence_is_an_error_with_words() -> None:
     with pytest.raises(AskError):
-        parse_reply("session_id: с-1\r\n")
+        parse_reply(SERVICE, STDERR)
     with pytest.raises(AskError):
-        parse_reply("")
+        parse_reply("", "")
 
 
 def test_answer_carries_who_said_it() -> None:

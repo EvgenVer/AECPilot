@@ -22,12 +22,15 @@ from aec_roster.roster import load, resolve
 from aec_roster.runner import ask, busy
 
 
-def build_server(roster_path: str, hermes: str) -> MCPServer:
+def build_server(roster_path: str, hermes: str, home: str) -> MCPServer:
     """Собирает сервер с единственным инструментом.
 
     ``roster_path`` — снимок роестра, который ведёт приложение;
     ``hermes`` — исполняемый файл ядра (его путь известен приложению, а на
-    PATH ядра может не быть: у нас оно стоит в отдельном venv).
+    PATH ядра может не быть: у нас оно стоит в отдельном venv);
+    ``home`` — дом ядра, с которым работает приложение. Он называется явно,
+    потому что ядро вырезает `HERMES_HOME` из окружения дочернего сервера, и
+    без него разговор ушёл бы в личную установку человека.
     """
     server = MCPServer(name="aec-roster")
 
@@ -49,7 +52,7 @@ def build_server(roster_path: str, hermes: str) -> MCPServer:
 
         try:
             with busy(specialist.name):
-                reply = ask(hermes, specialist.name, question)
+                reply = ask(hermes, specialist.name, question, home)
         except AskError as exc:
             raise ToolError(f"{specialist.shown}: {exc}") from exc
 

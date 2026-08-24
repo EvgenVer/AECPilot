@@ -8,12 +8,21 @@
 * **без оболочки.** ``shell=False`` (умолчание) — аргументы уходят списком, и
   ни кавычки, ни ``$(...)`` в имени профиля ничего не значат. Текст человека
   сюда не попадает вовсе: он в файле;
+* **дом ядра называется явно.** Ядро вырезает своё окружение перед запуском
+  дочернего MCP-сервера, и ``HERMES_HOME`` в его список безопасных не входит
+  (замерено, ``tools/mcp_tool.py::_SAFE_ENV_KEYS``). Без этого разговор ушёл бы
+  в ``~/.hermes`` — в личную установку человека, а не в ту, с которой работает
+  приложение. Путь, не секрет: то же решение, что у ``AEC_HERMES_HOME``
+  в ``register-aec-rag.mjs``;
 * **вопрос пишется во временный файл и удаляется после ответа.** Он содержит то,
   что человек сказал агенту, и лежать на диске дольше разговора ему незачем;
 * **срок.** Ход агента может идти долго, но не бесконечно: без срока
   зависший специалист подвесил бы того, кто спросил;
 * **вывод не растёт без предела** — читается целиком, но их тихий режим
-  печатает ответ и сведения о сессии, а не поток.
+  печатает ответ и сведения о сессии, а не поток;
+* **оба потока возвращаются наверх.** Ответ приходит в stdout, а сведения о
+  сессии — в stderr (замерено). Слить их здесь значило бы уничтожить
+  единственный признак, по которому разбор их различает.
 """
 
 from __future__ import annotations
@@ -49,7 +58,7 @@ ASK_TIMEOUT_SECONDS = 600
 LOOKUP_TIMEOUT_SECONDS = 60
 
 
-def _run(argv: list[str], timeout: int) -> str:
+def _run(argv: list[str], timeout: int, home: str) -> tuple[str, str]:
     try:
         done = subprocess.run(  # noqa: S603 — список аргументов, без оболочки
             argv,
@@ -58,6 +67,7 @@ def _run(argv: list[str], timeout: int) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env={**os.environ, "HERMES_HOME": home},
         )
     except FileNotFoundError as exc:
         raise AskError(f"не нашёлся исполняемый файл ядра: {argv[0]}") from exc
@@ -69,22 +79,23 @@ def _run(argv: list[str], timeout: int) -> str:
         why = (done.stderr or done.stdout or "").strip().splitlines()
         raise AskError(why[-1] if why else f"ядро вернуло код {done.returncode}")
 
-    return done.stdout or ""
+    return done.stdout or "", done.stderr or ""
 
 
-def find_chat(hermes: str, profile: str) -> str:
+def find_chat(hermes: str, profile: str, home: str) -> str:
     """Постоянный чат специалиста, если он у него уже есть.
 
     Неудача поиска — это НЕ отказ обращения: разговор начнётся новой сессией.
     Ошибку здесь глотаем сознательно, а не по невнимательности.
     """
     try:
-        return parse_chat_id(_run(chat_argv(hermes, profile, CHAT_SOURCE), LOOKUP_TIMEOUT_SECONDS))
+        stdout, _ = _run(chat_argv(hermes, profile, CHAT_SOURCE), LOOKUP_TIMEOUT_SECONDS, home)
+        return parse_chat_id(stdout)
     except AskError:
         return ""
 
 
-def ask(hermes: str, profile: str, question: str) -> Reply:
+def ask(hermes: str, profile: str, question: str, home: str) -> Reply:
     """Задаёт специалисту вопрос и возвращает его ответ."""
     text = (question or "").strip()
     if not text:
@@ -95,9 +106,12 @@ def ask(hermes: str, profile: str, question: str) -> Reply:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
             file.write(text)
 
-        return parse_reply(
-            _run(ask_argv(hermes, profile, path, find_chat(hermes, profile)), ASK_TIMEOUT_SECONDS)
+        stdout, stderr = _run(
+            ask_argv(hermes, profile, path, find_chat(hermes, profile, home)),
+            ASK_TIMEOUT_SECONDS,
+            home,
         )
+        return parse_reply(stdout, stderr)
     finally:
         try:
             os.unlink(path)

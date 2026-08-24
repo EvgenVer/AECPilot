@@ -5,14 +5,22 @@
 модели и самим ответом. Запуск — в ``runner.py``, и он намеренно тонкий: то, что
 трудно проверить, должно быть коротким.
 
-ЗАМЕРЕНО НА ЯДРЕ 0.20.5 (specs/agent-roster.md §Р6, «Транспорт»):
+ЗАМЕРЕНО НА ЯДРЕ 0.20.5 (specs/agent-roster.md §Р6, «Транспорт»). Каждый пункт —
+результат прогона, а не чтения их документации:
 
 * ``chat -Q`` — программный режим: без него ответ приходит внутри рамки из
   псевдографики, и разбирать её пришлось бы гаданием;
-* идентификатор сессии выводится отдельной строкой ``session_id: <…>``;
-* строки размышления модели помечены тускло-курсивной escape-последовательностью,
-  а сам ответ — нет. Это единственный признак, отделяющий одно от другого,
-  поэтому разметка снимается ПОСЛЕ разбора, а не до него.
+* **потоки разделены, и это главное.** Ответ идёт в stdout, а строка
+  ``session_id: <…>`` — в stderr. Слитый вывод (``2>&1``) выглядит как один
+  поток и прячет это различие: разбор, построенный на слитом выводе, на живом
+  запуске не находит ответа вовсе;
+* **строки размышления модели помечены тускло-курсивной escape-последовательностью**
+  — вместе с рамкой «Reasoning», — а сам ответ не помечен ничем. Это
+  единственный признак, отделяющий одно от другого, поэтому разметка снимается
+  ПОСЛЕ разбора, а не до него;
+* **в начале stdout бывает их служебная строка** (``Warning: Unknown toolsets:
+  …``). Отбрасывается только вступление — до первой настоящей строки ответа:
+  такая же строка ВНУТРИ ответа принадлежит специалисту, а не ядру.
 """
 
 from __future__ import annotations
@@ -33,7 +41,11 @@ REASONING_PREFIX = "\x1b[2;3m"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 #: Идентификатор сессии в их выводе: ``session_id: 20260823_175839_18a063``.
+#: Приходит в stderr, а не в stdout — замерено.
 SESSION_LINE = re.compile(r"^session_id:\s*(\S+)\s*$")
+
+#: Начала их служебных строк в stdout. Отбрасываются только во вступлении.
+SERVICE_PREFIXES = ("Warning:",)
 
 #: Он же в таблице ``sessions list`` — последний столбец строки.
 SESSION_ID = re.compile(r"\b\d{8}_\d{6}_[0-9a-f]{6}\b")
@@ -94,16 +106,28 @@ def parse_chat_id(stdout: str) -> str:
     return found.group(0) if found else ""
 
 
-def parse_reply(stdout: str) -> Reply:
+def parse_session_id(stderr: str) -> str:
+    """Сессия, в которой специалист ответил.
+
+    Пусто — не беда: подписи она не нужна, а разговор всё равно состоялся.
+    """
+    for raw in (stderr or "").splitlines():
+        marker = SESSION_LINE.match(ANSI.sub("", raw.rstrip("\r")).strip())
+        if marker:
+            return marker.group(1)
+    return ""
+
+
+def parse_reply(stdout: str, stderr: str) -> Reply:
     """Ответ специалиста и сессия, в которой он его дал.
 
-    Строки размышления отбрасываются по ИХ метке — до снятия разметки. Наоборот
-    не выйдет: снимешь разметку раньше и потеряешь единственный признак, по
-    которому размышление отличается от ответа.
+    Потоки разбираются РАЗНЫЕ: ответ в stdout, сведения о сессии в stderr —
+    замерено. Строки размышления отбрасываются по ИХ метке до снятия разметки:
+    снимешь разметку раньше — потеряешь единственный признак, по которому
+    размышление отличается от ответа.
     """
-    session_id = ""
     answer: list[str] = []
-    seen_marker = False
+    started = False
 
     for raw in (stdout or "").splitlines():
         line = raw.rstrip("\r")
@@ -113,22 +137,21 @@ def parse_reply(stdout: str) -> Reply:
 
         plain = ANSI.sub("", line).rstrip()
 
-        marker = SESSION_LINE.match(plain)
-        if marker:
-            session_id = marker.group(1)
-            seen_marker = True
-            # Всё, что было до этой строки, — служебное; ответ идёт после.
-            answer.clear()
-            continue
+        if not started:
+            # Вступление ядра — пустые строки и его предупреждения. Всё после
+            # первой настоящей строки принадлежит специалисту, включая пустые
+            # строки внутри: абзацы в ответе есть, и они его.
+            if plain.strip() == "" or plain.startswith(SERVICE_PREFIXES):
+                continue
+            started = True
 
-        if seen_marker and plain.strip():
-            answer.append(plain)
+        answer.append(plain)
 
     text = "\n".join(answer).strip()
     if not text:
         raise AskError("специалист не ответил ничего")
 
-    return Reply(answer=text, session_id=session_id)
+    return Reply(answer=text, session_id=parse_session_id(stderr))
 
 
 def signed(answer: str, name: str, title: str = "") -> str:
