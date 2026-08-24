@@ -101,3 +101,25 @@ describe('writeRosterSnapshot', () => {
     expect(writeRosterSnapshot([{ name: 'smeta', title: 'Сметчик' }], file)).toBe(true)
   })
 })
+
+describe('a hidden specialist stays reachable', () => {
+  // Task 3C.8 left this check waiting for the ask-by-name tests to exist. It is
+  // the whole promise of hiding: it removes a specialist from the LIST, not
+  // from the work — and the snapshot is what the tool calls the roster.
+  it('is in the snapshot like everyone else', () => {
+    const file = path.join(home(), 'roster.json')
+    writeRosterSnapshot(
+      [
+        { name: 'smeta', title: 'Смета', hidden: false },
+        { name: 'arhiv', title: 'Архив', hidden: true }
+      ],
+      file
+    )
+
+    const written = JSON.parse(fs.readFileSync(file, 'utf-8')).specialists
+    expect(written.map((one) => one.name)).toEqual(['smeta', 'arhiv'])
+    // И «скрыт» в файл не едет: инструменту это знать незачем, а лишнее поле в
+    // файле — это лишнее, что однажды на него завяжут.
+    expect(fs.readFileSync(file, 'utf-8')).not.toContain('hidden')
+  })
+})
