@@ -321,6 +321,48 @@ const IMPLEMENTED: Record<string, unknown> = {
   // person cannot check.
   git: undefined,
 
+  // ЗАЯВЛЕНИЕ ОТСУТСТВИЯ, а не проброс — то же решение, что у `git`, для десяти
+  // членов, которым заглушка НЕ УМЕЕТ ответить честно (находка D-41, гейт
+  // `donor-members.test.ts`).
+  //
+  // Заглушка отдаёт вызываемый ПРОКСИ. Там, где их контракт обещает промис, это
+  // честно: вызов отклоняется с именем члена. Там, где он обещает булево, строку
+  // или объект-раздел, — это ложь, и ложь в ту сторону, которую человек проверить
+  // не может: интерфейс возможности, которой нет.
+  //
+  // Замерено 2026-08-24, по одному живому месту на каждый:
+  //   `Boolean(window.hermesDesktop?.terminal)` — `providers-settings.tsx:43`,
+  //   решает, предлагать ли «запустить в терминале»; с прокси отвечало «да».
+  //   `if (window.hermesDesktop?.dataUrlReadMax)` — `store/data-url-read-max.ts:74`.
+  //   `typeof …quickEntry?.getSettings === 'function'` — `store/quick-entry.ts:69`;
+  //   прокси функции проходит и такую проверку.
+  //   `getPathForFile(file)` — `use-composer-actions.ts:670`: их код проверяет
+  //   член на истинность и зовёт, а прокси возвращает ОБЪЕКТ там, где ждут путь
+  //   строкой. Дальше он же уходит в `filePath` и в чтение файла. Это тот самый
+  //   подвид, ради которого находка и заведена: не отказ, а молчаливый мусор.
+  //   Перетаскивание у нас идёт БАЙТАМИ (`saveImageBuffer`/`readFileDataUrl`,
+  //   задача 4D-15), а нативный путь — их запасной путь «для старых оболочек»;
+  //   его честный ответ здесь — «нет».
+  //
+  // Отсутствие их код обрабатывает ПО ПОСТРОЕНИЮ: до всех этих членов он ходит
+  // через `window.hermesDesktop?.…`, а `hermesDesktop` в их контракте
+  // необязателен — значит tsc уже заставил их написать ветку на `undefined`, и
+  // именно она теперь и выполняется.
+  //
+  // У `glassSupported`/`translucencySupported` наблюдаемое поведение не меняется
+  // (их проверка `typeof … === 'boolean'` и с прокси давала false) — но давала
+  // случайно, а теперь по объявлению.
+  connections: undefined,
+  dataUrlReadMax: undefined,
+  getPathForFile: undefined,
+  glassSupported: undefined,
+  quickEntry: undefined,
+  settings: undefined,
+  terminal: undefined,
+  translucencySupported: undefined,
+  uninstall: undefined,
+  updates: undefined,
+
   // Same decision, the other member: `gitRoot` is "which repository is this
   // path in", asked by their file tree to apply .gitignore
   // (`right-sidebar/files/ipc.ts`). Their own line is `desktop.gitRoot ?
