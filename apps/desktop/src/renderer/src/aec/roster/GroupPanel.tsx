@@ -172,6 +172,9 @@ function RoomView({
   const [events, setEvents] = useState<RoomEventView[]>([])
   const [showEvents, setShowEvents] = useState(false)
   const [willAnswer, setWillAnswer] = useState<string[]>([])
+  /** ИМЕНА приложенных файлов. Путей у окна нет и быть не должно: их держит
+   * главный процесс, который сам показал человеку диалог. */
+  const [files, setFiles] = useState<string[]>([])
   const bottom = useRef<HTMLDivElement | null>(null)
 
   // Запомнен нарочно: этот ключ стоит в зависимостях подписки на ленту, и
@@ -232,11 +235,24 @@ function RoomView({
     }
   })
 
+  const pickFiles = useMutation({
+    mutationFn: () => window.aecpilot.pickRoomFiles(room.id),
+    onSuccess: (result) => setFiles(result.names)
+  })
+
+  const dropFiles = useMutation({
+    mutationFn: () => window.aecpilot.clearRoomFiles(room.id),
+    onSuccess: () => setFiles([])
+  })
+
   const send = (): void => {
     const text = draft.trim()
     if (text === '' || ask.isPending) return
     setEvents([])
     setDraft('')
+    // Файлы уходят вместе с вопросом и здесь же снимаются: к следующему вопросу
+    // они не прицепятся — их главный процесс уже отдал.
+    setFiles([])
     ask.mutate(text)
   }
 
@@ -303,6 +319,16 @@ function RoomView({
         </div>
       )}
 
+      {files.length > 0 && (
+        <div className="flex items-center gap-1 text-[10px] text-(--ui-text-secondary)">
+          <Codicon name="paperclip" />
+          <span className="flex-1 truncate">{files.join(', ')}</span>
+          <Button onClick={() => dropFiles.mutate()} size="sm" variant="text">
+            {t('rooms.dropFiles')}
+          </Button>
+        </div>
+      )}
+
       <textarea
         aria-label={t('rooms.say')}
         className="rounded-[4px] bg-(--ui-bg-tertiary) px-2 py-1 text-xs text-(--ui-text-primary)"
@@ -324,9 +350,21 @@ function RoomView({
             ? t('rooms.asking')
             : t('rooms.willAnswer', String(willAnswer.length), String(room.members.length))}
         </span>
-        <Button disabled={draft.trim() === '' || ask.isPending} onClick={send} size="sm">
-          {t('rooms.send')}
-        </Button>
+        <span className="flex items-center gap-1">
+          <Button
+            aria-label={t('rooms.attach')}
+            disabled={ask.isPending}
+            onClick={() => pickFiles.mutate()}
+            size="sm"
+            title={t('rooms.attach')}
+            variant="text"
+          >
+            <Codicon name="paperclip" />
+          </Button>
+          <Button disabled={draft.trim() === '' || ask.isPending} onClick={send} size="sm">
+            {t('rooms.send')}
+          </Button>
+        </span>
       </div>
 
       {ask.data?.ok === false && (

@@ -51,6 +51,8 @@ const api: AecpilotApi = {
   disbandRoom: (id) => ipcRenderer.invoke('groups:disband', id),
   willAnswerInRoom: (payload) => ipcRenderer.invoke('groups:will-answer', payload),
   askRoom: (payload) => ipcRenderer.invoke('groups:ask', payload),
+  pickRoomFiles: (id) => ipcRenderer.invoke('groups:pick-files', id),
+  clearRoomFiles: (id) => ipcRenderer.invoke('groups:clear-files', id),
   onRoomEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, value: Parameters<typeof cb>[0]): void =>
       cb(value)

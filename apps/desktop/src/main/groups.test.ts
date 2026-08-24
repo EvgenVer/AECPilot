@@ -42,6 +42,8 @@ let listeners: ((event: unknown) => void)[]
 let minted: number
 /** Сессии, которые не ответили в срок: тест доложит за них позже. */
 let slow: string[]
+/** Что и в чью сессию положили до хода. */
+let attached: { session: string; path: string }[]
 
 function profileOf(name: string): FakeProfile {
   const found = profiles.find((one) => one.name === name)
@@ -148,6 +150,7 @@ beforeEach(() => {
   listeners = []
   minted = 0
   slow = []
+  attached = []
   profiles = [
     { name: 'smeta', ui_meta: { [OUR_META_KEY]: { title: 'Смета' } } },
     { name: 'elektrika', ui_meta: { [OUR_META_KEY]: { title: 'Электрика' } } },
@@ -166,7 +169,11 @@ beforeEach(() => {
     saveTranscript: (id, turns) => {
       transcripts[id] = turns
     },
-    newRoomId: () => 'к-новая'
+    newRoomId: () => 'к-новая',
+    attach: async (sessionId, path) => {
+      attached.push({ session: sessionId, path })
+      return { ok: true }
+    }
   })
 })
 
@@ -372,6 +379,63 @@ describe('чужие поля', () => {
 
     const ours = profileOf('smeta').ui_meta[OUR_META_KEY] as Record<string, unknown>
     expect(ours.title).toBe('Смета')
+  })
+})
+
+describe('вложение', () => {
+  it('доходит до КАЖДОГО, кто отвечает', async () => {
+    // Для инженерной переписки это не удобство: «что не так на этом листе» без
+    // листа — не вопрос.
+    room(['smeta', 'elektrika'])
+    answers = { smeta: ['вижу'], elektrika: ['вижу'] }
+
+    await askRoom('к-1', 'что не так на этом листе?', () => {}, ['C:/лист.pdf'])
+
+    expect(attached.map((one) => one.path)).toEqual(['C:/лист.pdf', 'C:/лист.pdf'])
+    expect(new Set(attached.map((one) => one.session)).size).toBe(2)
+  })
+
+  it('при адресном обращении — только тому, кого позвали', async () => {
+    room(['smeta', 'elektrika', 'gip'])
+    answers = { smeta: ['вижу'] }
+
+    await askRoom('к-1', '@Смета посмотри лист', () => {}, ['C:/лист.pdf'])
+
+    expect(attached).toEqual([{ session: 'с-smeta-1', path: 'C:/лист.pdf' }])
+  })
+
+  it('ставится ДО хода, а не после', async () => {
+    // Иначе участник отвечает на вопрос про лист, не видя листа, и файл
+    // достаётся уже следующему ходу — то есть не тому вопросу.
+    room(['smeta', 'gip'])
+    answers = { smeta: ['вижу'], gip: ['(pass)'] }
+
+    await askRoom('к-1', 'вопрос', () => {}, ['C:/лист.pdf'])
+
+    expect(attached[0].session).toBe(sessions.smeta)
+    expect(asked[0].member).toBe('smeta')
+  })
+
+  it('второму кругу того же участника заново не кладётся', async () => {
+    // Файл остался в его сессии; повтор — это лишняя пересылка того же самого.
+    room(['smeta', 'elektrika'])
+    answers = {
+      smeta: ['@Электрика глянь', 'да'],
+      elektrika: ['@Смета а ты?', 'всё']
+    }
+
+    await askRoom('к-1', '@Смета начни', () => {}, ['C:/лист.pdf'])
+
+    expect(attached.length).toBe(2)
+  })
+
+  it('без файлов ничего не кладётся', async () => {
+    room(['smeta', 'gip'])
+    answers = { smeta: ['раз'], gip: ['два'] }
+
+    await askRoom('к-1', 'вопрос')
+
+    expect(attached).toEqual([])
   })
 })
 

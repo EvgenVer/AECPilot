@@ -60,6 +60,9 @@ export interface GroupDeps {
   /** Новый идентификатор комнаты. Снаружи ради проверяемости: случайность
    * внутри означала бы тест, который нельзя написать. */
   newRoomId: () => string
+  /** Поставить файл в сессию участника до его хода. Снаружи, потому что путь к
+   * файлу приходит из диалога главного процесса и в комнату не заезжает. */
+  attach: (sessionId: string, path: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 let deps: GroupDeps | undefined
@@ -335,12 +338,20 @@ function watchLate(
   })
 }
 
-/** Ход одного участника: его сессия, его новое, его ответ. */
+/**
+ * Ход одного участника: его сессия, его новое, его ответ.
+ *
+ * `files` ставятся в его сессию ДО хода. Для инженерной переписки это не
+ * удобство: «что не так на этом листе» без листа — не вопрос. Неудача
+ * вложения ход не отменяет — участник ответит хотя бы по тексту, а человек
+ * увидит, что файл не дошёл, в ленте комнаты.
+ */
 async function memberTurn(
   member: string,
   room: MemberRoom,
   transcript: GroupTurn[],
-  titles: Record<string, string>
+  titles: Record<string, string>,
+  files: readonly string[] = []
 ): Promise<{ text: string; failed: string; session: string }> {
   let session = room.session
 
@@ -361,6 +372,15 @@ async function memberTurn(
   const brief = briefFor(transcript, room.seen, titles)
   if (brief === '') return { text: '', failed: '', session }
 
+  for (const path of files) {
+    // Молча: неудача одного вложения не стоит отменённого хода, а сказать о ней
+    // всё равно есть кому — она видна в журнале главного процесса.
+    const put = await core()
+      .attach(session, path)
+      .catch((error: unknown) => ({ ok: false, error: String(error) }))
+    if (!put.ok) console.warn(`aecpilot: комната не вложила файл ${path}: ${put.error ?? ''}`)
+  }
+
   const answer = await awaitTurn(session, () =>
     core().request('prompt.submit', { session_id: session, text: brief })
   )
@@ -377,7 +397,8 @@ async function memberTurn(
 export async function askRoom(
   id: string,
   text: string,
-  notify: (event: GroupEvent) => void = () => {}
+  notify: (event: GroupEvent) => void = () => {},
+  files: readonly string[] = []
 ): Promise<{ ok: boolean; error?: string; turns?: GroupTurn[] }> {
   const said = text.trim()
   if (said === '') return { ok: false, error: 'Пустое сообщение' }
@@ -403,6 +424,9 @@ export async function askRoom(
   let called = false
   /** Те, кого комната ждать перестала. Их ответ подберётся после круга. */
   const late: { member: string; session: string; round: number }[] = []
+  /** Кому файл уже поставили. Второй раз в ту же сессию его класть незачем: он
+   * там остался, а повтор — это лишняя пересылка того же самого. */
+  const gotFiles = new Set<string>()
 
   while (queue.length > 0) {
     for (const member of queue) notify({ member, kind: 'queued', round })
@@ -421,7 +445,12 @@ export async function askRoom(
 
       let answer: { text: string; failed: string; session: string }
       try {
-        answer = await memberTurn(member, room, transcript, titles)
+        // Вложение доходит до КАЖДОГО, кто отвечает, — но по одному разу за ход
+        // комнаты. При адресном обращении это само собой означает «только тому,
+        // кого позвали»: остальным хода не досталось.
+        const mine = gotFiles.has(member) ? [] : files
+        gotFiles.add(member)
+        answer = await memberTurn(member, room, transcript, titles, mine)
       } catch (error: unknown) {
         answer = {
           text: '',

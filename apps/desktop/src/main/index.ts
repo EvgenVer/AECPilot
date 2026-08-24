@@ -2365,7 +2365,59 @@ configureGroups({
   // Идентификатор комнаты живёт в полях профиля на сервере, то есть его видят
   // все машины: время плюс случайность, чтобы две машины не завели один и тот
   // же ключ в одну секунду.
-  newRoomId: () => `room-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+  newRoomId: () => `room-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
+  attach: async (sessionId, path) => {
+    if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
+    const kind = classifyAttachment(path)
+    if (kind === 'unsupported') return { ok: false, error: `не поддерживается: ${basename(path)}` }
+    try {
+      const result = await gateway.request(kind === 'pdf' ? 'pdf.attach' : 'image.attach', {
+        session_id: sessionId,
+        path
+      })
+      return result.attached
+        ? { ok: true }
+        : { ok: false, error: result.message ?? 'вложение не принято' }
+    } catch (error: unknown) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+})
+
+/**
+ * Файлы, выбранные для следующего вопроса комнаты. Путь живёт ЗДЕСЬ, а окну
+ * уходит только имя: окно никогда не должно получать путь, который человек ему
+ * не показывал через наш диалог, — то же правило, что у `attach:pick` и у
+ * картинки специалиста.
+ *
+ * Очищаются после отправки: «старые вложения к новым ходам не прицепляются»
+ * (specs/agent-roster.md §Р5).
+ */
+const roomFiles = new Map<string, string[]>()
+
+ipcMain.handle('groups:pick-files', async (event, id: unknown) => {
+  const roomId = typeof id === 'string' ? id : ''
+  const window = BrowserWindow.fromWebContents(event.sender)
+  if (!window || roomId === '') return { names: [] }
+
+  const picked = await dialog.showOpenDialog(window, {
+    title: 'Приложить к вопросу в комнате',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Картинки и PDF', extensions: [...IMAGE_DIALOG_EXTENSIONS, 'pdf'] },
+      { name: 'Все файлы', extensions: ['*'] }
+    ]
+  })
+  if (picked.canceled) return { names: roomFiles.get(roomId)?.map((one) => basename(one)) ?? [] }
+
+  const chosen = [...(roomFiles.get(roomId) ?? []), ...picked.filePaths]
+  roomFiles.set(roomId, chosen)
+  return { names: chosen.map((one) => basename(one)) }
+})
+
+ipcMain.handle('groups:clear-files', (_event, id: unknown) => {
+  roomFiles.delete(typeof id === 'string' ? id : '')
+  return { names: [] }
 })
 
 ipcMain.handle('groups:list', () => listRooms())
@@ -2407,8 +2459,16 @@ ipcMain.handle('groups:ask', (_event, payload: unknown) => {
   const roomId = typeof id === 'string' ? id : ''
   // Лента событий идёт в окно по ходу круга, а не одним куском в конце: без неё
   // комната, где двое думают, а один промолчал, выглядит зависшей.
-  return askRoom(roomId, typeof text === 'string' ? text : '', (event) =>
-    broadcastToWindows('groups:event', { room: roomId, ...event })
+  const files = roomFiles.get(roomId) ?? []
+  // Снимаются ДО хода, а не после: ход идёт минутами, и файл, оставшийся
+  // висеть, прицепился бы к следующему вопросу человека.
+  roomFiles.delete(roomId)
+
+  return askRoom(
+    roomId,
+    typeof text === 'string' ? text : '',
+    (event) => broadcastToWindows('groups:event', { room: roomId, ...event }),
+    files
   )
 })
 

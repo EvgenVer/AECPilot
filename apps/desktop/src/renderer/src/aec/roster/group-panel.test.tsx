@@ -44,6 +44,8 @@ const disbandRoom = vi.fn()
 const willAnswerInRoom = vi.fn()
 const askRoom = vi.fn()
 const editRoom = vi.fn()
+const pickRoomFiles = vi.fn()
+const clearRoomFiles = vi.fn()
 
 /** Подписчики ленты круга: главный процесс шлёт события по ходу разговора. */
 let feed: ((event: RoomEventView) => void)[] = []
@@ -79,6 +81,8 @@ beforeEach(() => {
   willAnswerInRoom.mockResolvedValue(['smeta', 'elektrika', 'gip'])
   askRoom.mockResolvedValue({ ok: true, turns: [] })
   editRoom.mockResolvedValue({ ok: true })
+  pickRoomFiles.mockResolvedValue({ names: ['лист.pdf'] })
+  clearRoomFiles.mockResolvedValue({ names: [] })
 
   window.aecpilot = {
     listRooms,
@@ -88,6 +92,8 @@ beforeEach(() => {
     willAnswerInRoom,
     askRoom,
     editRoom,
+    pickRoomFiles,
+    clearRoomFiles,
     onRoomEvent: (cb: (event: RoomEventView) => void) => {
       feed.push(cb)
       return () => {
@@ -199,6 +205,46 @@ describe('почему тихо', () => {
     feed.forEach((cb) => cb({ room: 'другая', member: 'gip', kind: 'passed', round: 1 }))
 
     await waitFor(() => expect(screen.queryByText(/Что делает комната/)).toBeNull())
+  })
+})
+
+describe('вложение', () => {
+  it('окно показывает ИМЯ файла, а путь не получает вовсе', async () => {
+    // Путь, который человек не выбрал через наш диалог, окну не даётся никогда —
+    // то же правило, что у вложений в обычном чате и у картинки специалиста.
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+
+    fireEvent.click(await screen.findByLabelText('Приложить файл'))
+
+    expect(await screen.findByText('лист.pdf')).toBeTruthy()
+    expect(pickRoomFiles).toHaveBeenCalledWith('к-1')
+  })
+
+  it('приложенное можно убрать до отправки', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    fireEvent.click(await screen.findByLabelText('Приложить файл'))
+    await screen.findByText('лист.pdf')
+
+    fireEvent.click(await screen.findByText('Убрать'))
+
+    await waitFor(() => expect(screen.queryByText('лист.pdf')).toBeNull())
+  })
+
+  it('после отправки список приложенного пуст', async () => {
+    // «Старые вложения к новым ходам не прицепляются»: файл ушёл с этим
+    // вопросом, и висеть в поле ему больше незачем.
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    fireEvent.click(await screen.findByLabelText('Приложить файл'))
+    await screen.findByText('лист.pdf')
+
+    const box = await screen.findByLabelText('Сообщение в комнату')
+    fireEvent.change(box, { target: { value: 'что не так на листе?' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    await waitFor(() => expect(screen.queryByText('лист.pdf')).toBeNull())
   })
 })
 
