@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
 import { useAecT } from '../../shared/i18n'
+import { applyMention, mentionAtCaret } from '../../../../main/mentions-pure'
 import type { GroupRoomView, RoomEventView, SpecialistView } from '../../../../shared/ipc'
 
 const ROOMS_KEY = ['aec', 'rooms'] as const
@@ -175,6 +176,12 @@ function RoomView({
   /** ИМЕНА приложенных файлов. Путей у окна нет и быть не должно: их держит
    * главный процесс, который сам показал человеку диалог. */
   const [files, setFiles] = useState<string[]>([])
+  /** Где стоит курсор. Нужен подсказке: без него непонятно, какое обращение
+   * человек набирает — их в тексте может быть несколько. `-1` — подсказка
+   * закрыта рукой. */
+  const [caret, setCaret] = useState(-1)
+  const [hintAt, setHintAt] = useState(0)
+  const box = useRef<HTMLTextAreaElement | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
 
   // Запомнен нарочно: этот ключ стоит в зависимостях подписки на ленту, и
@@ -244,6 +251,37 @@ function RoomView({
     mutationFn: () => window.aecpilot.clearRoomFiles(room.id),
     onSuccess: () => setFiles([])
   })
+
+  // Кого можно позвать в этой комнате: её участники плюс «все». Считается по
+  // тому, что набрано ПОД КУРСОРОМ, — обращений в тексте может быть несколько.
+  const typing = caret < 0 ? null : mentionAtCaret(draft, caret)
+  // Без запоминания нарочно: список — это фильтр по семи именам, и городить
+  // вокруг него зависимости дороже, чем посчитать его заново.
+  const hints =
+    typing === null
+      ? []
+      : [
+          t('rooms.everyone'),
+          ...room.members.map((name) => shownName(roster, name).replace(/\s+/g, '-'))
+        ]
+          // Пустой запрос показывает всех: человек нажал `@` и хочет увидеть
+          // список, а не угадывать первую букву.
+          .filter((one) => one.toLowerCase().startsWith(typing.query.toLowerCase()))
+
+  const insertHint = (handle: string): void => {
+    if (typing === null) return
+    const next = applyMention(draft, typing.start, caret, handle)
+    setDraft(next.text)
+    setCaret(-1)
+    setHintAt(0)
+    // Курсор ставится после вставленного имени: продолжать печатать человек
+    // будет отсюда, а не с того места, где поле его бросит.
+    requestAnimationFrame(() => {
+      box.current?.focus()
+      box.current?.setSelectionRange?.(next.caret, next.caret)
+      setCaret(next.caret)
+    })
+  }
 
   const send = (): void => {
     const text = draft.trim()
@@ -329,17 +367,63 @@ function RoomView({
         </div>
       )}
 
+      {hints.length > 0 && (
+        <ul className="max-h-24 overflow-auto rounded-[4px] bg-(--ui-bg-tertiary) text-xs">
+          {hints.map((hint, index) => (
+            <li key={hint}>
+              <button
+                className={`w-full px-2 py-0.5 text-left ${
+                  index === hintAt ? 'bg-(--ui-bg-secondary)' : ''
+                }`}
+                onClick={() => insertHint(hint)}
+                type="button"
+              >
+                @{hint}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <textarea
         aria-label={t('rooms.say')}
         className="rounded-[4px] bg-(--ui-bg-tertiary) px-2 py-1 text-xs text-(--ui-text-primary)"
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setCaret(event.target.selectionStart)
+          setHintAt(0)
+        }}
         onKeyDown={(event) => {
+          // Пока открыта подсказка, Enter выбирает имя, а не отправляет: иначе
+          // человек, набравший `@см`, отправлял бы вопрос вместо выбора.
+          if (hints.length > 0) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault()
+              setHintAt(
+                (at) => (at + (event.key === 'ArrowDown' ? 1 : hints.length - 1)) % hints.length
+              )
+              return
+            }
+            if (event.key === 'Enter' || event.key === 'Tab') {
+              event.preventDefault()
+              insertHint(hints[hintAt])
+              return
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              setCaret(-1)
+              return
+            }
+          }
+
           // Enter отправляет, Shift+Enter переносит — как везде в приложении.
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault()
             send()
           }
         }}
+        onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+        ref={box}
         rows={2}
         value={draft}
       />

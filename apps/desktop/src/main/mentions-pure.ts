@@ -58,6 +58,56 @@ export function mentionCompletions(
   })
 }
 
+/** Символы, из которых состоит имя в обращении. Тот же набор, что в `MENTION`. */
+const MENTION_CHARS = /[\p{L}\p{N}_-]/u
+
+/**
+ * Незаконченное обращение под курсором — то, что набирает человек прямо сейчас.
+ *
+ * Возвращает набранное после `@` и место самой собачки, чтобы вставка знала,
+ * что заменять. `null` — курсор не в обращении, и подсказке показываться не на
+ * что.
+ *
+ * ПОЧЕМУ ПРОВЕРЯЕТСЯ СИМВОЛ ПЕРЕД СОБАЧКОЙ: в адресе почты она стоит после
+ * буквы, и без этой проверки подсказка вылезала бы посреди `mail@smeta.ru`.
+ * Правило то же, что у `MENTION`: обращение начинается со строки или пробела.
+ */
+export function mentionAtCaret(
+  text: string,
+  caret: number
+): { query: string; start: number } | null {
+  for (let at = Math.min(caret, text.length) - 1; at >= 0; at--) {
+    const char = text[at]
+
+    if (char === '@') {
+      const before = at === 0 ? '' : text[at - 1]
+      if (before !== '' && !/\s/.test(before)) return null
+      return { query: text.slice(at + 1, caret), start: at }
+    }
+
+    if (!MENTION_CHARS.test(char)) return null
+  }
+  return null
+}
+
+/** Текст с подставленным обращением и место курсора после вставки.
+ *
+ * Пробел в конце ставится сам: человек, выбравший имя, продолжает писать, и
+ * дописывать пробел руками — работа, которой можно не быть.
+ */
+export function applyMention(
+  text: string,
+  start: number,
+  caret: number,
+  handle: string
+): { text: string; caret: number } {
+  const inserted = `@${handle} `
+  return {
+    text: text.slice(0, start) + inserted + text.slice(caret),
+    caret: start + inserted.length
+  }
+}
+
 /**
  * Кого позвали в этом тексте.
  *

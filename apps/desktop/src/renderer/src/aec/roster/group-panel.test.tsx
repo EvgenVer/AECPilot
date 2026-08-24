@@ -208,6 +208,87 @@ describe('почему тихо', () => {
   })
 })
 
+describe('подсказка @имя в комнате', () => {
+  /** Набирает текст и ставит курсор в конец — так же, как это делает человек. */
+  async function type(value: string): Promise<HTMLTextAreaElement> {
+    const box = (await screen.findByLabelText('Сообщение в комнату')) as HTMLTextAreaElement
+    fireEvent.change(box, { target: { value, selectionStart: value.length } })
+    return box
+  }
+
+  it('предлагает участников комнаты и «все»', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    await type('@')
+
+    expect(await screen.findByText('@все')).toBeTruthy()
+    expect(await screen.findByText('@Смета')).toBeTruthy()
+    expect(await screen.findByText('@Главный-инженер')).toBeTruthy()
+  })
+
+  it('сужает список по набранному', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    await type('@Эл')
+
+    expect(await screen.findByText('@Электрика')).toBeTruthy()
+    expect(screen.queryByText('@Смета')).toBeNull()
+  })
+
+  it('в адресе почты не вылезает', async () => {
+    // Человек пишет письмо, а не команду.
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    await type('пиши на mail@smeta')
+
+    await waitFor(() => expect(screen.queryByText('@Смета')).toBeNull())
+  })
+
+  it('выбор вставляет имя в текст', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    const box = await type('спроси @См')
+
+    fireEvent.click(await screen.findByText('@Смета'))
+
+    await waitFor(() => expect(box.value).toBe('спроси @Смета '))
+  })
+
+  it('Enter при открытой подсказке выбирает имя, а НЕ отправляет', async () => {
+    // Иначе человек, набравший `@См`, отправлял бы вопрос вместо выбора.
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    const box = await type('@См')
+
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    expect(askRoom).not.toHaveBeenCalled()
+    await waitFor(() => expect(box.value).toBe('@Смета '))
+  })
+
+  it('стрелка вниз переводит выбор на следующее имя', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    const box = await type('@')
+
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    await waitFor(() => expect(box.value).toBe('@Смета '))
+  })
+
+  it('Escape закрывает подсказку, и Enter снова отправляет', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+    const box = await type('@Смета')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    await waitFor(() => expect(askRoom).toHaveBeenCalledWith({ id: 'к-1', text: '@Смета' }))
+  })
+})
+
 describe('вложение', () => {
   it('окно показывает ИМЯ файла, а путь не получает вовсе', async () => {
     // Путь, который человек не выбрал через наш диалог, окну не даётся никогда —

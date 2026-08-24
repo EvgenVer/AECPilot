@@ -4,7 +4,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { mentionCompletions, mentionedSpecialists, mentionHandle } from './mentions-pure'
+import {
+  mentionCompletions,
+  mentionedSpecialists,
+  mentionHandle,
+  applyMention,
+  mentionAtCaret
+} from './mentions-pure'
 
 const ROSTER = [
   { handle: 'smeta', title: 'Смета', role: 'сметчик', device: '' },
@@ -80,5 +86,37 @@ describe('кого позвали в тексте', () => {
 
   it('текст без собачки — пусто', () => {
     expect(mentionedSpecialists('посчитай смету', ROSTER)).toEqual([])
+  })
+})
+
+describe('подсказка под курсором', () => {
+  it('видит незаконченное обращение и место собачки', () => {
+    expect(mentionAtCaret('спроси @см', 10)).toEqual({ query: 'см', start: 7 })
+    expect(mentionAtCaret('@', 1)).toEqual({ query: '', start: 0 })
+  })
+
+  it('в адресе почты не срабатывает', () => {
+    // Собачка после буквы — это почта, а не обращение. Человек пишет письмо.
+    expect(mentionAtCaret('пиши на mail@smeta', 18)).toBeNull()
+  })
+
+  it('после пробела обращение кончилось', () => {
+    expect(mentionAtCaret('@Смета посчитай', 15)).toBeNull()
+  })
+
+  it('курсор не в обращении — показывать нечего', () => {
+    expect(mentionAtCaret('просто текст', 12)).toBeNull()
+    expect(mentionAtCaret('', 0)).toBeNull()
+  })
+
+  it('вставка заменяет набранное и дописывает пробел', () => {
+    expect(applyMention('спроси @см', 7, 10, 'Смета')).toEqual({
+      text: 'спроси @Смета ',
+      caret: 14
+    })
+  })
+
+  it('вставка не съедает то, что стоит после курсора', () => {
+    expect(applyMention('@см посчитай', 0, 3, 'Смета').text).toBe('@Смета  посчитай')
   })
 })
