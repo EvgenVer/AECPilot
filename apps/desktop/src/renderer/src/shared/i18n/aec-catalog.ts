@@ -244,6 +244,9 @@ export const aecLocales: PluginLocaleBundles = {
       confirmNote:
         'Files created AFTER the snapshot are not deleted by a restore — that is the core’s behaviour.'
     },
+    resumeProgress: {
+      loading: 'Loading this session’s history…'
+    },
     coreNotice: {
       riskTitle: 'Check where this text came from',
       riskBody: (tool: string) =>
@@ -657,6 +660,9 @@ export const aecLocales: PluginLocaleBundles = {
         `Все файлы будут перезаписаны состоянием на ${when}, а последний ход исчезнет из истории сессии. Текущее содержимое пропадёт.`,
       confirmNote:
         'Файлы, созданные ПОСЛЕ снимка, при восстановлении не удаляются — это поведение ядра.'
+    },
+    resumeProgress: {
+      loading: 'Загружаю историю этой сессии…'
     },
     coreNotice: {
       riskTitle: 'Проверьте, откуда этот текст',

@@ -40,6 +40,7 @@ import { installPreviewBoundary } from './aec/preview-boundary/install-preview-b
 import { registerTranscriptBlocks } from './aec/transcript-blocks/register-blocks'
 import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
+import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
@@ -52,6 +53,11 @@ installClipboardShim()
 // и до первого рендера — ответ может прийти раньше, чем смонтируется лента.
 registerQuoteCheck()
 registerCoreNotices()
+// Находка D-39: при холодном возврате к старой сессии история подгружается в
+// фоне, и до этого человек всё это время смотрел на пустое окно без слова
+// объяснения. Подписка ставится до первого рендера — ядро успевает прислать
+// `loading` раньше, чем смонтируется лента.
+registerResumeProgress()
 // Task 3.3: «Изменения в документах» takes the place of their git review pane
 // (SPEC HX6/UR16). Called from the body on purpose — a same-id registration
 // wins only if it runs after their shell module, and module bodies run after
