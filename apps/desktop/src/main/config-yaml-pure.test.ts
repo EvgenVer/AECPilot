@@ -84,4 +84,20 @@ describe('дописать поле в их конфиг', () => {
     )
     expect(ensureSectionScalar('', 'agent', 'note', '3600').text).toContain('note: "3600"')
   })
+
+  // Замечание D-40, решение владельца 2026-08-24. `/loop` приходит в композер из
+  // каталога ядра БЕЗ нашей работы, и их умолчание — сто ходов одной строкой.
+  // Опускаем до десяти, но именно УМОЛЧАНИЕМ: человек правит число в том же
+  // файле, и правило больше его не трогает.
+  it('потолок циклов ставится, а выбранный человеком не переписывается', () => {
+    const first = ensureSectionScalar('', 'loops', 'max_ticks', 10)
+    expect(first.text).toContain('max_ticks: 10')
+    expect(first.changed).toBe(true)
+
+    const chosen = ensureSectionScalar('loops:\n  max_ticks: 0\n', 'loops', 'max_ticks', 10)
+    // `0` у них означает «без предела» — то есть человек снял потолок сознательно,
+    // и вернуть его обратно было бы отменой его решения.
+    expect(chosen.text).toContain('max_ticks: 0')
+    expect(chosen.changed).toBe(false)
+  })
 })

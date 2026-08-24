@@ -672,20 +672,47 @@ function applyDefaultSpeechVoice(homeDir: string): void {
  * предупреждает агента, и тот успевает свернуть мысль. */
 const RUN_BUDGET_SECONDS = 3600
 
-function applyRunBudget(homeDir: string): void {
+/**
+ * Потолок повторяющихся пробуждений внутри сессии (`/loop`, замечание D-40,
+ * решение владельца 2026-08-24).
+ *
+ * ПОЧЕМУ ЭТО ВООБЩЕ НАС КАСАЕТСЯ. Каталог слэш-команд наш интерфейс берёт у
+ * ядра, значит `/loop` появляется в композере БЕЗ нашей работы. Каждый тик —
+ * настоящий ход агента, а их умолчание `loops.max_ticks` = 100: одной строкой
+ * заводится цикл на сто ходов. Сто — это не умолчание, а ловушка.
+ *
+ * ЧЕМ ЭТО НЕ ЯВЛЯЕТСЯ: запретом. Дойдя до потолка, ядро ЖДЁТ, а не обрывает —
+ * цикл встаёт на паузу с текстом «/loop resume to keep going, /loop stop to end
+ * it». Человек продолжает одной командой; счётчик при этом не сбрасывается, то
+ * есть каждое «продолжить» покупает следующий тик и спрашивает снова.
+ *
+ * ЧТОБЫ ИДТИ ДОЛГО, НЕ ПЕРЕСПРАШИВАЯ, число правится прямо в `config.yaml`
+ * (`0` = без предела). Правило ниже дописывает ключ ТОЛЬКО если его там нет —
+ * выбранное человеком значение переживает все следующие запуски.
+ */
+const LOOP_MAX_TICKS = 10
+
+/** Дописывает умолчание в `config.yaml`, не трогая уже выбранное человеком. */
+function applyConfigDefault(
+  homeDir: string,
+  section: string,
+  key: string,
+  value: number,
+  what: string
+): void {
   const configPath = join(homeDir, 'config.yaml')
 
   let original: string
   try {
     original = readFileSync(configPath, 'utf-8')
   } catch (error: unknown) {
-    console.error('aecpilot: could not read config.yaml to apply the run budget', error)
+    console.error(`aecpilot: could not read config.yaml to apply ${what}`, error)
     return
   }
 
-  const merged = ensureSectionScalar(original, 'agent', 'run_budget_seconds', RUN_BUDGET_SECONDS)
+  const merged = ensureSectionScalar(original, section, key, value)
   if (merged.unexpectedStructure) {
-    console.warn('aecpilot: config.yaml has an agent: scalar — leaving the run budget untouched')
+    console.warn(`aecpilot: config.yaml has a ${section}: scalar — leaving ${what} untouched`)
     return
   }
   if (!merged.changed) return
@@ -693,8 +720,16 @@ function applyRunBudget(homeDir: string): void {
   try {
     writeFileSync(configPath, merged.text, 'utf-8')
   } catch (error: unknown) {
-    console.error('aecpilot: could not write config.yaml with the run budget', error)
+    console.error(`aecpilot: could not write config.yaml with ${what}`, error)
   }
+}
+
+function applyRunBudget(homeDir: string): void {
+  applyConfigDefault(homeDir, 'agent', 'run_budget_seconds', RUN_BUDGET_SECONDS, 'the run budget')
+}
+
+function applyLoopBudget(homeDir: string): void {
+  applyConfigDefault(homeDir, 'loops', 'max_ticks', LOOP_MAX_TICKS, 'the loop tick budget')
 }
 
 /** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
@@ -3956,6 +3991,7 @@ app
           applyDefaultSpeechVoice(HERMES_HOME_DIR)
           applyDefaultWakePhrase(HERMES_HOME_DIR)
           applyRunBudget(HERMES_HOME_DIR)
+          applyLoopBudget(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
