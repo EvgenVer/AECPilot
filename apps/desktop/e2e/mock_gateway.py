@@ -174,6 +174,7 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
     the turn deliberately stays open here: the test's whole point is that the
     app installs nothing while it waits for a person.
     """
+
     async def push(event_type: str, payload: dict | None = None) -> None:
         params: dict = {"type": event_type, "session_id": SESSION_ID}
         if payload is not None:
