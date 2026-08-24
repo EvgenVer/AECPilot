@@ -5,10 +5,18 @@
 // `group-pure.test.ts`, — а ПОРЯДОК: кто и в какой очерёдности спрошен, что
 // записано в поля профиля и когда, и на чём круг останавливается.
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_MESSAGES, MAX_ROUNDS, type GroupEvent, type GroupTurn } from './group-pure'
-import { askRoom, configureGroups, createRoom, disbandRoom, listRooms, willAnswer } from './groups'
+import {
+  TURN_TIMEOUT_MS,
+  askRoom,
+  configureGroups,
+  createRoom,
+  disbandRoom,
+  listRooms,
+  willAnswer
+} from './groups'
 import { OUR_META_KEY } from './roster-pure'
 
 interface FakeProfile {
@@ -20,6 +28,10 @@ interface FakeProfile {
  * хода. Отдельно от молчания нарочно — правило §Р5 требует различать. */
 const CRASH = '!сорвался'
 
+/** Ответ, означающий «участник ещё думает»: его сессия не отвечает ничем, и
+ * комната перестаёт его ждать по сроку. */
+const SLOW = '!думает'
+
 /** Что ответит участник, когда его спросят. Ключ — имя профиля. */
 let answers: Record<string, string[]>
 let profiles: FakeProfile[]
@@ -28,6 +40,8 @@ let asked: { member: string; text: string }[]
 let sessions: Record<string, string>
 let listeners: ((event: unknown) => void)[]
 let minted: number
+/** Сессии, которые не ответили в срок: тест доложит за них позже. */
+let slow: string[]
 
 function profileOf(name: string): FakeProfile {
   const found = profiles.find((one) => one.name === name)
@@ -64,6 +78,13 @@ async function request(method: string, params: Record<string, unknown> = {}): Pr
 
     const queued = answers[member] ?? []
     const text = queued.length > 0 ? (queued.shift() as string) : '(pass)'
+
+    // Медленный участник не отвечает ВООБЩЕ: его ход заканчивается сроком, и
+    // ответ придёт потом — уже после круга.
+    if (text === SLOW) {
+      slow.push(sessionId)
+      return { ok: true }
+    }
 
     // Ход агента заканчивается событием его сессии — не ответом на вызов. И
     // приходит оно СВОИМ путём: подделка нарочно шлёт его в микрозадаче, то
@@ -126,6 +147,7 @@ beforeEach(() => {
   sessions = {}
   listeners = []
   minted = 0
+  slow = []
   profiles = [
     { name: 'smeta', ui_meta: { [OUR_META_KEY]: { title: 'Смета' } } },
     { name: 'elektrika', ui_meta: { [OUR_META_KEY]: { title: 'Электрика' } } },
@@ -350,6 +372,82 @@ describe('чужие поля', () => {
 
     const ours = profileOf('smeta').ui_meta[OUR_META_KEY] as Record<string, unknown>
     expect(ours.title).toBe('Смета')
+  })
+})
+
+describe('опоздавший ответ', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Докладывает за медленного участника — уже после конца круга. */
+  function answersLate(text: string): void {
+    for (const sessionId of slow.splice(0)) {
+      for (const listener of listeners) {
+        listener({
+          type: 'message.complete',
+          session_id: sessionId,
+          payload: { text, status: 'complete' }
+        })
+      }
+    }
+  }
+
+  it('приходит в комнату сам, а не пропадает', async () => {
+    // Без этого медленный специалист исчезает молча: комната перестала слушать,
+    // а он всё-таки ответил — и человек об этом не узнаёт никогда.
+    vi.useFakeTimers()
+    room(['smeta', 'gip'])
+    answers = { smeta: [SLOW], gip: ['я на месте'] }
+    const events: GroupEvent[] = []
+
+    const turn = askRoom('к-1', 'вопрос', (event) => events.push(event))
+    await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_MS + 1000)
+    await turn
+
+    expect(events.some((one) => one.kind === 'timeout' && one.member === 'smeta')).toBe(true)
+    expect(transcripts['к-1'].some((turn) => turn.from === 'smeta')).toBe(false)
+
+    answersLate('извините, считал долго: 12%')
+
+    expect(transcripts['к-1'].at(-1)).toEqual({
+      from: 'smeta',
+      text: 'извините, считал долго: 12%'
+    })
+    expect(events.at(-1)).toEqual({ member: 'smeta', kind: 'answered', round: 1 })
+  })
+
+  it('опоздавшее молчание в переписку не лезет', async () => {
+    vi.useFakeTimers()
+    room(['smeta', 'gip'])
+    answers = { smeta: [SLOW], gip: ['(pass)'] }
+    const events: GroupEvent[] = []
+
+    const turn = askRoom('к-1', 'вопрос', (event) => events.push(event))
+    await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_MS + 1000)
+    await turn
+
+    answersLate('(pass)')
+
+    expect(transcripts['к-1'].some((one) => one.from === 'smeta')).toBe(false)
+    expect(events.at(-1)?.kind).toBe('passed')
+  })
+
+  it('опоздавший нового круга не поднимает', async () => {
+    // Круг закончен. Опоздавший, зовущий следующего, раскрутил бы разговор
+    // заново — уже без человека.
+    vi.useFakeTimers()
+    room(['smeta', 'gip'])
+    answers = { smeta: [SLOW], gip: ['(pass)'] }
+
+    const turn = askRoom('к-1', 'вопрос', () => {})
+    await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_MS + 1000)
+    await turn
+    const before = asked.length
+
+    answersLate('@Главный-инженер посмотри')
+
+    expect(asked.length).toBe(before)
   })
 })
 

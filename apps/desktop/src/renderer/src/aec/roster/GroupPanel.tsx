@@ -14,7 +14,7 @@
 //   висит, пока человек не ответит сам. Спорное поднимается ему, а не
 //   «решается» большинством.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '../../donor/components/ui/button'
@@ -174,7 +174,9 @@ function RoomView({
   const [willAnswer, setWillAnswer] = useState<string[]>([])
   const bottom = useRef<HTMLDivElement | null>(null)
 
-  const transcriptKey = ['aec', 'room', room.id] as const
+  // Запомнен нарочно: этот ключ стоит в зависимостях подписки на ленту, и
+  // новый массив на каждую отрисовку переподписывал бы её без конца.
+  const transcriptKey = useMemo(() => ['aec', 'room', room.id] as const, [room.id])
   const { data: turns } = useQuery({
     queryKey: transcriptKey,
     queryFn: () => window.aecpilot.roomTranscript(room.id)
@@ -187,8 +189,15 @@ function RoomView({
       window.aecpilot.onRoomEvent((event) => {
         if (event.room !== room.id) return
         setEvents((all) => [...all, event])
+
+        // Опоздавший ответ ложится в переписку сам, уже после конца круга — и
+        // окно об этом узнаёт только отсюда. Перечитываем: иначе реплика есть,
+        // а на экране её нет до следующего вопроса.
+        if (event.kind === 'answered') {
+          void queryClient.invalidateQueries({ queryKey: transcriptKey })
+        }
       }),
-    [room.id]
+    [room.id, queryClient, transcriptKey]
   )
 
   // Сколько ответит — считается ядром по тому же правилу, что и сам круг.

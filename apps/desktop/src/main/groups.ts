@@ -43,6 +43,10 @@ import { OUR_META_KEY, parseRoster, type SpecialistFace } from './roster-pure'
  * а не поломка комнаты. */
 export const TURN_TIMEOUT_MS = 300_000
 
+/** Сколько ещё ждём опоздавшего ПОСЛЕ конца круга. Он уже не задерживает
+ * никого: комната договорила, а его реплика придёт в неё сама. */
+export const LATE_WINDOW_MS = 900_000
+
 export interface GroupDeps {
   request: (method: string, params?: Record<string, unknown>) => Promise<unknown>
   /** Подписка на события шлюза. Ответ участника приходит событием
@@ -274,6 +278,63 @@ function awaitTurn(
   })
 }
 
+/**
+ * Ответ, пришедший ПОСЛЕ конца круга, подбирается фоном.
+ *
+ * Без этого медленный специалист исчезает молча: комната перестала его слушать,
+ * а он всё-таки ответил — и его слова некуда положить. Человек об этом не
+ * узнаёт никогда, что хуже любого сообщения об ошибке.
+ *
+ * Реплика ложится в переписку сама и НОВОГО КРУГА НЕ ПОДНИМАЕТ: круг закончен,
+ * а опоздавший, зовущий следующего, раскрутил бы разговор заново, уже без
+ * человека.
+ */
+function watchLate(
+  roomId: string,
+  waiting: { member: string; session: string; round: number }[],
+  notify: (event: GroupEvent) => void
+): void {
+  if (waiting.length === 0) return
+
+  let left = [...waiting]
+  const timer = setTimeout(() => stop(), LATE_WINDOW_MS)
+
+  const stop = (): void => {
+    clearTimeout(timer)
+    unsubscribe()
+  }
+
+  const unsubscribe = core().onGatewayEvent((raw) => {
+    const event = (raw ?? {}) as { type?: string; session_id?: string; payload?: unknown }
+    const late = left.find((one) => one.session === event.session_id)
+    if (late === undefined) return
+    if (event.type !== 'message.complete' && event.type !== 'error') return
+
+    left = left.filter((one) => one !== late)
+    if (left.length === 0) stop()
+
+    const payload = (event.payload ?? {}) as { text?: string; status?: string }
+    const text = payload.status === 'complete' ? String(payload.text ?? '') : ''
+    if (text === '' || isSilence(text)) {
+      notify({ member: late.member, kind: 'passed', round: late.round })
+      return
+    }
+
+    // Переписка перечитывается с диска: пока участник опаздывал, человек мог
+    // сказать в комнате ещё что-нибудь, и писать поверх своей памяти значило бы
+    // это стереть.
+    const transcript = core().loadTranscript(roomId)
+    transcript.push({ from: late.member, text })
+    core().saveTranscript(roomId, transcript)
+
+    void writeMemberRooms(late.member, (all) =>
+      all.map((one) => (one.id === roomId ? { ...one, seen: transcript.length } : one))
+    ).catch(() => undefined)
+
+    notify({ member: late.member, kind: 'answered', round: late.round })
+  })
+}
+
 /** Ход одного участника: его сессия, его новое, его ответ. */
 async function memberTurn(
   member: string,
@@ -340,6 +401,8 @@ export async function askRoom(
   let round = 1
   let queue = roundQueue(addressed(said, first.members, titles), round, spent)
   let called = false
+  /** Те, кого комната ждать перестала. Их ответ подберётся после круга. */
+  const late: { member: string; session: string; round: number }[] = []
 
   while (queue.length > 0) {
     for (const member of queue) notify({ member, kind: 'queued', round })
@@ -371,7 +434,13 @@ export async function askRoom(
       room.seen = transcript.length
 
       if (answer.failed !== '') {
-        notify({ member, kind: answer.failed === 'не успел' ? 'timeout' : 'failed', round })
+        const timedOut = answer.failed === 'не успел'
+        // Не успел — значит ещё думает. Его сессия остаётся под присмотром:
+        // ответ придёт и ляжет в переписку сам.
+        if (timedOut && answer.session !== '') {
+          late.push({ member, session: answer.session, round })
+        }
+        notify({ member, kind: timedOut ? 'timeout' : 'failed', round })
         continue
       }
       if (isSilence(answer.text)) {
@@ -405,6 +474,10 @@ export async function askRoom(
       )
     )
   }
+
+  // Присмотр за опоздавшими ставится ПОСЛЕ записи полей: он переживёт этот
+  // вызов, и его реплика перечитает переписку с диска, а не из этой памяти.
+  watchLate(id, late, notify)
 
   notify({ member: '', kind: 'finished', round })
   return { ok: true, turns: transcript }
