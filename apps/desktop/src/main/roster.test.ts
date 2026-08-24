@@ -28,6 +28,18 @@ beforeEach(() => {
   configureRoster({ request, deleteProfile })
 })
 
+/** Вызов записи наших полей. По номеру их искать нельзя: перед записью идёт
+ * чтение — наш блок ядро сливает целиком, и писать его вслепую значит стирать
+ * соседние поля (замерено, `runtime/ui-meta-merge-probe.mjs`). */
+function called(method: string): Record<string, unknown> {
+  const call = request.mock.calls.find((one) => one[0] === method)
+  return (call?.[1] ?? {}) as Record<string, unknown>
+}
+
+function configured(): Record<string, unknown> {
+  return called('profiles.configure')
+}
+
 describe('список специалистов', () => {
   it('спрашивается вместе с последней репликой — иначе строки пустые', async () => {
     request.mockResolvedValue({ profiles: [] })
@@ -55,8 +67,11 @@ describe('создание', () => {
 
     const result = await createSpecialist({ name: 'smeta', title: 'Смета', role: 'сметчик' })
 
+    // Между ними — чтение: наш блок ядро сливает целиком, и писать его, не
+    // прочитав, значит стереть соседние поля (`runtime/ui-meta-merge-probe.mjs`).
     expect(request.mock.calls.map((call) => call[0])).toEqual([
       'profiles.create',
+      'profiles.list',
       'profiles.configure'
     ])
     expect(result).toEqual({ ok: true, name: 'smeta', outcome: 'server', error: undefined })
@@ -67,7 +82,7 @@ describe('создание', () => {
 
     await createSpecialist({ name: 'smeta', title: 'Смета' })
 
-    expect(request.mock.calls[1][1]).toEqual({
+    expect(configured()).toEqual({
       name: 'smeta',
       ui_meta: { aecpilot: { title: 'Смета' } }
     })
@@ -114,7 +129,7 @@ describe('одновременная правка из двух окон', () =>
 
     await saveSpecialist({ name: 'smeta', title: 'Смета', revision: 7 })
 
-    expect(request.mock.calls[0][1]).toMatchObject({
+    expect(configured()).toMatchObject({
       ui_meta_expected_revisions: { aecpilot: 7 }
     })
   })
@@ -124,7 +139,7 @@ describe('одновременная правка из двух окон', () =>
 
     await saveSpecialist({ name: 'smeta', title: 'Смета' })
 
-    expect(request.mock.calls[0][1]).not.toHaveProperty('ui_meta_expected_revisions')
+    expect(configured()).not.toHaveProperty('ui_meta_expected_revisions')
   })
 
   it('расхождение — это отказ, а не «сохранено только здесь»', async () => {
@@ -150,7 +165,7 @@ describe('одновременная правка из двух окон', () =>
 
     await setSpecialistHidden('smeta', true, 4)
 
-    expect(request.mock.calls[0][1]).toMatchObject({
+    expect(configured()).toMatchObject({
       ui_meta_expected_revisions: { aecpilot: 4 }
     })
   })
@@ -172,7 +187,7 @@ describe('правка', () => {
 
     await saveSpecialist({ name: 'smeta', description: 'считает объёмы' })
 
-    expect(request.mock.calls[0][1]).toEqual({
+    expect(configured()).toEqual({
       name: 'smeta',
       description: 'считает объёмы',
       ui_meta: { aecpilot: {} }
@@ -267,13 +282,15 @@ describe('расширенные возможности', () => {
     await saveSpecialist({ name: 'smeta', model: 'gpt-5' })
 
     expect(
-      request.mock.calls[0][1],
+      configured(),
       'половина назначения — это ничего не сделать, отчитавшись успехом'
     ).not.toHaveProperty('model')
 
+    request.mockClear()
+
     await saveSpecialist({ name: 'smeta', model: 'gpt-5', provider: 'openai' })
 
-    expect(request.mock.calls[1][1]).toMatchObject({ model: 'gpt-5', provider: 'openai' })
+    expect(configured()).toMatchObject({ model: 'gpt-5', provider: 'openai' })
   })
 
   it('скилы, тулсеты и MCP идут замещением, как их понимает ядро', async () => {
@@ -286,7 +303,7 @@ describe('расширенные возможности', () => {
       enabledMcpServers: ['aec-sources']
     })
 
-    expect(request.mock.calls[0][1]).toMatchObject({
+    expect(configured()).toMatchObject({
       disabled_skills: ['aec-qa'],
       enabled_toolsets: ['files'],
       enabled_mcp_servers: ['aec-sources']
@@ -298,7 +315,7 @@ describe('расширенные возможности', () => {
 
     await saveSpecialist({ name: 'smeta', enabledToolsets: [] })
 
-    expect(request.mock.calls[0][1]).toMatchObject({ enabled_toolsets: [] })
+    expect(configured()).toMatchObject({ enabled_toolsets: [] })
   })
 
   it('неудачный раздел гасит «сохранено», а не прячется за ним', async () => {
@@ -310,12 +327,51 @@ describe('расширенные возможности', () => {
     expect(result.failed).toEqual(['model'])
   })
 
+  it('правка одного поля не стирает остальные — блок уходит целиком', async () => {
+    // ЗАМЕРЕНО на живом ядре 0.20.5 (`runtime/ui-meta-merge-probe.mjs`): ядро
+    // сливает `ui_meta` по ключам ВЕРХНЕГО уровня, то есть по `aecpilot`
+    // целиком. Отправить `{aecpilot: {title}}` — значит стереть роль, облик,
+    // признак скрытия, привязку постоянного чата и состав комнат. Первая
+    // версия писала именно так; это тот тест, которого тогда не было.
+    request.mockImplementation(async (method: string) =>
+      method === 'profiles.list'
+        ? {
+            profiles: [
+              profileRow('smeta', {
+                ui_meta: {
+                  aecpilot: {
+                    title: 'Смета',
+                    role: 'сметчик',
+                    hidden: true,
+                    chat: 'с-1',
+                    groups: { 'к-1': { members: ['smeta', 'gip'] } }
+                  }
+                }
+              })
+            ]
+          }
+        : { applied: { ui_meta: true } }
+    )
+
+    await saveSpecialist({ name: 'smeta', title: 'Сметчик' })
+
+    expect(configured().ui_meta).toEqual({
+      aecpilot: {
+        title: 'Сметчик',
+        role: 'сметчик',
+        hidden: true,
+        chat: 'с-1',
+        groups: { 'к-1': { members: ['smeta', 'gip'] } }
+      }
+    })
+  })
+
   it('клонирование делает само ядро — вместе с доступами', async () => {
     request.mockResolvedValue({ applied: { ui_meta: true } })
 
     await createSpecialist({ name: 'norm', cloneFrom: 'smeta', soul: 'Ты нормоконтролёр.' })
 
-    expect(request.mock.calls[0][1]).toMatchObject({
+    expect(called('profiles.create')).toMatchObject({
       name: 'norm',
       clone_from: 'smeta',
       soul: 'Ты нормоконтролёр.'
@@ -349,7 +405,7 @@ describe('постоянный чат', () => {
 
     await openCanonicalChat('smeta', 'с-1')
 
-    expect(request.mock.calls[0][1]).toMatchObject({ preferred_session_ids: { smeta: 'с-1' } })
+    expect(called('profiles.list')).toMatchObject({ preferred_session_ids: { smeta: 'с-1' } })
   })
 
   it('ядро молчит — открываем привязку и НИЧЕГО не переписываем', async () => {
@@ -505,7 +561,7 @@ describe('скрытие', () => {
 
     await setSpecialistHidden('smeta', false)
 
-    expect(request.mock.calls[0][1]).toMatchObject({ ui_meta: { aecpilot: { hidden: false } } })
+    expect(configured()).toMatchObject({ ui_meta: { aecpilot: { hidden: false } } })
   })
 
   it('негодное имя до ядра не доходит', async () => {

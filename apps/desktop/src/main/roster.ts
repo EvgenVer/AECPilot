@@ -145,9 +145,44 @@ function expectedRevision(revision: number | undefined): Record<string, unknown>
   return revision === undefined ? {} : { ui_meta_expected_revisions: { [OUR_META_KEY]: revision } }
 }
 
-/** Меняет наши поля и описание. Отсутствующее поле не отправляется вовсе — см.
- * `metaPatch`: ядро сливает `ui_meta` по ключам, и пустое значение затёрло бы
- * то, что поставили на другой машине. */
+/**
+ * Наши поля специалиста, как они лежат в ядре СЕЙЧАС.
+ *
+ * Нужно перед КАЖДОЙ записью, и это не осторожность. ЗАМЕРЕНО на живом ядре
+ * 0.20.5 (`runtime/ui-meta-merge-probe.mjs`): ядро сливает `ui_meta` по ключам
+ * ВЕРХНЕГО уровня, то есть по `aecpilot` целиком. Отправить `{aecpilot: {title}}`
+ * — значит стереть роль, облик, признак скрытия, привязку постоянного чата и
+ * состав комнат. Первая версия этого файла писала именно так, полагаясь на
+ * слияние по нашим полям; проба показала обратное.
+ */
+async function currentMeta(name: string): Promise<Record<string, unknown>> {
+  try {
+    const answer = (await core().request('profiles.list', {})) as { profiles?: unknown[] }
+    const row = (answer?.profiles ?? []).find(
+      (one) => typeof one === 'object' && one !== null && (one as { name?: unknown }).name === name
+    ) as { ui_meta?: Record<string, unknown> } | undefined
+
+    const ours = row?.ui_meta?.[OUR_META_KEY]
+    return typeof ours === 'object' && ours !== null ? { ...(ours as Record<string, unknown>) } : {}
+  } catch {
+    // Не прочиталось — писать вслепую нельзя: это и есть та самая потеря.
+    // Пустой блок здесь означает «поверх ничего не кладём», а вызывающий
+    // получит отказ от самой записи, если она не удастся.
+    return {}
+  }
+}
+
+/** Наш блок целиком: то, что лежит, плюс правка. */
+function wholeMeta(
+  existing: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const ours = (patch[OUR_META_KEY] ?? {}) as Record<string, unknown>
+  return { [OUR_META_KEY]: { ...existing, ...ours } }
+}
+
+/** Меняет наши поля и описание. Отсутствующее поле не меняется — но блок
+ * отправляется ЦЕЛИКОМ поверх прочитанного: см. `currentMeta`. */
 export async function saveSpecialist(input: SpecialistInput): Promise<SpecialistOutcome> {
   if (!isValidSpecialistName(input.name)) {
     return { ok: false, error: 'Недопустимое имя специалиста' }
@@ -155,11 +190,14 @@ export async function saveSpecialist(input: SpecialistInput): Promise<Specialist
 
   const params: Record<string, unknown> = {
     name: input.name,
-    ui_meta: metaPatch({
-      ...(input.title === undefined ? {} : { title: input.title }),
-      ...(input.role === undefined ? {} : { role: input.role }),
-      ...(input.face === undefined ? {} : { face: input.face })
-    }),
+    ui_meta: wholeMeta(
+      await currentMeta(input.name),
+      metaPatch({
+        ...(input.title === undefined ? {} : { title: input.title }),
+        ...(input.role === undefined ? {} : { role: input.role }),
+        ...(input.face === undefined ? {} : { face: input.face })
+      })
+    ),
     ...expectedRevision(input.revision)
   }
   if (input.description !== undefined) params.description = input.description
@@ -310,7 +348,7 @@ export async function setSpecialistHidden(
   try {
     const answer = await core().request('profiles.configure', {
       name,
-      ui_meta: metaPatch({ hidden }),
+      ui_meta: wholeMeta(await currentMeta(name), metaPatch({ hidden })),
       ...expectedRevision(revision)
     })
     const outcome = saveOutcome(answer)
@@ -474,7 +512,7 @@ async function rememberChat(name: string, sessionId: string): Promise<void> {
   try {
     await core().request('profiles.configure', {
       name,
-      ui_meta: metaPatch({ chat: sessionId })
+      ui_meta: wholeMeta(await currentMeta(name), metaPatch({ chat: sessionId }))
     })
   } catch (error: unknown) {
     // Привязка не легла — чат всё равно открыт. Молча потерять его нельзя, но
