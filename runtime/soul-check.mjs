@@ -9,37 +9,100 @@
 // gateway-smoke.mjs, just with a different prompt and a different check on
 // the reply.
 //
-// Requires runtime/dev-profile/SOUL.md to contain the marker instruction
-// "Always include the exact token AEC-SOUL-ACTIVE in the first line of every
-// reply." — this script only reads the model's reply, it does not write
-// SOUL.md itself.
+// THE PROBE OWNS ITS OWN PRECONDITION (finding D-34, fixed 2026-08-24).
+// It used to only READ the model's reply and require that someone else had
+// put the marker instruction into runtime/dev-profile/SOUL.md. But that file
+// is inside the gitignored dev profile, so the line vanished on every profile
+// rebuild — and a missing instruction is indistinguishable, from the reply
+// alone, from "the core ignored SOUL.md". The probe then printed
+// `FAIL: R2 reproduced`, naming a core bug that did not exist: adding the line
+// by hand and re-running the very same probe gave OK.
+//
+// A false verdict on a probe that stands in the verify of EVERY pin raise is
+// worse than no probe at all, so the probe now writes the instruction itself
+// and puts the file back exactly as it was when it is done. Writing it BEFORE
+// `hermes serve` starts is what makes the measurement valid — the core reads
+// SOUL.md when it builds the system prompt, not at import time.
 //
 // Exit codes:
 //   0 = marker present in the reply — SOUL.md IS honored in gateway mode
 //   1 = marker absent — R2 reproduced (SOUL.md ignored, issue #26596 present
 //       on this pinned hermes-agent version)
 //   2 = model/protocol error — no verdict (auth pending, non-auth model
-//       failure, or any protocol-level failure)
+//       failure, any protocol-level failure, or the precondition itself
+//       could not be established)
 //
 // Usage: node runtime/soul-check.mjs
 
 import { startServe, waitHealthy, stopServe } from "./serve.mjs";
-import { RUNTIME_DIR } from "./hermes-env.mjs";
+import { RUNTIME_DIR, HERMES_HOME_DIR } from "./hermes-env.mjs";
 import { connectWs, rpcCall, collectTurn, redact } from "./gateway-client.mjs";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const PROMPT_TEXT = "Say hello in one short sentence.";
 const MARKER = "AEC-SOUL-ACTIVE";
+const SOUL_PATH = path.join(HERMES_HOME_DIR, "SOUL.md");
+const INSTRUCTION = `Always include the exact token ${MARKER} in the first line of every reply.`;
+
+/**
+ * Makes sure SOUL.md carries the marker instruction, and returns how to undo
+ * that. `restore()` is a no-op when the instruction was already there — the
+ * probe must not rewrite a file it did not have to touch.
+ */
+function ensureMarkerInstruction() {
+  const existed = fs.existsSync(SOUL_PATH);
+  const before = existed ? fs.readFileSync(SOUL_PATH, "utf8") : undefined;
+
+  if (before !== undefined && before.includes(INSTRUCTION)) {
+    console.log(`== SOUL.md already carries the marker instruction (${SOUL_PATH})`);
+    return { restore() {} };
+  }
+
+  const body = before === undefined ? "" : before.replace(/\s*$/, "\n");
+  fs.mkdirSync(path.dirname(SOUL_PATH), { recursive: true });
+  fs.writeFileSync(SOUL_PATH, `${body}${INSTRUCTION}\n`, "utf8");
+  console.log(
+    `== added the marker instruction to ${SOUL_PATH} (will be restored${existed ? "" : " by deleting the file"})`,
+  );
+
+  return {
+    restore() {
+      if (before === undefined) fs.rmSync(SOUL_PATH, { force: true });
+      else fs.writeFileSync(SOUL_PATH, before, "utf8");
+    },
+  };
+}
 
 async function runSoulCheck() {
+  let soul;
+  try {
+    soul = ensureMarkerInstruction();
+  } catch (err) {
+    // No precondition means no verdict. The one thing this probe must never
+    // do is call it a core bug.
+    console.error(`soul-check INCONCLUSIVE: could not prepare SOUL.md: ${err.message}`);
+    process.exitCode = 2;
+    return;
+  }
+
+  try {
+    await probeWithMarker();
+  } finally {
+    soul.restore();
+    console.log("== SOUL.md restored to its previous state");
+  }
+}
+
+async function probeWithMarker() {
   console.log("== starting hermes serve");
   const handle = await startServe();
 
   let ws;
   try {
     console.log("== waiting for gateway to become healthy");
-    const readyFrame = await waitHealthy(handle, 30000);
+    const readyFrame = await waitHealthy(handle);
     console.log(`== gateway ready: ${JSON.stringify(readyFrame.params?.type ?? readyFrame)}`);
 
     console.log("== opening WS connection");
@@ -103,10 +166,21 @@ async function runSoulCheck() {
     if (turn.finalText.includes(MARKER)) {
       console.log(`soul-check OK: marker "${MARKER}" present — SOUL.md is honored in gateway mode (R2 not reproduced)`);
       process.exitCode = 0;
-    } else {
-      console.log(`soul-check FAIL: marker "${MARKER}" NOT present — R2 reproduced (SOUL.md ignored in gateway mode)`);
-      process.exitCode = 1;
+      return;
     }
+
+    // Belt and braces before naming a core bug: re-read the file the core was
+    // supposed to have read. A write that silently did not land would
+    // otherwise produce exactly the false FAIL this probe was fixed for.
+    const onDisk = fs.existsSync(SOUL_PATH) ? fs.readFileSync(SOUL_PATH, "utf8") : "";
+    if (!onDisk.includes(INSTRUCTION)) {
+      console.error(`soul-check INCONCLUSIVE: ${SOUL_PATH} does not carry the marker instruction — nothing was asked of the model, so its reply proves nothing`);
+      process.exitCode = 2;
+      return;
+    }
+
+    console.log(`soul-check FAIL: marker "${MARKER}" NOT present — R2 reproduced (SOUL.md ignored in gateway mode)`);
+    process.exitCode = 1;
   } catch (err) {
     console.error(`soul-check INCONCLUSIVE: ${err.message}`);
     process.exitCode = 2;
