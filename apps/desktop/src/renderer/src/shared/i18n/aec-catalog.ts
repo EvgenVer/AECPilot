@@ -65,6 +65,32 @@ export const aecLocales: PluginLocaleBundles = {
       localOnly: 'Saved on this machine only: this core cannot store it server-side yet.',
       failed: 'Could not save'
     },
+    rooms: {
+      title: 'Rooms',
+      new: 'New room',
+      cancel: 'Cancel',
+      pick: 'Pick two to six specialists',
+      create: 'Create',
+      none: 'No rooms yet — a room is a meeting of several specialists.',
+      needsYou: 'needs you',
+      disband: 'Disband the room',
+      you: 'You',
+      say: 'Message to the room',
+      send: 'Send',
+      asking: 'Asking the room...',
+      willAnswer: (answering: string, total: string) => `${answering} of ${total} will answer`,
+      feed: 'What the room is doing',
+      event: {
+        queued: 'in the queue',
+        working: 'thinking',
+        answered: 'answered',
+        passed: 'nothing to add',
+        timeout: 'did not answer in time',
+        failed: 'could not answer',
+        cancelled: 'cancelled',
+        finished: 'the round is over'
+      }
+    },
     common: {
       cancel: 'Cancel',
       close: 'Close',
@@ -447,6 +473,32 @@ export const aecLocales: PluginLocaleBundles = {
       description: 'Чем занимается',
       localOnly: 'Сохранено только на этой машине: это ядро пока не умеет хранить такое у себя.',
       failed: 'Не удалось сохранить'
+    },
+    rooms: {
+      title: 'Комнаты',
+      new: 'Новая комната',
+      cancel: 'Отмена',
+      pick: 'Выберите от двух до шести специалистов',
+      create: 'Создать',
+      none: 'Комнат пока нет — комната это совещание нескольких специалистов.',
+      needsYou: 'нужны вы',
+      disband: 'Распустить комнату',
+      you: 'Вы',
+      say: 'Сообщение в комнату',
+      send: 'Отправить',
+      asking: 'Спрашиваю комнату...',
+      willAnswer: (answering: string, total: string) => `ответят ${answering} из ${total}`,
+      feed: 'Что делает комната',
+      event: {
+        queued: 'в очереди',
+        working: 'думает',
+        answered: 'ответил',
+        passed: 'нечего добавить',
+        timeout: 'не ответил в срок',
+        failed: 'не смог ответить',
+        cancelled: 'отменён',
+        finished: 'круг окончен'
+      }
     },
     common: {
       cancel: 'Отмена',

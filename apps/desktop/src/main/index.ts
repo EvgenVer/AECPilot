@@ -13,6 +13,7 @@ import {
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -92,6 +93,16 @@ import {
   PREVIEW_OUTSIDE_PROJECT_ERROR,
   resolveArtifactPath
 } from './artifact-files-pure'
+import { loadTranscript, saveTranscript } from './group-chats'
+import {
+  askRoom,
+  configureGroups,
+  createRoom,
+  disbandRoom,
+  editRoom,
+  listRooms,
+  willAnswer
+} from './groups'
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
 import {
@@ -107,6 +118,7 @@ import {
   specialistAvatar,
   type SpecialistInput
 } from './roster'
+import type { SpecialistFace } from './roster-pure'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import {
   configureRoutines,
@@ -2335,6 +2347,69 @@ ipcMain.handle('roster:list', async () => {
   // списка, но не из работы, и `@имя` до скрытого доходит (задача 3C.8).
   await syncRosterTool(roster)
   return roster
+})
+
+// Задача 3C.6. Комнаты. Ведёт круг ГЛАВНЫЙ ПРОЦЕСС: реплики показываются в
+// нашей комнате, и вставлять их больше некуда — инструмент агента был бы лишним
+// слоем (в отличие от `@имя`, см. 3C.7).
+configureGroups({
+  request: async (method, params) => {
+    if (!gateway) throw new Error('нет связи с ядром')
+    return gateway.request(method as Parameters<typeof gateway.request>[0], params as never)
+  },
+  // Подписка берётся в момент хода: клиент шлюза пересоздаётся при
+  // переподключении, и запомненная однажды ссылка вела бы на мёртвый.
+  onGatewayEvent: (listener) => (gateway ? gateway.onEvent((event) => listener(event)) : () => {}),
+  loadTranscript,
+  saveTranscript,
+  // Идентификатор комнаты живёт в полях профиля на сервере, то есть его видят
+  // все машины: время плюс случайность, чтобы две машины не завели один и тот
+  // же ключ в одну секунду.
+  newRoomId: () => `room-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+})
+
+ipcMain.handle('groups:list', () => listRooms())
+
+ipcMain.handle('groups:transcript', (_event, id: unknown) =>
+  loadTranscript(typeof id === 'string' ? id : '')
+)
+
+ipcMain.handle('groups:create', (_event, payload: unknown) => {
+  const { members, title } = (payload ?? {}) as { members?: unknown; title?: unknown }
+  return createRoom(
+    Array.isArray(members) ? members.filter((one): one is string => typeof one === 'string') : [],
+    typeof title === 'string' ? title : ''
+  )
+})
+
+ipcMain.handle('groups:edit', (_event, payload: unknown) => {
+  const { id, title, face } = (payload ?? {}) as Record<string, unknown>
+  return editRoom(typeof id === 'string' ? id : '', {
+    ...(typeof title === 'string' ? { title } : {}),
+    ...(face === undefined ? {} : { face: face as SpecialistFace | null })
+  })
+})
+
+ipcMain.handle('groups:disband', (_event, id: unknown) =>
+  disbandRoom(typeof id === 'string' ? id : '')
+)
+
+// Сколько участников ответит — ДО отправки. Разница между «спросил одного» и
+// «спросил шестерых» это разница в счёте, и узнавать её постфактум человек не
+// должен.
+ipcMain.handle('groups:will-answer', (_event, payload: unknown) => {
+  const { id, text } = (payload ?? {}) as Record<string, unknown>
+  return willAnswer(typeof id === 'string' ? id : '', typeof text === 'string' ? text : '')
+})
+
+ipcMain.handle('groups:ask', (_event, payload: unknown) => {
+  const { id, text } = (payload ?? {}) as Record<string, unknown>
+  const roomId = typeof id === 'string' ? id : ''
+  // Лента событий идёт в окно по ходу круга, а не одним куском в конце: без неё
+  // комната, где двое думают, а один промолчал, выглядит зависшей.
+  return askRoom(roomId, typeof text === 'string' ? text : '', (event) =>
+    broadcastToWindows('groups:event', { room: roomId, ...event })
+  )
 })
 
 // Задача 3C.5. Рутины специалиста. Профиль передаётся ЯВНО в каждом вызове: ядро

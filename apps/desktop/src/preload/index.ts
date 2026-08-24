@@ -44,6 +44,19 @@ const api: AecpilotApi = {
   getSpecialistAvatar: (name) => ipcRenderer.invoke('roster:avatar', name),
   openSpecialistChat: (payload) => ipcRenderer.invoke('roster:open-chat', payload),
   hideSpecialist: (payload) => ipcRenderer.invoke('roster:hide', payload),
+  listRooms: () => ipcRenderer.invoke('groups:list'),
+  roomTranscript: (id) => ipcRenderer.invoke('groups:transcript', id),
+  createRoom: (payload) => ipcRenderer.invoke('groups:create', payload),
+  editRoom: (payload) => ipcRenderer.invoke('groups:edit', payload),
+  disbandRoom: (id) => ipcRenderer.invoke('groups:disband', id),
+  willAnswerInRoom: (payload) => ipcRenderer.invoke('groups:will-answer', payload),
+  askRoom: (payload) => ipcRenderer.invoke('groups:ask', payload),
+  onRoomEvent: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: Parameters<typeof cb>[0]): void =>
+      cb(value)
+    ipcRenderer.on('groups:event', listener)
+    return () => ipcRenderer.removeListener('groups:event', listener)
+  },
   listRoutines: (profile) => ipcRenderer.invoke('roster:routines', profile),
   createRoutine: (payload) => ipcRenderer.invoke('roster:routine-create', payload),
   setRoutineEnabled: (payload) => ipcRenderer.invoke('roster:routine-enabled', payload),

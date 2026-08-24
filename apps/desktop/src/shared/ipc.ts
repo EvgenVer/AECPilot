@@ -215,6 +215,38 @@ export interface SpecialistInputView {
   revision?: number
 }
 
+/** Комната, как её видит окно (задача 3C.6). */
+export interface GroupRoomView {
+  id: string
+  title: string
+  /** Имена профилей участников, в порядке добавления. */
+  members: string[]
+  face: SpecialistFaceView | null
+  /** Кто-то из участников позвал человека. Снимается его же сообщением. */
+  needsYou: boolean
+}
+
+/** Одна реплика переписки. Пустое `from` — сказал человек. */
+export interface GroupTurnView {
+  from: string
+  text: string
+}
+
+/** Что комната делает прямо сейчас. Лента не сохраняется. */
+export interface RoomEventView {
+  room: string
+  member: string
+  kind:
+    'queued' | 'working' | 'answered' | 'passed' | 'timeout' | 'failed' | 'cancelled' | 'finished'
+  round: number
+}
+
+export interface RoomResultView {
+  ok: boolean
+  id?: string
+  error?: string
+}
+
 export interface RoutineView {
   id: string
   name: string
@@ -950,6 +982,33 @@ export interface AecpilotApi {
     hidden: boolean
     revision?: number
   }): Promise<SpecialistResultView>
+  /** Комнаты (задача 3C.6, контракт — specs/agent-roster.md §Р5). От двух до
+   * шести специалистов и человек; круг ведёт главный процесс.
+   *
+   * СОСТАВ комнаты живёт в полях профиля каждого участника, то есть на сервере:
+   * за другим компьютером с тем же ядром видны те же комнаты. ПЕРЕПИСКА лежит
+   * рядом с приложением — в полях профиля предел 64 КБ на весь блок, и растущий
+   * транскрипт сломал бы список специалистов. */
+  listRooms(): Promise<GroupRoomView[]>
+  roomTranscript(id: string): Promise<GroupTurnView[]>
+  createRoom(payload: { members: string[]; title?: string }): Promise<RoomResultView>
+  editRoom(payload: {
+    id: string
+    title?: string
+    face?: SpecialistFaceView | null
+  }): Promise<RoomResultView>
+  disbandRoom(id: string): Promise<RoomResultView>
+  /** Сколько участников ответит — ДО отправки. Разница между «спросил одного» и
+   * «спросил шестерых» это разница в счёте. */
+  willAnswerInRoom(payload: { id: string; text: string }): Promise<string[]>
+  askRoom(payload: {
+    id: string
+    text: string
+  }): Promise<{ ok: boolean; error?: string; turns?: GroupTurnView[] }>
+  /** Лента круга: поставлен в очередь, работает, ответил, промолчал, не успел,
+   * сорвался, завершён. НЕ сохраняется — без неё комната, где двое думают, а
+   * один промолчал, выглядит зависшей. */
+  onRoomEvent(cb: (event: RoomEventView) => void): () => void
   /** Рутины специалиста (задача 3C.5): расписания, привязанные к тому, кто их
    * выполняет. Профиль передаётся явно — ядро хранит их по профилям. */
   listRoutines(profile: string): Promise<{ routines: RoutineView[]; totalOfAll: number }>

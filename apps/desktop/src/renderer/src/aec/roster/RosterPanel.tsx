@@ -20,6 +20,7 @@ import type { SpecialistView } from '../../../../shared/ipc'
 
 import { setCanonicalChats } from './register-canonical-guard'
 import { setMentionRoster } from './register-mentions'
+import { GroupPanel } from './GroupPanel'
 import { SpecialistDialog, type SpecialistDraft } from './SpecialistDialog'
 import { SpecialistFace } from './SpecialistFace'
 
@@ -328,6 +329,12 @@ export function RosterPanel(): React.JSX.Element {
           ))}
         </ul>
       )}
+
+      {/* Комнаты — под списком специалистов: «с кем я работаю» и «кого я
+          собираю вместе» это один взгляд, а не два экрана (задача 3C.6). */}
+      <div className="border-t border-(--ui-border) pt-2">
+        <GroupPanel roster={roster ?? []} />
+      </div>
 
       {editing && (
         <SpecialistDialog

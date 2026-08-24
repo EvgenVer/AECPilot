@@ -44,6 +44,7 @@ const listSkills = vi.fn()
 const listToolsets = vi.fn()
 const openSpecialistChat = vi.fn()
 const hideSpecialist = vi.fn()
+const listRooms = vi.fn()
 const listRoutines = vi.fn()
 const createRoutine = vi.fn()
 const setRoutineEnabled = vi.fn()
@@ -71,6 +72,9 @@ beforeEach(() => {
   listSkills.mockResolvedValue([{ name: 'aec-qa' }, { name: 'aec-docgen' }])
   openSpecialistChat.mockResolvedValue({ ok: true, sessionId: 'с-1', created: false })
   hideSpecialist.mockResolvedValue({ ok: true, outcome: 'server' })
+  // Роестр рисует под собой комнаты (3C.6). Пустой список, а не отсутствие
+  // метода: иначе экран проверялся бы в мире, где вызов падает.
+  listRooms.mockResolvedValue([])
   listRoutines.mockResolvedValue({ routines: [], totalOfAll: 0 })
   createRoutine.mockResolvedValue({ ok: true })
   setRoutineEnabled.mockResolvedValue({ ok: true })
@@ -97,6 +101,8 @@ beforeEach(() => {
     listToolsets,
     openSpecialistChat,
     hideSpecialist,
+    listRooms,
+    onRoomEvent: () => () => {},
     listRoutines,
     createRoutine,
     setRoutineEnabled,
