@@ -45,6 +45,30 @@ EMBEDDING_DIMENSIONS = {
 # under it.
 EXTRACTION_MODEL = "gpt-5.4-mini-2026-03-17"
 
+# The language entity names are written in (finding D-38).
+#
+# MEASURED 2026-08-24, and it corrects the finding's own diagnosis. Russian
+# documents were producing half-translated, half-transliterated names —
+# `Severnaya Site`, `Shumozashchitny Screen`, `Pritychnaya Ustanovka P-1`,
+# `Exhaust Unit V-1` beside `Vytyazhnaya Ustanovka V-1` — so one entity landed
+# in the graph twice, under two languages, and a duplicate does not merely take
+# up room: it splits one entity's relations across two nodes.
+#
+# The cause is not the model being wilful and not task 5.14 (the agent's reply
+# language), which is where the finding sent it. It is a default we never set:
+# LightRAG's extraction prompt carries "The entire output (entity names,
+# keywords, and descriptions) must be written in `{language}`", the value comes
+# from `addon_params["language"]`, and its default is
+# `DEFAULT_SUMMARY_LANGUAGE = "English"` (lightrag/constants.py). We passed no
+# `addon_params` at all, so the model was being told, on every Russian
+# document, to write the output in English — and it obliged, translating some
+# names and transliterating others.
+#
+# Any single value removes the split; Russian is the one this product's readers
+# actually read, and it lets their own rule "proper nouns keep their original
+# language" work in our favour instead of against it.
+EXTRACTION_LANGUAGE = "Russian"
+
 API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
 # How patiently an embedding call waits out a rate limit. Seven attempts
@@ -66,6 +90,7 @@ class RagSettings:
     embedding_model: str
     embedding_dim: int
     extraction_model: str = EXTRACTION_MODEL
+    extraction_language: str = EXTRACTION_LANGUAGE
 
 
 def index_dir(vault: Path | str) -> Path:
@@ -112,7 +137,13 @@ def load_settings(project_path: Path | str) -> RagSettings:
         known = ", ".join(sorted(EMBEDDING_DIMENSIONS))
         raise RagIndexError(f"неизвестная embedding-модель {model!r} в {path}; известные: {known}")
 
-    return RagSettings(embedding_model=model, embedding_dim=EMBEDDING_DIMENSIONS[model])
+    language = ((settings or {}).get("extraction_language") or "").strip() or EXTRACTION_LANGUAGE
+
+    return RagSettings(
+        embedding_model=model,
+        embedding_dim=EMBEDDING_DIMENSIONS[model],
+        extraction_language=language,
+    )
 
 
 def read_fingerprint(vault: Path | str) -> dict[str, Any] | None:
@@ -144,6 +175,24 @@ def check_compatible(vault: Path | str, settings: RagSettings) -> None:
             "векторы разных моделей несравнимы, нужен полный повторный ingest"
         )
 
+    # Язык извлечения проверяется по той же причине и с тем же исходом
+    # (находка D-38). Дописать в граф, построенный на другом языке, значит
+    # завести ВТОРОЕ имя каждой сущности — ровно тот дубль, ради устранения
+    # которого язык и задаётся. Молча смешать хуже, чем отказать: расщепление
+    # связей по двум узлам человек в ответе не увидит.
+    #
+    # У индексов, построенных до появления этого поля, его в отпечатке нет.
+    # Отсутствие — не расхождение: они собраны английским умолчанием LightRAG,
+    # и объявить их несовместимыми задним числом значило бы потребовать
+    # повторного ingest у того, кто ничего не менял.
+    language_built_with = fingerprint.get("extraction_language")
+    if language_built_with and language_built_with != settings.extraction_language:
+        raise RagIndexError(
+            f"индекс построен с языком извлечения {language_built_with!r}, "
+            f"а в настройках {settings.extraction_language!r}: одна сущность получит "
+            "два имени на двух языках, нужен полный повторный ingest"
+        )
+
 
 def write_fingerprint(vault: Path | str, settings: RagSettings) -> None:
     directory = index_dir(vault)
@@ -154,6 +203,7 @@ def write_fingerprint(vault: Path | str, settings: RagSettings) -> None:
                 "embedding_model": settings.embedding_model,
                 "embedding_dim": settings.embedding_dim,
                 "extraction_model": settings.extraction_model,
+                "extraction_language": settings.extraction_language,
                 "created_at": datetime.now(UTC).isoformat(),
             },
             ensure_ascii=False,
@@ -301,6 +351,11 @@ async def open_index(
         # graph that is also less fragmented. Re-check with the full eval (task
         # 6.6) — the phase-2 baseline was taken with gleaning on.
         entity_extract_max_gleaning=0,
+        # Находка D-38. Без этого LightRAG велит модели писать имена сущностей
+        # по-английски (`DEFAULT_SUMMARY_LANGUAGE`), и на русских документах
+        # одна сущность попадала в граф дважды: переводом и транслитерацией.
+        # Подробности и замер — у константы `EXTRACTION_LANGUAGE`.
+        addon_params={"language": settings.extraction_language},
     )
     rag.aec_chunk_registry = registry
     await rag.initialize_storages()

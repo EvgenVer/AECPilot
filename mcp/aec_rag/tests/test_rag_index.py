@@ -14,6 +14,7 @@ from aec_rag.project_config import ProjectConfigError
 from aec_rag.rag_index import (
     DEFAULT_EMBEDDING_MODEL,
     EMBEDDING_DIMENSIONS,
+    EXTRACTION_LANGUAGE,
     RagIndexError,
     RagSettings,
     index_dir,
@@ -174,3 +175,99 @@ async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
     # wrapper a second time — that is the double decoration their docstring
     # warns about.
     assert wrapper.embedding_dim != 3072
+
+
+# ---------------------------------------------------------------------------
+# Находка D-38: язык извлечения
+# ---------------------------------------------------------------------------
+
+
+def test_extraction_language_defaults_to_the_one_readers_actually_read(tmp_path):
+    """Без этого LightRAG велит писать имена сущностей по-английски, и русский
+    документ даёт одну сущность дважды: переводом и транслитерацией."""
+    assert load_settings(make_vault(tmp_path)).extraction_language == EXTRACTION_LANGUAGE
+
+
+def test_extraction_language_can_be_chosen_per_project(tmp_path):
+    vault = make_vault(tmp_path, {"extraction_language": "English"})
+
+    assert load_settings(vault).extraction_language == "English"
+
+
+def test_blank_extraction_language_means_not_chosen_yet(tmp_path):
+    vault = make_vault(tmp_path, {"extraction_language": "   "})
+
+    assert load_settings(vault).extraction_language == EXTRACTION_LANGUAGE
+
+
+@pytest.mark.anyio
+async def test_the_extraction_language_reaches_lightrag(tmp_path, monkeypatch):
+    """Проверяется именно ПЕРЕДАЧА: настройка, не доехавшая до `addon_params`,
+    ничего не меняет, а выглядит сделанной работой."""
+    vault = make_vault(tmp_path)
+    settings = load_settings(vault)
+
+    await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
+
+    # `open_index` берёт класс отложенным импортом (`from lightrag import
+    # LightRAG` в теле функции), поэтому подменяется он в СВОЁМ модуле.
+    import lightrag
+
+    seen = {}
+    real = lightrag.LightRAG
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(lightrag, "LightRAG", spy)
+    await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
+
+    assert seen["addon_params"] == {"language": EXTRACTION_LANGUAGE}
+
+
+@pytest.mark.anyio
+async def test_opening_records_the_language_the_index_was_built_in(tmp_path):
+    vault = make_vault(tmp_path)
+    settings = load_settings(vault)
+
+    await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
+
+    assert read_fingerprint(vault)["extraction_language"] == EXTRACTION_LANGUAGE
+
+
+@pytest.mark.anyio
+async def test_a_changed_extraction_language_refuses_to_open_and_says_why(tmp_path):
+    """D-38: дописать в граф на другом языке значит завести ВТОРОЕ имя каждой
+    сущности — ровно тот дубль, ради устранения которого язык и задаётся."""
+    vault = make_vault(tmp_path)
+    first = load_settings(vault)
+    await open_index(vault, first, embedding_func=stub_embedding(first), llm_func=stub_llm)
+
+    second = RagSettings(
+        embedding_model=first.embedding_model,
+        embedding_dim=first.embedding_dim,
+        extraction_language="English",
+    )
+    with pytest.raises(RagIndexError) as excinfo:
+        await open_index(vault, second, embedding_func=stub_embedding(second), llm_func=stub_llm)
+
+    message = str(excinfo.value)
+    assert EXTRACTION_LANGUAGE in message
+    assert "два имени на двух языках" in message
+
+
+@pytest.mark.anyio
+async def test_an_index_built_before_this_field_is_not_declared_incompatible(tmp_path):
+    """Старые индексы собраны английским умолчанием LightRAG и поля не несут.
+    Потребовать повторный ingest у того, кто ничего не менял, — не починка."""
+    vault = make_vault(tmp_path)
+    settings = load_settings(vault)
+    await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
+
+    path = index_dir(vault) / "aec-index.json"
+    old = json.loads(path.read_text(encoding="utf-8"))
+    del old["extraction_language"]
+    path.write_text(json.dumps(old, ensure_ascii=False), encoding="utf-8")
+
+    await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
