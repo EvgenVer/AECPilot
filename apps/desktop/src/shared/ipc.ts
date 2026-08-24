@@ -669,8 +669,7 @@ export type QuoteCheckResult =
  * значение: молчаливая неправда в этом проекте уже стоила дороже громкой.
  */
 export type GatewayRpcOutcome<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: { message: string; code?: number; data?: unknown } }
+  { ok: true; value: T } | { ok: false; error: { message: string; code?: number; data?: unknown } }
 
 export interface AecpilotApi {
   /** Whether to show the Welcome/"choose a project" screen instead of the
