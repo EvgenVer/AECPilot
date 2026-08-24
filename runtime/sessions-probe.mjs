@@ -88,7 +88,7 @@ const handle = await startServe({ port: PORT })
 let rpc
 const created = []
 try {
-  await waitHealthy(handle, 60000)
+  await waitHealthy(handle)
   rpc = await connect(handle)
 
   // --- Claim 3: does session.list carry cwd? -------------------------------

@@ -180,7 +180,7 @@ async function run() {
     console.log(`== зарегистрирован проект A (${A.sourceId})`);
 
     handle = await startServe();
-    await waitHealthy(handle, 60000);
+    await waitHealthy(handle);
     const conn = await connectWs(handle.wsUrl);
     ws = conn.ws;
     console.log(`== кэш схем до первого вызова: ${cacheFingerprints()}`);

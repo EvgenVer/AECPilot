@@ -89,7 +89,7 @@ function connect(handle) {
 const handle = await startServe({ port: PORT })
 let rpc
 try {
-  await waitHealthy(handle, 60000)
+  await waitHealthy(handle)
   rpc = await connect(handle)
 
   // --- 1. What is installed -------------------------------------------------

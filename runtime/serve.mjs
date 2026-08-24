@@ -119,12 +119,38 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
 }
 
 /**
+ * How long a `hermes serve` may take to answer before we call it dead.
+ *
+ * MEASURED, 2026-08-24 (finding D-36). Two runs back to back on the dev
+ * machine, timestamps taken off the child's own stdout/stderr:
+ *   cold: spawn → 2.2s one config warning → SILENCE → 29.1s "HERMES_BACKEND_READY"
+ *         → healthy at 29.6s
+ *   warm: spawn → 0.7s warning → 4.2s ready → healthy at 4.6s
+ *
+ * The old default was 30000 — four hundred milliseconds of margin over a cold
+ * start. That is a coin flip, not a limit, and when it lost, the message said
+ * "gateway did not become healthy", which reads as a broken core. The finding
+ * blamed a one-time config migration after a pin raise; that is NOT what this
+ * is (the serve path never calls `migrate_config` — only `check_config_version`,
+ * and only for the status endpoint). It is the plain cost of a cold start of a
+ * large Python program, it happens to ANY first run after the file cache goes
+ * cold, and it is silent for 27 of its 29 seconds — so no "still making
+ * progress" signal exists to wait on. The only honest fix is a window with
+ * real margin over the measured cold number.
+ *
+ * A dead gateway is still reported at once, not after this window: the
+ * process-exit and process-error listeners below reject immediately. Only
+ * "alive but never opens the port" pays the full wait.
+ */
+export const HEALTH_TIMEOUT_MS = 120000;
+
+/**
  * Waits until the gateway is healthy: opens the /api/ws WebSocket and
  * resolves with the first JSON-RPC frame the server sends (the
  * `gateway.ready` event, or any JSON-RPC error/response — both prove the
  * gateway is alive). Rejects on timeout or if the process exits first.
  */
-export function waitHealthy(serveHandle, timeoutMs = 30000) {
+export function waitHealthy(serveHandle, timeoutMs = HEALTH_TIMEOUT_MS) {
   const { proc, wsUrl } = serveHandle;
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -153,7 +179,15 @@ export function waitHealthy(serveHandle, timeoutMs = 30000) {
       if (Date.now() > deadline) {
         settled = true;
         cleanup();
-        reject(new Error(`gateway did not become healthy within ${timeoutMs}ms`));
+        // Name what we actually know instead of implying the core is broken:
+        // the process was still ALIVE the whole time (an exit would have
+        // rejected above), so this is "never opened the port", and its own
+        // output is the next place to look.
+        reject(
+          new Error(
+            `gateway did not become healthy within ${timeoutMs}ms — the hermes serve process is still running but never answered on ${wsUrl.split("?")[0]}; its output is in ${LOG_PATH}`,
+          ),
+        );
         return;
       }
 
@@ -272,7 +306,7 @@ async function runSmoke() {
 
   try {
     console.log("== waiting for gateway to become healthy");
-    const frame = await waitHealthy(handle, 30000);
+    const frame = await waitHealthy(handle);
     console.log("== JSON-RPC response received:");
     console.log(JSON.stringify(frame));
     process.exitCode = 0;

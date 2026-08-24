@@ -194,7 +194,7 @@ async function runCheck() {
     handle = await startServe();
 
     console.log("== waiting for gateway to become healthy");
-    const readyFrame = await waitHealthy(handle, 30000);
+    const readyFrame = await waitHealthy(handle);
     console.log(`== gateway ready: ${JSON.stringify(readyFrame.params?.type ?? readyFrame)}`);
 
     console.log("== opening WS connection");

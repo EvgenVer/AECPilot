@@ -109,7 +109,7 @@ let rpc
 let created = false
 const sessions = []
 try {
-  await waitHealthy(handle, 60000)
+  await waitHealthy(handle)
   rpc = await connect(handle)
 
   // --- 1. The list --------------------------------------------------------
