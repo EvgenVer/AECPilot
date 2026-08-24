@@ -43,6 +43,7 @@ const createRoom = vi.fn()
 const disbandRoom = vi.fn()
 const willAnswerInRoom = vi.fn()
 const askRoom = vi.fn()
+const editRoom = vi.fn()
 
 /** Подписчики ленты круга: главный процесс шлёт события по ходу разговора. */
 let feed: ((event: RoomEventView) => void)[] = []
@@ -77,6 +78,7 @@ beforeEach(() => {
   disbandRoom.mockResolvedValue({ ok: true })
   willAnswerInRoom.mockResolvedValue(['smeta', 'elektrika', 'gip'])
   askRoom.mockResolvedValue({ ok: true, turns: [] })
+  editRoom.mockResolvedValue({ ok: true })
 
   window.aecpilot = {
     listRooms,
@@ -85,6 +87,7 @@ beforeEach(() => {
     disbandRoom,
     willAnswerInRoom,
     askRoom,
+    editRoom,
     onRoomEvent: (cb: (event: RoomEventView) => void) => {
       feed.push(cb)
       return () => {
@@ -196,6 +199,32 @@ describe('почему тихо', () => {
     feed.forEach((cb) => cb({ room: 'другая', member: 'gip', kind: 'passed', round: 1 }))
 
     await waitFor(() => expect(screen.queryByText(/Что делает комната/)).toBeNull())
+  })
+})
+
+describe('имя комнаты', () => {
+  it('правится на месте и не трогает сессии участников', async () => {
+    // Имя — подпись, а не адрес: менять из-за него разговор было бы подменой.
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+
+    const box = await screen.findByLabelText('Имя комнаты')
+    fireEvent.blur(box, { target: { value: 'Совещание по разделу 5' } })
+
+    await waitFor(() =>
+      expect(editRoom).toHaveBeenCalledWith({ id: 'к-1', title: 'Совещание по разделу 5' })
+    )
+  })
+
+  it('то же имя записью не считается', async () => {
+    show()
+    fireEvent.click(await screen.findByText('Раздел 5'))
+
+    fireEvent.blur(await screen.findByLabelText('Имя комнаты'), {
+      target: { value: 'Раздел 5' }
+    })
+
+    expect(editRoom).not.toHaveBeenCalled()
   })
 })
 

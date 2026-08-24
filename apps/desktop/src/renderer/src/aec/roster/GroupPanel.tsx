@@ -210,6 +210,11 @@ function RoomView({
     }
   }, [draft, room.id])
 
+  const rename = useMutation({
+    mutationFn: (title: string) => window.aecpilot.editRoom({ id: room.id, title }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ROOMS_KEY })
+  })
+
   const ask = useMutation({
     mutationFn: (text: string) => window.aecpilot.askRoom({ id: room.id, text }),
     onSuccess: async () => {
@@ -240,7 +245,18 @@ function RoomView({
         <Button onClick={onBack} size="sm" variant="text">
           <Codicon name="arrow-left" />
         </Button>
-        <span className="flex-1 truncate text-xs">{room.title}</span>
+        {/* Переименование НЕ трогает сессии участников: имя — подпись, а не
+            адрес, и менять из-за него разговор было бы подменой. */}
+        <input
+          aria-label={t('rooms.rename')}
+          className="flex-1 truncate bg-transparent text-xs text-(--ui-text-primary) outline-none"
+          defaultValue={room.title}
+          key={room.id}
+          onBlur={(event) => {
+            const title = event.target.value.trim()
+            if (title !== '' && title !== room.title) rename.mutate(title)
+          }}
+        />
         <Button onClick={onDisband} size="sm" variant="text" title={t('rooms.disband')}>
           <Codicon name="trash" />
         </Button>
