@@ -65,6 +65,7 @@ def test_second_scan_without_changes_is_unchanged_and_skips_hashing(tmp_path, mo
         "changed": [],
         "deleted": [],
         "unchanged": 3,
+        "unreadable_dirs": [],
         "root_unavailable": False,
     }
 
@@ -213,6 +214,7 @@ def test_scan_with_unavailable_root_leaves_index_untouched(tmp_path):
         "changed": [],
         "deleted": [],
         "unchanged": 0,
+        "unreadable_dirs": [],
         "root_unavailable": True,
     }
 
@@ -477,3 +479,97 @@ def test_detach_source_leaves_other_sources_untouched(tmp_path):
     ).fetchone()
     assert row_1[0] == "detached"
     assert row_2[0] == "ok"
+
+
+# --- Находка D-46: недоступный каталог не равен удалённому ------------------
+#
+# Каталог, в который обход не смог заглянуть, раньше просто не давал файлов, а
+# сверка внизу `scan_source` не отличала «не смотрели» от «нет» и штамповала
+# всему поддереву `deleted`. Противник для этого не нужен — хватает отказа в
+# правах или файла-заглушки OneDrive.
+#
+# Недоступность подделывается подменой `os.scandir`, а не правами на диске:
+# на Windows chmod каталогу ничего не значит, а icacls требует прав и делает
+# тест зависимым от машины. Подмена бьёт ровно в ту ветку, ради которой тест
+# написан.
+
+
+def _scandir_failing_on(target: Path):
+    """`os.scandir`, падающий на `target` и обычный на всём остальном."""
+    real = os.scandir
+
+    def fake(path):
+        if Path(path) == target:
+            raise PermissionError(13, "Отказано в доступе", str(target))
+        return real(path)
+
+    return fake
+
+
+def test_unreadable_subdir_does_not_delete_what_is_under_it(tmp_path, monkeypatch):
+    root = tmp_path / "source-root"
+    (root / "закрытая").mkdir(parents=True)
+    (root / "видимый.txt").write_text("виден", encoding="utf-8")
+    (root / "закрытая" / "внутри.txt").write_text("внутри", encoding="utf-8")
+    conn = open_index(tmp_path / "index.db")
+
+    first = scan_source(conn, "src", root)
+    assert set(first["added"]) == {"видимый.txt", "закрытая/внутри.txt"}
+    assert first["unreadable_dirs"] == []
+
+    monkeypatch.setattr(os, "scandir", _scandir_failing_on(root / "закрытая"))
+    report = scan_source(conn, "src", root)
+
+    # Главное: строка уцелела. До правки она уезжала в `deleted`, а за ней —
+    # и куски документа из индекса.
+    assert report["deleted"] == []
+    assert report["unreadable_dirs"] == ["закрытая"]
+    status = conn.execute(
+        "SELECT status FROM files WHERE source_id = 'src' AND rel_path = 'закрытая/внутри.txt'"
+    ).fetchone()[0]
+    assert status == "ok"
+
+
+def test_a_real_deletion_is_still_reported_while_another_dir_is_unreadable(tmp_path, monkeypatch):
+    """Правка не должна превратиться в «никогда ничего не удалять»."""
+    root = tmp_path / "source-root"
+    (root / "закрытая").mkdir(parents=True)
+    (root / "закрытая" / "внутри.txt").write_text("внутри", encoding="utf-8")
+    (root / "пропадёт.txt").write_text("пока здесь", encoding="utf-8")
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "src", root)
+
+    (root / "пропадёт.txt").unlink()
+    monkeypatch.setattr(os, "scandir", _scandir_failing_on(root / "закрытая"))
+    report = scan_source(conn, "src", root)
+
+    assert report["deleted"] == ["пропадёт.txt"]
+    assert report["unreadable_dirs"] == ["закрытая"]
+
+
+def test_unreadable_dir_is_not_counted_as_unchanged(tmp_path, monkeypatch):
+    """«unchanged» значит «посмотрели, то же самое». Мы не смотрели."""
+    root = tmp_path / "source-root"
+    (root / "закрытая").mkdir(parents=True)
+    (root / "закрытая" / "внутри.txt").write_text("внутри", encoding="utf-8")
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "src", root)
+
+    monkeypatch.setattr(os, "scandir", _scandir_failing_on(root / "закрытая"))
+    report = scan_source(conn, "src", root)
+
+    assert report["unchanged"] == 0
+
+
+def test_walk_files_reports_the_unreadable_prefix(tmp_path, monkeypatch):
+    root = tmp_path / "source-root"
+    (root / "а" / "б").mkdir(parents=True)
+    (root / "а" / "б" / "файл.txt").write_text("x", encoding="utf-8")
+    (root / "рядом.txt").write_text("y", encoding="utf-8")
+
+    monkeypatch.setattr(os, "scandir", _scandir_failing_on(root / "а" / "б"))
+    unreadable: list[str] = []
+    files = sorted(p.name for p in indexer.walk_files(root, unreadable))
+
+    assert files == ["рядом.txt"]
+    assert unreadable == ["а/б"]

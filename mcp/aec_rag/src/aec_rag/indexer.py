@@ -34,7 +34,7 @@ def _iso_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def walk_files(root: Path | str) -> Iterator[Path]:
+def walk_files(root: Path | str, unreadable: list[str] | None = None) -> Iterator[Path]:
     """Iteratively walk ``root``, yielding regular files as ``Path`` objects.
 
     Uses an explicit stack (no recursion) and ``os.scandir`` with
@@ -42,21 +42,46 @@ def walk_files(root: Path | str) -> Iterator[Path]:
     ``os.scandir`` reports as plain directories on Windows) are tracked by
     ``os.path.realpath`` in a visited set, so a symlink/junction cycle is
     never re-entered. Symlinked files are skipped outright (not yielded).
+
+    ``unreadable``, when given, collects the root-relative paths the walk could
+    not look inside — or could not even classify. Находка D-46: молчаливый
+    ``continue`` наружу ничего не отдавал, файлы под недоступным каталогом
+    просто не попадали в обход, а сверка в ``scan_source`` не отличает «не смогли
+    посмотреть» от «удалено», и вычёркивает из индекса всё поддерево. Хватает
+    отказа в правах, файла-заглушки OneDrive или антивируса, подержавшего
+    каталог секунду: противник для этого не нужен, а человек узнаёт о пропаже
+    по исчезнувшим цитатам. Список отдаётся наружу, чтобы сверка могла
+    сказать «не знаю» вместо «удалено».
     """
     root = Path(root)
     visited = {os.path.realpath(root)}
     stack = [root]
+
+    def note_unreadable(path: Path | str) -> None:
+        if unreadable is None:
+            return
+        try:
+            unreadable.append(Path(path).relative_to(root).as_posix())
+        except ValueError:
+            # Вне корня оказаться неоткуда, но пусть отчёт лучше будет с
+            # абсолютным путём, чем обход упадёт при попытке о нём сообщить.
+            unreadable.append(str(path))
+
     while stack:
         current = stack.pop()
         try:
             with os.scandir(current) as it:
                 entries = list(it)
         except OSError:
+            note_unreadable(current)
             continue
         for entry in entries:
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
             except OSError:
+                # Даже тип неизвестен: это может быть файл, который иначе
+                # молча уехал бы в «удалённые».
+                note_unreadable(entry.path)
                 continue
             if is_dir:
                 real = os.path.realpath(entry.path)
@@ -143,7 +168,10 @@ def scan_source(
     """Scan ``root_path`` and reconcile ``files`` rows for ``source_id``.
 
     Returns ``{added: [rel_path, ...], changed: [...], deleted: [...],
-    unchanged: n, root_unavailable: bool}``. Change detection is by
+    unchanged: n, unreadable_dirs: [...], root_unavailable: bool}``.
+    ``unreadable_dirs`` пусто у полного скана; непустое означает, что скан
+    деградировал — эти поддеревья обойти не удалось, и всё, что под ними, из
+    сверки на удаление исключено (находка D-46). Change detection is by
     ``(size, mtime)``: sha256 is only (re)computed when one of them differs
     from the stored row, so an untouched file costs no hashing on repeat
     scans — unless the stored ``sha256`` is ``NULL`` (a previously
@@ -206,6 +234,7 @@ def scan_source(
             "changed": [],
             "deleted": [],
             "unchanged": 0,
+            "unreadable_dirs": [],
             "root_unavailable": True,
         }
 
@@ -224,7 +253,8 @@ def scan_source(
     unchanged = 0
     seen: set[str] = set()
 
-    for file_path in walk_files(root):
+    unreadable_dirs: list[str] = []
+    for file_path in walk_files(root, unreadable_dirs):
         rel_path = file_path.relative_to(root).as_posix()
         seen.add(rel_path)
         prior = existing.get(rel_path)
@@ -273,14 +303,30 @@ def scan_source(
             _upsert(conn, source_id, rel_path, size, mtime, baseline_sha, "changed", skip_reason)
             changed.append(rel_path)
 
+    # Находка D-46: «не смогли посмотреть» — не «удалено». Всё, что лежит под
+    # каталогом, в который обход не попал, из сверки на удаление исключается:
+    # иначе один отказ в правах вычеркнул бы из индекса целое поддерево, и
+    # человек узнал бы об этом по пропавшим цитатам. Строки остаются как были —
+    # следующий скан, когда каталог снова читается, разберётся сам.
+    prefixes = tuple(f"{prefix}/" for prefix in unreadable_dirs)
+
+    def under_unreadable(rel_path: str) -> bool:
+        return rel_path in unreadable_dirs or rel_path.startswith(prefixes)
+
     for rel_path, info in existing.items():
-        if rel_path not in seen and info["status"] not in ("deleted", "detached"):
-            conn.execute(
-                "UPDATE files SET status = 'deleted', indexed_at = ? "
-                "WHERE source_id = ? AND rel_path = ?",
-                (_iso_now(), source_id, rel_path),
-            )
-            deleted.append(rel_path)
+        if rel_path in seen or info["status"] in ("deleted", "detached"):
+            continue
+        if under_unreadable(rel_path):
+            # Ни в один счётчик: «unchanged» значило бы «посмотрели, то же
+            # самое», а мы как раз не посмотрели. Утверждение делает
+            # ``unreadable_dirs``, и только оно.
+            continue
+        conn.execute(
+            "UPDATE files SET status = 'deleted', indexed_at = ? "
+            "WHERE source_id = ? AND rel_path = ?",
+            (_iso_now(), source_id, rel_path),
+        )
+        deleted.append(rel_path)
 
     conn.commit()
     return {
@@ -288,6 +334,9 @@ def scan_source(
         "changed": changed,
         "deleted": deleted,
         "unchanged": unchanged,
+        # Пусто — скан полный. Непусто — скан деградировал, и об этом надо
+        # сказать словами, а не молча отдать «удалено: 0».
+        "unreadable_dirs": unreadable_dirs,
         "root_unavailable": False,
     }
 
