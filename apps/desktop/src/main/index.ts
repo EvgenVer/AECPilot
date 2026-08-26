@@ -198,7 +198,7 @@ import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
 import { readAttachmentDataUrl, saveAttachment } from './attachments'
-import { rememberPickedPath, wasPickedByUser } from './picked-paths'
+import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picked-paths'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -3322,6 +3322,15 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
     return { ok: true, project: currentProject }
   }
 
+  // Находка D-47, послабленный вариант охранника: открыть можно то, что человек
+  // выбрал в диалоге, ИЛИ то, что уже лежит в списке недавних. Строгая проверка
+  // сломала бы открытие из недавних — там диалога не было; а доверять списку
+  // можно потому, что ведёт его сам главный процесс: `recordRecent` зовётся
+  // здесь, уже после успешного открытия, и окну до него не дотянуться.
+  if (!wasPickedOrIsKnown(vaultPath, loadRecents().map((entry) => entry.vaultPath))) {
+    return { ok: false, error: 'папку проекта нужно выбрать в диалоге выбора папки' }
+  }
+
   // Task 1.5.4: a vaultPath with no .aecpilot/project.json yet comes back as
   // `needsInit` (not an error) — surfaced as-is, without touching
   // currentProject/recents/scan scheduler; the UI should offer to initialize
@@ -3408,6 +3417,17 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
   }
   if (!isAbsolute(rootPath)) {
     return { ok: false, errors: ['путь к источнику должен быть абсолютным'] }
+  }
+  // Находка D-47. Тот же охранник, что у `project:create` (задача 4D-11), и по
+  // той же причине: окно называет путь, но не выбирает его. Здесь ставка выше,
+  // чем при создании проекта, — источник не просто подключается, он целиком
+  // уходит в индекс, в embeddings и в запросы к модели. Присланное окном
+  // `confirmed` согласием человека не является ровно по той же причине, по
+  // какой им не является путь; оно управляет вторым шагом, а не доступом.
+  // Настоящий экран уже ходит через `project:pick-directory`, так что рабочий
+  // путь этим не задет (SourcesPanel.handleAdd).
+  if (!wasPickedByUser(rootPath)) {
+    return { ok: false, errors: ['папку источника нужно выбрать в диалоге выбора папки'] }
   }
   const result = await addSourceToProject(currentProject.vaultPath, rootPath, {
     confirmed: confirmed === true

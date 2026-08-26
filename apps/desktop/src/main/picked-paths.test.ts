@@ -1,7 +1,12 @@
 import * as path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { forgetPickedPaths, rememberPickedPath, wasPickedByUser } from './picked-paths'
+import {
+  forgetPickedPaths,
+  rememberPickedPath,
+  wasPickedByUser,
+  wasPickedOrIsKnown
+} from './picked-paths'
 
 afterEach(() => {
   forgetPickedPaths()
@@ -63,5 +68,35 @@ describe('picked-paths (task 4D-11)', () => {
     for (let i = 15; i < 30; i++) rememberPickedPath(path.resolve(`C:/п/${i}`))
 
     expect(wasPickedByUser(ROOT)).toBe(true)
+  })
+})
+
+// Находка D-47: `project:open` берёт послабленный вариант, потому что открытие
+// из списка недавних — законный путь без диалога. Список ведёт сам главный
+// процесс, поэтому ему можно верить; окну — по-прежнему нельзя.
+describe('wasPickedOrIsKnown (находка D-47)', () => {
+  it('пропускает выбранное в диалоге, даже если списка нет', () => {
+    rememberPickedPath(ROOT)
+
+    expect(wasPickedOrIsKnown(ROOT, [])).toBe(true)
+  })
+
+  it('пропускает то, что лежит в списке главного процесса', () => {
+    expect(wasPickedOrIsKnown(ROOT, [ROOT])).toBe(true)
+  })
+
+  it('не пропускает путь, которого нет ни там, ни там', () => {
+    rememberPickedPath(path.resolve('C:/проекты/другой'))
+
+    expect(wasPickedOrIsKnown(ROOT, [path.resolve('C:/проекты/третий')])).toBe(false)
+  })
+
+  it('сверяет список так же, как выбор: длинное написание считается тем же путём', () => {
+    expect(wasPickedOrIsKnown(path.join(ROOT, 'вложенная', '..'), [ROOT])).toBe(true)
+  })
+
+  it('не раздаёт поддерево: соседа и вложенную папку известного пути не пропускает', () => {
+    expect(wasPickedOrIsKnown(path.join(ROOT, 'вложенная'), [ROOT])).toBe(false)
+    expect(wasPickedOrIsKnown(path.dirname(ROOT), [ROOT])).toBe(false)
   })
 })

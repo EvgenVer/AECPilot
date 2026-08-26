@@ -48,6 +48,23 @@ export function wasPickedByUser(dirPath: string): boolean {
   return picked.includes(normalize(dirPath))
 }
 
+/** Whether `dirPath` is one main can vouch for: a human picked it in a dialog
+ * we opened, **or** it appears in `known` — a list main itself maintains.
+ *
+ * Finding D-47. `project:open` needs the looser rule and cannot use
+ * `wasPickedByUser` alone: opening from the recents list is a legitimate path
+ * where no dialog was shown, and a strict check would simply break it. Recents
+ * are safe to accept because the renderer cannot write to them — `recordRecent`
+ * runs in main, only after a project actually opened. What is NOT acceptable is
+ * the third option: taking the renderer's word for it. `project:create` keeps
+ * the strict rule, since creating a directory tree somewhere new has no
+ * "we already did this once" to fall back on. */
+export function wasPickedOrIsKnown(dirPath: string, known: readonly string[]): boolean {
+  if (wasPickedByUser(dirPath)) return true
+  const key = normalize(dirPath)
+  return known.some((candidate) => normalize(candidate) === key)
+}
+
 /** Tests only: the list is process-global by design (it mirrors what the user
  * did in this run of the app), so a test that fills it has to empty it. */
 export function forgetPickedPaths(): void {
