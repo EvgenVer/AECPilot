@@ -98,7 +98,15 @@ describe('generateVault — successful generation', () => {
         name: 'Объект-X',
         created_at: NOW_ISO,
         sources: [],
-        settings: { wiki_lang: 'auto', scan_interval_s: 300, embedding_model: '' }
+        settings: {
+          wiki_lang: 'auto',
+          scan_interval_s: 300,
+          embedding_model: '',
+          // Задача 5.14. Пусто — значит «не выбран», и язык берёт себе
+          // `aec_rag.rag_index.EXTRACTION_LANGUAGE`. Копия умолчания здесь
+          // разошлась бы с ним при первой же его правке.
+          extraction_language: ''
+        }
       }
     })
   })

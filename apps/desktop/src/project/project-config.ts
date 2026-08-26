@@ -24,6 +24,19 @@ export interface ProjectSettings {
   scan_interval_s: number
   /** May be empty (no embedding model configured yet). */
   embedding_model: string
+  /**
+   * Language the graph names entities in — the third of SPEC G7's three levels
+   * (task 5.14). NOT a code like `wiki_lang`: LightRAG takes the language as a
+   * word it puts in a prompt (`addon_params.language`), so the values are
+   * `'Russian'`, `'English'`, … and the Python side's default lives in
+   * `aec_rag.rag_index.EXTRACTION_LANGUAGE`.
+   *
+   * Optional on the way in, always present on the way out: every vault created
+   * before 5.14 lacks the field, and requiring it would declare all of them
+   * corrupt. Empty means "not chosen yet" — exactly what `load_settings` on the
+   * Python side already reads it as.
+   */
+  extraction_language: string
 }
 
 export interface ProjectConfig {
@@ -106,6 +119,17 @@ function validateSettings(settings: unknown, errors: ProjectConfigValidationErro
   if (typeof settings.embedding_model !== 'string') {
     errors.push({ path: 'settings.embedding_model', message: 'embedding_model must be a string' })
   }
+  // Optional (see ProjectSettings.extraction_language) — but a value of the
+  // wrong TYPE is still a broken config, not an absent setting.
+  if (
+    settings.extraction_language !== undefined &&
+    typeof settings.extraction_language !== 'string'
+  ) {
+    errors.push({
+      path: 'settings.extraction_language',
+      message: 'extraction_language must be a string'
+    })
+  }
 }
 
 /** Validates an `unknown` value (e.g. freshly `JSON.parse`d file contents)
@@ -165,7 +189,8 @@ export function validateProjectConfig(input: unknown): ValidateProjectConfigResu
       settings: {
         wiki_lang: settings.wiki_lang as string,
         scan_interval_s: settings.scan_interval_s as number,
-        embedding_model: settings.embedding_model as string
+        embedding_model: settings.embedding_model as string,
+        extraction_language: (settings.extraction_language as string | undefined) ?? ''
       }
     }
   }

@@ -15,7 +15,8 @@ import {
   getSourceStatusResult,
   getSourceTreeResult,
   openProject,
-  removeSourceFromProject
+  removeSourceFromProject,
+  updateProjectSettings
 } from './project-manager'
 
 // Fix-iteration 1 (review minor): lets the "write failure" test below make a
@@ -723,5 +724,56 @@ describe('getScanIntervalSeconds', () => {
 
   it('falls back to the 300s default when project.json is unreadable', async () => {
     expect(getScanIntervalSeconds(vaultPath)).toBe(300)
+  })
+})
+
+// Задача 5.14. `extraction_language` появился в схеме не ради полноты: до него
+// это поле СТИРАЛОСЬ. Валидатор пересобирает `settings` из известных ему полей,
+// а `updateProjectSettings` пишет обратно пересобранное — значит язык,
+// проставленный руками, исчезал при первой же правке интервала через окно.
+describe('updateProjectSettings — язык извлечения', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-extraction-lang-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  function onDisk(): Record<string, unknown> {
+    const raw = fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    return (JSON.parse(raw) as { settings: Record<string, unknown> }).settings
+  }
+
+  it('переживает правку соседнего поля, а не исчезает вместе с ней', () => {
+    expect(updateProjectSettings(vaultPath, { extraction_language: 'English' }).ok).toBe(true)
+    expect(updateProjectSettings(vaultPath, { scan_interval_s: 60 }).ok).toBe(true)
+
+    expect(onDisk().extraction_language).toBe('English')
+    expect(onDisk().scan_interval_s).toBe(60)
+  })
+
+  it('пустая строка законна — это «не выбран», а не пустое значение', () => {
+    // Отличие от wiki_lang: там пусто — ошибка, здесь пусто — это ответ,
+    // и его читает `rag_index.load_settings`, подставляя своё умолчание.
+    expect(updateProjectSettings(vaultPath, { extraction_language: '' }).ok).toBe(true)
+  })
+
+  it('пробелы по краям отклоняются: они уедут в отпечаток графа как есть', () => {
+    const result = updateProjectSettings(vaultPath, { extraction_language: ' Russian' })
+
+    expect(result.ok).toBe(false)
+    // И, что важнее отказа, — на диск ничего не легло.
+    expect(onDisk().extraction_language).toBe('')
   })
 })

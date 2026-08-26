@@ -45,6 +45,10 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
+        "extraction_language": {
+          "type": "string",
+          "description": "Language the knowledge graph names entities in, as a word LightRAG puts in a prompt (\"Russian\", \"English\"), not a code. Optional: vaults created before task 5.14 have no such field, and empty means \"not chosen yet\" — the reader falls back to aec_rag.rag_index.EXTRACTION_LANGUAGE."
+        },
         "embedding_model": {
           "type": "string",
           "description": "May be empty when no embedding model is configured yet."

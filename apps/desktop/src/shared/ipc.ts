@@ -587,6 +587,27 @@ export interface CuratorStatus {
   archive_after_days?: number | null
 }
 
+/** The `settings` block of `project.json` as the renderer sees it — snake_case
+ * because that is what is on disk, and renaming it in transit would give the
+ * same setting two names to grep for.
+ *
+ * Two of the four are languages, and they are NOT the same kind of value: SPEC
+ * G7 counts three language levels and two of them live here. `wiki_lang` is a
+ * code (`'auto'`, `'ru'`, `'en'`) that decides what language wiki pages are
+ * written in. `extraction_language` is a word LightRAG puts into a prompt
+ * (`'Russian'`, `'English'`) and decides what language entities are NAMED in
+ * inside the graph. The third level — the language the agent talks in — is the
+ * user's, not the project's, and lives in the profile's SOUL. */
+export interface ProjectSettingsPayload {
+  wiki_lang: string
+  scan_interval_s: number
+  embedding_model: string
+  /** Empty means "not chosen yet": the Python side falls back to
+   * `aec_rag.rag_index.EXTRACTION_LANGUAGE`. Vaults created before task 5.14
+   * have no such field on disk and read back as empty. */
+  extraction_language: string
+}
+
 /** What the index holds — `aec-rag status`'s answer (task 2.15), the same
  * numbers the `rag_status` MCP tool gives the agent. Read by the app directly
  * so the indicator works whether or not an agent session is live. */
@@ -1464,28 +1485,26 @@ export interface AecpilotApi {
    * normal turn, anything else is not sent anywhere. */
   dispatchLearn(topic: string): Promise<{ type?: string; message?: string; output?: string }>
 
-  /** The open project's own settings (tasks 1.6.B2.17–B2.19): wiki language,
-   * scan interval, embedding model. They live in `project.json` because they
-   * belong to the vault and travel with it. `null` when no project is open. */
-  getProjectSettings(): Promise<{
-    wiki_lang: string
-    scan_interval_s: number
-    embedding_model: string
-  } | null>
+  /** The open project's own settings (tasks 1.6.B2.17–B2.19, extended by
+   * 5.14): wiki language, scan interval, embedding model, extraction language.
+   * They live in `project.json` because they belong to the vault and travel
+   * with it. `null` when no project is open. */
+  getProjectSettings(): Promise<ProjectSettingsPayload | null>
   /** Updates any subset of them. Changing the interval also restarts the scan
    * scheduler, so the new value is not left sitting in the file while the old
-   * one keeps firing. */
+   * one keeps firing.
+   *
+   * Changing `extractionLanguage` has a consequence this call does NOT carry
+   * out and cannot hide: the graph must be re-ingested whole. `check_compatible`
+   * refuses to open a graph built in another language, and that refusal is the
+   * protection against one entity ending up with two names. Any screen offering
+   * this field has to say so BEFORE the write, not after (finding D-38). */
   updateProjectSettings(patch: {
     wikiLang?: string
     scanIntervalS?: number
     embeddingModel?: string
-  }): Promise<
-    | {
-        ok: true
-        settings: { wiki_lang: string; scan_interval_s: number; embedding_model: string }
-      }
-    | { ok: false; error: string }
-  >
+    extractionLanguage?: string
+  }): Promise<{ ok: true; settings: ProjectSettingsPayload } | { ok: false; error: string }>
   /** MCP servers: their configuration (REST — there are no `mcp.*` RPC
    * methods at all) plus the live connection state last seen on
    * `session.info` (tasks 1.6.B2.8–B2.12). No `env` VALUE is ever included. */

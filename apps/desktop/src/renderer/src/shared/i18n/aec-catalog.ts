@@ -127,7 +127,32 @@ export const aecLocales: PluginLocaleBundles = {
       creating: 'Creating…',
       init: 'Initialize',
       initializing: 'Initializing…',
-      initAnyway: 'Initialize anyway'
+      initAnyway: 'Initialize anyway',
+      // Task 5.14 — the two language levels that belong to the PROJECT. The
+      // other two (agent, interface) belong to the user and are only named
+      // here, with the place they actually live.
+      langTitle: 'Project languages',
+      langNoProject: 'No project is open.',
+      langWikiLabel: 'Wiki language',
+      langWikiAuto: 'Follow the sources',
+      langWikiRu: 'Russian',
+      langWikiEn: 'English',
+      langWikiHint:
+        'What language wiki pages are written in. Applies the next time a page is built.',
+      langGraphLabel: 'Language of names in the knowledge graph',
+      langGraphDefault: 'As the core has it',
+      langGraphRussian: 'Russian',
+      langGraphEnglish: 'English',
+      langGraphHint:
+        'What language the graph names entities in — «Северная площадка» or «Severnaya Site».',
+      langGraphWarning:
+        'Changing this means re-indexing the whole graph. The graph you have was built in the other language and will not open — otherwise one entity would end up with two names. Nothing is deleted: it is rebuilt on the next full indexing run.',
+      langAgentWhere:
+        'The language the agent speaks in is yours, not the project’s — it lives in the specialist’s character (SOUL).',
+      langUiWhere: 'The interface language is in Settings → Appearance.',
+      langSave: 'Save',
+      langSaving: 'Saving…',
+      langConfirmReindex: 'Change and re-index'
     },
     explorer: {
       title: 'Vault',
@@ -543,7 +568,29 @@ export const aecLocales: PluginLocaleBundles = {
       creating: 'Создаю…',
       init: 'Инициализировать',
       initializing: 'Инициализирую…',
-      initAnyway: 'Инициализировать всё равно'
+      initAnyway: 'Инициализировать всё равно',
+      langTitle: 'Языки проекта',
+      langNoProject: 'Проект не открыт.',
+      langWikiLabel: 'Язык вики',
+      langWikiAuto: 'Как в источниках',
+      langWikiRu: 'Русский',
+      langWikiEn: 'Английский',
+      langWikiHint:
+        'На каком языке пишутся страницы вики. Подействует при следующей сборке страницы.',
+      langGraphLabel: 'Язык имён в графе знаний',
+      langGraphDefault: 'Как в ядре',
+      langGraphRussian: 'Русский',
+      langGraphEnglish: 'Английский',
+      langGraphHint:
+        'На каком языке в графе называются сущности — «Северная площадка» или «Severnaya Site».',
+      langGraphWarning:
+        'Смена означает полную переиндексацию графа. Тот граф, что у вас есть, построен на другом языке и не откроется — иначе у одной сущности стало бы два имени. Ничего не удаляется: он соберётся заново при следующей полной индексации.',
+      langAgentWhere:
+        'Язык, на котором говорит агент, — ваш, а не проекта: он живёт в характере специалиста (SOUL).',
+      langUiWhere: 'Язык интерфейса — в настройках, раздел «Оформление».',
+      langSave: 'Сохранить',
+      langSaving: 'Сохраняю…',
+      langConfirmReindex: 'Сменить и переиндексировать'
     },
     explorer: {
       title: 'Vault',

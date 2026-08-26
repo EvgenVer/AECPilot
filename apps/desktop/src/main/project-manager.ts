@@ -308,6 +308,14 @@ export function updateProjectSettings(
   if (!Number.isFinite(settings.scan_interval_s) || settings.scan_interval_s <= 0) {
     return { ok: false, error: 'Интервал сканирования должен быть больше нуля' }
   }
+  // Task 5.14. Unlike wiki_lang, an EMPTY extraction language is legal — it is
+  // how a project says "not chosen yet" and lets `aec_rag.rag_index` supply the
+  // default. What is refused is whitespace pretending to be a choice: it would
+  // be written to the graph fingerprint verbatim and never match anything
+  // again.
+  if (settings.extraction_language !== settings.extraction_language.trim()) {
+    return { ok: false, error: 'Язык извлечения не должен начинаться или кончаться пробелом' }
+  }
 
   try {
     writeProjectConfigFile(vaultPath, { ...result.config, settings })

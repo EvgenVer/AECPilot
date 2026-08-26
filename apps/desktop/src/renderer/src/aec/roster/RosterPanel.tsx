@@ -15,11 +15,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { openSession } from '../../donor/app/open-session'
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
-import { useAecT } from '../../shared/i18n'
+import { useAecT, useI18n } from '../../shared/i18n'
+import type { Locale } from '../../donor/i18n/types'
 import type { SpecialistView } from '../../../../shared/ipc'
 
 import { setCanonicalChats } from './register-canonical-guard'
 import { setMentionRoster } from './register-mentions'
+import { soulLanguageRule } from './soul-language'
 import { GroupPanel } from './GroupPanel'
 import { SpecialistDialog, type SpecialistDraft } from './SpecialistDialog'
 import { SpecialistFace } from './SpecialistFace'
@@ -28,6 +30,7 @@ const ROSTER_KEY = ['aec', 'roster'] as const
 
 export function RosterPanel(): React.JSX.Element {
   const t = useAecT()
+  const { locale } = useI18n()
   const queryClient = useQueryClient()
   const [query, setQuery] = useState('')
   const [showHidden, setShowHidden] = useState(false)
@@ -212,7 +215,7 @@ export function RosterPanel(): React.JSX.Element {
           )}
           <Button
             aria-label={t('roster.create')}
-            onClick={() => setEditing(emptyDraft())}
+            onClick={() => setEditing(emptyDraft(locale))}
             size="icon-xs"
             title={t('roster.create')}
             variant="ghost"
@@ -355,8 +358,16 @@ function displayName(specialist: SpecialistView): string {
   return specialist.title.trim() === '' ? specialist.name : specialist.title.trim()
 }
 
-function emptyDraft(): SpecialistDraft {
-  return { isNew: true, input: { name: '', title: '', role: '', description: '' } }
+function emptyDraft(locale: Locale): SpecialistDraft {
+  // Задача 5.14. Правило языка подставляется в поле, которое человек видит, —
+  // значит оно не «вшито», а предложено: стереть его или дописать сверху свою
+  // персону можно тем же движением. Пустой `soul` в поле означает пустой `soul`
+  // в запросе, и тогда ядро оставляет свой файл нетронутым.
+  const soul = soulLanguageRule(locale)
+  return {
+    isNew: true,
+    input: { name: '', title: '', role: '', description: '', ...(soul === '' ? {} : { soul }) }
+  }
 }
 
 function draftOf(specialist: SpecialistView): SpecialistDraft {

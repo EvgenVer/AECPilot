@@ -1609,10 +1609,11 @@ ipcMain.handle('project:get-settings', () => {
 
 ipcMain.handle('project:update-settings', (_event, payload: unknown) => {
   if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
-  const { wikiLang, scanIntervalS, embeddingModel } = (payload ?? {}) as {
+  const { wikiLang, scanIntervalS, embeddingModel, extractionLanguage } = (payload ?? {}) as {
     wikiLang?: unknown
     scanIntervalS?: unknown
     embeddingModel?: unknown
+    extractionLanguage?: unknown
   }
   const patch: Parameters<typeof updateProjectSettings>[1] = {}
   if (wikiLang !== undefined) {
@@ -1630,6 +1631,12 @@ ipcMain.handle('project:update-settings', (_event, payload: unknown) => {
       return { ok: false, error: 'модель эмбеддингов должна быть строкой' }
     }
     patch.embedding_model = embeddingModel
+  }
+  if (extractionLanguage !== undefined) {
+    if (typeof extractionLanguage !== 'string') {
+      return { ok: false, error: 'язык извлечения должен быть строкой' }
+    }
+    patch.extraction_language = extractionLanguage
   }
 
   const result = updateProjectSettings(currentProject.vaultPath, patch)

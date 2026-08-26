@@ -160,7 +160,15 @@ function createMissingVaultEntries(
       name: projectName,
       created_at: nowIso ?? new Date().toISOString(),
       sources: [],
-      settings: { wiki_lang: 'auto', scan_interval_s: 300, embedding_model: '' }
+      settings: {
+        wiki_lang: 'auto',
+        scan_interval_s: 300,
+        embedding_model: '',
+        // Empty, not 'Russian' (task 5.14): the default belongs to the reader
+        // that acts on it — `aec_rag.rag_index.EXTRACTION_LANGUAGE` — and
+        // writing a copy here would fork it the first time that one changes.
+        extraction_language: ''
+      }
     }
     fs.writeFileSync(projectJsonPath, `${JSON.stringify(projectConfig, null, 2)}\n`)
   }

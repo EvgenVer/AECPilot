@@ -11,6 +11,19 @@ const VALID_CONFIG = {
   sources: [
     { id: 'src-1', root_path: '\\\\server\\tasks\\object-x', added_at: '2026-07-14T12:05:00.000Z' }
   ],
+  settings: {
+    wiki_lang: 'auto',
+    scan_interval_s: 300,
+    embedding_model: '',
+    extraction_language: ''
+  }
+}
+
+/** A vault created before task 5.14 — the settings block has no
+ * `extraction_language` at all. Every project on disk today is this shape, so
+ * it must keep validating. */
+const PRE_5_14_CONFIG = {
+  ...VALID_CONFIG,
   settings: { wiki_lang: 'auto', scan_interval_s: 300, embedding_model: '' }
 }
 
@@ -31,6 +44,35 @@ describe('validateProjectConfig — valid input', () => {
       settings: { ...VALID_CONFIG.settings, wiki_lang: 'ru' }
     })
     expect(result.ok).toBe(true)
+  })
+
+  // Task 5.14. `extraction_language` is the THIRD project language setting
+  // (SPEC G7 counts three levels; finding D-38 found this one already built on
+  // the Python side — `aec_rag.rag_index` reads it and refuses to open a graph
+  // built in another language). It never existed on the TypeScript side, and
+  // that is not merely a missing feature: the validator rebuilds `settings`
+  // from the fields it knows, so a value set by hand was ERASED by the next
+  // write through the app. These two pin both halves.
+  it('keeps extraction_language instead of dropping it on the way through', () => {
+    const result = validateProjectConfig({
+      ...VALID_CONFIG,
+      settings: { ...VALID_CONFIG.settings, extraction_language: 'English' }
+    })
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        ...VALID_CONFIG,
+        settings: { ...VALID_CONFIG.settings, extraction_language: 'English' }
+      }
+    })
+  })
+
+  it('accepts a config with no extraction_language and reads it as "not chosen"', () => {
+    // Making the field required would declare every vault created before 5.14
+    // corrupt, so absent normalizes to the empty string — the same "not chosen
+    // yet" the Python side already understands (`rag_index.load_settings`).
+    const result = validateProjectConfig(PRE_5_14_CONFIG)
+    expect(result.ok && result.value.settings.extraction_language).toBe('')
   })
 
   it('ignores unknown extra fields anywhere (forward-compat), not an error', () => {
