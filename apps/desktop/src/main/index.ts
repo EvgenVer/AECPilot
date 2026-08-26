@@ -3327,7 +3327,12 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   // сломала бы открытие из недавних — там диалога не было; а доверять списку
   // можно потому, что ведёт его сам главный процесс: `recordRecent` зовётся
   // здесь, уже после успешного открытия, и окну до него не дотянуться.
-  if (!wasPickedOrIsKnown(vaultPath, loadRecents().map((entry) => entry.vaultPath))) {
+  if (
+    !wasPickedOrIsKnown(
+      vaultPath,
+      loadRecents().map((entry) => entry.vaultPath)
+    )
+  ) {
     return { ok: false, error: 'папку проекта нужно выбрать в диалоге выбора папки' }
   }
 

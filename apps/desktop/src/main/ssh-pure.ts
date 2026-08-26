@@ -124,17 +124,47 @@ export interface SshTarget {
   remoteProfile: string
 }
 
+/**
+ * Годится ли строка на роль части адресата `ssh`.
+ *
+ * Находка D-48. Адресат — ЕДИНСТВЕННЫЙ позиционный аргумент в нашем argv, и
+ * getopt разбирает его наравне с остальными: значение вида `-oProxyCommand=…`
+ * OpenSSH прочтёт как локальную опцию, а не как имя машины, и выполнит чужую
+ * команду здесь. `spawn` без оболочки от этого не спасает — он убирает
+ * интерпретацию оболочкой, а не разбор ключей самим ssh.
+ *
+ * Значение приходит из настроек, но написать их может окно: `connection:save`
+ * принимает `unknown` и кладёт как есть. Проверка стоит здесь, у самого места
+ * сборки argv, потому что в настройках уже может лежать значение, записанное
+ * до этой правки, — граница проходит там, где строка становится аргументом.
+ *
+ * Пробел и управляющий символ отсекаются заодно: в имени машины им делать
+ * нечего, а разъехаться по аргументам они могут. `@` тоже — иначе `user@host`
+ * склеится не в ту пару.
+ */
+function isSafeDestinationPart(value: string): boolean {
+  // Дефис запрещён только ПЕРВЫМ символом: `build-server` — обычное имя.
+  if (value.startsWith('-')) return false
+  // eslint-disable-next-line no-control-regex -- намеренно: управляющие символы в имени машины
+  return !/[\s@\x00-\x1f]/.test(value)
+}
+
 export function readSshTarget(raw: unknown): SshTarget | null {
   const value = (raw ?? {}) as Record<string, unknown>
   const host = typeof value.sshHost === 'string' ? value.sshHost.trim() : ''
-  if (host === '') return null
+  if (host === '' || !isSafeDestinationPart(host)) return null
+
+  const user = typeof value.sshUser === 'string' ? value.sshUser.trim() : ''
+  // Пустой пользователь законен — тогда ssh берёт своего; непустой обязан быть
+  // именем, а не ключом.
+  if (user !== '' && !isSafeDestinationPart(user)) return null
 
   const port =
     typeof value.sshPort === 'number' && Number.isFinite(value.sshPort) ? value.sshPort : null
 
   return {
     host,
-    user: typeof value.sshUser === 'string' ? value.sshUser.trim() : '',
+    user,
     port: port !== null && port > 0 && port < 65536 ? port : null,
     identityFile: typeof value.sshKeyPath === 'string' ? value.sshKeyPath.trim() : '',
     remoteHermesPath:

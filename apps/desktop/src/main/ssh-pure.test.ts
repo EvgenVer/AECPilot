@@ -274,3 +274,49 @@ describe('проверка подключения', () => {
     expect(probe.platform).toBe('')
   })
 })
+
+// Находка D-48. Адресат — единственный позиционный аргумент нашего argv, и ssh
+// разбирает его наравне с ключами: `-oProxyCommand=…` на его месте выполнит
+// чужую команду ЗДЕСЬ. `spawn` без оболочки от этого не спасает — он убирает
+// разбор оболочкой, а не разбор ключей самим ssh. Значение приходит из
+// настроек, но пишет их окно: `connection:save` принимает `unknown`.
+describe('адресат ssh не может притвориться ключом (D-48)', () => {
+  const HOSTILE = [
+    '-oProxyCommand=calc',
+    '-o',
+    '--',
+    '-i/чужой/ключ',
+    'host with space',
+    'host\ttab',
+    'два@собаки'
+  ]
+
+  it.each(HOSTILE)('хост %j отклоняется целиком, а не подчищается', (host) => {
+    expect(readSshTarget({ sshHost: host })).toBeNull()
+  })
+
+  it.each(HOSTILE)('пользователь %j отклоняется так же', (user) => {
+    expect(readSshTarget({ sshHost: 'build', sshUser: user })).toBeNull()
+  })
+
+  it('обычные имена по-прежнему проходят — проверка не должна запрещать дефис', () => {
+    // Дефис ВНУТРИ имени законен и встречается постоянно; запрещён он только
+    // первым символом. Без этого теста правка легко выродилась бы в «никаких
+    // дефисов», и настоящие машины перестали бы подключаться.
+    expect(readSshTarget({ sshHost: 'build-server-01' })?.host).toBe('build-server-01')
+    expect(readSshTarget({ sshHost: '192.168.1.10' })?.host).toBe('192.168.1.10')
+    expect(readSshTarget({ sshHost: 'srv.example.org', sshUser: 'ivan-p' })?.user).toBe('ivan-p')
+  })
+
+  it('пустой пользователь законен — тогда ssh берёт своего', () => {
+    expect(readSshTarget({ sshHost: 'build' })?.user).toBe('')
+  })
+
+  it('враждебное значение не доезжает до argv', () => {
+    // Проверка стоит у самой сборки argv, поэтому строить командную строку
+    // просто не из чего: цели нет.
+    const target = readSshTarget({ sshHost: '-oProxyCommand=calc' })
+
+    expect(target).toBeNull()
+  })
+})
