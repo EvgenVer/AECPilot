@@ -207,3 +207,27 @@ export async function resolveSourceEntryRel(
   }
   return candidate
 }
+
+/** Resolves `rel` for READING a source file's contents — the counterpart of
+ * vault-fs.ts's `resolveVaultContentRel`, and for the same reason (finding
+ * D-44): `readFile` follows the symlink leaf, so the *whole* resolved path
+ * must really be inside the source's root, not just its parent chain. The
+ * root itself is rejected here — it is a directory, not a document — even
+ * though `resolveSourceEntryRel` legitimately allows it for "show in
+ * explorer". Backs the source branch of `viewer:read-document`. */
+export async function resolveSourceContentRel(rootPath: string, rel: string): Promise<string> {
+  if (!rel || rel.trim().length === 0) {
+    throw new PathOutsideSourceError('Путь не может быть пустым')
+  }
+  const root = resolve(rootPath)
+  const candidate = lexicalResolve(root, rel)
+  if (candidate === root) {
+    throw new PathOutsideSourceError('Это папка источника, а не документ')
+  }
+
+  const realRoot = await safeRealpath(root)
+  if (!(await isWithinRealRoot(realRoot, candidate))) {
+    throw new PathOutsideSourceError('Путь ведёт за пределы источника через симлинк')
+  }
+  return candidate
+}

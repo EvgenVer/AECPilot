@@ -15,6 +15,7 @@ import {
   createFileEntry,
   PathOutsideVaultError,
   renameEntry,
+  resolveVaultContentRel,
   resolveVaultEntryRel,
   writeVaultFile,
   resolveVaultRel,
@@ -188,6 +189,96 @@ describe('resolveVaultRel / resolveVaultEntryRel — symlink/junction escape (re
     const link = makeEscapingJunction(ctx)
     if (!link) return
     expect(resolveVaultEntryRel(vaultPath, 'escape-link')).toBe(link)
+  })
+})
+
+// Находка D-44. Тот же побег, но резолвером СОДЕРЖИМОГО: чтение и запись идут
+// ПО ссылке, поэтому симлинк-лист, который резолвер сущности выше намеренно
+// пропускает, здесь обязан быть отказом. Блок стоит вплотную к предыдущему не
+// случайно: фикстура одна, вердикты противоположные — ровно то различие, что
+// было потеряно, когда разрешающий резолвер подключили к чтению и записи.
+describe('resolveVaultContentRel / writeVaultFile — симлинк-лист наружу (D-44)', () => {
+  let vaultPath: string
+  let outsideDir: string
+
+  beforeEach(() => {
+    vaultPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-vault-content-'))
+    outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-vault-content-outside-'))
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'top secret')
+  })
+
+  afterEach(() => {
+    fs.rmSync(vaultPath, { recursive: true, force: true })
+    fs.rmSync(outsideDir, { recursive: true, force: true })
+  })
+
+  /** Junction: прав не требует, поэтому пропуска здесь почти никогда не будет. */
+  function makeEscapingJunction(ctx: { skip: () => void }): string | undefined {
+    const link = path.join(vaultPath, 'escape-link')
+    try {
+      fs.symlinkSync(outsideDir, link, 'junction')
+    } catch {
+      ctx.skip()
+      return undefined
+    }
+    return link
+  }
+
+  /** Симлинк на ФАЙЛ — тот самый случай из жизни («отчёт.md» → чужой файл).
+   * На Windows требует Developer Mode, поэтому с пропуском: junction выше
+   * проходит по тому же коду и держит проверку, даже когда этот пропущен. */
+  function makeEscapingFileSymlink(ctx: { skip: () => void }): string | undefined {
+    const link = path.join(vaultPath, 'отчёт.md')
+    try {
+      fs.symlinkSync(path.join(outsideDir, 'secret.txt'), link, 'file')
+    } catch {
+      ctx.skip()
+      return undefined
+    }
+    return link
+  }
+
+  it('отказывает, когда лист сам — junction наружу (там, где резолвер сущности пропускает)', (ctx) => {
+    const link = makeEscapingJunction(ctx)
+    if (!link) return
+    // Соседний вердикт для сравнения: для переименования и удаления тот же
+    // путь ПРОПУСКАЕТСЯ, и это верно — операция идёт над ссылкой.
+    expect(resolveVaultEntryRel(vaultPath, 'escape-link')).toBe(link)
+    expect(() => resolveVaultContentRel(vaultPath, 'escape-link')).toThrow(PathOutsideVaultError)
+  })
+
+  it('отказывает читать симлинк-файл, ведущий наружу', (ctx) => {
+    if (!makeEscapingFileSymlink(ctx)) return
+    expect(() => resolveVaultContentRel(vaultPath, 'отчёт.md')).toThrow(PathOutsideVaultError)
+  })
+
+  it('writeVaultFile не пишет сквозь симлинк-файл наружу', (ctx) => {
+    if (!makeEscapingFileSymlink(ctx)) return
+    expect(() => writeVaultFile(vaultPath, 'отчёт.md', 'подменено')).toThrow(PathOutsideVaultError)
+    expect(fs.readFileSync(path.join(outsideDir, 'secret.txt'), 'utf8')).toBe('top secret')
+  })
+
+  // Тот же отказ на junction — без прав и без пропуска. Нужен потому, что тест
+  // выше на этой машине пропускается, и правка записи осталась бы без единой
+  // работающей проверки. Резолвер срабатывает раньше `statSync`, поэтому
+  // отказ приходит именно от границы, а не от «это не файл».
+  it('writeVaultFile не пишет сквозь junction наружу', (ctx) => {
+    if (!makeEscapingJunction(ctx)) return
+    expect(() => writeVaultFile(vaultPath, 'escape-link', 'подменено')).toThrow(
+      PathOutsideVaultError
+    )
+  })
+
+  it('обычный файл внутри проекта читается и пишется по-прежнему', () => {
+    const inside = path.join(vaultPath, 'заметка.md')
+    fs.writeFileSync(inside, 'было')
+    expect(resolveVaultContentRel(vaultPath, 'заметка.md')).toBe(inside)
+    writeVaultFile(vaultPath, 'заметка.md', 'стало')
+    expect(fs.readFileSync(inside, 'utf8')).toBe('стало')
+  })
+
+  it('корень проекта документом не считается', () => {
+    expect(() => resolveVaultContentRel(vaultPath, '.')).toThrow(PathOutsideVaultError)
   })
 })
 

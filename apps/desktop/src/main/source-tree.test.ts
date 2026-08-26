@@ -11,6 +11,7 @@ import {
   buildSourceTree,
   isSourceAvailable,
   PathOutsideSourceError,
+  resolveSourceContentRel,
   resolveSourceEntryRel
 } from './source-tree'
 
@@ -215,6 +216,29 @@ describe('resolveSourceEntryRel — symlink/junction escape (real-path containme
     const link = makeEscapingJunction(ctx)
     if (!link) return
     expect(await resolveSourceEntryRel(sourceRoot, 'escape-link')).toBe(link)
+  })
+
+  // Находка D-44, сторона источника. Просмотрщик читает файл источника ПО
+  // ссылке, поэтому лист, законно пропускаемый для «Показать в проводнике»,
+  // для чтения обязан быть отказом.
+  it('resolveSourceContentRel отказывает на том же листе, который пропускает resolveSourceEntryRel', async (ctx) => {
+    const link = makeEscapingJunction(ctx)
+    if (!link) return
+    expect(await resolveSourceEntryRel(sourceRoot, 'escape-link')).toBe(link)
+    await expect(resolveSourceContentRel(sourceRoot, 'escape-link')).rejects.toThrow(
+      PathOutsideSourceError
+    )
+  })
+
+  it('resolveSourceContentRel пропускает обычный файл внутри источника', async () => {
+    fs.writeFileSync(path.join(sourceRoot, 'чертёж.pdf'), 'x')
+    expect(await resolveSourceContentRel(sourceRoot, 'чертёж.pdf')).toBe(
+      path.join(sourceRoot, 'чертёж.pdf')
+    )
+  })
+
+  it('корень источника документом не считается', async () => {
+    await expect(resolveSourceContentRel(sourceRoot, '.')).rejects.toThrow(PathOutsideSourceError)
   })
 })
 

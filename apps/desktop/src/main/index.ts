@@ -199,12 +199,13 @@ import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
 import { readAttachmentDataUrl, saveAttachment } from './attachments'
 import { rememberPickedPath, wasPickedByUser } from './picked-paths'
-import { resolveSourceEntryRel } from './source-tree'
+import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
   createDirEntry,
   createFileEntry,
   renameEntry,
+  resolveVaultContentRel,
   resolveVaultEntryRel,
   writeVaultFile
 } from './vault-fs'
@@ -3630,7 +3631,12 @@ const MAX_VIEWER_BYTES = 200 * 1024 * 1024
 /** Куда на диске смотрит запрос просмотрщика. Вынесено в общее место на задаче
  *  4.3: путь приходит из текста, написанного агентом, и проверка «не вышли ли
  *  мы за корень» не должна существовать в двух экземплярах — разъехавшись, они
- *  разъедутся именно в ту сторону, в какую нельзя. */
+ *  разъедутся именно в ту сторону, в какую нельзя.
+ *
+ *  Находка D-44: резолверы здесь именно СОДЕРЖИМОГО. Просмотрщик дальше зовёт
+ *  `readFile`, а тот идёт ПО симлинку — поэтому проверять цепочку родителей,
+ *  как это делают операции над самой сущностью (переименовать, удалить), тут
+ *  мало: симлинк-лист внутри проекта увёл бы чтение на любой файл машины. */
 async function resolveViewerPath(
   vaultPath: string,
   rel: string,
@@ -3640,9 +3646,9 @@ async function resolveViewerPath(
     if (typeof sourceId === 'string' && sourceId.length > 0) {
       const source = listProjectSources(vaultPath).find((s) => s.id === sourceId)
       if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
-      return { absPath: await resolveSourceEntryRel(source.root_path, rel), ok: true }
+      return { absPath: await resolveSourceContentRel(source.root_path, rel), ok: true }
     }
-    return { absPath: resolveVaultEntryRel(vaultPath, rel), ok: true }
+    return { absPath: resolveVaultContentRel(vaultPath, rel), ok: true }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }

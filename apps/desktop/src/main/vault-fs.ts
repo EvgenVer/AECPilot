@@ -149,6 +149,36 @@ export function resolveVaultEntryRel(vaultPath: string, rel: string): string {
   return candidate
 }
 
+/** Resolves `rel` for an operation on an entry's *contents* (reading a
+ * document, overwriting a file) — the entry itself gets dereferenced by
+ * `readFile`/`writeFileSync`, so the *whole* resolved path must really be
+ * inside the vault, symlink leaf included.
+ *
+ * Finding D-44. `resolveVaultEntryRel` above is deliberately permissive about
+ * the leaf, and rightly so — renaming or trashing a symlink acts on the link,
+ * and a test pins that behaviour down. The defect was wiring that permissive
+ * resolver to a content sink: a symlink inside the vault named `отчёт.md` and
+ * pointing at `~/.ssh/id_rsa` was read out to the renderer, and the path
+ * doing it arrives from agent-authored citation text (see the trust
+ * boundaries in `docs/SECURITY.md`). The fix is a second resolver rather than
+ * a stricter first one: tightening `resolveVaultEntryRel` would take away the
+ * ability to delete a broken symlink from the vault at all. */
+export function resolveVaultContentRel(vaultPath: string, rel: string): string {
+  if (!rel || rel.trim().length === 0) {
+    throw new PathOutsideVaultError('Путь не может быть пустым')
+  }
+  const root = resolve(vaultPath)
+  const candidate = lexicalResolve(root, rel)
+  if (candidate === root) {
+    throw new PathOutsideVaultError('Это папка проекта, а не документ')
+  }
+  const realRoot = safeRealpath(root)
+  if (!isWithinRealRoot(realRoot, candidate)) {
+    throw new PathOutsideVaultError('Путь ведёт за пределы проекта через симлинк')
+  }
+  return candidate
+}
+
 /** `fs.realpathSync`, falling back to the plain resolved path if the target
  * doesn't exist (or isn't accessible) — the vault root is expected to
  * exist, but tolerating a missing one keeps this usable against fixture
@@ -297,7 +327,9 @@ export function createDirEntry(
  *
  * Источников тут нет вовсе, и это не упущение: они read-only (SPEC UR2, AC6). */
 export function writeVaultFile(vaultPath: string, rel: string, text: string): void {
-  const target = resolveVaultEntryRel(vaultPath, rel)
+  // Находка D-44: резолвер содержимого, а не сущности — `writeFileSync` идёт
+  // ПО ссылке, поэтому симлинк-лист здесь пропускать нельзя.
+  const target = resolveVaultContentRel(vaultPath, rel)
   const stat = fs.statSync(target)
   if (!stat.isFile()) throw new Error('Это не файл')
   fs.writeFileSync(target, text, 'utf8')
