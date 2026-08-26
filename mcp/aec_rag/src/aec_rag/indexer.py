@@ -43,6 +43,15 @@ def walk_files(root: Path | str, unreadable: list[str] | None = None) -> Iterato
     ``os.path.realpath`` in a visited set, so a symlink/junction cycle is
     never re-entered. Symlinked files are skipped outright (not yielded).
 
+    NOT a containment check, and deliberately so. ``realpath`` goes into the
+    visited set; it is never compared against the root, so a junction leading
+    OUT of the source is walked and its files are indexed. That was put to the
+    owner with the measurement and accepted on 2026-08-26 (finding D-52): a
+    junction inside a folder somebody connected counts as part of that folder.
+    Do not "fix" it here — the accepted risk and what it admits are written up
+    in ``docs/SECURITY.md`` §Accepted risks and in specs/workspace-sources.md;
+    changing it is a requirements decision, not a bugfix.
+
     ``unreadable``, when given, collects the root-relative paths the walk could
     not look inside — or could not even classify. Находка D-46: молчаливый
     ``continue`` наружу ничего не отдавал, файлы под недоступным каталогом

@@ -98,8 +98,31 @@ Where a check belongs follows from which boundary it guards, and the two run in 
 places: the agent's paths are checked by the MCP tool that serves them, the renderer's by
 the main process. A check on the wrong side of a boundary is decoration.
 
-What this section does **not** decide: whether the core's own filesystem API is a boundary
-we re-check when the core runs on another machine (finding D-53, open).
+### Accepted risks — decided, not overlooked
+Both were put to the owner on 2026-08-26 with the measurement in hand and decided there.
+They are written down because an accepted risk that nobody recorded is indistinguishable
+from one nobody noticed — and the next reviewer will raise them again otherwise.
+
+- **A source's root is not a containment boundary (finding D-52).** `walk_files` guards
+  against symlink/junction *cycles*, not against leaving the root, and on Windows an NTFS
+  junction is the one link type Python does not report as a link (`os.path.islink` returns
+  `False`; measured 2026-08-26 — a junction inside a source root yielded a file from
+  outside it). Accepted: a junction inside a folder someone connected is treated as part
+  of that folder. What that admits, stated plainly so nobody has to rediscover it: the
+  contents behind such a junction are parsed, chunked, **sent to the embedding provider**,
+  and can be quoted back in answers — including from a folder the person never meant to
+  share, and including a junction that arrived inside an archive from outside. This is
+  exfiltration through indexing, not code execution; it needs no agent cooperation and no
+  exploit, but it does need a junction inside a folder the person connected themselves.
+- **The core's filesystem API is trusted when the core runs on another machine (finding
+  D-53).** In remote mode `viewer:read-document` hands the path to the core's
+  `/api/fs/read-data-url` unchecked. The desktop does not know that machine's roots, so a
+  client-side path check would assert something it cannot know. Accepted: we start that
+  core ourselves over ssh, the files are its own, and the boundary — if one is wanted —
+  belongs on its side, not here.
+
+Revisit either when the reasoning behind it changes: a source that can be connected
+without a person picking the folder, or a remote core we no longer start ourselves.
 
 ### Specific notes
 - **Core plugin directory is a code-execution path (R11).** Hermes loads any ESM file from
