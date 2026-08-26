@@ -9,6 +9,7 @@ The LLM stub asserts on call. That is how «tier one never calls a model»
 
 from __future__ import annotations
 
+import anyio
 import pytest
 from mcp_harness import connected_session
 from rag_stubs import (
@@ -163,3 +164,122 @@ async def test_wiki_init_creates_the_skeleton_through_the_tool(project, monkeypa
     vault = project_json.parent.parent
     assert (vault / "wiki" / "SCHEMA.md").is_file()
     assert (vault / "wiki" / "entities").is_dir()
+
+
+# --- Находка D-49: две мутирующие задачи разом ------------------------------
+#
+# `rag_ingest` и `rag_graph_add` заводили `asyncio.create_task` без всякого
+# взаимного исключения. Две такие задачи работают на ОДНОМ `sqlite3.Connection`
+# и одном экземпляре LightRAG; зовёт их модель, поэтому ограничения в окне тут
+# не помогают. Тесты держат наблюдаемое обещание — «вторую не начинаем», — а не
+# устройство замка.
+
+
+class _EmptyReport:
+    """Отчёт-заглушка: тесту важна очерёдность, а не содержимое."""
+
+    def as_dict(self):
+        return {"files_ingested": 0, "chunks": 0}
+
+
+def _hanging_ingest(release):
+    async def run(*args, **kwargs):
+        await release.wait()
+        return _EmptyReport()
+
+    return run
+
+
+@pytest.mark.anyio
+async def test_second_ingest_is_refused_while_the_first_still_runs(project, monkeypatch):
+    import aec_rag.server as server_module
+
+    project_json, source = project
+    add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
+    server = await stub_server(project_json, monkeypatch)
+
+    release = anyio.Event()
+    monkeypatch.setattr(server_module, "ingest", _hanging_ingest(release))
+
+    async with connected_session(server) as client:
+        first = await call(client, "rag_ingest", {})
+
+        second = await client.call_tool("rag_ingest", {})
+
+        assert second.is_error, "вторая задача начала работать поверх первой"
+        message = error_text(second)
+        # В отказе обязан стоять идентификатор работающей задачи: без него
+        # модели некуда пойти, и она просто попробует ещё раз.
+        assert first["job_id"] in message, message
+
+        release.set()
+        await server.rag_state.jobs[first["job_id"]].task
+
+
+@pytest.mark.anyio
+async def test_graph_add_is_refused_while_an_ingest_runs(project, monkeypatch):
+    """Разные виды задач — тот же общий conn и тот же LightRAG."""
+    import aec_rag.server as server_module
+
+    project_json, source = project
+    add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
+    server = await stub_server(project_json, monkeypatch)
+
+    release = anyio.Event()
+    monkeypatch.setattr(server_module, "ingest", _hanging_ingest(release))
+
+    async with connected_session(server) as client:
+        first = await call(client, "rag_ingest", {})
+        before = (project_json).read_text(encoding="utf-8")
+
+        refused = await client.call_tool("rag_graph_add", {"paths": ["tasks/задание.pdf"]})
+
+        assert refused.is_error
+        # Отказ приходит РАНЬШЕ, чем что-либо записано: `add_to_scope` правит
+        # project.json, и сделать это, а потом отказать — хуже, чем отказать.
+        assert project_json.read_text(encoding="utf-8") == before
+
+        release.set()
+        await server.rag_state.jobs[first["job_id"]].task
+
+
+@pytest.mark.anyio
+async def test_the_next_job_starts_once_the_first_has_finished(project, monkeypatch):
+    """Замок не должен превратиться в «одна задача на всю жизнь сервера»."""
+    project_json, source = project
+    add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
+    server = await stub_server(project_json, monkeypatch)
+
+    async with connected_session(server) as client:
+        await ingest_and_wait(client, server)
+
+        second = await call(client, "rag_ingest", {})
+
+        assert second["job_id"] in server.rag_state.jobs
+        await server.rag_state.jobs[second["job_id"]].task
+
+
+@pytest.mark.anyio
+async def test_a_failed_job_does_not_wedge_the_lock(project, monkeypatch):
+    """Упавшая задача обязана освободить место — иначе один сбой глушит сервер."""
+    import aec_rag.server as server_module
+
+    project_json, source = project
+    add_scanned(project_json, source, "задание.pdf", "Мощность 250 кВт.")
+    server = await stub_server(project_json, monkeypatch)
+
+    async def failing(*args, **kwargs):
+        raise RuntimeError("нарочно")
+
+    monkeypatch.setattr(server_module, "ingest", failing)
+
+    async with connected_session(server) as client:
+        first = await call(client, "rag_ingest", {})
+        job = server.rag_state.jobs[first["job_id"]]
+        await job.task
+        assert job.status == "failed"
+
+        # Место свободно: следующая задача заводится.
+        again = await call(client, "rag_ingest", {})
+        assert again["job_id"] != first["job_id"]
+        await server.rag_state.jobs[again["job_id"]].task

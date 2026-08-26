@@ -86,6 +86,11 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+#: Виды задач, которые ПИШУТ: у них общая база и общий экземпляр LightRAG,
+#: поэтому одновременно работать может только одна (находка D-49).
+MUTATION_KINDS = frozenset({"ingest", "graph"})
+
+
 class RagServer:
     """Everything one project's tools need, opened when first asked for.
 
@@ -127,6 +132,33 @@ class RagServer:
         self.jobs[job.job_id] = job
         return job
 
+    def claim_mutation(self, kind: str) -> Job:
+        """Занимает единственное место под пишущую задачу — или отказывает.
+
+        Находка D-49: ``rag_ingest`` и ``rag_graph_add`` заводили задачу через
+        ``asyncio.create_task`` без всякого взаимного исключения, а база и
+        экземпляр LightRAG у них ОБЩИЕ. Две такие задачи живут на одном цикле
+        событий и перемежаются на каждом ``await`` — то есть одна может
+        закоммитить транзакцию, начатую другой. Зовёт их модель, поэтому
+        ограничения в окне тут не помогают: граница должна стоять на сервере.
+
+        Место занимается СИНХРОННО, до первого ``await`` в теле инструмента, —
+        иначе два вызова успеют пройти проверку, пока каждый ждёт открытия
+        индекса, и замок не удержит ничего. По той же причине задача заводится
+        здесь же, а не после подготовки: занятое место и есть задача.
+
+        Освобождается оно тем, что задача доходит до ``done`` или ``failed`` —
+        ``run()`` в обоих инструментах ставит это в ``finally``, так что упавшая
+        задача сервер не глушит.
+        """
+        for job in self.jobs.values():
+            if job.kind in MUTATION_KINDS and job.status == "running":
+                raise ToolError(
+                    f"уже идёт задача {job.kind} ({job.job_id}): она пишет в тот же индекс, "
+                    f"и второй такой быть не может. Дождитесь конца — rag_job({job.job_id!r})"
+                )
+        return self.new_job(kind)
+
     def record(self, job: Job, progress: Progress) -> None:
         job.done = progress.done
         job.total = progress.total
@@ -157,10 +189,20 @@ def build_server(project_json: Path) -> MCPServer:
         if mode not in ("incremental", "full"):
             raise ToolError(f"неизвестный режим {mode!r}: ожидается 'incremental' или 'full'")
 
-        conn = state.db()
-        rag = await _index(state)
-        roots = _roots(state)
-        job = state.new_job("ingest")
+        # Место занимается ДО первого await (находка D-49) — иначе два вызова
+        # пройдут проверку, пока каждый ждёт открытия индекса.
+        job = state.claim_mutation("ingest")
+        try:
+            conn = state.db()
+            rag = await _index(state)
+            roots = _roots(state)
+        except Exception as exc:
+            # Подготовка не удалась — место надо освободить здесь: до `run()`
+            # дело не дошло, а занятая навсегда задача заглушила бы сервер.
+            job.status = "failed"
+            job.error = str(exc)
+            job.finished_at = _now()
+            raise
 
         async def run() -> None:
             try:
@@ -280,13 +322,22 @@ def build_server(project_json: Path) -> MCPServer:
         if not paths:
             raise ToolError("не указано, что добавлять в граф")
 
-        conn = state.db()
-        entries = add_to_scope(state.project_json, paths, kinds or {})
-        pending = pending_of(conn, entries)
-        forecast = estimate(conn, pending)
+        # Место занимается ПЕРВЫМ делом (находка D-49), раньше `add_to_scope`:
+        # он правит project.json, и записать, а потом отказать — хуже, чем
+        # отказать сразу.
+        job = state.claim_mutation("graph")
+        try:
+            conn = state.db()
+            entries = add_to_scope(state.project_json, paths, kinds or {})
+            pending = pending_of(conn, entries)
+            forecast = estimate(conn, pending)
+            rag = await _index(state)
+        except Exception as exc:
+            job.status = "failed"
+            job.error = str(exc)
+            job.finished_at = _now()
+            raise
 
-        rag = await _index(state)
-        job = state.new_job("graph")
         job.total = forecast["documents"]
 
         async def run() -> None:
