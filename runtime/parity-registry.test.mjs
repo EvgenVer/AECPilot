@@ -119,15 +119,18 @@ describe("buildRegistry integrity", () => {
     const registry = buildRegistry({
       ...base,
       taskIds: new Set(),
-      surfaces: { cron: { theirs: 9, ours: 1, entry: false } },
+      // Фикстура обязана называть строку, которая ЕЩЁ стоит в CLASSIFICATION:
+      // проверяется механизм, но берётся живая таблица, и перенос поверхности
+      // роняет такой тест (так и случилось с `cron` при закрытии D-50).
+      surfaces: { webhooks: { theirs: 9, ours: 1, entry: false } },
     });
-    expect(registry.problems.join()).toContain("3.5");
+    expect(registry.problems.join()).toContain("3.11");
   });
 
   it("reports a reason left behind after the surface was ported", () => {
     // The dangerous direction: the table keeps explaining why we do not have a
     // screen we now do have, and the explanation reads as current.
-    const registry = buildRegistry({ ...base, surfaces: { cron: { theirs: 9, ours: 9, entry: true } } });
+    const registry = buildRegistry({ ...base, surfaces: { webhooks: { theirs: 9, ours: 9, entry: true } } });
     expect(registry.problems.join()).toContain("перенесена");
   });
 

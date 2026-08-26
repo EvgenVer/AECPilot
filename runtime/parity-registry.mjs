@@ -50,12 +50,9 @@ export const CLASSIFICATION = {
   "pet-generate": { hx: "HX1", note: "питомец и генерация его изображения" },
   "pet-overlay": { hx: "HX1", note: "питомец" },
   agents: { task: "7.1", note: "доска агентов — N10, отнесена в Phase 7" },
-  hud: { task: "3.24", note: "оверлей поверх других окон, появился в 0.20.2" },
   "quick-entry": { task: "3.15", note: "быстрый ввод по глобальному хоткею" },
   "wake-indicator": { task: "3.7b", note: "индикатор слова-активатора" },
   webhooks: { task: "3.11", note: "исходящие вебхуки, UR19" },
-  cron: { task: "3.5", note: "расписания, UR18" },
-  messaging: { task: "3.9", note: "внешние каналы, UR19" },
 };
 
 /** The main-process half of parity (D-27). Their `electron/` is 100 modules, but
@@ -434,7 +431,19 @@ function main() {
   }
   // A разрыв or a stale table is a finding, not a crash: the report is still
   // worth reading, and the exit code is what a gate would check.
-  process.exitCode = registry.gaps.length > 0 || registry.problems.length > 0 ? 1 : 0;
+  //
+  // `--gate` narrows that to the half a gate can honestly enforce (finding
+  // D-50). A РАСХОЖДЕНИЕ is a question for the owner — «перенос, §Non-Goals или
+  // задача» — and a build that stops until someone answers it buys nothing: the
+  // answer arrives in an interview, not in a commit. A stale table is different.
+  // It is objectively wrong: the screen is right there in our tree while the
+  // table still explains its absence, and nobody has to decide anything to fix
+  // it. Only that half fails under `--gate`; the разрыв list still prints.
+  const gateOnly = argv.includes("--gate");
+  const failing = gateOnly
+    ? registry.problems.length > 0
+    : registry.gaps.length > 0 || registry.problems.length > 0;
+  process.exitCode = failing ? 1 : 0;
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
