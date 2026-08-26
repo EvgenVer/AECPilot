@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+import pytest
 from aec_rag.wiki import DEFAULT_TAGS, SUBDIRS, default_schema, init_wiki
 
 
@@ -345,3 +347,52 @@ def test_write_page_refuses_to_leave_the_vault(tmp_path: Path) -> None:
         pass
     else:
         raise AssertionError("запись за пределы проекта прошла")
+
+
+def test_write_page_cannot_forge_its_own_guard(tmp_path: Path) -> None:
+    """Находка D-45, главный случай.
+
+    Проверка стояла на КОРНЕ проекта, а не на ``wiki/``, поэтому под запись
+    попадал ``.aecpilot/wiki-state.json`` — файл, которым ``edited_pages``
+    отличает работу человека от работы агента. Подменив его, агент делает
+    каждую страницу «своей» и снимает ``WriteRefused`` с себя навсегда.
+    Тест держит именно эту цепочку, а не «путь с двумя точками».
+    """
+    from aec_rag.wiki import STATE_FILE, checkpoint_pages, write_page
+
+    init_wiki(tmp_path)
+    _page(tmp_path, "ТП-1.md", "---\ntype: entity\n---\n\nМощность 250 кВт.")
+    checkpoint_pages(tmp_path)
+    before = (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+
+    # Сверяется СООБЩЕНИЕ, а не просто ValueError: у файла суффикс ``.json``,
+    # поэтому проверка расширения отклонила бы его и с прежней, дырявой
+    # проверкой области — тест был бы зелёным, ничего не проверяя. Мутация
+    # (вернуть сверку на корень проекта) обязана его ронять.
+    with pytest.raises(ValueError, match="wiki/"):
+        write_page(tmp_path, STATE_FILE.as_posix(), "{}")
+
+    assert (tmp_path / STATE_FILE).read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    ("rel", "says"),
+    [
+        # `.md` в корне проекта: отсечь его может ТОЛЬКО проверка области.
+        ("AGENTS.md", "wiki/"),
+        ("docs/заметка.md", "wiki/"),
+        (".aecpilot/project.json", "wiki/"),
+        ("wiki/entities/ТП-1.txt", ".md"),
+        ("wiki/raw/источник/файл.md", "raw/"),
+    ],
+)
+def test_write_page_writes_only_wiki_pages(tmp_path: Path, rel: str, says: str) -> None:
+    """Область записи ровно та, что обещана описанием инструмента."""
+    from aec_rag.wiki import write_page
+
+    init_wiki(tmp_path)
+
+    with pytest.raises(ValueError, match=re.escape(says)):
+        write_page(tmp_path, rel, "текст")
+
+    assert not (tmp_path / rel).exists()

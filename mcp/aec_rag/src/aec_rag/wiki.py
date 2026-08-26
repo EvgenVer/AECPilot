@@ -448,11 +448,31 @@ def write_page(vault: Path, rel: str, text: str) -> dict[str, object]:
     новом тексте, при условии что страницу правил человек (``wiki_edited``).
     Страницу, которую агент сам же и оставил в прошлый раз, он вправе
     переписать как угодно.
+
+    Находка D-45: область записи сверялась с КОРНЕМ проекта, а не с ``wiki/``,
+    хотя ``vault`` здесь — именно корень. То есть инструмент, обещающий запись
+    страницы вики, мог переписать любой файл проекта. Хуже всего, что под эту
+    область попадал ``.aecpilot/wiki-state.json`` — файл, на котором стоит сам
+    ``WriteRefused``: подменив его, агент делает каждую страницу «своей» для
+    ``edited_pages``, и отказ не срабатывает больше никогда. Инструмент,
+    заведённый потому что инструкция не работает, умел разоружить себя одним
+    вызовом. Проверка ниже сверяет с ``wiki/`` и делает это ПОСЛЕ ``resolve()``,
+    поэтому симлинк, ведущий наружу, тоже отсекается.
     """
     vault = Path(vault)
-    target = vault / rel
-    if not target.resolve().is_relative_to(vault.resolve()):
-        raise ValueError(f"путь ведёт за пределы проекта: {rel}")
+    wiki = (vault / "wiki").resolve()
+    target = (vault / rel).resolve()
+
+    if not target.is_relative_to(wiki):
+        raise ValueError(f"писать можно только внутрь wiki/, а это не она: {rel}")
+    if target.suffix.lower() != ".md":
+        raise ValueError(f"страница вики — это файл .md: {rel}")
+    # ``raw/`` — снимки источников, их пишет ``write_snapshots``. Страницей они
+    # не считаются (см. ``_page_files``), а значит ``edited_pages`` никогда не
+    # назовёт их чужими — и правка снимка прошла бы вообще без разбора, подменив
+    # ту базу, с которой ``stale_snapshots`` сверяет свежесть.
+    if "raw" in target.relative_to(wiki).parts:
+        raise ValueError(f"wiki/raw/ — снимки источников, их пишет не агент: {rel}")
 
     if target.exists():
         state = edited_pages(vault)
