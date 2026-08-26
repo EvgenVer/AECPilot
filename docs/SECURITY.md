@@ -70,6 +70,38 @@ dependency-vulnerability check, light SAST. Detail: the `security-review` skill.
 ## Project-specific threat notes (AECPilot)
 Added 2026-08-05 with the course change; full risk register lives in `SPECIFICATION.md`.
 
+### Trust boundaries — who is not trusted, and what follows
+Recorded 2026-08-26 (finding D-51). All three were already enforced in code before they
+were written down here, and that gap had a cost: with no adversary named, a security
+finding cannot be ranked — "high" and "medium" decay into opinions, and a reviewer puts
+an arbitrary-file read next to a preserved `mtime`. Ranking starts here.
+
+1. **The agent is not trusted with a path.** It authors the citation text a viewer opens,
+   it calls our MCP tools, and it demonstrably breaks a written rule when the rule is
+   inconvenient — task 4.14 measured five violations out of five attempts. So: a path
+   arriving from agent-authored text is resolved against a real root before anything
+   reads or writes *through* it, and a tool enforces its own scope in code. A tool whose
+   scope lives only in its description does not have one.
+2. **The renderer is not trusted with a path, nor with consent.** The window is where
+   somebody else's documents get rendered. "The window said so" is not evidence that a
+   human chose anything: main issues a capability after a native dialog *it* opened, and
+   consumes that capability on use (`apps/desktop/src/main/picked-paths.ts`, task 4D-11).
+   A `confirmed: true` from the renderer is not consent, for the same reason a path from
+   the renderer is not a choice. This does not weaken `contextIsolation`/`sandbox`/CSP —
+   it is what remains true after they hold.
+3. **Document content is data, never instructions.** The general rule above, restated
+   here because this product exercises it daily: a drawing register, a spec PDF or a
+   contractor's letter is retrieved, chunked, and put in front of a model that holds
+   tools.
+
+Where a check belongs follows from which boundary it guards, and the two run in different
+places: the agent's paths are checked by the MCP tool that serves them, the renderer's by
+the main process. A check on the wrong side of a boundary is decoration.
+
+What this section does **not** decide: whether the core's own filesystem API is a boundary
+we re-check when the core runs on another machine (finding D-53, open).
+
+### Specific notes
 - **Core plugin directory is a code-execution path (R11).** Hermes loads any ESM file from
   `$HERMES_HOME/desktop-plugins/<id>/plugin.js` into its renderer with gateway RPC access,
   and the agent can write files. The directory exists whether or not we use it. We ship no
