@@ -41,6 +41,21 @@ overrides:
 # means forcing uuid 8 → 11 on a transitive dependency — three majors, in a code
 # path our tests never execute, to close a hole that is not reachable. Recheck
 # when exceljs widens its own range.
+#
+# Владелец решения: владелец проекта. Пересматривать не по календарю, а по
+# двум проверяемым поводам (находка D-55): перед выпуском (фаза 6) и при
+# каждом подъёме exceljs. Дата в комментарии протухла бы молча, а эти два
+# повода видно в работе.
+#
+# Лицензии, проверенные руками тогда же (D-55):
+#   khroma@2.1.0  — MIT. В пакете лежит файл `license` с полным текстом;
+#                   поля `license` в package.json просто нет.
+#   buffers@0.1.1 — ЛИЦЕНЗИИ НЕТ ВООБЩЕ: ни поля, ни файла, ни строки в
+#                   README. Едет в ПОСТАВКУ: exceljs > unzipper > binary >
+#                   buffers. Это не «метаданные потерялись», это
+#                   неопределённое право на код, который мы раздаём.
+#                   Решение за владельцем — принять, вычистить или уйти с
+#                   exceljs; здесь записан только замер.
 auditConfig:
   ignoreGhsas:
     - GHSA-w5hq-g745-h8pq
