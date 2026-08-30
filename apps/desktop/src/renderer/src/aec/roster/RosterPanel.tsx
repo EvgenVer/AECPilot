@@ -113,14 +113,12 @@ export function RosterPanel(): React.JSX.Element {
   })
 
   // Задача 3C.4. Щелчок по специалисту открывает ЕГО постоянный чат: какую
-  // сессию — решает главный процесс (там привязка и там видно, ответило ли
-  // ядро), а открывает её их же оболочка, как любую другую.
+  // сессию — решает главный процесс (там видно, ответило ли ядро), а открывает
+  // её их же оболочка, как любую другую. Привязку окно не помнит и не шлёт:
+  // личность чата — его имя в реестре ядра (задача 3.B2б).
   const openChat = useMutation({
     mutationFn: (specialist: SpecialistView) =>
-      window.aecpilot.openSpecialistChat({
-        name: specialist.name,
-        pin: specialist.chatSessionId
-      }),
+      window.aecpilot.openSpecialistChat({ name: specialist.name }),
     onSuccess: async (result) => {
       if (!report(result)) return
       if (result.sessionId) openSession(result.sessionId, () => {}, 'in-place')

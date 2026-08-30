@@ -2593,13 +2593,13 @@ ipcMain.handle('roster:avatar', (_event, name: unknown) =>
 
 // Задача 3C.4. Постоянный чат специалиста: главный процесс решает, какую сессию
 // открыть (или заводит её), окно — открывает. Решение здесь, потому что здесь
-// живёт привязка и здесь же видно, ответило ли ядро.
+// видно, ответило ли ядро.
+//
+// Привязку окно больше не присылает (задача 3.B2б): личность чата — его имя в
+// реестре ядра, и спрашивать о ней надо ядро, а не помнить самим.
 ipcMain.handle('roster:open-chat', (_event, payload: unknown) => {
-  const { name, pin } = (payload ?? {}) as { name?: unknown; pin?: unknown }
-  return openCanonicalChat(
-    typeof name === 'string' ? name : '',
-    typeof pin === 'string' ? pin : undefined
-  )
+  const { name } = (payload ?? {}) as { name?: unknown }
+  return openCanonicalChat(typeof name === 'string' ? name : '')
 })
 
 // Задача 3C.8. Скрытый специалист продолжает работать: обращения по имени

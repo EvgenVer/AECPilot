@@ -117,7 +117,7 @@ export function parseSpecialist(raw: unknown): Specialist | null {
     face: readFace(ours.face),
     hasAvatar: row.has_avatar === true,
     hidden: ours.hidden === true,
-    chatSessionId: text(ours.chat),
+    chatSessionId: canonicalSessionId(row),
     preview: text(last.preview),
     previewAt: text(last.updated_at),
     // Само присутствие строки рабочей сессии и означает «работает»: ядро кладёт
@@ -126,6 +126,27 @@ export function parseSpecialist(raw: unknown): Specialist | null {
     busy: typeof row.worker_session === 'object' && row.worker_session !== null,
     ...(metaRevision(row) === undefined ? {} : { revision: metaRevision(row) })
   }
+}
+
+/** Идентификатор постоянного чата — из реестровой строки, которую ядро
+ * резолвит само (задача 3.B2б).
+ *
+ * До 0.20.6 это поле читалось из НАШИХ полей профиля (`ui_meta.aecpilot.chat`),
+ * потому что личностью чата была наша привязка. Ядро сняло тот механизм и
+ * отвечает `canonical_session` — сессией, названной «Bot Chat». Берём вершину
+ * сжатой линии (`resolved_id`), а не корень: окно открывает живую переписку.
+ *
+ * Пусто — законный ответ: чата ещё нет ЛИБО ядро не смогло его резолвить.
+ * Различать эти два случая здесь не нужно и нельзя — это делает
+ * `planCanonicalChat` там, где спрашивают реестр напрямую. */
+function canonicalSessionId(row: Record<string, unknown>): string {
+  const canonical = row.canonical_session
+  if (typeof canonical !== 'object' || canonical === null) return ''
+
+  const entry = canonical as Record<string, unknown>
+  const resolved = text(entry.resolved_id)
+
+  return resolved === '' ? text(entry.id) : resolved
 }
 
 export function parseRoster(answer: unknown): Specialist[] {
@@ -145,14 +166,12 @@ export function metaPatch(input: {
   role?: string
   face?: SpecialistFace | null
   hidden?: boolean
-  chat?: string
 }): Record<string, unknown> {
   const ours: Record<string, unknown> = {}
 
   if (input.title !== undefined) ours.title = input.title.trim()
   if (input.role !== undefined) ours.role = input.role.trim()
   if (input.hidden !== undefined) ours.hidden = input.hidden
-  if (input.chat !== undefined) ours.chat = input.chat
   // `null` в поле лица — это «убрать», и ядро понимает именно `null`.
   if (input.face !== undefined) ours.face = input.face
 

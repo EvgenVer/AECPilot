@@ -1,112 +1,68 @@
-// Задача 3C.4 (SPEC UR27, контракт — specs/agent-roster.md §Р4). Одиннадцать их
-// случаев сведены к пяти правилам; проверяется каждое, потому что ошибка здесь
-// значит, что человек потерял переписку со специалистом.
+// Задача 3C.4 (SPEC UR27, контракт — specs/agent-roster.md §Р4), переписана под
+// схему ядра 0.20.6 (задача 3.B2б): личность чата — его имя в реестре, а не
+// наша привязка. Правил стало четыре; проверяется каждое, потому что ошибка
+// здесь значит, что человек потерял переписку со специалистом.
+//
+// Отдельно и подробно проверяется четвёртое — отказ при недоступном реестре.
+// Это единственный оставшийся способ раздвоить вечный чат, и разница между
+// «чата нет» и «спросить не удалось» здесь и живёт.
 
 import { describe, expect, it } from 'vitest'
 
 import { planCanonicalChat, rerouteNewInCanonicalChat } from './canonical-chat-pure'
 
 describe('какую сессию открыть', () => {
-  it('живая привязка открывается как есть и не заменяется', () => {
-    expect(planCanonicalChat({ pin: 'с-1', preferred: { id: 'с-1' }, answered: true })).toEqual({
+  it('реестровая строка есть — открываем её', () => {
+    expect(
+      planCanonicalChat({ registry: { id: 'с-1', resolvedId: 'с-1' } })
+    ).toEqual({ action: 'open', sessionId: 'с-1' })
+  })
+
+  it('сжатая переписка — открываем живую вершину, а не корень реестра', () => {
+    // `id` остаётся личностью строки, `resolved_id` — то, что читает человек.
+    expect(
+      planCanonicalChat({ registry: { id: 'корень', resolvedId: 'вершина' } })
+    ).toEqual({ action: 'open', sessionId: 'вершина' })
+  })
+
+  it('вершины нет — открываем сам реестровый идентификатор', () => {
+    // Несжатая переписка: ядро отдаёт `resolved_id` равным `id`, но старое
+    // могло не отдать его вовсе.
+    expect(planCanonicalChat({ registry: { id: 'с-1', resolvedId: '' } })).toEqual({
       action: 'open',
       sessionId: 'с-1'
     })
   })
 
-  it('сжатая сессия — открываем живую вершину, привязку сохраняем', () => {
-    // Ядро отвечает по привязке идентификатором живой вершины цепочки сжатия.
-    expect(
-      planCanonicalChat({ pin: 'с-1', preferred: { id: 'с-1-вершина' }, answered: true })
-    ).toEqual({ action: 'open', sessionId: 'с-1-вершина' })
-  })
-
-  it('ядро не ответило — открываем привязку и НИЧЕГО не переписываем', () => {
-    expect(planCanonicalChat({ pin: 'с-1', answered: false })).toEqual({
-      action: 'open',
-      sessionId: 'с-1'
-    })
-  })
-
-  it('сессии точно нет — перепривязка на показанную, а не на самую новую', () => {
-    expect(
-      planCanonicalChat({
-        pin: 'с-1',
-        preferred: null,
-        latest: { id: 'с-2' },
-        answered: true
-      })
-    ).toEqual({ action: 'adopt', sessionId: 'с-2' })
-  })
-
-  it('сессии нет и истории нет — создаём', () => {
-    expect(
-      planCanonicalChat({ pin: 'с-1', preferred: null, latest: null, answered: true })
-    ).toEqual({ action: 'create' })
-  })
-
-  it('привязки нет, но переписка была — усыновляем её, а не начинаем с нуля', () => {
-    expect(planCanonicalChat({ pin: '', latest: { id: 'с-7' }, answered: true })).toEqual({
+  it('чата нет, но переписка была — усыновляем её (дедушкино правило)', () => {
+    // У специалиста, заведённого до появления постоянного чата, разговор уже
+    // идёт, и новая пустая сессия выглядела бы как его потеря.
+    expect(planCanonicalChat({ registry: null, latest: { id: 'старая' } })).toEqual({
       action: 'adopt',
-      sessionId: 'с-7'
+      sessionId: 'старая'
     })
   })
 
   it('нового специалиста ведём в новую сессию', () => {
-    expect(planCanonicalChat({ pin: '', latest: null, answered: true })).toEqual({
-      action: 'create'
-    })
-  })
-
-  it('без привязки и без ответа ядра — создаём, но ничего не теряем', () => {
-    expect(planCanonicalChat({ pin: '', answered: false })).toEqual({ action: 'create' })
+    expect(planCanonicalChat({ registry: null, latest: null })).toEqual({ action: 'create' })
   })
 })
 
-// Задача 3C.4б — по их регрессии `canonical-chat-adopt-before-mint`.
-describe('привязка потерялась, а чат — нет', () => {
-  it('усыновляется НАШ чат, а не последний разговор человека', () => {
-    // Ровно их случай: последняя сессия профиля — обычная переписка человека,
-    // а постоянный чат специалиста лежит старее.
-    expect(
-      planCanonicalChat({
-        pin: '',
-        answered: true,
-        ours: { id: 'постоянный' },
-        latest: { id: 'разговор-человека' }
-      })
-    ).toEqual({ action: 'adopt', sessionId: 'постоянный' })
+// Главное правило после подъёма на 0.20.6 (задача 3.B2б).
+describe('спросить реестр не удалось', () => {
+  it('НЕ создаём второй чат — отказываем', () => {
+    // Их же сбой: окно перезапускает бэкенды профилей, первый клик обгоняет
+    // прогрев, поиск падает — и проглоченная ошибка уводила прямо в
+    // `session.create`. Человек читает это как «специалист забыл всё».
+    expect(planCanonicalChat({})).toEqual({ action: 'refuse' })
   })
 
-  it('то же при заведомо мёртвой привязке', () => {
-    expect(
-      planCanonicalChat({
-        pin: 'умершая',
-        answered: true,
-        preferred: null,
-        ours: { id: 'постоянный' },
-        latest: { id: 'разговор-человека' }
-      })
-    ).toEqual({ action: 'adopt', sessionId: 'постоянный' })
+  it('отказ не путается с «чата нет»: при живой переписке тоже отказ', () => {
+    expect(planCanonicalChat({ latest: { id: 'старая' } })).toEqual({ action: 'refuse' })
   })
 
-  it('дедушкино правило цело: нашего чата нет — усыновляем последнюю', () => {
-    // У специалиста, заведённого до появления постоянного чата, нашей сессии
-    // нет по определению, и новый пустой чат выглядел бы как потеря переписки.
-    expect(
-      planCanonicalChat({ pin: '', answered: true, ours: null, latest: { id: 'старая' } })
-    ).toEqual({ action: 'adopt', sessionId: 'старая' })
-  })
-
-  it('живая привязка сильнее всего: наш чат её не подменяет', () => {
-    expect(
-      planCanonicalChat({
-        pin: 'живая',
-        answered: true,
-        preferred: { id: 'живая' },
-        ours: { id: 'другая-наша' }
-      })
-    ).toEqual({ action: 'open', sessionId: 'живая' })
+  it('а вот определённое «нет» — не отказ', () => {
+    expect(planCanonicalChat({ registry: null, latest: null })).toEqual({ action: 'create' })
   })
 })
 

@@ -1074,7 +1074,7 @@ export interface AecpilotApi {
     enabled: boolean
   }): Promise<{ ok: boolean; error?: string }>
   runRoutineNow(payload: { profile: string; id: string }): Promise<{ ok: boolean; error?: string }>
-  openSpecialistChat(payload: { name: string; pin?: string }): Promise<{
+  openSpecialistChat(payload: { name: string }): Promise<{
     ok: boolean
     sessionId?: string
     created?: boolean

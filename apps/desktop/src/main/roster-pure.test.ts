@@ -115,7 +115,33 @@ describe('разбор ответа ядра', () => {
     )
 
     expect(parsed?.title).toBe('Наш')
-    expect(parsed?.chatSessionId, 'чужая привязка чата — не наша').toBe('')
+    expect(parsed?.chatSessionId, 'привязка в ui_meta больше не читается').toBe('')
+  })
+
+  // Задача 3.B2б. Идентификатор постоянного чата приходит из реестра ЯДРА
+  // (`canonical_session`), а не из наших полей профиля: ядро сняло механизм, на
+  // котором стояла наша привязка, и резолвит чат само — по имени.
+  it('идентификатор чата берётся из реестровой строки ядра', () => {
+    const parsed = parseSpecialist(row({ canonical_session: { id: 'с-1', resolved_id: 'с-1' } }))
+
+    expect(parsed?.chatSessionId).toBe('с-1')
+  })
+
+  it('у сжатой переписки берётся живая вершина, а не корень', () => {
+    const parsed = parseSpecialist(
+      row({ canonical_session: { id: 'корень', resolved_id: 'вершина' } })
+    )
+
+    expect(parsed?.chatSessionId, 'открывать надо то, что человек читает').toBe('вершина')
+  })
+
+  it('без вершины берётся сам реестровый идентификатор', () => {
+    expect(parseSpecialist(row({ canonical_session: { id: 'с-1' } }))?.chatSessionId).toBe('с-1')
+  })
+
+  it('чата нет — пусто, и это законный ответ', () => {
+    expect(parseSpecialist(row({ canonical_session: null }))?.chatSessionId).toBe('')
+    expect(parseSpecialist(row({}))?.chatSessionId).toBe('')
   })
 
   it('лицо принимается только цветом и известной формой', () => {

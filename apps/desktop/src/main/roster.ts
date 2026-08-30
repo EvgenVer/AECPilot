@@ -13,7 +13,7 @@
 // шаг не удался, профиль ОСТАЁТСЯ: он уже создан, и делать вид, что нет, значило
 // бы потерять его молча.
 
-import { planCanonicalChat } from './canonical-chat-pure'
+import { planCanonicalChat, type CanonicalChatFacts } from './canonical-chat-pure'
 import {
   displayNameOf,
   duplicateName,
@@ -358,34 +358,43 @@ export async function setSpecialistHidden(
   }
 }
 
-/** Метка источника, которой помечены СОЗДАННЫЕ НАМИ постоянные чаты.
+/** Заголовок, который И ЕСТЬ личность постоянного чата (задача 3.B2б).
  *
- * Это опознавательный знак чата, и он выбран вместо заголовка сознательно
- * (задача 3C.4б). У донора личность канонического чата — его заголовок
- * «Bot Chat», и именно на этом раскрутился их бесконечный цикл: заголовок
- * переименовывает автоименователь модели, после чего чат перестаёт узнаваться
- * и создаётся заново. Источник не переименовывает никто, включая модель.
+ * До 0.20.6 личностью была НАША метка: сохранённый номер сессии плюс метка
+ * источника. Ядро сняло механизм, на котором это стояло — параметра
+ * `preferred_session_ids` и поля `preferred_session` больше нет, — и заменило
+ * реестром: уникальный индекс по заголовку делает пару (профиль, «Bot Chat»)
+ * ровно одной строкой, а сам заголовок ядро запрещает менять, пока строка
+ * скрыта (#92473). Отсюда два следствия, оба несущие: чат создаётся СКРЫТЫМ, и
+ * заголовок пишется СРАЗУ, а не когда-нибудь потом.
  *
- * Отсюда же ответ, почему мы НЕ берём их прибавку 0.20.5 — поиск сессии по
- * точному заголовку (`session.list` с `title`). Она лечит их болезнь, которой у
- * нас нет: нашим чатам заголовок вообще не назначается. */
+ * Заголовок совпадает с донорским намеренно: реестр в ядре один, и назвать свой
+ * чат иначе значит не попасть в него вовсе — тогда ни воскрешение случайно
+ * заархивированного чата, ни усыновление застрявшей сессии на нас не работают. */
+const CANONICAL_CHAT_TITLE = 'Bot Chat'
+
+/** Метка источника, которой помечены созданные нами чаты.
+ *
+ * Личностью она быть перестала (см. выше) и для поиска НЕ используется: два
+ * механизма опознания сразу — это два расходящихся ответа на один вопрос.
+ * Остаётся как след в выдаче: по нему видно, наш ли чат завёл строку, и это
+ * единственное, чего заголовок не говорит. */
 const OUR_CHAT_SOURCE = 'aecpilot-roster'
 
+/** Незавершённые создания по имени специалиста.
+ *
+ * Двойной клик по строке роестра не должен завести два чата: пока первое
+ * создание идёт, второй вызов ждёт его же результат. Их код держит такую же
+ * карту и по той же причине. */
+const canonicalCreations = new Map<string, Promise<{ ok: boolean; sessionId?: string; created?: boolean; error?: string }>>()
+
 /**
- * Постоянный чат специалиста (задача 3C.4).
+ * Постоянный чат специалиста (задачи 3C.4, 3.B2б).
  *
- * Возвращает сессию, которую надо открыть, — и, если её пришлось завести или
- * перепривязать, ЗАПИСЫВАЕТ привязку. Решение принимает `planCanonicalChat` по
- * фактам; здесь только сбор фактов и действие.
- *
- * Сессия создаётся СКРЫТОЙ (`hidden: true`) и всегда, без настройки: постоянные
- * чаты специалистов в общем списке сессий — это свалка, в которой не найти
- * собственную переписку. Их код делает так же и по той же причине.
+ * Возвращает сессию, которую надо открыть. Решение принимает
+ * `planCanonicalChat` по фактам; здесь только сбор фактов и действие.
  */
-export async function openCanonicalChat(
-  name: string,
-  knownPin?: string
-): Promise<{
+export async function openCanonicalChat(name: string): Promise<{
   ok: boolean
   sessionId?: string
   created?: boolean
@@ -393,132 +402,205 @@ export async function openCanonicalChat(
 }> {
   if (!isValidSpecialistName(name)) return { ok: false, error: 'Недопустимое имя специалиста' }
 
-  let pin = typeof knownPin === 'string' ? knownPin : ''
-  let facts: Parameters<typeof planCanonicalChat>[0] = { pin, answered: false }
+  const inflight = canonicalCreations.get(name)
+  if (inflight) return inflight
+
+  const run = openCanonicalChatOnce(name)
+  canonicalCreations.set(name, run)
 
   try {
-    // Привязку надо ЗНАТЬ, чтобы о ней спросить: ядро проверяет её по
-    // `preferred_session_ids` и отвечает сводкой сессии или `null`. Окно обычно
-    // уже держит список и присылает привязку с собой — тогда лишнего вызова
-    // нет; на холодную приходится спросить список дважды.
-    if (pin === '') {
-      const known = parseRoster(await core().request('profiles.list', { include_sessions: true }))
-      pin = known.find((specialist) => specialist.name === name)?.chatSessionId ?? ''
-    }
+    return await run
+  } finally {
+    canonicalCreations.delete(name)
+  }
+}
 
-    const answer = (await core().request('profiles.list', {
-      include_sessions: true,
-      ...(pin === '' ? {} : { preferred_session_ids: { [name]: pin } })
-    })) as { profiles?: unknown[] }
+async function openCanonicalChatOnce(name: string): Promise<{
+  ok: boolean
+  sessionId?: string
+  created?: boolean
+  error?: string
+}> {
+  let facts: CanonicalChatFacts
 
-    const row = (answer?.profiles ?? []).find(
-      (candidate) => parseSpecialist(candidate)?.name === name
-    ) as Record<string, unknown> | undefined
-
-    const preferred = row?.preferred_session as
-      { session_id?: string; id?: string } | null | undefined
-    const latest = row?.last_session as { session_id?: string; id?: string } | null | undefined
-
-    facts = {
-      pin,
-      answered: true,
-      ...(pin === '' || preferred === undefined
-        ? {}
-        : { preferred: preferred === null ? null : { id: idOf(preferred) } }),
-      ...(latest ? { latest: { id: idOf(latest) } } : { latest: null })
-    }
-
-    // Наш ли чат уже есть — спрашиваем ТОЛЬКО когда иначе пришлось бы усыновлять
-    // или создавать. При живой привязке (самый частый случай) лишнего вызова нет.
-    if (pin === '' || facts.preferred === null) {
-      facts = { ...facts, ours: await findOurChat(name) }
-    }
+  try {
+    facts = { registry: await findCanonicalChat(name), latest: await latestSession(name) }
   } catch (error: unknown) {
-    // Ядро молчит — это НЕ повод терять привязку (см. `planCanonicalChat`).
+    // Спросить реестр не удалось. Факты остаются без `registry`, и план будет
+    // «отказать» — см. `planCanonicalChat`, четвёртое правило.
     console.warn('aecpilot: roster canonical chat lookup FAIL', error)
-    facts = { pin, answered: false }
+    facts = {}
   }
 
   const plan = planCanonicalChat(facts)
 
+  if (plan.action === 'refuse') {
+    return {
+      ok: false,
+      error: 'Не удалось проверить постоянный чат специалиста — попробуйте ещё раз'
+    }
+  }
+
   if (plan.action === 'open') return { ok: true, sessionId: plan.sessionId, created: false }
 
   if (plan.action === 'adopt') {
-    await rememberChat(name, plan.sessionId)
-    return { ok: true, sessionId: plan.sessionId, created: false }
+    // Дедушкино правило: у специалиста, заведённого до появления постоянного
+    // чата, разговор уже идёт. Делаем его реестровым — заголовок и скрытость,
+    // ровно та пара, которая включает защиту ядра от переименования.
+    try {
+      await core().request('session.title', {
+        session_id: plan.sessionId,
+        title: CANONICAL_CHAT_TITLE
+      })
+      await core().request('session.set_hidden', { session_id: plan.sessionId, hidden: true })
+
+      return { ok: true, sessionId: plan.sessionId, created: false }
+    } catch (error: unknown) {
+      // Заголовок уже занят — значит реестровая строка появилась между нашим
+      // промахом и этой записью (другое окно, другая машина). Её и открываем,
+      // свою затею бросаем: это их же правило adopt-before-mint.
+      const adopted = await adoptWinner(name, error)
+      if (adopted) return adopted
+
+      return { ok: false, error: describe(error) }
+    }
   }
 
   try {
     const created = (await core().request('session.create', {
-      source: OUR_CHAT_SOURCE,
+      profile: name,
+      title: CANONICAL_CHAT_TITLE,
       hidden: true,
-      profile: name
-    })) as { session_id?: string }
+      source: OUR_CHAT_SOURCE
+    })) as { session_id?: string; stored_session_id?: string }
 
     const sessionId = typeof created?.session_id === 'string' ? created.session_id : ''
     if (sessionId === '') return { ok: false, error: 'Ядро не вернуло сессию' }
 
-    await rememberChat(name, sessionId)
+    // ВТОРОЙ ШАГ ОБЯЗАТЕЛЕН, И ВОТ ПОЧЕМУ. `session.create` ленивый: строки в
+    // базе нет до первого сообщения, а `title` до тех пор лежит отложенным.
+    // Пока строка не названа, реестра «Bot Chat» не существует — и второй клик
+    // в это окно заводит дубликат, которому канонический заголовок уже не
+    // достанется. `session.title` материализует строку сейчас и пишет заголовок
+    // с авторитетом человека, что заодно закрывает её от автоименователя.
+    try {
+      await core().request('session.title', {
+        session_id: sessionId,
+        title: CANONICAL_CHAT_TITLE
+      })
+    } catch (error: unknown) {
+      const adopted = await adoptWinner(name, error)
+      if (adopted) return adopted
+
+      // Старое ядро могло не знать метода — чат всё равно создан, заголовок
+      // ляжет отложенно при первом сообщении.
+      console.warn('aecpilot: canonical chat title not written', error)
+    }
+
+    // ТРЕТИЙ ШАГ, И ОН НЕ ЛИШНИЙ. `hidden` при создании кладётся отложенным
+    // (`pending_hidden`) и применяется, когда строку заводит первое сообщение.
+    // Но строку заводит уже `session.title` — и скрытость он НЕ переносит
+    // (замер `runtime/canonical-chat-probe.mjs`: строка находилась в списке без
+    // `include_hidden`). А защита ядра от переименования включается ТОЛЬКО у
+    // скрытой строки, так что без этого шага заголовок остаётся личностью лишь
+    // на словах — ровно до первого автоименователя.
+    try {
+      await core().request('session.set_hidden', { session_id: sessionId, hidden: true })
+    } catch (error: unknown) {
+      console.warn('aecpilot: canonical chat not hidden', error)
+    }
+
     return { ok: true, sessionId, created: true }
   } catch (error: unknown) {
     return { ok: false, error: describe(error) }
   }
 }
 
-/**
- * Ищет чат, созданный НАМИ для этого специалиста (задача 3C.4б).
+/** Заголовок занял кто-то другой — открыть победителя, а не свою пустую сессию.
  *
- * `include_hidden` обязателен: наши чаты рождаются скрытыми, и без него список
- * их не показывает вовсе — то есть проверка «есть ли уже чат» всегда отвечала бы
- * «нет», и чаты плодились бы при каждой потере привязки.
- *
- * Неудача здесь — это `null`, а не исключение: не нашли и не смогли спросить
- * различаются выше, в `planCanonicalChat`, по флагу `answered`; здесь ответ
- * означает только «нашего чата не видно».
- */
-async function findOurChat(name: string): Promise<{ id: string } | null> {
+ * Возвращает `null`, если ошибка была не про занятый заголовок или победителя
+ * найти не удалось: тогда решает вызывающий. */
+async function adoptWinner(
+  name: string,
+  error: unknown
+): Promise<{ ok: boolean; sessionId?: string; created?: boolean } | null> {
+  if (!/already in use/i.test(describe(error))) return null
+
   try {
-    const answer = (await core().request('session.list', {
-      profile: name,
-      include_hidden: true
-    })) as { sessions?: unknown[] }
+    const winner = await findCanonicalChat(name)
+    if (!winner) return null
 
-    const rows = Array.isArray(answer?.sessions) ? answer.sessions : []
-    const mine = rows
-      .map((row) => row as Record<string, unknown>)
-      .find((row) => typeof row.source === 'string' && row.source === OUR_CHAT_SOURCE)
-
-    if (!mine) return null
-
-    // `resolved_id` — живая вершина сжатой переписки. В обычной выдаче ядро
-    // 0.20.5 её НЕ отдаёт (замер `runtime/own-chat-probe.mjs`: поля строки —
-    // id, title, preview, started_at, message_count, source); поле читается на
-    // случай, если начнёт отдавать. Сжатие в основном пути разрешает привязка.
-    const id = idOf({
-      session_id: typeof mine.resolved_id === 'string' ? mine.resolved_id : undefined,
-      id: typeof mine.id === 'string' ? mine.id : undefined
-    })
-
-    return id === '' ? null : { id }
-  } catch (error: unknown) {
-    console.warn('aecpilot: roster own-chat lookup FAIL', error)
+    return {
+      ok: true,
+      sessionId: winner.resolvedId === '' ? winner.id : winner.resolvedId,
+      created: false
+    }
+  } catch {
     return null
   }
 }
 
-/** Привязка пишется в наши поля профиля — то есть на сервер, и потому одна на
- * все машины. */
-async function rememberChat(name: string, sessionId: string): Promise<void> {
-  try {
-    await core().request('profiles.configure', {
-      name,
-      ui_meta: wholeMeta(await currentMeta(name), metaPatch({ chat: sessionId }))
-    })
-  } catch (error: unknown) {
-    // Привязка не легла — чат всё равно открыт. Молча потерять его нельзя, но
-    // и отменять открытие не за что.
-    console.warn('aecpilot: roster chat pin not saved', error)
+/**
+ * Реестровая строка профиля — сессия, названная ровно «Bot Chat».
+ *
+ * `title` просит у ядра точный поиск по индексу вместо перебора окна выдачи:
+ * занятый профиль выталкивает вечный чат за любое окно свежести, и тогда он
+ * «пропадает». `include_hidden` обязателен — эти чаты всегда скрыты.
+ *
+ * ОШИБКА ЗДЕСЬ БРОСАЕТСЯ НАВЕРХ, А НЕ ПРЕВРАЩАЕТСЯ В `null`. «Не нашли» и «не
+ * смогли спросить» — разные ответы, и подмена второго первым это единственный
+ * оставшийся способ раздвоить вечный чат (см. `planCanonicalChat`).
+ */
+async function findCanonicalChat(
+  name: string
+): Promise<{ id: string; resolvedId: string } | null> {
+  const answer = (await core().request('session.list', {
+    profile: name,
+    title: CANONICAL_CHAT_TITLE,
+    include_hidden: true
+  })) as { sessions?: unknown[] }
+
+  const rows = Array.isArray(answer?.sessions) ? answer.sessions : []
+  const row = rows
+    .map((candidate) => candidate as Record<string, unknown>)
+    .find((candidate) => isCanonicalRow(candidate))
+
+  if (!row) return null
+
+  const id = typeof row.id === 'string' ? row.id : ''
+  if (id === '') return null
+
+  return { id, resolvedId: typeof row.resolved_id === 'string' ? row.resolved_id : '' }
+}
+
+/** Признак реестровой строки в выдаче.
+ *
+ * Полей два, потому что их два и в ответах: точный поиск отдаёт `root_title` —
+ * заголовок КОРНЯ сжатой линии, а обычная оконная выдача только `title`
+ * вершины. Ядро без параметра `title` вернёт окно, и тогда работает вторая
+ * половина. */
+function isCanonicalRow(row: Record<string, unknown>): boolean {
+  const rootTitle = typeof row.root_title === 'string' ? row.root_title.trim() : ''
+  const title = typeof row.title === 'string' ? row.title.trim() : ''
+
+  return rootTitle === CANONICAL_CHAT_TITLE || (rootTitle === '' && title === CANONICAL_CHAT_TITLE)
+}
+
+/** Последняя сессия профиля — только для дедушкиного правила. */
+async function latestSession(name: string): Promise<{ id: string } | null> {
+  const answer = (await core().request('profiles.list', { include_sessions: true })) as {
+    profiles?: unknown[]
   }
+
+  const row = (answer?.profiles ?? []).find(
+    (candidate) => parseSpecialist(candidate)?.name === name
+  ) as Record<string, unknown> | undefined
+
+  const last = row?.last_session as { session_id?: string; id?: string } | null | undefined
+  if (!last) return null
+
+  const id = idOf(last)
+  return id === '' ? null : { id }
 }
 
 function idOf(row: { session_id?: string; id?: string }): string {

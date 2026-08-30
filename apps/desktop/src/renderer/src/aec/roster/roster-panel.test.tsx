@@ -163,18 +163,19 @@ describe('список', () => {
     fireEvent.click(await screen.findByText('Смета'))
 
     expect(useProfile).toHaveBeenCalledWith('smeta')
-    await waitFor(() => expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta', pin: '' }))
+    await waitFor(() => expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta' }))
   })
 
-  it('известная привязка уходит вместе с просьбой — ядру меньше работы', async () => {
+  // Задача 3.B2б. Окно не помнит, какая сессия постоянная, и не присылает её:
+  // личность чата — его имя в реестре ядра, и спрашивать надо ядро. Знай окно
+  // привязку, оно бы отвечало на вопрос, ответ на который у него устарел.
+  it('привязку окно НЕ шлёт — даже когда знает её', async () => {
     listRoster.mockResolvedValue([specialist({ chatSessionId: 'с-7' })])
     renderPanel()
 
     fireEvent.click(await screen.findByText('Смета'))
 
-    await waitFor(() =>
-      expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta', pin: 'с-7' })
-    )
+    await waitFor(() => expect(openSpecialistChat).toHaveBeenCalledWith({ name: 'smeta' }))
   })
 })
 
