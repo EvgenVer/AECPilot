@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/types/hermes.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -580,6 +580,8 @@ export interface SessionMessage {
   args?: unknown
   codex_reasoning_items?: unknown
   content: unknown
+  /** Backend-projected user-visible content when a physical row also carries internal model scaffolding. */
+  display_content?: unknown
   context?: unknown
   name?: string
   reasoning?: null | string
@@ -645,6 +647,9 @@ export interface SessionResumeResponse {
     /** Retained failed turn: the error the terminal frame carried (the frame
      *  itself may have been lost to a disconnect). */
     error?: string
+    /** Structured {layer, code, retryable} descriptor for the retained failed
+     *  turn (see agent/error_surface.py). Omitted by older gateways. */
+    error_surface?: unknown
     recoverable?: boolean
     status?: string
     streaming?: boolean
@@ -668,9 +673,11 @@ export interface SessionResumeResponse {
   // class as pending_approval: emitted-while-detached prompts are restored
   // from the resume snapshot instead of being lost until server-side timeout.
   pending_clarify?: {
+    answers?: Record<string, unknown>
     choices?: null | string[]
     multi_select?: boolean
     question?: string
+    questions?: unknown
     request_id?: string
   }
   info?: SessionRuntimeInfo
@@ -1228,12 +1235,28 @@ export interface ActionResponse {
   already_running?: boolean
 }
 
+export interface UpdateReceiptSummary {
+  outcome: 'running' | 'success' | 'partial' | 'failed' | 'refused' | string
+  started_at: string | null
+  finished_at: string | null
+  pre_sha: string | null
+  post_sha: string | null
+  post_version: string | null
+  fleet_states: string[]
+}
+
 export interface ActionStatusResponse {
   exit_code: number | null
   lines: string[]
   name: string
   pid: number | null
   running: boolean
+  /** hermes-update only: durable completion identity recovered from update.log. */
+  action_id?: string
+  /** hermes-update only: summary of the durable update receipt (#91277 bullet 3) —
+   *  the authoritative outcome record, present even when the dashboard
+   *  restarted itself mid-action and lost its in-memory registries. */
+  receipt?: UpdateReceiptSummary
 }
 
 export interface BackendUpdateCommit {
@@ -1315,6 +1338,8 @@ export interface ModelAssignmentRequest {
   /** OpenAI-compatible endpoint URL. Only honored for custom/local providers
    *  on the main slot — wires a self-hosted endpoint into runtime resolution. */
   base_url?: string
+  /** Ack for selection-guard warnings (expensive / data-training tiers). */
+  confirm_expensive_model?: boolean
   model: string
   provider: string
   scope: 'main' | 'auxiliary'

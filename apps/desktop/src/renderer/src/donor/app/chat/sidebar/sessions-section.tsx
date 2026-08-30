@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/sessions-section.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -106,7 +106,7 @@ interface SidebarSessionsSectionProps {
   onToggle: () => void
   sessions: SessionInfo[]
   activeSessionId: null | string
-  onResumeSession: (sessionId: string) => void
+  onResumeSession: (sessionId: string, session?: SessionInfo) => void
   onDeleteSession: (sessionId: string) => void
   onArchiveSession: (sessionId: string) => void
   onBranchSession?: (sessionId: string, profile?: string) => void
@@ -266,17 +266,20 @@ export function SidebarSessionsSection({
         onDelete: () => onDeleteSession(session.id),
         onPin: () => onTogglePin(sessionPinId(session)),
         onToggleUnread: () => onToggleUnread(session.id),
-        onResume: () => onResumeSession(session.id),
+        onResume: () => onResumeSession(session.id, session),
         reorderable: draggable && !branchStem,
         session,
         showProfile: showProfileTags,
         unread: session.unread === true
       }
 
+      // Key by (profile, id): twins with the same stored id in two profiles
+      // are distinct rows (#92454) — a bare-id key makes React misattribute
+      // one twin's rendered state to the other.
       return draggable && !branchStem ? (
-        <SortableSidebarSessionRow key={session.id} {...rowProps} />
+        <SortableSidebarSessionRow key={`${session.profile ?? ''}::${session.id}`} {...rowProps} />
       ) : (
-        <SidebarSessionRow key={session.id} {...rowProps} />
+        <SidebarSessionRow key={`${session.profile ?? ''}::${session.id}`} {...rowProps} />
       )
     },
     [

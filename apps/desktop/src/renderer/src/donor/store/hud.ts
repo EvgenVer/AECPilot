@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/hud.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -93,6 +93,11 @@ export function closeHud(): void {
 }
 
 export const toggleHud = (sessionId?: null | string) => ($hudActive.get() ? closeHud() : openHud(sessionId))
+
+/** Restore the HUD's persisted geometry to its display-aware default. */
+export function resetHudLayout(): void {
+  void window.hermesDesktop?.hud?.resetLayout?.()
+}
 
 /** Tell main which session this HUD is on. Main holds it (the HUD's renderer
  *  doesn't outlive the window) and hands it back in the close broadcast so the

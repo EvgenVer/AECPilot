@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/user-edit-composer.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -81,7 +81,8 @@ import { Loader2Icon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import type { ComposerAttachment } from '@/store/composer'
 import { notifyError } from '@/store/notifications'
-import { $connection, $terminalBackend } from '@/store/session'
+import { $terminalBackend } from '@/store/session'
+import { isSessionRemote } from '@/store/session-states'
 import { notifyThreadEditClose } from '@/store/thread-scroll'
 
 interface UserEditComposerProps {
@@ -125,14 +126,43 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
   const slash = useSlashCompletions({ gateway })
   const emoji = useEmojiCompletions()
 
+  // Timers this composer schedules must not outlive it. Every callback below
+  // touches component state, a ref or the composer core, and this is the one
+  // composer that routinely unmounts mid-flight: confirming an edit tears it
+  // down while the 200ms submit latch is still pending, so the latch resumes
+  // against an unmounted tree. Two of the callbacks already carry defensive
+  // try/catch for the racing-teardown case; clearing the timers removes the
+  // race instead of surviving it.
+  const pendingTimeoutsRef = useRef<Set<number>>(new Set())
+
+  const scheduleTimeout = useCallback((run: () => void, delayMs: number): void => {
+    const id = window.setTimeout(() => {
+      pendingTimeoutsRef.current.delete(id)
+      run()
+    }, delayMs)
+
+    pendingTimeoutsRef.current.add(id)
+  }, [])
+
   // This is the one composer that routinely unmounts, so it is where the focus
   // bus leaks: confirming or cancelling an edit tears the composer down while
   // `'edit'` is still the active target. Release it alongside the thread-scroll
   // cleanup so keyboard routing falls back to the visible chat composer.
+  //
+  // It also drains whatever `scheduleTimeout` still has pending, which is a
+  // second concern under the same heading rather than a separate one: both
+  // are "this composer is going away", they unmount together by definition,
+  // and a sibling unmount-only effect would only be a second place to forget.
   useEffect(
     () => () => {
       notifyThreadEditClose()
       releaseActiveComposer('edit')
+
+      for (const id of pendingTimeoutsRef.current) {
+        window.clearTimeout(id)
+      }
+
+      pendingTimeoutsRef.current.clear()
     },
     []
   )
@@ -348,7 +378,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
         draftRef.current = composerPlainText(editor)
         aui.composer().setText(draftRef.current)
         requestEditFocus()
-        starter ? window.setTimeout(refreshTrigger, 0) : closeTrigger()
+        starter ? scheduleTimeout(refreshTrigger, 0) : closeTrigger()
       }
 
       // In place first, spanning Chromium's split text nodes (see
@@ -367,7 +397,16 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
 
       finish()
     },
-    [aui, closeTrigger, recordUndoPoint, refreshTrigger, rememberInitialDraft, requestEditFocus, trigger]
+    [
+      aui,
+      closeTrigger,
+      recordUndoPoint,
+      refreshTrigger,
+      rememberInitialDraft,
+      requestEditFocus,
+      scheduleTimeout,
+      trigger
+    ]
   )
 
   const insertRefStrings = useCallback(
@@ -415,7 +454,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
         return droppedFileInlineRefs(osDrops, cwd)
       }
 
-      const remote = $connection.get()?.mode === 'remote'
+      const remote = isSessionRemote(sessionId)
 
       const requestGateway = <T,>(method: string, params?: Record<string, unknown>) =>
         gateway.request<T>(method, params)
@@ -533,11 +572,11 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
 
       rememberInitialDraft()
       const nextDraft = syncDraftFromEditor(editor)
-      window.setTimeout(refreshTrigger, 0)
+      scheduleTimeout(refreshTrigger, 0)
 
       return nextDraft
     },
-    [refreshTrigger, rememberInitialDraft, syncDraftFromEditor]
+    [refreshTrigger, rememberInitialDraft, scheduleTimeout, syncDraftFromEditor]
   )
 
   const handleInput = (event: FormEvent<HTMLDivElement>) => {
@@ -609,7 +648,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
       // Clear latch after cooldown to allow re-submission. This prevents rapid
       // double-Enter but doesn't require tracking when onEdit settles (which may
       // be synchronous or async, and whose promise we don't have access to).
-      window.setTimeout(() => {
+      scheduleTimeout(() => {
         setSubmitting(false)
       }, 200)
     } catch {
@@ -625,7 +664,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
         return
       }
 
-      window.setTimeout(() => {
+      scheduleTimeout(() => {
         const root = rootRef.current
         const active = document.activeElement
 
@@ -660,7 +699,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
         }
       }, 80)
     },
-    [aui, closeTrigger, submitting, syncDraftFromEditor]
+    [aui, closeTrigger, scheduleTimeout, submitting, syncDraftFromEditor]
   )
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -817,7 +856,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
               data-placeholder={copy.editMessage}
               data-slot={RICH_INPUT_SLOT}
               onBeforeInput={handleBeforeInput}
-              onBlur={() => window.setTimeout(closeTrigger, 80)}
+              onBlur={() => scheduleTimeout(closeTrigger, 80)}
               onCompositionEnd={event => {
                 composingRef.current = false
                 flushEditorToDraft(event.currentTarget)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hud/click-through.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -75,10 +75,16 @@ export function hudIgnoresMouse(
  * decision, a different courier.
  *
  * It follows that nothing in HUD mode may declare `-webkit-app-region: drag`
- * at all: a draggable region swallows the page's mouse events, so the moves
- * never arrive and the window is stranded on whatever it last decided —
- * usually transparent, which is also why pressing the handle fell through to
- * the app behind. Dragging is `useHudComposerDrag` instead.
+ * on macOS/Windows: a draggable region swallows the page's mouse events, so
+ * the moves never arrive and the window is stranded on whatever it last
+ * decided — usually transparent, which is also why pressing the handle fell
+ * through to the app behind. Dragging there is `useHudComposerDrag` instead.
+ *
+ * Linux is the exception: the solidity decision is fed from MAIN's cursor
+ * poll (`startHudCursorFeed`), which a drag region cannot starve — so the
+ * HUD composer root declares `-webkit-app-region: drag` (input carved out
+ * as no-drag) and the compositor moves the window natively. That is also
+ * the only move that works on Wayland, where `setBounds` position is a no-op.
  */
 export function useHudClickThrough(rootRef: RefObject<HTMLElement | null>): void {
   useEffect(() => {

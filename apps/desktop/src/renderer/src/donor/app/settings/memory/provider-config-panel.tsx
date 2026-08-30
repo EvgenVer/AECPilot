@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/memory/provider-config-panel.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,7 +27,7 @@ function seedValues(config: MemoryProviderConfig): Record<string, string> {
   )
 }
 
-export function ProviderConfigPanel({ profile = null, provider }: { profile?: null | string; provider: string }) {
+export function ProviderConfigPanel({ profile, provider }: { profile?: string; provider: string }) {
   const [config, setConfig] = useState<MemoryProviderConfig | null>(null)
   const [loadError, setLoadError] = useState<null | string>(null)
   const [values, setValues] = useState<Record<string, string>>({})

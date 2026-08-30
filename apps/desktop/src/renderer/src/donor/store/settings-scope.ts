@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/settings-scope.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,6 +21,23 @@ export const $settingsScopeOverride = atom<null | string>(null)
 // The profile the settings pages are currently editing (a concrete key).
 export const $settingsScopeProfile = computed([$settingsScopeOverride, $activeGatewayProfile], (override, active) =>
   normalizeProfileKey(override ?? active)
+)
+
+// ── Request-scope form (THE value to hand to API helpers) ──────────────────
+// The store contract and the API contract disagree about `null`:
+//   - here, `null` means "follow the app's active profile" (no override);
+//   - in api/client.ts `profileScoped()`/`capabilityScoped()`, `null` means
+//     "deliberately suppress the active profile and target primary/default" —
+//     only `undefined` falls back to the active profile.
+// Passing the raw override into an API helper therefore silently retargets
+// every read/write to the primary profile whenever no override is set — the
+// "model change reverts when I re-enter the tab" class of bug (#90549: the
+// page WROTE the right profile but READ primary back). Always send this
+// computed (or `override ?? undefined`) on requests; keep the raw override
+// only for UI concerns (selector highlight, cache keys, remount keys).
+export const $settingsRequestProfile = computed(
+  $settingsScopeOverride,
+  (override): string | undefined => override ?? undefined
 )
 
 // Select the profile the settings pages should edit. Picking the app's active

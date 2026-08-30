@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/model-search-text.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,10 @@
  * web/src/lib/model-search-text.ts, and hermes_cli/model_search.py.
  */
 const MODEL_SEARCH_ALIASES: Record<string, readonly string[]> = {
-  k3: ['kimi-k3', 'kimi']
+  k3: ['kimi-k3', 'kimi'],
+  // OpenCode Zen serves the "Ox Alpha" stealth model under an opaque
+  // preview slug; let users find it by its public codename.
+  'x-preview-f-free': ['ox-alpha', 'ox']
 }
 
 /** Haystack for fuzzy/substring model search; never changes the wire id. */

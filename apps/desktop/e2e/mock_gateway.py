@@ -151,6 +151,21 @@ async def handle(connection: ServerConnection) -> None:
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})
             )
+        else:
+            # Диагностика подъёма пина: раньше неизвестный метод оставался БЕЗ
+            # ОТВЕТА, и их клиент ждал его вечно — экран поднимался, но первый
+            # же вызов нового метода вешал цепочку. Печатаем имя и отвечаем
+            # ошибкой, как отвечает настоящий шлюз.
+            print("MOCK_UNKNOWN_METHOD " + method, flush=True)
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {"code": -32601, "message": f"method not found: {method}"},
+                    }
+                )
+            )
 
 
 async def stream_pong(connection: ServerConnection) -> None:

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/goals.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -141,7 +141,7 @@ function nextGoalFromText(text: string, previous?: SessionGoal): SessionGoal | n
   return undefined
 }
 
-export function applyGoalStatusText(sid: string, text: string) {
+export function applyGoalStatusText(sid: string, text: string, opts?: { hydrate?: boolean }) {
   if (!sid) {
     return
   }
@@ -151,6 +151,18 @@ export function applyGoalStatusText(sid: string, text: string) {
   if (next === null) {
     clearSessionGoal(sid)
   } else if (next) {
+    // A done goal is terminal state in the backend DB — it stays "done"
+    // forever (only /goal clear or a new goal replaces it). The 8s linger is
+    // for the LIVE completion moment; re-hydrating "✓ Goal done" on every
+    // mount would resurrect the chip indefinitely. Bot Mode is the worst
+    // case: one endless session means the completed layover would never go
+    // away. On hydration, a terminal goal is the same as no goal.
+    if (opts?.hydrate && next.status === 'done') {
+      clearSessionGoal(sid)
+
+      return
+    }
+
     setSessionGoal(sid, next)
   }
 }
@@ -164,7 +176,8 @@ export async function refreshSessionGoal(sid: string): Promise<void> {
 
   try {
     const result = await gateway.request<{ output?: string }>('slash.exec', { command: 'goal status', session_id: sid })
-    applyGoalStatusText(sid, result?.output ?? '')
+
+    applyGoalStatusText(sid, result?.output ?? '', { hydrate: true })
   } catch {
     // Best-effort: older gateways or detached sessions simply won't hydrate it.
   }

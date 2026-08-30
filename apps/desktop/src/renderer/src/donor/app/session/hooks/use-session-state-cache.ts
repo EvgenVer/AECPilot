@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-state-cache.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,7 +27,7 @@ import {
   setTurnStartedAt,
   setYoloActive
 } from '@/store/session'
-import { $sessionTiles, publishSessionState, releaseSessionTranscript } from '@/store/session-states'
+import { $sessionStates, $sessionTiles, publishSessionState, releaseSessionTranscript } from '@/store/session-states'
 
 import type { ClientSessionState } from '../../types'
 import { SessionStateCache } from '../session-state-cache'
@@ -105,6 +105,16 @@ export function useSessionStateCache({
               tile.runtimeId === runtimeId ||
               (state.storedSessionId !== null && tile.storedSessionId === state.storedSessionId)
           ),
+      // A connection death mid-turn leaves snapshots whose frozen busy flags
+      // will never settle (the respawned backend re-mints runtime ids), which
+      // pinned megabytes of warm transcript per reconnect cycle behind
+      // #isWarmSettled (#95189). Trust the cached in-flight flags only while
+      // the authoritative store still claims work for the same runtime id.
+      isAuthoritativelyActive: runtimeId => {
+        const live = $sessionStates.get()[runtimeId]
+
+        return Boolean(live && (live.busy || live.awaitingResponse))
+      },
       onEvict: (runtimeId, state) => {
         // Ownership is removed with the transcript, but only if both sides still
         // describe this exact binding. A recycled runtime must not erase its

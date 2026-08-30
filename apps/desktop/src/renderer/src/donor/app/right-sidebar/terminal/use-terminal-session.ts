@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-session.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react'
 import { writeClipboardText } from '@/components/ui/copy-button'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { triggerHaptic } from '@/lib/haptics'
+import { isComposerChord } from '@/lib/keybinds/chords'
 import { $previewTarget } from '@/store/preview'
 import { useTheme } from '@/themes/context'
 
@@ -26,7 +27,6 @@ import { makeTerminalReader, registerTerminalReader } from './buffer'
 import { mirrorSelection, terminalClipboardIntent } from './clipboard'
 import { terminalLinkHandler, terminalWebLinksAddon } from './links'
 import {
-  isAddSelectionShortcut,
   isMacPlatform,
   resolveSurfaceColor,
   terminalSelectionAnchor,
@@ -483,7 +483,7 @@ export function useTerminalSession({
   // must reach the shell as clear-screen.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!isAddSelectionShortcut(event) || !readSelection().trim()) {
+      if (!isComposerChord(event) || !readSelection().trim()) {
         return
       }
 

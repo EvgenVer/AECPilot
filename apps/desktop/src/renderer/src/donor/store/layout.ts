@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/layout.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -104,7 +104,13 @@ export const $sidebarWidth: ReadableAtom<number> = computed($paneStates, states 
 // one localStorage area. A global key here is how one gateway's pins bleed
 // into another window's sidebar (#77318). The local connection keeps the
 // bare legacy key; remote connections get their own namespaced keys.
-export const $pinnedSessionIds = connectionScopedAtom(SIDEBAR_PINNED_STORAGE_KEY, [] as string[], Codecs.stringArray)
+//
+// Pins omit the profile from that key: `sessions.pinned` is gateway-wide,
+// and a per-profile localStorage copy is how an unpin in profile A comes
+// back when the window rescopes to B (stale ids flush as pinned=true).
+export const $pinnedSessionIds = connectionScopedAtom(SIDEBAR_PINNED_STORAGE_KEY, [] as string[], Codecs.stringArray, {
+  includeProfile: false
+})
 export const $sidebarSessionOrderIds = connectionScopedAtom(
   SIDEBAR_SESSION_ORDER_STORAGE_KEY,
   [] as string[],

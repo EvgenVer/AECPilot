@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/index.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -315,6 +315,10 @@ export function DesktopOnboardingOverlay({
         bare && leaving ? '[transition-delay:660ms]' : '',
         leaving ? 'pointer-events-none opacity-0' : 'opacity-100'
       )}
+      // Masks the whole app until onboarding finishes — must stay filled under
+      // window glass or the shell shows through. Contract:
+      // `[data-glass-opaque]` in styles.css.
+      data-glass-opaque=""
     >
       <div
         className={cn(

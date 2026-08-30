@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/translucency.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -123,7 +123,7 @@ export function setAppearance(appearance: Appearance): void {
 
 /** The resolved state for the painted appearance — the shape every consumer reads. */
 export const $translucency = computed([$translucencyBook, $appearance], (book, appearance) =>
-  resolveTranslucency(book, appearance, GLASS_IS_WINDOWS)
+  resolveTranslucency(book, appearance, isWindowsPlatform())
 )
 
 /** Write an edit against the appearance being painted. */
@@ -158,7 +158,7 @@ export function setTranslucencyScope(scope: GlassScope): void {
 // secondary session windows). The HUD, pet overlay, quick entry and wake
 // indicator are transparent special-purpose windows that manage their own
 // backgrounds — a page-surface rewrite there would fight them.
-const CHAT_WINDOW_KINDS = new Set([null, 'secondary'])
+const CHAT_WINDOW_KINDS = new Set([null, 'secondary', 'browser'])
 
 export const isChatWindow = (search = typeof window === 'undefined' ? '' : window.location.search): boolean => {
   try {

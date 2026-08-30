@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/error-boundary.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -150,7 +150,12 @@ function RootErrorFallback({ error, reset }: ErrorBoundaryFallbackProps) {
   const { t } = useI18n()
 
   return (
-    <div className="fixed inset-0 z-(--z-crash) grid place-items-center bg-(--ui-chat-surface-background) p-6">
+    <div
+      className="fixed inset-0 z-(--z-crash) grid place-items-center bg-(--ui-chat-surface-background) p-6"
+      // Masks a crashed app — must stay filled under window glass. Contract:
+      // `[data-glass-opaque]` in styles.css.
+      data-glass-opaque=""
+    >
       <ErrorState
         className="w-full max-w-[28rem]"
         description={error.message || t.errors.boundaryDesc}

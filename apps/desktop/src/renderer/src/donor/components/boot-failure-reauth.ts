@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/boot-failure-reauth.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -65,6 +65,18 @@ export function isRemoteReauthError(error: string | null | undefined): boolean {
     text.includes('needs oauth login') ||
     (text.includes('oauth') && (text.includes('not signed in') || text.includes('sign in')))
   )
+}
+
+/**
+ * After a healthy cold boot, main may still re-emit boot-progress errors when a
+ * post-boot startHermes()/ticket mint fails (liveness reset → rebuild, wake
+ * recovery, etc.). Only CONFIRMED reauth should take over the full-screen
+ * recovery overlay then — transient "could not reach … WebSocket ticket"
+ * blips must stay in the reconnect loop so reading/drafting is not locked out
+ * for 1–3 minutes while the socket self-heals.
+ */
+export function shouldApplyPostBootProgressError(error: string | null | undefined): boolean {
+  return isRemoteReauthError(error)
 }
 
 // A remote, gated (oauth-bucket) gateway is a remote-reauth boot failure when the

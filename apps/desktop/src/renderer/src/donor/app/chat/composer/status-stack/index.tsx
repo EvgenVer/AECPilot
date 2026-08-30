@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/index.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,6 +28,7 @@ import {
   dismissBackgroundProcess,
   groupStatusItems,
   refreshBackgroundProcesses,
+  resetBackgroundPollingGuard,
   type StatusGroup,
   stopBackgroundProcess
 } from '@/store/composer-status'
@@ -112,6 +113,10 @@ export function ComposerStatusStack({ queue, sessionId }: ComposerStatusStackPro
   // process tool completions) live in use-message-stream.
   useEffect(() => {
     if (sessionId) {
+      // Opening/rebinding a session is a fresh runtime binding: clear any
+      // gone-latch left by a previous runtime under this id so the poll below
+      // is allowed to run again (see resetBackgroundPollingGuard).
+      resetBackgroundPollingGuard(sessionId)
       void refreshBackgroundProcesses(sessionId)
       void refreshSessionGoal(sessionId)
     }

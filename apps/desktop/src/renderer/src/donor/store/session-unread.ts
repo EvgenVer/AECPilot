@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-unread.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,7 +20,7 @@ import {
   sessionMatchesStoredId,
   sessionPinId
 } from './session'
-import { isSecondaryWindow } from './windows'
+import { isBrowserWindow, isSecondaryWindow } from './windows'
 
 /**
  * PERSISTED UNREAD ("finished — unread" green dot) — the durable layer under
@@ -561,7 +561,7 @@ function onListChange(): void {
 // (single-chat pop-out, watch window) sees a sliver of the session lists, and
 // letting it seed/ack against that partial view would clobber the primary's
 // whole-record writes — same isolation rule as the persisted session tiles.
-if (!isSecondaryWindow()) {
+if (!isSecondaryWindow() && !isBrowserWindow()) {
   $sessions.listen(onListChange)
   $cronSessions.listen(onListChange)
   $messagingSessions.listen(onListChange)

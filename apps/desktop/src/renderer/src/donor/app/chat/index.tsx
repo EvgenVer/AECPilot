@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/index.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet surface (HX1)
@@ -38,8 +38,9 @@ import { migrateSessionDraft } from '@/store/composer'
 import { migrateQueuedPrompts, parkQueuedPrompts } from '@/store/composer-queue'
 import { $introSplash } from '@/store/intro-splash'
 import { $pinnedSessionIds } from '@/store/layout'
-import { $activeGatewayProfile, $gatewaySwapTarget, $profiles } from '@/store/profile'
+import { $activeGatewayProfile, $gatewaySwapTarget, $hydrationSyncProfile, $profiles } from '@/store/profile'
 import {
+  $connection,
   $contextSuggestions,
   $freshDraftReady,
   $gatewayState,
@@ -47,13 +48,14 @@ import {
   $introSeed,
   $resumeExhaustedSessionId,
   $sessions,
+  getSessionOwnerHint,
   resolveComposerSessionKey,
   sessionMatchesStoredId,
   sessionPinId,
   shouldMigrateComposerScope
 } from '@/store/session'
 import { $focusedStoredSessionId, sessionTileDelegate } from '@/store/session-states'
-import { $transcriptTailBySessionId } from '@/store/transcript-tail'
+import { $transcriptTailBySessionId, transcriptTailState } from '@/store/transcript-tail'
 import { isAuxiliaryWindow, isWatchWindow } from '@/store/windows'
 import type { ModelOptionsResponse } from '@/types/hermes'
 
@@ -61,7 +63,7 @@ import { primaryRouteSelectedSessionId, routeSessionId } from '../routes'
 import { titlebarHeaderBaseClass, titlebarHeaderShadowClass, titlebarHeaderTitleClass } from '../shell/titlebar'
 
 import { ChatDropOverlay } from './chat-drop-overlay'
-import { ChatSwapOverlay } from './chat-swap-overlay'
+import { ChatSwapOverlay, ChatSyncBadge } from './chat-swap-overlay'
 import { ChatBar, ChatBarFallback } from './composer'
 import { requestComposerInsert } from './composer/focus'
 import { droppedFileInlineRefs } from './composer/inline-refs'
@@ -271,10 +273,23 @@ function ChatRuntimeBoundary({
   const runtimeMessageRepository = useRuntimeMessageRepository(windowedMessages)
 
   const storedId = useStore(view.$storedId)
+  const connection = useStore($connection)
+  const activeProfile = useStore($activeGatewayProfile)
   // Subscribed (not read imperatively) so the "Show earlier" affordance
   // appears/retires as tail hydrations and backfill pages record their state.
   const transcriptTailStates = useStore($transcriptTailBySessionId)
-  const restBackfillAvailable = Boolean(storedId && transcriptTailStates[storedId]?.possiblyTruncated)
+  const connectionId = connection?.connectionId || (connection?.mode === 'local' ? 'local' : '')
+
+  const ownerRoute = storedId
+    ? getSessionOwnerHint(storedId, connectionId ? { connectionId, profile: activeProfile } : undefined)
+    : undefined
+
+  const tailProfile = ownerRoute
+    ? { connectionId: ownerRoute.connectionId, profile: ownerRoute.targetProfile || ownerRoute.profile }
+    : undefined
+
+  const tailState = storedId && transcriptTailStates ? transcriptTailState(storedId, tailProfile) : undefined
+  const restBackfillAvailable = Boolean(tailState?.possiblyTruncated)
 
   const expandWindow = useCallback(() => {
     // The store window still holds older messages: growing pages is enough.
@@ -283,9 +298,15 @@ function ChatRuntimeBoundary({
     // PREPEND it to the session store before growing, so the grown window has
     // something older to show. Fire-and-forget: the prepend lands through the
     // session-state write path and re-renders this boundary.
-    if (!windowStateRef.current?.window.windowed && runtimeId && storedId && transcriptBackfillAvailable(storedId)) {
+    if (
+      !windowStateRef.current?.window.windowed &&
+      runtimeId &&
+      storedId &&
+      transcriptBackfillAvailable(storedId, tailProfile)
+    ) {
       void backfillOlderTranscriptPage({
         storedSessionId: storedId,
+        profile: tailProfile,
         // Stale-response guard: a session switch remounts/re-keys this view;
         // checking the live atoms (not captured props) discards a page that
         // resolves after the user moved on — same pattern as isCurrentResume.
@@ -301,7 +322,7 @@ function ChatRuntimeBoundary({
     }
 
     setWindowPages(pages => pages + 1)
-  }, [runtimeId, storedId, view])
+  }, [runtimeId, storedId, tailProfile, view])
 
   const olderAvailable = windowed || restBackfillAvailable
 
@@ -404,6 +425,7 @@ const ChatViewContent = memo(function ChatViewContent({
   const freshDraftReady = useStore($freshDraftReady)
   const gatewayState = useStore($gatewayState)
   const gatewaySwapTarget = useStore($gatewaySwapTarget)
+  const hydrationSyncProfile = useStore($hydrationSyncProfile)
   const gatewayOpen = gatewayState === 'open'
   const introPersonality = useStore($introPersonality)
   const introSeed = useStore($introSeed)
@@ -669,6 +691,9 @@ const ChatViewContent = memo(function ChatViewContent({
               target; the link overlay shows only for the center region. */}
           <ChatDropOverlay kind={overlayKind} />
           <ChatSwapOverlay profile={gatewaySwapTarget} />
+          {/* Paint-first wake (#89843): transcript is live, profile gate still
+              settling in the background — subtle badge, not an overlay. */}
+          {isPrimary && !gatewaySwapTarget && <ChatSyncBadge profile={hydrationSyncProfile} />}
         </div>
         {/* Composer renders OUTSIDE the contain:[layout paint] wrapper above:
             that wrapper is a containing block for — and clips — position:fixed

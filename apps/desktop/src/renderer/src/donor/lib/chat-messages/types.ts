@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/types.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { type BillingBlock } from '@hermes/shared'
 
+import type { ErrorSurface } from '@/lib/error-surface'
 import type { MessageReaction, SessionMessage, UsageStats } from '@/types/hermes'
 
 export interface TimelinePartMetadata {
@@ -28,6 +29,10 @@ export type ChatMessage = {
   completedAt?: number
   pending?: boolean
   error?: string
+  /** Structured layer descriptor for a failed turn (parsed error_surface).
+   *  Drives the error card's layer label + actions; absent on older
+   *  backends, where the card falls back to generic copy. */
+  errorSurface?: ErrorSurface
   branchGroupId?: string
   hidden?: boolean
   /** Sealed mid-turn commentary (`message.interim`) — rendered without the
@@ -66,6 +71,10 @@ export type GatewayEventPayload = {
   result?: unknown
   summary?: string
   error?: string | boolean
+  // message.complete with status "error" — structured {layer, code, retryable}
+  // descriptor naming which stack layer failed (agent/error_surface.py).
+  // Absent on older gateways; consumers must fall back to string heuristics.
+  error_surface?: unknown
   inline_diff?: string
   duration_s?: number
   todos?: unknown

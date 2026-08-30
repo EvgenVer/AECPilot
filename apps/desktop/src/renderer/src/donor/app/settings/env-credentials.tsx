@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/env-credentials.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2)
@@ -52,8 +52,10 @@ export function SettingsCategoryHeading({ count, icon: Icon, title }: CategoryHe
 // credential pages (Providers, Keys) share one source of truth and one set of
 // mutation handlers instead of duplicating the plumbing. An optional `profile`
 // targets another profile's env store (the shared settings "Applies to"
-// scope); undefined/null keeps the app-wide active profile.
-export function useEnvCredentials(profile: null | string = null): UseEnvCredentials {
+// scope); undefined keeps the app-wide active profile. Request-shaped on
+// purpose: the API helpers treat an explicit `null` as "target the
+// primary/default backend", which is never what a settings page means.
+export function useEnvCredentials(profile?: string): UseEnvCredentials {
   const { t } = useI18n()
   const credentials = t.settings.credentials
   const toolsets = t.settings.toolsets

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/keys-settings.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,7 @@ import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useI18n } from '@/i18n'
-import { $settingsScopeOverride } from '@/store/settings-scope'
+import { $settingsRequestProfile } from '@/store/settings-scope'
 
 import { CredentialKeyCard, credentialPlaceholder, credentialRowLabel } from './credential-key-ui'
 import { useEnvCredentials } from './env-credentials'
@@ -42,8 +42,10 @@ const credentialElementId = (key: string) => `credential-key-${key}`
 export function KeysSettings({ view }: KeysSettingsProps) {
   const { t } = useI18n()
   // Shared settings "Applies to" scope: fetch + edit the selected profile's
-  // env store instead of the active one (null → active, the default path).
-  const scopeProfile = useStore($settingsScopeOverride)
+  // env store instead of the active one (undefined → active, the default
+  // path — request-shaped so the API helpers never see a primary-targeting
+  // null).
+  const scopeProfile = useStore($settingsRequestProfile)
   const { rowProps, vars } = useEnvCredentials(scopeProfile)
   const [openKey, setOpenKey] = useState<null | string>(null)
 

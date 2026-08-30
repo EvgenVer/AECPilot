@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/message-parts.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -147,9 +147,21 @@ const ThinkingDisclosure: FC<{
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const enterRef = useEnterAnimation(messageRunning, timerKey)
+  // A live preview that later settles must not unmount its body — that is the
+  // "turn settled and everything jumped" shift. Latch that we showed one so
+  // the clip stays. Groups that mount already complete (earlier thoughts in
+  // a still-running turn) never latch, so they stay collapsed.
+  const [sawLivePreview, setSawLivePreview] = useState(false)
 
-  const open = userOpen ?? (pending && !reasoningCollapsedByDefault)
-  const isPreview = pending && userOpen === null && !reasoningCollapsedByDefault
+  if (pending && !sawLivePreview) {
+    setSawLivePreview(true)
+  }
+
+  // The collapsed-by-default preference outranks the latch: it opts out of
+  // live previews entirely, so there is nothing to hold open.
+  const showPreview = !reasoningCollapsedByDefault && (pending || sawLivePreview)
+  const open = userOpen ?? showPreview
+  const isPreview = userOpen === null && showPreview
 
   // Three ways a finished block can report itself. With a measured duration it
   // says so, unless the timer's whole seconds round it to "0s" — accurate and
@@ -232,10 +244,12 @@ const ThinkingDisclosure: FC<{
           className={cn(
             // Body sits flush with the "Thinking" header — no left indent —
             // and inherits the disclosure-level opacity fade defined in
-            // styles.css (~0.67 at rest, 1 on hover/focus).
-            'mt-0.5 w-full min-w-0 max-w-full overflow-hidden wrap-anywhere pb-1',
+            // styles.css (~0.67 at rest, 1 on hover/focus). overflow-auto so
+            // the max-h-40 preview is a real scroller, not a clip.
+            'mt-0.5 w-full min-w-0 max-w-full overflow-auto overscroll-contain wrap-anywhere pb-1',
             isPreview && 'max-h-40'
           )}
+          data-slot="aui_thinking-body"
           ref={scrollRef}
         >
           <div ref={contentRef}>{children}</div>

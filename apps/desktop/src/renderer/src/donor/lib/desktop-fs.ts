@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-fs.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  * (no other edits)
  */
+import { hermesApi } from '@/api/client'
 import type {
   HermesConnection,
   HermesReadDirResult,
@@ -28,6 +29,13 @@ export function setDesktopFsRemotePicker(next: DesktopFsRemotePicker | null) {
 function connectionCacheKey(connection: HermesConnection | null) {
   if (!connection) {
     return 'local:'
+  }
+
+  // A profile belongs to a registry connection, not the whole Desktop. The
+  // registry id is the isolation boundary, including for SSH connections; the
+  // stable host identity below is only the fallback for legacy connections.
+  if (connection.connectionId) {
+    return `connection:${connection.connectionId}:${connection.profile || ''}`
   }
 
   const target =
@@ -67,7 +75,7 @@ function bridge() {
 }
 
 function remoteFsApi<T>(path: string, body?: Record<string, unknown>): Promise<T> {
-  return bridge().api<T>(
+  return hermesApi<T>(
     body ? { body, method: 'POST', path, profile: desktopFsProfile() } : { path, profile: desktopFsProfile() }
   )
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/utils.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,8 @@ import type { ChatMessage } from '@/lib/chat-messages'
 import { type CommandsCatalogLike, filterDesktopCommandsCatalog } from '@/lib/desktop-slash-commands'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import type { ComposerAttachment } from '@/store/composer'
+
+import { registerRecoveredRuntime, singleFlightSessionResume, takeRecoveredRuntime } from './single-flight-resume'
 
 export type GatewayRequest = <T>(method: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<T>
 
@@ -120,14 +122,20 @@ export async function resumeStoredRuntimeSession(
   storedSessionId: string,
   deps: SessionRecoveryDeps
 ): Promise<null | string> {
-  const resolveProfile = deps.resolveProfile ?? defaultResolveProfile
-  const profile = await resolveProfile(storedSessionId)
+  // Single-flight per stored id: after a reconnect many surfaces discover the
+  // same dead runtime at once, and each independent session.resume mints a new
+  // runtime — every loser is an orphan for the reaper. Sharing one in-flight
+  // promise makes concurrent recoveries converge on ONE runtime.
+  const resumed = await singleFlightSessionResume(storedSessionId, async () => {
+    const resolveProfile = deps.resolveProfile ?? defaultResolveProfile
+    const profile = await resolveProfile(storedSessionId)
 
-  const resumed = await deps.requestGateway<{ session_id: string }>('session.resume', {
-    session_id: storedSessionId,
-    source: 'desktop',
-    omit_messages: true,
-    ...(profile ? { profile } : {})
+    return deps.requestGateway<{ session_id: string }>('session.resume', {
+      session_id: storedSessionId,
+      source: 'desktop',
+      omit_messages: true,
+      ...(profile ? { profile } : {})
+    })
   })
 
   return resumed?.session_id ?? null
@@ -170,6 +178,33 @@ export async function withSessionNotFoundResume<T>(
       throw err
     }
 
+    // A previous recovery for this stored session already minted a runtime
+    // that its caller drift-aborted away from. Reuse it before resuming
+    // again — re-minting would strand yet another runtime for the reaper.
+    const cachedRecoveredId = takeRecoveredRuntime(storedSessionId, sessionId)
+
+    if (cachedRecoveredId) {
+      const cachedDrift = deps.driftReason?.()
+
+      if (cachedDrift) {
+        // Still drifted: keep the runtime findable for whoever acts next.
+        registerRecoveredRuntime(storedSessionId, cachedRecoveredId)
+        throw new SessionRecoveryAborted(cachedDrift, cachedRecoveredId)
+      }
+
+      try {
+        deps.onRecovered?.(cachedRecoveredId)
+
+        return { recovered: true, result: await call(cachedRecoveredId), sessionId: cachedRecoveredId }
+      } catch (cachedErr) {
+        // The cached runtime died in the meantime; fall through to a fresh
+        // resume only for the same stale-session class, otherwise surface it.
+        if (!isSessionNotFoundError(cachedErr)) {
+          throw cachedErr
+        }
+      }
+    }
+
     let recoveredId: null | string
 
     try {
@@ -185,6 +220,11 @@ export async function withSessionNotFoundResume<T>(
     const drift = deps.driftReason?.()
 
     if (drift) {
+      // Do NOT abandon the freshly-minted runtime: adoption is wrong here
+      // (the user moved on), so record it in the stored->runtime recovery
+      // cache. The next action targeting this stored session reuses it
+      // instead of minting another orphan (#91276).
+      registerRecoveredRuntime(storedSessionId, recoveredId)
       throw new SessionRecoveryAborted(drift, recoveredId)
     }
 

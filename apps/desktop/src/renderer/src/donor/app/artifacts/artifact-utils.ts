@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/artifacts/artifact-utils.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -318,6 +318,9 @@ function toolName(message: SessionMessage): string {
 }
 
 function isArtifactProducerTool(name: string): boolean {
+  // `bfl_flux3_*` tools were removed from the core toolset, but sessions
+  // recorded while they existed still carry their tool messages — keep
+  // matching so those artifacts stay visible in history.
   return ARTIFACT_PRODUCER_TOOL_RE.test(name) || name.startsWith('bfl_flux3_')
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-desktop-integrations.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,7 +32,7 @@ import {
 } from '@/store/session'
 import { onSessionsChanged } from '@/store/session-sync'
 import { openUpdatesWindow, startUpdatePoller, stopUpdatePoller } from '@/store/updates'
-import { isHudWindow, isSecondaryWindow } from '@/store/windows'
+import { isBrowserWindow, isHudWindow, isSecondaryWindow } from '@/store/windows'
 import type { SessionInfo } from '@/types/hermes'
 
 import { requestComposerFocus, requestComposerInsert } from '../../chat/composer/focus'
@@ -104,7 +104,7 @@ export function useDesktopIntegrations({
   // This ref is a one-time lifecycle latch, not a mirror of reactive atom state.
   // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
-    if (!profileReady || isHudWindow()) {
+    if (!profileReady || isHudWindow() || isBrowserWindow()) {
       return
     }
 
@@ -339,7 +339,7 @@ export function useDesktopIntegrations({
 
   // Another window mutated the shared session list -> re-pull the sidebar.
   useEffect(() => {
-    if (isSecondaryWindow()) {
+    if (isSecondaryWindow() || isBrowserWindow()) {
       return
     }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/updates.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,6 +25,7 @@ import { checkHermesUpdate, getActionStatus, updateHermes } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { persistString, storedString } from '@/lib/storage'
 import { $connectionsRegistry, refreshConnectionsRegistry } from '@/store/connections'
+import { reconnectGateway } from '@/store/gateway-reconnect'
 import { dismissNotification, notify } from '@/store/notifications'
 import { $connection } from '@/store/session'
 import type { BackendUpdateCheckResponse } from '@/types/hermes'
@@ -546,6 +547,14 @@ function finishBackendApply(returned: boolean): DesktopUpdateApplyResult {
     $backendUpdateApply.set(IDLE)
     setUpdateOverlayOpen(false)
     void checkBackendUpdates()
+    // The update restarted the gateway process, which strands this window's
+    // WebSocket: over SSH/tailscale tunnels the old TCP connection often dies
+    // without a close event, so connectionState still reads 'open' while every
+    // RPC hangs — users force-quit the app to recover. Nudge the registered
+    // reconnect handler (forceReconnectNow), which retires the half-open
+    // socket and re-dials with a fresh ticket. Best-effort: local installs
+    // whose socket survived treat it as a cheap probe.
+    void reconnectGateway().catch(() => undefined)
     // The backend caught up, but the CLIENT may still be behind — the exact
     // gap that strands remote-mode users on an old GUI forever (every update
     // affordance in remote mode targets the backend, so nothing ever told
@@ -594,6 +603,27 @@ function completedAfterRestart(
   return !!actionId && status.lines.some(line => line === `=== hermes-update completed ${actionId} ===`)
 }
 
+/** Whether the durable update receipt attached to the status proves the
+ *  outcome of THIS apply (#91277 bullet 3). Only a finished receipt whose
+ *  run started at-or-after we kicked the update off counts — an older
+ *  receipt describes a previous update, and a still-running one proves
+ *  nothing yet. The 60s slack absorbs client/backend clock skew. */
+function receiptProvesOutcome(status: Awaited<ReturnType<typeof getActionStatus>>, applyStartedAtMs: number): boolean {
+  const receipt = status.receipt
+
+  if (!receipt || !receipt.finished_at || !receipt.started_at) {
+    return false
+  }
+
+  if (receipt.outcome !== 'success' && receipt.outcome !== 'partial' && receipt.outcome !== 'failed') {
+    return false
+  }
+
+  const startedMs = Date.parse(receipt.started_at)
+
+  return Number.isFinite(startedMs) && startedMs >= applyStartedAtMs - 60_000
+}
+
 function legacyBackendReachedTarget(
   status: BackendUpdateCheckResponse,
   targetSha: string | undefined,
@@ -630,6 +660,7 @@ async function runBackendUpdate(): Promise<DesktopUpdateApplyResult> {
       : undefined
 
     const started = await updateHermes()
+    const applyStartedAtMs = Date.now()
 
     if (!started.ok) {
       const message = (started as { message?: string }).message || translateNow('updates.applyStatus.notAvailable')
@@ -691,6 +722,14 @@ async function runBackendUpdate(): Promise<DesktopUpdateApplyResult> {
 
       if (last.exit_code === 0 || (last.exit_code === null && completedAfterRestart(last, started.action_id))) {
         return finishBackendApply(true)
+      }
+
+      // #91277 bullet 3: the backend now attaches the durable update
+      // receipt to the status. A receipt whose run STARTED after we kicked
+      // this update off is authoritative — read its outcome instead of
+      // inferring from log markers or timing out across the restart gap.
+      if (last.exit_code === null && receiptProvesOutcome(last, applyStartedAtMs)) {
+        return finishBackendApply(last.receipt!.outcome === 'success')
       }
 
       if (!started.action_id && last.exit_code === null) {

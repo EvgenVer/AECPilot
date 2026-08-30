@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/projects.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -381,6 +381,12 @@ async function gatewayRequestOn<T>(
   return gateway.request<T>(method, params)
 }
 
+function isRetryableProjectTreeReadError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+
+  return message.includes('request timed out') || message.includes('gateway connection closed')
+}
+
 interface ActiveProjectsContext {
   gateway: HermesGateway
   profile: string
@@ -488,11 +494,29 @@ async function refreshProjectTreeOn(context: ActiveProjectsContext): Promise<voi
   }
 
   try {
-    const res = await gatewayRequestOn<ProjectTreePayload>(
-      gateway,
-      'projects.tree',
-      projectParams({ preview_limit: PROJECT_TREE_PREVIEW_LIMIT }, profile)
-    )
+    let res: ProjectTreePayload
+
+    try {
+      res = await gatewayRequestOn<ProjectTreePayload>(
+        gateway,
+        'projects.tree',
+        projectParams({ preview_limit: PROJECT_TREE_PREVIEW_LIMIT }, profile)
+      )
+    } catch (error) {
+      // A remote source switch can leave the first read RPC on a newly-opened
+      // socket without a response even though the gateway remains healthy.
+      // Retry once only while this exact gateway/profile is still foreground;
+      // missing-method and other authoritative failures stay visible as-is.
+      if (!isRetryableProjectTreeReadError(error) || !stillOnProjectsContext(context)) {
+        throw error
+      }
+
+      res = await gatewayRequestOn<ProjectTreePayload>(
+        gateway,
+        'projects.tree',
+        projectParams({ preview_limit: PROJECT_TREE_PREVIEW_LIMIT }, profile)
+      )
+    }
 
     if (generation !== projectTreeRefreshGeneration || !stillOnProjectsContext(context)) {
       return

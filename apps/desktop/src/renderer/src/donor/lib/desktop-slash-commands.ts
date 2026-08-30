@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-slash-commands.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -71,7 +71,7 @@ export type DesktopActionId =
 export type DesktopPickerId = 'model' | 'session'
 
 /** Why a known Hermes command has no desktop UI surface. */
-export type DesktopUnavailableReason = 'advanced' | 'messaging' | 'settings' | 'terminal'
+export type DesktopUnavailableReason = 'advanced' | 'composer-voice' | 'messaging' | 'settings' | 'terminal'
 
 /**
  * How the desktop fulfils a command. This is the single discriminator the
@@ -367,7 +367,12 @@ const NO_DESKTOP_SURFACE: Record<DesktopUnavailableReason, readonly string[]> = 
   ],
   messaging: ['/approve', '/deny'],
   settings: ['/skills', '/pets'],
-  advanced: ['/curator', '/fast', '/insights', '/kanban', '/reasoning', '/voice']
+  advanced: ['/curator', '/fast', '/insights', '/kanban', '/reasoning'],
+  // /voice arms SERVER-side capture (voice.record → PortAudio on the backend
+  // host) — meaningless on desktop, which has its own composer-native voice
+  // conversation (mic menu / Ctrl+B) with client-side capture and playback.
+  // Point the user at the button instead of a generic "advanced" shrug.
+  'composer-voice': ['/voice']
 }
 
 const ALL_SPECS: readonly DesktopCommandSpec[] = [
@@ -386,6 +391,8 @@ const ALIAS_TO_CANONICAL = new Map<string, string>(
 const UNAVAILABLE_MESSAGE: Record<DesktopUnavailableReason, (command: string) => string> = {
   advanced: command =>
     `${command} is not shown in the desktop slash palette. Use the relevant desktop control or terminal interface instead.`,
+  'composer-voice': () =>
+    'Voice chat lives in the composer here: click the microphone button and choose "Start voice chat" (or press Ctrl+B).',
   messaging: command => `${command} is only used from messaging platforms.`,
   settings: command => `${command} is managed from the desktop sidebar.`,
   terminal: command => `${command} is only available in the terminal interface.`

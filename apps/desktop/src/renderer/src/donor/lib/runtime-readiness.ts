@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/runtime-readiness.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,6 +33,8 @@ export interface RuntimeReadinessResult {
   reason: null | string
   source: 'fallback' | 'runtime_check' | 'setup_status'
 }
+
+export type RuntimeReadinessDisplay = 'checking' | 'needs_setup' | 'ready' | 'unavailable'
 
 export type RuntimeReadinessRequester = <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
 
@@ -147,6 +149,21 @@ export function interpretRuntimeReadiness(
     reason: unknownReady ? null : (runtimeFailure ?? setupFailure ?? defaultReason),
     source: 'fallback'
   }
+}
+
+export function runtimeReadinessDisplay(status: RuntimeReadinessResult | null): RuntimeReadinessDisplay {
+  if (status === null) {
+    return 'checking'
+  }
+
+  if (status.ready) {
+    return 'ready'
+  }
+
+  // Credentials exist but runtime resolution failed. Calling that "needs
+  // setup" sends users back through onboarding for provider/quota failures
+  // that setup cannot repair; the reason tooltip carries the specific cause.
+  return status.checksDisagree ? 'unavailable' : 'needs_setup'
 }
 
 export async function evaluateRuntimeReadiness(

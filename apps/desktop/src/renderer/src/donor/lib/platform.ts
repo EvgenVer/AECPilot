@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/platform.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,3 +24,6 @@ export const isMacPlatform = (): boolean =>
 // default userAgent. Win32 / Windows NT are the real tokens.
 export const isWindowsPlatform = (): boolean =>
   typeof navigator !== 'undefined' && /win32|windows/i.test(navigator.platform || navigator.userAgent || '')
+
+export const isLinuxPlatform = (): boolean =>
+  typeof navigator !== 'undefined' && /linux/i.test(navigator.platform || navigator.userAgent || '')

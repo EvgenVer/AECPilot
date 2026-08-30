@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/vibe-hearts.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] hearts no longer route to the pet (HX1) — composer placement only
@@ -10,12 +10,14 @@
 import { type CSSProperties } from 'react'
 
 import { createParticleEmitter, ParticleField, type ParticleFieldConfig } from '@/components/particles/particle-field'
+import { $vibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
 
 /**
  * TikTok-style floating hearts — a thin skin over {@link ParticleField} (pixel
  * heart glyph + pink). Placed two ways: rising from the composer when no pet is
  * out, or from the pet when one is. Fired by the core `reaction` event (affection
- * in a user message) via {@link burstVibeHearts}.
+ * in a user message) via {@link burstVibeHearts}. Gated by Settings → Appearance
+ * → Vibe Hearts (`$vibeHeartsEnabled`), on by default.
  */
 
 // Light pink reads on both light and dark chat surfaces.
@@ -64,7 +66,13 @@ export const playVibeHearts = (count?: number) => emitter.burst(count)
  * out) when one was present; the pet is HX1, so the composer is the only
  * placement left and this is a straight play.
  */
-export const burstVibeHearts = (count?: number) => playVibeHearts(count)
+export const burstVibeHearts = (count?: number) => {
+  if (!$vibeHeartsEnabled.get()) {
+    return
+  }
+
+  playVibeHearts(count)
+}
 
 export interface HeartFieldProps {
   config?: Partial<ParticleFieldConfig>

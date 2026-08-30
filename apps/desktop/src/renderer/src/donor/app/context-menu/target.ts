@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/context-menu/target.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,8 @@
  */
 
 export interface ContextMenuDomTarget {
+  /** The enclosing dialog content node, when the click landed inside one. */
+  dialogPortalContainer: HTMLElement | null
   /** The clicked editable, when the click landed in one. */
   editable: HTMLElement | null
   /** `href` of the enclosing anchor, as written (never absolutized). */
@@ -46,10 +48,12 @@ function editableFrom(element: Element | null): HTMLElement | null {
 
 export function resolveDomTarget(element: Element | null): ContextMenuDomTarget {
   const anchor = element?.closest('a[href]')
+  const dialogContent = element?.closest('[data-slot="dialog-content"]')
   const image = element?.closest('img')
   const linkUrl = anchor?.getAttribute('href')?.trim() ?? ''
 
   return {
+    dialogPortalContainer: dialogContent instanceof HTMLElement ? dialogContent : null,
     editable: editableFrom(element),
     // A placeholder anchor is not a link the menu can act on.
     linkUrl: linkUrl === '#' ? '' : linkUrl,

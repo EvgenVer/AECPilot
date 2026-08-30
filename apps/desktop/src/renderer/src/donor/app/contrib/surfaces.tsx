@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -154,11 +154,13 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
     />
   )
 
-  // FULL-PAGE views (not chat) mark the zone body `data-zone-no-header`: a
-  // page is not a tab-able surface, so the zone's double-click header toggle
-  // stands down while one is showing (see onZoneDoubleClick).
+  // FULL-PAGE views (not chat): a page is not a tab-able surface, so the zone's
+  // tab strip stands down while one is showing. That is `paneChrome.headerVeto`
+  // on the contribution, not a DOM marker — the `data-zone-no-header` attribute
+  // that used to ride this wrapper gated a body double-click toggle that no
+  // longer exists, and nothing has read it since.
   const page = (view: ReactNode) => (
-    <div className="contents" data-zone-no-header>
+    <div className="contents">
       <Suspense fallback={null}>{view}</Suspense>
     </div>
   )

@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/resolve-target-session.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { resolveSessionProfile } from '../use-session-actions/utils'
 
+import { singleFlightSessionResume, takeRecoveredRuntime } from './single-flight-resume'
 import type { GatewayRequest } from './utils'
 
 /**
@@ -96,12 +97,22 @@ export async function resolveTargetSessionId(deps: ResolveTargetSessionDeps): Pr
 
   if (storedTarget) {
     try {
-      const profile = await resolveSessionProfile(storedTarget)
+      // Reuse a runtime an aborted recovery already minted for this stored
+      // session; otherwise resume once, shared across concurrent callers.
+      const cachedRuntimeId = takeRecoveredRuntime(storedTarget)
 
-      const resumed = await requestGateway<{ session_id?: string }>('session.resume', {
-        session_id: storedTarget,
-        source: 'desktop',
-        ...(profile ? { profile } : {})
+      if (cachedRuntimeId) {
+        return cachedRuntimeId
+      }
+
+      const resumed = await singleFlightSessionResume(storedTarget, async () => {
+        const profile = await resolveSessionProfile(storedTarget)
+
+        return requestGateway<{ session_id?: string }>('session.resume', {
+          session_id: storedTarget,
+          source: 'desktop',
+          ...(profile ? { profile } : {})
+        })
       })
 
       return resumed?.session_id || null

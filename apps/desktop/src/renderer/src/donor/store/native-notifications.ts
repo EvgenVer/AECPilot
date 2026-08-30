@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/native-notifications.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,6 +14,7 @@ import { $gateway } from './gateway'
 import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
 import { $activeSessionId } from './session'
+import { requestForOwnedSession } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -366,7 +367,18 @@ export async function respondToApprovalAction(sessionId: null | string, actionId
   }
 
   try {
-    await gateway.request('approval.respond', { choice, session_id: sessionId ?? undefined })
+    // Route through the session's OWNER (tile route → known profile); the
+    // ambient socket follows foreground focus and, for a background approval
+    // raised by a cross-profile session, points at a backend that never held
+    // the approval (#91684 client half). Ambient only when no owner is known.
+    await requestForOwnedSession(
+      sessionId,
+      // Bound (not wrapped) so the ambient fallback keeps the exact 2-arg
+      // call shape gateway.request callers assert on.
+      gateway.request.bind(gateway) as typeof gateway.request,
+      'approval.respond',
+      { choice, session_id: sessionId ?? undefined }
+    )
     clearApprovalRequest(sessionId)
   } catch {
     // Leave the prompt parked so the user can still resolve it in-app.

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-actions-menu.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -51,7 +51,7 @@ import {
   setSessions
 } from '@/store/session'
 import { $sessionColorOverrides, setSessionColorOverride } from '@/store/session-color'
-import { $sessionTiles } from '@/store/session-states'
+import { $sessionTiles, closeAllOpenSessionTiles } from '@/store/session-states'
 import { ackStoredSessionId } from '@/store/session-unread'
 import { canOpenSessionInTerminal, canOpenSessionWindow, openSessionInTerminal } from '@/store/windows'
 
@@ -422,6 +422,10 @@ function useSessionActions({
                   label: t.zones.closeAll,
                   onSelect: () => {
                     triggerHaptic('selection')
+                    // Persist-close session tiles before dismissing the
+                    // remaining tree panes, or Bot Mode rehydrates them
+                    // from the shared tile bucket (#94137).
+                    closeAllOpenSessionTiles(tabPaneId)
                     closeAllTreeTabs(tabPaneId)
                   }
                 })

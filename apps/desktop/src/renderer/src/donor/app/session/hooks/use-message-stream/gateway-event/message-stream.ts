@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/message-stream.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -13,6 +13,7 @@ import { burstVibeHearts } from '@/components/chat/vibe-hearts'
 import { translateNow } from '@/i18n'
 import { coerceGatewayText, coerceThinkingText } from '@/lib/chat-runtime'
 import { playCompletionSound } from '@/lib/completion-sound'
+import { parseErrorSurface } from '@/lib/error-surface'
 import { triggerHaptic } from '@/lib/haptics'
 import { billingCtaLabel, clearBillingBlock, runBillingRecovery, setBillingBlock } from '@/store/billing-block'
 import { clearClarifyRequest } from '@/store/clarify'
@@ -344,13 +345,15 @@ export function handleMessageStreamEvent(ctx: GatewayEventContext): boolean {
     const finalText = coerceGatewayText(payload?.text) || coerceGatewayText(payload?.rendered)
 
     // Terminal error frames (status "error") carry the failure in
-    // structured fields: `error` is the message, and `partial` marks
-    // `text` as streamed output to keep rather than the error string.
+    // structured fields: `error` is the message, `partial` marks
+    // `text` as streamed output to keep rather than the error string, and
+    // `error_surface` (newer gateways) names the failing layer for the card.
     const failure =
       payload?.status === 'error'
         ? {
             error: coerceGatewayText(payload.error).trim() || finalText || 'AECPilot reported an error',
-            partial: Boolean(payload.partial)
+            partial: Boolean(payload.partial),
+            surface: parseErrorSurface(payload.error_surface)
           }
         : undefined
 

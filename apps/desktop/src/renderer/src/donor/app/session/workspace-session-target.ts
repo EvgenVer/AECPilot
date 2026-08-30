@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/workspace-session-target.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import type { MutableRefObject } from 'react'
 import { followActiveSessionCwd, resolveNewSessionCwd } from '@/store/projects'
 import {
   $newChatWorkspaceTargetGeneration,
+  type NewChatWorkspaceTarget,
   setCurrentBranch,
   setCurrentCwd,
   setNewChatWorkspaceTarget
@@ -21,7 +22,7 @@ interface WorkspaceSessionOptions {
   onExplicitWorkspace?: (cwd: string) => void
   path: null | string
   requestGateway: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
-  startFreshSessionDraft: (options?: { workspaceTarget: string }) => void
+  startFreshSessionDraft: (options?: { workspaceTarget: NewChatWorkspaceTarget }) => void
 }
 
 export function startWorkspaceSession({
@@ -32,9 +33,19 @@ export function startWorkspaceSession({
   requestGateway,
   startFreshSessionDraft
 }: WorkspaceSessionOptions): void {
-  // A worktree lane carries its own path; a project trunk can be path-less, so
-  // fall back to the active project's root for that existing controller path.
-  const explicitTarget = path?.trim()
+  // Home's "+" passes path=null on purpose ("no folder"). That must stay
+  // detached — do NOT fall through to resolveNewSessionCwd(), which can still
+  // return a default/remembered project folder and re-attach the last repo
+  // (digitwo: New session in Home still shows `main`).
+  if (path === null) {
+    startFreshSessionDraft({ workspaceTarget: null })
+
+    return
+  }
+
+  // A worktree lane carries its own path. Empty string (legacy/path-less trunk)
+  // can fall back to the active project's root, but null was handled above.
+  const explicitTarget = path.trim()
   const target = explicitTarget || resolveNewSessionCwd()
 
   startFreshSessionDraft(target ? { workspaceTarget: target } : undefined)

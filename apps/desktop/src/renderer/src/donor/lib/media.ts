@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/media.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -146,9 +146,15 @@ export function mediaGatewayStreamUrl(path: string): string {
 
   if (isRemoteGateway()) {
     const file = encodeURIComponent(filePathFromMediaPath(path))
-    const profile = conn?.profile ? `?profile=${encodeURIComponent(conn.profile)}` : ''
 
-    return `hermes-media://remote/${file}${profile}`
+    const scope = [
+      conn?.connectionId ? `connectionId=${encodeURIComponent(conn.connectionId)}` : '',
+      conn?.profile ? `profile=${encodeURIComponent(conn.profile)}` : ''
+    ]
+      .filter(Boolean)
+      .join('&')
+
+    return `hermes-media://remote/${file}${scope ? `?${scope}` : ''}`
   }
 
   return mediaExternalUrl(path)
@@ -215,6 +221,7 @@ export async function downloadGatewayMediaFile(
   }
 
   return window.hermesDesktop.saveGatewayFile({
+    connectionId: conn?.connectionId,
     path: file,
     profile: conn?.profile,
     suggestedName: mediaName(file)

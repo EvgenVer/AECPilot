@@ -371,6 +371,50 @@ const IMPLEMENTED: Record<string, unknown> = {
   // rejected inside an `await` nobody catches.
   gitRoot: undefined,
 
+  // ── Приехало с пином 0.20.6 (задача 3.B2) ────────────────────────────────
+  //
+  // Пять членов, которые их код зовёт впервые в этой версии. Все объявлены
+  // ОТСУТСТВУЮЩИМИ, а не оставлены заглушке, и у каждого своя причина — общего
+  // «это не наша поверхность» мало, потому что цена вранья у них разная.
+  //
+  // `logsRoot` — их карточка ошибки показывает кнопку «открыть логи» по одному
+  // лишь НАЛИЧИЮ члена (`window.hermesDesktop?.logsRoot && <button…>`), а сам
+  // путь потом открывает через `openDir`, который у нас тоже не проброшен. На
+  // заглушке кнопка появилась бы и падала. Журнал приложения у нас есть — он
+  // открывается своей поверхностью (задача 3.29), а не их кнопкой.
+  logsRoot: undefined,
+  // `openBrowserWindow` — вынести встроенный браузер в отдельное окно ОС.
+  // Проверка возможности у них — `typeof … === 'function'`
+  // (`canOpenBrowserWindow`), на заглушке она проходит. Просмотр произвольных
+  // веб-страниц исключён (SPEC HX13), значит пункт меню не должен появляться.
+  openBrowserWindow: undefined,
+  // `onBrowserPopoutClosed` — подписка на закрытие того окна. Возвращает
+  // ФУНКЦИЮ ОТПИСКИ, и заглушка вернула бы промис: ровно находка D-42, где
+  // такой промис осел «функцией уборки» эффекта и уронил дерево.
+  onBrowserPopoutClosed: undefined,
+  // `getProfileRoutes` — маршруты профилей их реестра ядер. Их же строка —
+  // `if (!getProfileRoutes) return false`, то есть отсутствие для них законный
+  // ответ «маршрут не зарегистрирован». Подключение у нас одно за раз (решение
+  // владельца 2026-08-23), реестра маршрутов нет.
+  getProfileRoutes: undefined,
+  // `setActiveConnectionRoute` объявлен у них `=> void` — тот же D-42, что и
+  // выше, и потому не может достаться заглушке ни при каком решении о
+  // поверхности.
+  setActiveConnectionRoute: undefined,
+  // `getConnectionFor` / `getGatewayWsUrlFor` — «дай дескриптор бэкенда для
+  // пары (соединение, профиль)» их РЕЕСТРА ядер. В 0.20.6 через них пошла
+  // обычная работа: `store/gateway` открывает ими вторичные сокеты, `api/plugins`
+  // резолвит источник, — и заглушка ломала отправку сообщения целиком
+  // («getConnectionFor is not bridged», e2e задачи 3.B2).
+  //
+  // Отсутствие — их же предусмотренная ветка: «getConnectionFor bridge is
+  // optional (older Desktop mains); without it the …», и обе площадки зовут
+  // член только после проверки наличия, иначе уходя на `getConnection`.
+  // Подключение у нас одно за раз (решение владельца 2026-08-23), так что
+  // старый путь отвечает на тот же вопрос.
+  getConnectionFor: undefined,
+  getGatewayWsUrlFor: undefined,
+
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main
   // owns the socket — so the honest answer is a descriptor that names the IPC

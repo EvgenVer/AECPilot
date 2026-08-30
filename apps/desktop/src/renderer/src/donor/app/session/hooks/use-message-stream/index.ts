@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/index.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -26,6 +26,7 @@ import {
   sealOpenToolParts,
   upsertToolPart
 } from '@/lib/chat-messages'
+import type { ErrorSurface } from '@/lib/error-surface'
 import {
   dedupeGeneratedImageEchoesInParts,
   generatedImageEchoSources,
@@ -570,7 +571,7 @@ export function useMessageStream({
       sessionId: string,
       text: string,
       responsePreviewed?: boolean,
-      failure?: { error: string; partial: boolean },
+      failure?: { error: string; partial: boolean; surface?: ErrorSurface | null },
       occurredAt = Date.now() / 1000
     ) => {
       let shouldHydrate = false
@@ -625,7 +626,8 @@ export function useMessageStream({
             parts: completeOpenTimelineParts(message.parts, occurredAt),
             pending: false,
             interim: false,
-            ...(durationS !== undefined ? { durationS } : {})
+            ...(durationS !== undefined ? { durationS } : {}),
+            ...(completionError && failure?.surface ? { errorSurface: failure.surface } : {})
           }
 
           if (completionError && !keepFailedPartialText) {
@@ -650,7 +652,8 @@ export function useMessageStream({
           completedAt: occurredAt,
           branchGroupId: state.pendingBranchGroup ?? undefined,
           ...(durationS !== undefined ? { durationS } : {}),
-          ...(completionError && { error: completionError })
+          ...(completionError && { error: completionError }),
+          ...(completionError && failure?.surface ? { errorSurface: failure.surface } : {})
         })
 
         const prev = state.messages

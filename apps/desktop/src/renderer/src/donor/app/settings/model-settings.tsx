@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/model-settings.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -118,12 +118,12 @@ interface AuxTaskMeta {
 
 const AUX_TASKS: readonly AuxTaskMeta[] = [
   { key: 'vision' },
-  { key: 'web_extract' },
   { key: 'compression' },
   { key: 'skills_hub' },
   { key: 'approval' },
   { key: 'mcp' },
   { key: 'title_generation' },
+  { key: 'review' },
   { key: 'curator' }
 ]
 
@@ -191,11 +191,13 @@ interface ModelSettingsProps {
   /** Notified after the main model is applied, so live UI stores can sync. */
   onMainModelChanged?: (provider: string, model: string) => void
   /** Shared settings "Applies to" scope: a concrete profile to edit instead of
-   *  the app's active one, or null to follow the active profile (default). */
-  scopeProfile?: null | string
+   *  the app's active one, or undefined to follow the active profile (default).
+   *  Request-shaped on purpose — the API helpers treat `null` as "deliberately
+   *  target the primary/default backend", so this prop never carries null. */
+  scopeProfile?: string
 }
 
-export function ModelSettings({ onMainModelChanged, scopeProfile = null }: ModelSettingsProps) {
+export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSettingsProps) {
   const { t } = useI18n()
   const m = t.settings.model
   const [loading, setLoading] = useState(true)
@@ -548,7 +550,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile = null }: Model
       setConfig(next)
 
       try {
-        await saveHermesConfig(next, scopeProfile ?? undefined)
+        await saveHermesConfig(next, scopeProfile)
       } catch (err) {
         setConfig(prev)
         notifyError(err, m.defaultsFailed)

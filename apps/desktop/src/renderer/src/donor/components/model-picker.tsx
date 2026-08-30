@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/model-picker.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -270,13 +270,25 @@ function ModelPrice({ price, isCurrent }: { price?: ModelPricing; isCurrent: boo
 
   if (price.free) {
     return (
-      <span
-        className={cn(
-          'shrink-0 rounded-sm px-1 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide',
-          isCurrent ? 'bg-primary-foreground/20' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-        )}
-      >
-        {copy.free}
+      <span className="shrink-0 inline-flex items-center gap-1.5">
+        {typeof price.discount_percent === 'number' ? (
+          <span
+            className={cn(
+              'rounded-sm px-1 py-0.5 text-[0.62rem] font-semibold',
+              isCurrent ? 'bg-primary-foreground/20' : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+            )}
+          >
+            -{price.discount_percent}%
+          </span>
+        ) : null}
+        <span
+          className={cn(
+            'shrink-0 rounded-sm px-1 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide',
+            isCurrent ? 'bg-primary-foreground/20' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+          )}
+        >
+          {copy.free}
+        </span>
       </span>
     )
   }

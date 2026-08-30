@@ -49,7 +49,6 @@ const UNBRIDGED = [
   'desktopPluginsRoot',
   'fetchLinkTitle',
   'getAgentRoster',
-  'getConnectionFor',
   'getRemoteDisplayReason',
   'getVersion',
   'installDesktopPlugin',
@@ -75,6 +74,7 @@ const UNBRIDGED = [
   'resetBootstrap',
   'revealPath',
   'sanitizeWorkspaceCwd',
+  'setSecretStorageEncryption',
   'stopPreviewFileWatch',
   'watchPreviewFile',
   'writeClipboard'

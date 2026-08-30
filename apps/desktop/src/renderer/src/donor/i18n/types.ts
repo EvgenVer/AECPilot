@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/types.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: added 'ru' (SPEC C7 — our UI is en+ru)
@@ -136,6 +136,7 @@ export interface Translations {
       backendStopped: string
       desktopBootFailed: string
       gatewayConnectionLost: string
+      gatewayConnectionLostDetail: string
       gatewaySignInRequired: string
       ipcBridgeUnavailable: string
     }
@@ -154,6 +155,11 @@ export interface Translations {
       remoteSignInHint: (signInLabel: string) => string
       signOutAndSignIn: string
       remoteFailureHint: string
+      cloudDownTitle: string
+      cloudDownDescription: string
+      cloudDownHint: string
+      cloudDownCheckPortal: string
+      cloudDownDiscord: string
       hideRecentLogs: string
       showRecentLogs: string
       signedInTitle: string
@@ -254,6 +260,27 @@ export interface Translations {
     dismiss: string
   }
 
+  sendDiagnostics: {
+    title: string
+    privacyNotice: string
+    upload: string
+    uploading: string
+    cancel: string
+    close: string
+    copyLink: string
+    uploadIdFallback: (id: string) => string
+    doneTitle: string
+    doneDescription: string
+    failedTitle: string
+    failedHint: string
+    handoffLead: string
+    links: {
+      discord: string
+      github: string
+      portal: string
+    }
+  }
+
   titlebar: {
     hideSidebar: string
     showSidebar: string
@@ -269,6 +296,7 @@ export interface Translations {
     openStarmap: string
     enterHud: string
     exitHud: string
+    resetHudLayout: string
     layoutEditor: string
     layoutEditorTitle: (modifier: string) => string
   }
@@ -424,6 +452,11 @@ export interface Translations {
       sessionDensityCompact: string
       sessionDensityComfortable: string
       sessionDensityDetailed: string
+      tabStripTitle: string
+      tabStripDesc: string
+      tabStripAuto: string
+      tabStripAlways: string
+      tabStripNever: string
       terminalFontTitle: string
       terminalFontDesc: string
       terminalFontPlaceholder: string
@@ -456,6 +489,8 @@ export interface Translations {
       reactionsDesc: string
       composerPopoutTitle: string
       composerPopoutDesc: string
+      vibeHeartsTitle: string
+      vibeHeartsDesc: string
       embedsTitle: string
       embedsDesc: string
       embedsAsk: string
@@ -663,6 +698,23 @@ export interface Translations {
       cancel: string
       empty: string
     }
+    managedUpdates: {
+      title: string
+      intro: string
+      sshConnection: string
+      update: string
+      updating: string
+      progress: string
+      updated: string
+      partial: string
+      refused: string
+      failed: string
+      alreadyRunning: string
+      receipt: (id: string, outcome: string) => string
+      receiptVersions: (pre: string, post: string) => string
+      scopesRestored: (profiles: string) => string
+      scopeNotRestored: (profile: string, error: string) => string
+    }
     gateway: {
       loading: string
       unavailableTitle: string
@@ -728,6 +780,9 @@ export interface Translations {
       plainTextConfirmAction: string
       plainTextStoredTitle: string
       plainTextStoredDesc: string
+      keychainEncryptionTitle: string
+      keychainEncryptionDesc: string
+      keychainEncryptionFailed: string
       testRemote: string
       saveForRestart: string
       saveAndReconnect: string
@@ -1513,6 +1568,42 @@ export interface Translations {
     switchConnectionFailed: (name: string) => string
     manageProfiles: string
     connectGateway: string
+    fleet: {
+      allOnGateway: string
+      gateway: (gateway: string) => string
+      gatewayUnreachable: (gateway: string) => string
+      onGateway: (name: string, gateway: string) => string
+      switchTo: (name: string, gateway: string) => string
+      deleteOn: (gateway: string) => string
+    }
+    remoteOverride: {
+      menuItem: string
+      badge: (host: string) => string
+      title: (profile: string) => string
+      description: string
+      urlLabel: string
+      urlPlaceholder: string
+      urlInvalid: string
+      tokenLabel: string
+      tokenPlaceholder: string
+      tokenSavedHint: string
+      plainTextOptIn: string
+      collisionWarning: (label: string) => string
+      confirmTitle: string
+      confirmNote: (profile: string, host: string) => string
+      confirmBack: string
+      connect: string
+      connecting: string
+      disconnect: string
+      savedTitle: string
+      savedMessage: (profile: string, host: string) => string
+      removedTitle: string
+      removedMessage: (profile: string) => string
+      removeFailed: string
+      authFailedTitle: string
+      authFailedMessage: (profile: string, host: string) => string
+      updateToken: string
+    }
     actions: string
     color: string
     colorFor: string
@@ -1592,6 +1683,10 @@ export interface Translations {
       detailMore: (names: string, remaining: number) => string
       review: string
       saveFailed: string
+      confirmTitle: string
+      confirmDetail: string
+      confirmAction: string
+      declined: string
     }
     search: string
     loading: string
@@ -2370,6 +2465,7 @@ export interface Translations {
       gateway: string
       gatewayReady: string
       gatewayNeedsSetup: string
+      gatewayUnavailable: string
       gatewayChecking: string
       gatewayConnecting: string
       gatewayOffline: string
@@ -2477,6 +2573,9 @@ export interface Translations {
     hide: string
     openPreview: string
     openInBrowser: string
+    openInExternal: string
+    popIn: string
+    popOut: string
     linkHint: string
     sourceLineTitle: string
     source: string
@@ -2563,8 +2662,8 @@ export interface Translations {
   }
 
   zones: {
-    showHeader: string
-    hideHeader: string
+    showTabStrip: string
+    hideTabStrip: string
     showStripTab: (title: string) => string
     hideStripTab: (title: string) => string
     lastTabKeptTitle: string
@@ -2580,6 +2679,7 @@ export interface Translations {
     closeToRight: string
     closeAll: string
     newSessionTab: string
+    newTab: string
     pluginDisabled: (pluginId: string) => string
     pluginDisabledBody: string
     missingPane: (paneId: string) => string
@@ -2652,6 +2752,26 @@ export interface Translations {
       branchNewChat: string
       react: string
       dismissError: string
+      /** Layer titles for the structured error card (agent/error_surface.py).
+       *  `generic` is the fallback when the backend sent no descriptor. */
+      errorLayers: {
+        auth: string
+        billing: string
+        disk: string
+        endpoint: string
+        gateway: string
+        generic: string
+        provider: string
+        runtime: string
+        streaming: string
+      }
+      errorRetry: string
+      errorSwitchProvider: string
+      errorOpenLogs: string
+      errorOpenLogsFailed: string
+      errorOpenDesktopLogs: string
+      errorCopyDiagnostics: string
+      errorSendDiagnostics: string
       filesChanged: (count: number) => string
       reviewChanges: string
       readAloudFailed: string
@@ -2817,6 +2937,9 @@ export interface Translations {
     editFailed: string
     editTurnUnavailable: string
     resumeFailed: string
+    readOnlyTranscriptTitle: string
+    readOnlyTranscriptBody: string
+    readOnlyTranscriptSendBlocked: string
     resumeStrandedTitle: string
     resumeStrandedBody: string
     resumeRetry: string
@@ -2834,6 +2957,7 @@ export interface Translations {
     cwdStagedTitle: string
     cwdStagedMessage: string
     modelSwitchFailed: string
+    hydrationSyncing: (profile: string) => string
     sessionExported: string
     sessionExportFailed: string
     imageSaved: string

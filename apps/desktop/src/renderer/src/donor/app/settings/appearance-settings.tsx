@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
@@ -32,7 +32,9 @@ import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/p
 import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enabled'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
 import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
+import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
 import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
+import { $vibeHeartsEnabled, setVibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
 import { $zoomPercent, setZoomPercent } from '@/store/zoom'
 import { getBaseColors, useTheme } from '@/themes/context'
 import type { DesktopTheme } from '@/themes/types'
@@ -107,11 +109,13 @@ export function AppearanceSettings() {
   const toolViewMode = useStore($toolViewMode)
   const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault)
   const sessionListDensity = useStore($sessionListDensity)
+  const tabStripDefault = useStore($tabStripDefault)
   const zoomPercent = useStore($zoomPercent)
   const embedMode = useStore($embedMode)
   const embedAllowed = useStore($embedAllowed)
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
   const reactionsEnabled = useStore($reactionsEnabled)
+  const vibeHeartsEnabled = useStore($vibeHeartsEnabled)
   const backdrop = useStore($backdrop)
   const introSplash = useStore($introSplash)
   const profiles = useStore($profiles)
@@ -160,6 +164,12 @@ export function AppearanceSettings() {
     { id: 'comfortable', label: a.sessionDensityComfortable },
     { id: 'detailed', label: a.sessionDensityDetailed }
   ] as const satisfies readonly { id: SessionListDensity; label: string }[]
+
+  const tabStripOptions = [
+    { id: 'auto', label: a.tabStripAuto },
+    { id: 'always', label: a.tabStripAlways },
+    { id: 'never', label: a.tabStripNever }
+  ] as const satisfies readonly { id: TabStripDefault; label: string }[]
 
   const embedOptions = [
     { id: 'ask', label: a.embedsAsk },
@@ -320,6 +330,21 @@ export function AppearanceSettings() {
             title={a.sessionDensityTitle}
           />
 
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={id => {
+                  triggerHaptic('selection')
+                  setTabStripDefault(id)
+                }}
+                options={tabStripOptions}
+                value={tabStripDefault}
+              />
+            }
+            description={a.tabStripDesc}
+            title={a.tabStripTitle}
+          />
+
           {/* EDIT [3]: the window-translucency row is removed — HX14. */}
 
           <ListRow
@@ -383,6 +408,24 @@ export function AppearanceSettings() {
             }
             description={a.reactionsDesc}
             title={a.reactionsTitle}
+          />
+
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={id => {
+                  triggerHaptic('selection')
+                  setVibeHeartsEnabled(id === 'on')
+                }}
+                options={[
+                  { id: 'off', label: t.common.off },
+                  { id: 'on', label: t.common.on }
+                ]}
+                value={vibeHeartsEnabled ? 'on' : 'off'}
+              />
+            }
+            description={a.vibeHeartsDesc}
+            title={a.vibeHeartsTitle}
           />
 
           <ListRow

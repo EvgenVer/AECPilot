@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/gateway-connecting-overlay.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -148,6 +148,10 @@ export function GatewayConnectingOverlay() {
         'fixed inset-0 z-(--z-connecting) grid place-items-center bg-(--ui-chat-surface-background) transition-opacity duration-500 ease-out',
         overlayHidden ? 'pointer-events-none opacity-0' : 'opacity-100'
       )}
+      // Masks the whole app while booting — must stay filled under window
+      // glass or the shell shows through. Contract: `[data-glass-opaque]`
+      // in styles.css.
+      data-glass-opaque=""
     >
       <DecodeText
         active={phase === 'live' && (previewing || connecting)}

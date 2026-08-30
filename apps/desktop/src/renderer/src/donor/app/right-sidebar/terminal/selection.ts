@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/selection.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -106,12 +106,6 @@ export function resolveSurfaceColor(fallback: string): string {
 }
 
 export { isMacPlatform }
-
-export function isAddSelectionShortcut(event: KeyboardEvent) {
-  const mod = isMacPlatform() ? event.metaKey : event.ctrlKey
-
-  return mod && !event.shiftKey && event.key.toLowerCase() === 'l'
-}
 
 export function terminalSelectionLabel(term: Terminal, shellName: string, text: string) {
   const pos = term.getSelectionPosition()

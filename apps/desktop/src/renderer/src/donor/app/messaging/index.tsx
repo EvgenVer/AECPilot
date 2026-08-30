@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/messaging/index.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in five platform descriptions → ours (SPEC C12)
@@ -37,7 +37,7 @@ import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { $changeEventsAvailable, $pairingChangeTick, $platformsChangeTick } from '@/store/live-sync'
 import { notify, notifyError } from '@/store/notifications'
-import { $settingsScopeOverride } from '@/store/settings-scope'
+import { $settingsRequestProfile } from '@/store/settings-scope'
 import { runGatewayRestart } from '@/store/system-actions'
 
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
@@ -137,9 +137,9 @@ function fieldCopy(field: MessagingEnvVarInfo, m: Translations['messaging']) {
 export function MessagingView({ setStatusbarItemGroup: _setStatusbarItemGroup, ...props }: MessagingViewProps) {
   const { t } = useI18n()
   const m = t.messaging
-  // Shared settings "Applies to" scope: configure another profile's gateway
-  // platforms/pairing without switching the whole app (null → active profile).
-  const scopeProfile = useStore($settingsScopeOverride)
+  // Shared settings "Applies to" scope, request-shaped (undefined → follow
+  // the active profile; the API helpers treat null as "target primary").
+  const scopeProfile = useStore($settingsRequestProfile)
   // Both save/toggle toasts offer the same one-click restart.
   const restartGatewayAction = { label: t.commandCenter.restartGateway, onClick: () => void runGatewayRestart() }
   const [platforms, setPlatforms] = useState<MessagingPlatformInfo[] | null>(null)

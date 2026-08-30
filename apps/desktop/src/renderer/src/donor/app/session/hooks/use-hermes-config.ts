@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -63,7 +63,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
   const profileRefreshEpochRef = useRef(0)
 
   const refreshHermesConfig = useCallback(
-    async (force = false) => {
+    async (force = false, shouldPublish: () => boolean = () => true) => {
       if (force) {
         profileRefreshEpochRef.current += 1
       }
@@ -74,13 +74,19 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
       try {
         const [config, defaults] = await Promise.all([getHermesConfig(), getHermesConfigDefaults().catch(() => ({}))])
 
-        if (profileRefreshEpochRef.current !== profileRefreshEpoch) {
+        const canPublish = () => profileRefreshEpochRef.current === profileRefreshEpoch && shouldPublish()
+
+        if (!canPublish()) {
           return
         }
 
         const personality = normalizePersonalityValue(
           typeof config.display?.personality === 'string' ? config.display.personality : ''
         )
+
+        if (!canPublish()) {
+          return
+        }
 
         setIntroPersonality(personality)
         // Active sessions keep their per-session value; standalone falls back to config.
@@ -101,6 +107,10 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         // reseeded below: picker rows and preset application resolve "the
         // default" from here, so a manual model pick must not leave them
         // rendering/applying Hermes' built-in medium over the user's config.
+        if (!canPublish()) {
+          return
+        }
+
         setDefaultReasoningEffort(reasoning)
 
         const shouldSeedComposer =
@@ -109,16 +119,38 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           (force || getCurrentModelSource() !== 'manual')
 
         if (shouldSeedComposer) {
+          if (!canPublish()) {
+            return
+          }
+
           setCurrentReasoningEffort(reasoning)
           setCurrentFastMode(FAST_TIERS.has(tier.toLowerCase()))
         }
 
+        if (!canPublish()) {
+          return
+        }
+
         setCurrentServiceTier(prev => (activeSessionIdRef.current ? prev : tier))
+
+        if (!canPublish()) {
+          return
+        }
 
         setVoiceMaxRecordingSeconds(recordingLimit(config.voice?.max_recording_seconds))
         setSttEnabled(config.stt?.enabled !== false)
+
+        if (!canPublish()) {
+          return
+        }
+
         setDisplayTimestampsFromConfig(config.display?.timestamps)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
+
+        if (!canPublish()) {
+          return
+        }
+
         applyAutoSpeakFromConfig(config)
         applyVoiceStopPhraseFromConfig(config)
         applyThinkingSoundFromConfig(config)

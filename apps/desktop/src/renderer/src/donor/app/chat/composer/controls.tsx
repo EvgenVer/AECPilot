@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the wake-word fallback → ours (SPEC C12)
@@ -16,7 +16,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { AudioLines, Ear, EarOff, iconSize, Layers3, Loader2, Square, Volume2, VolumeX } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { $hudMode, closeHud } from '@/store/hud'
+import { $hudMode, closeHud, resetHudLayout } from '@/store/hud'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
@@ -182,27 +182,41 @@ export function ComposerControls({
           the surface, paid for in every state, for a control that is invisible
           until hovered. Here it costs no reserved space and sits with the other
           things you can press. */}
-      {hudMode ? <ExitHudButton /> : null}
+      {hudMode ? <HudWindowButtons /> : null}
     </div>
   )
 }
 
-function ExitHudButton() {
+function HudWindowButtons() {
   const { t } = useI18n()
 
   return (
-    <Tip label={t.titlebar.exitHud}>
-      <Button
-        aria-label={t.titlebar.exitHud}
-        className={cn(GHOST_ICON_BTN, 'p-0')}
-        onClick={closeHud}
-        size="icon"
-        type="button"
-        variant="ghost"
-      >
-        <Codicon name="screen-normal" size="0.875rem" />
-      </Button>
-    </Tip>
+    <>
+      <Tip label={t.titlebar.resetHudLayout}>
+        <Button
+          aria-label={t.titlebar.resetHudLayout}
+          className={cn(GHOST_ICON_BTN, 'p-0')}
+          onClick={resetHudLayout}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <Codicon name="discard" size="0.875rem" />
+        </Button>
+      </Tip>
+      <Tip label={t.titlebar.exitHud}>
+        <Button
+          aria-label={t.titlebar.exitHud}
+          className={cn(GHOST_ICON_BTN, 'p-0')}
+          onClick={closeHud}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <Codicon name="screen-normal" size="0.875rem" />
+        </Button>
+      </Tip>
+    </>
   )
 }
 

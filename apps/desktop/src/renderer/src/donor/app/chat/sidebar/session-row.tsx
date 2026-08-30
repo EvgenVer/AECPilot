@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-row.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -45,6 +45,7 @@ import { SessionStatusDot } from '../session-status-dot'
 
 import {
   SIDEBAR_ROW_CARD_MIN_H,
+  SIDEBAR_TRUNCATED_LEADING,
   SidebarRowBody,
   SidebarRowGrab,
   SidebarRowLabel,
@@ -235,7 +236,7 @@ function SidebarSessionRowImpl({
               <Tip label={absoluteAge} side="top">
                 <time
                   aria-label={`${age}, ${absoluteAge}`}
-                  className="pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                  className="pointer-events-auto focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                   dateTime={timestampDate.toISOString()}
                   tabIndex={0}
                 >
@@ -423,7 +424,7 @@ function SidebarSessionRowImpl({
             // The card is a grid with ONE spacing knob: --card-gap. Every row
             // gap is gap-y-(--card-gap); the title/preview group opts out
             // with its own tighter internal flex gap.
-            card && 'flex-col items-stretch justify-center py-1.5 [--card-gap:0.6rem] gap-(--card-gap)'
+            card && 'flex-col items-stretch justify-center py-1.5 [--card-gap:0.4rem] gap-(--card-gap)'
           )}
           // Middle-click = open in a new tab (browser muscle memory).
           {...middleClickHandlers(() => {
@@ -512,12 +513,22 @@ function SidebarSessionRowImpl({
                         deterministic metadata line; detailed adds the initial
                         request preview. Compact keeps today's one-line row. */}
                     {density !== 'compact' && details.metadata && (
-                      <span className="mt-0.5 block truncate text-[0.625rem] leading-none text-(--ui-text-tertiary)">
+                      <span
+                        className={cn(
+                          'mt-0.5 block truncate text-[0.625rem] text-(--ui-text-tertiary)',
+                          SIDEBAR_TRUNCATED_LEADING
+                        )}
+                      >
                         {details.metadata}
                       </span>
                     )}
                     {density === 'detailed' && details.preview && (
-                      <span className="mt-1 block truncate text-[0.625rem] leading-none text-(--ui-text-quaternary)">
+                      <span
+                        className={cn(
+                          'mt-1 block truncate text-[0.625rem] text-(--ui-text-quaternary)',
+                          SIDEBAR_TRUNCATED_LEADING
+                        )}
+                      >
                         {details.preview}
                       </span>
                     )}
@@ -535,7 +546,12 @@ function SidebarSessionRowImpl({
                     entire width — nothing truncates against the kebab. */}
                 <div className="flex min-w-0 items-center gap-1.5">
                   {leadNode}
-                  <span className="min-w-0 flex-1 truncate text-[0.6875rem] leading-none text-(--ui-text-tertiary)">
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-[0.6875rem] text-(--ui-text-tertiary)',
+                      SIDEBAR_TRUNCATED_LEADING
+                    )}
+                  >
                     {context}
                   </span>
                   {handoffBadge}
@@ -543,10 +559,13 @@ function SidebarSessionRowImpl({
                 </div>
                 {/* Title + preview: ONE grouped cell with its own tight
                     internal gap — it does not inherit the card's rhythm. */}
-                <div className="-mt-[0.2em] flex min-w-0 flex-col gap-[0.3rem]">
+                <div className="flex min-w-0 flex-col gap-[0.15rem]">
                   <OverflowTip label={title}>
                     <SidebarRowLabel
-                      className="hover-marquee text-[0.8125rem] leading-none font-medium text-(--ui-text-primary) group-data-[working=true]:text-foreground"
+                      className={cn(
+                        'hover-marquee text-[0.8125rem] font-medium text-(--ui-text-primary) group-data-[working=true]:text-foreground',
+                        SIDEBAR_TRUNCATED_LEADING
+                      )}
                       onPointerEnter={armMarquee}
                       onPointerLeave={disarmMarquee}
                     >
@@ -554,13 +573,23 @@ function SidebarSessionRowImpl({
                     </SidebarRowLabel>
                   </OverflowTip>
                   {session.preview && rowMeta.includes('preview') ? (
-                    <span className="min-w-0 truncate text-[0.625rem] leading-none text-(--ui-text-quaternary)">
+                    <span
+                      className={cn(
+                        'min-w-0 truncate text-[0.625rem] text-(--ui-text-quaternary)',
+                        SIDEBAR_TRUNCATED_LEADING
+                      )}
+                    >
                       {session.preview}
                     </span>
                   ) : null}
                 </div>
                 {model || size || todoProgress ? (
-                  <span className="flex min-w-0 items-baseline gap-2 text-[0.625rem] leading-none text-(--ui-text-tertiary)">
+                  <span
+                    className={cn(
+                      'flex min-w-0 items-baseline gap-2 text-[0.625rem] text-(--ui-text-tertiary)',
+                      SIDEBAR_TRUNCATED_LEADING
+                    )}
+                  >
                     {model ? <span className="min-w-0 truncate">{model}</span> : null}
                     {size ? <span className="shrink-0 tabular-nums">{size}</span> : null}
                     {todoProgress ? (

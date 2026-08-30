@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/virtual-session-list.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -51,7 +51,7 @@ export interface VirtualSessionListProps {
   onArchiveSession: (sessionId: string) => void
   onBranchSession?: (sessionId: string, profile?: string) => void
   onDeleteSession: (sessionId: string) => void
-  onResumeSession: (sessionId: string) => void
+  onResumeSession: (sessionId: string, session?: SessionInfo) => void
   onTogglePin: (sessionId: string) => void
   onToggleUnread: (sessionId: string) => void
   pinned: boolean
@@ -62,7 +62,7 @@ export interface VirtualSessionListProps {
 // Matches the card's typical rendered height (four lines when a preview
 // exists) so long card lists don't jump under the scroll thumb before
 // self-measurement catches up.
-const CARD_ROW_ESTIMATE_PX = 66
+const CARD_ROW_ESTIMATE_PX = 74
 const DIVIDER_ESTIMATE_PX = 28
 const OVERSCAN_ROWS = 12
 
@@ -156,18 +156,22 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
       onDelete: () => onDeleteSession(session.id),
       onPin: () => onTogglePin(sessionPinId(session)),
       onToggleUnread: () => onToggleUnread(session.id),
-      onResume: () => onResumeSession(session.id),
+      onResume: () => onResumeSession(session.id, session),
       reorderable,
       showProfile: showProfileTags,
       unread: session.unread === true
     }
 
+    // Key by (profile, id): twins with the same stored id in two profiles are
+    // distinct rows (#92454) — a bare-id key misattributes rendered state.
+    const rowKey = `${session.profile ?? ''}::${session.id}`
+
     return reorderable ? (
-      <div data-index={virtualItem.index} key={session.id} ref={virtualizer.measureElement} style={itemStyle}>
+      <div data-index={virtualItem.index} key={rowKey} ref={virtualizer.measureElement} style={itemStyle}>
         <VirtualSortableRow rowProps={commonProps} session={session} />
       </div>
     ) : (
-      <div data-index={virtualItem.index} key={session.id} ref={virtualizer.measureElement} style={itemStyle}>
+      <div data-index={virtualItem.index} key={rowKey} ref={virtualizer.measureElement} style={itemStyle}>
         <SidebarSessionRow {...commonProps} session={session} />
       </div>
     )

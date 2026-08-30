@@ -40,6 +40,19 @@ export default defineConfig({
     // whole shell to show one input would boot their application twice, and
     // this window must appear in the time it takes to press a chord.
     build: {
+      // Шрифт НИКОГДА не вклеивается в CSS как `data:` (находка D-60).
+      //
+      // Наша CSP — `default-src 'self'` без `font-src` (`src/renderer/index.html`),
+      // то есть вклеенный шрифт запрещён. Умолчание Vite вклеивает всё легче
+      // 4 КиБ, и под порог попадает ровно один файл: `KaTeX_Size3` из
+      // `katex.min.css`, который их `styles.css` импортирует. Браузер отвергает
+      // его загрузку, а `page.addStyleTag` в e2e считает это своей ошибкой —
+      // отсюда падало восемь проверок подряд, начиная с первой, которая прячет
+      // экраны первого запуска.
+      //
+      // Ослаблять CSP до `font-src data:` ради этого не нужно: файлом шрифт
+      // проходит как `'self'`, и правило остаётся строгим.
+      assetsInlineLimit: (filePath: string) => (/\.(woff2?|ttf|otf|eot)$/i.test(filePath) ? false : undefined),
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/renderer/index.html'),

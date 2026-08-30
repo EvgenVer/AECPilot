@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-dot-state.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,7 @@ import { computed } from 'nanostores'
 import { stableArray, stableRecord } from '@/lib/stable-array'
 
 import { $backgroundRunningSessionIds } from './composer-status'
-import { $cronSessions, $messagingSessions, $sessions, $unreadFinishedSessionIds, lineageAliases } from './session'
+import { $messagingSessions, $sessions, $unreadFinishedSessionIds, lineageAliases } from './session'
 import {
   $attentionSessionIds,
   $draftSessionIds,
@@ -209,7 +209,12 @@ export function unreadSessionCount(
   return n
 }
 
+/** The titlebar badge. Cron sessions are deliberately EXCLUDED: cron runs
+ *  finish unwatched by design, so counting them turns the badge into a cron
+ *  run counter that is permanently lit (#93552). Their unread state stays
+ *  visible where it belongs — the sidebar's cron section rows — and
+ *  "mark all as read" still acks them (ackAllSessionsRead iterates cron rows). */
 export const $unreadSessionCount = computed(
-  [$sessionDotStateById, $sessions, $cronSessions, $messagingSessions],
-  (byId, sessions, cron, messaging) => unreadSessionCount(byId, sessions, cron, messaging)
+  [$sessionDotStateById, $sessions, $messagingSessions],
+  (byId, sessions, messaging) => unreadSessionCount(byId, sessions, messaging)
 )

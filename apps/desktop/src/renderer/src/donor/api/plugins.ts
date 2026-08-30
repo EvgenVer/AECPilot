@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/plugins.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -10,6 +10,7 @@
  * (no other edits)
  */
 import type { HermesConnection } from '@/global'
+import { RECONNECT_ATTEMPT_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
 
 import { getApiRequestConnection, getApiRequestProfile, hermesApi, profileScoped } from './client'
 
@@ -18,16 +19,33 @@ import { getApiRequestConnection, getApiRequestProfile, hermesApi, profileScoped
  *  registry agent's descriptor comes from getConnectionFor (its SOURCE
  *  connection), everything else from the profile-keyed local pool. The
  *  getConnectionFor bridge is optional (older Desktop mains); without it the
- *  profile-scoped pool lookup is the best available answer. */
-async function activeConnection(): Promise<HermesConnection> {
+ *  profile-scoped pool lookup is the best available answer.
+ *
+ *  Both branches are IPC round-trips into the main process with no timeout of
+ *  their own (#93454) — a wedged main-process round-trip otherwise hangs
+ *  pluginSocket's connect() forever instead of falling back to the polling
+ *  fallback every consumer already has. Bound the same way store/gateway's
+ *  openSecondary bounds the same *For/plain pair.
+ *
+ *  Exported for tests. */
+export async function activeConnection(): Promise<HermesConnection> {
   const getConnectionFor = window.hermesDesktop.getConnectionFor
   const connectionId = getApiRequestConnection()
+  const profile = getApiRequestProfile()
 
   if (connectionId && getConnectionFor) {
-    return getConnectionFor({ connectionId, profile: getApiRequestProfile() })
+    return withTimeout(
+      getConnectionFor({ connectionId, profile }),
+      RECONNECT_ATTEMPT_TIMEOUT_MS,
+      `Timed out connecting to profile "${profile}"`
+    )
   }
 
-  return window.hermesDesktop.getConnection(getApiRequestProfile())
+  return withTimeout(
+    window.hermesDesktop.getConnection(profile),
+    RECONNECT_ATTEMPT_TIMEOUT_MS,
+    `Timed out connecting to profile "${profile}"`
+  )
 }
 
 /** Options for a plugin REST call — mirrors the app's own `hermesDesktop.api`
