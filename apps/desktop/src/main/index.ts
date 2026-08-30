@@ -140,6 +140,13 @@ import type {
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
 import { GatewayClient } from '../shared/gateway/client'
 import {
+  EMPTY_WATERMARK,
+  noteEvent,
+  planCatchUp,
+  readCatchUp,
+  type ReplayWatermark
+} from './event-replay-pure'
+import {
   checkRestCall,
   checkRpcCall,
   describeRpcFailure,
@@ -149,7 +156,8 @@ import {
 import type {
   AgentProcessEntry,
   GatewayConnectionState,
-  GatewayEvent
+  GatewayEvent,
+  GatewayEventFrame
 } from '../shared/gateway/types'
 import {
   buildProviderKeyEnv,
@@ -515,6 +523,8 @@ function startScanSchedulerForProject(vaultPath: string): void {
 // fires while no window exists to receive the push, so a push-only channel
 // would leave the renderer stuck at 'closed'.
 let gatewayState: GatewayConnectionState = 'closed'
+/** Отметка догона событий: до какого номера кадра окна всё получили. */
+let replayWatermark: ReplayWatermark = EMPTY_WATERMARK
 
 /** Wires a `GatewayClient` for `url` into the app: forwards events/state to
  * every window and attempts the initial connect (tolerating failure — the
@@ -528,7 +538,13 @@ async function connectGateway(url: string): Promise<void> {
   // dial; it never crosses IPC and is never logged.
   gatewayUrl = url
   gateway = new GatewayClient({ url })
+  replayWatermark = EMPTY_WATERMARK
   gateway.onEvent((event: GatewayEvent) => {
+    // Отметка догона ведётся ПО ВСЕМ кадрам, включая чужие сессии и
+    // бессессионные: нумерация в шлюзе сквозная, и пропуск кадра здесь
+    // означал бы просьбу переслать то, что уже приходило (задача 3.B2г).
+    replayWatermark = noteEvent(replayWatermark, event as GatewayEventFrame['params'])
+
     // Only forward events for the active session, plus session-less
     // events (e.g. `gateway.ready`, which carries no session_id).
     if (event.session_id && event.session_id !== sessionId) return
@@ -536,8 +552,12 @@ async function connectGateway(url: string): Promise<void> {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
   })
   gateway.onStateChange((state) => {
+    const wasReconnecting = gatewayState === 'reconnecting'
     gatewayState = state
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('gateway:state', state)
+
+    // Связь вернулась после обрыва — догнать то, что окно пропустило.
+    if (state === 'ready' && wasReconnecting) void catchUpAfterReconnect()
   })
 
   try {
@@ -546,6 +566,59 @@ async function connectGateway(url: string): Promise<void> {
     // Same tolerance as a serve-start failure — the window still
     // opens, the chat just won't be able to connect yet.
     console.error('aecpilot: gateway connect FAIL', error)
+  }
+}
+
+/** Догон событий после обрыва связи (задача 3.B2г).
+ *
+ * Обрыв посреди хода — это окно, в котором обычное восстановление бессильно:
+ * сессия читается из базы, а строка хода попадает туда по его завершении.
+ * Замер `runtime/session-events-probe.mjs`: на одном таком обрыве переигровка
+ * вернула 61 дельту, а `session.resume` — ответ ассистента длиной ноль.
+ *
+ * Кадры уходят окну ТЕМ ЖЕ каналом, что и живые: для него они неотличимы, и
+ * код донора не трогается вовсе. */
+async function catchUpAfterReconnect(): Promise<void> {
+  const client = gateway
+  if (!client) return
+
+  const plan = planCatchUp(replayWatermark, Boolean(sessionId))
+  if (plan.action === 'skip') {
+    // Тишина здесь законна, но её причина должна быть видна в журнале: иначе
+    // «догон не сработал» и «догонять было нечего» выглядят одинаково.
+    console.info(`aecpilot: догон событий пропущен (${plan.reason})`)
+    return
+  }
+
+  try {
+    const answer = await client.request('session.events.since', {
+      session_id: sessionId ?? '',
+      last_seen: plan.lastSeen
+    })
+
+    const reading = readCatchUp(replayWatermark, answer)
+    replayWatermark = reading.watermark
+
+    for (const frame of reading.deliver) {
+      const event = frame.params as GatewayEvent
+      if (event.session_id && event.session_id !== sessionId) continue
+      rememberMcpStatus(event)
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+    }
+
+    console.info(
+      `aecpilot: догнано событий ${reading.deliver.length}` + (reading.gap ? ' (с пропуском)' : '')
+    )
+
+    if (reading.gap) {
+      // Дыру догон не закрыл — часть кадров потеряна безвозвратно. Врать об
+      // этом нечем: историю окно перечитывает своим путём при восстановлении,
+      // и запись в журнале нужна, чтобы потерю можно было объяснить.
+      console.warn('aecpilot: часть событий потеряна — кольцо шлюза проехало точку догона')
+    }
+  } catch (error: unknown) {
+    // Старое ядро не знает метода, и это не сбой: догон просто не работает.
+    console.warn('aecpilot: догон событий не удался', error)
   }
 }
 

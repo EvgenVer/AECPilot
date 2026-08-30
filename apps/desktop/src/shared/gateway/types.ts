@@ -49,6 +49,12 @@ export interface GatewayEventFrame<T extends string = string, P = unknown> {
     type: T
     session_id?: string
     payload?: P
+    /** Порядковый номер кадра в кольце шлюза (появился в ядре 0.20.6).
+     *
+     * По нему после обрыва связи запрашивается догон: `session.events.since`
+     * отдаёт всё, что старше последнего увиденного номера. Необязателен —
+     * ядро без переигровки его не шлёт, и тогда догон просто не работает. */
+    seq?: number
   }
 }
 
@@ -175,6 +181,28 @@ export interface SessionSummary {
   source: string
 }
 
+/** Догон событий после обрыва связи (ядро 0.20.6, задача 3.B2г). */
+export interface SessionEventsSinceParams {
+  session_id: string
+  /** Последний номер кадра, который клиент точно видел. */
+  last_seen: number
+}
+
+export interface SessionEventsSinceResult {
+  /** Пропущенные кадры в том же порядке, в каком они шли живьём. */
+  events: GatewayEventFrame[]
+  /** Самый свежий номер в кольце — на него сдвигается отметка клиента. */
+  latest_seq: number
+  /** Кольцо проехало запрошенную точку: часть кадров потеряна безвозвратно, и
+   * честный ответ на это — перечитать историю, а не делать вид, что догнали. */
+  truncated: boolean
+  count: number
+  /** Метка запуска шлюза. Счётчики живут в процессе, поэтому после его
+   * перезапуска старая отметка клиента не значит ничего — несовпадение с
+   * меткой из `gateway.ready` означает «считать заново». */
+  epoch: string
+}
+
 export interface SessionListParams {
   limit?: number
 }
@@ -258,6 +286,7 @@ export interface GatewayMethodMap {
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
+  'session.events.since': { params: SessionEventsSinceParams; result: SessionEventsSinceResult }
   'reload.mcp': { params: ReloadMcpParams; result: ReloadMcpResult }
   'complete.slash': { params: CompleteSlashParams; result: CompleteSlashResult }
   'model.options': { params: ModelOptionsParams; result: ModelOptionsResult }
