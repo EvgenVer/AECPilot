@@ -34,6 +34,41 @@ def _iso_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+# Как часто файл перехешируется, даже если размер и mtime не двигались
+# (находка D-54). Сутки: достаточно редко, чтобы обычный скан по-прежнему
+# стоил один stat на файл, и достаточно часто, чтобы правка «в тот же
+# размер и тот же тик mtime» не жила в индексе вечно.
+DEFAULT_REHASH_AFTER_S = 24 * 60 * 60
+
+
+def _hash_is_stale(indexed_at: str | None, now: datetime, rehash_after_s: float) -> bool:
+    """Пора ли перехешировать файл, у которого stat не изменился.
+
+    Пропуск по (size, mtime) — стандартный размен, тот же, что держит git в
+    своём stat-кэше, и спека нигде не обещает «хешировать каждый файл при
+    каждом скане». Но у размена есть слепое пятно: правка, попавшая и в тот же
+    размер, и в тот же тик mtime, не будет замечена НИКОГДА. Отсюда потолок по
+    времени — не «сверять всё каждый раз», а «не доверять stat дольше суток».
+
+    Отметка берётся из `indexed_at`, который и означает «когда мы последний раз
+    этот файл действительно читали»: ветка «не изменился» его не трогает.
+    Отдельного поля и миграции схемы для этого не нужно.
+
+    Нечитаемая или отсутствующая отметка — повод перехешировать, а не повод
+    промолчать: неизвестный возраст хуже старого.
+    """
+    if rehash_after_s <= 0 or not indexed_at:
+        return True
+    try:
+        stamp = datetime.fromisoformat(indexed_at)
+    except ValueError:
+        return True
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+
+    return (now - stamp).total_seconds() >= rehash_after_s
+
+
 def walk_files(root: Path | str, unreadable: list[str] | None = None) -> Iterator[Path]:
     """Iteratively walk ``root``, yielding regular files as ``Path`` objects.
 
@@ -173,6 +208,7 @@ def scan_source(
     root_path: Path | str,
     *,
     max_size: int = DEFAULT_MAX_SIZE,
+    rehash_after_s: float = DEFAULT_REHASH_AFTER_S,
 ) -> dict:
     """Scan ``root_path`` and reconcile ``files`` rows for ``source_id``.
 
@@ -186,6 +222,12 @@ def scan_source(
     scans — unless the stored ``sha256`` is ``NULL`` (a previously
     too-large/unreadable file), in which case a rehash is always attempted
     so a since-unlocked file gets picked up even with unchanged stat info.
+
+    ``rehash_after_s`` ставит ПОТОЛОК доверия к stat (находка D-54): файл,
+    который мы не читали дольше этого срока, перехешируется, даже если размер
+    и mtime не двигались. Без потолка правка, попавшая и в тот же размер, и в
+    тот же тик mtime, не была бы замечена никогда. Ноль (или отрицательное)
+    означает «сверять хеш всегда» — полная сверка по требованию.
 
     A file whose size exceeds ``max_size`` (default 200 MiB) or that
     raises ``OSError`` while being hashed (e.g. locked) is still recorded,
@@ -248,18 +290,27 @@ def scan_source(
         }
 
     rows = conn.execute(
-        "SELECT rel_path, size, mtime, sha256, status FROM files WHERE source_id = ?",
+        # `indexed_at` читается ради потолка доверия к stat (находка D-54): он и
+        # означает «когда мы последний раз этот файл действительно читали».
+        "SELECT rel_path, size, mtime, sha256, status, indexed_at FROM files WHERE source_id = ?",
         (source_id,),
     ).fetchall()
     existing = {
-        rel_path: {"size": size, "mtime": mtime, "sha256": sha256, "status": status}
-        for rel_path, size, mtime, sha256, status in rows
+        rel_path: {
+            "size": size,
+            "mtime": mtime,
+            "sha256": sha256,
+            "status": status,
+            "indexed_at": indexed_at,
+        }
+        for rel_path, size, mtime, sha256, status, indexed_at in rows
     }
 
     added: list[str] = []
     changed: list[str] = []
     deleted: list[str] = []
     unchanged = 0
+    now = datetime.now(UTC)
     seen: set[str] = set()
 
     unreadable_dirs: list[str] = []
@@ -290,6 +341,7 @@ def scan_source(
             and prior["sha256"] is not None
             and prior["size"] == size
             and prior["mtime"] == mtime
+            and not _hash_is_stale(prior["indexed_at"], now, rehash_after_s)
         ):
             unchanged += 1
             continue

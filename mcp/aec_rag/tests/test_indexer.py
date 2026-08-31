@@ -573,3 +573,122 @@ def test_walk_files_reports_the_unreadable_prefix(tmp_path, monkeypatch):
 
     assert files == ["рядом.txt"]
     assert unreadable == ["а/б"]
+
+
+# --- Находка D-54: потолок доверия к stat -----------------------------------
+#
+# Пропуск по (size, mtime) — стандартный размен, тот же, что держит git в своём
+# stat-кэше. У него есть слепое пятно: правка, попавшая И в тот же размер, И в
+# тот же тик mtime, не будет замечена никогда. `rehash_after_s` ставит потолок:
+# файл, который мы не читали дольше срока, перехешируется даже при неподвижном
+# stat.
+
+
+def _rewrite_keeping_stat(path: Path, text: str) -> None:
+    """Подменить содержимое, сохранив размер и mtime — то самое слепое пятно."""
+    before = path.stat()
+    assert len(text.encode("utf-8")) == before.st_size, "подмена обязана быть того же размера"
+    path.write_text(text, encoding="utf-8")
+    os.utime(path, (before.st_atime, before.st_mtime))
+    after = path.stat()
+    assert after.st_size == before.st_size
+    assert after.st_mtime == before.st_mtime
+
+
+def test_same_size_same_mtime_is_missed_while_stat_is_trusted(tmp_path):
+    """Пока stat в силе, такая правка НЕ видна — это не дефект, а цена размена."""
+    root = tmp_path / "src"
+    root.mkdir()
+    target = root / "смета.txt"
+    target.write_text("аaa", encoding="utf-8")
+
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "s1", root)
+
+    _rewrite_keeping_stat(target, "аbb")
+
+    report = scan_source(conn, "s1", root)
+    assert report["changed"] == []
+    assert report["unchanged"] == 1
+
+
+def test_same_size_same_mtime_is_caught_once_the_hash_goes_stale(tmp_path):
+    """С истёкшим потолком тот же файл перечитывается — и правка находится."""
+    root = tmp_path / "src"
+    root.mkdir()
+    target = root / "смета.txt"
+    target.write_text("аaa", encoding="utf-8")
+
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "s1", root)
+
+    _rewrite_keeping_stat(target, "аbb")
+
+    # Ноль означает «сверять хеш всегда» — то же, что наступивший срок, но без
+    # ожидания суток в тесте.
+    report = scan_source(conn, "s1", root, rehash_after_s=0)
+    assert report["changed"] == ["смета.txt"]
+
+
+def test_a_fresh_hash_still_costs_no_reread(tmp_path):
+    """Свежий хеш обычный скан не трогает — иначе потолок стоил бы всего кэша."""
+    root = tmp_path / "src"
+    root.mkdir()
+    (root / "a.txt").write_text("aaa", encoding="utf-8")
+
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "s1", root)
+
+    calls = []
+    real_hash = indexer._hash_or_skip
+
+    def counting(path, size, max_size):
+        calls.append(path)
+        return real_hash(path, size, max_size)
+
+    indexer._hash_or_skip = counting
+    try:
+        report = scan_source(conn, "s1", root)
+    finally:
+        indexer._hash_or_skip = real_hash
+
+    assert calls == [], "файл со свежим хешем перечитывать незачем"
+    assert report["unchanged"] == 1
+
+
+def test_a_reread_that_finds_nothing_resets_the_clock(tmp_path):
+    """Перечитали, ничего не изменилось — отметка обновляется.
+
+    Иначе файл попадал бы в перечитывание на КАЖДОМ последующем скане: потолок
+    превратился бы в «хешировать всегда», то есть ровно в то, чего размен и
+    избегает.
+    """
+    root = tmp_path / "src"
+    root.mkdir()
+    (root / "a.txt").write_text("aaa", encoding="utf-8")
+
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "s1", root)
+    stamp_before = conn.execute("SELECT indexed_at FROM files").fetchone()[0]
+
+    scan_source(conn, "s1", root, rehash_after_s=0)
+    stamp_after = conn.execute("SELECT indexed_at FROM files").fetchone()[0]
+
+    assert stamp_after > stamp_before
+    assert scan_source(conn, "s1", root)["unchanged"] == 1
+
+
+def test_an_unreadable_stamp_is_a_reason_to_reread(tmp_path):
+    """Неизвестный возраст хуже старого — молчать о нём нельзя."""
+    root = tmp_path / "src"
+    root.mkdir()
+    target = root / "a.txt"
+    target.write_text("aaa", encoding="utf-8")
+
+    conn = open_index(tmp_path / "index.db")
+    scan_source(conn, "s1", root)
+    conn.execute("UPDATE files SET indexed_at = 'не дата'")
+
+    _rewrite_keeping_stat(target, "bbb")
+
+    assert scan_source(conn, "s1", root)["changed"] == ["a.txt"]
