@@ -25,7 +25,7 @@ import { useAecT } from '../../shared/i18n'
 import { $cronContinuity, setCronContinuity } from '../cron-continuity/store'
 
 import CreateProjectDialog from './CreateProjectDialog'
-import ProjectLanguagesDialog from './ProjectLanguagesDialog'
+import ProjectSettingsDialog from './ProjectSettingsDialog'
 
 const CURRENT_PROJECT_KEY = ['aec', 'current-project'] as const
 const RECENTS_KEY = ['aec', 'recent-projects'] as const
@@ -35,7 +35,7 @@ export function ProjectMenu() {
   const continuity = useStore($cronContinuity)
   const queryClient = useQueryClient()
   const [dialog, setDialog] = useState<{ dirPath?: string; name?: string } | undefined>(undefined)
-  const [languages, setLanguages] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
 
   const { data: project } = useQuery({
@@ -98,8 +98,8 @@ export function ProjectMenu() {
               вместе с проектом, поэтому вход к ним — здесь, у имени проекта, а
               не в настройках приложения: там они читались бы как общие. */}
           {project && (
-            <DropdownMenuItem onSelect={() => setLanguages(true)}>
-              {t('project.langTitle')}
+            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+              {t('project.settingsTitle')}
             </DropdownMenuItem>
           )}
 
@@ -154,7 +154,7 @@ export function ProjectMenu() {
         />
       )}
 
-      {languages && <ProjectLanguagesDialog onClose={() => setLanguages(false)} />}
+      {settingsOpen && <ProjectSettingsDialog onClose={() => setSettingsOpen(false)} />}
     </>
   )
 }

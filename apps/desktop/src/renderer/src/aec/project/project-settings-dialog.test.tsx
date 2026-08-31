@@ -1,4 +1,6 @@
-// Задача 5.14. У окна два обязательства, и оба — про честность перед записью.
+// Задача 5.14 (языки) и находка D-57 (интервал и модель эмбеддингов).
+//
+// У окна два обязательства, и оба — про честность перед записью.
 //
 // Первое: смена языка графа стоит полной переиндексации, и человек должен
 // узнать об этом ДО записи, а не после (находка D-38). Значит предупреждение
@@ -16,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AecI18nProvider } from '../../shared/i18n'
 import type { ProjectSettingsPayload } from '../../../../shared/ipc'
 
-import ProjectLanguagesDialog from './ProjectLanguagesDialog'
+import ProjectSettingsDialog from './ProjectSettingsDialog'
 
 const getProjectSettings = vi.fn()
 const updateProjectSettings = vi.fn()
@@ -50,7 +52,7 @@ async function renderDialog(): Promise<void> {
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <AecI18nProvider>
-        <ProjectLanguagesDialog onClose={onClose} />
+        <ProjectSettingsDialog onClose={onClose} />
       </AecI18nProvider>
     </QueryClientProvider>
   )
@@ -65,13 +67,13 @@ function button(label: string): HTMLElement {
     .find((node) => node.textContent?.trim() === label) as HTMLElement
 }
 
-function choose(label: string, value: string): void {
+function choose(label: RegExp | string, value: string): void {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
 
 const WARNING = /полную переиндексацию/
 
-describe('ProjectLanguagesDialog', () => {
+describe('ProjectSettingsDialog', () => {
   it('shows both project language levels with what is set now', async () => {
     await renderDialog()
     expect((screen.getByLabelText('Язык вики') as HTMLSelectElement).value).toBe('auto')
@@ -152,5 +154,87 @@ describe('ProjectLanguagesDialog', () => {
 
     await waitFor(() => expect(screen.getByText('project.json только для чтения')).toBeTruthy())
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // --- Находка D-57: два поля, у которых не было экрана вовсе ---------------
+
+  it('shows the scan interval in minutes, not in the seconds it is stored in', async () => {
+    // 300 секунд на диске — пять минут человеку. Поле в секундах приглашает
+    // вписать туда 5, и обход папок пойдёт раз в пять секунд.
+    await renderDialog()
+    expect((screen.getByLabelText(/Как часто проверять источники/) as HTMLInputElement).value).toBe(
+      '5'
+    )
+  })
+
+  it('writes the interval back in seconds', async () => {
+    await renderDialog()
+    choose(/Как часто проверять источники/, '15')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    expect(updateProjectSettings).toHaveBeenCalledWith({ scanIntervalS: 900 })
+  })
+
+  it('does not demand a second press for the interval — it costs nothing', async () => {
+    // Требовать подтверждение за безобидное изменение значит приучить нажимать
+    // «да» не глядя, и тогда перестанут работать те два, где цена настоящая.
+    await renderDialog()
+    choose(/Как часто проверять источники/, '10')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    expect(updateProjectSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses an interval below a minute instead of writing it', async () => {
+    await renderDialog()
+    choose(/Как часто проверять источники/, '0')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    await waitFor(() => expect(screen.getByText(/не может быть меньше минуты/)).toBeTruthy())
+    expect(updateProjectSettings).not.toHaveBeenCalled()
+  })
+
+  it('warns about the re-index the moment the embedding model changes', async () => {
+    // Та же цена, что у языка графа: `check_compatible` откажется открыть
+    // индекс, построенный другой моделью, — векторы разных моделей несравнимы.
+    await renderDialog()
+    choose(/Модель эмбеддингов/, 'bge-m3')
+
+    await waitFor(() => expect(screen.getByText(/полную переиндексацию/)).toBeTruthy())
+    expect(updateProjectSettings).not.toHaveBeenCalled()
+  })
+
+  it('writes the embedding model only on the second press', async () => {
+    await renderDialog()
+    choose(/Модель эмбеддингов/, 'bge-m3')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+    expect(updateProjectSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      button('Сменить и переиндексировать').click()
+    })
+    expect(updateProjectSettings).toHaveBeenCalledWith({ embeddingModel: 'bge-m3' })
+  })
+
+  it('an empty embedding model is legal — it means «as the core has it»', async () => {
+    getProjectSettings.mockResolvedValue({ ...SETTINGS, embedding_model: 'bge-m3' })
+    await renderDialog()
+    choose(/Модель эмбеддингов/, '')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+    await act(async () => {
+      button('Сменить и переиндексировать').click()
+    })
+
+    expect(updateProjectSettings).toHaveBeenCalledWith({ embeddingModel: '' })
   })
 })

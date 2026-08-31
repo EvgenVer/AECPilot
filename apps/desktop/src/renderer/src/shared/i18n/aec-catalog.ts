@@ -150,6 +150,21 @@ export const aecLocales: PluginLocaleBundles = {
       langAgentWhere:
         'The language the agent speaks in is yours, not the project’s — it lives in the specialist’s character (SOUL).',
       langUiWhere: 'The interface language is in Settings → Appearance.',
+      // Находка D-57 — два поля, у которых не было экрана вовсе: до 31.08.2026
+      // интервал сканирования и модель эмбеддингов правились только руками в
+      // project.json.
+      settingsTitle: 'Project settings',
+      scanLabel: 'How often to check the sources for changes',
+      scanUnit: 'minutes',
+      scanHint:
+        'How often the app walks the source folders looking for new and changed files. Applies at once.',
+      scanTooSmall: 'The interval must be at least one minute.',
+      embeddingLabel: 'Embedding model',
+      embeddingPlaceholder: 'As the core has it',
+      embeddingHint:
+        'The model that turns text into vectors for search. Rarely worth changing — see the warning below before you do.',
+      embeddingWarning:
+        'Changing this means re-indexing everything. Vectors of different models are not comparable, so the index you have will refuse to open until it is rebuilt. Nothing is deleted: it is rebuilt on the next full indexing run.',
       langSave: 'Save',
       langSaving: 'Saving…',
       langConfirmReindex: 'Change and re-index'
@@ -588,6 +603,18 @@ export const aecLocales: PluginLocaleBundles = {
       langAgentWhere:
         'Язык, на котором говорит агент, — ваш, а не проекта: он живёт в характере специалиста (SOUL).',
       langUiWhere: 'Язык интерфейса — в настройках, раздел «Оформление».',
+      settingsTitle: 'Настройки проекта',
+      scanLabel: 'Как часто проверять источники на изменения',
+      scanUnit: 'минут',
+      scanHint:
+        'Как часто приложение обходит папки источников в поисках новых и изменённых файлов. Подействует сразу.',
+      scanTooSmall: 'Интервал не может быть меньше минуты.',
+      embeddingLabel: 'Модель эмбеддингов',
+      embeddingPlaceholder: 'Как в ядре',
+      embeddingHint:
+        'Модель, которая превращает текст в векторы для поиска. Менять её нужно редко — прочтите предупреждение ниже.',
+      embeddingWarning:
+        'Смена означает полную переиндексацию. Векторы разных моделей несравнимы, поэтому имеющийся индекс откажется открыться, пока не будет собран заново. Ничего не удаляется: он соберётся при следующей полной индексации.',
       langSave: 'Сохранить',
       langSaving: 'Сохраняю…',
       langConfirmReindex: 'Сменить и переиндексировать'

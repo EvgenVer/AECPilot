@@ -1,4 +1,13 @@
-// «Языки проекта» — задача 5.14, SPEC G7.
+// «Настройки проекта» — задача 5.14 (языки) и находка D-57 (всё остальное).
+//
+// Про D-57. До 31.08.2026 у настроек проекта не было экрана ВООБЩЕ: интервал
+// сканирования и модель эмбеддингов правились только руками в `project.json`.
+// IPC для них существовал с фазы 1.6, а экраны были наши и исчезли вместе со
+// старым рендерером (1.8.9). Решение владельца 31.08.2026 — одно окно на все
+// четыре поля, а не два похожих: настройка, которую человек ищет и не находит,
+// читается как отсутствующая.
+//
+// Про языки — задача 5.14, SPEC G7.
 //
 // G7 считает три уровня языка, и они принадлежат РАЗНЫМ владельцам. Два живут в
 // проекте и правятся здесь: язык вики и язык имён в графе. Третий — язык, на
@@ -45,11 +54,19 @@ const GRAPH_LANGS = [
   { value: 'English', label: 'project.langGraphEnglish' }
 ] as const
 
-export default function ProjectLanguagesDialog({ onClose }: { onClose: () => void }) {
+/** Наименьший осмысленный интервал сканирования. Секунды хранятся в
+ * `project.json`, а человеку показываются минуты: обход папок источника — не та
+ * работа, которую заводят на секунды, и поле в секундах приглашает вписать
+ * туда 5. */
+const MIN_SCAN_MINUTES = 1
+
+export default function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
   const t = useAecT()
   const queryClient = useQueryClient()
   const [wikiLang, setWikiLang] = useState<string | undefined>(undefined)
   const [graphLang, setGraphLang] = useState<string | undefined>(undefined)
+  const [scanMinutes, setScanMinutes] = useState<string | undefined>(undefined)
+  const [embedding, setEmbedding] = useState<string | undefined>(undefined)
   const [confirming, setConfirming] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -67,12 +84,31 @@ export default function ProjectLanguagesDialog({ onClose }: { onClose: () => voi
     Boolean(settings) && graphLang !== undefined && graphLang !== settings?.extraction_language
   const wikiChanged =
     Boolean(settings) && wikiLang !== undefined && wikiLang !== settings?.wiki_lang
-  const dirty = graphChanged || wikiChanged
+
+  const storedMinutes = settings ? String(Math.round(settings.scan_interval_s / 60)) : ''
+  const scanChanged =
+    Boolean(settings) && scanMinutes !== undefined && scanMinutes !== storedMinutes
+  const scanMinutesValue = Number(scanMinutes)
+  const scanInvalid =
+    scanChanged && (!Number.isFinite(scanMinutesValue) || scanMinutesValue < MIN_SCAN_MINUTES)
+
+  const embeddingChanged =
+    Boolean(settings) && embedding !== undefined && embedding !== settings?.embedding_model
+
+  const dirty = graphChanged || wikiChanged || scanChanged || embeddingChanged
+  // Второй шаг нужен обоим полям, которые обесценивают уже построенный индекс:
+  // язык графа и модель эмбеддингов. `check_compatible` откажется открыть и то,
+  // и другое, и в обоих случаях это защита, а не ошибка.
+  const needsConfirm = graphChanged || embeddingChanged
 
   async function save(): Promise<void> {
-    // Второй шаг — только для языка графа: у языка вики цены нет, следующая
-    // сборка просто пишет страницы иначе.
-    if (graphChanged && !confirming) {
+    // Второй шаг — только для полей с ценой. У языка вики её нет (следующая
+    // сборка просто пишет страницы иначе), у интервала тоже.
+    if (scanInvalid) {
+      setError(t('project.scanTooSmall'))
+      return
+    }
+    if (needsConfirm && !confirming) {
       setConfirming(true)
       return
     }
@@ -81,7 +117,10 @@ export default function ProjectLanguagesDialog({ onClose }: { onClose: () => voi
     try {
       const result = await window.aecpilot.updateProjectSettings({
         ...(wikiChanged ? { wikiLang } : {}),
-        ...(graphChanged ? { extractionLanguage: graphLang } : {})
+        ...(graphChanged ? { extractionLanguage: graphLang } : {}),
+        // Минуты человеку, секунды на диск — единица хранения не меняется.
+        ...(scanChanged ? { scanIntervalS: Math.round(scanMinutesValue * 60) } : {}),
+        ...(embeddingChanged ? { embeddingModel: embedding } : {})
       })
       if (!result.ok) {
         setError(result.error)
@@ -97,7 +136,7 @@ export default function ProjectLanguagesDialog({ onClose }: { onClose: () => voi
     }
   }
 
-  const title = t('project.langTitle')
+  const title = t('project.settingsTitle')
 
   return (
     <div
@@ -175,6 +214,52 @@ export default function ProjectLanguagesDialog({ onClose }: { onClose: () => voi
                 role="alert"
               >
                 {t('project.langGraphWarning')}
+              </div>
+            )}
+
+            {/* Находка D-57. Интервал показывается в МИНУТАХ, а хранится в
+                секундах: обход папок источника — не та работа, которую заводят
+                на секунды, и поле в секундах приглашает вписать туда 5. */}
+            <div className="flex flex-col gap-1.5 text-xs text-(--ui-text-secondary)">
+              <label htmlFor="aec-scan-interval">{t('project.scanLabel')}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  className="w-24 rounded-[4px] bg-(--ui-bg-quaternary) px-2 py-1.5 text-sm text-(--ui-text-primary) outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+                  disabled={saving}
+                  id="aec-scan-interval"
+                  min={MIN_SCAN_MINUTES}
+                  onChange={(event) => setScanMinutes(event.target.value)}
+                  type="number"
+                  value={scanMinutes ?? storedMinutes}
+                />
+                <span className="text-(--ui-text-tertiary)">{t('project.scanUnit')}</span>
+              </div>
+              <span className="text-(--ui-text-tertiary)">{t('project.scanHint')}</span>
+            </div>
+
+            {/* Свободное поле, а не список: имя модели задаёт ядро, и закрытый
+                список здесь устарел бы на следующем их релизе. Пустое значение
+                законно — оно и означает «как в ядре». */}
+            <div className="flex flex-col gap-1.5 text-xs text-(--ui-text-secondary)">
+              <label htmlFor="aec-embedding-model">{t('project.embeddingLabel')}</label>
+              <input
+                className="rounded-[4px] bg-(--ui-bg-quaternary) px-2 py-1.5 text-sm text-(--ui-text-primary) outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+                disabled={saving}
+                id="aec-embedding-model"
+                onChange={(event) => setEmbedding(event.target.value)}
+                placeholder={t('project.embeddingPlaceholder')}
+                type="text"
+                value={embedding ?? settings.embedding_model}
+              />
+              <span className="text-(--ui-text-tertiary)">{t('project.embeddingHint')}</span>
+            </div>
+
+            {embeddingChanged && (
+              <div
+                className="rounded-[4px] bg-(--ui-bg-quaternary) p-3 text-xs text-(--ui-text-primary)"
+                role="alert"
+              >
+                {t('project.embeddingWarning')}
               </div>
             )}
 
