@@ -151,6 +151,18 @@ async def handle(connection: ServerConnection) -> None:
                     }
                 )
             )
+        elif method == "model.options":
+            # Тот же довод, что и у REST-половины: неотвеченный метод превращался
+            # в поток уведомлений об ошибке поверх боковой панели.
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"model": "mock-model", "provider": "mock", "providers": []},
+                    }
+                )
+            )
         elif method == "session.close":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})

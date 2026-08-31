@@ -15,7 +15,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ElectronApplication, Page } from 'playwright'
+import type { ElectronApplication, Locator, Page } from 'playwright'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
@@ -104,7 +104,16 @@ async function clearNotifications(page: Page): Promise<void> {
   const dismiss = page.getByRole('button', { name: /Dismiss notification|Закрыть уведомление/ })
 
   for (let guard = 0; guard < 10 && (await dismiss.count()) > 0; guard += 1) {
-    await dismiss.first().click()
+    // Промах — не повод падать. Тосты въезжают и уезжают анимацией, и щелчок по
+    // уже уезжающему отклоняется («element was detached»). Раньше их было
+    // меньше и это не всплывало; с полноценным стендом их стало столько, что
+    // уборка стала ронять тест, к которому не имеет отношения. Задача этой
+    // функции — best-effort: убрать то, что перекрывает, а не доказать, что
+    // тостов не осталось.
+    await dismiss
+      .first()
+      .click({ timeout: 2000 })
+      .catch(() => undefined)
   }
 }
 
@@ -190,6 +199,20 @@ test.beforeAll(async () => {
   if (!restLine) throw new Error(`mock never printed MOCK_REST_READY — got:\n${mockOutput}`)
   const mockRestPort = Number(restLine.split(' ')[1])
 
+  // The vault is made HERE, before the app starts, and the fixture is told about
+  // it in the same breath. Their sidebar shows only sessions belonging to the
+  // open project, and it loads the list once, early: making the folder inside
+  // the first test raced that load, and the rows arrived stamped with the wrong
+  // (empty) directory — filtered out, list empty, nothing to see. The first test
+  // still walks the create-project IPC on this same folder, so nothing about
+  // what it proves changes.
+  projectDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  await fetch(`http://127.0.0.1:${mockRestPort}/api/_mock/cwd`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cwd: projectDir })
+  })
+
   app = await _electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     cwd: desktopDir,
@@ -248,7 +271,8 @@ test('their shell paints and the composer goes live over our bridge', async () =
   // directory is the vault. So the smoke opens one first, through the same IPC
   // path the create-project dialog uses, which makes vault creation part of
   // what this test covers rather than something it works around.
-  projectDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  // The folder itself is made in `beforeAll` (see the note there); what this
+  // test owns is the two IPC calls that turn it into a project.
   // Task 4D-11: main only creates a project in a folder a human picked in a
   // native dialog. A test cannot click a native dialog, so it stands in for the
   // human at the only place that matters — the dialog itself — and then walks
@@ -1086,4 +1110,161 @@ test('the ssh surface answers, and a key path is a path — never a key', async 
   expect(back.config.sshHost, 'настройка помнится — возвращаться без перенабора').toBe('build')
 
   await assertRendererAlive(page, 'end of test 13')
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Задача 3.16. Список сессий и поиск по ленте.
+//
+// Код этой области приехал массовым переносом и был прослежен по дереву ещё в
+// августе: `useKeybinds` вызывается, `<FindBar />` отрисован, все шесть сторов
+// имеют потребителей. Чем прослеживание НЕ является — доказательством, что
+// человек получает обещанное поведение; ровно поэтому задача полгода стояла с
+// verify «каждая позиция проверена вручную».
+//
+// Решение владельца 2026-08-31: то, что машина может проверить честно, она и
+// проверяет; человеку остаётся то, что вне приложения (настоящий диалог
+// Windows в блоке 24).
+//
+// Что эти два теста уже нашли: мост отбивал `PATCH`, и пункт «Archive» в меню
+// строки МОЛЧА не делал ничего. Прослеживание по дереву этого увидеть не могло —
+// код был на месте и был связан.
+
+test('the session list separates days, archives over PATCH, and knows what is unread', async () => {
+  const page = await app.firstWindow()
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  /** Строка списка — именно кнопка строки, а не ручка перетаскивания рядом с
+   *  ней: по имени они обе «…Разговор на неделе», и обращение по роли попадает
+   *  в две. */
+  const row = (title: string) =>
+    page.locator('button[data-slot="row-button"]').filter({ hasText: title })
+
+  const week = row('Разговор на неделе')
+  const yesterday = row('Вчерашний разговор')
+
+  /** Открыть меню строки её собственной кнопкой «Session actions».
+   *
+   *  Ни правый щелчок по строке, ни посланное напрямую событие тут не годятся,
+   *  и оба проверены: щелчок падал через раз («контейнер прокрутки
+   *  перехватывает нажатие»), а событие без координат раскрывало меню в углу
+   *  экрана, где его пункты уже не нажимались. Кнопка внутри строки решает оба:
+   *  Playwright доводит до неё сам, а меню раскрывается ОТ НЕЁ.
+   *
+   *  Строка-владелец ищется через `has`, а не `hasText`: по тексту подходит и
+   *  внешний контейнер списка, и обращение уходит не туда. */
+  const openRowMenu = async (target: Locator) => {
+    // Уведомления убираются ПЕРЕД каждым обращением, а не один раз в начале
+    // теста: они всплывают и позже, ложатся поверх боковой панели, и нажатие на
+    // строку под ними перехватывается. Одного раза в начале не хватало — набор
+    // краснел примерно в трети прогонов именно на этом.
+    await clearNotifications(page)
+    const holder = page.locator('[data-slot="context-menu-trigger"]').filter({ has: target })
+    await holder.evaluate((node) => node.scrollIntoView({ block: 'center' }))
+    await holder.getByRole('button', { name: /Session actions/i }).click()
+  }
+
+  await expect(week, 'строки стенда не доехали до панели').toBeVisible({ timeout: 60000 })
+  await expect(yesterday).toBeVisible()
+
+  // Позиция 4, первая половина: архивная строка в обычном списке не показана.
+  await expect(page.getByText('Убранный в архив')).toHaveCount(0)
+
+  // Позиция 2: между днями стоит разделитель, а не сплошной список. Ярлык — из
+  // ИХ каталога: выдуманная строка прошла бы мимо перевода.
+  await expect(
+    page
+      .getByText(/Earlier today|Yesterday|Earlier this week|Last week|Earlier this month/i)
+      .first()
+  ).toBeVisible()
+
+  // Позиция 5: непрочитанное. Проверяется не точкой (её легко перекрасить, и
+  // тест тогда охраняет цвет), а тем, что предлагает меню: у непрочитанной
+  // строки это «прочитано», у прочитанной — «непрочитано».
+  await openRowMenu(yesterday)
+  await expect(
+    page.getByRole('menuitem', { name: /Mark as read/i }),
+    'у строки с непрочитанным ответом меню обязано предлагать «прочитано»'
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await openRowMenu(week)
+  await expect(page.getByRole('menuitem', { name: /Mark as unread/i })).toBeVisible()
+
+  // Позиция 4, вторая половина: отправка в архив. ЭТО и есть вызов, который до
+  // 31.08.2026 молча не срабатывал — их код шлёт PATCH, а обе наши проверки
+  // метода знали только GET/POST/PUT/DELETE. Ждём строку от стенда: она значит,
+  // что запрос дошёл до «ядра», а не был отклонён по дороге.
+  await page.getByRole('menuitem', { name: /^Archive$/i }).click()
+  await waitForMockLine(/MOCK_REST_PATCH e2e-week .*"archived":\s*true/)
+  await expect(week, 'убранная строка обязана уйти из основного списка').toHaveCount(0, {
+    timeout: 30000
+  })
+
+  // Позиция 4, третья половина: показать архивные — и она видна снова.
+  await page.getByRole('button', { name: /^Filters$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^Archived$/i }).click()
+  await page.keyboard.press('Escape')
+  await expect(week, 'при включённом показе архивных строка возвращается').toBeVisible({
+    timeout: 30000
+  })
+
+  await assertRendererAlive(page, 'end of session-list test')
+})
+
+test('Ctrl+F highlights in the transcript, steps between hits, and Esc clears them', async () => {
+  const page = await app.firstWindow()
+  // Меню, оставленное открытым предыдущим тестом (своим падением в том числе),
+  // перехватывает щелчки: без этой строки контроль-мутация роняла ДВА теста
+  // вместо одного, и второе падение уводило от причины.
+  await page.keyboard.press('Escape')
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  // Слово редкое нарочно: в ленте уже лежат ответы прошлых тестов, и поиск по
+  // частому слову проверял бы не поиск, а везение.
+  await send(page, 'ромашка ромашка ромашка')
+  await expect(page.getByText(/ромашка/).first()).toBeVisible({ timeout: 60000 })
+
+  await page.keyboard.press('Control+f')
+  const find = page.getByPlaceholder(/Find in page|Поиск по странице/i)
+  await expect(find, 'Ctrl+F обязан открыть полосу поиска').toBeVisible({ timeout: 15000 })
+
+  await find.fill('ромашка')
+
+  const hits = page.locator('mark.find-hit')
+  await expect(hits.first()).toBeVisible({ timeout: 15000 })
+  const total = await hits.count()
+  expect(total, 'совпадений должно быть найдено больше одного').toBeGreaterThan(1)
+
+  /** Порядковый номер подсвеченного совпадения среди всех — то, что двигают
+   *  Enter и Shift+Enter. */
+  const activeIndex = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('mark.find-hit')].findIndex((node) =>
+        node.hasAttribute('data-find-active')
+      )
+    )
+
+  const first = await activeIndex()
+  expect(first, 'одно из совпадений обязано быть активным').toBeGreaterThanOrEqual(0)
+
+  await find.press('Enter')
+  await expect
+    .poll(activeIndex, { message: 'Enter обязан перейти к следующему совпадению' })
+    .not.toBe(first)
+
+  const second = await activeIndex()
+  await find.press('Shift+Enter')
+  await expect
+    .poll(activeIndex, { message: 'Shift+Enter обязан вернуть к предыдущему' })
+    .not.toBe(second)
+
+  // Esc снимает и полосу, и подсветку. Второе важнее: полоса, закрывшаяся с
+  // оставленными `<mark>`, портит ленту молча.
+  await page.keyboard.press('Escape')
+  await expect(find).toHaveCount(0)
+  await expect(page.locator('mark.find-hit'), 'подсветка обязана сняться').toHaveCount(0)
+
+  await assertRendererAlive(page, 'end of find-in-page test')
 })

@@ -83,12 +83,20 @@ def _session(
     title: str,
     age_seconds: float,
     *,
+    created_age_seconds: float | None = None,
     archived: bool = False,
     unread: bool = False,
     messages: int = 2,
 ) -> dict:
-    """One row in the shape `SessionInfo` declares (types/hermes.ts)."""
+    """One row in the shape `SessionInfo` declares (types/hermes.ts).
+
+    `created_age_seconds` is deliberately separate from `age_seconds`: their
+    sidebar offers both "Updated" and "Created" orderings, and rows whose two
+    stamps are equal rank IDENTICALLY under both — a sort test over such a
+    fixture passes without the sort doing anything.
+    """
     stamp = time.time() - age_seconds
+    created = time.time() - (age_seconds if created_age_seconds is None else created_age_seconds)
     return {
         "archived": archived,
         "cwd": None,
@@ -105,7 +113,7 @@ def _session(
         "profile": "default",
         "is_default_profile": True,
         "source": "desktop",
-        "started_at": stamp,
+        "started_at": created,
         "title": title,
         "tool_call_count": 0,
         "unread": unread,
@@ -120,7 +128,7 @@ def _initial_sessions() -> list[dict]:
     day the suite runs, and a test that fails at midnight is worse than no test.
     """
     return [
-        _session(LIVE_SESSION_ID, "e2e", 2 * 3600, unread=False),
+        _session(LIVE_SESSION_ID, "e2e", 2 * 3600),
         _session("e2e-yesterday", "Вчерашний разговор", 30 * 3600, unread=True),
         _session("e2e-week", "Разговор на неделе", 4 * DAY),
         _session("e2e-archived", "Убранный в архив", 6 * DAY, archived=True),
@@ -286,6 +294,28 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/cron/jobs":
             self._send(200, {"jobs": []})
+            return
+
+        # Модельные маршруты. Отвечать на них надо не ради самих экранов
+        # моделей: пока они отдавали 404, приложение раз за разом показывало
+        # уведомление об ошибке, а всплывающие уведомления НАКРЫВАЮТ боковую
+        # панель — щелчки по строкам списка перехватывались, и проверки списка
+        # краснели через раз по причине, не имеющей к ним отношения.
+        if route == "/api/model/info":
+            self._send(
+                200,
+                {
+                    "model": "mock-model",
+                    "provider": "mock",
+                    "effective_context_length": 200000,
+                    "auto_context_length": 200000,
+                    "capabilities": {},
+                },
+            )
+            return
+
+        if route == "/api/model/options":
+            self._send(200, {"model": "mock-model", "provider": "mock", "providers": []})
             return
 
         if route == "/api/config/defaults":
