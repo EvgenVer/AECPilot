@@ -31,6 +31,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureOurSoul } from "./default-soul.mjs";
 import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
 
 // Re-exported so callers that already dynamically import this module (the
@@ -79,6 +80,12 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
   }
 
   fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });
+
+  // Наш SOUL — ДО запуска ядра (находка D-58, SPEC C12). Их
+  // `_ensure_default_soul_md` пишет свой текст с чужим именем продукта, но
+  // только если файла нет; успеть раньше — единственный способ не трогать их
+  // исходники и не потерять правку на подъёме пина.
+  ensureOurSoul(HERMES_HOME_DIR);
 
   // Pre-mint the session token so we can authenticate the WS health-check
   // without scraping it out of the dashboard's HTML response.
