@@ -99,7 +99,8 @@ Vault (создаётся при создании проекта):
 <vault>/
   wiki/            # вики проекта (ведёт skill aec-wiki; структура — specs/wiki.md)
   workspace/       # рабочие файлы и артефакты агента/пользователя (reports/, drafts/)
-  templates/       # DOCX-шаблоны документов + manifest (specs/docgen.md)
+  templates/       # DOCX-шаблоны документов. Каталог создаётся, но потребителя
+                   # в MVP нет: docgen выведен (SPEC N17, specs/docgen.md заморожена)
   AGENTS.md        # проектные правила для агента (генерируется из шаблона)
   .aecpilot/
     project.json   # {name, created_at, sources: [{id, root_path, added_at}],

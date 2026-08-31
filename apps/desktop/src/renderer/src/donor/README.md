@@ -103,6 +103,6 @@ files means current — never by reading the stamps.
 
 ## Our own surfaces do not live here
 
-Explorer, sources, viewers, wiki, docgen, indexing status — those are ours and
+Explorer, sources, viewers, wiki, indexing status — those are ours and
 live in `renderer/src/aec/**`. They are written in the same stack, but they are
 not donor code and carry no provenance header.
