@@ -183,10 +183,21 @@ test.beforeAll(async () => {
   // an older build silently decides where this run's panes land.
   userDataDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-profile-'))
 
+  // The REST half (task 3.16). The sidebar's session list travels HTTP, not the
+  // socket, so without this the list is empty in every run and no test can tell
+  // a working feature from a list that never arrived.
+  const restLine = mockOutput.split(/\r?\n/).find((line) => line.startsWith('MOCK_REST_READY'))
+  if (!restLine) throw new Error(`mock never printed MOCK_REST_READY — got:\n${mockOutput}`)
+  const mockRestPort = Number(restLine.split(' ')[1])
+
   app = await _electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     cwd: desktopDir,
-    env: { ...process.env, AEC_GATEWAY_URL: `ws://127.0.0.1:${mockPort}/api/ws` }
+    env: {
+      ...process.env,
+      AEC_GATEWAY_URL: `ws://127.0.0.1:${mockPort}/api/ws`,
+      AEC_GATEWAY_REST_URL: `http://127.0.0.1:${mockRestPort}`
+    }
   })
 
   app.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))

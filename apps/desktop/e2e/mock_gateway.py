@@ -13,6 +13,9 @@ of the wire protocol to drive the chat panel through one full turn:
     preview.read.respond is printed on stdout for the test to read
     (task 3.4: read_preview must be ANSWERED for an artifact tab)
 
+The sidebar's session list does NOT travel this socket — it is REST. That
+half lives in `mock_rest.py` and starts on its own port here (task 3.16).
+
 Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 """
 
@@ -20,6 +23,7 @@ import asyncio
 import json
 import sys
 
+from mock_rest import serve_in_thread
 from websockets.asyncio.server import ServerConnection, serve
 
 SESSION_ID = "e2e-1"
@@ -332,7 +336,13 @@ async def poll_preview_reads(connection: ServerConnection) -> None:
 
 async def main() -> None:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 18790
+    # The REST half (task 3.16). A separate port rather than one socket serving
+    # both: the real core multiplexes them, but doing that here would mean
+    # hand-rolling HTTP inside the websockets handshake — cost with no bearing
+    # on what the tests prove, since the app is told both addresses anyway.
+    rest_port = serve_in_thread()
     async with serve(handle, "127.0.0.1", port):
+        print(f"MOCK_REST_READY {rest_port}", flush=True)
         print(f"MOCK_READY {port}", flush=True)
         await asyncio.Future()  # run forever, until the process is killed
 

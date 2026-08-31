@@ -1759,9 +1759,16 @@ function restTarget(): RestTarget | undefined {
     return { host: '', port: 0, token: remote.token, baseUrl: remote.baseUrl }
   }
 
-  return serveHandle
-    ? { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
-    : undefined
+  if (serveHandle) {
+    return { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
+  }
+
+  // Режим e2e (задача 3.16). Собственный процесс ядра не поднят, но список
+  // сессий у донора идёт по REST, а не по сокету — без этого адреса боковая
+  // панель в тесте ПУСТА всегда, и «работает» не отличить от «не доехало».
+  // Проверяется последним: живой процесс и удалённое ядро всегда важнее.
+  const mockRest = process.env.AEC_GATEWAY_REST_URL
+  return mockRest ? { host: '', port: 0, token: '', baseUrl: mockRest } : undefined
 }
 
 ipcMain.handle('mcp:list', async () => {

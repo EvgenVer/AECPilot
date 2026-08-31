@@ -1,0 +1,395 @@
+"""REST half of the e2e mock (task 3.16).
+
+WHY THIS EXISTS. The sidebar's whole session list — dividers by date, sort,
+archive, unread, density — travels over REST, not the socket:
+`api/sessions.ts` builds `/api/profiles/sessions/sidebar` and friends and hands
+them to `hermesApi`, which goes renderer → main → HTTP. The socket-only mock
+therefore left every one of those surfaces with an empty list, and no test
+could tell "the feature works" from "the list never arrived".
+
+So this serves just enough of the core's HTTP surface for the sidebar to have
+something to group, sort, archive and mark read. It is NOT a core: rows live in
+memory, filters are the three the sidebar actually sends, and anything else
+answers 404 the way a real backend does for an unknown route.
+
+Rows carry SECONDS, not milliseconds — `lib/session-date-groups.ts` multiplies
+by 1000 itself.
+
+Usage: imported by mock_gateway.py, which starts it on its own port and prints
+`MOCK_REST_READY <port>`.
+"""
+
+import json
+import re
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+DAY = 86400
+
+_RUNTIME = Path(__file__).resolve().parents[3] / "runtime"
+
+
+def _pinned_config_defaults() -> dict:
+    """The core's own `DEFAULT_CONFIG`, replayed from our contract snapshot.
+
+    `/api/config` and `/api/config/defaults` return the whole merged config, and
+    the app's boot does not finish without them. Hand-writing 800 keys would be
+    inventing a contract; the snapshot (`runtime/contract-snapshot.mjs`) already
+    MEASURED them off the pinned core, so this replays a fact instead.
+
+    The snapshot stores dotted keys; the routes return them nested.
+    """
+    version = re.search(
+        r'HERMES_VERSION\s*=\s*"([^"]+)"',
+        (_RUNTIME / "hermes-env.mjs").read_text(encoding="utf-8"),
+    )
+    if not version:
+        return {}
+
+    snapshot = _RUNTIME / "contracts" / f"hermes-{version.group(1)}.json"
+    if not snapshot.exists():
+        return {}
+
+    flat = json.loads(snapshot.read_text(encoding="utf-8")).get("configDefaults", {})
+    nested: dict = {}
+
+    for dotted, value in flat.items():
+        parts = dotted.split(".")
+        node = nested
+        for part in parts[:-1]:
+            existing = node.get(part)
+            if not isinstance(existing, dict):
+                existing = {}
+                node[part] = existing
+            node = existing
+        node[parts[-1]] = value
+
+    return nested
+
+
+_CONFIG = _pinned_config_defaults()
+
+# Must match mock_gateway.SESSION_ID: the row for the session the socket half
+# actually serves has to be in this list, or their sidebar drops the open
+# conversation.
+LIVE_SESSION_ID = "e2e-1"
+
+
+def _session(
+    session_id: str,
+    title: str,
+    age_seconds: float,
+    *,
+    archived: bool = False,
+    unread: bool = False,
+    messages: int = 2,
+) -> dict:
+    """One row in the shape `SessionInfo` declares (types/hermes.ts)."""
+    stamp = time.time() - age_seconds
+    return {
+        "archived": archived,
+        "cwd": None,
+        "ended_at": None,
+        "id": session_id,
+        "input_tokens": 10,
+        "is_active": False,
+        "last_active": stamp,
+        "message_count": messages,
+        "model": "mock-model",
+        "output_tokens": 20,
+        "pinned": False,
+        "preview": f"{title} — предпросмотр",
+        "profile": "default",
+        "is_default_profile": True,
+        "source": "desktop",
+        "started_at": stamp,
+        "title": title,
+        "tool_call_count": 0,
+        "unread": unread,
+    }
+
+
+def _initial_sessions() -> list[dict]:
+    """Four rows chosen so each list feature has something to act on.
+
+    Ages are deliberately mid-bucket (2h, 30h, 4d) rather than on a boundary:
+    a row placed exactly at "yesterday" flips buckets depending on what time of
+    day the suite runs, and a test that fails at midnight is worse than no test.
+    """
+    return [
+        _session(LIVE_SESSION_ID, "e2e", 2 * 3600, unread=False),
+        _session("e2e-yesterday", "Вчерашний разговор", 30 * 3600, unread=True),
+        _session("e2e-week", "Разговор на неделе", 4 * DAY),
+        _session("e2e-archived", "Убранный в архив", 6 * DAY, archived=True),
+    ]
+
+
+_LOCK = threading.Lock()
+_SESSIONS: list[dict] = _initial_sessions()
+
+# The vault the app has open. Their sidebar is PROJECT-SCOPED: with a project
+# open it shows only rows whose `cwd` belongs to it and prints "No sessions yet"
+# for everything else — which is what the first run of this mock produced, rows
+# served and none displayed. The test stamps the path here right after it
+# creates the project, over plain HTTP; the app is not involved and never calls
+# this route.
+_CWD: str | None = None
+
+SESSION_PATH = re.compile(r"^/api/sessions/([^/]+)$")
+MESSAGES_PATH = re.compile(r"^/api/sessions/([^/]+)/messages$")
+
+
+def _visible(archived_filter: str) -> list[dict]:
+    """The `archived` query the sidebar sends: exclude | include | only."""
+    with _LOCK:
+        rows = [dict(row, cwd=_CWD) for row in _SESSIONS]
+
+    if archived_filter == "only":
+        rows = [row for row in rows if row["archived"]]
+    elif archived_filter != "include":
+        rows = [row for row in rows if not row["archived"]]
+
+    # Recency order — the sidebar's default. Its own sort menu re-orders what it
+    # is given, so serving anything else here would test the mock, not the menu.
+    rows.sort(key=lambda row: row["last_active"], reverse=True)
+    return rows
+
+
+def _page(rows: list[dict], limit: int) -> dict:
+    return {"limit": limit, "offset": 0, "sessions": rows[:limit], "total": len(rows)}
+
+
+class Handler(BaseHTTPRequestHandler):
+    # HTTP/1.1, not the stdlib default of 1.0. Under 1.0 every response closes
+    # the connection, and main's `fetch` — which keeps sockets alive — reuses a
+    # socket the server has already hung up on: the call rejects with a bare
+    # "fetch failed", the sidebar's loader swallows it, and the list stays empty
+    # while every request looks answered from the outside. Costs one rule:
+    # every response must carry Content-Length, which `_send` does.
+    protocol_version = "HTTP/1.1"
+
+    # Silence the per-request stderr line: the suite reads this process's output
+    # to find MOCK_ lines, and a request log per sidebar refresh buries them.
+    def log_message(self, fmt: str, *args) -> None:  # noqa: A002 - stdlib signature
+        return
+
+    def _send(self, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _body(self) -> dict:
+        """Read the request body — ALWAYS, even when the answer is a refusal.
+
+        Under keep-alive an unread body stays in the socket and becomes the
+        first bytes of the NEXT request on it. The server then sees garbage and
+        resets, and main reports a bare "fetch failed" on a call that had
+        nothing to do with the one that left the bytes. That is what kept the
+        sidebar empty while every request looked answered.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b""
+        try:
+            parsed = json.loads(raw or b"{}")
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _query(self) -> dict[str, list[str]]:
+        return parse_qs(urlparse(self.path).query)
+
+    def _limit(self) -> int:
+        raw = self._query().get("limit", ["40"])[0]
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            return 40
+
+    def _archived(self) -> str:
+        return self._query().get("archived", ["exclude"])[0]
+
+    def do_GET(self) -> None:  # noqa: N802 - stdlib signature
+        route = urlparse(self.path).path
+        # Printed so a test can tell "the app never asked" from "the app asked
+        # and we answered nothing" — the two look identical in the sidebar, and
+        # the first run of this fixture was exactly that confusion.
+        print(f"MOCK_REST_GET {self.path}", flush=True)
+
+        # Their readiness probe. The SHAPE matters: `StatusResponse`
+        # (types/hermes.ts) is what the connection chip and the boot sequence
+        # read, and an invented `{status: "ok"}` leaves the app sitting on
+        # "Gateway checking" forever — which is what the first run of this
+        # fixture did, with the sidebar refusing to publish the rows it had
+        # already fetched.
+        if route == "/api/status":
+            self._send(
+                200,
+                {
+                    "active_sessions": 1,
+                    "config_path": "/mock/config.yaml",
+                    "config_version": 39,
+                    "env_path": "/mock/.env",
+                    "gateway_exit_reason": None,
+                    "gateway_health_url": None,
+                    "gateway_pid": 1,
+                    "gateway_platforms": {},
+                    "gateway_running": True,
+                    "gateway_state": "running",
+                    "gateway_updated_at": None,
+                    "hermes_home": "/mock/home",
+                    "latest_config_version": 39,
+                    "release_date": "2026-08-27",
+                    "version": "0.20.6",
+                },
+            )
+            return
+
+        # The profile a session row belongs to. The sidebar refuses to publish a
+        # page whose profile no longer matches the active scope, so an unknown
+        # active profile drops rows that did arrive.
+        if route == "/api/profiles/active":
+            self._send(200, {"active": "default", "current": "default"})
+            return
+
+        if route == "/api/profiles":
+            self._send(
+                200,
+                {
+                    "profiles": [
+                        {
+                            "name": "default",
+                            "path": "/mock/home",
+                            "is_default": True,
+                            "model": "mock-model",
+                            "provider": "mock",
+                            "has_env": False,
+                            "skill_count": 0,
+                            "gateway_running": True,
+                            "description": "",
+                            "description_auto": False,
+                            "display_name": "",
+                            "distribution_name": None,
+                            "distribution_version": None,
+                            "distribution_source": None,
+                            "has_alias": False,
+                        }
+                    ]
+                },
+            )
+            return
+
+        if route == "/api/cron/jobs":
+            self._send(200, {"jobs": []})
+            return
+
+        if route == "/api/config/defaults":
+            self._send(200, _CONFIG)
+            return
+
+        if route == "/api/config":
+            # Their route strips the internal `_`-prefixed keys before answering.
+            self._send(200, {k: v for k, v in _CONFIG.items() if not k.startswith("_")})
+            return
+
+        if route == "/api/profiles/sessions/sidebar":
+            rows = _visible("exclude")
+            self._send(
+                200,
+                {
+                    "recents": {"sessions": rows, "profiles_truncated": {"default": False}},
+                    "cron": {"sessions": []},
+                    "messaging": {"sessions": []},
+                },
+            )
+            return
+
+        if route in ("/api/sessions", "/api/profiles/sessions"):
+            self._send(200, _page(_visible(self._archived()), self._limit()))
+            return
+
+        if MESSAGES_PATH.match(route):
+            self._send(200, {"messages": []})
+            return
+
+        self._send(404, {"detail": f"No such API endpoint: {route}"})
+
+    def do_PUT(self) -> None:  # noqa: N802 - stdlib signature
+        """Test control, not part of the core's surface.
+
+        `/api/_mock/cwd` tells the fixture which vault the app has open, so the
+        rows land inside the project the sidebar is scoped to. Named with the
+        `_mock` segment so it can never be mistaken for a route we are pretending
+        the core has.
+        """
+        global _CWD
+
+        body = self._body()
+
+        if urlparse(self.path).path != "/api/_mock/cwd":
+            self._send(404, {"detail": "No such API endpoint"})
+            return
+        with _LOCK:
+            _CWD = body.get("cwd")
+        self._send(200, {"ok": True, "cwd": _CWD})
+
+    def do_PATCH(self) -> None:  # noqa: N802 - stdlib signature
+        """Session mutations: archive, pin, unread.
+
+        The verb matters. Until 2026-08-31 our own bridge rejected PATCH before
+        it ever left the renderer, so every one of these silently did nothing —
+        which is the defect task 3.16 was written to catch. Serving it here is
+        what lets a test prove the fix rather than assert it.
+        """
+        route = urlparse(self.path).path
+        body = self._body()
+        match = SESSION_PATH.match(route)
+
+        if not match:
+            self._send(404, {"detail": f"No such API endpoint: {route}"})
+            return
+        session_id = match.group(1)
+        print(f"MOCK_REST_PATCH {session_id} {json.dumps(body)}", flush=True)
+
+        with _LOCK:
+            for row in _SESSIONS:
+                if row["id"] == session_id:
+                    for field in ("archived", "pinned", "unread"):
+                        if field in body:
+                            row[field] = bool(body[field])
+                    self._send(200, {"ok": True})
+                    return
+
+        self._send(404, {"detail": f"session not found: {session_id}"})
+
+
+    def do_POST(self) -> None:  # noqa: N802 - stdlib signature
+        """Anything the app POSTs. Nothing here needs to succeed for the list
+        surfaces, but every one of them must be READ and answered — see
+        `_body`."""
+        route = urlparse(self.path).path
+        self._body()
+        print(f"MOCK_REST_POST {route}", flush=True)
+
+        if route == "/api/profiles/active":
+            self._send(200, {"ok": True, "active": "default"})
+            return
+
+        self._send(404, {"detail": f"No such API endpoint: {route}"})
+
+    def do_DELETE(self) -> None:  # noqa: N802 - stdlib signature
+        self._body()
+        self._send(404, {"detail": "No such API endpoint"})
+
+
+def serve_in_thread(port: int = 0) -> int:
+    """Start the REST half on its own port and return the port it got."""
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server.server_address[1]
