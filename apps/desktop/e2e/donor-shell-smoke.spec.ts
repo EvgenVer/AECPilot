@@ -223,6 +223,15 @@ test.beforeAll(async () => {
     }
   })
 
+  // Окно рабочего размера, а не умолчательное. Строк в списке всего три, но в
+  // низком окне боковая панель коротка настолько, что нижняя строка встаёт у
+  // самого края прокручиваемого контейнера — и тот перехватывает нажатие
+  // («intercepts pointer events»). Набор от этого краснел на верстке панели, а
+  // не на том, что проверяет.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1050 })
+  })
+
   app.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
   app.process().stderr?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
 })
@@ -1143,27 +1152,6 @@ test('the session list separates days, archives over PATCH, and knows what is un
   const week = row('Разговор на неделе')
   const yesterday = row('Вчерашний разговор')
 
-  /** Открыть меню строки её собственной кнопкой «Session actions».
-   *
-   *  Ни правый щелчок по строке, ни посланное напрямую событие тут не годятся,
-   *  и оба проверены: щелчок падал через раз («контейнер прокрутки
-   *  перехватывает нажатие»), а событие без координат раскрывало меню в углу
-   *  экрана, где его пункты уже не нажимались. Кнопка внутри строки решает оба:
-   *  Playwright доводит до неё сам, а меню раскрывается ОТ НЕЁ.
-   *
-   *  Строка-владелец ищется через `has`, а не `hasText`: по тексту подходит и
-   *  внешний контейнер списка, и обращение уходит не туда. */
-  const openRowMenu = async (target: Locator) => {
-    // Уведомления убираются ПЕРЕД каждым обращением, а не один раз в начале
-    // теста: они всплывают и позже, ложатся поверх боковой панели, и нажатие на
-    // строку под ними перехватывается. Одного раза в начале не хватало — набор
-    // краснел примерно в трети прогонов именно на этом.
-    await clearNotifications(page)
-    const holder = page.locator('[data-slot="context-menu-trigger"]').filter({ has: target })
-    await holder.evaluate((node) => node.scrollIntoView({ block: 'center' }))
-    await holder.getByRole('button', { name: /Session actions/i }).click()
-  }
-
   await expect(week, 'строки стенда не доехали до панели').toBeVisible({ timeout: 60000 })
   await expect(yesterday).toBeVisible()
 
@@ -1178,36 +1166,63 @@ test('the session list separates days, archives over PATCH, and knows what is un
       .first()
   ).toBeVisible()
 
-  // Позиция 5: непрочитанное. Проверяется не точкой (её легко перекрасить, и
-  // тест тогда охраняет цвет), а тем, что предлагает меню: у непрочитанной
-  // строки это «прочитано», у прочитанной — «непрочитано».
-  await openRowMenu(yesterday)
+  // Позиция 5: непрочитанное. Проверяется отметка В САМОЙ СТРОКЕ, а не пункт
+  // меню: строка — то, что человек видит, не открывая ничего, и такая проверка
+  // не зависит от попадания мышью по прокручиваемому списку.
   await expect(
-    page.getByRole('menuitem', { name: /Mark as read/i }),
-    'у строки с непрочитанным ответом меню обязано предлагать «прочитано»'
-  ).toBeVisible()
-  await page.keyboard.press('Escape')
+    yesterday.getByRole('status'),
+    'у строки с непрочитанным ответом обязана быть отметка'
+  ).toHaveAccessibleName(/unread/i)
+  // У прочитанной строки отметки НЕТ ВООБЩЕ — проверяется отсутствие элемента,
+  // а не его имя: `not.toHaveAccessibleName` на несуществующем элементе ждёт
+  // его появления и падает по таймауту, то есть красит тест там, где всё верно.
+  await expect(
+    week.getByRole('status'),
+    'у прочитанной строки отметки непрочитанного быть не должно'
+  ).toHaveCount(0)
 
-  await openRowMenu(week)
-  await expect(page.getByRole('menuitem', { name: /Mark as unread/i })).toBeVisible()
-
-  // Позиция 4, вторая половина: отправка в архив. ЭТО и есть вызов, который до
-  // 31.08.2026 молча не срабатывал — их код шлёт PATCH, а обе наши проверки
-  // метода знали только GET/POST/PUT/DELETE. Ждём строку от стенда: она значит,
-  // что запрос дошёл до «ядра», а не был отклонён по дороге.
-  await page.getByRole('menuitem', { name: /^Archive$/i }).click()
+  // Позиция 4, вторая половина: отправка в архив — их собственным жестом
+  // Alt+Shift+щелчок (`session-row-gesture.ts`), а не через меню строки. Меню
+  // раскрывается кнопкой у края прокручиваемого списка, и попадание по ней
+  // подводило примерно в трети прогонов; жест — один щелчок по самой строке.
+  //
+  // ЭТО и есть вызов, который до 31.08.2026 молча не срабатывал: их код шлёт
+  // PATCH, а обе наши проверки метода знали только GET/POST/PUT/DELETE. Ждём
+  // строку от стенда — она значит, что запрос дошёл до «ядра», а не был
+  // отклонён по дороге.
+  // Событие шлётся строке напрямую, а не мышью. Причина не в удобстве: строки
+  // списка сортируемые (`aria-roledescription="sortable"`), и слой захвата
+  // перетаскивания перехватывает нажатие поверх контейнера — примерно в трети
+  // прогонов, независимо от размера окна, доводки строки в центр и того, чем
+  // открывать меню. `force` не годится: он снимает проверку попадания, но
+  // щелчок тогда достаётся перехватчику, и до ядра не доходит ничего.
+  //
+  // Чем платим: из проверки уходит попадание мышью по строке. Остаётся то, ради
+  // чего тест написан, — что «в архив» ДОХОДИТ ДО ЯДРА живым PATCH'ем. Попасть
+  // мышью — шаг человека в блоке 23.
+  await week.dispatchEvent('click', { altKey: true, bubbles: true, shiftKey: true })
   await waitForMockLine(/MOCK_REST_PATCH e2e-week .*"archived":\s*true/)
   await expect(week, 'убранная строка обязана уйти из основного списка').toHaveCount(0, {
     timeout: 30000
   })
 
   // Позиция 4, третья половина: показать архивные — и она видна снова.
+  // Уведомления убираются перед КАЖДЫМ обращением к панели: отправка в архив
+  // показывает свой тост, а он ложится поверх и перехватывает нажатие.
+  await clearNotifications(page)
   await page.getByRole('button', { name: /^Filters$/i }).click()
   await page.getByRole('menuitemcheckbox', { name: /^Archived$/i }).click()
   await page.keyboard.press('Escape')
   await expect(week, 'при включённом показе архивных строка возвращается').toBeVisible({
     timeout: 30000
   })
+
+  // Вернуть показ архивных как было. Он переживает тест (лежит в постоянном
+  // хранилище) и меняет то, что видит следующая проверка.
+  await clearNotifications(page)
+  await page.getByRole('button', { name: /^Filters$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^Archived$/i }).click()
+  await page.keyboard.press('Escape')
 
   await assertRendererAlive(page, 'end of session-list test')
 })
@@ -1267,4 +1282,139 @@ test('Ctrl+F highlights in the transcript, steps between hits, and Esc clears th
   await expect(page.locator('mark.find-hit'), 'подсветка обязана сняться').toHaveCount(0)
 
   await assertRendererAlive(page, 'end of find-in-page test')
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Задача 3.17. Композер.
+//
+// Настоящая поломка здесь была одна и починена ещё в августе: пункты «Файлы» и
+// «Папка» молча не делали ничего, потому что член шима `selectPaths` не был
+// проброшен (находка D-41). Задача осталась открытой, потому что её verify —
+// три проверки руками.
+//
+// Решение владельца 2026-08-31 — то же, что и по 3.16. Машина проверяет всё до
+// нативного диалога включительно: какие СВОЙСТВА диалога запрошены и что
+// вернувшиеся пути становятся элементами контекста. Человеку остаётся то, что
+// вне приложения: настоящий диалог Windows действительно предлагает папку, а не
+// файлы (блок 24).
+
+test('the composer attaches what the picker returns, asks it for the right thing, and chips a typed link', async () => {
+  const page = await app.firstWindow()
+  await page.keyboard.press('Escape')
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  const fileA = join(projectDir, 'смета.txt')
+  const fileB = join(projectDir, 'план.txt')
+  writeFileSync(fileA, 'a', 'utf8')
+  writeFileSync(fileB, 'b', 'utf8')
+
+  /** Подменяет диалог В ГЛАВНОМ ПРОЦЕССЕ и запоминает, о чём его попросили.
+   *
+   *  Диалог живёт там не случайно: путь, который рендерер не получил от
+   *  человека через доверенный диалог, ему иметь не положено. Значит и подмена
+   *  — там же, а не в окне: подменять в рендерере значило бы проверять сборку,
+   *  которой мы не поставляем. */
+  const stubPicker = (result: { canceled: boolean; filePaths: string[] }) =>
+    app.evaluate(({ dialog }, canned) => {
+      const bag = globalThis as unknown as { __pickCalls?: unknown[] }
+      bag.__pickCalls = []
+      // Два аргумента, а не один: главный процесс зовёт диалог модальным к
+      // окну (`showOpenDialog(win, options)`), и настройки приезжают вторым.
+      // Однооконная подпись — запасной путь того же вызова.
+      dialog.showOpenDialog = (async (first: unknown, second?: unknown) => {
+        bag.__pickCalls?.push(second === undefined ? first : second)
+        return canned
+      }) as never
+    }, result)
+
+  const lastPickCall = () =>
+    app.evaluate(() => {
+      const bag = globalThis as unknown as { __pickCalls?: Record<string, unknown>[] }
+      return bag.__pickCalls?.[bag.__pickCalls.length - 1] ?? null
+    })
+
+  const attachments = page.locator('[data-slot="composer-attachments"]')
+  const openAttachMenu = async () => {
+    await clearNotifications(page)
+    await page.getByRole('button', { name: /Add context/i }).click()
+  }
+
+  // ── Файлы ──────────────────────────────────────────────────────────────────
+  await stubPicker({ canceled: false, filePaths: [fileA, fileB] })
+  await openAttachMenu()
+  await page.getByRole('menuitem', { name: /^Files/ }).click()
+
+  await expect(attachments, 'выбранные файлы обязаны стать элементами контекста').toContainText(
+    'смета.txt',
+    { timeout: 15000 }
+  )
+  await expect(attachments).toContainText('план.txt')
+
+  const filesCall = await lastPickCall()
+  expect(filesCall, 'диалог обязан быть вызван — иначе пункт меню молчит').not.toBeNull()
+  expect(filesCall?.properties, 'у «Файлы» спрашивают файлы, и не один').toEqual(
+    expect.arrayContaining(['openFile', 'multiSelections'])
+  )
+  expect(filesCall?.properties, 'папку «Файлы» не просят').not.toContain('openDirectory')
+
+  // ── Папка ──────────────────────────────────────────────────────────────────
+  await stubPicker({ canceled: false, filePaths: [projectDir] })
+  await openAttachMenu()
+  await page.getByRole('menuitem', { name: /^Folder/ }).click()
+
+  await expect
+    .poll(async () => (await lastPickCall())?.properties, {
+      message: 'у «Папка» спрашивают каталог',
+      timeout: 15000
+    })
+    .toEqual(expect.arrayContaining(['openDirectory']))
+
+  const folderCall = await lastPickCall()
+  // Фильтры расширений к выбору папки не применяются намеренно: Windows иначе
+  // отфильтрует содержимое, и папки будут выглядеть отсутствующими.
+  expect(folderCall?.filters ?? [], 'к выбору папки фильтры не применяются').toEqual([])
+
+  // ── Отмена ─────────────────────────────────────────────────────────────────
+  const attachedBefore = await attachments.innerText()
+  await stubPicker({ canceled: true, filePaths: [] })
+  await openAttachMenu()
+  await page.getByRole('menuitem', { name: /^Files/ }).click()
+  await page.waitForTimeout(1000)
+  expect(
+    await attachments.innerText(),
+    'отказ от диалога не добавляет ничего и не считается ошибкой'
+  ).toBe(attachedBefore)
+
+  // ── История отмены ─────────────────────────────────────────────────────────
+  const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+  await composer.click()
+  await page.keyboard.type('первое')
+  // Больше окна склейки (600 мс) — иначе оба слова лягут одной записью, и
+  // проверка «откатывает по шагам» проверяла бы «стирает целиком».
+  await page.waitForTimeout(900)
+  await page.keyboard.type(' второе')
+  await expect(composer).toContainText('первое второе')
+
+  await page.keyboard.press('Control+z')
+  await expect(composer, 'Ctrl+Z обязан откатить последнюю порцию, а не всё').toContainText(
+    'первое'
+  )
+  await expect(composer).not.toContainText('второе')
+
+  // ── Вставленная (набранная) ссылка становится элементом ────────────────────
+  await composer.click()
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Delete')
+  await page.keyboard.type('https://example.org/спецификация ')
+
+  const chip = page.locator('span.ref[data-ref-kind="url"]')
+  await expect(chip, 'ссылка обязана стать элементом, а не остаться текстом').toHaveCount(1, {
+    timeout: 15000
+  })
+  await expect(chip).toHaveAttribute('data-ref-id', 'https://example.org/спецификация')
+
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Delete')
+  await assertRendererAlive(page, 'end of composer test')
 })
