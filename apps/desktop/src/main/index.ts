@@ -2744,7 +2744,7 @@ ipcMain.handle(
     const { method, path } = checkRestCall(payload?.method, payload?.path)
     try {
       return await hermesRest(restTarget(), path, {
-        method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+        method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         ...(payload?.body === undefined ? {} : { body: payload.body }),
         ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
       })

@@ -740,7 +740,7 @@ export interface AecpilotApi {
    * graph). Same door, same rules, same caveat as `gatewayRpc`. */
   gatewayRest<T = unknown>(
     path: string,
-    options?: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown; timeoutMs?: number }
+    options?: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; timeoutMs?: number }
   ): Promise<T>
   /** Responds to the oldest pending `approval.request` for the active
    * session (or all of them, with `all: true`). `choice` must only be

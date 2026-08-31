@@ -90,7 +90,7 @@ export interface GatewayClientOptions {
 }
 
 export interface RestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   timeoutMs?: number
 }

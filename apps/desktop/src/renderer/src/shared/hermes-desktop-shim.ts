@@ -196,7 +196,7 @@ function connectionFailure(message: string | undefined, sshError: string | undef
   return error
 }
 
-const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
+const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
 /** Shown by their own error toast when someone reads the list and backs out.
  * A sentence, not a code: it is the whole feedback the person gets. */
@@ -237,7 +237,7 @@ const IMPLEMENTED: Record<string, unknown> = {
       return askChannelConsent(platform).then((allowed) =>
         allowed
           ? gatewayBridge().rest<T>(request.path, {
-              method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+              method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
               ...(request.body === undefined ? {} : { body: request.body }),
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
@@ -262,7 +262,7 @@ const IMPLEMENTED: Record<string, unknown> = {
       return askInstallConsent(install).then((allowed) =>
         allowed
           ? gatewayBridge().rest<T>(request.path, {
-              method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+              method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
               ...(request.body === undefined ? {} : { body: request.body }),
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
@@ -288,7 +288,7 @@ const IMPLEMENTED: Record<string, unknown> = {
       cronWrite === 'create' ? withContinuity(request.body, cronContinuityEnabled()) : request.body
 
     const answer = gatewayBridge().rest<T>(request.path, {
-      method: method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+      method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
       ...(body === undefined ? {} : { body }),
       ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
     })

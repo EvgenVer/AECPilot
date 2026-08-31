@@ -35,7 +35,7 @@ export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
 ]
 
 const RPC_METHOD_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i
-const REST_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
+const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
 /** Validates an RPC call arriving from the renderer and returns the method
  * name to forward. Throws — the caller turns that into a rejected invoke —

@@ -87,7 +87,11 @@ describe('checkRestCall', () => {
   })
 
   it('refuses an unsupported verb', () => {
-    expect(() => checkRestCall('PATCH', '/api/status')).toThrow(/unsupported method/)
+    // Пример был `PATCH` — и в этом состояла ошибка: донор ходит им на шесть
+    // маршрутов (архив сессии, закрепление, отметка прочитанного, имя профиля),
+    // а проверка его отбивала. Найдено задачей 3.16; теперь список глаголов
+    // сверяется с их деревом гейтом `donor-rest-verbs.test.ts`.
+    expect(() => checkRestCall('TRACE', '/api/status')).toThrow(/unsupported method/)
   })
 })
 
