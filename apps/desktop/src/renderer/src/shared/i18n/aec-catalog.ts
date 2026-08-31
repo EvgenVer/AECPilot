@@ -131,7 +131,6 @@ export const aecLocales: PluginLocaleBundles = {
       // Task 5.14 — the two language levels that belong to the PROJECT. The
       // other two (agent, interface) belong to the user and are only named
       // here, with the place they actually live.
-      langTitle: 'Project languages',
       langNoProject: 'No project is open.',
       langWikiLabel: 'Wiki language',
       langWikiAuto: 'Follow the sources',
@@ -584,7 +583,6 @@ export const aecLocales: PluginLocaleBundles = {
       init: 'Инициализировать',
       initializing: 'Инициализирую…',
       initAnyway: 'Инициализировать всё равно',
-      langTitle: 'Языки проекта',
       langNoProject: 'Проект не открыт.',
       langWikiLabel: 'Язык вики',
       langWikiAuto: 'Как в источниках',

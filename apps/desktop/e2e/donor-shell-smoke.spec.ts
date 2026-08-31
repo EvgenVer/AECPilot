@@ -15,7 +15,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ElectronApplication, Locator, Page } from 'playwright'
+import type { ElectronApplication, Page } from 'playwright'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
