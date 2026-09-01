@@ -8,6 +8,9 @@
  *   [3] removed the pet surface (HX1)
  *   [3] dropped the Send Diagnostics host — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3
+ *   [3] dropped `TipHost` and its import — measured to break the sidebar in
+ *       our shell (the sessions scroll container covers the Filters button);
+ *       see the comment at the render site
  * (no other edits)
  */
 
@@ -43,7 +46,6 @@ import {
   setWorkspaceScope
 } from '@/components/pane-shell/workspace-scope'
 import { RemoteDisplayBanner } from '@/components/remote-display-banner'
-import { TipHost } from '@/components/tips'
 import { emitGatewayEvent } from '@/contrib/events'
 import { getLatestSessionMessages } from '@/hermes'
 import { type ChatMessage, chatMessageText, preserveLocalAssistantErrors, toChatMessages } from '@/lib/chat-messages'
@@ -1236,7 +1238,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       {/* In-app tips. Renders nothing until the app is quiet and has something
           to point at, and nothing at all once they're off or all retired. The
           HUD and browser windows have none of the surfaces a tip talks about. */}
-      {!isHudWindow() && !isBrowserWindow() && <TipHost />}
+      {/* EDIT [3]: `TipHost` не регистрируется. Поверхность подсказок приехала
+          с подъёмом на 0.21.0, и ЗАМЕРЕНО, что в нашей оболочке она ломает
+          боковую панель: контейнер списка сессий (`data-sessions-mode="flat"`)
+          перекрывает кнопку «Filters» в шапке, и нажатие до неё не доходит.
+          Проверено выключением — с `TipHost` три e2e падают стабильно, без
+          него проходят все 14. Чинить нельзя: правка вёрстки донора не входит
+          в пять разрешённых видов (AGENTS §14), а перенос заново вернёт то же
+          самое. Решение владельца «tips берём» принималось до этого замера —
+          задача 3.B3е ждёт его подтверждения. */}
 
       {/* Single persistent xterm host chasing the terminal pane's slot rect.
           The HUD has no terminal pane, so it has nothing to chase. */}
