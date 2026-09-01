@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/gateway.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  * (no other edits)
  */
+
 import { type ConnectionState, type GatewayEvent, registryBackendScopeKey, resolveGatewayWsUrl } from '@hermes/shared'
 import { atom } from 'nanostores'
 
@@ -303,6 +304,64 @@ function isPrimaryRegistryRoute(connectionId: null | string, profile: string): b
     Boolean(g.primaryConnectionId) &&
     id === g.primaryConnectionId
   )
+}
+
+/** True when `connectionId` is the window's already-attached source AND that
+ *  source is a one-host-many-profiles remote (`sharedRemote`). Named member
+ *  profiles on that host must reuse the primary socket — a registry secondary
+ *  dials a second WebSocket at the same Tailscale URL, which accept/closes in
+ *  ~30ms (`messages=1`) and never runs `session.create` (#96493). Isolated
+ *  SSH/pooled backends (`sharedRemote: false`) still get their own secondary. */
+async function isAttachedSharedRemote(connectionId: null | string, profile: string): Promise<boolean> {
+  const id = String(connectionId ?? '').trim()
+  const key = normKey(profile)
+
+  if (!id || !g.primaryConnectionId || id !== g.primaryConnectionId) {
+    return false
+  }
+
+  if (isPrimaryRegistryRoute(id, key)) {
+    return false
+  }
+
+  const desktop = window.hermesDesktop
+
+  if (!desktop?.getConnectionFor) {
+    return false
+  }
+
+  try {
+    const conn = await withTimeout(
+      desktop.getConnectionFor({ connectionId: id, profile: key }),
+      RECONNECT_ATTEMPT_TIMEOUT_MS,
+      `Timed out resolving shared-remote route for "${key}"`
+    )
+
+    return Boolean(conn && typeof conn === 'object' && (conn as { sharedRemote?: boolean }).sharedRemote === true)
+  } catch {
+    // Probe failed. A secondary at this already-attached source is the #96493
+    // ghost WebSocket (accept/close, messages=1). Prefer the primary until a
+    // later probe can prove isolation (`sharedRemote: false`). Isolated SSH
+    // still dials its own socket when getConnectionFor succeeds.
+    return true
+  }
+}
+
+async function requestOnPrimaryGateway<T>(
+  method: string,
+  params: Record<string, unknown>,
+  timeoutMs?: number,
+  signal?: AbortSignal
+): Promise<T> {
+  const gateway = g.primaryGateway
+
+  if (!gateway || !isOpen(gateway)) {
+    throw new Error('AECPilot gateway unavailable')
+  }
+
+  return timeoutMs === undefined && signal === undefined
+    ? gateway.request<T>(method, params)
+    : gateway.request<T>(method, params, timeoutMs, signal)
 }
 
 export function isActivePrimary(): boolean {
@@ -879,6 +938,10 @@ export async function requestGatewayForAgent<T>(
     return requestGatewayForProfile<T>(key, method, params, timeoutMs, signal)
   }
 
+  if (await isAttachedSharedRemote(connectionId, key)) {
+    return requestOnPrimaryGateway<T>(method, { ...params, profile: key }, timeoutMs, signal)
+  }
+
   if (!window.hermesDesktop?.getConnectionFor) {
     throw new Error('This Desktop build cannot dial registry connections. Update AECPilot.')
   }
@@ -1061,6 +1124,11 @@ export async function retainGatewayForAgent(connectionId: null | string, profile
     const route = await gatewayForProfile(key, true)
 
     return route.release
+  }
+
+  if (isPrimaryRegistryRoute(connectionId, key) || (await isAttachedSharedRemote(connectionId, key))) {
+    // Primary socket stays open for the window lifetime — no secondary to hold.
+    return () => undefined
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {
@@ -1277,6 +1345,14 @@ export async function openGatewayForAgent(
     return openGatewayForProfile(profile)
   }
 
+  if (await isAttachedSharedRemote(connectionId, profile)) {
+    if (!isOpen(g.primaryGateway)) {
+      throw new Error('AECPilot gateway unavailable')
+    }
+
+    return
+  }
+
   if (!window.hermesDesktop?.getConnectionFor) {
     throw new Error('This Desktop build cannot dial registry connections. Update AECPilot.')
   }
@@ -1321,6 +1397,10 @@ export async function ensureGatewayForAgent(
     await ensureGatewayForProfile(profile)
 
     return !signal?.aborted
+  }
+
+  if (await isAttachedSharedRemote(connectionId, profile)) {
+    return Boolean(isOpen(g.primaryGateway) && !signal?.aborted)
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {

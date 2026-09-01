@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/strip-visibility.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,6 +26,9 @@ import { paneChrome } from './track-model'
 export interface StripPane {
   /** A tool panel (terminal / logs) that collapses rather than closes. */
   collapsePane: boolean
+  /** Standing chrome (sessions / Bots) whose only handle is the strip:
+   *  show/hide replaces Close, and the Show/Hide rows live on the strip. */
+  hideOnly?: boolean
   /** Contribution placement — `'main'` marks a docked tile (session, page,
    *  preview) as opposed to standing side chrome. */
   placement?: string
@@ -46,7 +49,8 @@ export interface StripZone {
 /**
  * A pane is STRANDED without a strip when the strip is the only thing carrying
  * its handle: a closeable tile needs its ✕, a lone tool panel needs a chip to
- * grab. The uncloseable workspace is not strandable — it cannot be closed or
+ * grab, hide-only chrome (sessions / Bots) needs the chip that show/hide lives
+ * on. The uncloseable workspace is not strandable — it cannot be closed or
  * lost, so a lone chat is free to be chromeless.
  *
  * This outranks an explicit `never` on purpose. "Hide the strip" is a request
@@ -56,6 +60,10 @@ export interface StripZone {
  */
 function stranded(shown: readonly StripPane[]): boolean {
   if (shown.some(pane => !pane.uncloseable && pane.placement === 'main')) {
+    return true
+  }
+
+  if (shown.some(pane => pane.hideOnly)) {
     return true
   }
 
@@ -106,10 +114,15 @@ export function tabStripVisibleForZone(zone: {
   return resolveTabStripVisible({
     headerVeto: paneChrome(zone.paneFor(zone.active)).headerVeto,
     mode: effectiveTabStripMode(zone.mode),
-    shown: zone.shown.map(id => ({
-      collapsePane: zone.isCollapsePane(id),
-      placement: paneChrome(zone.paneFor(id)).placement,
-      uncloseable: paneChrome(zone.paneFor(id)).uncloseable
-    }))
+    shown: zone.shown.map(id => {
+      const chrome = paneChrome(zone.paneFor(id))
+
+      return {
+        collapsePane: zone.isCollapsePane(id),
+        hideOnly: chrome.hideOnly,
+        placement: chrome.placement,
+        uncloseable: chrome.uncloseable
+      }
+    })
   })
 }

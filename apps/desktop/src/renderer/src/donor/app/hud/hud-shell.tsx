@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hud/hud-shell.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -384,7 +384,11 @@ export function HudShell() {
   // growth bug); the handle is the one sanctioned way to change size, driving
   // the same flip-resizable-for-the-call pattern the pet overlay uses.
   const { resizing: hudResizing, onPointerDown: onHudResizePointerDown } = useHudResizeHandle()
-  const resizeDirections = hudResizeDirections(window.hermesDesktop?.hud?.windowing?.clientPlacement !== false)
+  const hudWindowing = window.hermesDesktop?.hud?.windowing
+  const resizeDirections = hudResizeDirections(hudWindowing?.clientPlacement !== false)
+  // Linux X11 cannot ignore-mouse; a visible band that also ignores the
+  // pointer just eats the click. The stylesheet keys off this.
+  const hudInput = hudWindowing?.solid ? 'solid' : 'click-through'
 
   // Force the HOST layers transparent. index.html's pre-paint script writes an
   // opaque themed background onto <html> as an INLINE style (the anti-white-
@@ -406,6 +410,8 @@ export function HudShell() {
       className="relative flex h-screen w-screen flex-col overflow-hidden"
       data-hud-edge={edge}
       data-hud-game={gameUnder ? '' : undefined}
+      data-hud-held={held ? '' : undefined}
+      data-hud-input={hudInput}
       data-hud-recent={recent || held ? '' : undefined}
       data-hud-shell
       // Letting go of the composer re-arms the hold, so the transcript steps

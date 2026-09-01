@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/mcp-health.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@
 import { getHermesConfigRecord, type McpTestResult, testMcpServer } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { classifyProbe, freshProbe, probeCache, probeKey } from '@/lib/mcp-probe-cache'
+import { getServers } from '@/lib/mcp-servers'
 import { notify } from '@/store/notifications'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 import { $gatewayState } from '@/store/session'
@@ -113,10 +114,9 @@ async function sweep(): Promise<void> {
     return
   }
 
-  const raw = config.mcp_servers
-
-  const servers =
-    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, Record<string, unknown>>) : {}
+  // getServers drops non-object entries (a bare `name:` in config.yaml parses
+  // as `null`), so isUrlServer below never reads `.url` off a null entry.
+  const servers = getServers(config)
 
   for (const [name, server] of Object.entries(servers)) {
     if (!isUrlServer(server)) {

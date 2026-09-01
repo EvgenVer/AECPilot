@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/config-settings.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *  [3] Убрана строка «запретить F12»: служебная механика без сценария
@@ -9,6 +9,7 @@
  *      которое интерфейс не держит. Вместе со строкой убраны её импорт и чтение
  *      хранилища; сам член моста объявлен отсутствующим в шиме.
  */
+
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import type { ChangeEvent } from 'react'
@@ -44,6 +45,7 @@ import { PanelEmpty } from '../overlays/panel'
 import { ConfigField } from './config-field'
 import {
   clearsEnabledToolsets,
+  diffConfig,
   enumOptionsFor,
   getNested,
   isExternalMemoryProvider,
@@ -131,11 +133,21 @@ function ConfigSettingsInner({
   // Seed the local draft once, the first time the shared record lands.
   // Background refetches thereafter must not clobber in-progress edits.
   const configSeeded = useRef(false)
+  // Snapshot of the record as it was when the draft was seeded. Autosave
+  // diffs the draft against this (not against disk) so a field the user
+  // never touched — possibly changed out-of-band by `hermes config set`
+  // while this page sat open — is never resent with its stale value.
+  const configBaselineRef = useRef<HermesConfigRecord | null>(null)
+  // Serializes autosave requests so an older save that's still in flight can't
+  // resolve after a newer one and re-advance the baseline / cache with stale
+  // data — each save's diff+request only starts once the previous one lands.
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
     if (loadedConfig && !configSeeded.current) {
       configSeeded.current = true
+      configBaselineRef.current = loadedConfig
       savedDiscoverySignatureRef.current = repoDiscoveryPolicySignature(repoDiscoveryPolicyFromConfig(loadedConfig))
       setConfig(loadedConfig)
     }
@@ -147,10 +159,12 @@ function ConfigSettingsInner({
   // the pending debounced autosave is cancelled by its effect cleanup.
   useOnProfileSwitch(() => {
     configSeeded.current = false
+    configBaselineRef.current = null
     savedDiscoverySignatureRef.current = undefined
     setConfig(null)
     saveVersionRef.current = 0
     setSaveVersion(0)
+    saveQueueRef.current = Promise.resolve()
   })
 
   useEffect(() => {
@@ -183,25 +197,37 @@ function ConfigSettingsInner({
     }
 
     const v = saveVersion
+    const snapshot = config
 
     const t = window.setTimeout(() => {
-      void (async () => {
+      // Chained onto the queue (not fired directly) so an older save that's
+      // still awaiting its response can't land after this one and undo its
+      // baseline advance — each save's diff is computed once its predecessor
+      // has fully resolved.
+      saveQueueRef.current = saveQueueRef.current.then(async () => {
         try {
-          const result = await saveHermesConfig(config, scopeProfile)
+          const patch = diffConfig(configBaselineRef.current ?? {}, snapshot)
+          const result = await saveHermesConfig(patch, scopeProfile)
 
           if (!result.ok) {
             throw new Error(c.autosaveFailed)
           }
 
+          // The saved snapshot becomes the new baseline, so the next autosave
+          // diffs against what's actually on disk instead of the page-load
+          // (or last-baseline) copy — otherwise reverting a field to its
+          // pre-save value diffs to nothing and the revert never reaches disk.
+          configBaselineRef.current = snapshot
+
           // Mirror the saved record into the shared cache so MCP/model surfaces
           // reflect the edit without their own refetch.
-          writeConfigCache(config)
+          writeConfigCache(snapshot)
 
           if (saveVersionRef.current === v) {
             // The repo-discovery scan reads the ACTIVE profile's workspace
             // policy; skip it when this page is editing another profile.
             if (scopeProfile == null) {
-              const discoverySignature = repoDiscoveryPolicySignature(repoDiscoveryPolicyFromConfig(config))
+              const discoverySignature = repoDiscoveryPolicySignature(repoDiscoveryPolicyFromConfig(snapshot))
 
               if (savedDiscoverySignatureRef.current !== discoverySignature) {
                 savedDiscoverySignatureRef.current = discoverySignature
@@ -216,7 +242,7 @@ function ConfigSettingsInner({
             notifyError(err, c.autosaveFailed)
           }
         }
-      })()
+      })
     }, 550)
 
     return () => window.clearTimeout(t)

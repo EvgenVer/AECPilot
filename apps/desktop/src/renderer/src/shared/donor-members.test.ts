@@ -69,7 +69,15 @@ const UNBRIDGED = [
   'reachPreviewUrl',
   'readClipboard',
   'readFileDataUrlForAttach',
-  'readFileText',
+  // 'readFileText' снят при подъёме на 0.21.0 (задача 3.B3): единственный
+  // вызов, который видит детектор ниже, стоял в
+  // `components/assistant-ui/inline-preview-directive.tsx` и у донора исчез.
+  // ОСТОРОЖНО, и поэтому запись остаётся комментарием, а не удалением: член
+  // ВСЁ ЕЩЁ зовут — `contrib/runtime-loader.ts` делает
+  // `const desktop = window.hermesDesktop` и потом `desktop.readFileText(…)`,
+  // а детектор ищет буквальное `hermesDesktop.имя` и такой псевдоним не видит
+  // (не видел и на 0.20.6). Живой поломки нет: загрузчик десктопных плагинов
+  // исключён HX5. Слепое пятно детектора — находка D-63.
   'repairBootstrap',
   'resetBootstrap',
   'revealPath',

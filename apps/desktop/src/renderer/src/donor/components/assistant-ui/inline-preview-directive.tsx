@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/inline-preview-directive.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,8 +12,8 @@ import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import { useSessionView } from '@/app/chat/session-view'
 import { useIsDark } from '@/components/assistant-ui/embeds/use-is-dark'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
+import { readDesktopFileText } from '@/lib/desktop-fs'
 import { localPreviewTarget } from '@/lib/local-preview'
-import { isRemoteGateway } from '@/lib/media'
 
 /**
  * `::preview{file="…"}` — a workspace HTML file rendered LIVE inside the
@@ -260,9 +260,12 @@ export function InlinePreviewDirective({
 }) {
   const file = attrs.file ?? ''
 
-  // Not renderable inline: hand the whole leaf to the classic card. Remote
-  // gateways lack a local-file door; non-HTML has nothing to frame.
-  if (!file || isRemoteGateway() || !HTML_FILE_RE.test(file)) {
+  // Not renderable inline: hand the leaf to the classic card. Non-HTML has
+  // nothing to frame. (Remote gateways used to bail here too — that predates
+  // the mode-aware fs bridge; the frame now reads through readDesktopFileText,
+  // which fetches over the authenticated /api/fs bridge in remote mode, so a
+  // URL connection — including a same-machine `hermes serve` — renders live.)
+  if (!file || !HTML_FILE_RE.test(file)) {
     return file ? <PreviewAttachment source="explicit-link" target={file} /> : null
   }
 
@@ -304,7 +307,7 @@ function InlineHtmlFrame({
 
     let alive = true
 
-    void Promise.resolve(window.hermesDesktop?.readFileText(path))
+    void Promise.resolve(readDesktopFileText(path))
       .then(result => {
         if (!alive) {
           return

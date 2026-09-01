@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/status-section.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ interface StatusSectionProps {
    *  `Button` with `size="micro"` + `variant="text"` or `"link"`. */
   accessory?: ReactNode
   children: ReactNode
-  /** Optional inline status shown only while the group is collapsed. */
+  /** Optional inline status next to the label (running spinner, etc). */
   collapsedIndicator?: ReactNode
   defaultCollapsed?: boolean
   /** Optional glyph between the caret and the label (e.g. a `Codicon`). */
@@ -49,7 +49,7 @@ export function StatusSection({
           <DisclosureCaret className="shrink-0" open={!collapsed} size="1em" />
           {icon && <span className="flex shrink-0 items-center">{icon}</span>}
           <span className="min-w-0 truncate">{label}</span>
-          {collapsed && collapsedIndicator && <span className="flex shrink-0 items-center">{collapsedIndicator}</span>}
+          {collapsedIndicator && <span className="flex shrink-0 items-center">{collapsedIndicator}</span>}
         </button>
         {accessory && <div className="flex shrink-0 items-center gap-1">{accessory}</div>}
       </div>

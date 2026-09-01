@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/katex-memo.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -52,6 +52,8 @@ import type { Pluggable } from 'unified'
 import { SKIP, visitParents } from 'unist-util-visit-parents'
 import type { VFile } from 'vfile'
 
+import { LruCache } from '@/lib/lru-cache'
+
 interface KatexMemoOptions {
   /**
    * Color used for KaTeX errors when we fall back to the lenient parser.
@@ -76,40 +78,7 @@ type CachedRender = ElementContent[]
 
 const CACHE_LIMIT = 512
 
-class LruCache<K, V> {
-  private readonly map = new Map<K, V>()
-
-  get(key: K): undefined | V {
-    const value = this.map.get(key)
-
-    if (value === undefined) {
-      return undefined
-    }
-
-    // Refresh recency by re-inserting at the tail. Map iteration order is
-    // insertion order, so the oldest entry is at the head.
-    this.map.delete(key)
-    this.map.set(key, value)
-
-    return value
-  }
-
-  set(key: K, value: V): void {
-    if (this.map.has(key)) {
-      this.map.delete(key)
-    } else if (this.map.size >= CACHE_LIMIT) {
-      const oldest = this.map.keys().next().value
-
-      if (oldest !== undefined) {
-        this.map.delete(oldest)
-      }
-    }
-
-    this.map.set(key, value)
-  }
-}
-
-const cache = new LruCache<string, CachedRender>()
+const cache = new LruCache<string, CachedRender>(CACHE_LIMIT)
 
 function cacheKey(displayMode: boolean, value: string): string {
   // `\u0001` is a control character that (a) won't appear in normal

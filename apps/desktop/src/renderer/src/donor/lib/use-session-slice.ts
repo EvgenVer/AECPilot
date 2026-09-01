@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/use-session-slice.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -67,4 +67,43 @@ export function useStoreSelector<T, S>(store: ReadableStore<T>, select: (value: 
   const subscribe = useCallback((onChange: () => void) => store.listen(onChange), [store])
 
   return useSyncExternalStore(subscribe, () => selectRef.current(store.get()))
+}
+
+/**
+ * `useStoreSelector` for a scalar whose inputs span SEVERAL stores: recomputes
+ * when any of them notifies, still re-rendering only when the scalar changes.
+ *
+ * Subscribing to one store while the selector reads others is the failure this
+ * exists to prevent — it looks correct for as long as the subscribed store
+ * happens to churn on its own, then silently goes stale when it doesn't. If a
+ * selector reads it, list it.
+ */
+export function useStoresSelector<S>(stores: readonly ReadableStore<unknown>[], select: () => S): S {
+  const selectRef = useRef(select)
+  selectRef.current = select
+
+  // Hold the array identity steady: call sites pass an inline literal of
+  // module-level singletons, so only a genuine store swap should resubscribe.
+  const storesRef = useRef(stores)
+
+  if (storesRef.current.length !== stores.length || storesRef.current.some((store, i) => store !== stores[i])) {
+    storesRef.current = stores
+  }
+
+  const stable = storesRef.current
+
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const stops = stable.map(store => store.listen(onChange))
+
+      return () => {
+        for (const stop of stops) {
+          stop()
+        }
+      }
+    },
+    [stable]
+  )
+
+  return useSyncExternalStore(subscribe, () => selectRef.current())
 }

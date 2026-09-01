@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/store.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -1333,7 +1333,8 @@ function adoptContributedPanes(): void {
   const panes = registry.getArea('panes')
 
   const dataOf = (paneId: string) =>
-    panes.find(c => c.id === paneId)?.data as { placement?: string; dock?: PaneDockHint } | undefined
+    panes.find(c => c.id === paneId)?.data as
+      { defaultCollapsed?: boolean; dock?: PaneDockHint; placement?: string } | undefined
 
   const placementOf = (paneId: string) => dataOf(paneId)?.placement
   const mainId = panes.find(c => placementOf(c.id) === 'main')?.id
@@ -1398,6 +1399,17 @@ function adoptContributedPanes(): void {
 
   if (next !== tree) {
     commit(next)
+  }
+
+  // After the commit, so the zone exists to minimize. `defaultCollapsed` is the
+  // pane's arrival state, not a standing invariant: it runs on the adoption
+  // that put the pane in the tree, and a pane already in the tree is never
+  // re-adopted — so a user's expand persists with the layout and is never
+  // overruled on a later boot.
+  for (const pane of missing) {
+    if (dataOf(pane.id)?.defaultCollapsed) {
+      setPaneCollapsed(pane.id, true)
+    }
   }
 }
 

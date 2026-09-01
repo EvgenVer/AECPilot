@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/pane-tab.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -109,6 +109,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
       className={cn(
         TAB,
         vertical ? TAB_VERTICAL : TAB_HORIZONTAL,
+        !vertical && onClose && 'pr-9',
         edge,
         active
           ? cn(TAB_ACTIVE, !vertical && TAB_ACTIVE_UNDERLINE)
@@ -170,10 +171,9 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
         </span>
       )}
       {onClose && !vertical && (
-        // Hover ✕, painted OVER the label's right edge as an overlay (no
-        // layout shift, tab width never jumps on hover). The runway is a tiny
-        // transparent→`--tab-face` gradient, so the button melts into the
-        // tab's effective surface instead of hard-clipping the text under it.
+        // Hover ✕ stays absolutely positioned so hover never shifts the tab.
+        // The tab reserves a fixed right runway for this overlay, keeping the
+        // label clear of the gradient/button even for short labels like BROWSER.
         // Rendered after the dirty dot: on hover the ✕ takes the dot's spot,
         // VS Code-style.
         <span className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch opacity-0 transition-opacity group-hover/tab:pointer-events-auto group-hover/tab:opacity-100">

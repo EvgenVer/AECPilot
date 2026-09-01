@@ -1,18 +1,21 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/types.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: added 'ru' (SPEC C7 — our UI is en+ru)
  * (no other edits)
  */
+
 // Desktop i18n type contract.
 //
 // `Translations` is the single source of truth for every translatable string
 // surface. Fully translated locale files may satisfy this interface directly;
 // partial locales should use `defineLocale()` so missing desktop-only strings
 // fall back to English while new keys remain type-checked.
+
+import type { TipId } from '@/lib/tips/catalog'
 
 export type Locale = 'en' | 'zh' | 'zh-hant' | 'ja' | 'ar' | 'ru'
 
@@ -487,6 +490,11 @@ export interface Translations {
       introSplashDesc: string
       reactionsTitle: string
       reactionsDesc: string
+      tipsTitle: string
+      tipsDesc: string
+      tipsReset: (count: number) => string
+      toursTitle: string
+      toursDesc: string
       composerPopoutTitle: string
       composerPopoutDesc: string
       vibeHeartsTitle: string
@@ -1094,6 +1102,15 @@ export interface Translations {
         failedSelect: (backend: string) => string
         needsSetupHint: string
       }
+      browserRealProfile: {
+        label: string
+        description: string
+        enabledTitle: string
+        enabledMessage: string
+        disabledTitle: string
+        disabledMessage: string
+        failedSave: string
+      }
     }
   }
 
@@ -1555,8 +1572,11 @@ export interface Translations {
     search: string
     loading: string
     newProfile: string
+    /** Verb + noun: the profiles-list button and the native file-dialog titles,
+     *  which stand alone. Per-profile menus use the bare `exportMenu`. */
     importProfile: string
     exportProfile: string
+    exportMenu: string
     imported: string
     exported: string
     failedImport: string
@@ -2984,6 +3004,12 @@ export interface Translations {
       failed: (error: string) => string
       timedOut: string
     }
+  }
+
+  tips: {
+    close: string
+    /** Keyed by `TipId`, so a new tip without copy is a type error. */
+    items: Record<TipId, { title: string; text: string }>
   }
 
   errors: {

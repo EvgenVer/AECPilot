@@ -1,19 +1,20 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-session-tile-delegate.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useEffect } from 'react'
 
+import { graftRefreshedTailOntoBackfill } from '@/app/chat/transcript-backfill'
 import {
   fetchStoredTranscriptAcrossBackends,
   getLatestSessionMessages,
   PROMPT_SUBMIT_REQUEST_TIMEOUT_MS
 } from '@/hermes'
 import { translateNow } from '@/i18n/runtime'
-import { toChatMessages } from '@/lib/chat-messages'
+import { type ChatMessage, toChatMessages } from '@/lib/chat-messages'
 import { notify } from '@/store/notifications'
 import {
   isReadOnlyRuntimeId,
@@ -29,11 +30,30 @@ import type { SessionResumeResponse } from '@/types/hermes'
 import type { usePromptActions } from '../../session/hooks/use-prompt-actions'
 import { singleFlightSessionResume } from '../../session/hooks/use-prompt-actions/single-flight-resume'
 import { markSessionRecentlyInterrupted, withSessionNotFoundResume } from '../../session/hooks/use-prompt-actions/utils'
-import { resolveSessionOwner } from '../../session/hooks/use-session-actions/utils'
+import {
+  chatMessageArraysEquivalent,
+  reconcileResumeMessages,
+  resolveSessionOwner
+} from '../../session/hooks/use-session-actions/utils'
 import type { useSessionStateCache } from '../../session/hooks/use-session-state-cache'
 import type { GatewayRequester } from '../types'
 
 type SessionStateCache = ReturnType<typeof useSessionStateCache>
+
+function mergeTileTranscript(
+  previous: ChatMessage[],
+  prefetchMessages: SessionResumeResponse['messages'] | undefined
+): ChatMessage[] {
+  const prefetched = toChatMessages(prefetchMessages ?? [])
+
+  if (!prefetched.length) {
+    return previous
+  }
+
+  const persisted = graftRefreshedTailOntoBackfill(prefetched, previous)
+
+  return reconcileResumeMessages(persisted, previous)
+}
 
 interface SessionTileDelegateParams {
   archiveSession: (storedSessionId: string) => Promise<unknown>
@@ -189,9 +209,10 @@ export function useSessionTileDelegate({
           }
         )
       },
-      resumeTile: async storedSessionId => {
+      resumeTile: async (storedSessionId, options) => {
         const existing = runtimeIdByStoredSessionIdRef.current.get(storedSessionId)
         const cached = existing ? sessionStateByRuntimeIdRef.current.get(existing) : undefined
+        const refreshTranscript = options?.refreshTranscript === true
 
         // Warm path: reuse a live binding — but only when it still carries a
         // transcript (or is mid-turn, where messages legitimately stream in).
@@ -199,7 +220,17 @@ export function useSessionTileDelegate({
         // transcript or a stale pre-reconnect survivor; reusing it painted the
         // post-sleep/wake tile permanently empty. Fall through to a real
         // resume instead — it's idempotent for a genuinely live session.
-        if (existing && cached?.storedSessionId === storedSessionId && (cached.busy || cached.messages.length > 0)) {
+        //
+        // Explicit reopen (`refreshTranscript`) must still REST-merge: the
+        // warm snapshot is whatever the tile last painted, and cron bot-chat
+        // deliveries that landed while the panel's WS was down never arrive
+        // as realtime events (#96183).
+        if (
+          existing &&
+          cached?.storedSessionId === storedSessionId &&
+          (cached.busy || cached.messages.length > 0) &&
+          !refreshTranscript
+        ) {
           publishSessionState(existing, cached)
 
           return existing
@@ -218,6 +249,19 @@ export function useSessionTileDelegate({
             : owner
 
         const prefetchPromise = getLatestSessionMessages(storedSessionId, restScope).catch(() => null)
+
+        if (existing && cached?.storedSessionId === storedSessionId && (cached.busy || cached.messages.length > 0)) {
+          const prefetch = await prefetchPromise
+          const merged = mergeTileTranscript(cached.messages, prefetch?.messages)
+
+          if (!chatMessageArraysEquivalent(cached.messages, merged)) {
+            updateSessionState(existing, state => ({ ...state, messages: merged }), storedSessionId)
+          } else {
+            publishSessionState(existing, cached)
+          }
+
+          return existing
+        }
 
         // #94724 no-owner recovery: dispatching the resume through the same
         // fail-closed gate as the window's RPC dispatcher keeps an unknown

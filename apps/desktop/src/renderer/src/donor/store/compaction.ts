@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/compaction.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,4 +41,12 @@ export function setSessionCompacting(sessionId: string | null | undefined, activ
   const next = { ...sessions }
   delete next[key]
   $compactingSessions.set(next)
+}
+
+/** Clear compaction only when the gateway proves the turn resumed or ended. */
+export function reconcileSessionCompacting(
+  sessionId: string | null | undefined,
+  _evidence: 'resumed' | 'terminal'
+): void {
+  setSessionCompacting(sessionId, false)
 }

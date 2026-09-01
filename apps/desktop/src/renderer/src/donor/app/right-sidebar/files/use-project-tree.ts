@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/files/use-project-tree.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -189,7 +189,11 @@ async function fallbackRootFor(cwd: string, sourceIsRemote: boolean): Promise<st
 
 async function loadRoot(
   cwd: string,
-  { connectionKey = desktopFsCacheKey(), force = false }: { connectionKey?: string; force?: boolean } = {}
+  {
+    connectionKey = desktopFsCacheKey(),
+    force = false,
+    reset = false
+  }: { connectionKey?: string; force?: boolean; reset?: boolean } = {}
 ) {
   if (!cwd) {
     clearProjectTree()
@@ -211,15 +215,25 @@ async function loadRoot(
     clearProjectDirCache(cwd)
   }
 
+  // Re-reading the SAME root — the error retry below, the refresh button, a
+  // workspace revalidation — must probe underneath what is on screen rather
+  // than blanking it first. Clearing here meant an unreadable root strobed
+  // "unreadable" → blank → "unreadable" every retry, forever, while the app
+  // just sat there; the header's project name flickered with it as
+  // `resolvedCwd` dropped back to the raw cwd and returned. Only a different
+  // root (or a different backend, via `reset`) may clear, where the previous
+  // project's tree would otherwise linger under the new one.
+  const keepVisible = current.cwd === cwd && !reset
+
   $projectTree.set({
     collapseNonce: current.collapseNonce,
     cwd,
-    data: [],
+    data: keepVisible ? current.data : [],
     loaded: false,
-    openState: current.cwd === cwd ? current.openState : {},
+    openState: keepVisible ? current.openState : {},
     requestId,
-    resolvedCwd: '',
-    rootError: null,
+    resolvedCwd: keepVisible ? current.resolvedCwd : '',
+    rootError: keepVisible ? current.rootError : null,
     rootLoading: true
   })
 
@@ -472,7 +486,9 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
 
     if (connectionChanged) {
       clearProjectDirCache()
-      void loadRoot(cwd, { connectionKey, force: true })
+      // Same path, different machine: what is on screen was read from the old
+      // backend, so it has to go even though the cwd string is unchanged.
+      void loadRoot(cwd, { connectionKey, force: true, reset: true })
 
       return
     }

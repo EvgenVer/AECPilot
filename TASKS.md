@@ -447,7 +447,59 @@
        Файлы todos уже в зоне и просто растут, а `prompt.btw` в зону не приезжает
        вовсе: их клиент этот метод не зовёт. -->
 
-- [ ] 3.B3 Поднять пин ядра и донора на **0.21.0** (`v2026.8.31`, коммит `29112bef099274229cadff79cdff7bf7b99c4b77`) по плану 3.0: снять слепок, разобрать `contract-diff` построчно (особое внимание девяти НАШИМ методам с изменившимся телом: `prompt.submit`, `session.resume`, `session.create`, `session.branch`, `config.set`, `config.get`, `command.dispatch`, `commands.catalog`, `clarify.respond`), перенести заново 95 файлов из списка 3.B3а, переналожить 22 набора правок по заголовкам — files: runtime/hermes-env.mjs, runtime/donor-env.mjs, donor/**, runtime/contracts/ · verify: `hermes --version` = 0.21.0; в venv ядра стоят `firecrawl-anydoc==0.2.4` и `uvicorn>=0.31`; `node runtime/donor-env.mjs` без проблем (`DONOR_DESKTOP_VERSION` остаётся `0.17.0` — проверено по дереву, четвёртый тег подряд); `node runtime/donor-report.mjs refs/aecpilot/v2026.8.31` даёт «изменившихся 0, исчезнувших 0»; `contract-diff` без непрочитанных расхождений; **`pnpm -C apps/desktop build` проходит** (гейт повторного переноса — сборка, а не typecheck); vitest/e2e зелёные, ruff+pytest зелёные в ОБОИХ venv; все пробы зелёные, **кроме `a2a-push-probe`** — она остаётся красной, и проверено, что причина ТА ЖЕ (`plugins/platforms/a2a/security.py` побайтово не менялся), а не новая · dep: 3.B3а · parallel: no
+- [x] 3.B3 Поднять пин ядра и донора на **0.21.0** (`v2026.8.31`, коммит `29112bef099274229cadff79cdff7bf7b99c4b77`) по плану 3.0: снять слепок, разобрать `contract-diff` построчно (особое внимание девяти НАШИМ методам с изменившимся телом: `prompt.submit`, `session.resume`, `session.create`, `session.branch`, `config.set`, `config.get`, `command.dispatch`, `commands.catalog`, `clarify.respond`), перенести заново 95 файлов из списка 3.B3а, переналожить 22 набора правок по заголовкам — files: runtime/hermes-env.mjs, runtime/donor-env.mjs, donor/**, runtime/contracts/ · verify: `hermes --version` = 0.21.0; в venv ядра стоят `firecrawl-anydoc==0.2.4` и `uvicorn>=0.31`; `node runtime/donor-env.mjs` без проблем (`DONOR_DESKTOP_VERSION` остаётся `0.17.0` — проверено по дереву, четвёртый тег подряд); `node runtime/donor-report.mjs refs/aecpilot/v2026.8.31` даёт «изменившихся 0, исчезнувших 0»; `contract-diff` без непрочитанных расхождений; **`pnpm -C apps/desktop build` проходит** (гейт повторного переноса — сборка, а не typecheck); vitest/e2e зелёные, ruff+pytest зелёные в ОБОИХ venv; все пробы зелёные, **кроме `a2a-push-probe`** — она остаётся красной, и проверено, что причина ТА ЖЕ (`plugins/platforms/a2a/security.py` побайтово не менялся), а не новая · dep: 3.B3а · parallel: no
+  <!-- ЗАКРЫТА 2026-09-01. `hermes --version` = 0.21.0, в venv ядра приехали
+       `firecrawl-anydoc==0.2.4` и `uvicorn 0.50.2`; `donor-env.mjs` зелёный,
+       `DONOR_DESKTOP_VERSION` остался `0.17.0`, как и предсказывал замер.
+       Слепок `contracts/hermes-0.21.0.json` совпал с замером до подъёма
+       ЦИФРА В ЦИФРУ: 199 методов, 246 маршрутов, 42 события, наших 45 и 10.
+
+       ПЕРЕНОС. 73 файла скопированы, 22 правленых слиты трёхсторонним merge
+       (база — донор на старом SHA, наше — файл зоны без шапки, их — донор на
+       новом): 16 сошлись сами, 6 потребовали рук. Шесть — ровно те таблицы
+       регистрации, которые план и называл, плюс один сюрприз: у донора
+       ИСЧЕЗЛИ из таблицы команд `/debug`, `/goal`, `/loop`, `/personality`,
+       `/steer`, `/stop`, `/tools`, `/undo`, `/usage`, `/version`, а
+       `/reload-*` переехали в новую карту `NO_DESKTOP_SURFACE`. Вместе с
+       `/version` ушла и одна наша правка вида [5] — не потерялась, а
+       перестала существовать вместе со строкой.
+
+       В ЗОНУ ПРИЕХАЛО 17 НОВЫХ ФАЙЛОВ: восемь по решению про tips и девять,
+       которых потребовали перенесённые файлы (`lib/lru-cache`, `lib/chat-empty`,
+       `components/chat/wordmark`, `chat-empty-slot`, `row-geometry`,
+       `tour-marker`, `transcript-provenance`, `store/runtime-gone`,
+       `browser-real-profile-panel`).
+
+       ДВЕ НОВЫЕ ПРАВКИ ВИДА [3], обе про то, что 0.21.0 добавил агенту прав
+       на наше окно: снят обработчик `tip.show` (агент показывает пузырь на
+       нашем элементе — это класс HX16) и снята строка настроек «экскурсии».
+       Первая ЖДЁТ РЕШЕНИЯ ВЛАДЕЛЬЦА: вопрос про tips задавался про
+       всплывающие подсказки приложения, а у поверхности оказалось две
+       половины. Взят безопасный вариант — статические подсказки работают,
+       агентская половина не зарегистрирована.
+
+       ТРИ ЛОВУШКИ, ПОДТВЕРЖДЁННЫЕ ЗАНОВО. (1) Гейт — сборка: `tsc` прошёл
+       чисто на дереве, где не хватало девяти модулей. (2) Мой собственный
+       сканер полноты переноса повторил записанную в памяти ошибку — сравнивал
+       путь с прямыми слэшами против `path.resolve` с обратными и МОЛЧА
+       пропускал каждый относительный импорт; нашлось это только сборкой.
+       (3) Сторожевой тест C12 поймал два новых литерала
+       `'Hermes gateway unavailable'` в `store/gateway.ts` — ровно та работа,
+       ради которой он написан.
+
+       ПРОВЕРКИ: `pnpm -C apps/desktop build` зелёная, vitest 1928/1928,
+       typecheck чистый, eslint 0 ошибок (1 предупреждение в НАШЕМ
+       `SheetViewer.tsx`, было до подъёма), ruff check чисто, pytest 355
+       passed. Пробы: gateway-smoke (с настоящим ответом модели),
+       canonical-chat, sessions, profiles, soul-check, session-events, skills,
+       plugins, ui-meta-merge, mcp-project-switch, все пять cron-проб,
+       skill-priority, a2a-sign, messaging, speech-stream, own-chat,
+       checkpoint — зелёные. `a2a-push-probe` красная, причина ТА ЖЕ:
+       `plugins/platforms/a2a/security.py` побайтово не менялся от 0.20.5.
+
+       ЗАМЕЧЕНО, НЕ ЧИНИЛОСЬ (не наше и не этим подъёмом сломано):
+       `ruff format --check` хочет переформатировать `apps/desktop/e2e/mock_rest.py`
+       — файл подъёмом не тронут, значит гейт `pnpm lint` был красным и до нас. -->
 - [ ] 3.B3б Разбор дифа контракта 0.20.6 → 0.21.0 письменно, включая третью категорию — files: runtime/contracts/reading-0.21.0.md · verify: разобраны все девять наших методов с изменившимся телом, по каждому сказано «нас касается / не касается и почему»; таблица умолчаний из PLAN перенесена целиком с отметкой «принято как у них, решение владельца 2026-09-01»; отказ от эвала (AGENTS §9) записан как отказ с основанием, а не пропущен; на живом ядре фактически `_config_version = 39`, `gateway_turn_lease_timeout = 5`, `gateway_startup_warmup_timeout = 20`, `unattended_mode = deny`; два новых параметра `session.create` (`room_plumbing`, `follow_profile_config`) проверены на умолчание `False` вызовом, а не чтением · dep: 3.B3 · parallel: yes
 - [ ] 3.B3в SOUL пережил подъём: ядро переписало `DEFAULT_SOUL_MD` (#95681) и добавило свой ПРЕЖНИЙ текст в список legacy-шаблонов, которые `_ensure_default_soul_md` обновляет НА МЕСТЕ — убедиться, что наш текст под это не подпадает — files: runtime/default-soul.mjs, runtime/default-soul.test.mjs, runtime/soul-check.mjs · verify: `node runtime/soul-check.mjs` зелёный; `SOUL.md` в dev-профиле после запуска ядра содержит наш текст, а не их новый; **проверено и на ПУСТОМ профиле** (первый запуск, где ядро пишет файл само); тест пиннит новый список их legacy-шаблонов, чтобы следующее пополнение не прошло молча · dep: 3.B3 · parallel: yes
 - [ ] 3.B3г Опросить `groups.capabilities` на живом ядре и записать ответ: это наблюдаемый признак того, что «renderer-owned room path» (на котором стоит наш 3C.6) ещё поддерживается — files: runtime/contracts/reading-0.21.0.md · verify: записаны `PROTOCOL_VERSION`, `driver_ready`, `room_link.enabled` и причина при `false`; записано, помечен ли клиентский путь устаревшим и чем именно; строка SPEC HX18 ссылается на этот замер; в разбор внесена строка «повторять опрос на каждом следующем подъёме» · dep: 3.B3 · parallel: yes

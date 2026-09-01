@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-center/index.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,12 +10,13 @@ import { type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRe
 import { LogTail } from '@/components/chat/log-tail'
 import { PageLoader } from '@/components/page-loader'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { SearchField } from '@/components/ui/search-field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ResponsiveTabs } from '@/components/ui/tab-dropdown'
 import { Tip } from '@/components/ui/tooltip'
 import { getActionStatus, getLogs, getStatus, getUsageAnalytics, restartGateway, updateHermes } from '@/hermes'
-import type { ActionStatusResponse, AnalyticsResponse, StatusResponse } from '@/hermes'
+import type { ActionStatusResponse, AnalyticsResponse, SessionInfo, StatusResponse } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
 import { compactNumber } from '@/lib/format'
@@ -150,6 +151,7 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
   const pinnedSessionIds = useStoreSelector($pinnedSessionIds, s => (section === 'sessions' ? s : EMPTY_PINNED))
 
   const [query, setQuery] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<SessionInfo | null>(null)
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [logFile, setLogFile] = useState<(typeof LOG_FILES)[number]>('agent')
@@ -402,7 +404,7 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
                           </RowIconButton>
                           <RowIconButton
                             className="hover:text-destructive"
-                            onClick={() => void onDeleteSession(session.id)}
+                            onClick={() => setPendingDelete(session)}
                             title={cc.deleteSession}
                           >
                             <Trash2 className="size-3.5" />
@@ -516,6 +518,19 @@ export function CommandCenterView({ initialSection, onClose, onDeleteSession, on
           )}
         </OverlayMain>
       </OverlaySplitLayout>
+      {pendingDelete && (
+        <ConfirmDialog
+          busyLabel={t.sidebar.row.deleting}
+          confirmLabel={t.common.delete}
+          description={t.sidebar.row.deleteDesc(sessionTitle(pendingDelete))}
+          destructive
+          doneLabel={t.sidebar.row.deleted}
+          onClose={() => setPendingDelete(null)}
+          onConfirm={() => void onDeleteSession(pendingDelete.id)}
+          open
+          title={t.sidebar.row.deleteTitle}
+        />
+      )}
     </OverlayView>
   )
 }

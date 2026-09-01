@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/profile-switcher.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -399,7 +399,18 @@ export function ProfileRail() {
   )
 
   return (
-    <div aria-label={p.title} className="flex min-w-0 items-center gap-0.5" data-slot="profile-rail" role="group">
+    // `data-tour` as well as `data-slot`: only the former is identity to the
+    // tour collector and the tip catalog, and the rail's one other durable
+    // handle is a TRANSLATED aria-label, which stops matching the moment the
+    // app isn't in English.
+    <div
+      aria-label={p.title}
+      className="flex min-w-0 items-center gap-0.5"
+      data-slot="profile-rail"
+      data-tip-region=""
+      data-tour="profile-rail"
+      role="group"
+    >
       {/* Fleet: every gateway carries its own home square inside its group, so
           the pinned pill is purely the "all profiles on this gateway" toggle. */}
       {fleet && (
@@ -1316,7 +1327,7 @@ function ProfileSquare({
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => void runExportProfileFlow(label)}>
             <Codicon name="package" size="0.875rem" />
-            <span>{p.exportProfile}</span>
+            <span>{p.exportMenu}</span>
           </ContextMenuItem>
           {onConnectRemote && (
             <ContextMenuItem onSelect={onConnectRemote}>

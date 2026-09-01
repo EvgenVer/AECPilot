@@ -1,15 +1,18 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
  *   [3] dropped the window-translucency row and the VS Code Marketplace theme
  *       search/import (both HX14) — with their imports, derived state and the
  *       search box's second job
+ *   [3] dropped the guided-tours row and its store binding (HX16) — the tips
+ *       row next to it is kept, tips are taken
  * (no other edits)
  */
+
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -33,6 +36,7 @@ import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enable
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
 import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
 import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
+import { $retiredTips, $tipsEnabled, resetTips, setTipsEnabled } from '@/store/tips'
 import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
 import { $vibeHeartsEnabled, setVibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
 import { $zoomPercent, setZoomPercent } from '@/store/zoom'
@@ -115,6 +119,8 @@ export function AppearanceSettings() {
   const embedAllowed = useStore($embedAllowed)
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
   const reactionsEnabled = useStore($reactionsEnabled)
+  const tipsEnabled = useStore($tipsEnabled)
+  const retiredTips = useStore($retiredTips)
   const vibeHeartsEnabled = useStore($vibeHeartsEnabled)
   const backdrop = useStore($backdrop)
   const introSplash = useStore($introSplash)
@@ -409,6 +415,44 @@ export function AppearanceSettings() {
             description={a.reactionsDesc}
             title={a.reactionsTitle}
           />
+
+          <ListRow
+            action={
+              <div className="flex flex-col items-end gap-1.5">
+                <SegmentedControl
+                  onChange={id => {
+                    triggerHaptic('selection')
+                    setTipsEnabled(id === 'on')
+                  }}
+                  options={[
+                    { id: 'off', label: t.common.off },
+                    { id: 'on', label: t.common.on }
+                  ]}
+                  value={tipsEnabled ? 'on' : 'off'}
+                />
+                {/* The ✕ on a tip is permanent, so this is the only way back.
+                    It appears once there is something to bring back. */}
+                {retiredTips.length > 0 && (
+                  <Button
+                    onClick={() => {
+                      triggerHaptic('selection')
+                      resetTips()
+                    }}
+                    size="inline"
+                    variant="text"
+                  >
+                    {a.tipsReset(retiredTips.length)}
+                  </Button>
+                )}
+              </div>
+            }
+            description={a.tipsDesc}
+            title={a.tipsTitle}
+          />
+
+          {/* EDIT [3]: the guided-tours row is dropped — the agent walking the
+              interface is SPEC HX16, and a switch for a feature that is not
+              registered would only promise something the app never does. */}
 
           <ListRow
             action={

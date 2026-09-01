@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/types.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,9 +17,10 @@ import type { ReactNode } from 'react'
 export type ContributionSource = 'core' | (string & {})
 
 /**
- * Which workspace surface a contribution targets. `'sessions'` is the classic
- * session workspace; `'bots'` scopes content to an individual bot identified
- * by an opaque owner key.
+ * Which workspace surface the window is looking at. `'sessions'` is the classic
+ * session workspace; `'bots'` means Bot Mode has one exact bot selected,
+ * identified by an opaque owner key. Consumers ADAPT to this — it steers where
+ * the `+` routes — but it never decides whether a pane renders.
  */
 export type WorkspaceMode = 'sessions' | 'bots'
 
@@ -54,16 +55,4 @@ export interface Contribution {
    * themes, commands — anything consumed by an engine rather than rendered.
    */
   data?: unknown
-  /**
-   * Which workspace surface this contribution belongs to. Omit for a global
-   * contribution that participates in every workspace (pre-existing behavior).
-   * Presentation ownership hint only.
-   */
-  workspaceMode?: WorkspaceMode
-  /**
-   * Exact opaque owner key within the `'bots'` surface (e.g. a
-   * connection-qualified profile id). Never parsed here; compared exactly.
-   * Presentation ownership hint only.
-   */
-  workspaceOwnerKey?: string
 }

@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/config.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed `revealEnvVar` — plaintext credential read-back (R2)
  * (no other edits)
  */
+
 import type {
   ConfigSchemaResponse,
   CustomEndpointsResponse,
@@ -102,6 +103,18 @@ export function getHermesConfigSchema(profile?: null | string): Promise<ConfigSc
 export function saveHermesConfig(config: HermesConfigRecord, profile?: null | string): Promise<{ ok: boolean }> {
   return hermesApi<{ ok: boolean }>({
     ...profileScoped(profile),
+    path: '/api/config',
+    method: 'PUT',
+    body: { config }
+  })
+}
+
+/** Capability-scoped counterpart of saveHermesConfig — writes the config of
+ *  the profile/connection the Capabilities scope selector points at (possibly
+ *  on another registered gateway), mirroring getHermesConfigRecord. */
+export function saveHermesConfigRecord(config: HermesConfigRecord, profile?: ProfileScope): Promise<{ ok: boolean }> {
+  return window.hermesDesktop.api<{ ok: boolean }>({
+    ...capabilityScoped(profile),
     path: '/api/config',
     method: 'PUT',
     body: { config }

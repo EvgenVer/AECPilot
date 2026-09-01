@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/composer-utils.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -93,6 +93,50 @@ export const slashArgStage = (query: string) => query.includes(' ')
 
 /** The `/command` token of a slash query (`personality x` → `/personality`). */
 export const slashCommandToken = (query: string) => `/${query.split(/\s+/, 1)[0]?.toLowerCase() ?? ''}`
+
+/** Typed `/` query or completion text without the leading slash. */
+export const slashCompletionToken = (value: string) => value.replace(/^\//, '').trimEnd().toLowerCase()
+
+/**
+ * Which row Space/Enter should take. Tab always uses the highlight; this is
+ * the "still suggesting, don't steal what I typed" pick.
+ *
+ * `/com` + a highlighted `/compress` still completes. `/review` while
+ * `/compress` is the leftover highlight does not. An exact list match wins
+ * so a fully typed command isn't replaced by a longer/fuzzier neighbour.
+ */
+export function implicitSlashAcceptIndex(
+  query: string,
+  itemTexts: readonly string[],
+  activeIndex: number,
+  activeExplicit: boolean
+): number | null {
+  const typed = slashCompletionToken(query)
+
+  if (!typed) {
+    return null
+  }
+
+  if (activeExplicit && itemTexts[activeIndex] != null) {
+    return activeIndex
+  }
+
+  const exact = itemTexts.findIndex(text => slashCompletionToken(text) === typed)
+
+  if (exact >= 0) {
+    return exact
+  }
+
+  const active = itemTexts[activeIndex]
+
+  if (active != null && slashCompletionToken(active).startsWith(typed)) {
+    return activeIndex
+  }
+
+  const prefixHits = itemTexts.flatMap((text, index) => (slashCompletionToken(text).startsWith(typed) ? [index] : []))
+
+  return prefixHits.length === 1 ? prefixHits[0] : null
+}
 
 export interface TriggerAcceptInput {
   /** The user moved the highlight themselves (arrow keys) rather than

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/thread-loading.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,4 +35,38 @@ export function threadLoadingState(
   }
 
   return undefined
+}
+
+export function routedSessionIsLoading({
+  activeSessionId,
+  knownHistory,
+  messagesEmpty,
+  resumeExhausted,
+  routeSessionMismatch,
+  routedSessionView
+}: {
+  activeSessionId: string | null
+  knownHistory: boolean
+  messagesEmpty: boolean
+  resumeExhausted: boolean
+  routeSessionMismatch: boolean
+  routedSessionView: boolean
+}): boolean {
+  if (resumeExhausted || !routedSessionView) {
+    return false
+  }
+
+  if (routeSessionMismatch) {
+    return true
+  }
+
+  if (!messagesEmpty) {
+    return false
+  }
+
+  // Brand-new routed drafts are empty on purpose. A session the list already
+  // knows has history must keep the loader up until a display-authoritative
+  // transcript arrives — including the unproven warm-cache hold, where the
+  // runtime is bound but messages are still suppressed.
+  return !activeSessionId || knownHistory
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/boot-failure-overlay.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -170,10 +170,10 @@ export function BootFailureOverlay() {
     setBusy(null)
   }
 
-  // Clear this gateway's stale auth first, then open its login window
-  // (username/password form or OAuth redirect — the desktop drives both). On a
-  // successful sign-in the cookie is re-established; reload so boot mints a fresh
-  // ticket against a live session without disturbing other saved gateways.
+  // Clear this gateway's stale auth first, then re-establish it through the
+  // connection's owning login flow. Hermes Cloud must reuse its portal session
+  // and per-agent cascade; generic remote gateways use native/embedded OAuth.
+  // Reload after success so boot mints a fresh ticket against the new session.
   const signInRemote = async () => {
     if (!remoteReauth) {
       return
@@ -182,10 +182,39 @@ export function BootFailureOverlay() {
     setBusy('signin')
 
     try {
-      await window.hermesDesktop?.oauthLogoutConnectionConfig?.(remoteReauth.url)
-      const result = await window.hermesDesktop?.oauthLoginConnectionConfig(remoteReauth.url)
+      const desktop = window.hermesDesktop
+
+      await desktop?.oauthLogoutConnectionConfig?.(remoteReauth.url)
+
+      let result: { connected?: boolean } | undefined
+
+      if (connectionConfig?.mode === 'cloud' && desktop?.cloud) {
+        const status = await desktop.cloud.status()
+
+        if (!status.signedIn) {
+          const login = await desktop.cloud.login()
+
+          if (!login.signedIn) {
+            notify({
+              kind: 'warning',
+              title: t.boot.failure.signInIncompleteTitle,
+              message: t.boot.failure.signInIncompleteMessage
+            })
+
+            return
+          }
+        }
+
+        result = await desktop.cloud.agentSignIn(remoteReauth.url)
+      } else {
+        result = await desktop?.oauthLoginConnectionConfig(remoteReauth.url)
+      }
 
       if (result?.connected) {
+        if (connectionConfig?.mode === 'cloud') {
+          await desktop?.resetBootstrap().catch(() => undefined)
+        }
+
         notify({ kind: 'success', title: t.boot.failure.signedInTitle, message: t.boot.failure.signedInMessage })
         window.location.reload()
 

@@ -1,15 +1,20 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the `tour.request` branch (agent walking the interface, HX16)
  *   [3] removed the `preview.act.request` branch and its engine loader
  *       (agent pressing inside the preview, HX17)
- *   [4] dropped the imports of both engines
+ *   [3] removed the `tip.show` branch — the agent pointing at our window and
+ *       narrating it is the same class as `tour.request` (HX16). The tip
+ *       surface itself is taken; only the agent-driven half is dropped.
+ *   [4] dropped the imports of both engines, and of `$toursEnabled` /
+ *       `@/store/tips`, orphaned by the three removals above
  * (no other edits)
  */
+
 import { readActivePreview } from '@/app/chat/right-rail/preview-reader'
 import { writeAgentTerminalChunk } from '@/app/right-sidebar/terminal/agent-terminal-stream'
 import { readActiveTerminal } from '@/app/right-sidebar/terminal/buffer'
@@ -127,6 +132,12 @@ export function handleDesktopBridgeEvent(ctx: GatewayEventContext): boolean {
 
   // EDIT [3]: the `tour.request` branch is removed — the agent walking the
   // interface is SPEC HX16, and its engine would pull in driver.js.
+
+  // EDIT [3]: the `tip.show` branch is removed — this is the AGENT pointing at
+  // an element of our window and narrating it, which is the same class as the
+  // `tour.request` branch above (SPEC HX16). The tip surface itself IS taken:
+  // the rotation tips the app shows on its own keep working, and only the
+  // agent-driven half is dropped here. Owner decision pending (task 3.B3е).
 
   if (event.type === 'pane.reveal') {
     // Agent revealed a pane via the desktop-gated focus_pane tool, in

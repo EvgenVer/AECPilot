@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/plugin.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the plugin `socket` capability (HX5 + SPEC C9)
  * (no other edits)
  */
+
 /**
  * The plugin authoring contract. A plugin is a file that default-exports a
  * `HermesPlugin`; it never touches the registry directly — it receives a
@@ -64,8 +65,21 @@ export interface PluginOs {
   /** Reveal a path in the OS file manager (Finder / Explorer). Resolves
    *  false when unavailable. */
   revealPath: (path: string) => Promise<boolean>
+  /** Native save dialog. Resolves the chosen path, or null on cancel /
+   *  when unavailable. The path is on the BACKEND's filesystem, so hand it
+   *  to a `rest` call rather than trying to write it from the renderer. */
+  pickSavePath: (options?: PluginFileDialogOptions) => Promise<null | string>
+  /** Native open dialog, single file. Resolves the chosen path, or null on
+   *  cancel / when unavailable. */
+  pickOpenPath: (options?: PluginFileDialogOptions) => Promise<null | string>
   /** Write text to the system clipboard. Resolves false when unavailable. */
   writeClipboard: (text: string) => Promise<boolean>
+}
+
+export interface PluginFileDialogOptions {
+  defaultPath?: string
+  filters?: Array<{ extensions: string[]; name: string }>
+  title?: string
 }
 
 export interface PluginContext {
@@ -152,6 +166,21 @@ function createPluginOs(pluginId: string): PluginOs {
     }
   }
 
+  // Same shape as `attempt`, for the pickers that answer with a path.
+  const attemptPath = async (run: (bridge: NonNullable<typeof window.hermesDesktop>) => Promise<null | string>) => {
+    const bridge = typeof window === 'undefined' ? undefined : window.hermesDesktop
+
+    if (!bridge) {
+      return null
+    }
+
+    try {
+      return await run(bridge)
+    } catch {
+      return null
+    }
+  }
+
   return {
     notify: input => dispatchPluginNativeNotification(pluginId, input),
     openExternal: url =>
@@ -160,6 +189,13 @@ function createPluginOs(pluginId: string): PluginOs {
 
         return true
       }),
+    pickOpenPath: options =>
+      attemptPath(async bridge => {
+        const picked = await bridge.selectPaths?.({ ...options, multiple: false })
+
+        return picked?.[0] ?? null
+      }),
+    pickSavePath: options => attemptPath(async bridge => (await bridge.selectSavePath?.(options)) ?? null),
     revealPath: path => attempt(async bridge => (bridge.revealPath ? bridge.revealPath(path) : false)),
     writeClipboard: text => attempt(bridge => bridge.writeClipboard(text))
   }

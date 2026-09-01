@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-live-completion-adapter.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,9 @@ export interface CompletionEntry {
   text: string
   display?: unknown
   meta?: unknown
+  /** From `complete.slash`: registry command vs skill. The popover groups on
+   *  this instead of re-deriving kind from the desktop command table. */
+  kind?: string
   /** Optional section label (e.g. "Commands", "Skills"). The popover renders a
    *  header whenever this changes between consecutive items, so the fetcher must
    *  emit entries already grouped contiguously. */

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/types.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -78,6 +78,7 @@ export type GatewayEventPayload = {
   inline_diff?: string
   duration_s?: number
   todos?: unknown
+  revision?: number
   model?: string
   provider?: string
   reasoning_effort?: string
@@ -131,7 +132,10 @@ export type GatewayEventPayload = {
   preset?: string
   // tour.request (tour tool — agent-guided driver.js walkthrough). `action`
   // and `steps` name the tour verb and step list; `surface` picks the app's
-  // own DOM vs the preview pane's guest page.
+  // own DOM vs the preview pane's guest page. tip.show (tip tool — one accent
+  // bubble with an arrow, no overlay) adds no fields of its own: it reuses
+  // `selector`/`side` here plus `text`/`title`, and carries no request_id
+  // because a tip is fire-and-forget.
   surface?: string
   selector?: string
   side?: string

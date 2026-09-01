@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/parts.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -162,6 +162,12 @@ export function mergeFinalAssistantText(
   finalText: string,
   fallbackTimestamp?: number
 ): ChatMessagePart[] {
+  // Empty / whitespace-only completion is not authoritative — keep streamed
+  // text, reasoning, and tool parts (#95514).
+  if (!finalText.trim()) {
+    return parts
+  }
+
   const dedupeReference = normalizeWs(finalText)
 
   const streamedText = normalizeWs(
