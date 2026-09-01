@@ -150,6 +150,12 @@ export const ELECTRON_CLASSIFICATION = {
   "window-state-changed": { task: "3.14" },
   "focus-session": { task: "3.14" },
   "open-folder-requested": { task: "3.14" },
+  // — подъём на 0.21.0 (задача 3.B3з). Единственная новая строка расхождения за
+  //   всё окно: остальные одиннадцать стояли и до него.
+  "mcp-oauth": {
+    task: "3.B3к",
+    note: "завершение OAuth к удалённому MCP-серверу; новый парный метод ядра mcp.servers.oauth.callback",
+  },
 };
 
 /** RPC prefixes §Non-Goals excludes, for the reachability note. Each cites the
