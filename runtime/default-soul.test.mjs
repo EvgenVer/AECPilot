@@ -8,13 +8,20 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AEC_SOUL_MD, ensureOurSoul } from "./default-soul.mjs";
+import { HERMES_SRC_DIR } from "./hermes-env.mjs";
 
-/** Их умолчательный текст ровно так, как его пишет ядро
+/** Их умолчательный текст ровно так, как его писало ядро ДО 0.21.0
  *  (`hermes_cli/default_soul.py`) — сокращённый, но начало настоящее: по нему
- *  файл и узнаётся. */
+ *  файл и узнаётся. Оставлен: установки, заведённые на прежних версиях, лежат
+ *  с этим текстом, и узнавать его надо по-прежнему. */
 const THEIR_DEFAULT =
   "You are Hermes Agent, an intelligent AI assistant created by Nous Research. " +
   "You are helpful, knowledgeable, and direct.";
+
+/** Он же в 0.21.0 — текст переписан целиком (#95681), начало то же. */
+const THEIR_DEFAULT_0_21 =
+  "You are Hermes Agent, built by Nous Research. Be direct: match the " +
+  "length of your reply to the weight of the ask.";
 
 const made = [];
 
@@ -83,5 +90,50 @@ describe("умолчательный SOUL профиля", () => {
   it("в тексте нет чужого имени продукта — это и есть предмет C12", () => {
     expect(AEC_SOUL_MD).not.toMatch(/hermes|nous research/i);
     expect(AEC_SOUL_MD).toContain("AECPilot");
+  });
+
+  it("их НОВЫЙ умолчательный текст (0.21.0) узнаётся так же", () => {
+    // В 0.21.0 автор переписал `DEFAULT_SOUL_MD` целиком (#95681): текст стал
+    // поведенческим. Самопредставление в начале не изменилось — на нём наша
+    // подстановка и держится.
+    const home = tempHome();
+    fs.writeFileSync(path.join(home, "SOUL.md"), THEIR_DEFAULT_0_21, "utf-8");
+
+    expect(ensureOurSoul(home)).toBe("replaced");
+    expect(fs.readFileSync(path.join(home, "SOUL.md"), "utf-8")).toBe(AEC_SOUL_MD);
+  });
+});
+
+// Проверка против УСТАНОВЛЕННОГО ядра, а не против нашей памяти о нём.
+//
+// Вся подстановка держится на одном допущении: их умолчательный SOUL.md
+// начинается словами `You are Hermes Agent`. Допущение уже пережило четыре
+// подъёма пина, но 0.21.0 показал, что текст автор переписывает целиком, —
+// а если он перепишет и первую строку, наша проверка перестанет узнавать их
+// умолчание МОЛЧА: файл с чужим именем останется лежать, и никто не упадёт.
+// Поэтому допущение сверяется с исходником ядра при каждом прогоне.
+describe("допущение о тексте ядра ещё верно", () => {
+  const source = path.join(HERMES_SRC_DIR, "hermes_cli", "default_soul.py");
+  const available = fs.existsSync(source);
+
+  it.skipIf(!available)("их DEFAULT_SOUL_MD всё ещё начинается узнаваемо", () => {
+    const text = fs.readFileSync(source, "utf-8");
+    const start = text.indexOf("DEFAULT_SOUL_MD");
+    expect(start, "константа на месте").toBeGreaterThan(-1);
+
+    // Первая строковая литерала после объявления — начало их текста.
+    const literal = /"((?:[^"\\]|\\.)*)"/.exec(text.slice(start));
+    expect(literal, "литерал их текста найден").not.toBeNull();
+    expect(literal[1]).toContain("You are Hermes Agent");
+  });
+
+  it.skipIf(!available)("наш текст не попал в их список legacy-шаблонов", () => {
+    // Их `_ensure_default_soul_md` перезаписывает НА МЕСТЕ файл, совпадающий с
+    // любым из этих шаблонов. В 0.21.0 список пополнился их прежним
+    // умолчанием; если туда когда-нибудь попадёт что-то, похожее на наш текст,
+    // ядро начнёт затирать нашу личность при каждом старте.
+    const text = fs.readFileSync(source, "utf-8");
+    expect(text).not.toContain("AECPilot");
+    expect(text).not.toContain(AEC_SOUL_MD.slice(0, 40));
   });
 });
