@@ -6,14 +6,25 @@ import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
-// The two aliases that let vendored donor files keep their own imports (see
+// The three aliases that let vendored donor files keep their own imports (see
 // `src/renderer/src/donor/README.md`):
-//   `@/…`            their src root → our donor zone, which mirrors it
-//   `@hermes/shared` their workspace package → our shim, which re-exports the
-//                    parts we vendored and swaps their WebSocket client for the
-//                    IPC bridge (SPEC C9)
+//   `@/…`                their src root → our donor zone, which mirrors it
+//   `@hermes/shared`     their workspace package → our shim, which re-exports the
+//                        parts we vendored and swaps their WebSocket client for the
+//                        IPC bridge (SPEC C9)
+//   `@hermes/plugin-sdk` their plugin language → the SDK barrel we already
+//                        vendored. In THEIR tree this alias resolves the same way
+//                        (`tsconfig.json`: `./src/sdk/index.ts`), so it is not a
+//                        substitution — it is the same mapping, pointed at our copy.
+//                        Without it their plugin's 37 SDK importers would have to be
+//                        edited, and editing them is not one of the five allowed
+//                        donor edits (задача 3D.1).
+//
+// ORDER MATTERS. Vite replaces on a string prefix, so `@` would swallow
+// `@hermes/…` if it came first. Both `@hermes/*` entries stay above it.
 export const donorAliases = {
   '@hermes/shared': path.resolve(here, 'src/renderer/src/shared/hermes-shared'),
+  '@hermes/plugin-sdk': path.resolve(here, 'src/renderer/src/donor/sdk'),
   '@': path.resolve(here, 'src/renderer/src/donor')
 }
 

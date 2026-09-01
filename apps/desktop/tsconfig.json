@@ -15,6 +15,7 @@
     "paths": {
       "@hermes/shared": ["src/renderer/src/shared/hermes-shared/index.ts"],
       "@hermes/shared/*": ["src/renderer/src/shared/hermes-shared/*"],
+      "@hermes/plugin-sdk": ["src/renderer/src/donor/sdk/index.ts"],
       "@/*": ["src/renderer/src/donor/*"]
     }
   },
