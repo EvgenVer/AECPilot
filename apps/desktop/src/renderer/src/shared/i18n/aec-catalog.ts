@@ -448,6 +448,16 @@ export const aecLocales: PluginLocaleBundles = {
       externalBody: (address: string) =>
         `The preview tab shows only what the agent produced: an HTML artifact, a project file, an image. ${address} was not opened — that is where this product draws its line, not a failure. Open it in a browser if you need it.`
     },
+    btw: {
+      title: 'Side question',
+      hint: 'Ask about this chat without it becoming part of it: the history, the turn order and the prompt cache stay as they were.',
+      placeholder: 'What is going on here?',
+      noSession: 'Open a chat first — the question is about one.',
+      ask: 'Ask',
+      asking: 'Asking…',
+      emptyAnswer: 'The model answered with nothing.',
+      noTask: 'The core took the question but returned no task id, so there is nothing to wait for.'
+    },
     cron: {
       noTickTitle: 'Scheduled jobs are not being run',
       noTickBody:
@@ -896,6 +906,16 @@ export const aecLocales: PluginLocaleBundles = {
       externalTitle: 'Внешние страницы здесь не открываются',
       externalBody: (address: string) =>
         `Во вкладке предпросмотра показывается только то, что сделал агент: HTML-артефакт, файл проекта, изображение. Адрес ${address} не открыт — это граница продукта, а не сбой. Откройте его в браузере, если он нужен.`
+    },
+    btw: {
+      title: 'Побочный вопрос',
+      hint: 'Спросить про этот разговор, не делая вопрос его частью: история, чередование ролей и кэш промпта остаются как были.',
+      placeholder: 'Что тут происходит?',
+      noSession: 'Сначала откройте чат — вопрос задаётся про него.',
+      ask: 'Спросить',
+      asking: 'Спрашиваю…',
+      emptyAnswer: 'Модель ответила пустотой.',
+      noTask: 'Ядро приняло вопрос, но не дало идентификатора задачи — ждать ответа не по чему.'
     },
     cron: {
       noTickTitle: 'Задачи по расписанию сейчас никто не запускает',
