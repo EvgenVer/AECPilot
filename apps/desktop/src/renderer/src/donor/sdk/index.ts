@@ -4,6 +4,8 @@
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [4] dropped the two `blobatar` re-exports (`blobatarSvg`, `Blobatar`) — the
+ *       package is not installed; see the note at the file's end
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  * (no other edits)
  */
