@@ -88,38 +88,17 @@ describe('в окне ровно один роестр (правило фазы 
     // Ищется сам факт регистрации вклада с нашим идентификатором панели, а не
     // импорт конкретного файла: снять импорт и оставить вызов в другом месте
     // — ровно тот способ, каким такое правило обходится незаметно.
+    //
+    // С задачи 3D.6 наш код роестра удалён, и проверка стала прямой: ни одного
+    // такого файла быть не должно. До удаления тест был сложнее — приходилось
+    // отличать «файл лежит» от «файл подключён», потому что `register.tsx` ещё
+    // жил в дереве неподключённым.
     const offenders = ourSourceFiles().filter((file) => {
       const text = fs.readFileSync(file, 'utf8')
 
       return /id:\s*['"]aec-roster['"]/.test(text) && /registry\.register/.test(text)
     })
 
-    // Файл `aec/roster/register.tsx` ещё лежит в дереве (удаляет 3D.6), но
-    // ничем не импортируется — поэтому проверяется РЕГИСТРАЦИЯ, а не наличие
-    // файла. Пока он не удалён, он и есть единственный ожидаемый нарушитель,
-    // и тест обязан падать, если его снова кто-то подключит.
-    const wired = offenders.filter((file) => {
-      const stem = path.basename(file, path.extname(file))
-      // Именно СТРОКА ИМПОРТА, а не вхождение пути в текст: первая версия
-      // этого теста считала нарушением комментарий в `main.tsx`, который
-      // объясняет, почему импорт снят. Гвард, срабатывающий на объяснение
-      // самого себя, учит только одному — отключать гвард.
-      const imports = new RegExp(
-        `^\\s*import\\s+(?:[^'"]*\\bfrom\\s+)?['"][^'"]*aec/roster/${stem}['"]`,
-        'm'
-      )
-
-      return ourSourceFiles().some(
-        (candidate) => candidate !== file && imports.test(fs.readFileSync(candidate, 'utf8'))
-      )
-    })
-
-    expect(wired).toEqual([])
-  })
-
-  it('главный модуль окна не подключает наш роестр', () => {
-    const main = fs.readFileSync(path.join(RENDERER_SRC, 'main.tsx'), 'utf8')
-
-    expect(main).not.toMatch(/^import\s+['"]\.\/aec\/roster\/register['"]/m)
+    expect(offenders).toEqual([])
   })
 })

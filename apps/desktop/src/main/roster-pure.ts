@@ -1,100 +1,66 @@
-// Роестр специалистов — разбор и решения без обращений (задача 3C.1, SPEC UR27).
+// Роестр специалистов — разбор ответа ядра (задачи 3C.1, 3D.6).
 //
-// ЧТО ТАКОЕ СПЕЦИАЛИСТ. Профиль ядра с именем, ролью и обликом: «Нормоконтроль»,
-// «Смета», «Электрика», ГИП. Никакой новой сущности под этим нет — профиль у нас
-// работает с фазы 1, роестр даёт ему лицо и имя. Контракт целиком —
-// `specs/agent-roster.md`.
+// ОТ ЧЕГО ОСТАЛСЯ ЭТОТ ФАЙЛ. Раньше здесь разбирался весь ряд роестра: лицо,
+// признак картинки, постоянный чат, занятость, версия наших полей, поиск,
+// скрытие, имена для копии. Всё это с задачи 3D.3 рисует и хранит их плагин
+// (`donor/plugins/hermes-bots`), а наш код замещён и удалён задачей 3D.6.
+// Осталось ровно то, из чего состоит СНИМОК для инструмента `aec-roster`: имя
+// профиля, которое уйдёт в команду, и подпись, под которой специалиста знает
+// человек. Контракт снимка — `specs/agent-roster.md` §Р6.
 //
-// ГДЕ ЖИВУТ НАШИ ПОЛЯ. Ядро хранит для клиентов свободный блок `ui_meta` в
-// `profile.yaml` — то есть НА СЕРВЕРЕ, и потому одинаковый на всех машинах,
-// подключённых к этому ядру. Их плагин пишет туда под своим именем
-// (`ui_meta['hermes-bots']`), мы — под своим (`ui_meta.aecpilot`). Общий блок на
-// двоих означал бы, что чужое обновление затирает наши поля, а мы — их.
+// ГДЕ ЖИВЁТ ПОДПИСЬ — И ПОЧЕМУ КЛЮЧЕЙ ТРИ. Ядро хранит для клиентов свободный
+// блок `ui_meta` в `profile.yaml`, то есть НА СЕРВЕРЕ. Пока роестр рисовали мы,
+// подпись лежала в нашем ключе (`ui_meta.aecpilot`); их плагин пишет в свой
+// (`ui_meta['hermes-bots']` — замерено в их `data.ts`, там же их собственная
+// цепочка имён). Значит специалист, заведённый ДО переезда, знает своё имя по
+// нашему ключу, а заведённый ПОСЛЕ — по их.
+//
+// Читать только свой ключ значило бы, что `@Смета` перестаёт находить
+// специалиста, созданного в их поверхности: снимок принёс бы пустую подпись, и
+// инструмент отозвался бы только на имя профиля (`smeta`). Отказ выглядел бы
+// как «такого специалиста нет» — ровно то молчание, которое задача 3D.4
+// специально учила отличать. Последним в цепочке идёт `display_name`,
+// собственное поле ядра (`hermes profile rename`), — тот же хвост, что у них.
 
-/** Наши поля в `ui_meta`. Всё остальное в этом блоке — чужое, и мы его не
- * трогаем: запись «ключ в ключ» (ядро сливает по ключам) сохраняет соседей. */
+/** Наши поля в `ui_meta` — подпись специалистов, заведённых до задачи 3D.3. */
 export const OUR_META_KEY = 'aecpilot'
 
-/** Геометрическое лицо: форма и цвет. Картинка хранится отдельно
- * (`profiles.set_asset`), потому что в `ui_meta` она не влезет — там предел
- * 64 КБ на весь блок, и он едет с каждым обновлением списка. */
-export interface SpecialistFace {
-  shape: 'circle' | 'square' | 'hex' | 'diamond'
-  color: string
-}
+/** Их поля в `ui_meta`. Техническое имя ключа их плагина, не надпись на экране
+ * (то же исключение записано в SPEC C12). */
+const THEIR_META_KEY = 'hermes-bots'
 
+/** Строка снимка: имя профиля и подпись, под которой его знает человек. */
 export interface Specialist {
   /** Имя профиля в ядре — идентификатор, а не подпись. */
   name: string
-  /** Как его зовут на экране. Пусто — показываем имя профиля. */
+  /** Как его зовут на экране. Пусто — инструмент покажет имя профиля. */
   title: string
-  role: string
-  description: string
-  isDefault: boolean
-  model: string
-  provider: string
-  face: SpecialistFace | null
-  hasAvatar: boolean
-  hidden: boolean
-  /** Постоянный чат специалиста (задача 3C.4). Здесь — только чтение. */
-  chatSessionId: string
-  /** Последняя реплика для строки списка. */
-  preview: string
-  previewAt: string
-  /**
-   * Специалист СЕЙЧАС РАБОТАЕТ фоном (задача 3C.4в).
-   *
-   * Отдельно от «идёт ход в его чате»: рабочие сессии в списках разговоров не
-   * показываются никогда, и без этого признака роестр показывал бы покой у
-   * занятого специалиста.
-   */
-  busy: boolean
-  /**
-   * Версия наших полей метаданных. `undefined` — ядро версий не считает
-   * (до 0.20.5), и тогда пишем без условия.
-   */
-  revision?: number
 }
 
-export const DEFAULT_FACE: SpecialistFace = { shape: 'circle', color: '#5B8DEF' }
-
-const SHAPES: SpecialistFace['shape'][] = ['circle', 'square', 'hex', 'diamond']
-
-/**
- * Имя профиля годится в путь и в имя каталога.
- *
- * Правило строже необходимого нарочно: имя уезжает в сегмент URL и в имя папки
- * на диске машины ядра, а приходит оно из поля ввода. Разрешать здесь всё, что
- * стерпит файловая система, значит однажды получить `..` в пути.
- */
-export function isValidSpecialistName(value: unknown): value is string {
-  return typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(value)
-}
-
-/** Подпись человеку. Пустая строка — не ошибка: специалиста могли не назвать. */
-export function displayNameOf(specialist: Pick<Specialist, 'name' | 'title'>): string {
-  return specialist.title.trim() === '' ? specialist.name : specialist.title.trim()
-}
+// Проверка формы имени (`isValidSpecialistName`) ушла вместе с созданием и
+// удалением специалистов: писать имя в ядро отсюда больше некому. Имя, которое
+// уезжает в команду, проверяет сам инструмент — `aec_roster/ask.py::check_name`,
+// и делает это даже для имён, пришедших из нашего же снимка.
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-function readFace(raw: unknown): SpecialistFace | null {
-  if (typeof raw !== 'object' || raw === null) return null
+/** Подпись из первого ключа, который её знает. Пустая строка — не ошибка:
+ * специалиста могли не назвать, и тогда его зовут по имени профиля. */
+function titleOf(row: Record<string, unknown>): string {
+  const meta = (row.ui_meta ?? {}) as Record<string, unknown>
+  const theirs = (meta[THEIR_META_KEY] ?? {}) as Record<string, unknown>
+  const ours = (meta[OUR_META_KEY] ?? {}) as Record<string, unknown>
 
-  const value = raw as { shape?: unknown; color?: unknown }
-  const shape = SHAPES.find((known) => known === value.shape)
-  const color = text(value.color)
-
-  // Цвет уезжает в стиль — значит он должен быть цветом, а не строкой из
-  // чужих данных. Принимается только `#rgb`/`#rrggbb`.
-  if (!shape || !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(color)) return null
-
-  return { shape, color }
+  return (
+    [text(theirs.title), text(ours.title), text(row.display_name)]
+      .map((value) => value.trim())
+      .find((value) => value !== '') ?? ''
+  )
 }
 
-/** Один ряд ответа `profiles.list` — в нашу форму. */
+/** Один ряд ответа `profiles.list` — в строку снимка. */
 export function parseSpecialist(raw: unknown): Specialist | null {
   if (typeof raw !== 'object' || raw === null) return null
 
@@ -102,51 +68,7 @@ export function parseSpecialist(raw: unknown): Specialist | null {
   const name = text(row.name)
   if (name === '') return null
 
-  const meta = (row.ui_meta ?? {}) as Record<string, unknown>
-  const ours = (meta[OUR_META_KEY] ?? {}) as Record<string, unknown>
-  const last = (row.last_session ?? {}) as Record<string, unknown>
-
-  return {
-    name,
-    title: text(ours.title),
-    role: text(ours.role),
-    description: text(row.description),
-    isDefault: row.is_default === true,
-    model: text(row.model),
-    provider: text(row.provider),
-    face: readFace(ours.face),
-    hasAvatar: row.has_avatar === true,
-    hidden: ours.hidden === true,
-    chatSessionId: canonicalSessionId(row),
-    preview: text(last.preview),
-    previewAt: text(last.updated_at),
-    // Само присутствие строки рабочей сессии и означает «работает»: ядро кладёт
-    // туда самую свежую, а её живость подтверждается тем, что работник
-    // отмечается не реже раза в минуту.
-    busy: typeof row.worker_session === 'object' && row.worker_session !== null,
-    ...(metaRevision(row) === undefined ? {} : { revision: metaRevision(row) })
-  }
-}
-
-/** Идентификатор постоянного чата — из реестровой строки, которую ядро
- * резолвит само (задача 3.B2б).
- *
- * До 0.20.6 это поле читалось из НАШИХ полей профиля (`ui_meta.aecpilot.chat`),
- * потому что личностью чата была наша привязка. Ядро сняло тот механизм и
- * отвечает `canonical_session` — сессией, названной «Bot Chat». Берём вершину
- * сжатой линии (`resolved_id`), а не корень: окно открывает живую переписку.
- *
- * Пусто — законный ответ: чата ещё нет ЛИБО ядро не смогло его резолвить.
- * Различать эти два случая здесь не нужно и нельзя — это делает
- * `planCanonicalChat` там, где спрашивают реестр напрямую. */
-function canonicalSessionId(row: Record<string, unknown>): string {
-  const canonical = row.canonical_session
-  if (typeof canonical !== 'object' || canonical === null) return ''
-
-  const entry = canonical as Record<string, unknown>
-  const resolved = text(entry.resolved_id)
-
-  return resolved === '' ? text(entry.id) : resolved
+  return { name, title: titleOf(row) }
 }
 
 export function parseRoster(answer: unknown): Specialist[] {
@@ -156,157 +78,4 @@ export function parseRoster(answer: unknown): Specialist[] {
   return rows
     .map(parseSpecialist)
     .filter((specialist): specialist is Specialist => specialist !== null)
-}
-
-/** Поля, которые мы отправляем в `ui_meta`. Отсутствующее поле не посылается
- * вовсе: ядро сливает по ключам, и `undefined` затёр бы чужое значение на
- * другой машине, где его успели поставить. */
-export function metaPatch(input: {
-  title?: string
-  role?: string
-  face?: SpecialistFace | null
-  hidden?: boolean
-}): Record<string, unknown> {
-  const ours: Record<string, unknown> = {}
-
-  if (input.title !== undefined) ours.title = input.title.trim()
-  if (input.role !== undefined) ours.role = input.role.trim()
-  if (input.hidden !== undefined) ours.hidden = input.hidden
-  // `null` в поле лица — это «убрать», и ядро понимает именно `null`.
-  if (input.face !== undefined) ours.face = input.face
-
-  return { [OUR_META_KEY]: ours }
-}
-
-/** Четыре исхода сохранения, а не два.
- *
- * Их же тесты настаивают на различии: старое ядро, которое не умеет `ui_meta`, —
- * это НЕ отказ. Настройка сохранена здесь и будет видна на этой машине; человеку
- * надо сказать именно это, а не «не удалось».
- *
- * `conflict` добавлен задачей 3C.4в: ядро 0.20.5 умеет отвергнуть запись, если
- * поле изменил кто-то ещё. Сваливать это в `local-only` было бы худшей из
- * возможных неправд — человеку сказали бы «сохранено здесь», тогда как его
- * правка не сохранена НИГДЕ, а поверх лежит чужая. */
-export type SaveOutcome = 'server' | 'local-only' | 'refused' | 'conflict'
-
-/** Названия разделов ядра, как оно их отдаёт в `applied`. Порядок — тот, в
- * котором человек их видит на карточке. */
-export const CONFIGURE_SECTIONS = [
-  'model',
-  'soul',
-  'description',
-  'skills',
-  'toolsets',
-  'mcp_servers'
-] as const
-
-/**
- * Какие разделы ядро НЕ применило.
- *
- * Ядро применяет каждый раздел отдельно и «по возможности»: модель могла лечь, а
- * скилы — нет. Их урок (`model-inherit`): неудача раздела обязана погасить
- * бодрое «сохранено», иначе человек уходит с экрана уверенным в том, чего не
- * произошло. `ui_meta` сюда не входит — у него свой ответ на три исхода. */
-export function failedSections(answer: unknown): string[] {
-  if (typeof answer !== 'object' || answer === null) return []
-
-  const applied = (answer as { applied?: unknown }).applied
-  if (typeof applied !== 'object' || applied === null) return []
-
-  const rows = applied as Record<string, unknown>
-  return CONFIGURE_SECTIONS.filter((section) => rows[section] === false)
-}
-
-export function saveOutcome(answer: unknown): SaveOutcome {
-  if (typeof answer !== 'object' || answer === null) return 'local-only'
-
-  const applied = (answer as { applied?: unknown }).applied
-  if (typeof applied !== 'object' || applied === null) return 'local-only'
-
-  const rows = applied as { ui_meta?: unknown; ui_meta_conflicts?: unknown }
-
-  // Расхождение версий ядро сообщает НЕ ошибкой вызова: ответ приходит
-  // успешным, а отказ лежит внутри (замерено на 0.20.5). Читатель, который
-  // смотрит только на исключение, примет отвергнутую запись за сохранённую —
-  // поэтому конфликт разбирается раньше самого флага.
-  const conflicts = rows.ui_meta_conflicts
-  if (typeof conflicts === 'object' && conflicts !== null && Object.keys(conflicts).length > 0) {
-    return 'conflict'
-  }
-
-  if (rows.ui_meta === true) return 'server'
-
-  return 'local-only'
-}
-
-/**
- * Версии наших полей метаданных из ответа `profiles.list` (задача 3C.4в).
- *
- * Пусто — не «версия ноль», а «ядро версий не считает»: поле появилось в 0.20.5,
- * и его ОТСУТСТВИЕ и есть признак того, что проверять нечем. Отсюда правило
- * вызывающего: нет версии — пишем без условия, как писали всегда.
- */
-export function metaRevision(raw: unknown): number | undefined {
-  if (typeof raw !== 'object' || raw === null) return undefined
-
-  const revisions = (raw as { ui_meta_revisions?: unknown }).ui_meta_revisions
-  if (typeof revisions !== 'object' || revisions === null) return undefined
-
-  const ours = (revisions as Record<string, unknown>)[OUR_META_KEY]
-  return typeof ours === 'number' && Number.isInteger(ours) && ours >= 0 ? ours : undefined
-}
-
-/** Поиск по роестру: по видимому имени и по имени профиля, порядок сохраняется.
- * Пустой запрос возвращает ТОТ ЖЕ массив — их урок: новая ссылка на каждый
- * набор символов перерисовывает список целиком. */
-export function searchRoster(roster: Specialist[], query: string): Specialist[] {
-  const needle = query.trim().toLowerCase()
-  if (needle === '') return roster
-
-  return roster.filter(
-    (specialist) =>
-      displayNameOf(specialist).toLowerCase().includes(needle) ||
-      specialist.name.toLowerCase().includes(needle) ||
-      specialist.role.toLowerCase().includes(needle)
-  )
-}
-
-/** Кого показывать. Скрытые прячутся, пока человек не попросит показать их
- * (задача 3C.8); сам переключатель имеет смысл, только если скрытые есть. */
-export function visibleRoster(roster: Specialist[], showHidden: boolean): Specialist[] {
-  return showHidden ? roster : roster.filter((specialist) => !specialist.hidden)
-}
-
-export function hasHidden(roster: Specialist[]): boolean {
-  return roster.some((specialist) => specialist.hidden)
-}
-
-/**
- * Можно ли удалить.
- *
- * Профиль по умолчанию — не «один из»: на нём стоит всё, что не назначено
- * другому, и удалив его, человек остаётся без агента вовсе. Возвращает причину
- * отказа или `null`.
- */
-export function refuseSpecialistDeletion(specialist: Specialist | undefined): string | null {
-  if (!specialist) return 'Такого специалиста нет'
-  if (specialist.isDefault) {
-    return 'Это специалист по умолчанию — на нём держится всё, что не поручено другим. Его нельзя удалить.'
-  }
-  return null
-}
-
-/** Имя для дубля: `смета` → `смета-2`, `смета-2` → `смета-3`. Число берётся не
- * из имени, а из того, что уже занято: два дубля подряд не должны спорить. */
-export function duplicateName(source: string, taken: readonly string[]): string {
-  const used = new Set(taken)
-  const base = /-(\d+)$/.test(source) ? source.replace(/-(\d+)$/, '') : source
-
-  for (let n = 2; n < 1000; n += 1) {
-    const candidate = `${base}-${n}`
-    if (!used.has(candidate)) return candidate
-  }
-
-  return `${base}-${Date.now()}`
 }

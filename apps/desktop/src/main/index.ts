@@ -13,7 +13,6 @@ import {
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -93,40 +92,10 @@ import {
   PREVIEW_OUTSIDE_PROJECT_ERROR,
   resolveArtifactPath
 } from './artifact-files-pure'
-import { loadTranscript, saveTranscript } from './group-chats'
-import {
-  askRoom,
-  configureGroups,
-  createRoom,
-  disbandRoom,
-  editRoom,
-  listRooms,
-  willAnswer
-} from './groups'
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
-import {
-  configureRoster,
-  createSpecialist,
-  deleteSpecialist,
-  duplicateSpecialist,
-  listRoster,
-  openCanonicalChat,
-  saveSpecialist,
-  setSpecialistAvatar,
-  setSpecialistHidden,
-  specialistAvatar,
-  type SpecialistInput
-} from './roster'
-import type { SpecialistFace } from './roster-pure'
+import { configureRoster, listRoster } from './roster'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
-import {
-  configureRoutines,
-  createRoutine,
-  listRoutines,
-  runRoutineNow,
-  setRoutineEnabled
-} from './routines'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
   CuratorStatus,
@@ -2454,11 +2423,12 @@ ipcMain.handle('profiles:use', async (_event, payload: unknown) => {
   return { ok: true, current: sessionProfile ?? current }
 })
 
-// Задача 3C.1 (SPEC UR27). Роестр специалистов: профиль ядра с именем, ролью и
-// обликом. Контракт — `specs/agent-roster.md`; здесь только проводка.
+// Задачи 3C.1 и 3D.6 (SPEC UR27). От нашей проводки роестра осталось одно:
+// список профилей для снимка, который читает инструмент `aec-roster`. Экраны
+// ведёт их плагин (3D.3), обращения к ядру идут его путём.
 //
-// Зависимости вносятся здесь, потому что здесь живут шлюз и REST-цель: модуль
-// роестра не должен знать, к какому ядру мы сейчас подключены.
+// Зависимость вносится здесь, потому что здесь живёт шлюз: модуль роестра не
+// должен знать, к какому ядру мы сейчас подключены.
 configureRoster({
   request: async (method, params) => {
     if (!gateway) throw new Error('нет связи с ядром')
@@ -2466,18 +2436,7 @@ configureRoster({
     // именам. Сужение здесь, в одном месте: проверять имя метода в каждом
     // вызове значило бы повторять карту вторым списком.
     return gateway.request(method as Parameters<typeof gateway.request>[0], params as never)
-  },
-  deleteProfile: (name) =>
-    hermesRest(restTarget(), `/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' })
-})
-
-ipcMain.handle('roster:list', async () => {
-  const roster = await listRoster()
-  // Снимок пишется из ТОГО ЖЕ ответа, из которого нарисован список: второго
-  // источника правды не заводим. Скрытые тоже попадают — скрытие убирает из
-  // списка, но не из работы, и `@имя` до скрытого доходит (задача 3C.8).
-  await syncRosterTool(roster)
-  return roster
+  }
 })
 
 // Задача 3D.4. Снимок роестра больше НЕ может держаться на `roster:list`:
@@ -2523,234 +2482,6 @@ export function stopRosterSnapshotPolling(): void {
   clearInterval(rosterSnapshotTimer)
   rosterSnapshotTimer = undefined
 }
-
-// Задача 3C.6. Комнаты. Ведёт круг ГЛАВНЫЙ ПРОЦЕСС: реплики показываются в
-// нашей комнате, и вставлять их больше некуда — инструмент агента был бы лишним
-// слоем (в отличие от `@имя`, см. 3C.7).
-configureGroups({
-  request: async (method, params) => {
-    if (!gateway) throw new Error('нет связи с ядром')
-    return gateway.request(method as Parameters<typeof gateway.request>[0], params as never)
-  },
-  // Подписка берётся в момент хода: клиент шлюза пересоздаётся при
-  // переподключении, и запомненная однажды ссылка вела бы на мёртвый.
-  onGatewayEvent: (listener) => (gateway ? gateway.onEvent((event) => listener(event)) : () => {}),
-  loadTranscript,
-  saveTranscript,
-  // Идентификатор комнаты живёт в полях профиля на сервере, то есть его видят
-  // все машины: время плюс случайность, чтобы две машины не завели один и тот
-  // же ключ в одну секунду.
-  newRoomId: () => `room-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
-  attach: async (sessionId, path) => {
-    if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
-    const kind = classifyAttachment(path)
-    if (kind === 'unsupported') return { ok: false, error: `не поддерживается: ${basename(path)}` }
-    try {
-      const result = await gateway.request(kind === 'pdf' ? 'pdf.attach' : 'image.attach', {
-        session_id: sessionId,
-        path
-      })
-      return result.attached
-        ? { ok: true }
-        : { ok: false, error: result.message ?? 'вложение не принято' }
-    } catch (error: unknown) {
-      return { ok: false, error: error instanceof Error ? error.message : String(error) }
-    }
-  }
-})
-
-/**
- * Файлы, выбранные для следующего вопроса комнаты. Путь живёт ЗДЕСЬ, а окну
- * уходит только имя: окно никогда не должно получать путь, который человек ему
- * не показывал через наш диалог, — то же правило, что у `attach:pick` и у
- * картинки специалиста.
- *
- * Очищаются после отправки: «старые вложения к новым ходам не прицепляются»
- * (specs/agent-roster.md §Р5).
- */
-const roomFiles = new Map<string, string[]>()
-
-ipcMain.handle('groups:pick-files', async (event, id: unknown) => {
-  const roomId = typeof id === 'string' ? id : ''
-  const window = BrowserWindow.fromWebContents(event.sender)
-  if (!window || roomId === '') return { names: [] }
-
-  const picked = await dialog.showOpenDialog(window, {
-    title: 'Приложить к вопросу в комнате',
-    properties: ['openFile', 'multiSelections'],
-    filters: [
-      { name: 'Картинки и PDF', extensions: [...IMAGE_DIALOG_EXTENSIONS, 'pdf'] },
-      { name: 'Все файлы', extensions: ['*'] }
-    ]
-  })
-  if (picked.canceled) return { names: roomFiles.get(roomId)?.map((one) => basename(one)) ?? [] }
-
-  const chosen = [...(roomFiles.get(roomId) ?? []), ...picked.filePaths]
-  roomFiles.set(roomId, chosen)
-  return { names: chosen.map((one) => basename(one)) }
-})
-
-ipcMain.handle('groups:clear-files', (_event, id: unknown) => {
-  roomFiles.delete(typeof id === 'string' ? id : '')
-  return { names: [] }
-})
-
-ipcMain.handle('groups:list', () => listRooms())
-
-ipcMain.handle('groups:transcript', (_event, id: unknown) =>
-  loadTranscript(typeof id === 'string' ? id : '')
-)
-
-ipcMain.handle('groups:create', (_event, payload: unknown) => {
-  const { members, title } = (payload ?? {}) as { members?: unknown; title?: unknown }
-  return createRoom(
-    Array.isArray(members) ? members.filter((one): one is string => typeof one === 'string') : [],
-    typeof title === 'string' ? title : ''
-  )
-})
-
-ipcMain.handle('groups:edit', (_event, payload: unknown) => {
-  const { id, title, face } = (payload ?? {}) as Record<string, unknown>
-  return editRoom(typeof id === 'string' ? id : '', {
-    ...(typeof title === 'string' ? { title } : {}),
-    ...(face === undefined ? {} : { face: face as SpecialistFace | null })
-  })
-})
-
-ipcMain.handle('groups:disband', (_event, id: unknown) =>
-  disbandRoom(typeof id === 'string' ? id : '')
-)
-
-// Сколько участников ответит — ДО отправки. Разница между «спросил одного» и
-// «спросил шестерых» это разница в счёте, и узнавать её постфактум человек не
-// должен.
-ipcMain.handle('groups:will-answer', (_event, payload: unknown) => {
-  const { id, text } = (payload ?? {}) as Record<string, unknown>
-  return willAnswer(typeof id === 'string' ? id : '', typeof text === 'string' ? text : '')
-})
-
-ipcMain.handle('groups:ask', (_event, payload: unknown) => {
-  const { id, text } = (payload ?? {}) as Record<string, unknown>
-  const roomId = typeof id === 'string' ? id : ''
-  // Лента событий идёт в окно по ходу круга, а не одним куском в конце: без неё
-  // комната, где двое думают, а один промолчал, выглядит зависшей.
-  const files = roomFiles.get(roomId) ?? []
-  // Снимаются ДО хода, а не после: ход идёт минутами, и файл, оставшийся
-  // висеть, прицепился бы к следующему вопросу человека.
-  roomFiles.delete(roomId)
-
-  return askRoom(
-    roomId,
-    typeof text === 'string' ? text : '',
-    (event) => broadcastToWindows('groups:event', { room: roomId, ...event }),
-    files
-  )
-})
-
-// Задача 3C.5. Рутины специалиста. Профиль передаётся ЯВНО в каждом вызове: ядро
-// хранит расписания по профилям, и «текущий» здесь означало бы поручить рутину
-// не тому агенту.
-configureRoutines({
-  rest: (path, options) => hermesRest(restTarget(), path, options as never),
-  target: restTarget
-})
-
-ipcMain.handle('roster:routines', (_event, profile: unknown) =>
-  listRoutines(typeof profile === 'string' ? profile : '')
-)
-
-ipcMain.handle('roster:routine-create', (_event, payload: unknown) => {
-  const { profile, name, prompt, schedule } = (payload ?? {}) as Record<string, unknown>
-  return createRoutine(typeof profile === 'string' ? profile : '', {
-    name: typeof name === 'string' ? name : '',
-    prompt: typeof prompt === 'string' ? prompt : '',
-    schedule: typeof schedule === 'string' ? schedule : ''
-  })
-})
-
-ipcMain.handle('roster:routine-enabled', (_event, payload: unknown) => {
-  const { profile, id, enabled } = (payload ?? {}) as Record<string, unknown>
-  return setRoutineEnabled(
-    typeof profile === 'string' ? profile : '',
-    typeof id === 'string' ? id : '',
-    enabled === true
-  )
-})
-
-ipcMain.handle('roster:routine-run', (_event, payload: unknown) => {
-  const { profile, id } = (payload ?? {}) as Record<string, unknown>
-  return runRoutineNow(typeof profile === 'string' ? profile : '', typeof id === 'string' ? id : '')
-})
-
-ipcMain.handle('roster:create', (_event, input: unknown) =>
-  createSpecialist((input ?? {}) as SpecialistInput)
-)
-
-ipcMain.handle('roster:save', (_event, input: unknown) =>
-  saveSpecialist((input ?? {}) as SpecialistInput)
-)
-
-ipcMain.handle('roster:duplicate', (_event, name: unknown) =>
-  duplicateSpecialist(typeof name === 'string' ? name : '')
-)
-
-// Задача 3C.3. Картинка лица. Читается тем же путём, что и вложения: главный
-// процесс открывает диалог, помнит, что показал человеку, и читает только это
-// (`picked-paths`) — окну общего чтения файлов по-прежнему не дано.
-ipcMain.handle('roster:set-avatar', async (_event, payload: unknown) => {
-  const { name, filePath, clear } = (payload ?? {}) as {
-    name?: unknown
-    filePath?: unknown
-    clear?: unknown
-  }
-  if (typeof name !== 'string') return { ok: false, error: 'Не указан специалист' }
-  if (clear === true) return setSpecialistAvatar(name, null)
-  if (typeof filePath !== 'string' || filePath === '') {
-    return { ok: false, error: 'Не выбран файл' }
-  }
-
-  try {
-    const dataUrl = await readAttachmentDataUrl(ATTACHMENTS_DIR, filePath, wasPickedByUser)
-    return await setSpecialistAvatar(name, dataUrl)
-  } catch (error: unknown) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-ipcMain.handle('roster:avatar', (_event, name: unknown) =>
-  specialistAvatar(typeof name === 'string' ? name : '')
-)
-
-// Задача 3C.4. Постоянный чат специалиста: главный процесс решает, какую сессию
-// открыть (или заводит её), окно — открывает. Решение здесь, потому что здесь
-// видно, ответило ли ядро.
-//
-// Привязку окно больше не присылает (задача 3.B2б): личность чата — его имя в
-// реестре ядра, и спрашивать о ней надо ядро, а не помнить самим.
-ipcMain.handle('roster:open-chat', (_event, payload: unknown) => {
-  const { name } = (payload ?? {}) as { name?: unknown }
-  return openCanonicalChat(typeof name === 'string' ? name : '')
-})
-
-// Задача 3C.8. Скрытый специалист продолжает работать: обращения по имени
-// доходят, рутины идут. Он лишь не занимает место в списке.
-ipcMain.handle('roster:hide', (_event, payload: unknown) => {
-  const { name, hidden, revision } = (payload ?? {}) as {
-    name?: unknown
-    hidden?: unknown
-    revision?: unknown
-  }
-  return setSpecialistHidden(
-    typeof name === 'string' ? name : '',
-    hidden === true,
-    typeof revision === 'number' ? revision : undefined
-  )
-})
-
-ipcMain.handle('roster:delete', (_event, payload: unknown) => {
-  const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
-  return deleteSpecialist(name, confirmed)
-})
 
 ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
   if (!gateway) throw new Error('gateway is not connected')

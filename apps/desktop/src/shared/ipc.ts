@@ -158,120 +158,6 @@ export interface ConnectionTestResult {
     | 'update-required'
 }
 
-export interface SpecialistFaceView {
-  shape: 'circle' | 'square' | 'hex' | 'diamond'
-  color: string
-}
-
-/** Специалист, каким его видит окно. */
-export interface SpecialistView {
-  /** Имя профиля в ядре — идентификатор, а не подпись. */
-  name: string
-  /** Как его зовут на экране; пусто — показываем имя профиля. */
-  title: string
-  role: string
-  description: string
-  isDefault: boolean
-  model: string
-  provider: string
-  face: SpecialistFaceView | null
-  hasAvatar: boolean
-  hidden: boolean
-  chatSessionId: string
-  preview: string
-  previewAt: string
-  /** Специалист сейчас работает фоном (задача 3C.4в). Отдельно от «идёт ход в
-   * его чате»: рабочие сессии в списках разговоров не показываются никогда. */
-  busy: boolean
-  /** Версия наших метаданных, на которой основано то, что видит человек.
-   * Возвращается при записи как условие «поле никто не менял». Отсутствует —
-   * ядро версий не считает, и запись идёт без условия. */
-  revision?: number
-}
-
-export interface SpecialistInputView {
-  name: string
-  title?: string
-  role?: string
-  description?: string
-  face?: SpecialistFaceView | null
-  // --- расширенные возможности (задача 3C.2) ---
-  /** Своя модель. Ядро назначает её ТОЛЬКО парой с провайдером. Снять
-   * назначение нечем: публичной поверхности для этого у ядра 0.20.4 нет, и
-   * «наследовать» — это состояние «ещё не назначали», а не действие. */
-  model?: string
-  provider?: string
-  /** Свой характер: полная замена SOUL, а не дополнение. */
-  soul?: string
-  /** Замещающая семантика: присланный список СТАНОВИТСЯ списком. */
-  disabledSkills?: string[]
-  enabledToolsets?: string[]
-  enabledMcpServers?: string[]
-  /** С кого клонировать при создании — умеет само ядро. */
-  cloneFrom?: string
-  /** Версия метаданных, на которой основана правка (задача 3C.4в). Приходит из
-   * роестра, который человек видел; прочитать её перед самой записью значило бы
-   * никогда не поймать чужую правку. */
-  revision?: number
-}
-
-/** Комната, как её видит окно (задача 3C.6). */
-export interface GroupRoomView {
-  id: string
-  title: string
-  /** Имена профилей участников, в порядке добавления. */
-  members: string[]
-  face: SpecialistFaceView | null
-  /** Кто-то из участников позвал человека. Снимается его же сообщением. */
-  needsYou: boolean
-}
-
-/** Одна реплика переписки. Пустое `from` — сказал человек. */
-export interface GroupTurnView {
-  from: string
-  text: string
-}
-
-/** Что комната делает прямо сейчас. Лента не сохраняется. */
-export interface RoomEventView {
-  room: string
-  member: string
-  kind:
-    'queued' | 'working' | 'answered' | 'passed' | 'timeout' | 'failed' | 'cancelled' | 'finished'
-  round: number
-}
-
-export interface RoomResultView {
-  ok: boolean
-  id?: string
-  error?: string
-}
-
-export interface RoutineView {
-  id: string
-  name: string
-  prompt: string
-  /** Человеческая запись расписания, если ядро её дало; иначе выражение cron —
-   * молчать о том, когда она сработает, нельзя. */
-  schedule: string
-  enabled: boolean
-  nextRunAt: string
-  lastRunAt: string
-  lastError: string
-}
-
-export interface SpecialistResultView {
-  ok: boolean
-  name?: string
-  /** Разделы, которые ядро не применило: оно применяет их по одному, и неудача
-   * одного не должна выглядеть как общий успех. */
-  failed?: string[]
-  /** Куда легли наши поля: `server` — на сервер; `local-only` — старое ядро, и
-   * это НЕ отказ; `refused` — не легли. */
-  outcome?: 'server' | 'local-only' | 'refused'
-  error?: string
-}
-
 export interface ConnectionSaveResult {
   ok: boolean
   config: ConnectionView
@@ -740,7 +626,11 @@ export interface AecpilotApi {
    * graph). Same door, same rules, same caveat as `gatewayRpc`. */
   gatewayRest<T = unknown>(
     path: string,
-    options?: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; timeoutMs?: number }
+    options?: {
+      method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+      body?: unknown
+      timeoutMs?: number
+    }
   ): Promise<T>
   /** Responds to the oldest pending `approval.request` for the active
    * session (or all of them, with `all: true`). `choice` must only be
@@ -997,89 +887,6 @@ export interface AecpilotApi {
   testConnection(input: ConnectionInputView): Promise<ConnectionTestResult>
   /** Имена машин из `~/.ssh/config` человека. Читается только config —
    * приватные ключи не открываются никогда и ни для чего. */
-  /** Роестр специалистов (задача 3C.1, SPEC UR27, контракт —
-   * specs/agent-roster.md). Специалист — это профиль ядра с именем, ролью и
-   * обликом; всё, что здесь есть, живёт НА СЕРВЕРЕ и потому одинаково на всех
-   * машинах, подключённых к этому ядру. */
-  listRoster(): Promise<SpecialistView[]>
-  createSpecialist(input: SpecialistInputView): Promise<SpecialistResultView>
-  saveSpecialist(input: SpecialistInputView): Promise<SpecialistResultView>
-  duplicateSpecialist(name: string): Promise<SpecialistResultView>
-  deleteSpecialist(payload: { name: string; confirmed: boolean }): Promise<SpecialistResultView>
-  /** Лицо картинкой (задача 3C.3). Путь — только из нашего диалога: главный
-   * процесс читает лишь то, что сам показал человеку. */
-  setSpecialistAvatar(payload: {
-    name: string
-    filePath?: string
-    clear?: boolean
-  }): Promise<SpecialistResultView>
-  getSpecialistAvatar(name: string): Promise<string | null>
-  /** Постоянный чат специалиста (задача 3C.4): какую сессию открыть. Привязка
-   * присылается, если она уже известна окну, — тогда обходится одним вызовом
-   * ядра вместо двух. Заводит сессию, если её нет, и запоминает привязку. */
-  /** Скрыть специалиста или вернуть в список (задача 3C.8). Скрытие не
-   * отключает его: обращения по имени доходят, рутины идут — он лишь не
-   * занимает место в списке. */
-  hideSpecialist(payload: {
-    name: string
-    hidden: boolean
-    revision?: number
-  }): Promise<SpecialistResultView>
-  /** Комнаты (задача 3C.6, контракт — specs/agent-roster.md §Р5). От двух до
-   * шести специалистов и человек; круг ведёт главный процесс.
-   *
-   * СОСТАВ комнаты живёт в полях профиля каждого участника, то есть на сервере:
-   * за другим компьютером с тем же ядром видны те же комнаты. ПЕРЕПИСКА лежит
-   * рядом с приложением — в полях профиля предел 64 КБ на весь блок, и растущий
-   * транскрипт сломал бы список специалистов. */
-  listRooms(): Promise<GroupRoomView[]>
-  roomTranscript(id: string): Promise<GroupTurnView[]>
-  createRoom(payload: { members: string[]; title?: string }): Promise<RoomResultView>
-  editRoom(payload: {
-    id: string
-    title?: string
-    face?: SpecialistFaceView | null
-  }): Promise<RoomResultView>
-  disbandRoom(id: string): Promise<RoomResultView>
-  /** Сколько участников ответит — ДО отправки. Разница между «спросил одного» и
-   * «спросил шестерых» это разница в счёте. */
-  willAnswerInRoom(payload: { id: string; text: string }): Promise<string[]>
-  askRoom(payload: {
-    id: string
-    text: string
-  }): Promise<{ ok: boolean; error?: string; turns?: GroupTurnView[] }>
-  /** Приложить файл к следующему вопросу в комнате. Диалог открывает главный
-   * процесс, и окну возвращаются только ИМЕНА: путь, который человек не выбрал
-   * через наш диалог, окно не получает никогда. Файл ставится в сессию каждого
-   * отвечающего участника до его хода — «что не так на этом листе» без листа не
-   * вопрос. */
-  pickRoomFiles(id: string): Promise<{ names: string[] }>
-  clearRoomFiles(id: string): Promise<{ names: string[] }>
-  /** Лента круга: поставлен в очередь, работает, ответил, промолчал, не успел,
-   * сорвался, завершён. НЕ сохраняется — без неё комната, где двое думают, а
-   * один промолчал, выглядит зависшей. */
-  onRoomEvent(cb: (event: RoomEventView) => void): () => void
-  /** Рутины специалиста (задача 3C.5): расписания, привязанные к тому, кто их
-   * выполняет. Профиль передаётся явно — ядро хранит их по профилям. */
-  listRoutines(profile: string): Promise<{ routines: RoutineView[]; totalOfAll: number }>
-  createRoutine(payload: {
-    profile: string
-    name: string
-    prompt: string
-    schedule: string
-  }): Promise<{ ok: boolean; error?: string }>
-  setRoutineEnabled(payload: {
-    profile: string
-    id: string
-    enabled: boolean
-  }): Promise<{ ok: boolean; error?: string }>
-  runRoutineNow(payload: { profile: string; id: string }): Promise<{ ok: boolean; error?: string }>
-  openSpecialistChat(payload: { name: string }): Promise<{
-    ok: boolean
-    sessionId?: string
-    created?: boolean
-    error?: string
-  }>
   sshHosts(): Promise<{ hosts: string[] }>
   sshResolveHost(alias: string): Promise<{
     hostname: string | null
