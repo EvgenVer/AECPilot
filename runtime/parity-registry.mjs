@@ -97,7 +97,7 @@ export const ELECTRON_CLASSIFICATION = {
   cloud: { hx: "HX3", note: "вход в их облако" },
   "pet-overlay": { hx: "HX1" },
   git: { hx: "HX6", note: "голый git-UI; diff-вьюер приходит отдельно, задача 3.3" },
-  terminal: { hx: "HX7", note: "живая оболочка; лента вывода — наш канал terminal, UR17" },
+  terminal: { task: "3E.8", note: "живая оболочка — HX7 отменён 2026-09-05, UR30" },
   // — запланировано
   hud: { task: "3.24" },
   "quick-entry": { task: "3.15" },
@@ -143,10 +143,10 @@ export const ELECTRON_CLASSIFICATION = {
   "power-resume": { task: "3.28" },
   logs: { task: "3.29", note: "падение рендерера должно пережить окно" },
   uninstall: { task: "6.11" },
-  "active-work": { hx: "HX15" },
-  ambient: { hx: "HX15", note: "фоновые подсказки" },
-  devtools: { hx: "HX15", note: "запрет F12" },
-  version: { hx: "HX15" },
+  "active-work": { task: "3E.11" },
+  ambient: { task: "3E.11", note: "фоновые подсказки" },
+  devtools: { task: "3E.11", note: "запрет F12" },
+  version: { task: "3E.11" },
   "window-state-changed": { task: "3.14" },
   "focus-session": { task: "3.14" },
   "open-folder-requested": { task: "3.14" },
@@ -158,6 +158,20 @@ export const ELECTRON_CLASSIFICATION = {
   //   не пользуется вовсе — он ходит по REST (`POST /api/mcp/servers/{n}/auth`,
   //   опрос `GET /api/mcp/oauth/flows/{id}`), а страницу возврата от провайдера
   //   отдаёт само ядро. Через нас проходит только открытие ссылки в браузере.
+  // — одиннадцать расхождений закрыты интервью с владельцем 2026-09-05
+  //   (протокол: eval/reports/scope-review-2026-09-05.md). Четыре из них
+  //   вопросами не были: решения существовали, не хватало строк здесь.
+  plugin: { hx: "HX5", note: "установка плагина из чужого репозитория — загрузчик выключен" },
+  readPluginSource: { hx: "HX5", note: "чтение исходника плагина с диска; перенесённому плагину не нужно — он в бандле" },
+  "plugin-profile-routes": { hx: "HX22", note: "маршруты профилей по нескольким ядрам — флот не бриджуем" },
+  resolveFavicon: { hx: "HX21", note: "иконка сайта коннектора — показываем монограмму" },
+  "secret-storage": { hx: "HX20", note: "их выключатель шифрования; мы шифруем всегда (C10)" },
+  "context-menu": { task: "3E.10", note: "правый клик: правка и картинка" },
+  "context-menu-spellcheck": { task: "3E.10", note: "орфография: замена слова, свой словарь" },
+  preview: { task: "3E.5", note: "туннель к localhost удалённого ядра" },
+  "preview-nav": { task: "3E.5", note: "навигация внутри страницы" },
+  "browser-popout": { task: "3E.5", note: "вынос вкладки браузера в своё окно" },
+  "notification-activate": { task: "3D.9", note: "клик по уведомлению бота открывает его чат" },
   "mcp-oauth": {
     ours: "gateway",
     note: "OAuth к удалённому MCP-серверу идёт по REST через gateway:rest; редирект ловит САМО ядро (GET /api/mcp/oauth/callback/{server}) — замерено 01.09.2026",
