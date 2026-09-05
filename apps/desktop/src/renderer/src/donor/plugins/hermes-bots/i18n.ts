@@ -4,6 +4,8 @@
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
+ *   [3] registration table: added 'ru', whose catalog is ours (SPEC C7, task
+ *       3D.5) — the module note below still lists en/ja/zh/zh-hant only
  *   [5] their product name across the catalog's user-visible strings -> ours (SPEC C12)
  * (no other edits)
  */
@@ -40,6 +42,8 @@
 
 import { type PluginLocaleBundles, type PluginTranslate, usePluginI18n } from '@hermes/plugin-sdk'
 import { useMemo } from 'react'
+
+import { botsRu } from '../../../shared/i18n/bots-ru'
 
 import { getPluginCtx } from './shared'
 
@@ -1029,8 +1033,12 @@ const zhHant: BotsMessages = {
   }
 }
 
+// Ours, and typed as their bundle on purpose: a key they add upstream becomes a
+// compile error here instead of an English string on a Russian screen.
+const ru: BotsMessages = botsRu
+
 /** Registered via `ctx.i18n.register` at plugin load (disposer tracked). */
-export const BOTS_LOCALES: PluginLocaleBundles = { en, ja, zh, 'zh-hant': zhHant }
+export const BOTS_LOCALES: PluginLocaleBundles = { en, ru, ja, zh, 'zh-hant': zhHant }
 
 // Bind the message SHAPE to a plugin translator: string leaves resolve now,
 // function leaves forward their args through t(path, …).
