@@ -24,8 +24,16 @@ const ENV_WRITE_ALLOWED: Record<string, string> = {
   // 0.20.5 split hermes.ts into api/**; the wrapper moved to api/config.ts and
   // hermes.ts is now a re-export barrel that declares no call of its own.
   'api/config.ts': 'the wrapper itself — the call, not a use of it',
-  'app/settings/env-credentials.tsx': 'tool API keys and server env vars, not provider keys',
-  'app/settings/toolset-config-panel.tsx': 'one toolset’s own env var',
+  // Task 3E.2 changed WHY these two are allowed. They were let through as "tool
+  // API keys, not provider keys" — a distinction SPEC C10 does not draw: it
+  // says a key typed into our interface is encrypted, full stop. So the boundary
+  // moved off the call site and into main: `classifyEnvWrite` captures any
+  // credential-shaped write to `/api/env` and stores it in safeStorage, letting
+  // non-secrets (SEARXNG_URL, FIRECRAWL_API_URL) through to the core. These
+  // files may keep calling `setEnvVar` because the call no longer decides where
+  // the value lands.
+  'app/settings/env-credentials.tsx': 'writes go through main’s credential capture (3E.2)',
+  'app/settings/toolset-config-panel.tsx': 'writes go through main’s credential capture (3E.2)',
   'store/onboarding.ts': 'import kept for the non-provider branches; the key branch uses our bridge'
 }
 

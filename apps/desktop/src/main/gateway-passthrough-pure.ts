@@ -34,6 +34,54 @@ export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
   { method: 'POST', path: '/api/env/reveal' }
 ]
 
+/** Окончания имён, которые НЕ являются секретом: адрес сервера, хост, порт,
+ * имя модели. Всё остальное в форме `SCREAMING_SNAKE` считается учётными
+ * данными — см. `classifyEnvWrite`. */
+const NON_SECRET_ENV_SUFFIX = /_(URL|HOST|PORT|MODEL|REGION|ENDPOINT|PATH|DIR|TIMEOUT|ENABLED)$/
+
+/**
+ * Что делать с записью в `/api/env` (задача 3E.2, правила C10 и R2).
+ *
+ * ПОЧЕМУ ПЕРЕХВАТ, А НЕ ЗАПРЕТ. `PUT /api/env` кладёт значение в `.env`
+ * профиля ОТКРЫТЫМ ТЕКСТОМ — ровно то, что запрещает C10 («ключ, введённый в
+ * нашем интерфейсе, шифруется safeStorage и попадает в ядро только через
+ * окружение запускаемого процесса»). Запретить маршрут целиком нельзя: через
+ * него же настраиваются НЕ секреты — адрес своего SearXNG, база Firecrawl, —
+ * и человек остался бы без единственного экрана настройки инструментов.
+ * Поэтому маршрут делится по смыслу значения, а не по вызывающему.
+ *
+ * ПОЧЕМУ ПРАВИЛО ПОСТРОЕНО «ОТ СЕКРЕТА», А НЕ «ОТ СПИСКА КЛЮЧЕЙ». Ошибиться
+ * можно в две стороны, и цена разная: лишний перехват стоит удобства (адрес
+ * ляжет в шифрованное хранилище, и человек не прочитает его обратно), пропуск
+ * стоит секрета в открытом файле, который читает наш же агент. Поэтому
+ * перехватывается ВСЁ, кроме явно несекретных окончаний.
+ *
+ * `DELETE` тоже перехватывается — но не вместо ядра, а вдобавок: значение
+ * могло лечь в `.env` до этого правила (или руками), и убрать надо в обоих
+ * местах. Ядро при чтении предпочитает `.env` окружению
+ * (`get_env_value_prefer_dotenv`), так что забытая там строка перебила бы наш
+ * шифрованный ключ молча.
+ */
+export function classifyEnvWrite(
+  method: string,
+  path: string,
+  body: unknown
+): { action: 'forward' } | { action: 'store' | 'clear'; envVar: string; value: string } {
+  const route = path.split(/[?#]/, 1)[0]
+  if (route !== '/api/env' || (method !== 'PUT' && method !== 'DELETE')) {
+    return { action: 'forward' }
+  }
+
+  const { key, value } = (body ?? {}) as { key?: unknown; value?: unknown }
+  if (typeof key !== 'string' || !/^[A-Z][A-Z0-9_]{2,63}$/.test(key)) return { action: 'forward' }
+  if (NON_SECRET_ENV_SUFFIX.test(key)) return { action: 'forward' }
+
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (method === 'DELETE' || text === '') return { action: 'clear', envVar: key, value: '' }
+
+  return { action: 'store', envVar: key, value: text }
+}
+
 const RPC_METHOD_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i
 const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 

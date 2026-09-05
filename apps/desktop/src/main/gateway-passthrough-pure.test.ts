@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkRestCall,
   checkRpcCall,
+  classifyEnvWrite,
   describeRpcFailure,
   explainProfileDeleteFailure,
   sanitizeRpcParams
@@ -153,5 +154,67 @@ describe('describeRpcFailure', () => {
     const error = Object.assign(new Error('кольцо'), { code: 4018, data: cyclic })
 
     expect(describeRpcFailure(error)).toEqual({ message: 'кольцо', code: 4018 })
+  })
+})
+
+// Задача 3E.2. Их панель настроек инструментов пишет ключ через
+// `PUT /api/env` — открытым текстом в `.env` профиля. Правило C10 велит
+// шифровать; правило проверяется здесь, потому что молчаливая утечка секрета
+// в файл, который читает наш же агент, не даёт ни одного видимого симптома.
+describe('classifyEnvWrite', () => {
+  const put = (key: unknown, value: unknown) => classifyEnvWrite('PUT', '/api/env', { key, value })
+
+  it('ключ провайдера перехватывается, а не уезжает в .env', () => {
+    expect(put('TAVILY_API_KEY', ' secret ')).toEqual({
+      action: 'store',
+      envVar: 'TAVILY_API_KEY',
+      value: 'secret'
+    })
+  })
+
+  it('перехватываются все формы секрета, а не только *_API_KEY', () => {
+    for (const name of ['XAI_API_KEY', 'TOOL_GATEWAY_USER_TOKEN', 'SOME_SECRET', 'DB_PASSWORD']) {
+      expect(put(name, 'x'), name).toMatchObject({ action: 'store', envVar: name })
+    }
+  })
+
+  it('адрес своего сервера — не секрет и едет к ядру, где человек его прочитает', () => {
+    for (const name of ['SEARXNG_URL', 'FIRECRAWL_API_URL', 'KEENABLE_API_URL']) {
+      expect(classifyEnvWrite('PUT', '/api/env', { key: name, value: 'http://x' }), name).toEqual({
+        action: 'forward'
+      })
+    }
+  })
+
+  it('пустое значение — это стирание, а не сохранение пустого ключа', () => {
+    expect(put('EXA_API_KEY', '   ')).toEqual({ action: 'clear', envVar: 'EXA_API_KEY', value: '' })
+  })
+
+  it('удаление перехватывается тоже — иначе наш ключ пережил бы своё удаление', () => {
+    expect(classifyEnvWrite('DELETE', '/api/env', { key: 'EXA_API_KEY' })).toEqual({
+      action: 'clear',
+      envVar: 'EXA_API_KEY',
+      value: ''
+    })
+  })
+
+  it('чужие маршруты и чтения не трогаются', () => {
+    expect(classifyEnvWrite('GET', '/api/env', undefined)).toEqual({ action: 'forward' })
+    expect(classifyEnvWrite('PUT', '/api/config', { key: 'X_API_KEY', value: 'y' })).toEqual({
+      action: 'forward'
+    })
+  })
+
+  it('строка запроса не прячет маршрут от правила', () => {
+    expect(
+      classifyEnvWrite('PUT', '/api/env?profile=smeta', { key: 'X_API_KEY', value: 'y' })
+    ).toMatchObject({
+      action: 'store'
+    })
+  })
+
+  it('имя не в форме переменной окружения пропускается: перехватывать нечего', () => {
+    expect(put('lowercase_key', 'y')).toEqual({ action: 'forward' })
+    expect(put(42, 'y')).toEqual({ action: 'forward' })
   })
 })

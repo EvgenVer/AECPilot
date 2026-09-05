@@ -118,6 +118,7 @@ import {
 import {
   checkRestCall,
   checkRpcCall,
+  classifyEnvWrite,
   describeRpcFailure,
   explainProfileDeleteFailure,
   sanitizeRpcParams
@@ -743,12 +744,17 @@ const RUN_BUDGET_SECONDS = 3600
  */
 const LOOP_MAX_TICKS = 10
 
+/** Провайдер веб-поиска по умолчанию (задача 3E.2, UR32). Пакет `ddgs` стоит в
+ * venv ядра; без него ядро ответит честной ошибкой, а не уйдёт на бесключевой
+ * ярус — см. `applyWebBackend`. */
+const DEFAULT_WEB_BACKEND = 'ddgs'
+
 /** Дописывает умолчание в `config.yaml`, не трогая уже выбранное человеком. */
 function applyConfigDefault(
   homeDir: string,
   section: string,
   key: string,
-  value: number,
+  value: number | string,
   what: string
 ): void {
   const configPath = join(homeDir, 'config.yaml')
@@ -781,6 +787,30 @@ function applyRunBudget(homeDir: string): void {
 
 function applyLoopBudget(homeDir: string): void {
   applyConfigDefault(homeDir, 'loops', 'max_ticks', LOOP_MAX_TICKS, 'the loop tick budget')
+}
+
+/** Задача 3E.2 — ВЫБОР ПРОВАЙДЕРА ВЕБ-ПОИСКА, а не его включение.
+ *
+ * Поиск у агента был и до этой задачи, и в этом всё дело. Без записанного
+ * выбора ядро идёт по лестнице автоопределения и заканчивает БЕСКЛЮЧЕВЫМ
+ * ярусом: запрос уходит на публичную точку Exa (`plugins/web/keyless_mcp.py`,
+ * замерено 2026-09-05 — `use_keyless('exa','')` вернул True). То есть запросы
+ * человека покидали машину через третью сторону, которую никто не выбирал и
+ * человеку не назвал. Для продукта, отказавшегося от иконок сайтов, чтобы не
+ * платить исходящим запросом за картинку (HX21), это не мелочь.
+ *
+ * `web.backend` записан у ядра как ОКОНЧАТЕЛЬНЫЙ: «stored selection is final —
+ * no availability probe, no fallback», чтобы сломанный выбор давал честную
+ * ошибку вместо тихого перенаправления (`tools/web_tools.py::_get_backend`).
+ * Это ровно то поведение, которого требует задача: молчаливый отказ — дефект.
+ *
+ * Умолчание `ddgs` — решение владельца 2026-09-05 («по максимуму все
+ * провайдеры, по умолчанию DuckDuckGo»). Ключа не требует, запрос идёт с
+ * машины человека прямо в DuckDuckGo, а не через чужой ретранслятор. Выбор,
+ * сделанный человеком в их панели настроек, переживает перезапуск — правило
+ * `applyConfigDefault` дописывает ключ только когда его нет. */
+function applyWebBackend(homeDir: string): void {
+  applyConfigDefault(homeDir, 'web', 'backend', DEFAULT_WEB_BACKEND, 'the web search provider')
 }
 
 /** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
@@ -2523,6 +2553,60 @@ ipcMain.handle(
   }
 )
 
+/**
+ * Записать учётные данные, пришедшие из ИХ панели настроек, по нашему правилу
+ * (задача 3E.2, C10/R2). Возвращает то же `{ ok: true }`, что вернуло бы ядро,
+ * — их панель не знает, что запись поехала другим путём, и знать не должна.
+ *
+ * Отказы здесь ГРОМКИЕ: их панель показывает брошенную ошибку человеку. Тихо
+ * ответить «сохранено», не сохранив, было бы худшим из вариантов — человек
+ * ушёл бы с экрана, считая ключ введённым.
+ */
+async function captureCredentialWrite(write: {
+  action: 'store' | 'clear'
+  envVar: string
+  value: string
+}): Promise<{ ok: boolean }> {
+  let profileDir: string | undefined
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch {
+    // Удалённое ядро: `.env` его профиля не на этой машине, проверять нечего.
+  }
+
+  // Строка в `.env` профиля СИЛЬНЕЕ окружения (`get_env_value_prefer_dotenv` в
+  // ядре), поэтому сохранить поверх неё значит сохранить в никуда.
+  if (write.action === 'store' && profileDir && keyEnvVarStatus(profileDir, write.envVar)) {
+    throw new Error(
+      `${write.envVar} задан в .env профиля — значение оттуда сильнее нашего. ` +
+        'Уберите строку из .env и повторите.'
+    )
+  }
+
+  if (!setProviderKey(write.envVar, write.action === 'store' ? write.value : null)) {
+    throw new Error(
+      'safeStorage недоступен на этой машине — ключ не сохранён (в открытом виде не пишем)'
+    )
+  }
+
+  // Удаление идёт и у ядра: значение могло лечь в `.env` до этого правила.
+  if (write.action === 'clear') {
+    try {
+      await hermesRest(restTarget(), '/api/env', {
+        method: 'DELETE',
+        body: { key: write.envVar }
+      })
+    } catch (error: unknown) {
+      console.error('aecpilot: could not clear the credential in the core .env', error)
+    }
+  }
+
+  // Ключ доходит до ядра только окружением дочернего процесса — значит
+  // вступает в силу со следующего старта и не раньше.
+  await restartBackend()
+  return { ok: true }
+}
+
 ipcMain.handle(
   'gateway:rest',
   async (
@@ -2530,6 +2614,14 @@ ipcMain.handle(
     payload: { path?: unknown; method?: unknown; body?: unknown; timeoutMs?: unknown }
   ) => {
     const { method, path } = checkRestCall(payload?.method, payload?.path)
+
+    // Задача 3E.2. Ключ, введённый в ИХ панели настроек инструментов, обязан
+    // лечь в наше шифрованное хранилище, а не в `.env` профиля открытым
+    // текстом (C10, R2). Правило разбирает значение по смыслу, а не по тому,
+    // кто позвал: их файл при этом не правится вовсе.
+    const envWrite = classifyEnvWrite(method, path, payload?.body)
+    if (envWrite.action !== 'forward') return captureCredentialWrite(envWrite)
+
     try {
       return await hermesRest(restTarget(), path, {
         method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
@@ -3907,6 +3999,7 @@ app
           applyDefaultWakePhrase(HERMES_HOME_DIR)
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
+          applyWebBackend(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
