@@ -32,9 +32,16 @@ import ProjectSkillsDialog from './aec/project-skills/ProjectSkillsDialog'
 import FirstRunGuide from './aec/onboarding/FirstRunGuide'
 // Side-effect: registers our vault explorer as a pane in their shell.
 import './aec/explorer/register'
-// То же для роестра специалистов (задача 3C.1).
 import './aec/btw/register'
-import './aec/roster/register'
+// Задача 3D.3 — точка невозврата. Роестр специалистов больше НЕ регистрируется
+// нами: его ведёт перенесённый плагин донора (`donor/plugins/hermes-bots`),
+// который их же `discoverBundledPlugins()` находит по glob и включает сам.
+// Импорт `./aec/roster/register` снят целиком, а не закомментирован: он тянул
+// за собой три вклада — панель, сторожа «нового чата» (3C.4) и подсказку
+// `@имя` (3C.7), — и все три покрыты их `mention-middleware` и их панелью.
+// Наш код роестра ещё лежит в дереве и удаляется задачей 3D.6; здесь снята
+// только РЕГИСТРАЦИЯ, потому что правило фазы запрещает коммит, в котором
+// зарегистрированы обе поверхности.
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'

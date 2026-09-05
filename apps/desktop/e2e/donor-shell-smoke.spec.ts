@@ -228,8 +228,14 @@ test.beforeAll(async () => {
   // самого края прокручиваемого контейнера — и тот перехватывает нажатие
   // («intercepts pointer events»). Набор от этого краснел на верстке панели, а
   // не на том, что проверяет.
+  //
+  // ВЫСОТА ПОДНЯТА С 1050 ДО 1260 (задача 3D.3). Перехват вернулся ровно тем же
+  // симптомом, и причина та же арифметика: роестр переехал на их плагин и стал
+  // ТРЕТЬЕЙ вкладкой боковой панели (`SESSIONS / BOTS / VAULT`), а вкладки
+  // забрали высоту у списка под ними. Диагноз снят снимком экрана, а не
+  // догадкой: на нём кнопка «Filters» видна, но накрыта контейнером списка.
   await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1050 })
+    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1260 })
   })
 
   app.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
@@ -1417,4 +1423,34 @@ test('the composer attaches what the picker returns, asks it for the right thing
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Delete')
   await assertRendererAlive(page, 'end of composer test')
+})
+
+// Задача 3D.3 — точка невозврата. Роестр специалистов ведёт перенесённый плагин
+// донора, а наша поверхность снята с регистрации. Правило фазы: одновременно
+// зарегистрированных роестров не существует ни одного коммита, — и оно уже
+// нарушалось незамеченным, потому что вторая регистрация появилась САМА: их
+// `discoverBundledPlugins()` находит плагин по glob, как только файл лёг в зону.
+//
+// Гвард `one-roster-only.test.ts` считает это по исходникам. Здесь проверяется
+// то, чего исходники не показывают: что в собранном окне действительно осталась
+// ОДНА панель и это их панель.
+test('в окне остался один роестр, и это их панель', async () => {
+  const page = await app.firstWindow()
+
+  // Их панель регистрируется под своим заголовком; наша называлась
+  // «Специалисты» / «Specialists» — по каталогу `aec-catalog.ts`.
+  const ours = page.getByText(/^(Специалисты|Specialists)$/)
+  const theirs = page.getByText(/^Bots$/)
+
+  await expect(
+    theirs.first(),
+    'панель их плагина обязана быть в окне: она и есть роестр после 3D.3'
+  ).toBeVisible({ timeout: 20000 })
+
+  await expect(
+    ours,
+    'наша панель роестра снята с регистрации — в окне её быть не должно'
+  ).toHaveCount(0)
+
+  await assertRendererAlive(page, 'one roster only')
 })
