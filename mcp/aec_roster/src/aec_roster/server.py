@@ -18,7 +18,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from aec_roster.ask import AskError, signed
-from aec_roster.roster import load, resolve
+from aec_roster.roster import load, resolve, snapshot_age_seconds
 from aec_roster.runner import ask, busy
 
 
@@ -46,7 +46,9 @@ def build_server(roster_path: str, hermes: str, home: str) -> MCPServer:
     )
     def ask_specialist(name: str, question: str) -> str:
         try:
-            specialist = resolve(load(roster_path), name)
+            # Возраст снимка передаётся вместе с ним: без него промах по
+            # мёртвому файлу неотличим от промаха по живому (задача 3D.4).
+            specialist = resolve(load(roster_path), name, snapshot_age_seconds(roster_path))
         except AskError as exc:
             raise ToolError(str(exc)) from exc
 

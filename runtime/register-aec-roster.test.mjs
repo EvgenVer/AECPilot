@@ -92,6 +92,35 @@ describe('writeRosterSnapshot', () => {
     expect(JSON.parse(fs.readFileSync(file, 'utf-8')).specialists[0].title).toBe('')
   })
 
+
+  // -- задача 3D.4: отметка свежести ------------------------------------------
+  //
+  // После переезда роестра на их плагин снимок кормит опрос в главном
+  // процессе. Отличить «никто не завёл нового специалиста» от «снимок никто
+  // больше не пишет» по содержимому файла нельзя — оба случая дают один и тот
+  // же файл. Отсюда отметка рядом.
+
+  it('stamps when the snapshot was last confirmed', () => {
+    const file = path.join(home(), 'roster.json')
+    writeRosterSnapshot([{ name: 'smeta', title: 'Смета' }], file, () => Date.parse('2026-09-05T10:00:00Z'))
+
+    expect(fs.readFileSync(`${file}.seen`, 'utf-8').trim()).toBe('2026-09-05T10:00:00.000Z')
+  })
+
+  it('refreshes the stamp even when the roster did not change', () => {
+    const file = path.join(home(), 'roster.json')
+    const roster = [{ name: 'smeta', title: 'Смета' }]
+
+    writeRosterSnapshot(roster, file, () => Date.parse('2026-09-05T10:00:00Z'))
+    // Второй вызов ничего не переписывает — и это важно: перезапись файла
+    // перезапустила бы MCP-сервер на ровном месте.
+    expect(writeRosterSnapshot(roster, file, () => Date.parse('2026-09-05T10:01:00Z'))).toBe(false)
+
+    // Но отметка обновилась: иначе живой опрос выглядел бы остановившимся
+    // ровно тогда, когда роестр стабилен, — то есть в самом обычном случае.
+    expect(fs.readFileSync(`${file}.seen`, 'utf-8').trim()).toBe('2026-09-05T10:01:00.000Z')
+  })
+
   it('says nothing changed when nothing changed — the roster is re-read often', () => {
     const file = path.join(home(), 'roster.json')
     const roster = [{ name: 'smeta', title: 'Смета' }]

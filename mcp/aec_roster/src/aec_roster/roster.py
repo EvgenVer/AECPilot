@@ -16,15 +16,31 @@
 СНИМОК УСТАРЕВАЕТ — И ЭТО НЕ ОШИБКА. Если специалиста переименовали, а снимок
 ещё старый, обращение по новому имени вернёт «такого нет» со списком тех, кто
 есть. Это честный ответ, а не сбой: тихо позвать не того было бы хуже.
+
+НО «СТАРЫЙ СНИМОК» И «НИКТО БОЛЬШЕ НЕ ПИШЕТ СНИМОК» — РАЗНЫЕ ВЕЩИ (задача
+3D.4). До переезда роестра на их плагин файл обновлялся каждый раз, когда
+человек открывал список, и молчание было невозможным. После переезда список
+рисует их плагин, а снимок кормит опрос в главном процессе — и если опрос
+встанет, файл останется правильным на вид, но мёртвым. Ответ «такого нет» на
+живого специалиста читается как «его не существует», хотя правда — «мы не
+знаем». Поэтому рядом со снимком лежит отметка времени (`<снимок>.seen`), и
+при промахе по устаревшей отметке ответ говорит именно это.
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from aec_roster.ask import AskError, check_name
+
+# Опрос в главном процессе идёт раз в минуту (`ROSTER_SNAPSHOT_POLL_MS`).
+# Порог с запасом в пять раз: пропущенный тик, занятая машина и перезапуск
+# ядра не должны выглядеть поломкой, а пять минут молчания уже означают, что
+# писать снимок некому.
+STALE_AFTER_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -84,7 +100,31 @@ def load(path: str | Path) -> list[Specialist]:
     return found
 
 
-def resolve(roster: list[Specialist], asked: str) -> Specialist:
+def snapshot_age_seconds(path: str | Path, now: datetime | None = None) -> float | None:
+    """Сколько секунд назад снимок в последний раз подтверждали.
+
+    `None` — отметки нет: либо сборка старая, либо запись отметки не удалась.
+    Это не повод отказывать; читатель тогда просто не может судить о свежести
+    и ведёт себя как раньше.
+    """
+    stamp = Path(f"{path}.seen")
+    try:
+        raw = stamp.read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, OSError):
+        return None
+
+    try:
+        seen = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if seen.tzinfo is None:
+        seen = seen.replace(tzinfo=UTC)
+
+    return ((now or datetime.now(UTC)) - seen).total_seconds()
+
+
+def resolve(roster: list[Specialist], asked: str, age_seconds: float | None = None) -> Specialist:
     """Кого позвали. Неизвестное имя — ответ со списком, а не запуск наугад.
 
     Имя приходит из текста человека через модель, то есть это чужие данные.
@@ -103,6 +143,19 @@ def resolve(roster: list[Specialist], asked: str) -> Specialist:
             return specialist
 
     known = ", ".join(sorted(s.shown for s in roster))
+
+    # Задача 3D.4. Промах по УСТАРЕВШЕМУ снимку — не тот же ответ, что промах
+    # по свежему. «Такого нет» про живого специалиста читается как приговор,
+    # хотя правда — «мы не знаем, список не обновлялся». Разница видна только
+    # здесь: выше по стеку и человек, и модель получают одну строку.
+    if age_seconds is not None and age_seconds > STALE_AFTER_SECONDS:
+        minutes = int(age_seconds // 60)
+        raise AskError(
+            f"роестр не обновлялся {minutes} мин — список специалистов устарел, "
+            f"и «{asked}» в нём не найден. Проверьте, что приложение запущено"
+            + (f"; в последнем известном списке: {known}" if known else "")
+        )
+
     raise AskError(
         f"специалиста «{asked}» нет в роестре" + (f"; есть: {known}" if known else "; роестр пуст")
     )

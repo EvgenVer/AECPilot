@@ -567,6 +567,12 @@ async function connectGateway(url: string): Promise<void> {
     // opens, the chat just won't be able to connect yet.
     console.error('aecpilot: gateway connect FAIL', error)
   }
+
+  // Задача 3D.4. Снимок роестра кормится отсюда, а не из окна: связь с ядром
+  // есть здесь, и она переживает и закрытое окно, и смену поверхности роестра.
+  // Опрос идёт и при неудачном `connect()` — клиент сам переподключается, а
+  // тик, попавший в момент обрыва, просто ничего не запишет.
+  startRosterSnapshotPolling()
 }
 
 /** Догон событий после обрыва связи (задача 3.B2г).
@@ -2474,6 +2480,50 @@ ipcMain.handle('roster:list', async () => {
   return roster
 })
 
+// Задача 3D.4. Снимок роестра больше НЕ может держаться на `roster:list`:
+// после 3D.3 роестр ведёт их плагин, а он этот обработчик не зовёт. Оставить
+// как было значило бы получить худший вид отказа — `@имя` замолчало бы МОЛЧА,
+// прочитав файл, который никто не обновляет.
+//
+// ПОЧЕМУ ОПРОС, А НЕ СОБЫТИЕ. Ядро о создании профиля не сообщает: в
+// `tui_gateway/**` нет ни одного события про профили (замерено 2026-09-05).
+// Их плагин узнаёт о новом боте своим опросом в рендерере, но рендерер — не
+// источник для главного процесса: снимок нужен и когда окно закрыто, а агент
+// работает.
+//
+// ЧТО СТОИТ ОПРОС. Один `profiles.list` в минуту по уже открытому сокету, и
+// запись на диск только при изменении (`writeRosterSnapshot` возвращает false,
+// когда содержимое совпало) — то есть перезапуск MCP-сервера случается ровно
+// тогда, когда роестр действительно поменялся.
+const ROSTER_SNAPSHOT_POLL_MS = 60_000
+let rosterSnapshotTimer: NodeJS.Timeout | undefined
+
+async function refreshRosterSnapshot(): Promise<void> {
+  if (!gateway) return
+  try {
+    await syncRosterTool(await listRoster())
+  } catch (error: unknown) {
+    // Ядро могло ещё не подняться или отвалиться — это не повод шуметь на
+    // каждый тик. Причина уходит в журнал (задача 3.29), а следующий тик
+    // попробует снова.
+    console.error('aecpilot: roster snapshot refresh failed', error)
+  }
+}
+
+export function startRosterSnapshotPolling(): void {
+  if (rosterSnapshotTimer) return
+  rosterSnapshotTimer = setInterval(() => void refreshRosterSnapshot(), ROSTER_SNAPSHOT_POLL_MS)
+  // Первый снимок — сразу, а не через минуту: приложение только что открыли,
+  // и обращение по имени должно работать с первой реплики.
+  void refreshRosterSnapshot()
+}
+
+export function stopRosterSnapshotPolling(): void {
+  if (!rosterSnapshotTimer) return
+  clearInterval(rosterSnapshotTimer)
+  rosterSnapshotTimer = undefined
+}
+
 // Задача 3C.6. Комнаты. Ведёт круг ГЛАВНЫЙ ПРОЦЕСС: реплики показываются в
 // нашей комнате, и вставлять их больше некуда — инструмент агента был бы лишним
 // слоем (в отличие от `@имя`, см. 3C.7).
@@ -4248,6 +4298,9 @@ app.on('will-quit', () => {
   stopHud()
   // Табличка, пережившая программу, сообщает о микрофоне, которого больше нет.
   stopWakeIndicator()
+  // Задача 3D.4: опрос роестра — такой же таймер, как планировщик выше, и
+  // пережить закрытие он не должен.
+  stopRosterSnapshotPolling()
 })
 
 app.on('before-quit', (event) => {

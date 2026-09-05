@@ -114,15 +114,9 @@ export function registerAecRoster({ homeDir = HERMES_HOME_DIR, hermesBin = HERME
  * Returns true when the file changed, so the caller can stay quiet on the
  * usual case (the roster is re-read often; it rarely differs).
  */
-export function writeRosterSnapshot(specialists, snapshotPath = ROSTER_SNAPSHOT_PATH) {
-  const body =
-    JSON.stringify(
-      {
-        specialists: specialists.map((one) => ({ name: one.name, title: one.title ?? '' }))
-      },
-      null,
-      2
-    ) + '\n'
+export function writeRosterSnapshot(specialists, snapshotPath = ROSTER_SNAPSHOT_PATH, now = Date.now) {
+  const rows = specialists.map((one) => ({ name: one.name, title: one.title ?? '' }))
+  const body = JSON.stringify({ specialists: rows }, null, 2) + '\n'
 
   let existing = ''
   try {
@@ -130,6 +124,27 @@ export function writeRosterSnapshot(specialists, snapshotPath = ROSTER_SNAPSHOT_
   } catch {
     // No snapshot yet — writing one is the whole point.
   }
+
+  // Task 3D.4: the snapshot carries WHEN it was taken, and the freshness stamp
+  // is refreshed even when the roster itself did not change.
+  //
+  // Why the stamp is separate from the content comparison: an unchanged roster
+  // must not rewrite the file (that would restart the MCP server for nothing),
+  // but the reader still has to tell "nobody added a specialist" from "nobody
+  // is writing this file any more". Those look identical without a heartbeat,
+  // and after the roster moved to their plugin the second case is exactly the
+  // failure this task exists to prevent. So an unchanged roster only touches
+  // the stamp file next to the snapshot — cheap, and it never restarts MCP.
+  const stampPath = `${snapshotPath}.seen`
+  const stamp = `${new Date(now()).toISOString()}\n`
+  try {
+    fs.mkdirSync(path.dirname(stampPath), { recursive: true })
+    fs.writeFileSync(stampPath, stamp, 'utf-8')
+  } catch {
+    // A missing stamp degrades the reader to "cannot tell how fresh this is",
+    // which it handles — it must never stop the snapshot itself from landing.
+  }
+
   if (existing === body) return false
 
   fs.mkdirSync(path.dirname(snapshotPath), { recursive: true })
