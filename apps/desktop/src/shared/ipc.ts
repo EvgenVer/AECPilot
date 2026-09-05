@@ -1157,6 +1157,13 @@ export interface AecpilotApi {
   /** Нажата кнопка в уведомлении. Только macOS: на Windows кнопки в тосте
    * Electron не рисуются — см. `main/native-notify.ts`. */
   onNotificationAction(cb: (payload: { actionId: string; sessionId?: string }) => void): () => void
+  /** Щелчок по уведомлению БЕЗ сессии — плагинному (задача 3D.9). Форма payload
+   * задана их приёмником (`donor/global.d.ts`, `onNotificationActivate`), и
+   * каждое поле необязательно: у уведомления может не быть ни кнопки, ни пути.
+   * `activate` мы НЕ разбираем — их сторона резолвит путь заново. */
+  onNotificationActivate(
+    cb: (payload: { actionId?: string; activate?: string; notifyId?: string; tag?: string }) => void
+  ): () => void
   /** Машина на батарее (задача 3.28). Их страховочные опросы на батарее
    * растягиваются вчетверо, чтобы ноутбук в фоне не тратил заряд на проверки. */
   getOnBattery(): Promise<boolean>

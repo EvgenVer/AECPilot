@@ -784,6 +784,20 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.onNotificationAction(callback)
   },
 
+  // Задача 3D.9. Уведомление их плагина сессии не имеет: щёлкнув по нему,
+  // человек должен попасть в чат бота, а не в «никуда». Приёмник давно лежал
+  // в зоне и работал — не было только этого канала.
+  onNotificationActivate(
+    callback: (payload: {
+      actionId?: string
+      activate?: string
+      notifyId?: string
+      tag?: string
+    }) => void
+  ): () => void {
+    return window.aecpilot.onNotificationActivate(callback)
+  },
+
   getOnBattery(): Promise<boolean> {
     return window.aecpilot.getOnBattery()
   },

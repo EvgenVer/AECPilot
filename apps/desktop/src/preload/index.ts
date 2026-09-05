@@ -111,6 +111,16 @@ const api: AecpilotApi = {
     ipcRenderer.on('notification:action', listener)
     return () => ipcRenderer.removeListener('notification:action', listener)
   },
+  // Задача 3D.9. Щелчок по уведомлению БЕЗ сессии — плагинному. Слушатель уже
+  // лежал в зоне (`app/contrib/hooks/use-desktop-integrations.ts`) и работал;
+  // не подключён был только этот канал, поэтому до переноса роестра путь был
+  // мёртв без последствий, а после переноса стал бы молчаливым отказом.
+  onNotificationActivate: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('notification-activate', listener)
+    return () => ipcRenderer.removeListener('notification-activate', listener)
+  },
   getOnBattery: () => ipcRenderer.invoke('power:on-battery'),
   onBatteryChanged: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, onBattery: boolean): void => cb(onBattery)

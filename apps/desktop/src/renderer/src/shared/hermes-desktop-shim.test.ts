@@ -259,3 +259,48 @@ describe('hermes-desktop shim: zoom и themes (SPEC HX14)', () => {
     expect(Boolean(bridge.themes?.fetchMarketplace)).toBe(false)
   })
 })
+
+// Задача 3D.9. Их плагин показывает уведомление, у которого нет сессии, и ждёт
+// щелчок обратно каналом `notification-activate`. Приёмник лежал в зоне и
+// работал — не хватало только этого моста, и до переноса роестра путь был мёртв
+// без последствий: звать его было некому.
+describe('hermes-desktop shim: onNotificationActivate (задача 3D.9)', () => {
+  it('подписка переложена на наш IPC, и отписка возвращается их стороне', () => {
+    const dispose = vi.fn()
+    const onNotificationActivate = vi.fn().mockReturnValue(dispose)
+    ;(globalThis as unknown as { window: unknown }).window = {
+      aecpilot: { onNotificationActivate }
+    }
+
+    const bridge = createHermesDesktopBridge()
+    const callback = vi.fn()
+
+    // Их код зовёт член через `?.` — если бы он остался необъявленным,
+    // подписка молча не произошла бы, и это не отличалось бы от «уведомлений
+    // нет». Поэтому проверяется и наличие, и то, что вернулась именно отписка.
+    expect(typeof bridge.onNotificationActivate).toBe('function')
+    expect(bridge.onNotificationActivate!(callback)).toBe(dispose)
+    expect(onNotificationActivate).toHaveBeenCalledWith(callback)
+  })
+
+  it('полезная нагрузка доходит до их слушателя без переупаковки', () => {
+    let deliver: ((payload: unknown) => void) | undefined
+    const onNotificationActivate = vi.fn((cb: (payload: unknown) => void) => {
+      deliver = cb
+      return () => undefined
+    })
+    ;(globalThis as unknown as { window: unknown }).window = {
+      aecpilot: { onNotificationActivate }
+    }
+
+    const seen: unknown[] = []
+    createHermesDesktopBridge().onNotificationActivate!(payload => seen.push(payload))
+
+    // Форма — их (`donor/global.d.ts`): рукоятка, путь и ключ повтора. Шим не
+    // разбирает `activate`: их приёмник резолвит путь заново, и дублировать
+    // разбор здесь значило бы завести второе место, где он может разойтись.
+    deliver?.({ activate: '/bots/smeta', notifyId: 'n-42', tag: 'bot:smeta' })
+
+    expect(seen).toEqual([{ activate: '/bots/smeta', notifyId: 'n-42', tag: 'bot:smeta' }])
+  })
+})

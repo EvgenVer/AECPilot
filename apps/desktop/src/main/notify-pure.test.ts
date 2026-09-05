@@ -40,7 +40,12 @@ describe('planNotification', () => {
       body: 'Обновлено 3 документа',
       silent: false,
       sessionId: 's-1',
-      actions: []
+      actions: [],
+      // Задача 3D.9. Проверка идёт по ВСЕМУ объекту намеренно: так новое поле
+      // в плане нельзя добавить, не показав его здесь.
+      activate: '',
+      notifyId: '',
+      tag: ''
     })
   })
 
@@ -79,5 +84,47 @@ describe('planNotification', () => {
 
   it('чужой sessionId остаётся строкой, а не объектом', () => {
     expect(planNotification({ title: 'x', sessionId: { evil: true } })?.sessionId).toBe('')
+  })
+
+  // -- задача 3D.9: поля плагинного уведомления -------------------------------
+
+  it('рукоятка, путь и ключ повтора доезжают до плана', () => {
+    const plan = planNotification({
+      title: 'Бот ответил',
+      notifyId: 'n-42',
+      activate: '/bots/smeta',
+      tag: 'bot:smeta'
+    })
+
+    expect(plan?.notifyId).toBe('n-42')
+    expect(plan?.activate).toBe('/bots/smeta')
+    expect(plan?.tag).toBe('bot:smeta')
+  })
+
+  it('обычное уведомление не получает плагинных полей — там пустые строки', () => {
+    const plan = planNotification({ title: 'Готово', sessionId: 's-1' })
+
+    expect(plan?.notifyId).toBe('')
+    expect(plan?.activate).toBe('')
+    expect(plan?.tag).toBe('')
+  })
+
+  it('чужой notifyId остаётся строкой, а не объектом', () => {
+    expect(planNotification({ title: 'x', notifyId: { evil: true } })?.notifyId).toBe('')
+  })
+
+  // Служебная строка обрезается НЕ как текст: усечённая рукоятка — это другая
+  // рукоятка, по которой приёмник молча ничего не найдёт. Поэтому слишком
+  // длинное значение отбрасывается целиком, и многоточия в нём не появляется.
+  it('слишком длинная рукоятка отбрасывается целиком, а не режется', () => {
+    const plan = planNotification({ title: 'x', notifyId: 'n'.repeat(200) })
+
+    expect(plan?.notifyId).toBe('')
+  })
+
+  it('слишком длинный путь активации отбрасывается целиком', () => {
+    const plan = planNotification({ title: 'x', activate: '/' + 'a'.repeat(600) })
+
+    expect(plan?.activate).toBe('')
   })
 })

@@ -65,9 +65,34 @@ export function showNativeNotification(request: unknown): boolean {
     actions: plan.actions.map((action) => ({ type: 'button' as const, text: action.text }))
   })
 
+  /** Задача 3D.9 — второй путь щелчка, для уведомлений БЕЗ сессии.
+   *
+   * Их плагин показывает уведомление не про сессию, а про себя: «бот ответил»,
+   * «группа собралась». Такому уведомлению некуда прыгать по `sessionId` —
+   * вместо этого рендерер держит колбэк под рукояткой `notifyId` и ждёт её
+   * обратно каналом `notification-activate`.
+   *
+   * ПОЧЕМУ РЯДОМ С НАШИМ ПУТЁМ, А НЕ ВМЕСТО. Наши уведомления о завершении
+   * работы агента ходят по `notification:focus-session` и продолжают ходить:
+   * два канала не спорят, потому что не пересекаются по данным — у нашего
+   * непустой `sessionId`, у плагинного непустой `notifyId`. Уведомление без
+   * обоих (а такие есть) не поднимает ни одного пути, и это правильно: слать
+   * пустую активацию значит будить приёмник ради `undefined`. */
+  const activate = (actionId: string): void => {
+    if (plan.notifyId === '' && plan.activate === '') return
+
+    broadcast('notification-activate', {
+      ...(actionId === '' ? {} : { actionId }),
+      ...(plan.activate === '' ? {} : { activate: plan.activate }),
+      ...(plan.notifyId === '' ? {} : { notifyId: plan.notifyId }),
+      ...(plan.tag === '' ? {} : { tag: plan.tag })
+    })
+  }
+
   notification.on('click', () => {
     raiseWindow()
     if (plan.sessionId !== '') broadcast('notification:focus-session', plan.sessionId)
+    activate('')
   })
 
   // macOS. См. «ПРО КНОПКИ В ТОСТЕ» в шапке.
@@ -79,6 +104,7 @@ export function showNativeNotification(request: unknown): boolean {
       actionId: action.id,
       ...(plan.sessionId === '' ? {} : { sessionId: plan.sessionId })
     })
+    activate(action.id)
   })
 
   // Тост может не показаться по причинам вне приложения (политика системы,

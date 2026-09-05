@@ -56,7 +56,6 @@ const UNBRIDGED = [
   'onClosePreviewRequested',
   'onContextMenuSpellcheck',
   'onFoundInPage',
-  'onNotificationActivate',
   'onOpenFindBarRequested',
   'onOpenFolderRequested',
   'onOpenUpdatesRequested',
