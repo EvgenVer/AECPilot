@@ -42,10 +42,6 @@ const SHIM = join(__dirname, 'hermes-desktop-shim.ts')
  * держит реестр паритета (AC9), у которого единица — экран. */
 const UNBRIDGED = [
   'cancelBootstrap',
-  'contextMenuCopyImage',
-  'contextMenuEdit',
-  'contextMenuGuestAddWord',
-  'contextMenuSpellcheck',
   'desktopPluginsRoot',
   'fetchLinkTitle',
   'getAgentRoster',
@@ -53,7 +49,6 @@ const UNBRIDGED = [
   'installDesktopPlugin',
   'normalizePreviewTarget',
   'onClosePreviewRequested',
-  'onContextMenuSpellcheck',
   'onFoundInPage',
   'onOpenFindBarRequested',
   'onOpenFolderRequested',

@@ -698,6 +698,26 @@ const IMPLEMENTED: Record<string, unknown> = {
   setTitleBarTheme: undefined,
   setTranslucency: undefined,
 
+  // SPEC UR37 (задача 3E.10). Правый клик и орфография. Меню рисует их же
+  // рендерер — здесь только то, чего окно не может само.
+  contextMenuEdit(command: 'copy' | 'cut' | 'paste' | 'selectAll'): Promise<void> {
+    return window.aecpilot.contextMenuEdit(command)
+  },
+  contextMenuCopyImage(): Promise<void> {
+    return window.aecpilot.contextMenuCopyImage()
+  },
+  contextMenuSpellcheck(action: { kind: 'add' | 'replace'; word: string }): Promise<void> {
+    return window.aecpilot.contextMenuSpellcheck(action)
+  },
+  contextMenuGuestAddWord(payload: { webContentsId: number; word: string }): Promise<void> {
+    return window.aecpilot.contextMenuGuestAddWord(payload)
+  },
+  onContextMenuSpellcheck(
+    cb: (facts: { misspelledWord: string; suggestions: string[] }) => void
+  ): () => void {
+    return window.aecpilot.onContextMenuSpellcheck(cb)
+  },
+
   // SPEC UR35 (задача 3E.11). Раньше здесь стояло `undefined` по HX15 —
   // исключение отменено владельцем 05.09.2026, и оба члена проброшены.
   // Односторонние: сводка о ходе шлётся на каждую смену состава, переключатель

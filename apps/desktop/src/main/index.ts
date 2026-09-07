@@ -104,6 +104,14 @@ import {
 } from './quit-guard-pure'
 import { shouldBlockDevtoolsKey } from './devtools-block-pure'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
+import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
+import {
+  addWordToGuestDictionary,
+  applySpellcheckAction,
+  configureSpellChecker,
+  copyImageAtLastGesture,
+  installContextMenuBridge
+} from './context-menu'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
@@ -950,6 +958,10 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   // его смерти: сводка мёртвого окна, оставшаяся в карте, спрашивала бы о
   // работе, которой давно нет.
   win.webContents.once('destroyed', () => activeWorkByWindow.delete(win.webContents.id))
+
+  // Задача 3E.10: координаты правого клика и факты орфографии — то, что видит
+  // только главный процесс.
+  installContextMenuBridge(win)
 
   // Task 3.26: the saved interface scale applies to every window, including a
   // second one opened later, and Ctrl +/-/0 changes it from anywhere.
@@ -2565,6 +2577,36 @@ ipcMain.on('devtools:disable-f12', (_event, blocked: unknown) => {
   setDevtoolsBlocked(blocked === true)
 })
 
+// ── Задача 3E.10. Правый клик и проверка орфографии (UR37) ─────────────────
+//
+// Меню рисует ОКНО — так у них, и поэтому подписи в нём переведены вместе со
+// всем остальным. Здесь остаётся то, чего окно не может: глаголы правки
+// действуют на сфокусированный элемент отправителя, байты картинки достаёт
+// только `copyImageAt`, а словарь принадлежит сессии.
+
+ipcMain.handle('context-menu:edit', (event, command: unknown) => {
+  const verb = readEditCommand(command)
+  if (verb === 'copy') event.sender.copy()
+  else if (verb === 'cut') event.sender.cut()
+  else if (verb === 'paste') event.sender.paste()
+  else if (verb === 'selectAll') event.sender.selectAll()
+})
+
+ipcMain.handle('context-menu:copy-image', (event) => copyImageAtLastGesture(event.sender))
+
+ipcMain.handle('context-menu-spellcheck:apply', (event, action: unknown) => {
+  const parsed = readSpellcheckAction(action)
+  if (parsed) applySpellcheckAction(event.sender, parsed)
+})
+
+ipcMain.handle('context-menu-spellcheck:guest-add-word', (_event, payload: unknown) => {
+  const raw = (payload ?? {}) as { webContentsId?: unknown; word?: unknown }
+  const word = typeof raw.word === 'string' ? raw.word.trim() : ''
+  if (word !== '' && typeof raw.webContentsId === 'number') {
+    addWordToGuestDictionary(raw.webContentsId, word)
+  }
+})
+
 /** Версия — НАША, а не донорская (C12). Их поля про рассинхронизацию сборки
  * (`bundleOutOfSync`, `bundleCommitsBehind`) не заполняются: они про их
  * механизм обновления из исходников, которого у нас нет. Необязательные поля
@@ -4118,6 +4160,15 @@ app
     // себе. Читается ДО первого окна, чтобы настройка была в силе с первого
     // нажатия, а не со второго.
     if (restoreDevtoolsBlocked()) console.log('aecpilot: F12 blocked')
+
+    // Задача 3E.10: до первого окна — Chromium читает список языков сессии,
+    // когда окно уже есть, и настройка после него не догоняет первый ввод.
+    const spellcheck = configureSpellChecker()
+    console.log(
+      spellcheck.length > 0
+        ? `aecpilot: spellcheck ${spellcheck.join(', ')}`
+        : 'aecpilot: spellcheck left to the system'
+    )
 
     createWindow()
     console.log('aecpilot: window created')

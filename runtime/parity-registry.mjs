@@ -166,8 +166,14 @@ export const ELECTRON_CLASSIFICATION = {
   "plugin-profile-routes": { hx: "HX22", note: "маршруты профилей по нескольким ядрам — флот не бриджуем" },
   resolveFavicon: { hx: "HX21", note: "иконка сайта коннектора — показываем монограмму" },
   "secret-storage": { hx: "HX20", note: "их выключатель шифрования; мы шифруем всегда (C10)" },
-  "context-menu": { task: "3E.10", note: "правый клик: правка и картинка" },
-  "context-menu-spellcheck": { task: "3E.10", note: "орфография: замена слова, свой словарь" },
+  "context-menu": {
+    ours: "context-menu",
+    note: "правый клик: правка и картинка — перенесено 3E.10; меню рисует их рендерер, у нас только глаголы правки и copyImageAt",
+  },
+  "context-menu-spellcheck": {
+    ours: "context-menu-spellcheck",
+    note: "орфография: замена слова, свой словарь, факты от Chromium — перенесено 3E.10",
+  },
   preview: { task: "3E.5", note: "туннель к localhost удалённого ядра" },
   "preview-nav": { task: "3E.5", note: "навигация внутри страницы" },
   "browser-popout": { task: "3E.5", note: "вынос вкладки браузера в своё окно" },

@@ -55,6 +55,17 @@ const api: AecpilotApi = {
   },
   openAppWindow: () => ipcRenderer.invoke('window:open'),
   claimAmbientCue: (key) => ipcRenderer.invoke('ambient:claim', key),
+  contextMenuEdit: (command) => ipcRenderer.invoke('context-menu:edit', command),
+  contextMenuCopyImage: () => ipcRenderer.invoke('context-menu:copy-image'),
+  contextMenuSpellcheck: (action) => ipcRenderer.invoke('context-menu-spellcheck:apply', action),
+  contextMenuGuestAddWord: (payload) =>
+    ipcRenderer.invoke('context-menu-spellcheck:guest-add-word', payload),
+  onContextMenuSpellcheck: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, facts: Parameters<typeof cb>[0]): void =>
+      cb(facts)
+    ipcRenderer.on('context-menu-spellcheck:facts', listener)
+    return () => ipcRenderer.removeListener('context-menu-spellcheck:facts', listener)
+  },
   setActiveWork: (payload) => ipcRenderer.send('active-work:set', payload),
   setDisableF12: (blocked) => ipcRenderer.send('devtools:disable-f12', blocked),
   getVersion: () => ipcRenderer.invoke('version:get'),
