@@ -1430,7 +1430,7 @@ A2A отличается по существу: с той стороны не ч
 |---|---|
 | `renderer/src/aec/preview-boundary/**` (4 файла) | HX13: снимал вкладку с внешним адресом |
 | `renderer/src/shared/no-agent-ui-control.test.ts` | HX16/HX17: гвард против управления окном агентом |
-| `renderer/src/aec/roster/no-portrait-generation.test.ts` | HX11: гвард против генерации портрета |
+| ~~`renderer/src/aec/roster/no-portrait-generation.test.ts`~~ | HX11: гвард против генерации портрета. **Снят 2026-09-07 (3E.6):** файл сторожил ДВА запрета, а отменён один — сужен до питомца (HX1 в силе) и переименован в `shared/no-pet.test.ts` |
 | `e2e/donor-shell-smoke.spec.ts` (часть) | проверка `webviewTag !== true` и «двери» предпросмотра |
 
 Гвард снимается **вместе с включением того, что он запрещал**, одним изменением.

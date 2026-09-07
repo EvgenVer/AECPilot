@@ -76,8 +76,14 @@ export const VERDICTS = {
   // ── задачи (решение принято, работа впереди) ────────────────────────────
   web_search: { status: "task", task: "3E.2", where: "UR32 — веб-поиск агента, провайдер по умолчанию ddgs" },
   web_extract: { status: "task", task: "3E.2", where: "UR32; недоверенный текст страницы — 3E.4 (R22)" },
-  vision_analyze: { status: "task", task: "3E.6", where: "UR33 — зрение, HX11 сужен 2026-09-05" },
-  image_generate: { status: "task", task: "3E.6", where: "UR33 — генерация картинок, HX11 сужен 2026-09-05" },
+  vision_analyze: {
+    status: "ours",
+    where: "UR33 — зрение; ВКЛЮЧЁН по умолчанию, замерено 3E.6 на свежем профиле (набор `vision`)",
+  },
+  image_generate: {
+    status: "ours",
+    where: "UR33 — генерация картинок; ВКЛЮЧЁН по умолчанию (набор `image_gen`), поверхность возвращает 3E.1",
+  },
   execute_code: { status: "task", task: "3E.8", where: "UR30 — исполнение кода; граница исполнения — 3E.7 (R21)" },
   computer_use: { status: "task", task: "3E.8", where: "UR30 — управление компьютером" },
   terminal: { status: "task", task: "3E.8", where: "UR30; ДОСТУПЕН МОДЕЛИ УЖЕ СЕЙЧАС (инструмент ядра) — задача даёт поверхность, а 3E.7 границу" },
