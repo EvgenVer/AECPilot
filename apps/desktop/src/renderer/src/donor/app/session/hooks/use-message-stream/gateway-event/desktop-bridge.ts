@@ -3,24 +3,20 @@
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.ts
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [3] removed the `tour.request` branch (agent walking the interface, HX16)
- *   [3] removed the `preview.act.request` branch and its engine loader
- *       (agent pressing inside the preview, HX17)
- *   [4] dropped the imports of both engines and of `$toursEnabled`, orphaned
- *       by the two removals above
- * (no other edits)
+ * Edits: none
  */
-
 import { readActivePreview } from '@/app/chat/right-rail/preview-reader'
 import { writeAgentTerminalChunk } from '@/app/right-sidebar/terminal/agent-terminal-stream'
 import { readActiveTerminal } from '@/app/right-sidebar/terminal/buffer'
 import { closeAgentTerminalByProc } from '@/app/right-sidebar/terminal/terminals'
+import type { PreviewActAction } from '@/lib/preview-act/act-in-page'
+import type { TourAction, TourStep } from '@/lib/tour'
 import { $gateway } from '@/store/gateway'
 import { applyDesktopLayoutPreset, revealDesktopPane } from '@/store/pane-focus'
 import { recordAgentReaction } from '@/store/reactions-local'
 import { setMessages } from '@/store/session'
 import { $tipsEnabled, type ActiveTip, showTip } from '@/store/tips'
+import { $toursEnabled } from '@/store/tours'
 
 import type { GatewayEventContext } from './types'
 
@@ -40,6 +36,18 @@ import type { GatewayEventContext } from './types'
  *  this module's real location — hence the fall back to the static import, which
  *  is also the only branch production keeps, `import.meta.hot` being stripped
  *  there along with everything it guards. */
+const loadPreviewEngine = () => {
+  const stable = () => import('@/app/chat/right-rail/preview-act')
+
+  if (!import.meta.hot) {
+    return stable().then(mod => mod.actOnActivePreview)
+  }
+
+  return import(/* @vite-ignore */ '/src/app/chat/right-rail/preview-act.ts?hot=' + Date.now())
+    .catch(stable)
+    .then(mod => mod.actOnActivePreview as Awaited<ReturnType<typeof stable>>['actOnActivePreview'])
+}
+
 /** Desktop-surface bridge events: read-back requests the agent blocks on
  *  (terminal/preview/window), agent terminal streaming, pane reveal, and
  *  message reactions. */
@@ -85,9 +93,49 @@ export function handleDesktopBridgeEvent(ctx: GatewayEventContext): boolean {
     return true
   }
 
-  // EDIT [3]: the `preview.act.request` branch is removed — the agent pressing
-  // inside the preview page is SPEC HX17. The core still offers the tool; with
-  // no handler here the request is simply not ours to answer.
+  if (event.type === 'preview.act.request') {
+    // drive_preview tool: click/type/scroll/press inside the guest page, or
+    // drive the pane's history. Dynamic import keeps the injected engine off
+    // the boot path. Active session only: a background turn must never reach
+    // into the page the user is working in (desktop AGENTS.md: offer, don't
+    // hijack).
+    const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+
+    if (requestId) {
+      const answer = (result: unknown) =>
+        $gateway.get()?.request('preview.act.respond', {
+          request_id: requestId,
+          text: result ? JSON.stringify(result) : ''
+        })
+
+      if (isActiveEvent) {
+        void loadPreviewEngine()
+          .then(run =>
+            run({
+              amount: payload?.amount,
+              key: payload?.key,
+              kind: payload?.action ?? '',
+              max: payload?.max,
+              ref: payload?.ref,
+              selector: payload?.selector,
+              submit: payload?.submit,
+              text: payload?.text,
+              to: payload?.to as PreviewActAction['to']
+            })
+          )
+          .then(answer, error =>
+            answer({ error: error instanceof Error ? error.message : String(error), success: false })
+          )
+      } else {
+        void answer({
+          error: 'The in-app browser only takes actions in the session the user is looking at.',
+          success: false
+        })
+      }
+    }
+
+    return true
+  }
 
   if (event.type === 'window.read.request') {
     // read_window_below tool: main owns native window enumeration, so ask
@@ -128,8 +176,56 @@ export function handleDesktopBridgeEvent(ctx: GatewayEventContext): boolean {
     return true
   }
 
-  // EDIT [3]: the `tour.request` branch is removed — the agent walking the
-  // interface is SPEC HX16, and its engine would pull in driver.js.
+  if (event.type === 'tour.request') {
+    // tour tool: run one guided-tour action (highlight/step/discover) via
+    // driver.js — on the app's own DOM or inside the preview pane's guest
+    // page — and answer with the outcome. Dynamic import keeps driver.js
+    // and the preview injection payload off the boot path. Active session
+    // only: a background turn must never paint overlays on the user's
+    // screen (desktop AGENTS.md: offer, don't hijack).
+    const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+
+    if (requestId) {
+      const answer = (result: unknown) =>
+        $gateway.get()?.request('tour.respond', {
+          request_id: requestId,
+          text: result ? JSON.stringify(result) : ''
+        })
+
+      if (!$toursEnabled.get()) {
+        // Refused in words, not silently dropped: the agent asked for a
+        // walkthrough it isn't getting, and a no-op would leave it narrating
+        // a spotlight the user can't see.
+        void answer({ error: 'The user has turned guided tours off.', success: false })
+      } else if (isActiveEvent) {
+        void import('@/lib/tour')
+          .then(({ runTour }) =>
+            runTour(
+              {
+                kind: (payload?.action ?? 'stop') as TourAction['kind'],
+                selector: payload?.selector,
+                side: payload?.side as TourStep['side'],
+                startAt: payload?.step_index,
+                steps: payload?.steps as TourStep[] | undefined,
+                text: payload?.text,
+                title: payload?.title
+              },
+              payload?.surface === 'preview' ? 'preview' : 'app'
+            )
+          )
+          .then(answer, error =>
+            answer({ error: error instanceof Error ? error.message : String(error), success: false })
+          )
+      } else {
+        void answer({
+          error: 'Tours only run in the session the user is looking at.',
+          success: false
+        })
+      }
+    }
+
+    return true
+  }
 
   if (event.type === 'tip.show') {
     // tip tool: point the accent bubble at something and say one line about

@@ -29,6 +29,31 @@ from urllib.parse import parse_qs, urlparse
 
 DAY = 86400
 
+# A page with something to click and something to type into — the target for
+# `drive_preview` and `tour` in the e2e (task 3E.12, UR36). Deliberately plain:
+# one input, one button, and an echo the button writes. That echo is the proof
+# a test can read from the OUTSIDE — it appears only if a real key event
+# reached the field and a real click reached the button.
+# Ставится, когда гость запросил страницу ниже (задача 3E.12).
+FORM_PAGE_SERVED = threading.Event()
+
+FORM_PAGE = """<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Zayavka</title></head>
+<body>
+<h1>Zayavka na zamer</h1>
+<label for="obj">Obyekt</label>
+<input id="obj" name="obj" placeholder="nomer obyekta">
+<button id="go" type="button">Otpravit</button>
+<p id="echo"></p>
+<script>
+document.getElementById('go').addEventListener('click', function () {
+  document.getElementById('echo').textContent =
+    'PRINYATO: ' + document.getElementById('obj').value;
+});
+</script>
+</body></html>
+"""
+
 _RUNTIME = Path(__file__).resolve().parents[3] / "runtime"
 
 
@@ -192,6 +217,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_html(self, body: str) -> None:
+        raw = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def _body(self) -> dict:
         """Read the request body — ALWAYS, even when the answer is a refusal.
 
@@ -235,6 +268,16 @@ class Handler(BaseHTTPRequestHandler):
         # "Gateway checking" forever — which is what the first run of this
         # fixture did, with the sidebar refusing to publish the rows it had
         # already fetched.
+        if route == "/page/form":
+            # Флаг для сокетной половины: страница, которую агент будет
+            # использовать, ТОЛЬКО ЧТО загрузилась в панели. Ход человека здесь
+            # не годится — после открытия панели вторая отправка из композера
+            # до мока не доезжает (замер 2026-09-12), а этот сигнал приходит от
+            # самого гостя и врать не умеет.
+            FORM_PAGE_SERVED.set()
+            self._send_html(FORM_PAGE)
+            return
+
         if route == "/api/status":
             self._send(
                 200,

@@ -8,8 +8,6 @@
  *   [3] dropped the window-translucency row and the VS Code Marketplace theme
  *       search/import (both HX14) — with their imports, derived state and the
  *       search box's second job
- *   [3] dropped the guided-tours row and its store binding (HX16) — the tips
- *       row next to it is kept, tips are taken
  * (no other edits)
  */
 
@@ -38,6 +36,7 @@ import { $sessionListDensity, type SessionListDensity, setSessionListDensity } f
 import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
 import { $retiredTips, $tipsEnabled, resetTips, setTipsEnabled } from '@/store/tips'
 import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
+import { $toursEnabled, setToursEnabled } from '@/store/tours'
 import { $vibeHeartsEnabled, setVibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
 import { $zoomPercent, setZoomPercent } from '@/store/zoom'
 import { getBaseColors, useTheme } from '@/themes/context'
@@ -120,6 +119,7 @@ export function AppearanceSettings() {
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
   const reactionsEnabled = useStore($reactionsEnabled)
   const tipsEnabled = useStore($tipsEnabled)
+  const toursEnabled = useStore($toursEnabled)
   const retiredTips = useStore($retiredTips)
   const vibeHeartsEnabled = useStore($vibeHeartsEnabled)
   const backdrop = useStore($backdrop)
@@ -450,9 +450,23 @@ export function AppearanceSettings() {
             title={a.tipsTitle}
           />
 
-          {/* EDIT [3]: the guided-tours row is dropped — the agent walking the
-              interface is SPEC HX16, and a switch for a feature that is not
-              registered would only promise something the app never does. */}
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={id => {
+                  triggerHaptic('selection')
+                  setToursEnabled(id === 'on')
+                }}
+                options={[
+                  { id: 'off', label: t.common.off },
+                  { id: 'on', label: t.common.on }
+                ]}
+                value={toursEnabled ? 'on' : 'off'}
+              />
+            }
+            description={a.toursDesc}
+            title={a.toursTitle}
+          />
 
           <ListRow
             action={

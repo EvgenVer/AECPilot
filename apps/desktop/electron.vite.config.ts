@@ -2,9 +2,24 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+const requireFromHere = createRequire(path.join(here, 'electron.vite.config.ts'))
+
+// Экскурсия вклеивает СОБРАННЫЙ driver.js прямо в чужую страницу (задача
+// 3E.12, UR36): `preview-tour.ts` берёт `driver.js/dist/driver.js.iife.js?raw`
+// и отдаёт исходник гостю строкой. В карте `exports` пакета этого файла нет —
+// ни его, ни `./package.json`, — поэтому сборка падает на «Missing specifier».
+// Решается тем же способом, что и у донора: резолвим главный вход
+// (`dist/driver.js.cjs`) и указываем на его соседа по папке. Оба ключа
+// намеренно: сопоставление псевдонимов ТОЧНОЕ, а запрос `?raw` в dev доезжает
+// сюда, а на некоторых путях сборки срезается раньше.
+const driverIifePath = path.join(
+  path.dirname(requireFromHere.resolve('driver.js')),
+  'driver.js.iife.js'
+)
 
 // The three aliases that let vendored donor files keep their own imports (see
 // `src/renderer/src/donor/README.md`):
@@ -23,6 +38,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // ORDER MATTERS. Vite replaces on a string prefix, so `@` would swallow
 // `@hermes/…` if it came first. Both `@hermes/*` entries stay above it.
 export const donorAliases = {
+  'driver.js/dist/driver.js.iife.js?raw': `${driverIifePath}?raw`,
+  'driver.js/dist/driver.js.iife.js': driverIifePath,
   '@hermes/shared': path.resolve(here, 'src/renderer/src/shared/hermes-shared'),
   '@hermes/plugin-sdk': path.resolve(here, 'src/renderer/src/donor/sdk'),
   '@': path.resolve(here, 'src/renderer/src/donor')
@@ -47,6 +64,20 @@ export default defineConfig({
   renderer: {
     plugins: [react(), tailwindcss()],
     resolve: { alias: donorAliases },
+    // driver.js попадает в граф только через ДИНАМИЧЕСКИЙ импорт экскурсии, и
+    // сканер зависимостей его на старте не видит. Без этой строки первое же
+    // обращение регистрирует его как новую зависимость: esbuild пребандлит
+    // `?raw`-импорт как модуль (и сырой текст превращается в «нет экспорта
+    // default»), а окно перезагружается посреди сессии. Пакет чистый ESM без
+    // CJS-зависимостей — отдать его неоптимизированным ничего не стоит.
+    optimizeDeps: {
+      exclude: [
+        'driver.js',
+        'driver.js/dist/driver.js.iife.js',
+        'driver.js/dist/driver.js.iife.js?raw',
+        'driver.js/dist/driver.css?raw'
+      ]
+    },
     // Its own HTML entry rather than a route of the main one: mounting the
     // whole shell to show one input would boot their application twice, and
     // this window must appear in the time it takes to press a chord.

@@ -23,7 +23,7 @@ import asyncio
 import json
 import sys
 
-from mock_rest import serve_in_thread
+from mock_rest import FORM_PAGE_SERVED, serve_in_thread
 from websockets.asyncio.server import ServerConnection, serve
 
 SESSION_ID = "e2e-1"
@@ -35,6 +35,8 @@ async def handle(connection: ServerConnection) -> None:
     await connection.send(
         json.dumps({"jsonrpc": "2.0", "method": "event", "params": {"type": "gateway.ready"}})
     )
+
+    asyncio.create_task(stream_drive_turn(connection))
 
     async for raw in connection:
         request = json.loads(raw)
@@ -100,6 +102,20 @@ async def handle(connection: ServerConnection) -> None:
             # from stdout: proving the round trip is the point of task 3.4.
             answer = (request.get("params") or {}).get("text") or ""
             print("PREVIEW_READ_RESPOND " + json.dumps(answer), flush=True)
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
+            )
+        elif method == "preview.act.respond":
+            # The app's answer to drive_preview / annotate_preview (task 3E.12).
+            answer = (request.get("params") or {}).get("text") or ""
+            print("PREVIEW_ACT_RESPOND " + json.dumps(answer), flush=True)
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
+            )
+        elif method == "tour.respond":
+            # The app's answer to the tour tool (task 3E.12, UR36).
+            answer = (request.get("params") or {}).get("text") or ""
+            print("TOUR_RESPOND " + json.dumps(answer), flush=True)
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
             )
@@ -316,6 +332,88 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     await push("message.delta", {"text": ARTIFACT_ANSWER})
     await push("message.complete", {"text": ARTIFACT_ANSWER, "status": "complete"})
     asyncio.create_task(poll_preview_reads(connection))
+
+
+async def stream_drive_turn(connection: ServerConnection) -> None:
+    """The agent using the page open in the preview pane (task 3E.12, UR36).
+
+    Started by the REST half the moment the guest asks for `/page/form`, not by
+    a prompt: once a preview pane is open the composer stops delivering a second
+    turn to this mock (measured 2026-09-12 — the text stays in the box and the
+    session shows "Waking up default…"), while this signal comes from the guest
+    itself and cannot be wrong about whether the page is there.
+
+    Actions address the page by CSS SELECTOR rather than by a ref from the
+    inventory, on purpose: a ref would make every later step depend on the
+    order the first one answered in, and a hung test would then say "click
+    failed" when what really failed was `elements`. Their tool takes either.
+
+    The tour runs on the same guest page (`surface="preview"`), which is the
+    half that proves driver.js really got injected into someone else's page.
+    """
+
+    async def push(event_type: str, payload: dict, pause: float = 1.5) -> None:
+        await connection.send(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "event",
+                    "params": {"type": event_type, "session_id": SESSION_ID, "payload": payload},
+                }
+            )
+        )
+        # Each request blocks the real core until the window answers; here the
+        # pause just keeps the steps in order and lets the page settle.
+        await asyncio.sleep(pause)
+
+    # Repeated for the same reason `poll_preview_reads` repeats: the page the
+    # actions need is several UI steps away, and early rounds simply answer
+    # "no live page". Every step is idempotent — typing re-types, clicking
+    # re-clicks, and the echo the test reads says the same thing either way.
+    while not FORM_PAGE_SERVED.is_set():
+        await asyncio.sleep(0.5)
+
+    for round_index in range(8):
+        await asyncio.sleep(3)
+        try:
+            await push(
+                "preview.act.request",
+                {"request_id": f"act-{round_index}-1", "action": "elements"},
+            )
+            await push(
+                "preview.act.request",
+                {
+                    "request_id": f"act-{round_index}-2",
+                    "action": "type",
+                    "selector": "#obj",
+                    "text": "AR-12",
+                },
+            )
+            await push(
+                "preview.act.request",
+                {"request_id": f"act-{round_index}-3", "action": "click", "selector": "#go"},
+            )
+            await push(
+                "tour.request",
+                {
+                    "request_id": f"tour-{round_index}-1",
+                    "action": "targets",
+                    "surface": "preview",
+                },
+            )
+            await push(
+                "tour.request",
+                {
+                    "request_id": f"tour-{round_index}-2",
+                    "action": "show",
+                    "surface": "preview",
+                    "selector": "#go",
+                    "title": "Otpravka",
+                    "text": "Zdes zayavka uhodit zamerschiku.",
+                },
+            )
+        except Exception:
+            return
 
 
 async def poll_preview_reads(connection: ServerConnection) -> None:

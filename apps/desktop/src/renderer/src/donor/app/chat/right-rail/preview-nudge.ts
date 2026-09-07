@@ -1,11 +1,9 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-nudge.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [4] inlined the WatchStage type — its module `lib/preview-act` is HX17
- * (no other edits)
+ * Edits: none
  */
 /**
  * OVERLAY NUDGE — the one way to say a stage to an overlay that is ALREADY on
@@ -23,23 +21,9 @@
  * never touched would be a lie about what it did.
  */
 
-import { activePreviewScriptRunner } from './preview-script-runner'
+import type { WatchStage } from '@/lib/preview-act/watch-in-page'
 
-// EDIT [4]: the WatchStage type is inlined instead of imported. Its module,
-// `lib/preview-act`, is the agent pressing inside the preview page — SPEC HX17 —
-// and is not vendored. Copied verbatim from their watch-in-page.ts at DONOR_SHA.
-type WatchStage =
-  | 'aim'
-  | 'clear'
-  | 'hold'
-  | 'pin'
-  | 'read'
-  | 'rest'
-  | 'strike'
-  | 'strobe'
-  | 'sweep'
-  | 'think'
-  | 'unpin'
+import { activePreviewScriptRunner } from './preview-script-runner'
 
 /** Run one stage against the active pane's overlay, if it has one. */
 export function nudgeOverlay(stage: WatchStage): void {

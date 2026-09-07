@@ -28,6 +28,7 @@ let preExistingElectronPids = new Set<number>()
 let projectDir = ''
 let userDataDir = ''
 let mainOutput = ''
+let restPort = 0
 
 function listElectronPids(): Set<number> {
   if (process.platform !== 'win32') return new Set()
@@ -117,6 +118,47 @@ async function clearNotifications(page: Page): Promise<void> {
   }
 }
 
+/** Выполняет выражение В ГОСТЕ панели предпросмотра. Плейрайт до него не
+ *  достаёт — гость живёт в своём процессе и не является кадром окна, — а
+ *  главный процесс достаёт: там он обычный `webContents` типа `webview`. */
+function guestEval<T>(
+  electron: ElectronApplication,
+  expression: string,
+  urlPart: string
+): Promise<T | null> {
+  return electron.evaluate(
+    async ({ webContents }, { code, part }) => {
+      // Гостей может быть несколько: к этому месту в полном прогоне жив ещё и
+      // внешний адрес из теста про артефакт. Берём того, чей адрес назвали.
+      const guest = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getType() === 'webview' && wc.getURL().includes(part))
+
+      if (!guest || guest.isDestroyed()) return null
+
+      try {
+        return (await guest.executeJavaScript(code)) as never
+      } catch {
+        return null
+      }
+    },
+    { code: expression, part: urlPart }
+  )
+}
+
+/** Видимый текст гостя — то, что человек читает в панели. */
+function guestText(electron: ElectronApplication, urlPart: string): Promise<string | null> {
+  return guestEval<string>(electron, 'document.body.innerText', urlPart)
+}
+
+/** Полезная нагрузка строки мока: он печатает JSON-строку, внутри которой их
+ *  ответ — тоже JSON. */
+function mockPayload(line: string): unknown {
+  const outer = JSON.parse(line.slice(line.indexOf(' ') + 1)) as string
+
+  return JSON.parse(outer)
+}
+
 /** How many preview tabs the store holds — the observable HX13 acts on. */
 function previewTabCount(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -198,6 +240,7 @@ test.beforeAll(async () => {
   const restLine = mockOutput.split(/\r?\n/).find((line) => line.startsWith('MOCK_REST_READY'))
   if (!restLine) throw new Error(`mock never printed MOCK_REST_READY — got:\n${mockOutput}`)
   const mockRestPort = Number(restLine.split(' ')[1])
+  restPort = mockRestPort
 
   // The vault is made HERE, before the app starts, and the fixture is told about
   // it in the same breath. Their sidebar shows only sessions belonging to the
@@ -1473,4 +1516,79 @@ test('в окне остался один роестр, и это их пане�
   ).toHaveCount(0)
 
   await assertRendererAlive(page, 'one roster only')
+})
+
+// Задача 3E.12 (SPEC UR36; отменённые HX16 и HX17). Проверяется не «есть ли у
+// нас код», а РУКА АГЕНТА В ЧУЖОЙ СТРАНИЦЕ, и доказывается она тем, что видит
+// сама страница: агент печатает в поле, нажимает кнопку, и страница пишет то,
+// что получила. Ни один шаг здесь нельзя пройти, подделав ответ на нашей
+// стороне, — эхо появляется только если событие дошло до гостя по-настоящему.
+//
+// СТРАНИЦА СВОЯ, А НЕ ИЗ СЕТИ. Её отдаёт REST-половина мока (`/page/form`):
+// тест обязан падать, когда ломается НАШЕ, а не когда чужой сайт поменял
+// разметку или у прогона нет выхода наружу.
+test('агент печатает и нажимает в предпросмотре, и человеку это видно', async () => {
+  const page = await app.firstWindow()
+
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  // СТРАНИЦУ ОТКРЫВАЕТ ЧЕЛОВЕК, адресной строкой панели — тем же способом, что
+  // и в жизни. Ходом из композера это сделать не удалось: после того как панель
+  // открыта, вторая отправка до мока не доезжает (текст остаётся в поле, сессия
+  // показывает «Waking up default…»), и тест доказывал бы состояние композера
+  // вместо руки агента. Панель к этому месту уже открыта тестом про артефакт.
+  const address = page.getByRole('textbox', { name: /Address|Адрес/ })
+
+  await expect(
+    address,
+    'панель предпросмотра открыта тестом про артефакт — без неё некуда открывать страницу'
+  ).toBeVisible({ timeout: 20000 })
+
+  await address.click()
+  await address.fill(`http://127.0.0.1:${restPort}/page/form`)
+  await page.keyboard.press('Enter')
+
+  // Гость должен ЗАГРУЗИТЬСЯ: движок вклеивается в живой документ, и на пустой
+  // странице опись вернулась бы пустой.
+  await expect
+    .poll(() => guestText(app, '/page/form'), { timeout: 30000 })
+    .toContain('Zayavka na zamer')
+
+  // Дальше действует МОК: он начинает слать действия, как только его же
+  // REST-половина отдала эту страницу гостю, и повторяет их кругами — ровно
+  // как уже делает для `read_preview`.
+  //
+  // 1. Опись. Движок вклеен в чужую страницу и раздал ссылки на элементы —
+  //    без этого агент нажимать некуда.
+  const inventory = mockPayload(await waitForMockLine(/PREVIEW_ACT_RESPOND .*elements/, 60000))
+  expect(JSON.stringify(inventory)).toContain('Otpravit')
+
+  // 2. Ввод и нажатие. Доказательство — В САМОЙ СТРАНИЦЕ: её собственный
+  //    обработчик написал в `#echo` то, что оказалось в поле. Синтетический
+  //    `el.click()` сюда бы тоже прошёл, а вот `:hover`-меню — нет; именно
+  //    поэтому у них `sendInputEvent`, и именно поэтому проверяем эхо.
+  await expect
+    .poll(() => guestText(app, '/page/form'), { timeout: 60000 })
+    .toContain('PRINYATO: AR-12')
+
+  // 3. Экскурсия по ТОЙ ЖЕ чужой странице: driver.js вклеен и собрал цели.
+  const targets = mockPayload(await waitForMockLine(/TOUR_RESPOND .*success/, 60000))
+  expect(JSON.stringify(targets)).toContain('Otpravit')
+
+  // 4. R19: молча агент не действует. Накладка живёт В СТРАНИЦЕ — свой элемент
+  //    с курсором и рамкой, — и человек видит, куда ушла чужая рука.
+  await expect
+    .poll(
+      () =>
+        guestEval(
+          app,
+          "!!document.querySelector('hermes-watch') || !!document.getElementById('__hermes-tour-style')",
+          '/page/form'
+        ),
+      { timeout: 30000 }
+    )
+    .toBe(true)
+
+  await assertRendererAlive(page, 'drive preview')
 })

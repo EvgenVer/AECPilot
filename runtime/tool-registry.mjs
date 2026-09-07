@@ -93,9 +93,9 @@ export const VERDICTS = {
   read_window_below: { status: "ours", where: "UR30, HX12 отменён 05.09 — задача 3E.8: `main/os-windows.ts` через `get-windows`, только метаданные" },
   delegate_task: { status: "task", task: "3E.13", where: "UR38 — подагенты, фазирование N10 снято" },
   memory: { status: "task", task: "5.0", where: "фаза 5 — память агента (Mem0), гейт пройден 2026-08-31" },
-  tour: { status: "task", task: "3E.12", where: "UR36; ветка tour.request снята правкой [3] по HX16, исключение отменено" },
-  drive_preview: { status: "task", task: "3E.12", where: "UR36; ветка preview.act.request снята правкой [3] по HX17, исключение отменено" },
-  annotate_preview: { status: "task", task: "3E.12", where: "UR36; едет по тому же preview.act, что и drive_preview (их докстринг)" },
+  tour: { status: "ours", where: "UR36 — задача 3E.12: ветка `tour.request` вернулась повторным переносом, driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
+  drive_preview: { status: "ours", where: "UR36 — задача 3E.12: `preview.act.request` вернулась там же; e2e доказан эхом самой страницы (агент напечатал и нажал)" },
+  annotate_preview: { status: "ours", where: "UR36 — тот же канал `preview.act` (kind pin/unpin/hold), что и drive_preview; живьём в 3E.12 прогнаны elements/type/click, пометки — нет" },
 
   // ── исключено ──────────────────────────────────────────────────────────
   text_to_speech: { status: "excluded", hx: "HX19", where: "голос сверх диктовки — решение владельца 2026-09-05" },
