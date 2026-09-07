@@ -36,7 +36,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
-import { readExclusions, readTaskIds } from "./parity-registry.mjs";
+import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = path.resolve(RUNTIME_DIR, "..");
@@ -74,8 +74,8 @@ export const VERDICTS = {
   desktop_preview: { status: "ours", where: "ветка preview.read.request в donor/.../desktop-bridge.ts; сама область предпросмотра — задача 3.4" },
 
   // ── задачи (решение принято, работа впереди) ────────────────────────────
-  web_search: { status: "task", task: "3E.2", where: "UR32 — веб-поиск агента, провайдер по умолчанию ddgs" },
-  web_extract: { status: "task", task: "3E.2", where: "UR32; недоверенный текст страницы — 3E.4 (R22)" },
+  web_search: { status: "ours", where: "UR32 — задача 3E.2, провайдер `ddgs` записан нами (main/index.ts::applyWebBackend), живой прогон — runtime/web-search-probe.mjs" },
+  web_extract: { status: "task", task: "3E.18", where: "тёмный после 3E.2: `ddgs` — только поиск; путь чтения страницы — решение владельца; недоверенный текст — 3E.4 (R22)" },
   vision_analyze: {
     status: "ours",
     where: "UR33 — зрение; ВКЛЮЧЁН по умолчанию, замерено 3E.6 на свежем профиле (набор `vision`)",
@@ -108,7 +108,19 @@ export const VERDICTS = {
   feishu_doc_read: { status: "excluded", hx: "HX11", where: "Feishu" },
 
   // ── семьи (префикс) ────────────────────────────────────────────────────
-  "browser_*": { status: "task", task: "3E.3", where: "UR31/HX13 отменён; защита R22 до включения — 3E.4" },
+  // Десять узких инструментов: открыть, снять слепок, нажать, ввести, пролистать,
+  // назад, клавиша, картинки, зрение, консоль. Живой прогон — `node
+  // runtime/browser-probe.mjs` (задача 3E.3): страница из сети открылась, текст
+  // введён в форму, кнопка нажата, введённое вернулось со страницы.
+  "browser_*": { status: "ours", where: "UR31/HX13 отменён; движок выбран нами (`browser.backend: off`, main/index.ts::applyBrowserBackend), защита R22 — 3E.4" },
+  // ЕДИНСТВЕННЫЙ браузерный инструмент, который мы модели НЕ даём. Он не
+  // третий вариант того же — он ЗАМЕНА всему набору выше: при пустом
+  // `browser.backend` ядро включает режим Browser Use CLI и прячет узкие
+  // инструменты, оставляя один, принимающий произвольный код на Python.
+  // Мы выбрали узкие (R19, R21, R22 — см. applyBrowserBackend), а это
+  // сужение объёма против правила «берём по максимуму», и потому оно
+  // вынесено владельцу, а не закрыто задачей, которая его нашла.
+  browser_exec: { status: "task", task: "3E.17", where: "выбор формы браузерной поверхности — решение владельца" },
   "kanban_*": { status: "task", task: "3E.13", where: "UR38 — доска задач, фазирование N10 снято" },
   "spotify_*": { status: "excluded", hx: "HX11", where: "Spotify" },
   "ha_*": { status: "excluded", hx: "HX11", where: "Home Assistant" },
@@ -172,7 +184,7 @@ export function verdictFor(tool, verdicts = VERDICTS) {
   return null;
 }
 
-export function buildRegistry({ toolsets, exclusions, taskIds, verdicts = VERDICTS }) {
+export function buildRegistry({ toolsets, exclusions, taskIds, closedTaskIds = new Set(), verdicts = VERDICTS }) {
   const { capability, platform, tools, onlyInPlatforms } = splitToolsets(toolsets);
   const owners = ownersOf(capability);
 
@@ -192,6 +204,11 @@ export function buildRegistry({ toolsets, exclusions, taskIds, verdicts = VERDIC
     }
     if (verdict.status === "task" && !taskIds.has(verdict.task)) {
       badCitations.push(`${tool}: в TASKS.md нет задачи ${verdict.task}`);
+    } else if (verdict.status === "task" && closedTaskIds.has(verdict.task)) {
+      badCitations.push(
+        `${tool}: задача ${verdict.task} ЗАКРЫТА — вердикт «работа впереди» пережил работу; ` +
+          `его место занимает «есть у нас» или «исключено»`
+      );
     }
 
     rows.push({ tool, owners: owners.get(tool) ?? [], ...verdict });
@@ -284,7 +301,8 @@ if (isMain) {
   const registry = buildRegistry({
     toolsets: readToolsets(),
     exclusions: readExclusions(fs.readFileSync(SPEC_FILE, "utf-8")),
-    taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf-8"))
+    taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf-8")),
+    closedTaskIds: readClosedTaskIds(fs.readFileSync(TASKS_FILE, "utf-8"))
   });
 
   console.log(formatRegistry(registry));

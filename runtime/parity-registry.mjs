@@ -209,6 +209,13 @@ export function readTaskIds(tasksText) {
   return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-z.]+) /gm)].map((m) => m[1]));
 }
 
+/** Task ids already ticked off. A verdict citing a CLOSED task is as stale as
+ * one citing a task that never existed: it answers «работа впереди» for work
+ * that is behind. */
+export function readClosedTaskIds(tasksText) {
+  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-z.]+) /gm)].map((m) => m[1]));
+}
+
 /** Methods the renderer may never name, from the deny list itself rather than a
  * copy of it. */
 export function readDenied(denyText) {

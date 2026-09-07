@@ -93,6 +93,23 @@ describe("buildRegistry", () => {
     expect(registry.badCitations).toHaveLength(2);
   });
 
+  it("вердикт пережил ЗАДАЧУ — тоже находка: работа сделана, а таблица зовёт её будущей", () => {
+    // Это не педантизм. Реестр — единственное место, где написано, что у
+    // продукта есть, а чего нет; строка «задача 3E.2» после закрытия 3E.2
+    // означает «веб-поиска у нас пока нет», то есть ровно неправду о том, ради
+    // чего реестр заведён. Так и протухла первая строка — её и нашла эта
+    // проверка.
+    const registry = buildRegistry({
+      ...base,
+      closedTaskIds: new Set(["3E.3"]),
+      toolsets,
+      verdicts: { "web_*": { status: "task", task: "3E.3", where: "UR32" } },
+    });
+
+    expect(registry.badCitations).toHaveLength(2);
+    expect(registry.badCitations[0]).toContain("ЗАКРЫТА");
+  });
+
   it("вердикт пережил инструмент — это находка, а не порядок", () => {
     const registry = buildRegistry({
       ...base,

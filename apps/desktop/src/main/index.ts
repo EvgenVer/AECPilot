@@ -832,6 +832,56 @@ function applyWebBackend(homeDir: string): void {
 }
 
 /**
+ * Задача 3E.3 (UR31) — ВЫБОР БРАУЗЕРНОГО ДВИЖКА, а не его включение.
+ *
+ * Набор `browser` у агента был включён и до этой задачи, и в этом всё дело.
+ * Замерено 2026-09-07 (`node runtime/browser-probe.mjs`): без записанного
+ * выбора ядро отдавало агенту НЕ двенадцать узких инструментов
+ * (`browser_navigate`, `browser_click`, `browser_type`, `browser_snapshot`, …),
+ * а один — `browser_exec`, принимающий ПРОИЗВОЛЬНЫЙ КОД НА PYTHON. Так
+ * устроено умолчание ядра: при пустом `browser.backend` включается режим
+ * Browser Use CLI, «если CLI вообще запускается»
+ * (`tools/browser_use_cli.py::is_browser_use_cli_mode`), а он подменяет собой
+ * весь набор `browser_*` — их `check_fn` возвращает False, и модель этих
+ * инструментов не видит.
+ *
+ * ЗАПУСКАЛСЯ ОН У НАС ПО СОВПАДЕНИЮ: `uvx` стоит на машине, потому что мы сами
+ * ставим `uv` для ядра. То есть поверхность браузера у продукта выбиралась не
+ * решением, а тем, что оказалось на диске, — ровно случай веб-поиска (3E.2),
+ * где выбор без записи уводил запрос на чужую точку.
+ *
+ * ПОЧЕМУ ВСТРОЕННЫЕ ИНСТРУМЕНТЫ, А НЕ «SOTA»-СВЯЗКА. Цена названа честно:
+ * Browser Use CLI 3.0 мощнее. Но продукт держит три требования, которые ломает
+ * ровно форма «один инструмент с кодом внутри»:
+ *   R19 — скрытых ходов у агента нет: `browser_click(ref)` человек читает в
+ *         ленте, `browser_exec(code=…)` — это блок кода, о котором в ленте
+ *         видно только то, что он был;
+ *   R21 — разрушающее подтверждает человек: код исполняется в отдельном
+ *         демоне browser-use, и `detect_dangerous_command` его не видит вовсе,
+ *         то есть граница исполнения, закрытая задачей 3E.7, обходится сбоку;
+ *   R22 — действия агента в странице видны: см. R19.
+ * Плюс `uvx browser-use` тянет пакет с PyPI в момент вызова.
+ *
+ * `backend: "off"` — их же документированный способ вернуть встроенный набор
+ * («Set ``browser.backend: off`` … for the built-in browser_* tools»). Пишем
+ * СТРОКОЙ В КАВЫЧКАХ намеренно: в YAML 1.1 голое `off` разбирается как
+ * булево False, и ядру приходится это отдельно чинить.
+ *
+ * `cloud_provider: "local"` — их строка «★ recommended · free · Headless
+ * Chromium, no API key needed». Облачные (Browserbase, Firecrawl, Nous
+ * Subscription) остаются в их же панели настроек со своими ключами и без
+ * нашего вмешательства: панель `toolset-config-panel.tsx` перенесена, честно
+ * показывает `needs_keys` / `needs_auth` и ничего не включает сама.
+ *
+ * Выбор человека не трогается: `applyConfigDefault` дописывает ключ только
+ * когда его нет.
+ */
+function applyBrowserBackend(homeDir: string): void {
+  applyConfigDefault(homeDir, 'browser', 'backend', 'off', 'the browser driver')
+  applyConfigDefault(homeDir, 'browser', 'cloud_provider', 'local', 'where the browser runs')
+}
+
+/**
  * Задача 3E.7 (риск R21) — ПОДТВЕРЖДАЕТ ЧЕЛОВЕК, и это записано, а не унаследовано.
  *
  * У ядра три режима: `manual` — спрашивает человека, `smart` — решает
@@ -4135,6 +4185,7 @@ app
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
           applyWebBackend(HERMES_HOME_DIR)
+          applyBrowserBackend(HERMES_HOME_DIR)
           applyApprovalsMode(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
