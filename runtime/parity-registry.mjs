@@ -174,9 +174,18 @@ export const ELECTRON_CLASSIFICATION = {
     ours: "context-menu-spellcheck",
     note: "орфография: замена слова, свой словарь, факты от Chromium — перенесено 3E.10",
   },
-  preview: { task: "3E.5", note: "туннель к localhost удалённого ядра" },
-  "preview-nav": { task: "3E.5", note: "навигация внутри страницы" },
-  "browser-popout": { task: "3E.5", note: "вынос вкладки браузера в своё окно" },
+  preview: {
+    ours: "preview",
+    note: "туннель к localhost удалённого ядра — 3E.5; отдельная сессия `ssh -N -L` по уже открытому подключению (ControlMaster в OpenSSH под Windows нет)",
+  },
+  "preview-nav": {
+    ours: "preview-nav",
+    note: "жесты «назад/вперёд/обновить», не доходящие до окна сами (app-command, свайп) — 3E.5",
+  },
+  "browser-popout": {
+    ours: "browser-popout",
+    note: "вынос вкладки браузера в своё окно и возврат при закрытии — 3E.5",
+  },
   "notification-activate": { task: "3D.9", note: "клик по уведомлению бота открывает его чат" },
   "mcp-oauth": {
     ours: "gateway",
