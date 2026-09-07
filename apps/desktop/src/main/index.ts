@@ -831,6 +831,34 @@ function applyWebBackend(homeDir: string): void {
   applyConfigDefault(homeDir, 'web', 'backend', DEFAULT_WEB_BACKEND, 'the web search provider')
 }
 
+/**
+ * Задача 3E.7 (риск R21) — ПОДТВЕРЖДАЕТ ЧЕЛОВЕК, и это записано, а не унаследовано.
+ *
+ * У ядра три режима: `manual` — спрашивает человека, `smart` — решает
+ * вспомогательная модель, `off` — не спрашивает никого. R21 говорит
+ * «подтверждение ЧЕЛОВЕКОМ на разрушающие команды», то есть подходит ровно
+ * один из трёх.
+ *
+ * ПОЧЕМУ НЕ ПОЛОЖИТЬСЯ НА УМОЛЧАНИЕ ЯДРА — ЗАМЕРЕНО, А НЕ ВЫЧИТАНО. Чтение
+ * кода вводит в заблуждение: `_get_approval_mode` кончается на
+ * `.get("mode", "manual")`, и по исходнику кажется, что без ключа будет
+ * `manual`. На деле оно читает УЖЕ СЛИТЫЙ конфиг, а в шаблоне умолчаний ядра
+ * стоит `"mode": "smart"` — то есть запасное значение не срабатывает никогда.
+ * Прогон `node runtime/execution-boundary.mjs` на профиле без блока
+ * `approvals:` печатает `smart` (замерено 2026-09-07).
+ *
+ * Цена этого была бы двойной: разрушающую команду подтверждала бы модель
+ * вместо человека (R21 говорит «человеком»), а наш экран настроек показывал бы
+ * при этом `manual` — наш `parseApprovalsMode` без блока отвечает именно так.
+ * То есть не отказ, а уверенный неверный ответ про настройку безопасности.
+ *
+ * Выбор человека не трогается: `applyConfigDefault` дописывает ключ только
+ * когда его нет, а наш экран настроек (задача 0.17) правит его же.
+ */
+function applyApprovalsMode(homeDir: string): void {
+  applyConfigDefault(homeDir, 'approvals', 'mode', 'manual', 'the approvals mode')
+}
+
 /** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
  *
  * Их умолчание называет ИХ продукт, и оно попадает не в код, а на экран: фразу
@@ -4107,6 +4135,7 @@ app
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
           applyWebBackend(HERMES_HOME_DIR)
+          applyApprovalsMode(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't

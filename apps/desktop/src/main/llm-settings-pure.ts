@@ -101,8 +101,16 @@ const APPROVALS_SCALAR_RE = /^approvals:\s*[^#\s]/
  * YAML's bare boolean words (`true`→'manual', `false`→'off', which is how
  * bare `off`/`no`/`on`/`yes` parse under YAML 1.1) are mapped like hermes
  * maps the resulting Python bool; anything else (including no `mode:` line,
- * or no `approvals:` block at all) falls back to hermes's default,
- * `'manual'`. Never throws. */
+ * or no `approvals:` block at all) falls back to `'manual'`. Never throws.
+ *
+ * ПОПРАВКА 2026-09-07 (задача 3E.7): раньше здесь было написано, что это
+ * «умолчание hermes». ЭТО НЕВЕРНО и проверено прогоном: без блока `approvals:`
+ * ядро работает в режиме `smart` — `_get_approval_mode` читает уже слитый
+ * конфиг, где шаблон умолчаний ядра проставил `mode: smart`, и его собственное
+ * запасное `'manual'` не срабатывает никогда. То есть значение здесь — НАШЕ
+ * требование (R21: подтверждает человек), а не эхо чужого. Чтобы разрыв не
+ * существовал вовсе, главный процесс дописывает ключ в config.yaml при старте
+ * (`applyApprovalsMode`), и с тех пор эта ветка недостижима на живом профиле. */
 export function parseApprovalsMode(yamlText: string): ApprovalMode {
   const lines = yamlText.split('\n')
   const sectionStart = lines.findIndex((line) => APPROVALS_SECTION_RE.test(line))
