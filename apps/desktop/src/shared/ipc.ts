@@ -966,6 +966,39 @@ export interface AecpilotApi {
    * При удалённом ядре петлевой адрес переезжает на проброшенный порт;
    * во всех остальных случаях возвращается тот же адрес. */
   reachPreviewUrl(url: string): Promise<string>
+  /** Задача 3E.8 (UR30, отменённый HX12). Окно ОС под нашим: приложение,
+   * заголовок, границы. НИКОГДА пиксели; на macOS разрешение Screen Recording
+   * не запрашивается — контракт приватности записан в самом HX12. */
+  readWindowBelow(): Promise<{
+    frontmost: { app: string; title: string } | null
+    note?: string
+    platform: string
+    window: {
+      app: string
+      bounds: { height: number; width: number; x: number; y: number }
+      id: number
+      title: string
+    } | null
+  }>
+  /** Задача 3E.8 (UR30, отменённый HX7). Живая оболочка терминала. Сессия
+   * принадлежит окну и умирает вместе с ним. */
+  terminal: {
+    start(options?: { cols?: number; cwd?: string; rows?: number }): Promise<{
+      cwd: string
+      id: string
+      shell: string
+    }>
+    write(id: string, data: string): Promise<boolean>
+    resize(id: string, size: { cols: number; rows: number }): Promise<boolean>
+    dispose(id: string): Promise<boolean>
+    /** Рабочая папка живой оболочки; `null` на Windows — см. `terminal.ts`. */
+    cwd(id: string): Promise<string | null>
+    onData(id: string, callback: (chunk: string) => void): () => void
+    onExit(
+      id: string,
+      callback: (event: { code: number | null; signal: string | null }) => void
+    ): () => void
+  }
   /** Задача 3E.5 (UR31). Жест «назад/вперёд/обновить», не дошедший до
    * страницы сам: боковая кнопка мыши и свайп приходят в главный процесс, а
    * не в окно. Когда фокус внутри гостя, главный процесс отвечает сам и сюда

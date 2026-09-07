@@ -158,45 +158,24 @@ describe('hermes-desktop shim: getConnection', () => {
   })
 })
 
-// `readWindowBelow` is the HX12 refusal (task 3.25). Two things are pinned, and
-// the second is the one that rots quietly: that it RESOLVES (a rejection here
-// makes their handler answer with an empty text, and the core turns an empty
-// text into "window enumeration is unavailable on this system" — a system
-// limitation we do not have), and that the answer carries a readable sentence
-// rather than an empty object.
-//
-// The double cast is not laziness. Their `global.d.ts` declares this member
-// NARROWER than their own tool schema: the declared return has a required
-// `platform` and no `error` at all, while `tools/read_window_tool.py` documents
-// `{error, platform}` as the answer for "cannot enumerate windows" and tells the
-// agent to relay it instead of retrying. We answer the shape their TOOL
-// documents, because that is the shape that reaches the agent — their handler
-// only stringifies the result and never reads a field of it.
+// `readWindowBelow` БОЛЬШЕ НЕ ОТКАЗ. HX12 отменён владельцем 05.09.2026
+// (UR30): агент видит окно ОС под нашим. Здесь остаётся ровно то, что пережило
+// отмену, — обещание ОТВЕЧАТЬ. Их обработчик `window.read.request` шлёт результат
+// в `window.read.respond`, а запрос без ответа ядро ждёт все свои 30 секунд, и
+// «агент завис» дороже любого отказа. Сам ответ (метаданные, никогда пиксели,
+// внятная причина при отказе) собирается в главном процессе и проверяется в
+// `main/os-windows.test.ts` — здесь только шов.
 
-describe('hermes-desktop shim: readWindowBelow (SPEC HX12)', () => {
-  const refusal = async (): Promise<{ error?: string; platform?: string }> =>
-    (await createHermesDesktopBridge().readWindowBelow!()) as unknown as {
-      error?: string
-      platform?: string
-    }
+describe('hermes-desktop shim: readWindowBelow (UR30)', () => {
+  it('член есть и уходит в наш мост, а не в заглушку', async () => {
+    const readWindowBelow = vi.fn().mockResolvedValue({ platform: 'win32', window: null })
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { readWindowBelow } }
 
-  it('resolves instead of rejecting, so the tool never waits out its timeout', async () => {
-    await expect(createHermesDesktopBridge().readWindowBelow!()).resolves.toBeTruthy()
-  })
-
-  it('answers a refusal the agent can relay, not an empty result', async () => {
-    const answer = await refusal()
-
-    expect(typeof answer.error).toBe('string')
-    expect(answer.error!.length).toBeGreaterThan(40)
-  })
-
-  it('does not blame the operating system for a product decision', async () => {
-    const answer = await refusal()
-
-    // `platform` absent on purpose: the refusal is identical on every OS.
-    expect(answer.platform).toBeUndefined()
-    expect(answer.error).toContain('не из-за ограничений системы')
+    await expect(createHermesDesktopBridge().readWindowBelow!()).resolves.toEqual({
+      platform: 'win32',
+      window: null
+    })
+    expect(readWindowBelow).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -294,7 +273,7 @@ describe('hermes-desktop shim: onNotificationActivate (задача 3D.9)', () =
     }
 
     const seen: unknown[] = []
-    createHermesDesktopBridge().onNotificationActivate!(payload => seen.push(payload))
+    createHermesDesktopBridge().onNotificationActivate!((payload) => seen.push(payload))
 
     // Форма — их (`donor/global.d.ts`): рукоятка, путь и ключ повтора. Шим не
     // разбирает `activate`: их приёмник резолвит путь заново, и дублировать

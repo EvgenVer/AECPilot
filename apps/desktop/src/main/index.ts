@@ -119,6 +119,16 @@ import { shouldBlockDevtoolsKey } from './devtools-block-pure'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installPreviewGuestGuard } from './preview-guest'
 import { installBrowserNavGestures } from './preview-nav'
+import { readWindowBelow } from './os-windows'
+import {
+  disposeAllTerminals,
+  disposeTerminal,
+  disposeTerminalsOfWindow,
+  resizeTerminal,
+  startTerminal,
+  terminalCwd,
+  writeTerminal
+} from './terminal'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
 import {
   addWordToGuestDictionary,
@@ -1070,7 +1080,12 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   // Задача 3E.11. Сводка «в каких чатах идёт ход» приходит из окна и живёт до
   // его смерти: сводка мёртвого окна, оставшаяся в карте, спрашивала бы о
   // работе, которой давно нет.
-  win.webContents.once('destroyed', () => activeWorkByWindow.delete(win.webContents.id))
+  win.webContents.once('destroyed', () => {
+    activeWorkByWindow.delete(win.webContents.id)
+    // Задача 3E.8: оболочки этого окна закрываются вместе с ним. Иначе
+    // после закрытия остались бы живые `cmd.exe`, о которых никто не знает.
+    disposeTerminalsOfWindow(win.webContents.id)
+  })
 
   // Задача 3E.10: координаты правого клика и факты орфографии — то, что видит
   // только главный процесс.
@@ -3224,6 +3239,27 @@ ipcMain.handle('preview:reach', (_event, url: unknown) =>
   reachablePreviewUrl(typeof url === 'string' ? url : '')
 )
 
+// Задача 3E.8 (UR30, отменённый HX7). Живая оболочка терминала. Сессия
+// принадлежит ОКНУ: закрыли окно — оболочки этого окна убиты (см. шапку
+// `terminal.ts`). Цена канала названа в отменённом HX7 и принята владельцем;
+// ответ на неё — R21, а не запрет здесь.
+ipcMain.handle('terminal:start', (event, options: unknown) =>
+  startTerminal(event.sender, options as never, currentProject?.vaultPath)
+)
+ipcMain.handle('terminal:write', (_event, id: unknown, data: unknown) => writeTerminal(id, data))
+ipcMain.handle('terminal:resize', (_event, id: unknown, size: unknown) =>
+  resizeTerminal(id, size as never)
+)
+ipcMain.handle('terminal:dispose', (_event, id: unknown) => disposeTerminal(id))
+ipcMain.handle('terminal:cwd', (_event, id: unknown) => terminalCwd(id))
+
+// Задача 3E.8 (UR30, отменённый HX12). Окно ОС под нашим — ТОЛЬКО метаданные.
+// Контракт приватности и причина, по которой на macOS разрешение не
+// запрашивается, — в шапке `os-windows.ts`.
+ipcMain.handle('os-window:below', () =>
+  readWindowBelow(BrowserWindow.getAllWindows().map((win) => win.webContents.getOSProcessId()))
+)
+
 ipcMain.handle('connection:save', (_event, input: unknown) => saveConnection(input))
 
 // «Проверить» — до сохранения и без него. Иначе человек узнавал бы об
@@ -4443,6 +4479,10 @@ app.on('before-quit', (event) => {
       return
     }
   }
+
+  // Задача 3E.8: оболочки закрываются раньше ядра и раньше любого возврата
+  // ниже. Выход с живым `cmd.exe` за спиной оставил бы процесс без хозяина.
+  disposeAllTerminals()
 
   if (quitting || !serveHandle || !stopServeFn) return
   event.preventDefault()
