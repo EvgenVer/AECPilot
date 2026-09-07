@@ -138,6 +138,7 @@ import {
   classifyEnvWrite,
   describeRpcFailure,
   explainProfileDeleteFailure,
+  markUntrustedPageText,
   sanitizeRpcParams
 } from './gateway-passthrough-pure'
 import type {
@@ -2648,7 +2649,9 @@ ipcMain.handle(
       if (!gateway) throw new Error('gateway is not connected')
       const method = checkRpcCall(payload?.method)
       // A hidden turn is not a thing this product has (task 3.4в, risk R19).
-      const params = sanitizeRpcParams(payload?.params) as never
+      // Задача 3E.4 (R22): текст страницы, который окно шлёт ядру, помечается
+      // недоверенным здесь — дальше по пути правку делать негде.
+      const params = markUntrustedPageText(method, sanitizeRpcParams(payload?.params)) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       return { ok: true, value: await gateway.request(method as never, params, timeoutMs) }
     } catch (error: unknown) {
