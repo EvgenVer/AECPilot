@@ -22,12 +22,15 @@ import { join } from 'node:path'
 
 import {
   classifySshError,
+  loopbackPortOf,
   parseSshConfig,
   parseSshProbe,
   resolveSshHost,
   sshArgs,
+  sshForwardArgs,
   sshErrorMessage,
   sshProbeArgs,
+  withLocalPort,
   type SshError,
   type SshHostEntry,
   type SshTarget
@@ -91,9 +94,22 @@ export interface SshTunnel {
   proc: ChildProcess
   baseUrl: string
   token: string
+  /** Куда подключились. Нужна, чтобы к живой сессии можно было добавить
+   * проброс порта под предпросмотр (задача 3E.5). */
+  target: SshTarget
 }
 
 let active: SshTunnel | undefined
+
+/** Пробросы под предпросмотр: порт НА ТОЙ стороне → наш процесс и наш порт.
+ * Ключ по удалённому порту, потому что переспрашивают именно про него.
+ */
+const forwards = new Map<number, { proc: ChildProcess; localPort: number }>()
+
+/** Сколько ждём, пока проброс начнёт отвечать. Коротко нарочно: панель уже
+ * открыта, и каждая секунда здесь — секунда пустоты перед человеком. */
+const FORWARD_TIMEOUT_MS = 3_000
+const FORWARD_INTERVAL_MS = 200
 
 /** Куда ходить, пока туннель жив. `undefined` — «сейчас никуда». */
 export function activeSshTunnel(): { baseUrl: string; token: string } | undefined {
@@ -193,11 +209,14 @@ export async function startSshTunnel(target: SshTarget): Promise<SshStartResult>
     }
 
     if (await deps.probe(`${baseUrl}/api/health`)) {
-      active = { proc, baseUrl, token }
+      active = { proc, baseUrl, token, target }
       // Сессия может умереть и потом — тогда цель обязана исчезнуть, иначе
       // запросы уйдут в закрытый порт и будут выглядеть как «ядро молчит».
       proc.on('exit', () => {
-        if (active?.proc === proc) active = undefined
+        if (active?.proc !== proc) return
+        active = undefined
+        // Пробросы шли по ЭТОЙ сессии: без неё они ведут в никуда.
+        void stopForwards()
       })
       return { ok: true, baseUrl }
     }
@@ -214,7 +233,78 @@ export async function startSshTunnel(target: SshTarget): Promise<SshStartResult>
   }
 }
 
+/**
+ * Адрес, который откроется ЗДЕСЬ (задача 3E.5, UR31, риск R13).
+ *
+ * ЧТО ЛОМАЕТСЯ БЕЗ ЭТОГО. При удалённом ядре агент поднимает свой сервер на
+ * ТОЙ машине и отвечает `http://localhost:5173`. Слово `localhost` в этом
+ * ответе означает петлю той машины — а панель предпросмотра живёт здесь, и
+ * здесь на этом порту либо ничего, либо чужое. Второе хуже первого: человек
+ * увидел бы не пустоту, а чужую страницу, и поверил бы ей.
+ *
+ * ЧЕСТНЫЙ ОТКАЗ ВМЕСТО ТИШИНЫ. Ответ ВСЕГДА адрес. Нет туннеля, адрес не
+ * петлевой, проброс не поднялся — возвращается исходный, и человек видит
+ * обычную ошибку загрузки с адресом, который действительно не открылся. Это
+ * прямо то, чего требует R13: поверхность либо работает удалённо, либо
+ * отказывает объяснимо; молчаливая неработа — дефект.
+ *
+ * ПРОБРОС ПЕРЕЖИВАЕТ ВЫЗОВ, НО НЕ СЕССИЮ. Один порт — один процесс `ssh -N`,
+ * запомненный по НОМЕРУ ПОРТА НА ТОЙ СТОРОНЕ: перезаход на ту же страницу
+ * переиспользует его, а не плодит сессии. Все они закрываются вместе с
+ * туннелем — порт, ведущий в никуда, опаснее отсутствующего.
+ */
+export async function reachablePreviewUrl(url: string): Promise<string> {
+  const tunnel = active
+  if (!tunnel) return url
+
+  const remotePort = loopbackPortOf(url)
+  if (remotePort === null) return url
+
+  const known = forwards.get(remotePort)
+  if (known) return withLocalPort(url, known.localPort)
+
+  let localPort: number
+  try {
+    localPort = await deps.freePort()
+  } catch {
+    return url
+  }
+
+  const proc = deps.spawnSsh(sshForwardArgs(tunnel.target, localPort, remotePort))
+  let failed = false
+  proc.on('exit', () => {
+    failed = true
+    if (forwards.get(remotePort)?.proc === proc) forwards.delete(remotePort)
+  })
+  proc.on('error', () => {
+    failed = true
+    forwards.delete(remotePort)
+  })
+  forwards.set(remotePort, { proc, localPort })
+
+  // Проброс поднимается не мгновенно, а страница загрузится сразу же. Ждём
+  // короткое время: дольше — и человек смотрит в пустую панель, объясняя себе
+  // это тем, что «оно думает».
+  const deadline = deps.now() + FORWARD_TIMEOUT_MS
+  while (deps.now() < deadline) {
+    if (failed) return url
+    if (await deps.probe(`http://127.0.0.1:${localPort}/`)) return withLocalPort(url, localPort)
+    await deps.wait(FORWARD_INTERVAL_MS)
+  }
+
+  // Не ответил — но процесс жив и порт, возможно, поднимется. Возвращаем наш
+  // адрес: сервер на той стороне мог просто ещё не встать, а проброс уже есть.
+  return failed ? url : withLocalPort(url, localPort)
+}
+
+async function stopForwards(): Promise<void> {
+  const open = [...forwards.values()]
+  forwards.clear()
+  await Promise.all(open.map(({ proc }) => killTunnel(proc)))
+}
+
 export async function stopSshTunnel(): Promise<void> {
+  await stopForwards()
   if (!active) return
   const { proc } = active
   active = undefined

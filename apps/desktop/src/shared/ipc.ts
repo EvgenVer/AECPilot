@@ -962,6 +962,10 @@ export interface AecpilotApi {
    * через `onBrowserPopoutClosed` — их сторона возвращает вкладку в панель. */
   openBrowserWindow(tabId: string): Promise<{ ok: boolean; error?: string }>
   onBrowserPopoutClosed(callback: (tabId: string) => void): () => void
+  /** Задача 3E.5 (UR31, риск R13). Адрес предпросмотра, пригодный ЗДЕСЬ.
+   * При удалённом ядре петлевой адрес переезжает на проброшенный порт;
+   * во всех остальных случаях возвращается тот же адрес. */
+  reachPreviewUrl(url: string): Promise<string>
   /** Задача 3E.5 (UR31). Жест «назад/вперёд/обновить», не дошедший до
    * страницы сам: боковая кнопка мыши и свайп приходят в главный процесс, а
    * не в окно. Когда фокус внутри гостя, главный процесс отвечает сам и сюда

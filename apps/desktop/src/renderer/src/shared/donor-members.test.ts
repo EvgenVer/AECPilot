@@ -58,7 +58,6 @@ const UNBRIDGED = [
   'openDir',
   'probeConnectionConfig',
   'probePluginRepo',
-  'reachPreviewUrl',
   'readClipboard',
   'readFileDataUrlForAttach',
   // 'readFileText' снят при подъёме на 0.21.0 (задача 3.B3): единственный

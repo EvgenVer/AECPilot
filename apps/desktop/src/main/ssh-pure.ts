@@ -193,6 +193,73 @@ export function sshArgs(target: SshTarget, localPort: number, remotePort: number
   return args
 }
 
+/**
+ * Аргументы для ДОПОЛНИТЕЛЬНОГО проброса — того, по которому видно `localhost`
+ * ТОЙ машины (задача 3E.5, UR31, риск R13).
+ *
+ * ПОЧЕМУ ВТОРОЙ ПРОЦЕСС, А НЕ ВТОРОЙ `-L` У ПЕРВОГО. Порт нужен не в момент
+ * подключения, а потом: агент поднял сервер на той стороне и просит его
+ * показать. Добавить проброс к живой сессии умеет `ControlMaster`, но его нет
+ * в OpenSSH под Windows — а продукт живёт на Windows. Отдельная сессия `-N`
+ * (без команды) работает везде и умирает вместе со своим портом.
+ *
+ * `ExitOnForwardFailure` обязателен: без него `ssh` при занятом порте не
+ * падает, а живёт дальше без проброса — и «страница не открывается» выглядело
+ * бы как «сервер на той стороне не запустился».
+ */
+export function sshForwardArgs(target: SshTarget, localPort: number, remotePort: number): string[] {
+  const args = sshBaseArgs(target)
+  args.push(
+    '-o',
+    'ExitOnForwardFailure=yes',
+    '-N',
+    '-L',
+    `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`
+  )
+  args.push(sshDestination(target))
+  return args
+}
+
+/** Имена, которые на той машине означают «эта же машина». */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
+/**
+ * Порт, который адрес называет НА ТОЙ машине, или `null`, если адрес и так
+ * доступен отсюда.
+ *
+ * Переписывать имеет смысл ровно петлю: `http://localhost:5173` в ответе агента
+ * означает петлю ТОЙ машины, а у нас на этом порту либо ничего, либо чужое —
+ * второе хуже первого. Всё остальное (чужой хост, `file:`, `data:`) отсюда
+ * видно ровно так же, как оттуда, и трогать его незачем.
+ */
+export function loopbackPortOf(url: string): number | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  if (!LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) return null
+
+  const port = parsed.port === '' ? (parsed.protocol === 'https:' ? 443 : 80) : Number(parsed.port)
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : null
+}
+
+/** Тот же адрес, но на нашем порту. Меняются ТОЛЬКО хост и порт: путь, запрос и
+ * якорь принадлежат странице, а не транспорту. */
+export function withLocalPort(url: string, localPort: number): string {
+  try {
+    const parsed = new URL(url)
+    parsed.hostname = '127.0.0.1'
+    parsed.port = String(localPort)
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
 /** Общие для всех наших вызовов `ssh` условия. */
 function sshBaseArgs(target: SshTarget): string[] {
   const args = [

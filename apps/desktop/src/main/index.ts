@@ -64,7 +64,14 @@ import {
   sshSettings
 } from './connection'
 import { readConnectionInput, wsUrlFor, type SshSettings } from './connection-pure'
-import { probeSsh, sshConfigHosts, sshResolveHost, startSshTunnel, stopSshTunnel } from './ssh'
+import {
+  probeSsh,
+  reachablePreviewUrl,
+  sshConfigHosts,
+  sshResolveHost,
+  startSshTunnel,
+  stopSshTunnel
+} from './ssh'
 import { readSshTarget, type SshTarget } from './ssh-pure'
 import {
   applyProjectSkills,
@@ -3207,6 +3214,15 @@ ipcMain.handle('connection:get', () => connectionView())
 // содержимое (см. шапку `ssh-pure.ts`).
 ipcMain.handle('connection:ssh-hosts', () => sshConfigHosts())
 ipcMain.handle('connection:ssh-resolve', (_event, alias: unknown) => sshResolveHost(alias))
+
+// Задача 3E.5 (UR31, риск R13). Адрес предпросмотра, который откроется ЗДЕСЬ.
+// При удалённом ядре `localhost` в ответе агента означает петлю ТОЙ машины;
+// разбор и проброс — в `ssh.ts`. Ответ всегда адрес: при локальном ядре или
+// неподъёмном пробросе возвращается исходный, и человек видит обычную ошибку
+// загрузки с адресом, который действительно не открылся.
+ipcMain.handle('preview:reach', (_event, url: unknown) =>
+  reachablePreviewUrl(typeof url === 'string' ? url : '')
+)
 
 ipcMain.handle('connection:save', (_event, input: unknown) => saveConnection(input))
 

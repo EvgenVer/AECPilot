@@ -10,7 +10,14 @@ import type { ChildProcess } from 'node:child_process'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { activeSshTunnel, configureSsh, probeSsh, startSshTunnel, stopSshTunnel } from './ssh'
+import {
+  activeSshTunnel,
+  configureSsh,
+  probeSsh,
+  reachablePreviewUrl,
+  startSshTunnel,
+  stopSshTunnel
+} from './ssh'
 import type { SshTarget } from './ssh-pure'
 
 const TARGET: SshTarget = {
@@ -58,6 +65,9 @@ class FakeSsh extends EventEmitter {
 let spawned: FakeSsh[] = []
 let args: string[][] = []
 let probeAnswers: boolean[] = []
+/** Свободные порты по очереди: с появлением второго проброса (3E.5) их в
+ * одном прогоне бывает больше одного. */
+let freePorts: number[] = []
 let script: Array<() => void> = []
 let clock = 0
 
@@ -75,7 +85,7 @@ function setup(options: { probe?: (url: string) => Promise<boolean> } = {}): voi
       return proc as unknown as ChildProcess
     },
     probe: options.probe ?? (async () => probeAnswers.shift() ?? false),
-    freePort: async () => 45123,
+    freePort: async () => freePorts.shift() ?? 45123,
     // Время идёт от ожидания — иначе тест на «не дождались» шёл бы 45 секунд.
     // Здесь же разыгрывается сценарий: что происходит на той стороне, пока мы
     // ждём.
@@ -89,6 +99,7 @@ function setup(options: { probe?: (url: string) => Promise<boolean> } = {}): voi
 
 beforeEach(() => {
   probeAnswers = []
+  freePorts = []
   setup()
 })
 
@@ -299,5 +310,87 @@ describe('проверка подключения', () => {
 
     expect(result.sshError).toBe('timeout')
     expect(spawned[0].killed.length, 'за нами не остаётся процесса').toBeGreaterThan(0)
+  })
+})
+
+describe('адрес предпросмотра при удалённом ядре (3E.5)', () => {
+  // `localhost` в ответе агента означает петлю ТОЙ машины. Здесь на этом порту
+  // либо ничего, либо чужое, и второе хуже первого: человек увидел бы не
+  // пустоту, а постороннюю страницу и поверил бы ей.
+
+  it('без туннеля адрес не трогается: переписывать нечего и не на что', async () => {
+    expect(await reachablePreviewUrl('http://localhost:5173/x')).toBe('http://localhost:5173/x')
+    expect(spawned.length, 'и лишней сессии ssh не завелось').toBe(0)
+  })
+
+  it('петлевой адрес уезжает на наш порт по НОВОЙ сессии с -N', async () => {
+    probeAnswers = [true]
+    await startSshTunnel(TARGET)
+
+    freePorts = [45999]
+    probeAnswers = [true]
+    const reached = await reachablePreviewUrl('http://localhost:5173/отчёт?лист=2#низ')
+
+    expect(reached, 'путь, запрос и якорь принадлежат странице, а не транспорту').toBe(
+      'http://127.0.0.1:45999/%D0%BE%D1%82%D1%87%D1%91%D1%82?%D0%BB%D0%B8%D1%81%D1%82=2#%D0%BD%D0%B8%D0%B7'
+    )
+
+    const forwardArgs = args[1].join(' ')
+    expect(forwardArgs).toContain('-L 127.0.0.1:45999:127.0.0.1:5173')
+    expect(forwardArgs, 'команду на той стороне вторая сессия не запускает').toContain('-N')
+    expect(forwardArgs).toContain('ExitOnForwardFailure=yes')
+  })
+
+  it('второй заход на тот же порт переиспользует проброс', async () => {
+    probeAnswers = [true]
+    await startSshTunnel(TARGET)
+
+    freePorts = [45999]
+    probeAnswers = [true]
+    await reachablePreviewUrl('http://localhost:5173/')
+    const after = spawned.length
+
+    const again = await reachablePreviewUrl('http://localhost:5173/другая')
+    expect(again).toContain('127.0.0.1:45999')
+    expect(spawned.length, 'сессии не плодятся').toBe(after)
+  })
+
+  it('не петлевой адрес отсюда виден и так', async () => {
+    probeAnswers = [true]
+    await startSshTunnel(TARGET)
+
+    // Возвращается СЛОВО В СЛОВО: чужой адрес мы даже не пересобираем.
+    expect(await reachablePreviewUrl('https://пример.рф/a')).toBe('https://пример.рф/a')
+    expect(spawned.length, 'ради чужого хоста проброс не поднимается').toBe(1)
+  })
+
+  it('проброс не поднялся — возвращается ИСХОДНЫЙ адрес, а не наш пустой порт', async () => {
+    probeAnswers = [true]
+    await startSshTunnel(TARGET)
+
+    freePorts = [45999]
+    // Порт на той стороне занят: `ExitOnForwardFailure` роняет сессию.
+    script = [() => spawned[1].die(255)]
+    const reached = await reachablePreviewUrl('http://localhost:5173/')
+
+    expect(reached, 'иначе ошибка загрузки назвала бы адрес, которого агент не давал').toBe(
+      'http://localhost:5173/'
+    )
+  })
+
+  it('туннель закрыли — пробросы закрылись вместе с ним', async () => {
+    probeAnswers = [true]
+    await startSshTunnel(TARGET)
+
+    freePorts = [45999]
+    probeAnswers = [true]
+    await reachablePreviewUrl('http://localhost:5173/')
+
+    await stopSshTunnel()
+
+    expect(
+      spawned[1].killed.length,
+      'порт, ведущий в никуда, опаснее отсутствующего'
+    ).toBeGreaterThan(0)
   })
 })

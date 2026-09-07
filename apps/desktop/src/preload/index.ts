@@ -72,6 +72,7 @@ const api: AecpilotApi = {
   openSessionWindow: (sessionId, watch) =>
     ipcRenderer.invoke('window:open-session', { sessionId, watch }),
   openBrowserWindow: (tabId) => ipcRenderer.invoke('window:open-browser', tabId),
+  reachPreviewUrl: (url) => ipcRenderer.invoke('preview:reach', url),
   onPreviewNav: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, command: Parameters<typeof cb>[0]): void =>
       cb(command)

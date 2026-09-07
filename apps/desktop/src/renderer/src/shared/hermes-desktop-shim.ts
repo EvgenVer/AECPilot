@@ -645,6 +645,13 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.openBrowserWindow(tabId)
   },
 
+  // Задача 3E.5 (UR31, риск R13). Их же helper (`lib/preview-reach.ts`) зовёт
+  // это ТОЛЬКО при удалённом шлюзе и переживает отсутствие члена — но
+  // пережить и означало бы «показать пустую панель молча».
+  reachPreviewUrl(url: string): Promise<string> {
+    return window.aecpilot.reachPreviewUrl(url)
+  },
+
   onBrowserPopoutClosed(callback: (tabId: string) => void): () => void {
     return window.aecpilot.onBrowserPopoutClosed(callback)
   },
