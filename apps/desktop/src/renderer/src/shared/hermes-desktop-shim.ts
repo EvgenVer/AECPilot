@@ -383,15 +383,6 @@ const IMPLEMENTED: Record<string, unknown> = {
   // заглушке кнопка появилась бы и падала. Журнал приложения у нас есть — он
   // открывается своей поверхностью (задача 3.29), а не их кнопкой.
   logsRoot: undefined,
-  // `openBrowserWindow` — вынести встроенный браузер в отдельное окно ОС.
-  // Проверка возможности у них — `typeof … === 'function'`
-  // (`canOpenBrowserWindow`), на заглушке она проходит. Просмотр произвольных
-  // веб-страниц исключён (SPEC HX13), значит пункт меню не должен появляться.
-  openBrowserWindow: undefined,
-  // `onBrowserPopoutClosed` — подписка на закрытие того окна. Возвращает
-  // ФУНКЦИЮ ОТПИСКИ, и заглушка вернула бы промис: ровно находка D-42, где
-  // такой промис осел «функцией уборки» эффекта и уронил дерево.
-  onBrowserPopoutClosed: undefined,
   // `getProfileRoutes` — маршруты профилей их реестра ядер. Их же строка —
   // `if (!getProfileRoutes) return false`, то есть отсутствие для них законный
   // ответ «маршрут не зарегистрирован». Подключение у нас одно за раз (решение
@@ -644,6 +635,25 @@ const IMPLEMENTED: Record<string, unknown> = {
     options?: { watch?: boolean }
   ): Promise<{ ok: boolean; error?: string }> {
     return window.aecpilot.openSessionWindow(sessionId, options?.watch === true)
+  },
+
+  // Задача 3E.5 (UR31). Вынос вкладки браузера в своё окно. Их проверка
+  // возможности — снова `typeof … === 'function'` (`store/windows.ts`), то
+  // есть до этой строки кнопка «вынести» показывалась и молчала: тот же
+  // подвид D-41, что у `openWindow`.
+  openBrowserWindow(tabId: string): Promise<{ ok: boolean; error?: string }> {
+    return window.aecpilot.openBrowserWindow(tabId)
+  },
+
+  onBrowserPopoutClosed(callback: (tabId: string) => void): () => void {
+    return window.aecpilot.onBrowserPopoutClosed(callback)
+  },
+
+  // Задача 3E.5 (UR31). Жест, не дошедший до страницы сам. Подписка обязана
+  // вернуть ФУНКЦИЮ ОТПИСКИ: их эффект кладёт ответ прямо в `return`, и
+  // промис на этом месте — находка D-42, уронившая дерево.
+  onPreviewNav(callback: (command: 'back' | 'forward' | 'reload') => void): () => void {
+    return window.aecpilot.onPreviewNav(callback)
   },
 
   // Задача 3.14. Пока окно было одно, вопроса не было. Теперь их может быть

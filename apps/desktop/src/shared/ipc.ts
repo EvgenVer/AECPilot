@@ -957,6 +957,16 @@ export interface AecpilotApi {
    * за чужой идущей сессией: их рендерер поднимает её лениво, без сборки
    * агента. */
   openSessionWindow(sessionId: string, watch?: boolean): Promise<{ ok: boolean; error?: string }>
+  /** Задача 3E.5 (UR31). Вкладка встроенного браузера в своём окне. Второй
+   * вызов на ту же вкладку поднимает её окно. Закрытие окна приходит обратно
+   * через `onBrowserPopoutClosed` — их сторона возвращает вкладку в панель. */
+  openBrowserWindow(tabId: string): Promise<{ ok: boolean; error?: string }>
+  onBrowserPopoutClosed(callback: (tabId: string) => void): () => void
+  /** Задача 3E.5 (UR31). Жест «назад/вперёд/обновить», не дошедший до
+   * страницы сам: боковая кнопка мыши и свайп приходят в главный процесс, а
+   * не в окно. Когда фокус внутри гостя, главный процесс отвечает сам и сюда
+   * ничего не шлёт. */
+  onPreviewNav(callback: (command: 'back' | 'forward' | 'reload') => void): () => void
   getProjectSkills(): Promise<ProjectSkillsView>
   setProjectSkillsTrust(trusted: boolean): Promise<ProjectSkillsView>
   getCronRunner(): Promise<{ enabled: boolean; running: boolean }>

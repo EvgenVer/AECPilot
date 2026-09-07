@@ -54,7 +54,6 @@ const UNBRIDGED = [
   'onOpenFolderRequested',
   'onOpenUpdatesRequested',
   'onPreviewFileChanged',
-  'onPreviewNav',
   'onWindowStateChanged',
   'openDir',
   'probeConnectionConfig',

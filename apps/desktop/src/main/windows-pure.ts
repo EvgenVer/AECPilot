@@ -73,6 +73,31 @@ export function planSessionWindow(
   return { ok: true, plan: { query, hash: `${SESSION_ROUTE_PREFIX}${encodeURIComponent(id)}` } }
 }
 
+/** Вынесенная вкладка браузера (задача 3E.5, UR31).
+ *
+ * Их флаг `win=browser` переключает рендерер на оболочку с одной вкладкой
+ * (`BrowserPopoutShell`), а `tab` говорит, КАКУЮ вкладку показать. Номер
+ * вкладки проверяется здесь по той же причине, что и номер сессии: он приходит
+ * из окна, а уезжает в адрес. Пустой номер открыл бы оболочку браузера без
+ * вкладки — пустое окно вместо вынесенной страницы.
+ *
+ * Хеш `/` — как у них: оболочка живёт на корневом маршруте. Пустой хеш здесь
+ * не нужен (причина, по которой он пуст у главного окна, касалась перезагрузки
+ * ГЛАВНОГО окна в прогоне e2e).
+ */
+export function planBrowserWindow(tabId: unknown): WindowPlanResult {
+  if (typeof tabId !== 'string' || tabId.trim() === '') {
+    return { ok: false, error: 'номер вкладки не указан' }
+  }
+
+  const id = tabId.trim()
+  if (hasControlChar(id) || id.length > 200) {
+    return { ok: false, error: 'номер вкладки испорчен' }
+  }
+
+  return { ok: true, plan: { query: { win: 'browser', tab: id }, hash: SESSION_ROUTE_PREFIX } }
+}
+
 /** Плавающая лента (задача 3.24). Их флаг `win=hud` переключает рендерер на
  * узкую раскладку — композер и лента без дерева панелей; `profile` нужен
  * потому, что HUD это ПОЛНЫЙ рендерер со своим соединением, и разговор из

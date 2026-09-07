@@ -71,6 +71,18 @@ const api: AecpilotApi = {
   getVersion: () => ipcRenderer.invoke('version:get'),
   openSessionWindow: (sessionId, watch) =>
     ipcRenderer.invoke('window:open-session', { sessionId, watch }),
+  openBrowserWindow: (tabId) => ipcRenderer.invoke('window:open-browser', tabId),
+  onPreviewNav: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, command: Parameters<typeof cb>[0]): void =>
+      cb(command)
+    ipcRenderer.on('preview-nav', listener)
+    return () => ipcRenderer.removeListener('preview-nav', listener)
+  },
+  onBrowserPopoutClosed: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, tabId: string): void => cb(tabId)
+    ipcRenderer.on('browser-popout:closed', listener)
+    return () => ipcRenderer.removeListener('browser-popout:closed', listener)
+  },
   getProjectSkills: () => ipcRenderer.invoke('project-skills:get'),
   setProjectSkillsTrust: (trusted) => ipcRenderer.invoke('project-skills:trust', trusted),
   getCronRunner: () => ipcRenderer.invoke('cron-runner:get'),

@@ -43,7 +43,13 @@ import {
   setHudVibrancy,
   stopHud
 } from './hud'
-import { planAppWindow, planSessionWindow, windowUrl, type WindowPlan } from './windows-pure'
+import {
+  planAppWindow,
+  planBrowserWindow,
+  planSessionWindow,
+  windowUrl,
+  type WindowPlan
+} from './windows-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
@@ -105,6 +111,7 @@ import {
 import { shouldBlockDevtoolsKey } from './devtools-block-pure'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installPreviewGuestGuard } from './preview-guest'
+import { installBrowserNavGestures } from './preview-nav'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
 import {
   addWordToGuestDictionary,
@@ -997,6 +1004,13 @@ async function ensureSession(): Promise<string> {
  * открытое окно, иначе кнопка плодит копии одного разговора. */
 const sessionWindows = new Map<string, BrowserWindow>()
 
+/** Вынесенные вкладки браузера (задача 3E.5, UR31). Тот же контракт «открыть
+ * ИЛИ показать»: второе нажатие на ту же вкладку поднимает её окно, а не
+ * плодит копии одной страницы. Закрытие окна возвращает вкладку в панель —
+ * их сторона слушает `browser-popout:closed` и приставляет её обратно.
+ */
+const browserWindows = new Map<string, BrowserWindow>()
+
 /** Задача 3E.11 (UR35). «В каких чатах прямо сейчас идёт ход» — по окнам.
  *
  * Знает об этом только окно, а перехватить выход может только главный процесс;
@@ -1054,6 +1068,10 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   // Задача 3E.10: координаты правого клика и факты орфографии — то, что видит
   // только главный процесс.
   installContextMenuBridge(win)
+
+  // Задача 3E.5 (UR31): жесты «назад/вперёд» боковыми кнопками мыши и свайпом.
+  // Без перехвата Chromium применил бы их к документу САМОГО приложения.
+  installBrowserNavGestures(win)
 
   // Task 3.26: the saved interface scale applies to every window, including a
   // second one opened later, and Ctrl +/-/0 changes it from anywhere.
@@ -3295,6 +3313,33 @@ ipcMain.handle('window:open-session', (_event, payload: unknown) => {
   const win = createWindow(planned.plan)
   sessionWindows.set(key, win)
   win.on('closed', () => sessionWindows.delete(key))
+  return { ok: true }
+})
+
+// Задача 3E.5 (UR31). Вкладка браузера в своём окне: тот же рендерер с флагом
+// `win=browser`, а не отдельная оболочка. Закрытие окна — сигнал их стороне
+// вернуть вкладку в панель; без него вкладка осталась бы «где-то вынесенной»
+// и исчезла бы из интерфейса совсем.
+ipcMain.handle('window:open-browser', (_event, tabId: unknown) => {
+  const planned = planBrowserWindow(tabId)
+  if (!planned.ok) return { ok: false, error: planned.error }
+
+  const key = String(tabId).trim()
+  const existing = browserWindows.get(key)
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore()
+    existing.focus()
+    return { ok: true }
+  }
+
+  const win = createWindow(planned.plan)
+  browserWindows.set(key, win)
+  win.on('closed', () => {
+    browserWindows.delete(key)
+    for (const other of BrowserWindow.getAllWindows()) {
+      if (!other.isDestroyed()) other.webContents.send('browser-popout:closed', key)
+    }
+  })
   return { ok: true }
 })
 
