@@ -3,12 +3,7 @@
  * Source:  apps/desktop/src/plugins/hermes-bots/avatar-image.ts
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [3] dropped the portrait-generation half — `$imagenAvailable`, `probeImagen`,
- *       `GeneratedImage`, `generateAvatarImage` (HX11); the image-normalising and
- *       file-picking half of this file is untouched
- *   [4] dropped the now-unused `atom` import orphaned by that removal
- * (no other edits)
+ * Edits: none
  */
 /**
  * Image avatars: the device-upload path and the gateway's `image.generate`
@@ -16,7 +11,7 @@
  * render path doesn't drag the picker's network surface along with it.
  */
 
-import { host } from '@hermes/plugin-sdk'
+import { atom, host } from '@hermes/plugin-sdk'
 
 import { getPluginCtx } from './shared'
 
@@ -78,12 +73,62 @@ export function pickImageFromDevice(): Promise<null | string> {
   })
 }
 
-// EDIT [3]: снят весь блок генерации портрета — `$imagenAvailable`,
-// `probeImagen`, `GeneratedImage` и `generateAvatarImage`. Это HX11: лицо
-// специалиста у нас геометрическое либо загруженная картинка, а `image.generate`
-// в нашем дереве не зовётся ниоткуда (проверка AC12). Соседние экспорты этого
-// файла — нормализация картинки и выбор файла с диска — к генерации отношения
-// не имеют и остаются: файл смешивал два дела, и снято ровно одно.
+/** Cached probe: does the gateway have an image backend? A `false` answer
+ *  is re-checked on every dialog open — the gateway may have been restarted
+ *  (picking up image.generate) or a backend enabled since the last probe.
+ *  Only `true` is sticky. */
+export const $imagenAvailable = atom<boolean | null>(null)
+let imagenProbeInflight: Promise<void> | null = null
+
+export function probeImagen() {
+  if (imagenProbeInflight) {
+    return imagenProbeInflight
+  }
+
+  imagenProbeInflight = host
+    .request<{ available?: boolean }>('image.generate', {
+      probe: true
+    })
+    .then(res => $imagenAvailable.set(Boolean(res?.available)))
+    .catch(() => $imagenAvailable.set(false))
+    .finally(() => {
+      imagenProbeInflight = null
+    })
+
+  return imagenProbeInflight
+}
+
+/** `image.generate`'s reply. `image_data` is a data URL (works over remote
+ *  gateways); `image` is the raw backend URL fallback. */
+export interface GeneratedImage {
+  error?: string
+  image?: string
+  image_data?: string
+  success?: boolean
+}
+
+export async function generateAvatarImage(
+  bot: string,
+  title?: string,
+  description?: string
+): Promise<string | undefined> {
+  const who = [title || bot, description].filter(Boolean).join(' — ')
+
+  const res = await host.request<GeneratedImage>('image.generate', {
+    prompt:
+      `Cute minimal robot avatar for an AI agent named "${who}". ` +
+      'Friendly simple mascot face, bold flat vector style, solid color background, centered, no text.',
+    aspect_ratio: 'square'
+  })
+
+  if (!res?.success) {
+    throw new Error(res?.error || 'generation failed')
+  }
+
+  // image_data (data URL) works over local AND remote gateways; the raw
+  // backend URL is the fallback when the gateway couldn't inline it.
+  return res.image_data || res.image
+}
 
 /** The roster backfill draws the live SVG at 160x160. Pets are 96x104
  *  and uploads are 256. Use that to tell a still face-copy from a real picture. */

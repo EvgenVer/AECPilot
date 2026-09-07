@@ -3,12 +3,7 @@
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-parts.tsx
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [3] dropped the room-picture generation (HX11) — its probe, its state, its
- *       handler and its button; upload and remove are untouched
- *   [4] dropped the imports and the `ImageGenerateResponse` shape orphaned by
- *       that removal
- * (no other edits)
+ * Edits: none
  */
 /**
  * The leaf components a group-chat room composes: the room picture controls,
@@ -24,7 +19,7 @@ import { Button, cn, Codicon, host, Input, RowButton, Textarea, useI18n, useValu
 import type { ClipboardEvent } from 'react'
 import { useRef, useState } from 'react'
 
-import { normalizeAvatarImage, pickImageFromDevice } from './avatar-image'
+import { $imagenAvailable, normalizeAvatarImage, pickImageFromDevice, probeImagen } from './avatar-image'
 import { $botMeta, botHandle, botMentionTag } from './data'
 import { appendGroupChatEntry } from './group-chat'
 import { groupMemberKey } from './group-membership'
@@ -33,6 +28,15 @@ import { useBots } from './i18n'
 import { displayName } from './labels'
 import { botRosterMeta } from './routing'
 import type { BotMeta, GroupMember, GroupPrompt } from './types'
+
+/** The `image.generate` reply. Older gateways answer `image`, newer ones
+ *  `image_data`; both are data URLs. */
+interface ImageGenerateResponse {
+  error?: string
+  image?: string
+  image_data?: string
+  success?: boolean
+}
 
 interface GroupImageControlsProps {
   image: null | string
@@ -45,16 +49,56 @@ interface GroupImageControlsProps {
  *  a live preview (image, else the organization glyph), Upload / Generate /
  *  Remove. Reuses the bot-avatar pipeline (device picker, 256px normalize,
  *  image.generate probe) so room pictures cost the same as bot avatars. */
-// EDIT [3]: генерация картинки комнаты снята — HX11, как и генерация портрета
-// специалиста в `avatar-picker.tsx`. Остаются загрузка и удаление.
 export function GroupImageControls({ image, onImage, seedName, seedMembers }: GroupImageControlsProps) {
   const b = useBots()
   const { t } = useI18n()
+  const imagen = useValue($imagenAvailable)
+  const [busy, setBusy] = useState(false)
+
+  if (imagen === null) {
+    void probeImagen()
+  }
+
   const upload = async () => {
     const raw = await pickImageFromDevice()
 
     if (raw) {
       onImage(await normalizeAvatarImage(raw))
+    }
+  }
+
+  const generate = async () => {
+    if (busy) {
+      return
+    }
+
+    setBusy(true)
+
+    try {
+      const who = [seedName, seedMembers?.length ? `a team of ${seedMembers.join(', ')}` : '']
+        .filter(Boolean)
+        .join(' — ')
+
+      const res = await host.request<ImageGenerateResponse>('image.generate', {
+        prompt:
+          `Group chat icon for an AI agent team called "${who || 'a bot team'}". ` +
+          'Friendly minimal emblem, bold flat vector style, solid color background, centered, no text.',
+        aspect_ratio: 'square'
+      })
+
+      if (!res?.success) {
+        throw new Error(res?.error || 'generation failed')
+      }
+
+      const img = res.image_data || res.image
+
+      if (img) {
+        onImage(await normalizeAvatarImage(img))
+      }
+    } catch (err) {
+      host.notifyError(err, b.group.pictureGenerationFailed)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -70,6 +114,11 @@ export function GroupImageControls({ image, onImage, seedName, seedMembers }: Gr
       <Button onClick={upload} size="sm" type="button" variant="secondary">
         {b.avatar.upload}
       </Button>
+      {imagen ? (
+        <Button disabled={busy} onClick={generate} size="sm" type="button" variant="secondary">
+          {busy ? b.avatar.generating : b.avatar.generate}
+        </Button>
+      ) : null}
       {image ? (
         <Button onClick={() => onImage(null)} size="sm" type="button" variant="ghost">
           {t.common.remove}

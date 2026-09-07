@@ -190,8 +190,11 @@ export const EXCLUDED_RPC = [
   { prefix: "pet.", hx: "HX1" },
   { prefix: "billing.", hx: "HX2" },
   { prefix: "credits.", hx: "HX2" },
-  { prefix: "image.generate", hx: "HX11" },
-  { prefix: "window.read.", hx: "HX12" },
+  // `image.generate` СНЯТ 2026-09-07 (задача 3E.1): HX11 сужен решением
+  // владельца 05.09, генерация картинок вошла в объём (UR33), и метод
+  // перестал быть «достижимым вопреки исключению» — он просто разрешён.
+  // `window.read.` СНЯТ там же: HX12 отменён 05.09 (UR30, перечисление окон
+  // агенту); поверхность даёт задача 3E.8.
 ];
 
 /** §Non-Goals entries, read from SPEC so the table cannot cite one that was

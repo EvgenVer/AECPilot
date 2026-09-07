@@ -4,11 +4,14 @@
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the Generate tab (portrait generation, HX11) — its state, its
- *       availability probe, its handler and its tab body
- *   [3] dropped the Pet tab (HX1) and the `./pet` import; neither `pet.tsx`
- *       nor its `pet.test.tsx` is vendored
- *   [4] dropped the imports orphaned by both removals
+ *   [3] dropped the Pet tab (HX1) — its segmented-control option, its tab body
+ *       and the `./pet` import; neither `pet.tsx` nor its `pet.test.tsx` is
+ *       vendored. The Generate tab is BACK: its removal was HX11, narrowed by
+ *       the owner 2026-09-05 (UR33), and this file was re-copied rather than
+ *       uncommented (task 3E.1).
+ *   [5] their product name in the "no image model" notice → ours (SPEC C12).
+ *       The notice came back with the Generate tab; the rest of the string
+ *       (the Ctrl+K hint) is their wording and stays verbatim.
  * (no other edits)
  */
 /**
@@ -21,9 +24,13 @@ import {
   cn,
   Codicon,
   ColorSwatches,
+  GlyphSpinner,
+  host,
   PROFILE_SWATCHES,
   RowButton,
-  SegmentedControl
+  SegmentedControl,
+  Textarea,
+  useValue
 } from '@hermes/plugin-sdk'
 import { useState } from 'react'
 
@@ -39,8 +46,12 @@ import {
   parseBlobShape
 } from './avatar'
 import {
+  $imagenAvailable,
+  generateAvatarImage,
+  type GeneratedImage,
   normalizeAvatarImage,
-  pickImageFromDevice
+  pickImageFromDevice,
+  probeImagen
 } from './avatar-image'
 import { useBots } from './i18n'
 
@@ -60,7 +71,26 @@ interface AvatarPickerProps {
 export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, generateSeed }: AvatarPickerProps) {
   const b = useBots()
   const pickerName = generateSeed?.name || 'agent'
+  const imagen = useValue($imagenAvailable)
   const [tab, setTab] = useState('bot')
+  const [describe, setDescribe] = useState('')
+  const [genBusy, setGenBusy] = useState(false)
+
+  if (imagen === null) {
+    void probeImagen()
+  }
+
+  // Re-check a stale "unavailable" whenever the user lands on the Generate
+  // tab — the gateway may have restarted with image.generate since.
+  const goTab = (id: string) => {
+    setTab(id)
+
+    if (id === 'generate' && $imagenAvailable.get() === false) {
+      $imagenAvailable.set(null)
+      void probeImagen()
+    }
+  }
+
   const upload = async () => {
     const raw = await pickImageFromDevice()
 
@@ -69,17 +99,53 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
     }
   }
 
+  const generate = async () => {
+    if (genBusy) {
+      return
+    }
+
+    setGenBusy(true)
+
+    try {
+      const custom = describe.trim()
+
+      const img = custom
+        ? await (async () => {
+            const res = await host.request<GeneratedImage>('image.generate', {
+              prompt: `${custom}. Avatar for an AI agent: centered, bold flat vector style, solid color background, no text.`,
+              aspect_ratio: 'square'
+            })
+
+            if (!res?.success) {
+              throw new Error(res?.error || 'generation failed')
+            }
+
+            return res.image_data || res.image
+          })()
+        : await generateAvatarImage(generateSeed?.name || 'agent', generateSeed?.title, generateSeed?.description)
+
+      if (img) {
+        onImage(await normalizeAvatarImage(img))
+      }
+    } catch (err) {
+      host.notifyError(err, b.avatar.generationFailed)
+    } finally {
+      setGenBusy(false)
+    }
+  }
+
   return (
     <div className="grid justify-items-center gap-3">
       <SegmentedControl
-        onChange={setTab}
+        onChange={goTab}
         options={[
           { id: 'bot', label: b.avatar.tabBot },
+          { id: 'generate', label: b.avatar.tabGenerate },
           { id: 'upload', label: b.avatar.upload }
         ]}
         value={tab}
       />
-      {image ? (
+      {image && tab !== 'generate' ? (
         <Button onClick={() => onImage(null)} size="sm" type="button" variant="ghost">
           {b.avatar.removeImage}
         </Button>
@@ -193,6 +259,41 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
               swatches={PROFILE_SWATCHES}
               value={color}
             />
+          </div>
+        )
+      ) : null}
+      {tab === 'generate' ? (
+        imagen ? (
+          <div className="grid w-full gap-2">
+            <Textarea
+              className="min-h-16 text-xs"
+              onChange={event => setDescribe(event.target.value)}
+              placeholder={b.avatar.describePlaceholder}
+              value={describe}
+            />
+            <Button
+              className="w-full justify-center"
+              disabled={genBusy}
+              onClick={generate}
+              type="button"
+              variant="secondary"
+            >
+              {genBusy ? (
+                <GlyphSpinner className="mr-1 text-[0.8rem]" spinner="breathe" />
+              ) : (
+                <Codicon className="mr-1 text-[0.8rem]" name="sparkle" />
+              )}
+              {genBusy ? 'Generating…' : 'Generate'}
+            </Button>
+            {describe.trim() ? null : (
+              <div className="text-center text-[0.65rem] text-(--ui-text-quaternary)">{b.bot.descriptionHint}</div>
+            )}
+          </div>
+        ) : (
+          <div className="px-2 py-3 text-center text-xs leading-5 text-(--ui-text-tertiary)">
+            {imagen === false
+              ? 'No image model available. If you just enabled one (or updated AECPilot), restart the gateway: Ctrl+K → "Restart gateway".'
+              : 'Checking image backend…'}
           </div>
         )
       ) : null}
