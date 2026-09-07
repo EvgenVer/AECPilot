@@ -46,7 +46,6 @@ import './aec/btw/register'
 // Наш код роестра удалён задачей 3D.6; здесь снята регистрация.
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
-import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'
 import { registerTranscriptBlocks } from './aec/transcript-blocks/register-blocks'
 import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
@@ -73,10 +72,6 @@ registerResumeProgress()
 // wins only if it runs after their shell module, and module bodies run after
 // every static import. See `register-changes-pane.tsx`.
 registerChangesPane()
-// Задача 3.4 (SPEC HX13): вкладка предпросмотра открывает только то, что
-// сделал агент. Надзор ставится до первого рендера — вкладка могла остаться в
-// хранилище от прошлого запуска.
-installPreviewBoundary()
 // Задача 3.4б (SPEC UR28): живые блоки в ленте. Регистрация в их области
 // `transcript.directives` — тем же вкладом, каким это делал бы плагин.
 registerTranscriptBlocks()

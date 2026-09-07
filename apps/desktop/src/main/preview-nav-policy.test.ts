@@ -119,6 +119,37 @@ describe('decidePreviewNavigation, строгость по букве SPEC', () 
   })
 })
 
+describe('подъём до https', () => {
+  it('тот же хост по защищённому каналу — не вопрос', () => {
+    // Иначе первый же ответ сервера на введённый человеком адрес порождал
+    // бы диалог, и человек привыкал бы отвечать «да» не читая.
+    expect(decidePreviewNavigation('http://дом.example', 'https://дом.example')).toEqual({
+      action: 'allow'
+    })
+  })
+
+  it('понижение до http спрашивается: это не подъём', () => {
+    expect(decidePreviewNavigation('https://дом.example', 'http://дом.example')).toEqual({
+      action: 'ask',
+      reason: 'other-origin'
+    })
+  })
+
+  it('чужой хост подъёмом не прикрывается', () => {
+    expect(decidePreviewNavigation('http://дом.example', 'https://сборщик.example')).toEqual({
+      action: 'ask',
+      reason: 'other-origin'
+    })
+  })
+
+  it('порт входит в сравнение: другой порт — другой адресат', () => {
+    expect(decidePreviewNavigation('http://дом.example:8080', 'https://дом.example')).toEqual({
+      action: 'ask',
+      reason: 'other-origin'
+    })
+  })
+})
+
 describe('describeNavigation', () => {
   it('хост называется отдельно: в вопросе важен он', () => {
     expect(describeNavigation('https://collector.example.net/a?b=1')).toEqual({

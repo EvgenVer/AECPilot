@@ -69,6 +69,19 @@ function pageKeyOf(url: string): string | null {
   }
 }
 
+/** `http://дом` → `https://дом`: тот же хост, тот же порт, только схема
+ * поднялась. Обратное направление (`https` → `http`) сюда не попадает
+ * намеренно — это понижение, и спросить о нём стоит. */
+function isHttpsUpgrade(opened: string, target: string): boolean {
+  try {
+    const from = new URL(opened)
+    const to = new URL(target)
+    return from.protocol === 'http:' && to.protocol === 'https:' && from.host === to.host
+  } catch {
+    return false
+  }
+}
+
 /**
  * Что делать с переходом внутри встроенной страницы.
  *
@@ -91,6 +104,15 @@ export function decidePreviewNavigation(
 
   const openedOrigin = originOf(opened.trim())
   if (openedOrigin === null) return { action: 'ask', reason: 'nothing-opened' }
+
+  // Подъём схемы на том же хосте — не переход к третьей стороне, а тот же
+  // адрес по защищённому каналу. Добавлено задачей 3E.5, когда правило
+  // подключалось к живому гостю: сервер отвечает таким перенаправлением на
+  // ПЕРВЫЙ же запрос по `http://`, и без этой строки человек получал бы
+  // вопрос сразу после того, как сам ввёл адрес, — то самое подтверждение,
+  // которое перестают читать. Узко и в одну сторону: только `http` → `https`
+  // и только при совпадении хоста с портом.
+  if (isHttpsUpgrade(opened.trim(), clean)) return { action: 'allow' }
 
   if (targetOrigin !== openedOrigin) return { action: 'ask', reason: 'other-origin' }
   if (strictness === 'origin') return { action: 'allow' }

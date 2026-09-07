@@ -362,11 +362,6 @@ export const aecLocales: PluginLocaleBundles = {
       tableEmpty: 'The file is empty.',
       tableHidden: (count: number) => `${count} more rows — open in full`
     },
-    preview: {
-      externalTitle: 'External pages do not open here',
-      externalBody: (address: string) =>
-        `The preview tab shows only what the agent produced: an HTML artifact, a project file, an image. ${address} was not opened — that is where this product draws its line, not a failure. Open it in a browser if you need it.`
-    },
     btw: {
       title: 'Side question',
       hint: 'Ask about this chat without it becoming part of it: the history, the turn order and the prompt cache stay as they were.',
@@ -739,11 +734,6 @@ export const aecLocales: PluginLocaleBundles = {
       tableFailed: (reason: string) => `Не удалось прочитать файл: ${reason}`,
       tableEmpty: 'Файл пуст.',
       tableHidden: (count: number) => `Ещё строк: ${count} — откройте целиком`
-    },
-    preview: {
-      externalTitle: 'Внешние страницы здесь не открываются',
-      externalBody: (address: string) =>
-        `Во вкладке предпросмотра показывается только то, что сделал агент: HTML-артефакт, файл проекта, изображение. Адрес ${address} не открыт — это граница продукта, а не сбой. Откройте его в браузере, если он нужен.`
     },
     btw: {
       title: 'Побочный вопрос',

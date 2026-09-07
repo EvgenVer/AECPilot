@@ -104,6 +104,7 @@ import {
 } from './quit-guard-pure'
 import { shouldBlockDevtoolsKey } from './devtools-block-pure'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
+import { installPreviewGuestGuard } from './preview-guest'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
 import {
   addWordToGuestDictionary,
@@ -1012,7 +1013,19 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // Задача 3E.5 (UR31). Выключатель, который держал HX13: без него
+      // `<webview>` в панели предпросмотра существует, но мёртв. HX13
+      // отменён решением владельца 05.09.2026, и цена названа в самой
+      // записи — произвольная страница становится входом в контекст
+      // агента. Поэтому включается он ПОСЛЕ 3E.4, а не вместе с ней:
+      // текст страницы приходит модели в рамке «данные, не инструкции»,
+      // а уход за пределы источника спрашивает человека
+      // (`preview-nav-policy.ts`, подключён ниже к гостю).
+      //
+      // Три другие настройки НЕ ослабляются и остаются под тем же
+      // стражем e2e: гость живёт в своём процессе, а не в нашем.
+      webviewTag: true
     }
   })
 
@@ -4252,6 +4265,11 @@ app
         ? `aecpilot: spellcheck ${spellcheck.join(', ')}`
         : 'aecpilot: spellcheck left to the system'
     )
+
+    // Задача 3E.5 (риск R22): надзор за встроенной страницей ставится ДО
+    // первого окна. `web-contents-created` не отдаёт уже созданных, и гость,
+    // родившийся раньше подписки, ушёл бы куда угодно без вопроса.
+    installPreviewGuestGuard()
 
     createWindow()
     console.log('aecpilot: window created')

@@ -370,10 +370,18 @@ test('Ctrl+G opens the change history, not a git surface', async () => {
   await assertRendererAlive(page, 'end of test 2')
 })
 
-// Task 3.4 (SPEC UR22/HX13/C9). Three claims in one turn, because one turn is
-// what produces all three: an HTML artifact card, the sandboxed tab it opens,
-// and an explicit preview link to an external address that must NOT open.
-test('an HTML artifact previews in a sandbox, an external address does not open', async () => {
+// Task 3.4, rewritten by 3E.5 (SPEC UR22/UR31/C9). Three claims in one turn,
+// because one turn produces all three: an HTML artifact card, the sandboxed tab
+// it opens, and an explicit preview link to an external address.
+//
+// WHAT CHANGED AND WHY. Until 2026-09-05 the third claim was the opposite one
+// — the external address must NOT open (HX13). The owner cancelled HX13 and
+// took the embedded browser whole (UR31), so the guard is inverted: the tab
+// must appear. What did NOT change is the window's own hardening — that is
+// C9, a different requirement, and it stays checked line for line. Only the
+// `webviewTag` assertion is gone, and it is gone because the switch is now ON
+// by decision: keeping it would guard a rule that no longer exists.
+test('an HTML artifact previews in a sandbox, and an external address opens', async () => {
   const page = await app.firstWindow()
 
   await hideFirstRunSurfaces(page)
@@ -396,8 +404,9 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
   const srcdoc = await frame.getAttribute('srcdoc')
   expect(srcdoc).toContain('Vedomost peremychek')
 
-  // The window itself keeps the hardening SPEC C9 requires, and never gained
-  // `webviewTag` — the one switch that would let a <webview> load a page.
+  // The window keeps the hardening SPEC C9 requires. `webviewTag` is ON since
+  // 3E.5 (UR31) — the guest page lives in its own process, and these three are
+  // what keep it there, so they are checked here and not assumed.
   const prefs = await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
     const wp = win.webContents.getLastWebPreferences() ?? {}
@@ -412,10 +421,12 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
   expect(prefs.contextIsolation).not.toBe(false)
   expect(prefs.sandbox).not.toBe(false)
   expect(prefs.nodeIntegration).not.toBe(true)
-  expect(prefs.webviewTag).not.toBe(true)
 
-  // The same answer carries `[Preview: example.com](#preview/https://…)`. It is
-  // a real, clickable door to their preview pipeline — and it must stay shut.
+  // The same answer carries `[Preview: example.com](#preview/https://…)` — a real
+  // door to their preview pipeline. Since UR31 it OPENS, and the tab count is
+  // how that is proved: our own supervision used to close the tab in the same
+  // tick it appeared, so a count that grows is exactly the thing that could not
+  // happen before.
   await clearNotifications(page)
   const beforeTabs = await previewTabCount(page)
   await page
@@ -423,12 +434,7 @@ test('an HTML artifact previews in a sandbox, an external address does not open'
     .first()
     .click()
 
-  await expect(
-    page.getByText(/Внешние страницы здесь не открываются|External pages do not open here/)
-  ).toBeVisible({
-    timeout: 15000
-  })
-  expect(await previewTabCount(page)).toBe(beforeTabs)
+  await expect.poll(() => previewTabCount(page), { timeout: 15000 }).toBe(beforeTabs + 1)
 
   // read_preview must be ANSWERED for the artifact tab (SPEC UR22). The mock
   // has been asking every three seconds since the turn landed, so the line we
