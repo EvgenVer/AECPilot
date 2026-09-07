@@ -50,7 +50,6 @@ const UNBRIDGED = [
   'fetchLinkTitle',
   'getAgentRoster',
   'getRemoteDisplayReason',
-  'getVersion',
   'installDesktopPlugin',
   'normalizePreviewTarget',
   'onClosePreviewRequested',

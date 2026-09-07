@@ -55,6 +55,9 @@ const api: AecpilotApi = {
   },
   openAppWindow: () => ipcRenderer.invoke('window:open'),
   claimAmbientCue: (key) => ipcRenderer.invoke('ambient:claim', key),
+  setActiveWork: (payload) => ipcRenderer.send('active-work:set', payload),
+  setDisableF12: (blocked) => ipcRenderer.send('devtools:disable-f12', blocked),
+  getVersion: () => ipcRenderer.invoke('version:get'),
   openSessionWindow: (sessionId, watch) =>
     ipcRenderer.invoke('window:open-session', { sessionId, watch }),
   getProjectSkills: () => ipcRenderer.invoke('project-skills:get'),

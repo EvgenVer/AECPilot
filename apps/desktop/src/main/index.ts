@@ -95,6 +95,15 @@ import {
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { readRemoteDataUrl, readRemoteDocument, statRemoteFile } from './remote-files'
 import { configureRoster, listRoster } from './roster'
+import {
+  mergeActiveWork,
+  normalizeActiveWork,
+  quitPromptFor,
+  type ActiveWork,
+  type QuitPrompt
+} from './quit-guard-pure'
+import { shouldBlockDevtoolsKey } from './devtools-block-pure'
+import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import type {
@@ -900,6 +909,13 @@ async function ensureSession(): Promise<string> {
  * открытое окно, иначе кнопка плодит копии одного разговора. */
 const sessionWindows = new Map<string, BrowserWindow>()
 
+/** Задача 3E.11 (UR35). «В каких чатах прямо сейчас идёт ход» — по окнам.
+ *
+ * Знает об этом только окно, а перехватить выход может только главный процесс;
+ * карта и есть мост между ними. Ключ — `webContents.id`, потому что окон может
+ * быть несколько и одну сессию видно из двух сразу. */
+const activeWorkByWindow = new Map<number, ActiveWork>()
+
 function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -923,6 +939,17 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   })
 
   win.webContents.on('unresponsive', () => console.warn('aecpilot: renderer unresponsive'))
+
+  // Задача 3E.11. Запрет F12, если человек его включил. Гасится ровно эта
+  // клавиша и ровно здесь — до того, как её увидит Chromium.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (shouldBlockDevtoolsKey(input, isDevtoolsBlocked())) event.preventDefault()
+  })
+
+  // Задача 3E.11. Сводка «в каких чатах идёт ход» приходит из окна и живёт до
+  // его смерти: сводка мёртвого окна, оставшаяся в карте, спрашивала бы о
+  // работе, которой давно нет.
+  win.webContents.once('destroyed', () => activeWorkByWindow.delete(win.webContents.id))
 
   // Task 3.26: the saved interface scale applies to every window, including a
   // second one opened later, and Ctrl +/-/0 changes it from anywhere.
@@ -2524,6 +2551,41 @@ ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
   })
 })
 
+// ── Задача 3E.11. Служебная механика окна (UR35) ───────────────────────────
+//
+// Три канала, у которых нет своего экрана: окно сообщает, что агент работает;
+// человек запрещает F12; экран «о программе» спрашивает версию. Четвёртый из
+// этой группы — фоновые подсказки (`ambient:claim`) — подключён раньше.
+
+ipcMain.on('active-work:set', (event, payload: unknown) => {
+  activeWorkByWindow.set(event.sender.id, normalizeActiveWork(payload))
+})
+
+ipcMain.on('devtools:disable-f12', (_event, blocked: unknown) => {
+  setDevtoolsBlocked(blocked === true)
+})
+
+/** Версия — НАША, а не донорская (C12). Их поля про рассинхронизацию сборки
+ * (`bundleOutOfSync`, `bundleCommitsBehind`) не заполняются: они про их
+ * механизм обновления из исходников, которого у нас нет. Необязательные поля
+ * их контракта, поэтому пропуск честнее выдуманного числа. */
+ipcMain.handle('version:get', async () => {
+  let hermesRoot = ''
+  try {
+    hermesRoot = (await loadServeModule()).HERMES_HOME_DIR
+  } catch {
+    // Удалённое ядро: его корень не на этой машине, и показывать нечего.
+  }
+
+  return {
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    nodeVersion: process.versions.node,
+    platform: process.platform,
+    hermesRoot
+  }
+})
+
 ipcMain.handle('gateway:get-state', () => gatewayState)
 
 // The two generic doors the donor's gateway client rides on (task 1.8.5).
@@ -4051,6 +4113,12 @@ app
       }
     }
 
+    // Задача 3E.11: та же причина, что у «не засыпать» ниже — выключатель,
+    // который надо щёлкать каждый запуск, это не настройка, а напоминание о
+    // себе. Читается ДО первого окна, чтобы настройка была в силе с первого
+    // нажатия, а не со второго.
+    if (restoreDevtoolsBlocked()) console.log('aecpilot: F12 blocked')
+
     createWindow()
     console.log('aecpilot: window created')
 
@@ -4127,7 +4195,42 @@ app.on('will-quit', () => {
   stopRosterSnapshotPolling()
 })
 
+/** Задача 3E.11. Диалог отдельно от правила: правило проверяется тестом
+ * (`quit-guard-pure.ts`), модальное окно — нет. «Остаться» стоит по умолчанию и
+ * на Escape: случайный Enter не должен убивать час работы агента. */
+function confirmQuitDespiteWork(prompt: QuitPrompt): boolean {
+  return (
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      buttons: ['Выйти', 'Остаться'],
+      defaultId: 1,
+      cancelId: 1,
+      message: prompt.message,
+      detail: prompt.detail
+    }) === 0
+  )
+}
+
 app.on('before-quit', (event) => {
+  // Задача 3E.11 (UR35). Спрашиваем ЗДЕСЬ и ДО остановки ядра: ниже по этому же
+  // обработчику она уже начинается, и вопрос после неё был бы вопросом о
+  // работе, которую мы только что убили.
+  //
+  // Только когда ядро НАШЕ (`serveHandle`): при удалённом ядре ход идёт на
+  // чужой машине, наш выход его не прерывает, и терять нечего.
+  if (!quitting && serveHandle) {
+    const prompt = quitPromptFor(mergeActiveWork(activeWorkByWindow.values()))
+    if (prompt && !confirmQuitDespiteWork(prompt)) {
+      event.preventDefault()
+      // На Windows и Linux выход приходит ПОСЛЕ закрытия последнего окна
+      // (`window-all-closed` выше), поэтому «остаться» без этой строки оставило
+      // бы работающее приложение без единого окна. Окно открывается заново, а
+      // не «не закрывается»: к моменту вопроса прежнее уже уничтожено.
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      return
+    }
+  }
+
   if (quitting || !serveHandle || !stopServeFn) return
   event.preventDefault()
   quitting = true

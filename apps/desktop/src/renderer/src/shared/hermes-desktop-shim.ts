@@ -698,10 +698,23 @@ const IMPLEMENTED: Record<string, unknown> = {
   setTitleBarTheme: undefined,
   setTranslucency: undefined,
 
-  // SPEC HX15: индикатор активной работы и запрет F12 — служебная механика без
-  // сценария. Строка про F12 убрана и с их экрана настроек (правка [3]).
-  setActiveWork: undefined,
-  setDisableF12: undefined,
+  // SPEC UR35 (задача 3E.11). Раньше здесь стояло `undefined` по HX15 —
+  // исключение отменено владельцем 05.09.2026, и оба члена проброшены.
+  // Односторонние: сводка о ходе шлётся на каждую смену состава, переключатель
+  // F12 — на каждое нажатие, и ответ ни тому, ни другому не нужен.
+  setActiveWork(payload: { count: number; titles: string[] }): void {
+    window.aecpilot.setActiveWork(payload)
+  },
+  setDisableF12(blocked: boolean): void {
+    window.aecpilot.setDisableF12(blocked)
+  },
+
+  // SPEC UR35 + C12. Версия НАША: их экран «о программе» показывает то, что
+  // ответит этот член, и донорское имя с донорским номером были бы там прямой
+  // неправдой о том, что человек запустил.
+  getVersion() {
+    return window.aecpilot.getVersion()
+  },
 
   // macOS: перехват ⌘W ради выбора «вкладка или окно». На нашей платформе
   // решать нечего, и обещать перехват мы не будем.

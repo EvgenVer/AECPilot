@@ -20,6 +20,10 @@ import { RootTooltipProvider } from './donor/components/ui/tooltip'
 import { ThemeProvider } from './donor/themes/context'
 import { installClipboardShim } from './donor/lib/clipboard'
 import { queryClient } from './donor/lib/query-client'
+// Задача 3E.11 (UR35). Ради побочного эффекта, как у них: модуль подписывается
+// на состав идущих ходов и публикует сводку в главный процесс, чтобы выход
+// посреди хода спрашивал, а не убивал молча.
+import './donor/store/active-work'
 
 import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
@@ -39,9 +43,7 @@ import './aec/btw/register'
 // Импорт `./aec/roster/register` снят целиком, а не закомментирован: он тянул
 // за собой три вклада — панель, сторожа «нового чата» (3C.4) и подсказку
 // `@имя` (3C.7), — и все три покрыты их `mention-middleware` и их панелью.
-// Наш код роестра ещё лежит в дереве и удаляется задачей 3D.6; здесь снята
-// только РЕГИСТРАЦИЯ, потому что правило фазы запрещает коммит, в котором
-// зарегистрированы обе поверхности.
+// Наш код роестра удалён задачей 3D.6; здесь снята регистрация.
 import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { installPreviewBoundary } from './aec/preview-boundary/install-preview-boundary'
