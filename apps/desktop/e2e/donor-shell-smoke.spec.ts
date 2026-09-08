@@ -322,8 +322,56 @@ async function assertRendererAlive(page: Page, label: string): Promise<void> {
   if (broken > 0) throw new Error(`RENDERER DIED at ${label}`)
 }
 
-test('their shell paints and the composer goes live over our bridge', async () => {
+/**
+ * Окна ПРИЛОЖЕНИЯ — не всё, что Playwright считает страницей (замечание D-70).
+ *
+ * ЗАМЕРЕНО, А НЕ ПРЕДПОЛОЖЕНО. Зонд внутри падавшего теста напечатал список
+ * `app.windows()` в середине набора:
+ *   ["…/out/renderer/index.html#/", "https://example.com/vneshnyaya-stranica"]
+ * Вторая запись — ГОСТЬ ПРЕДПРОСМОТРА, чужая страница внутри панели, открытая
+ * тестом про артефакт. Playwright считает её окном наравне с нашими, а живёт
+ * она своей жизнью: панель могут закрыть, страница может уйти. Вся арифметика
+ * окон («стало на одно больше», «лишние закрыть срезом с позиции N») строилась
+ * на этом списке — и разъезжалась, стоило гостю появиться или исчезнуть.
+ *
+ * Отсюда же и МИГАНИЕ, из-за которого набор то краснел на шести тестах, то
+ * давал 17 из 18: успел гость закрыться к девятому тесту — арифметика сходится,
+ * не успел — сыплется всё, что идёт после.
+ *
+ * Отбор по схеме `file://`, а не по «не http»: наш рендерер грузится файлом, а
+ * любая чужая страница в панели — по сети.
+ */
+function appWindows(): Page[] {
+  return app.windows().filter((candidate) => candidate.url().startsWith('file://'))
+}
+
+/**
+ * Главное окно приложения — и оно ДОЖДАЛОСЬ своего рендерера.
+ *
+ * Две беды `app.firstWindow()`, обе замерены зондом. (1) Он отдаёт первую
+ * страницу своего списка, а ею может оказаться гость предпросмотра — у него
+ * нет ни моста `hermesDesktop`, ни чего-либо ещё нашего. (2) Он возвращается,
+ * как только ОКНО создано: одиночный прогон любого теста (`-g`) ловил
+ * `readyState: "interactive"`, `body` в 31 знак и мост, которого ещё нет, —
+ * то есть тест обгонял загрузку 11-мегабайтного бандла. Из-за второго ни один
+ * тест набора нельзя было запустить отдельно, а это первое, что делают, когда
+ * разбирают падение.
+ */
+async function mainWindow(): Promise<Page> {
   const page = await app.firstWindow()
+  const main = appWindows().find((candidate) => !candidate.url().includes('win=')) ?? page
+
+  await main.waitForFunction(
+    () => (window as unknown as { hermesDesktop?: unknown }).hermesDesktop !== undefined,
+    undefined,
+    { timeout: 60000 }
+  )
+
+  return main
+}
+
+test('their shell paints and the composer goes live over our bridge', async () => {
+  const page = await mainWindow()
 
   // Their application only starts behind our project gate — the agent's working
   // directory is the vault. So the smoke opens one first, through the same IPC
@@ -383,7 +431,7 @@ test('their shell paints and the composer goes live over our bridge', async () =
 // their controller registered it, and that ordering lives in module-evaluation
 // semantics, not in any function this repo can call twice.
 test('Ctrl+G opens the change history, not a git surface', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   await hideFirstRunSurfaces(page)
 
@@ -425,7 +473,7 @@ test('Ctrl+G opens the change history, not a git surface', async () => {
 // `webviewTag` assertion is gone, and it is gone because the switch is now ON
 // by decision: keeping it would guard a rule that no longer exists.
 test('an HTML artifact previews in a sandbox, and an external address opens', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   await hideFirstRunSurfaces(page)
   await clearNotifications(page)
@@ -514,7 +562,7 @@ test('an HTML artifact previews in a sandbox, and an external address opens', as
 // checked against the real window: the OS theme is followed live (no restart),
 // and the interface scale is main's, not a CSS trick.
 test('the window follows the OS theme and carries the interface scale', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   await hideFirstRunSurfaces(page)
 
@@ -587,7 +635,7 @@ interface SaveBridge {
 }
 
 test('a file the agent made goes out where the person chose, and only from inside the project', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   const insideProject = join(projectDir, 'plan.txt')
   writeFileSync(insideProject, 'plan bytes')
@@ -674,7 +722,7 @@ test('a file the agent made goes out where the person chose, and only from insid
 })
 
 test('the app hears the machine: battery, wake-up, and a notification it can show', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   // Subscribe first, from the page, through the same bridge their code uses.
   await page.evaluate(() => {
@@ -763,7 +811,7 @@ interface LogBridge {
 }
 
 test('a renderer crash outlives the window, and the log carries no token', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   // `app.evaluate` runs inside the main process, which has no access to this
   // file's imports — so it returns the directory and the join happens here.
@@ -860,7 +908,7 @@ test('a renderer crash outlives the window, and the log carries no token', async
  *  собственным `submit-drift-abort`, и это свойство стенда, а не продукта).
  */
 test('the MCP consent request reaches the window and the answer reaches the gateway', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   // Половина первая: событие ядра доходит до окна нетронутым. Главный процесс
   // фильтрует события по сессии, и запрос, потерянный этим фильтром, оставил бы
@@ -916,8 +964,9 @@ interface WindowBridge {
 }
 
 test('a second window opens, a session window opens once, and one cue sounds once', async () => {
-  const page = await app.firstWindow()
-  const before = app.windows().length
+  const page = await mainWindow()
+  const opened = new Set(appWindows())
+  const before = opened.size
 
   // Второе полноценное окно — то же приложение против того же ядра.
   expect(
@@ -925,7 +974,7 @@ test('a second window opens, a session window opens once, and one cue sounds onc
       (window as unknown as { hermesDesktop: WindowBridge }).hermesDesktop.openWindow()
     )
   ).toMatchObject({ ok: true })
-  await expect.poll(() => app.windows().length).toBe(before + 1)
+  await expect.poll(() => appWindows().length).toBe(before + 1)
 
   // Окно ОДНОЙ сессии: их флаг стоит перед решёткой, иначе рендерер прочитает
   // его уже после маршрутизатора и покажет обычное главное окно.
@@ -936,9 +985,9 @@ test('a second window opens, a session window opens once, and one cue sounds onc
       )
     )
   ).toMatchObject({ ok: true })
-  await expect.poll(() => app.windows().length).toBe(before + 2)
+  await expect.poll(() => appWindows().length).toBe(before + 2)
 
-  const urls = app.windows().map((candidate) => candidate.url())
+  const urls = appWindows().map((candidate) => candidate.url())
   expect(urls.some((url) => url.includes('win=secondary') && url.includes('#/e2e-1'))).toBe(true)
   expect(
     urls.filter((url) => url.includes('win=')).length,
@@ -954,7 +1003,7 @@ test('a second window opens, a session window opens once, and one cue sounds onc
     )
   ).toMatchObject({ ok: true })
   await page.waitForTimeout(500)
-  expect(app.windows().length, 'копии одного разговора не открываются').toBe(before + 2)
+  expect(appWindows().length, 'копии одного разговора не открываются').toBe(before + 2)
 
   // Пустой номер — отказ, а не второе главное окно.
   expect(
@@ -980,8 +1029,10 @@ test('a second window opens, a session window opens once, and one cue sounds onc
     'второму окну — нет'
   ).toBe(false)
 
-  for (const extra of app.windows().slice(before)) await extra.close()
-  await expect.poll(() => app.windows().length).toBe(before)
+  // Закрываем по ЛИЧНОСТИ, а не срезом по позиции: список мог сдвинуться, если
+  // гость предпросмотра ушёл, и срез закрывал бы не то окно — вплоть до главного.
+  for (const extra of appWindows()) if (!opened.has(extra)) await extra.close()
+  await expect.poll(() => appWindows().length).toBe(before)
 
   await assertRendererAlive(page, 'end of test 9')
 })
@@ -995,8 +1046,8 @@ interface HudBridge {
 }
 
 test('the HUD floats above other windows, lets clicks through, and closes', async () => {
-  const page = await app.firstWindow()
-  const before = app.windows().length
+  const page = await mainWindow()
+  const before = appWindows().length
 
   expect(
     await page.evaluate(() =>
@@ -1005,7 +1056,7 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
       })
     )
   ).toMatchObject({ ok: true })
-  await expect.poll(() => app.windows().length).toBe(before + 1)
+  await expect.poll(() => appWindows().length).toBe(before + 1)
 
   // Это ОТДЕЛЬНОЕ окно поверх остальных, без рамки и прозрачное — иначе оно не
   // может висеть над чужой программой.
@@ -1068,20 +1119,20 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
       (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.close()
     )
   ).toMatchObject({ ok: true })
-  await expect.poll(() => app.windows().length).toBe(before)
+  await expect.poll(() => appWindows().length).toBe(before)
 
   await assertRendererAlive(page, 'end of test 10')
 })
 
 test('an open microphone says so in a window of its own', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
-  const before = app.windows().length
+  const before = appWindows().length
 
   // Захват начался — табличка появляется. Отдельным окном: слово-активатор
   // работает при свёрнутом главном окне, и значок внутри него не виден.
   await page.evaluate(() => window.aecpilot.setWakeIndicator('capturing'))
-  await expect.poll(() => app.windows().length).toBe(before + 1)
+  await expect.poll(() => appWindows().length).toBe(before + 1)
 
   const shape = await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows().find((candidate) =>
@@ -1113,7 +1164,7 @@ test('an open microphone says so in a window of its own', async () => {
 })
 
 test('a gateway token never reaches the window and never lands in plain text', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   const TOKEN = 'e2e-gateway-token-9f8e7d6c'
 
@@ -1155,7 +1206,7 @@ test('a gateway token never reaches the window and never lands in plain text', a
 })
 
 test('the ssh surface answers, and a key path is a path — never a key', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   // Список машин читается из ~/.ssh/config самого человека. На машине сборки
   // его может не быть вовсе — тогда пустой список, и это ответ, а не ошибка.
@@ -1210,7 +1261,7 @@ test('the ssh surface answers, and a key path is a path — never a key', async 
 // код был на месте и был связан.
 
 test('the session list separates days, archives over PATCH, and knows what is unread', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
   await hideFirstRunSurfaces(page)
   await clearNotifications(page)
 
@@ -1299,7 +1350,7 @@ test('the session list separates days, archives over PATCH, and knows what is un
 })
 
 test('Ctrl+F highlights in the transcript, steps between hits, and Esc clears them', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
   // Меню, оставленное открытым предыдущим тестом (своим падением в том числе),
   // перехватывает щелчки: без этой строки контроль-мутация роняла ДВА теста
   // вместо одного, и второе падение уводило от причины.
@@ -1370,7 +1421,7 @@ test('Ctrl+F highlights in the transcript, steps between hits, and Esc clears th
 // файлы (блок 24).
 
 test('the composer attaches what the picker returns, asks it for the right thing, and chips a typed link', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
   await page.keyboard.press('Escape')
   await hideFirstRunSurfaces(page)
   await clearNotifications(page)
@@ -1500,7 +1551,7 @@ test('the composer attaches what the picker returns, asks it for the right thing
 // то, чего исходники не показывают: что в собранном окне действительно осталась
 // ОДНА панель и это их панель.
 test('в окне остался один роестр, и это их панель', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   // Их панель регистрируется под своим заголовком; наша называлась
   // «Специалисты» / «Specialists» — по каталогу `aec-catalog.ts`.
@@ -1530,7 +1581,7 @@ test('в окне остался один роестр, и это их пане�
 // тест обязан падать, когда ломается НАШЕ, а не когда чужой сайт поменял
 // разметку или у прогона нет выхода наружу.
 test('агент печатает и нажимает в предпросмотре, и человеку это видно', async () => {
-  const page = await app.firstWindow()
+  const page = await mainWindow()
 
   await hideFirstRunSurfaces(page)
   await clearNotifications(page)
