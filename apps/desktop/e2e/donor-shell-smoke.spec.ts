@@ -619,8 +619,12 @@ test('the window follows the OS theme and carries the interface scale', async ()
   // 1.2 ** level === 1.25
   expect(level).toBeCloseTo(Math.log(1.25) / Math.log(1.2), 4)
 
-  // Put it back so the rest of the suite sees the default.
-  await page.evaluate(() => window.aecpilot.setZoomPercent(90))
+  // Возврат к УМОЛЧАНИЮ, а не к соседнему делению шкалы. Здесь стояло 90 при
+  // умолчании 100 (`ZOOM_DEFAULT_PERCENT`), и весь набор после этого теста шёл
+  // при 90% — молча, потому что до задачи 3E.12 ни одна проверка от масштаба не
+  // зависела. Замечание D-70: рука агента в предпросмотре мажет мимо цели ровно
+  // на этот множитель — подробности и цена в D-74.
+  await page.evaluate(() => window.aecpilot.setZoomPercent(100))
   await assertRendererAlive(page, 'end of test 4')
 })
 
@@ -1621,6 +1625,7 @@ test('агент печатает и нажимает в предпросмот�
   //    обработчик написал в `#echo` то, что оказалось в поле. Синтетический
   //    `el.click()` сюда бы тоже прошёл, а вот `:hover`-меню — нет; именно
   //    поэтому у них `sendInputEvent`, и именно поэтому проверяем эхо.
+
   await expect
     .poll(() => guestText(app, '/page/form'), { timeout: 60000 })
     .toContain('PRINYATO: AR-12')
