@@ -91,7 +91,7 @@ export const VERDICTS = {
   read_terminal: { status: "ours", where: "их же ветка `terminal.read.request` в зоне сериализует буфер xterm; недостающей половиной была ОБОЛОЧКА, её дала 3E.8" },
   close_terminal: { status: "ours", where: "см. read_terminal — та же ветка в зоне, та же недостающая половина" },
   read_window_below: { status: "ours", where: "UR30, HX12 отменён 05.09 — задача 3E.8: `main/os-windows.ts` через `get-windows`, только метаданные" },
-  delegate_task: { status: "task", task: "3E.13", where: "UR38 — подагенты, фазирование N10 снято" },
+  delegate_task: { status: "ours", where: "UR38 — задача 3E.13; проверено живым прогоном (`node runtime/delegate-probe.mjs`): агент делегировал, подагент прочитал файл и назвал строку 7, поток `subagent.*` пришёл в ленту" },
   memory: { status: "task", task: "5.0", where: "фаза 5 — память агента (Mem0), гейт пройден 2026-08-31" },
   tour: { status: "ours", where: "UR36 — задача 3E.12: ветка `tour.request` вернулась повторным переносом, driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
   drive_preview: { status: "ours", where: "UR36 — задача 3E.12: `preview.act.request` вернулась там же; e2e доказан эхом самой страницы (агент напечатал и нажал)" },
@@ -121,7 +121,11 @@ export const VERDICTS = {
   // сужение объёма против правила «берём по максимуму», и потому оно
   // вынесено владельцу, а не закрыто задачей, которая его нашла.
   browser_exec: { status: "task", task: "3E.17", where: "выбор формы браузерной поверхности — решение владельца" },
-  "kanban_*": { status: "task", task: "3E.13", where: "UR38 — доска задач, фазирование N10 снято" },
+  // Их ядро прячет доску от обычного разговора НАМЕРЕННО: «Humans running
+  // `hermes chat` without the kanban toolset see zero kanban tools»
+  // (`tools/kanban_tools.py`). Дверь открывается записью `kanban` в
+  // `toolsets` — её пишет `applyKanbanToolset` (задача 3E.13).
+  "kanban_*": { status: "ours", where: "UR38 — задача 3E.13; проверено живым прогоном (`node runtime/kanban-probe.mjs`): ход агента вызвал `kanban_create`, задача появилась на доске по REST" },
   "spotify_*": { status: "excluded", hx: "HX11", where: "Spotify" },
   "ha_*": { status: "excluded", hx: "HX11", where: "Home Assistant" },
   "yb_*": { status: "excluded", hx: "HX11", where: "Yuanbao" },

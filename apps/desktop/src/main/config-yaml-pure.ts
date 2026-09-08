@@ -77,3 +77,32 @@ export function ensureSectionScalar(
 
   return { text: next.join('\n'), changed: true, unexpectedStructure: false }
 }
+
+/**
+ * Дописывает список верхнего уровня `key:`, если такого ключа в файле ещё нет.
+ *
+ * ЗАЧЕМ ОТДЕЛЬНАЯ ФУНКЦИЯ, А НЕ ПАРАМЕТР К ПРЕДЫДУЩЕЙ. Правило выше пишет
+ * `секция: ключ: значение` — вложенный скаляр. Здесь нужен список НА ВЕРХНЕМ
+ * уровне (`toolsets:`), и это другая форма файла, а не другое значение.
+ *
+ * ПРАВИЛО ТО ЖЕ: ключ есть — файл не трогается, каким бы список ни был. То
+ * есть свой блок `toolsets:` человека переживает все следующие запуски, и мы
+ * в него ничего не дописываем. Дописывать в чужой список молча — значит
+ * возвращать то, что человек мог убрать сознательно.
+ */
+export function ensureTopLevelList(
+  yamlText: string,
+  key: string,
+  values: readonly string[]
+): ConfigScalarResult {
+  const keyLine = new RegExp(`^${key}:`)
+
+  if (yamlText.split('\n').some((line) => keyLine.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: false }
+  }
+
+  const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
+  const block = `${key}:\n${values.map((value) => `  - ${value}\n`).join('')}`
+
+  return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
+}

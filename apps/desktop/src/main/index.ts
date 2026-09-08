@@ -21,7 +21,7 @@ import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
-import { ensureSectionScalar } from './config-yaml-pure'
+import { ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
 import {
   DEFAULT_WAKE_PHRASE,
   setWakeIndicatorState,
@@ -932,6 +932,65 @@ function applyBrowserBackend(homeDir: string): void {
  */
 function applyApprovalsMode(homeDir: string): void {
   applyConfigDefault(homeDir, 'approvals', 'mode', 'manual', 'the approvals mode')
+}
+
+/**
+ * Задача 3E.13 (UR38) — ДОСКА ЗАДАЧ, КОТОРОЙ УПРАВЛЯЕТ АГЕНТ.
+ *
+ * Их ядро прячет инструменты доски от обычного разговора НАМЕРЕННО, и это
+ * записано их же словами: «Humans running `hermes chat` without the kanban
+ * toolset see zero kanban tools» (`tools/kanban_tools.py::_check_kanban_mode`).
+ * Дверей к доске у них ровно две: рабочий, порождённый диспетчером
+ * (`HERMES_KANBAN_TASK` + проверка владения), либо профиль, у которого
+ * `kanban` записан в `toolsets`. Первая дверь — про их флот воркеров, у нас
+ * такого хоста нет; вторая — наша.
+ *
+ * ЗАМЕРЕНО, А НЕ ВЫЧИТАНО (`node runtime/kanban-probe.mjs`, 2026-09-07). До
+ * этой записи: REST доски отвечал `200` и без единого включения, набор
+ * `kanban` стоял среди 22 включённых у десктопной сессии, — а агент на прямую
+ * просьбу завести задачу отвечал «я не вижу инструмента kanban_create», и в
+ * ходе не было НИ ОДНОГО вызова инструмента. То есть доска у нас была
+ * читаемой и мёртвой: UR38 говорит «канбан, которым агент управляет сам».
+ *
+ * ЧТО ЭТО ОТКРЫВАЕТ И ЧЕГО НЕ ОТКРЫВАЕТ. Ключ `toolsets` в их конфиге читает
+ * ровно один потребитель — этот шлюз доски (второй, `hermes_cli/dump.py`, это
+ * диагностика). Список ВКЛЮЧЁННЫХ наборов считается в другом месте и по
+ * другим ключам (`_load_enabled_toolsets`: `HERMES_TUI_TOOLSETS` и рабочая
+ * поза), поэтому запись сюда ничего не сужает — проверено отдельно, потому
+ * что ровно так нас однажды подвёл `platform_toolsets` (замечание D-66:
+ * десктопная сессия получала 8 наборов вместо 19).
+ *
+ * ЦЕНУ НАЗЫВАЮ ЧЕСТНО. Вместе с жизненным циклом задачи открывается и
+ * `_check_kanban_orchestrator_mode` — `kanban_list` и `kanban_unblock`, то
+ * есть маршрутизация доски целиком. У них эта поверхность принадлежит
+ * профилям-оркестраторам (`techlead`), а не собеседнику человека. Для нас это
+ * и есть требование: доской управляет тот же агент, с которым человек
+ * разговаривает, — другого у продукта нет.
+ *
+ * `hermes-cli` в списке — их собственное умолчание (`config_defaults.py`), и
+ * оно остаётся: мы ДОБАВЛЯЕМ набор, а не подменяем список. Свой блок
+ * `toolsets:` человека не трогается вовсе — правило то же, что у всех
+ * умолчаний выше.
+ */
+function applyKanbanToolset(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the kanban toolset', error)
+    return
+  }
+
+  const merged = ensureTopLevelList(original, 'toolsets', ['hermes-cli', 'kanban'])
+  if (!merged.changed) return
+
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the kanban toolset', error)
+  }
 }
 
 /** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
@@ -4297,6 +4356,7 @@ app
           applyWebBackend(HERMES_HOME_DIR)
           applyBrowserBackend(HERMES_HOME_DIR)
           applyApprovalsMode(HERMES_HOME_DIR)
+          applyKanbanToolset(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't

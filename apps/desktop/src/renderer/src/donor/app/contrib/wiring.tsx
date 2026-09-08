@@ -4,13 +4,14 @@
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the agents/Command Center/webhooks surfaces (N10, UR19)
+ *   [3] dropped the webhooks surface — UR19 is in scope but its screens are
+ *       task 3.11 and are not vendored yet
  *   [3] removed the pet surface (HX1)
  *   [3] dropped the Send Diagnostics host — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3
+ *   [3] dropped the credits-notice dev demo — billing (HX2)
  * (no other edits)
  */
-
 /**
  * Real-featureset wiring for the contrib (layout tree) root — the minimal
  * subset of DesktopController's hook chain that makes the REAL surfaces work:
@@ -169,11 +170,12 @@ import type { WiringActions, WiringApi } from './types'
 // Overlay views the controller mounts over the shell — lazy, load on demand.
 // The workspace-route full-page views (skills/messaging/artifacts) are the
 // ChatRoutesSurface's and live in ./surfaces.
-// EDIT [3]: agents and Command Center (SPEC N10 — post-MVP, phase 7) and
-// webhooks (UR19) are not in this phase's scope. Their lazy views and the
-// registrations below are removed; re-copy this file when a phase brings them
-// in. Cron came back that way at task 3.5 — it is UR18 and no longer dropped.
+const AgentsView = lazy(async () => ({ default: (await import('../agents')).AgentsView }))
+const CommandCenterView = lazy(async () => ({ default: (await import('../command-center')).CommandCenterView }))
 const CronView = lazy(async () => ({ default: (await import('../cron')).CronView }))
+// EDIT [3]: the webhooks view is not vendored yet — UR19 is in scope, its
+// screens are task 3.11. Agents and Command Center above came back with the
+// cancellation of SPEC N10 (UR38, task 3E.13).
 const ProfilesView = lazy(async () => ({ default: (await import('../profiles')).ProfilesView }))
 const SettingsView = lazy(async () => ({ default: (await import('../settings')).SettingsView }))
 const StarmapView = lazy(async () => ({ default: (await import('../starmap')).StarmapView }))
@@ -1199,6 +1201,24 @@ export function ContribWiring({ children }: { children: ReactNode }) {
               void queryClient.invalidateQueries({ queryKey: ['model-options'] })
             }}
           />
+        </Suspense>
+      )}
+
+      {commandCenterOpen && (
+        <Suspense fallback={null}>
+          <CommandCenterView
+            initialSection={commandCenterInitialSection}
+            onClose={closeOverlayToPreviousRoute}
+            onDeleteSession={removeSession}
+            onNavigateRoute={path => navigateToWorkspacePage(navigate, path)}
+            onOpenSession={sessionId => openSession(sessionId, navigate)}
+          />
+        </Suspense>
+      )}
+
+      {agentsOpen && (
+        <Suspense fallback={null}>
+          <AgentsView onClose={closeOverlayToPreviousRoute} />
         </Suspense>
       )}
 

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { ensureSectionScalar } from './config-yaml-pure'
+import { ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
 
 describe('дописать поле в их конфиг', () => {
   it('секции нет — добавляется целиком', () => {
@@ -99,5 +99,49 @@ describe('дописать поле в их конфиг', () => {
     // и вернуть его обратно было бы отменой его решения.
     expect(chosen.text).toContain('max_ticks: 0')
     expect(chosen.changed).toBe(false)
+  })
+})
+
+// Задача 3E.13 (UR38). Набор `kanban` их ядро прячет от обычного разговора
+// намеренно: `_check_kanban_mode` пускает к доске либо рабочего, порождённого
+// диспетчером, либо профиль, у которого `kanban` записан в `toolsets`. Второй
+// путь — наш, потому что доской у нас управляет тот же агент, с которым человек
+// разговаривает.
+describe('список наборов верхнего уровня', () => {
+  it('ключа нет — список дописывается целиком', () => {
+    const result = ensureTopLevelList('model:\n  name: x\n', 'toolsets', ['hermes-cli', 'kanban'])
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toContain('toolsets:\n  - hermes-cli\n  - kanban\n')
+    expect(result.text, 'соседняя секция цела').toContain('model:\n  name: x')
+  })
+
+  it('свой список человека не трогается', () => {
+    // Дописать в чужой список молча значило бы вернуть то, что он мог убрать.
+    const chosen = 'toolsets:\n  - hermes-cli\n'
+
+    expect(ensureTopLevelList(chosen, 'toolsets', ['hermes-cli', 'kanban'])).toEqual({
+      text: chosen,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('ключ с тем же концом имени за свой не принимается', () => {
+    // В их же конфиге рядом лежит `known_builtin_toolsets:` — кэш самого ядра.
+    const result = ensureTopLevelList('known_builtin_toolsets:\n  cli:\n    - web\n', 'toolsets', [
+      'hermes-cli',
+      'kanban'
+    ])
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toContain('known_builtin_toolsets:')
+    expect(result.text).toContain('toolsets:\n  - hermes-cli\n')
+  })
+
+  it('файл без завершающего перевода строки не склеивается', () => {
+    expect(ensureTopLevelList('model: x', 'toolsets', ['kanban']).text).toBe(
+      'model: x\ntoolsets:\n  - kanban\n'
+    )
   })
 })
