@@ -99,7 +99,7 @@ console.log(`== 2/4: fetching hermes-agent source at ${HERMES_SHA.slice(0, 12)}`
 requireGit();
 fetchCore();
 
-console.log(`== 3/4: installing hermes-agent[mcp] ${HERMES_VERSION} (editable)`);
+console.log(`== 3/4: installing hermes-agent[mcp,mem0] ${HERMES_VERSION} (editable)`);
 // Editable is not a preference — upstream's build backend raises on any wheel or
 // sdist build ("Hermes is distributed via the shell installer, Docker image, or
 // Nix"; setup.py) and names `uv pip install -e .` as the developer path. So the
@@ -111,7 +111,15 @@ console.log(`== 3/4: installing hermes-agent[mcp] ${HERMES_VERSION} (editable)`)
 // (connect to stdio/HTTP MCP servers like mcp/aec_sources) via
 // tools/mcp_tool.py. Without it, tools.mcp_tool._MCP_AVAILABLE is False and no
 // MCP server can ever connect, regardless of what's registered in config.yaml.
-run("uv", ["pip", "install", "--python", VENV_DIR, "-e", `${HERMES_SRC_DIR}[mcp]`]);
+//
+// The `mem0` extra is the SECOND layer of agent memory (задача 5.1, решение
+// владельца 2026-08-31 — вариант A, «го» на установку 2026-09-08). Оно идёт
+// именно в venv ЯДРА, потому что провайдер памяти — это реализация их ABC
+// `agent/memory_provider.py`, которую ядро поднимает у себя; в нашем корневом
+// `.venv` ему делать нечего. Замерено `--dry-run` против этого venv: 12 новых
+// пакетов, 21 МБ колёсами, ничего не понижается, OCR-конвейер в корневом venv
+// не затрагивается вовсе (numpy и protobuf приезжают сюда впервые).
+run("uv", ["pip", "install", "--python", VENV_DIR, "-e", `${HERMES_SRC_DIR}[mcp,mem0]`]);
 
 console.log(`== 4/4: preparing isolated HERMES_HOME at ${HERMES_HOME_DIR}`);
 fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });
