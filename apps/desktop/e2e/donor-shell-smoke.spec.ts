@@ -14,7 +14,8 @@ import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:c
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ElectronApplication, Page } from 'playwright'
 
 const desktopDir = join(__dirname, '..')
@@ -633,6 +634,117 @@ test('правка файла на диске перерисовывает пр�
     .toBe(0)
 
   await assertRendererAlive(page, 'live preview reload')
+})
+
+interface ExternalPreviewBridge {
+  openPreviewInBrowser: (url: string) => Promise<void>
+}
+
+// Задача 3E.26 (SPEC UR22, замечание D-75, пункт Б): содержимое предпросмотра
+// уходит в НАСТОЯЩИЙ браузер человека — по его нажатию и с его ведома.
+//
+// БРАУЗЕР ЭТОЙ МАШИНЫ НЕ ОТКРЫВАЕТСЯ: `shell.openExternal` подменён в главном
+// процессе, как подменяется диалог сохранения в тесте про выгрузку файла.
+// Проверяется ВЫЗОВ — то, что мы отдали ОС, — а не поведение чужой программы.
+//
+// Кнопка взята у карточки артефакта, потому что это и есть ветка с выгрузкой:
+// их код собирает HTML, просит записать его файлом и открывает уже файл. Именно
+// она ослабляет обещание песочницы, и именно её цену владелец принял отдельным
+// решением 2026-09-08.
+test('содержимое предпросмотра уходит в браузер файлом, и только из нашей папки', async () => {
+  const page = await mainWindow()
+
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  await app.evaluate(({ shell }) => {
+    const bag = globalThis as unknown as { openedExternally?: string[] }
+
+    bag.openedExternally = []
+    shell.openExternal = (async (url: string) => {
+      bag.openedExternally?.push(url)
+    }) as never
+  })
+
+  // Карточка осталась в ленте от теста про артефакт: у её HTML есть кнопка «в
+  // браузере», у обычного ответа — нет.
+  const card = page.locator('[data-slot="aui_artifact-card"]').first()
+
+  await expect(card).toBeVisible({ timeout: 30000 })
+  await card.click()
+
+  await page
+    .getByRole('button', { name: /Open in browser|Открыть в браузере/ })
+    .first()
+    .click()
+
+  const opened = async (): Promise<string[]> =>
+    (await app.evaluate(
+      () => (globalThis as unknown as { openedExternally?: string[] }).openedExternally ?? []
+    )) as string[]
+
+  await expect.poll(opened, { timeout: 30000 }).toHaveLength(1)
+
+  const [url] = await opened()
+
+  expect(url.startsWith('file:///'), 'содержимое уходит файлом, а не data-адресом').toBe(true)
+
+  // ФАЙЛ ЛЕЖИТ В НАШЕЙ ПАПКЕ, а не где попало: окно называет путь, но выбирает
+  // его главный процесс — оно может открыть только то, что мы сами и записали.
+  const staged = fileURLToPath(url)
+  const attachments = join(userDataDir, 'attachments')
+
+  expect(staged.startsWith(attachments + sep), `${staged} обязан лежать в ${attachments}`).toBe(
+    true
+  )
+  expect(readFileSync(staged, 'utf8'), 'в файле то самое содержимое вкладки').toContain(
+    'Vedomost peremychek'
+  )
+
+  // ЧЕЛОВЕКУ СКАЗАНО, что содержимое ушло за песочницу. Обещание «предпросмотр —
+  // в песочнице» здесь ослаблено по решению владельца, и молчать об этом значило
+  // бы спрятать цену в коде.
+  await expect(
+    page.getByText(/Страница открыта вне приложения|The page opened outside the app/)
+  ).toBeVisible({ timeout: 15000 })
+
+  // Чужой файл — отказ, и он не доходит до ОС. Проверяется через мост: у окна
+  // другого пути к этому правилу нет.
+  const refusal = await page.evaluate(
+    (path) =>
+      (window as unknown as { hermesDesktop: ExternalPreviewBridge }).hermesDesktop
+        .openPreviewInBrowser(path)
+        .then(
+          () => '',
+          (error: Error) => error.message
+        ),
+    join(tmpdir(), 'aecpilot-e2e-chuzhoe.html')
+  )
+
+  expect(refusal).toContain('В браузере открывается только')
+  expect(await opened(), 'отказ не должен доходить до ОС').toHaveLength(1)
+
+  // ВЕРНУТЬ ПАНЕЛЬ КАК БЫЛО. Набор — цепочка в одном окне, и активная вкладка
+  // панели это общее состояние: щелчок по карточке переключил её на артефакт, а
+  // тест про вождение страницы ждёт адресную строку вкладки браузера. Без этой
+  // строки падали три теста подряд — замерено.
+  // Плашка прочитана — теперь она мешает: лежит поверх полосы вкладок и
+  // перехватывает щелчок (та же ловушка, что в тесте про живую перезагрузку).
+  await clearNotifications(page)
+
+  // Вкладка называется заголовком СТРАНИЦЫ, а не её адресом: панель берёт имя
+  // у загруженного документа (замерено — `example.com` не нашлось).
+  const browserTab = page.getByRole('tab', { name: /Example Domain/i }).first()
+
+  await expect(browserTab).toBeVisible({ timeout: 20000 })
+  await browserTab.click({ force: true })
+
+  await expect(
+    page.getByRole('textbox', { name: /Address|Адрес/ }),
+    'панель возвращена на вкладку браузера — её ждут следующие тесты'
+  ).toBeVisible({ timeout: 20000 })
+
+  await assertRendererAlive(page, 'preview in browser')
 })
 
 // Task 3.26 (SPEC HX14). Two appearance features are in scope and both are

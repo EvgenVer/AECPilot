@@ -110,6 +110,9 @@ describe('вспомогательные', () => {
     ['.JPG', 'jpg'],
     ['  webp  ', 'webp'],
     ['exe', 'bin'],
+    // Задача 3E.26: выгруженная вкладка предпросмотра. Не картинка — и именно
+    // поэтому записано отдельной строкой, а не растворено в списке.
+    ['.html', 'html'],
     ['', 'bin'],
     [undefined, 'bin']
   ])('normalizeExtension(%s) = %s', (raw, expected) => {
@@ -120,6 +123,7 @@ describe('вспомогательные', () => {
     expect(mediaTypeFor('x.png')).toBe('image/png')
     expect(mediaTypeFor('x.JPEG')).toBe('image/jpeg')
     expect(mediaTypeFor('x.bin')).toBe('application/octet-stream')
+    expect(mediaTypeFor('x.html')).toBe('text/html')
   })
 })
 

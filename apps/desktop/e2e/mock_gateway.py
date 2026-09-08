@@ -49,6 +49,25 @@ async def handle(connection: ServerConnection) -> None:
             result = {"session_id": SESSION_ID, "messages": [], "info": {}}
             response = {"jsonrpc": "2.0", "id": request_id, "result": result}
             await connection.send(json.dumps(response))
+        elif method == "session.resume":
+            # Added 2026-09-08 after a FLAKE, not a theory: with no handler here
+            # the window answered `-32601 method not found`, the chat pane fell
+            # into "Couldn't load this session" and every later test that needs
+            # the composer died — while the run before and after passed on the
+            # same build. The window asks this whenever it loses the live
+            # runtime ref (a reconnect, a renderer crash, a timed-out request),
+            # so a mock without it makes the suite flaky by construction. A real
+            # gateway rebinds the stored session; nothing to rebuild here — the
+            # transcript lives in the window.
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"session_id": SESSION_ID, "messages": [], "info": {}},
+                    }
+                )
+            )
         elif method == "prompt.submit":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}})

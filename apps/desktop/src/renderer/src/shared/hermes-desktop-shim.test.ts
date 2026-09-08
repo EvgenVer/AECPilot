@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { $notifications, dismissNotification } from '../donor/store/notifications'
+
 import { createHermesDesktopBridge } from './hermes-desktop-shim'
 
 // `getConnection` is the member the donor's multi-profile socket pool asks
@@ -19,6 +21,10 @@ import { createHermesDesktopBridge } from './hermes-desktop-shim'
 function withConnectionView(view: Record<string, unknown>): void {
   const globals = globalThis as unknown as { window?: unknown }
   globals.window = { aecpilot: { getConnection: () => Promise.resolve(view) } }
+}
+
+function dismissAll(): void {
+  for (const item of $notifications.get()) dismissNotification(item.id)
 }
 
 function withoutWindow(): void {
@@ -294,5 +300,43 @@ describe('hermes-desktop shim: onNotificationActivate (задача 3D.9)', () =
     deliver?.({ activate: '/bots/smeta', notifyId: 'n-42', tag: 'bot:smeta' })
 
     expect(seen).toEqual([{ activate: '/bots/smeta', notifyId: 'n-42', tag: 'bot:smeta' }])
+  })
+})
+
+describe('hermes-desktop shim: openPreviewInBrowser (задача 3E.26)', () => {
+  it('отказ поднимается ОШИБКОЙ: их код показывает её текст человеку', async () => {
+    const openPreviewInBrowser = vi.fn().mockResolvedValue({ ok: false, error: 'так нельзя' })
+    ;(globalThis as unknown as { window: unknown }).window = {
+      aecpilot: { openPreviewInBrowser }
+    }
+
+    // Молчаливый `undefined` их код прочитал бы как «открыл»: `notifyError`
+    // берёт текст из исключения, и без него человек не узнал бы об отказе.
+    await expect(
+      createHermesDesktopBridge().openPreviewInBrowser!('file:///чужое.html')
+    ).rejects.toThrow('так нельзя')
+  })
+
+  it('выгруженное наружу содержимое ГОВОРИТСЯ человеку, а открытие страницы — нет', async () => {
+    const openPreviewInBrowser = vi.fn().mockResolvedValue({ exported: true, ok: true })
+    // Их `notify` заводит таймер снятия плашки прямо на окне; подставное окно
+    // этих двух функций иначе не имеет, и упал бы не тот факт, что проверяется.
+    ;(globalThis as unknown as { window: unknown }).window = {
+      aecpilot: { openPreviewInBrowser },
+      clearTimeout: globalThis.clearTimeout,
+      setTimeout: globalThis.setTimeout
+    }
+
+    await createHermesDesktopBridge().openPreviewInBrowser!('file:///данные/a1.html')
+
+    expect($notifications.get()[0]?.title, 'UR22 ослаблен — и это не прячется').toBeTruthy()
+
+    dismissAll()
+    openPreviewInBrowser.mockResolvedValue({ exported: false, ok: true })
+    await createHermesDesktopBridge().openPreviewInBrowser!('https://example.com')
+
+    // Открытие сетевого адреса ничего из песочницы не выносит. Плашка здесь
+    // была бы шумом, от которого перестают читать нужные.
+    expect($notifications.get()).toEqual([])
   })
 })

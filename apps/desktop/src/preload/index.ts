@@ -33,6 +33,7 @@ const api: AecpilotApi = {
   // Синхронно и без IPC: множитель спрашивают в момент отправки нажатия агента
   // (задача 3E.24), а не при отрисовке настроек.
   zoomFactor: () => webFrame.getZoomFactor(),
+  openPreviewInBrowser: (url) => ipcRenderer.invoke('preview:open-external', url),
   watchPreviewFile: (url) => ipcRenderer.invoke('preview:watch', url),
   stopPreviewWatch: (id) => ipcRenderer.invoke('preview:stop-watch', id),
   previewWatchCount: () => ipcRenderer.invoke('preview:watch-count'),

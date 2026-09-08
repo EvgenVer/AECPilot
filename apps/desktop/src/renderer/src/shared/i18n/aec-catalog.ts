@@ -22,6 +22,15 @@ export const aecLocales: PluginLocaleBundles = {
       loading: 'Loading…',
       refresh: 'Refresh'
     },
+    // Задача 3E.26. Единственная надпись, которую наш код показывает у их
+    // панели предпросмотра: содержимое ушло в настоящий браузер, то есть за
+    // границу песочницы, обещанной в SPEC UR22. Говорится ровно в тот момент,
+    // когда это происходит, — по решению владельца это не должно быть спрятано.
+    preview: {
+      leftSandboxTitle: 'The page opened outside the app',
+      leftSandboxMessage:
+        'Its content was written to a file and handed to your browser, where the app’s sandbox no longer applies.'
+    },
     welcome: {
       tagline: 'An IDE for project documentation',
       create: 'New project',
@@ -400,6 +409,11 @@ export const aecLocales: PluginLocaleBundles = {
       save: 'Сохранить',
       loading: 'Загрузка…',
       refresh: 'Обновить'
+    },
+    preview: {
+      leftSandboxTitle: 'Страница открыта вне приложения',
+      leftSandboxMessage:
+        'Её содержимое записано файлом и передано вашему браузеру — там песочница приложения уже не действует.'
     },
     welcome: {
       tagline: 'IDE для проектной документации',

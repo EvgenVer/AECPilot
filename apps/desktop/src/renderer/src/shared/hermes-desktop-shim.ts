@@ -42,6 +42,7 @@ import { withContinuity } from '../aec/cron-continuity/continuity-pure'
 import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import { noticeCronHasNoTick } from '../aec/cron-tick-notice/notice'
 
+import { noticePreviewLeftSandbox } from '../aec/preview-export/left-sandbox-notice'
 import { localPreviewTarget } from '../donor/lib/local-preview'
 import type { PreviewTarget } from '../donor/store/preview'
 
@@ -682,6 +683,23 @@ const IMPLEMENTED: Record<string, unknown> = {
       id: string,
       callback: (event: { code: number | null; signal: string | null }) => void
     ) => window.aecpilot.terminal.onExit(id, callback)
+  },
+
+  // Задача 3E.26 (SPEC UR22, замечание D-75). Их кнопка «открыть в браузере».
+  // До неё их панель отвечала отказом: `lib/local-preview.ts` зовёт
+  // `bridge.openPreviewInBrowser`, а моста не было — и гвард непроброшенных
+  // членов этого не видел, потому что вызов идёт через псевдоним (замечание
+  // D-76, задача 3E.28).
+  //
+  // ОТКАЗ ПОДНИМАЕТСЯ ОШИБКОЙ: их код ловит её и показывает человеку текст
+  // (`notifyError`). Молчаливый `undefined` означал бы «открыл», хотя не открыл.
+  async openPreviewInBrowser(url: string): Promise<void> {
+    const answer = await window.aecpilot.openPreviewInBrowser(url)
+
+    if (!answer.ok) throw new Error(answer.error)
+    // Содержимое вкладки выгружено файлом и открыто снаружи — это ослабление
+    // обещания UR22, и человек узнаёт о нём в ту же секунду.
+    if (answer.exported) noticePreviewLeftSandbox()
   },
 
   // Задача 3E.25 (SPEC UR22, замечание D-75). Живая перезагрузка предпросмотра:

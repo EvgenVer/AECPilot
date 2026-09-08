@@ -221,6 +221,7 @@ import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './s
 import { readAttachmentDataUrl, saveAttachment } from './attachments'
 import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picked-paths'
 import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
+import { decideOpenPreviewExternal } from './preview-external-pure'
 import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
@@ -3440,6 +3441,42 @@ ipcMain.handle('attachments:save-clipboard', async () => {
   if (image.isEmpty()) return { ok: true, path: '' }
   try {
     return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, image.toPNG(), 'png') }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Задача 3E.26 (SPEC UR22, замечание D-75, пункт Б). Их кнопка «открыть
+// предпросмотр в браузере». Стоит здесь, а не рядом с остальными обработчиками
+// предпросмотра, из-за ATTACHMENTS_DIR: ветка с выгрузкой содержимого кладёт
+// файл именно туда, и вторая копия этого пути была бы хуже соседства.
+//
+// ЧТО ЗДЕСЬ ОСЛАБЛЕНО — сказано словами в `preview-external-pure.ts` и в SPEC
+// UR22: по нажатию человека HTML, произведённый агентом, исполняется в НАСТОЯЩЕМ
+// браузере, вне наших границ. Осталось же правило «только показанное человеку»:
+// какой файл открыть, окно не выбирает.
+ipcMain.handle('preview:open-external', async (_event, value: unknown) => {
+  const decision = decideOpenPreviewExternal(
+    value,
+    { attachmentsDir: ATTACHMENTS_DIR, projectRoot: currentProject?.vaultPath },
+    wasPickedByUser
+  )
+
+  if (!decision.ok) return { ok: false, error: decision.error }
+
+  // Файл на машине ядра здесь не существует: открыть его местным браузером
+  // значило бы открыть чужой файл с тем же путём — или ничего.
+  if (decision.url.startsWith('file:') && filesAreRemote()) {
+    return { ok: false, error: 'Файл лежит на машине ядра — открыть его здесь нечем' }
+  }
+
+  try {
+    await shell.openExternal(decision.url)
+
+    // `exported` — окну, чтобы оно сказало человеку: содержимое вкладки ушло за
+    // песочницу. Знает об этом главный процесс (он один видит, что путь лежит в
+    // нашей папке выгрузки), а показать может только окно.
+    return { exported: decision.staged, ok: true }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }

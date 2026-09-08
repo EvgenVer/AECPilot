@@ -27,8 +27,14 @@ import * as path from 'node:path'
 /** Extensions we will write. Anything else becomes `.bin`: the extension ends
  * up in a filename on the user's disk, and a renderer choosing it freely could
  * choose `.exe` — harmless where it lands, but not a decision the window gets
- * to make. */
-const ALLOWED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'])
+ * to make.
+ *
+ * `html` добавлен задачей 3E.26 и картинкой не является. Их кнопка «открыть
+ * предпросмотр в браузере» на ветке с содержимым сначала просит записать его
+ * файлом (`saveImageBuffer(bytes, '.html')`) и лишь потом открывает `file://`;
+ * с расширением `.bin` браузер такой файл СКАЧАЛ БЫ, а не показал. Что этим
+ * ослаблено — сказано словами в SPEC UR22 и в `preview-external-pure.ts`. */
+const ALLOWED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'html'])
 
 /** Data-URL media types, by the extension we wrote. */
 const MEDIA_TYPES: Record<string, string> = {
@@ -39,6 +45,7 @@ const MEDIA_TYPES: Record<string, string> = {
   webp: 'image/webp',
   bmp: 'image/bmp',
   svg: 'image/svg+xml',
+  html: 'text/html',
   bin: 'application/octet-stream'
 }
 

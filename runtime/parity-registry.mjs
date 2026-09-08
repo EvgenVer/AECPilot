@@ -188,12 +188,13 @@ export const ELECTRON_CLASSIFICATION = {
   stopPreviewFileWatch: { ours: "preview", note: "preview:stop-watch" },
   "preview-file-changed": { ours: "preview", note: "preview:file-changed" },
   normalizePreviewTarget: { ours: "preview", note: "preview:resolve-target — разбор пути в main" },
-  // Их кнопка «открыть в браузере» у перенесённой панели отвечает отказом:
-  // `lib/local-preview.ts` зовёт `bridge.openPreviewInBrowser`, а моста нет.
-  // Гвард `donor-members.test.ts` этого не видит — вызов идёт через псевдоним
-  // `bridge.`, слепое пятно детектора (находка D-63). Наш `shell:open-external`
-  // для этого есть; чем закрыть — решение владельца.
-  openPreviewInBrowser: { note: "открыть предпросмотр во внешнем браузере" },
+  // Кнопка «открыть в браузере». Расхождением была до 2026-09-08: их панель
+  // отвечала отказом, потому что `lib/local-preview.ts` зовёт
+  // `bridge.openPreviewInBrowser`, а моста не было. Закрыта задачей 3E.26 —
+  // ОТДЕЛЬНОЙ дверью, а не расширением `shell:open-external`: та схему `file:`
+  // запрещает нарочно, и расширить её значило бы раздать «открой любой файл»
+  // каждому месту, которое её зовёт (`preview-external-pure.ts`).
+  openPreviewInBrowser: { ours: "preview", note: "preview:open-external, 3E.26" },
   requestMicrophoneAccess: { ours: "media", note: "3.7a: media:request-microphone, UR21" },
   // Решение владельца 2026-09-08 (задача 3E.27): HX21 распространён на
   // заголовки ссылок и переформулирован в общее правило — «украшения, за которые
