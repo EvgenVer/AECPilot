@@ -49,7 +49,10 @@ const OUR_PRELOAD = path.join(REPO_DIR, "apps/desktop/src/preload/index.ts");
 export const CLASSIFICATION = {
   "pet-generate": { hx: "HX1", note: "питомец и генерация его изображения" },
   "pet-overlay": { hx: "HX1", note: "питомец" },
-  agents: { task: "7.1", note: "доска агентов — N10, отнесена в Phase 7" },
+  // СТРОКА «agents» УДАЛЕНА 2026-09-08 (задача 3E.14). Экран перенесён задачей
+  // 3E.13: фазирование N10 снято решением владельца 05.09, доска и панель
+  // агентов вошли в объём как UR38. Причина отсутствия, оставленная в таблице
+  // после переноса, — это ложь в реестре, и скрипт её именно так и назвал.
   "quick-entry": { task: "3.15", note: "быстрый ввод по глобальному хоткею" },
   "wake-indicator": { task: "3.7b", note: "индикатор слова-активатора" },
   webhooks: { task: "3.11", note: "исходящие вебхуки, UR19" },
@@ -116,7 +119,12 @@ export const ELECTRON_CLASSIFICATION = {
   "found-in-page": { task: "3.16" },
   "deep-link": { task: "3.8", note: "установка MCP по внешней ссылке" },
   "deep-link-ready": { task: "3.8" },
-  agents: { task: "7.1" },
+  // Канал — НЕ экран. Их `hermes:agents:roster` перечисляет агентов всех
+  // подключённых ядер (`store/fleet-roster.ts`), то есть это ФЛОТ, а флот
+  // исключён HX22 поимённо: «три члена их плагинного `host` (`connections`,
+  // `agents`, `profileRoutes`) остаются без моста намеренно». Экран агентов при
+  // этом наш (3E.13) — он показывает агентов ОДНОГО подключения.
+  agents: { hx: "HX22", note: "реестр агентов всех подключённых ядер — у нас одно подключение за раз" },
   "close-preview-requested": { task: "3.4" },
   "preview-file-changed": { task: "3.4" },
   watchPreviewFile: { task: "3.4" },
