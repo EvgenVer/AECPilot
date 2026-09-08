@@ -33,6 +33,17 @@ const api: AecpilotApi = {
   // Синхронно и без IPC: множитель спрашивают в момент отправки нажатия агента
   // (задача 3E.24), а не при отрисовке настроек.
   zoomFactor: () => webFrame.getZoomFactor(),
+  watchPreviewFile: (url) => ipcRenderer.invoke('preview:watch', url),
+  stopPreviewWatch: (id) => ipcRenderer.invoke('preview:stop-watch', id),
+  previewWatchCount: () => ipcRenderer.invoke('preview:watch-count'),
+  onPreviewFileChanged: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('preview:file-changed', listener)
+    return () => ipcRenderer.removeListener('preview:file-changed', listener)
+  },
+  resolvePreviewTarget: (target, baseDir) =>
+    ipcRenderer.invoke('preview:resolve-target', { baseDir, target }),
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   getConnection: () => ipcRenderer.invoke('connection:get'),
   saveConnection: (input) => ipcRenderer.invoke('connection:save', input),

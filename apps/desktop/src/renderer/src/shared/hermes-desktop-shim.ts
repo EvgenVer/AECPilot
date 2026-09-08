@@ -42,6 +42,9 @@ import { withContinuity } from '../aec/cron-continuity/continuity-pure'
 import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import { noticeCronHasNoTick } from '../aec/cron-tick-notice/notice'
 
+import { localPreviewTarget } from '../donor/lib/local-preview'
+import type { PreviewTarget } from '../donor/store/preview'
+
 import { gatewayBridge } from './gateway-bridge'
 
 type HermesDesktop = Window['hermesDesktop']
@@ -679,6 +682,56 @@ const IMPLEMENTED: Record<string, unknown> = {
       id: string,
       callback: (event: { code: number | null; signal: string | null }) => void
     ) => window.aecpilot.terminal.onExit(id, callback)
+  },
+
+  // Задача 3E.25 (SPEC UR22, замечание D-75). Живая перезагрузка предпросмотра:
+  // их панель умеет её сама и ждёт ровно этих членов. Без них она молча не
+  // следила (`preview-pane.tsx` проверяет наличие члена), то есть агент правил
+  // файл, а человек смотрел на прошлую версию.
+  //
+  // ОТКАЗ ПОДНИМАЕТСЯ ОШИБКОЙ, а не пустым наблюдателем: их эффект ловит её и
+  // печатает причину в консоль панели. Наблюдатель, который никогда ничего не
+  // пришлёт, выглядел бы работающим.
+  async watchPreviewFile(url: string): Promise<{ id: string; path: string }> {
+    const answer = await window.aecpilot.watchPreviewFile(url)
+
+    if (!answer.ok) throw new Error(answer.error)
+
+    return answer.watch
+  },
+
+  stopPreviewFileWatch(id: string): Promise<boolean> {
+    return window.aecpilot.stopPreviewWatch(id)
+  },
+
+  onPreviewFileChanged(
+    callback: (payload: { id: string; path: string; url: string }) => void
+  ): () => void {
+    return window.aecpilot.onPreviewFileChanged(callback)
+  },
+
+  // Задача 3E.25. Работа поделена по знанию: ПУТЬ приводит главный процесс
+  // (правила путей знает node — их запасной разбор на Windows приклеивает
+  // рабочую папку к абсолютному `D:\файл`), а КЛАССИФИКАЦИЮ делает их же
+  // таблица расширений. Вторая такая таблица у нас разошлась бы с первой при
+  // первом же переносе донора.
+  async normalizePreviewTarget(target: string, baseDir?: string): Promise<null | PreviewTarget> {
+    const raw = target.trim().replace(/^`|`$/g, '')
+
+    if (raw === '') return null
+    // Адрес — не файл: у их разбора для него своя ветка, и главному процессу там
+    // делать нечего.
+    if (/^https?:\/\//i.test(raw)) return localPreviewTarget(raw)
+
+    const resolved = await window.aecpilot.resolvePreviewTarget(raw, baseDir)
+
+    if (!resolved.ok) return null
+
+    const classified = localPreviewTarget(resolved.absPath)
+
+    // `source` — то, что назвал человек или агент: их панель показывает его как
+    // подпись, и подменять его абсолютным путём значило бы потерять написанное.
+    return classified ? { ...classified, source: raw } : null
   },
 
   onBrowserPopoutClosed(callback: (tabId: string) => void): () => void {

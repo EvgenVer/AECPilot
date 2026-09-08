@@ -558,6 +558,83 @@ test('an HTML artifact previews in a sandbox, and an external address opens', as
   await assertRendererAlive(page, 'end of test 3')
 })
 
+// Задача 3E.25 (SPEC UR22, замечание D-75): предпросмотр перерисовывается САМ,
+// когда файл на диске изменился.
+//
+// ХОД АГЕНТА ЗДЕСЬ НЕ ТРАТИТСЯ. Событие `preview.open` приходит по сигналу из
+// REST-половины мока — тем же способом, что и вождение страницы (3E.12). Так
+// ближе к правде: их инструмент `open_preview` шлёт ровно событие, а не текст
+// ответа, — и так этот тест не занимает очередь композера у теста после себя.
+//
+// ПОЧЕМУ ПОСЛЕ ТЕСТА ПРО АРТЕФАКТ, А НЕ ТРЕТЬИМ. Замерено: третьим тест падал,
+// гость не появлялся. Их обработчик открывает предпросмотр только для сессии,
+// которая НА ЭКРАНЕ (`use-preview-routing.ts:96`), а живая сессия заводится
+// первой отправкой (`session.create` зовётся из отправки, `use-session-actions`),
+// то есть до первого хода набора событию нечего показывать. Ход делает тест
+// перед этим — и он же ставит сессию на экран.
+//
+// ВКЛАДКА ЗАКРЫВАЕТСЯ ЗДЕСЬ ЖЕ: гость `file://` попал бы в `appWindows()`
+// (фильтр по схеме) и сбил бы счёт окон в тесте про второе окно. Это заодно
+// проверка, что слежение снимается вместе с вкладкой.
+test('правка файла на диске перерисовывает предпросмотр без нажатий', async () => {
+  const page = await mainWindow()
+
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  const live = join(projectDir, 'live.html')
+  writeFileSync(live, '<h1>VERSIYA ODIN</h1>', 'utf8')
+
+  // Путь ОТНОСИТЕЛЬНЫЙ — ровно так их инструмент `open_preview` и зовёт.
+  // Привести его к абсолютному и есть та половина работы, которая лежит на
+  // главном процессе.
+  const asked = await fetch(`http://127.0.0.1:${restPort}/api/_mock/preview-open`, {
+    body: JSON.stringify({ url: 'live.html' }),
+    method: 'POST'
+  })
+  expect(asked.ok, 'мок обязан принять просьбу открыть предпросмотр').toBe(true)
+
+  await expect.poll(() => guestText(app, 'live.html'), { timeout: 60000 }).toContain('VERSIYA ODIN')
+
+  const watching = await page.evaluate(() => window.aecpilot.previewWatchCount())
+  expect(watching, 'открытая вкладка файла обязана держать наблюдателя').toBeGreaterThan(0)
+
+  // ДАЛЬШЕ НИ ОДНОГО НАЖАТИЯ: меняется только файл на диске.
+  writeFileSync(live, '<h1>VERSIYA DVA</h1>', 'utf8')
+
+  await expect.poll(() => guestText(app, 'live.html'), { timeout: 60000 }).toContain('VERSIYA DVA')
+
+  // Слежение за тем, чего главный процесс человеку не показывал, — отказ.
+  // Проверяется через мост, потому что у окна другого пути к этому правилу нет.
+  const outside = join(tmpdir(), 'aecpilot-e2e-ne-pokazyvali.html')
+  writeFileSync(outside, '<h1>CHUZHOE</h1>', 'utf8')
+
+  const refused = await page.evaluate((path) => window.aecpilot.watchPreviewFile(path), outside)
+  expect(refused.ok, 'за файлом вне проекта следить нельзя').toBe(false)
+  rmSync(outside, { force: true })
+
+  // Закрытая вкладка освобождает наблюдателя: иначе они копились бы при каждом
+  // открытии, а гость `file://` сбил бы счёт окон следующим тестам.
+  const tab = page.getByRole('tab', { name: /live\.html/ })
+
+  await expect(tab, 'вкладка файла обязана быть на полосе — её и закрываем').toBeVisible({
+    timeout: 20000
+  })
+
+  // Тост ложится поверх полосы вкладок и перехватывает щелчок (замерено: 56
+  // повторов «subtree intercepts pointer events»). Сначала убираем его, а
+  // `force` остаётся на случай, когда следующий тост въезжает в ту же секунду:
+  // видимость вкладки проверена строкой выше, то есть force не прячет промах.
+  await clearNotifications(page)
+  await tab.getByRole('button', { name: /^(Закрыть|Close)$/ }).click({ force: true })
+
+  await expect
+    .poll(() => page.evaluate(() => window.aecpilot.previewWatchCount()), { timeout: 20000 })
+    .toBe(0)
+
+  await assertRendererAlive(page, 'live preview reload')
+})
+
 // Task 3.26 (SPEC HX14). Two appearance features are in scope and both are
 // checked against the real window: the OS theme is followed live (no restart),
 // and the interface scale is main's, not a CSS trick.

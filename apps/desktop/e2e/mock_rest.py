@@ -20,6 +20,7 @@ Usage: imported by mock_gateway.py, which starts it on its own port and prints
 """
 
 import json
+import queue
 import re
 import threading
 import time
@@ -36,6 +37,13 @@ DAY = 86400
 # reached the field and a real click reached the button.
 # Ставится, когда гость запросил страницу ниже (задача 3E.12).
 FORM_PAGE_SERVED = threading.Event()
+
+# Задача 3E.25. Просьбы теста открыть предпросмотр местного файла. Ручкой, а не
+# подсказкой в промпте, по двум причинам: их инструмент `open_preview` шлёт
+# СОБЫТИЕ, а не текст ответа, и тест тогда не занимает очередь композера тесту
+# после себя (замерено: ход, отправленный сразу после открытия панели, до мока
+# не дошёл).
+PREVIEW_OPEN_REQUESTS: "queue.Queue[str]" = queue.Queue()
 
 FORM_PAGE = """<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><title>Zayavka</title></head>
@@ -445,8 +453,16 @@ class Handler(BaseHTTPRequestHandler):
         surfaces, but every one of them must be READ and answered — see
         `_body`."""
         route = urlparse(self.path).path
-        self._body()
+        body = self._body()
         print(f"MOCK_REST_POST {route}", flush=True)
+
+        # Тестовая ручка (задача 3E.25), а не поверхность ядра: просит сокетную
+        # половину послать `preview.open`. Сегмент `_mock` в пути — чтобы её
+        # нельзя было принять за маршрут, который мы за ядро изображаем.
+        if route == "/api/_mock/preview-open":
+            PREVIEW_OPEN_REQUESTS.put(body.get("url") or "")
+            self._send(200, {"ok": True})
+            return
 
         if route == "/api/profiles/active":
             self._send(200, {"ok": True, "active": "default"})

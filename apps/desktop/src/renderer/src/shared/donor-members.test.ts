@@ -47,14 +47,16 @@ const UNBRIDGED = [
   'getAgentRoster',
   'getRemoteDisplayReason',
   'installDesktopPlugin',
-  'normalizePreviewTarget',
   'onClosePreviewRequested',
   'onFoundInPage',
   'onOpenFindBarRequested',
   'onOpenFolderRequested',
   'onOpenUpdatesRequested',
-  'onPreviewFileChanged',
   'onWindowStateChanged',
+  // Четыре члена живой перезагрузки предпросмотра — `normalizePreviewTarget`,
+  // `watchPreviewFile`, `stopPreviewFileWatch`, `onPreviewFileChanged` — сняты
+  // отсюда задачей 3E.25: мост их отдаёт (решение владельца 2026-09-08 по
+  // замечанию D-75).
   'openDir',
   'probeConnectionConfig',
   'probePluginRepo',
@@ -74,8 +76,6 @@ const UNBRIDGED = [
   'revealPath',
   'sanitizeWorkspaceCwd',
   'setSecretStorageEncryption',
-  'stopPreviewFileWatch',
-  'watchPreviewFile',
   'writeClipboard'
 ].sort()
 

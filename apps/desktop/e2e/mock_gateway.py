@@ -21,9 +21,10 @@ Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 
 import asyncio
 import json
+import queue
 import sys
 
-from mock_rest import FORM_PAGE_SERVED, serve_in_thread
+from mock_rest import FORM_PAGE_SERVED, PREVIEW_OPEN_REQUESTS, serve_in_thread
 from websockets.asyncio.server import ServerConnection, serve
 
 SESSION_ID = "e2e-1"
@@ -37,6 +38,7 @@ async def handle(connection: ServerConnection) -> None:
     )
 
     asyncio.create_task(stream_drive_turn(connection))
+    asyncio.create_task(push_preview_open(connection))
 
     async for raw in connection:
         request = json.loads(raw)
@@ -332,6 +334,44 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     await push("message.delta", {"text": ARTIFACT_ANSWER})
     await push("message.complete", {"text": ARTIFACT_ANSWER, "status": "complete"})
     asyncio.create_task(poll_preview_reads(connection))
+
+
+async def push_preview_open(connection: ServerConnection) -> None:
+    """Open a LOCAL FILE in the preview pane (task 3E.25, UR22).
+
+    `preview.open` is what their `open_preview` tool emits through the desktop_ui
+    bridge (`tools/open_preview_tool.py`), and the path stays RELATIVE on purpose:
+    resolving it against the session cwd is the half of the job that belongs to
+    the main process. No label — the pane then names the tab after the file, which
+    is what the test looks for.
+
+    Driven by the REST half rather than by a prompt, like `stream_drive_turn`:
+    the real tool emits an EVENT, not answer text, and the test then spends none
+    of the composer's queue on itself.
+    """
+    while True:
+        try:
+            url = PREVIEW_OPEN_REQUESTS.get_nowait()
+        except queue.Empty:
+            await asyncio.sleep(0.2)
+            continue
+
+        try:
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "event",
+                        "params": {
+                            "type": "preview.open",
+                            "session_id": SESSION_ID,
+                            "payload": {"url": url},
+                        },
+                    }
+                )
+            )
+        except Exception:
+            return
 
 
 async def stream_drive_turn(connection: ServerConnection) -> None:

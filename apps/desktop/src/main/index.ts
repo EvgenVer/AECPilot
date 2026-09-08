@@ -220,6 +220,8 @@ import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
 import { readAttachmentDataUrl, saveAttachment } from './attachments'
 import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picked-paths'
+import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
+import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -1548,6 +1550,68 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
       error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
     }
   }
+})
+
+// Задача 3E.25 (SPEC UR22, замечание D-75). Их панель перерисовывается сама,
+// когда файл на диске изменился, и ждёт для этого трёх членов моста. Решение,
+// за чем можно следить, — в `preview-watch-pure.ts`; здесь диск и отказы.
+//
+// ОТКАЗ СЛОВАМИ, А НЕ ТИШИНОЙ: их эффект ловит исключение и печатает причину в
+// консоль панели (`copy.watchFailed`), поэтому отказ поднимается ошибкой, а не
+// возвращается пустым наблюдателем, который никогда ничего не пришлёт.
+ipcMain.handle('preview:watch', async (event, value: unknown) => {
+  if (filesAreRemote()) {
+    // Файл лежит на машине ядра, и `fs.watch` этой машины смотрел бы на пустое
+    // место — или, хуже, на СВОЙ файл с тем же путём.
+    return { ok: false, error: 'Файлы на машине ядра — следить за ними отсюда нечем' }
+  }
+
+  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  if (!decided.ok) return { ok: false, error: decided.error }
+
+  try {
+    // Проверка выше лексическая; `realpath` закрывает дыру со ссылкой — ссылка
+    // внутри проекта, ведущая наружу, иначе дала бы слежение за чужим файлом.
+    // Слой тот же, что у `artifacts:preview`.
+    const realPath = await fs.promises.realpath(decided.absPath)
+    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+      return { ok: false, error: WATCH_OUTSIDE_ERROR }
+    }
+
+    const info = await fs.promises.stat(realPath)
+    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+
+    return { ok: true, watch: startPreviewWatch(realPath, event.sender) }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось начать слежение: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+})
+
+ipcMain.handle('preview:stop-watch', (_event, id: unknown) =>
+  typeof id === 'string' ? stopPreviewWatch(id) : false
+)
+
+/** Тестовая ручка: сколько наблюдателей живо. Нужна e2e «повторное открытие их
+ *  не копит» — утечку иначе пришлось бы ловить по памяти процесса. */
+ipcMain.handle('preview:watch-count', () => previewWatchCount())
+
+// Задача 3E.25. Путь, названный человеком или агентом, приводится к абсолютному
+// ЗДЕСЬ, потому что правила путей знает node, а не окно: их собственный
+// запасной разбор (`lib/local-preview.ts`) приклеивает рабочую папку ко всему,
+// что не начинается со `/`, — то есть на Windows ломает `D:\отчёт.html`.
+// Классификацию (текст / html / картинка / pdf) оставляем ИХ таблице: она у них
+// есть, и вторая такая же рядом разошлась бы с первой.
+ipcMain.handle('preview:resolve-target', (_event, payload: unknown) => {
+  const { target, baseDir } = (payload ?? {}) as { baseDir?: unknown; target?: unknown }
+  const root = typeof baseDir === 'string' && baseDir !== '' ? baseDir : currentProject?.vaultPath
+  const resolved = resolveArtifactPath(root, target)
+
+  return resolved.ok
+    ? { ok: true, absPath: resolved.absPath }
+    : { ok: false, error: resolved.error }
 })
 
 // The composer's one way in. Since hermes 0.19.0 the answer matters: a prompt

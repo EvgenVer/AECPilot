@@ -178,19 +178,16 @@ export const ELECTRON_CLASSIFICATION = {
     ourWay: "apps/desktop/src/renderer/src/donor/app/hooks/use-keybinds.ts",
     note: "их флаг ничего не гейтит на 0.21.0 — читателя у него в main нет"
   },
-  // РАСХОЖДЕНИЕ, вынесенное владельцу (замечание D-75): вердикта у этих строк
-  // больше нет, и это честнее прежнего «принесёт задача 3.4» — та закрыта.
-  //
-  // Живая перезагрузка предпросмотра по изменению файла: их панель следит за
-  // файлом (`watchPreviewFile` → `preview-file-changed` → перерисовка), а main
-  // приводит написанное человеком к цели предпросмотра (`normalizePreviewTarget`
-  // разрешает относительный путь от рабочей папки). Панель у нас ИХ (задача
-  // 3E.12) и выключает слежение сама: `preview-pane.tsx:663` проверяет наличие
-  // членов и без них не следит. Поломки нет — нет возможности.
-  watchPreviewFile: { note: "слежение за файлом предпросмотра" },
-  stopPreviewFileWatch: { note: "снятие слежения" },
-  "preview-file-changed": { note: "уведомление об изменении файла" },
-  normalizePreviewTarget: { note: "разбор цели предпросмотра в main" },
+  // Живая перезагрузка предпросмотра по изменению файла. РАСХОЖДЕНИЕМ эти
+  // четыре строки были до 2026-09-08 (замечание D-75): панель у нас ИХ (задача
+  // 3E.12) и выключает слежение сама, если членов моста нет, — то есть поломки
+  // не было, не было возможности. Задача 3E.25 её принесла, и цена названа: за
+  // произвольным путём следить нельзя, только за тем, что главный процесс уже
+  // показал человеку (`preview-watch-pure.ts`, дисциплина задачи 3.13b).
+  watchPreviewFile: { ours: "preview", note: "preview:watch, 3E.25 — с проверкой границ" },
+  stopPreviewFileWatch: { ours: "preview", note: "preview:stop-watch" },
+  "preview-file-changed": { ours: "preview", note: "preview:file-changed" },
+  normalizePreviewTarget: { ours: "preview", note: "preview:resolve-target — разбор пути в main" },
   // Их кнопка «открыть в браузере» у перенесённой панели отвечает отказом:
   // `lib/local-preview.ts` зовёт `bridge.openPreviewInBrowser`, а моста нет.
   // Гвард `donor-members.test.ts` этого не видит — вызов идёт через псевдоним

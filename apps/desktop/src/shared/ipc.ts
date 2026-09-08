@@ -841,6 +841,27 @@ export interface AecpilotApi {
   /** Каждое изменение, включая клавиатурное, — чтобы цифра в настройках не
    * расходилась с экраном. Возвращает функцию отписки. */
   onZoomChanged(cb: (payload: { level: number; percent: number }) => void): () => void
+  /** Живая перезагрузка предпросмотра (задача 3E.25, SPEC UR22).
+   *
+   * `watchPreviewFile` отвечает отказом СЛОВАМИ, когда за путём следить нельзя:
+   * наблюдатель — настоящая возможность, и правило то же, что у вложений, —
+   * файл внутри открытого проекта либо выбранный человеком в нашем диалоге
+   * (`preview-watch-pure.ts`). `previewWatchCount` — для проверки, что снятое
+   * слежение действительно снято. */
+  watchPreviewFile(
+    url: string
+  ): Promise<{ ok: true; watch: { id: string; path: string } } | { ok: false; error: string }>
+  stopPreviewWatch(id: string): Promise<boolean>
+  previewWatchCount(): Promise<number>
+  onPreviewFileChanged(
+    callback: (payload: { id: string; path: string; url: string }) => void
+  ): () => void
+  /** Абсолютный путь для цели предпросмотра. Разбор путей знает node, а не окно:
+   * их запасной разбор на Windows приклеивает рабочую папку к `D:\файл`. */
+  resolvePreviewTarget(
+    target: string,
+    baseDir?: string
+  ): Promise<{ ok: true; absPath: string } | { ok: false; error: string }>
   /** Множитель зума этого окна (1 = 100 %), СИНХРОННО — задача 3E.24.
    *
    * Зачем отдельно от `getZoom()`: множитель нужен в момент отправки нажатия
