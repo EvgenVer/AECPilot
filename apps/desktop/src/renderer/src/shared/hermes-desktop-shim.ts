@@ -352,6 +352,13 @@ const IMPLEMENTED: Record<string, unknown> = {
   // У `glassSupported`/`translucencySupported` наблюдаемое поведение не меняется
   // (их проверка `typeof … === 'boolean'` и с прокси давала false) — но давала
   // случайно, а теперь по объявлению.
+  // `cloud` — их облако (SPEC HX3). Открылся задачей 3E.28, когда гвард
+  // научился видеть вызовы через псевдоним: `gateway-settings.tsx` и
+  // `boot-failure-overlay.tsx` спрашивают `desktop?.cloud` и по истинному
+  // прокси рисуют поиск облачных подключений организации, которого у нас нет.
+  // Тот же подвид, ради которого заведена находка D-41, только прятался за
+  // переменной.
+  cloud: undefined,
   connections: undefined,
   dataUrlReadMax: undefined,
   getPathForFile: undefined,

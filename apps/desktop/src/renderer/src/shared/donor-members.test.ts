@@ -41,6 +41,44 @@ const SHIM = join(__dirname, 'hermes-desktop-shim.ts')
  * принадлежат поверхностям вне уже сделанных фаз; классификацию поверхностей
  * держит реестр паритета (AC9), у которого единица — экран. */
 const UNBRIDGED = [
+  // ── Открылись задачей 3E.28, когда детектор научился видеть псевдоним.
+  // Пятнадцать имён, сгруппированы по ПОВЕРХНОСТИ: решение у поверхности одно
+  // на всю группу.
+  //
+  // (1) Загрузчик ИХ десктопных плагинов (`contrib/runtime-loader.ts`) —
+  // SPEC HX5, не берём. `readFileText` здесь особый случай: при подъёме на
+  // 0.21.0 его убрали из списка, потому что прямой вызов у донора исчез, и
+  // тогда же записали, что член всё ещё зовут через переменную и детектор
+  // этого не видит. Теперь видит — запись вернулась строкой.
+  'agentPluginsRoot',
+  'readDir',
+  'readFileText',
+  'readPluginSource',
+  'watchDirectory',
+  // (2) Их установщик ядра (`desktop-install-overlay.tsx`) — ядро ставим мы
+  // сами (фаза 1.7), их мастер не берём; рядом уже лежат `cancelBootstrap`,
+  // `repairBootstrap`, `resetBootstrap`.
+  'continueBootstrapLocal',
+  'onBootstrapEvent',
+  // (3) Их жизненный цикл бэкенда (`use-gateway-boot.ts`). Возможность у нас
+  // ЕСТЬ, но другой дорогой: реестр паритета сводит их
+  // `backend`/`backend-exit`/`boot-progress`/`bootstrap` к нашим
+  // `gateway`/`setup`. Проброс дал бы вторую машинерию поверх первой.
+  'getBootProgress',
+  'onBackendExit',
+  'onBootProgress',
+  'onConnectionApplied',
+  'revalidateConnection',
+  // (4) ЗАПИСЬ И УДАЛЕНИЕ ФАЙЛОВ их деревом и их же редактором предпросмотра
+  // (`lib/desktop-fs.ts`). Единственная группа, у которой есть живая цена на
+  // поверхности, которую мы ВЗЯЛИ: сохранение правки в их панели предпросмотра
+  // (`preview-file.tsx`) сегодня не работает. Вынесено владельцу замечанием
+  // D-79, а не закрыто здесь: пробросить — значит отдать окну запись по
+  // произвольному пути, ровно то, что задача 4D-11 у него отобрала.
+  'renamePath',
+  'trashPath',
+  'writeTextFile',
+  // ── Найдены раньше, прямым обращением.
   'cancelBootstrap',
   'desktopPluginsRoot',
   'fetchLinkTitle',
@@ -62,15 +100,9 @@ const UNBRIDGED = [
   'probePluginRepo',
   'readClipboard',
   'readFileDataUrlForAttach',
-  // 'readFileText' снят при подъёме на 0.21.0 (задача 3.B3): единственный
-  // вызов, который видит детектор ниже, стоял в
-  // `components/assistant-ui/inline-preview-directive.tsx` и у донора исчез.
-  // ОСТОРОЖНО, и поэтому запись остаётся комментарием, а не удалением: член
-  // ВСЁ ЕЩЁ зовут — `contrib/runtime-loader.ts` делает
-  // `const desktop = window.hermesDesktop` и потом `desktop.readFileText(…)`,
-  // а детектор ищет буквальное `hermesDesktop.имя` и такой псевдоним не видит
-  // (не видел и на 0.20.6). Живой поломки нет: загрузчик десктопных плагинов
-  // исключён HX5. Слепое пятно детектора — находка D-63.
+  // `readFileText` вернулся в список выше: предупреждение, оставленное здесь
+  // при подъёме на 0.21.0 («член всё ещё зовут через переменную, детектор не
+  // видит»), задача 3E.28 сделала лишним — теперь видит.
   'repairBootstrap',
   'resetBootstrap',
   'revealPath',
@@ -78,6 +110,15 @@ const UNBRIDGED = [
   'setSecretStorageEncryption',
   'writeClipboard'
 ].sort()
+
+/** Исходник без комментариев.
+ *
+ * Задача 3E.28: рассказ о члене — не вызов. У донора в `sdk/index.ts` лежит
+ * фраза «into desktop.log via the renderer-console tap», и детектор псевдонимов
+ * записал бы `log` в зовомые члены по одному упоминанию в пояснении. */
+function code(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+}
 
 /** Каждый `.ts`/`.tsx` зоны донора, вместе с путём. */
 function donorFiles(dir: string): { path: string; source: string }[] {
@@ -87,7 +128,49 @@ function donorFiles(dir: string): { path: string; source: string }[] {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) out.push(...donorFiles(full))
     else if (/\.tsx?$/.test(entry.name))
-      out.push({ path: full, source: readFileSync(full, 'utf-8') })
+      out.push({ path: full, source: code(readFileSync(full, 'utf-8')) })
+  }
+
+  return out
+}
+
+/** Псевдонимы моста в одном файле: `const desktop = window.hermesDesktop`.
+ *
+ * Задача 3E.28 (замечание D-76, оно же слепое пятно D-63). Детектор искал
+ * буквальное `hermesDesktop.имя` и не видел ничего, что зовут через переменную,
+ * — а таких присваиваний в зоне 93. Из-за этого `openPreviewInBrowser` не попал
+ * в «зовут, но не отдаём», хотя кнопка «в браузере» отвечала отказом.
+ *
+ * ПОДОБЪЕКТЫ ИСКЛЮЧЕНЫ ЛОВУШКОЙ ЛУКАХЕДА, и это половина работы: у донора
+ * полно строк вида `const api = window.hermesDesktop?.api`, и без неё детектор
+ * приписывал мосту листья чужих разделов — `get`, `set`, `run`, `close`, даже
+ * `readAsDataURL` от `FileReader`, попавшего под то же имя. Замер: 66 «скрытых»
+ * имён шума против 25 настоящих. Разделы первого уровня (`api`, `settings`,
+ * `terminal`, `zoom`) детектор и так видит прямым обращением — единицей учёта
+ * остаётся член моста, а не лист внутри раздела. */
+function bridgeAliases(source: string): string[] {
+  const direct = [
+    ...source.matchAll(
+      /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;\n]+)?=\s*window\.hermesDesktop!?(?![\w$?.!])/g
+    )
+  ].map((match) => match[1])
+
+  return [...new Set(direct)]
+}
+
+/** Имена, снятые деструктуризацией: `const { openExternal } = window.hermesDesktop`.
+ * Берётся имя ЧЛЕНА (до двоеточия), а не местное — переименование не должно
+ * прятать вызов. */
+function destructuredMembers(source: string): string[] {
+  const out: string[] = []
+
+  for (const match of source.matchAll(
+    /(?:const|let|var)\s*\{([^}]*)\}\s*=\s*window\.hermesDesktop\b/g
+  )) {
+    for (const part of match[1].split(',')) {
+      const name = part.split(':')[0].split('=')[0].trim()
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) out.push(name)
+    }
   }
 
   return out
@@ -98,12 +181,29 @@ function donorFiles(dir: string): { path: string; source: string }[] {
 function calledMembers(): Map<string, string[]> {
   const found = new Map<string, string[]>()
 
+  const remember = (name: string, path: string): void => {
+    const callers = found.get(name) ?? []
+    if (!callers.includes(path)) callers.push(path)
+    found.set(name, callers)
+  }
+
   for (const file of donorFiles(DONOR_DIR)) {
     for (const match of file.source.matchAll(/hermesDesktop\??\.([A-Za-z_$][\w$]*)/g)) {
-      const callers = found.get(match[1]) ?? []
-      if (!callers.includes(file.path)) callers.push(file.path)
-      found.set(match[1], callers)
+      remember(match[1], file.path)
     }
+
+    for (const alias of bridgeAliases(file.source)) {
+      // Точка ПЕРЕД псевдонимом запрещена: в зоне лежит
+      // `Symbol.for('hermes.desktop.gatewayRegistryState')`, и по границе слова
+      // детектор принял бы кусок строкового ключа за вызов `desktop.<член>`.
+      for (const match of file.source.matchAll(
+        new RegExp('(?<![\\w$.])' + alias + '\\??\\.([A-Za-z_$][\\w$]*)', 'g')
+      )) {
+        remember(match[1], file.path)
+      }
+    }
+
+    for (const name of destructuredMembers(file.source)) remember(name, file.path)
   }
 
   return found
