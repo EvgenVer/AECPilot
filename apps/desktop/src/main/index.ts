@@ -21,7 +21,7 @@ import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
-import { ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
+import { ensureSectionList, ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
 import {
   DEFAULT_WAKE_PHRASE,
   setWakeIndicatorState,
@@ -990,6 +990,58 @@ function applyKanbanToolset(homeDir: string): void {
     writeFileSync(configPath, merged.text, 'utf-8')
   } catch (error: unknown) {
     console.error('aecpilot: could not write config.yaml with the kanban toolset', error)
+  }
+}
+
+/**
+ * Замечание D-67 — SPEC HX19 в силе НЕ ТОЛЬКО НА БУМАГЕ.
+ *
+ * HX19 (решение владельца 2026-09-05) говорит: «Ответ агента вслух (`tts_tool`)
+ * … не входит в объём». Реестр инструментов записывает `text_to_speech` как
+ * исключённый по HX19 — а замер показывал обратное: свежий профиль отдавал
+ * десктопной сессии набор `tts` среди 22 включённых, то есть инструмент был
+ * предложен модели. Исключение, записанное только в документе, — это не
+ * исключение.
+ *
+ * ПОЧЕМУ ИМЕННО `agent.disabled_toolsets`. У ядра есть второй ключ,
+ * `platform_toolsets`, и он выглядит подходящим — но именно он однажды тихо
+ * обрезал нашего агента с 19 наборов до 8 (замечание D-66), потому что задаёт
+ * СПИСОК РАЗРЕШЁННЫХ, а не запрет. `disabled_toolsets` вычитается ПОСЛЕ всех
+ * правил (`hermes_cli/tools_config.py`: «This runs last so it overrides
+ * everything above») и трогает ровно названный набор.
+ *
+ * ЧЕГО ЭТО НЕ ДЕЛАЕТ И ЧТО ОСТАЁТСЯ ВОПРОСОМ. Речь тут только об ИНСТРУМЕНТЕ
+ * модели. Голосовая поверхность самого окна (кнопка «прочитать вслух» у ответа,
+ * авточтение, непрерывный разговор — задача 3.7a, `lib/voice-playback.ts`) идёт
+ * не через инструмент, а прямо в `/api/audio/speak-stream`, и этой правкой не
+ * затрагивается. Она противоречит той же HX19, и это отдельная находка D-72:
+ * снимать делённую поверхность — решение владельца, а не правка по дороге.
+ *
+ * Выбор человека не трогается: свой блок `agent.disabled_toolsets` переживает
+ * все следующие запуски.
+ */
+function applyDisabledToolsets(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the disabled toolsets', error)
+    return
+  }
+
+  const merged = ensureSectionList(original, 'agent', 'disabled_toolsets', ['tts'])
+  if (merged.unexpectedStructure) {
+    console.warn('aecpilot: config.yaml has an agent: scalar — leaving the disabled toolsets alone')
+    return
+  }
+  if (!merged.changed) return
+
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the disabled toolsets', error)
   }
 }
 
@@ -4357,6 +4409,7 @@ app
           applyBrowserBackend(HERMES_HOME_DIR)
           applyApprovalsMode(HERMES_HOME_DIR)
           applyKanbanToolset(HERMES_HOME_DIR)
+          applyDisabledToolsets(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't

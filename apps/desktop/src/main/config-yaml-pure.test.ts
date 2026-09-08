@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
+import { ensureSectionList, ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
 
 describe('дописать поле в их конфиг', () => {
   it('секции нет — добавляется целиком', () => {
@@ -143,5 +143,48 @@ describe('список наборов верхнего уровня', () => {
     expect(ensureTopLevelList('model: x', 'toolsets', ['kanban']).text).toBe(
       'model: x\ntoolsets:\n  - kanban\n'
     )
+  })
+})
+
+// Замечание D-67. SPEC HX19 исключает ответ агента вслух, а свежий профиль даёт
+// модели набор `tts`. Точный выключатель у ядра один — `agent.disabled_toolsets`:
+// он ВЫЧИТАЕТСЯ последним и не сносит остальное, в отличие от `platform_toolsets`,
+// который однажды обрезал агента до 8 наборов из 19 (D-66).
+describe('список внутри секции', () => {
+  it('секции нет — добавляется секция со списком', () => {
+    const result = ensureSectionList('model:\n  name: x\n', 'agent', 'disabled_toolsets', ['tts'])
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toContain('agent:\n  disabled_toolsets:\n    - tts\n')
+  })
+
+  it('секция есть, ключа нет — список встаёт в неё', () => {
+    const result = ensureSectionList(
+      'agent:\n  run_budget_seconds: 3600\n',
+      'agent',
+      'disabled_toolsets',
+      ['tts']
+    )
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toContain('  disabled_toolsets:\n    - tts')
+    expect(result.text, 'соседний ключ цел').toContain('  run_budget_seconds: 3600')
+  })
+
+  it('свой список человека не трогается', () => {
+    const chosen = 'agent:\n  disabled_toolsets:\n    - memory\n'
+
+    expect(ensureSectionList(chosen, 'agent', 'disabled_toolsets', ['tts'])).toEqual({
+      text: chosen,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('секция-скаляр — файл оставляется как есть', () => {
+    expect(ensureSectionList('agent: off\n', 'agent', 'disabled_toolsets', ['tts'])).toMatchObject({
+      changed: false,
+      unexpectedStructure: true
+    })
   })
 })

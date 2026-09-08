@@ -106,3 +106,57 @@ export function ensureTopLevelList(
 
   return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
 }
+
+/**
+ * Дописывает СПИСОК внутрь секции (`agent: disabled_toolsets: [...]`), если
+ * такого ключа в этой секции ещё нет.
+ *
+ * Третья форма файла: скаляр в секции, список наверху, список в секции. Ядро
+ * стерпело бы и строку с JSON внутри — `parse_config_string_list` разбирает
+ * `"['tts']"` намеренно, — но человек, читающий этот файл, прочитает такую
+ * строку как нашу ошибку. Пишем тем же видом, каким это пишут они сами.
+ *
+ * Правило прежнее: ключ есть — файл не трогается.
+ */
+export function ensureSectionList(
+  yamlText: string,
+  section: string,
+  key: string,
+  values: readonly string[]
+): ConfigScalarResult {
+  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
+  const keyLine = new RegExp(`^\\s+${key}:`)
+
+  const written = values.map((value) => `    - ${value}`)
+  const lines = yamlText.split('\n')
+
+  if (lines.some((line) => sectionScalar.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: true }
+  }
+
+  const start = lines.findIndex((line) => sectionLine.test(line))
+
+  if (start === -1) {
+    const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
+    const block = `${section}:\n  ${key}:\n${written.map((line) => `${line}\n`).join('')}`
+    return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
+  }
+
+  let end = lines.length
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (TOP_LEVEL_LINE.test(lines[index])) {
+      end = index
+      break
+    }
+  }
+
+  const body = lines.slice(start + 1, end)
+  if (body.some((line) => keyLine.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: false }
+  }
+
+  const next = [...lines.slice(0, start + 1), `  ${key}:`, ...written, ...body, ...lines.slice(end)]
+
+  return { text: next.join('\n'), changed: true, unexpectedStructure: false }
+}

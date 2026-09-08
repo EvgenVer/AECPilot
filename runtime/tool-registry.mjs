@@ -98,7 +98,12 @@ export const VERDICTS = {
   annotate_preview: { status: "ours", where: "UR36 — тот же канал `preview.act` (kind pin/unpin/hold), что и drive_preview; живьём в 3E.12 прогнаны elements/type/click, пометки — нет" },
 
   // ── исключено ──────────────────────────────────────────────────────────
-  text_to_speech: { status: "excluded", hx: "HX19", where: "голос сверх диктовки — решение владельца 2026-09-05" },
+  // Исключение стало ДЕЙСТВУЮЩИМ 2026-09-08 (замечание D-67): до этого запись
+  // стояла здесь, а набор `tts` ядро всё равно отдавало десктопной сессии.
+  // Выключатель — `agent.disabled_toolsets` (`applyDisabledToolsets`), замер
+  // после правки: 21 набор вместо 22, `text_to_speech` в разрешении не
+  // резолвится. Голосовая поверхность самого окна — отдельный вопрос D-72.
+  text_to_speech: { status: "excluded", hx: "HX19", where: "голос сверх диктовки — решение владельца 2026-09-05; набор `tts` вычтен из профиля 2026-09-08" },
   x_search: { status: "excluded", hx: "HX11", where: "поиск по X" },
   video_generate: { status: "excluded", hx: "HX11", where: "генерация видео" },
   xai_video_edit: { status: "excluded", hx: "HX11", where: "генерация видео (правка ролика)" },
