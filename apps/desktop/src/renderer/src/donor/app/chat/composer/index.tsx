@@ -3,7 +3,12 @@
  * Source:  apps/desktop/src/app/chat/composer/index.tsx
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] registered their dictation recorder directly instead of the composer-voice
+ *       hook — auto-speak of replies and the continuous voice conversation are
+ *       SPEC HX19 (owner decision 2026-09-08); their three hook files stay in the
+ *       zone untouched and simply have no caller
+ * (no other edits)
  */
 import { ComposerPrimitive } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
@@ -33,7 +38,6 @@ import { toggleReview } from '@/store/review'
 import { $gatewayState } from '@/store/session'
 import { $botChatSessionIds, $sessionStates, $sessionTiles, isBotChatSession } from '@/store/session-states'
 import { $threadScrolledUp } from '@/store/thread-scroll'
-import { $autoSpeakReplies } from '@/store/voice-prefs'
 import { useTheme } from '@/themes'
 
 import { AttachmentList } from './attachments'
@@ -64,7 +68,7 @@ import { useComposerSubmit } from './hooks/use-composer-submit'
 import { triggerKeyUpHandler, useComposerTrigger } from './hooks/use-composer-trigger'
 import { useComposerUndo } from './hooks/use-composer-undo'
 import { useComposerUrlDialog } from './hooks/use-composer-url-dialog'
-import { useComposerVoice } from './hooks/use-composer-voice'
+import { useVoiceRecorder } from './hooks/use-voice-recorder'
 import { useEmojiCompletions } from './hooks/use-emoji-completions'
 import { useComposerMicroActions } from './hooks/use-micro-actions'
 import { useSlashCompletions } from './hooks/use-slash-completions'
@@ -169,7 +173,6 @@ export function ChatBar({
   const attachments = useStore(scope.attachments.$attachments)
   const compacting = useStore(useMemo(() => sessionCompacting(sessionId ?? null), [sessionId]))
   const scrolledUp = useStore($threadScrolledUp)
-  const autoSpeak = useStore($autoSpeakReplies)
   // The turn is parked on the user (clarify / approval / sudo / secret). Esc must
   // not interrupt it — there's nothing actively running to stop, and stopping
   // would discard a question the user may want to come back to. The blocking
@@ -971,34 +974,22 @@ export function ChatBar({
   // Same explicit-halt semantics as the Stop button: park the queue.
   useComposerEscCancel({ awaitingInput, busy, onCancel: haltRun, target: scope.target })
 
-  const {
-    conversation,
-    dictate,
-    endConversation,
-    handleToggleAutoSpeak,
-    startConversation,
-    voiceActivityState,
-    voiceConversationActive,
-    voiceStatus
-  } = useComposerVoice({
-    busy,
-    clearDraft,
-    disabled,
+  // EDIT [3]: их `useComposerVoice` регистрировал ТРИ голосовые поверхности —
+  // диктовку, авточтение всех ответов и непрерывный разговор с перебиванием.
+  // Последние две — SPEC HX19 (решение владельца 2026-09-08: граница проходит по
+  // тому, кто решает; кнопка «прочитать вслух» у отдельного ответа остаётся).
+  // Поэтому здесь регистрируется ровно диктовка — их же хок, вызванный напрямую;
+  // `use-composer-voice.ts`, `use-voice-conversation.ts` и
+  // `use-auto-speak-replies.ts` остаются в зоне дословно и просто без вызова.
+  // Следствие: `voiceStopRef` навсегда остаётся `{ active: false }`, то есть
+  // напечатанное «стоп» уходит агенту обычным сообщением — ровно то, что их же
+  // код делает вне разговора.
+  const { dictate, voiceActivityState, voiceStatus } = useVoiceRecorder({
     focusInput,
-    insertText,
     maxRecordingSeconds,
-    // Voice barge-in mid-generation halts the run like the Stop button.
-    onInterrupt: haltRun,
-    onSubmit,
     onTranscribeAudio,
-    sessionId,
-    target: scope.target
+    onTranscript: insertText
   })
-
-  // Keep the typed-stop interceptor (see onSubmit above) in sync with the
-  // live conversation state. Render-time ref assignment, same pattern as
-  // dispatchSubmitRef — no effect needed for a plain mirror.
-  voiceStopRef.current = { active: voiceConversationActive, end: endConversation }
 
   const contextMenu = (
     <ContextMenu
@@ -1014,28 +1005,16 @@ export function ChatBar({
 
   const controls = (
     <ComposerControls
-      autoSpeak={autoSpeak}
       busy={busy}
       busyAction={busyAction}
       canSubmit={canSubmit}
       compactModelPill={poppedOut || compactPill}
-      conversation={{
-        active: voiceConversationActive,
-        level: conversation.level,
-        muted: conversation.muted,
-        onEnd: endConversation,
-        onStart: startConversation,
-        onStopTurn: conversation.stopTurn,
-        onToggleMute: conversation.toggleMute,
-        status: conversation.status
-      }}
       disabled={disabled}
       foldVoice={foldVoice}
       hasComposerPayload={hasComposerPayload}
       minimal={minimal}
       onDictate={dictate}
       onQueue={queueDraft}
-      onToggleAutoSpeak={handleToggleAutoSpeak}
       state={state}
       voiceStatus={voiceStatus}
     />

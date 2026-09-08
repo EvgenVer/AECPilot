@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/lib/keybinds/actions.ts
  * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the 'composer.voice' action — the continuous voice
+ *       conversation is SPEC HX19 (owner decision 2026-09-08)
+ * (no other edits)
  */
 // The single source of truth for rebindable desktop hotkeys.
 //
@@ -67,12 +70,10 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // Open WebUI, and Cherry Studio all ship the same chord). Opens the pill's
   // live dropdown on the pane under the pointer, else the active composer.
   { id: 'composer.modelPicker', category: 'composer', defaults: ['mod+shift+m'] },
-  // Voice conversation toggle. Matches the documented `voice.record_key`
-  // (Ctrl+B). On macOS that's literally ⌃B — distinct from the ⌘B sidebar
-  // toggle. Off macOS `ctrl` folds to `mod`, which IS the ⌘B/Ctrl+B sidebar
-  // chord, so ship it unbound there (rebindable in the panel) rather than
-  // stealing the long-standing sidebar binding.
-  { id: 'composer.voice', category: 'composer', defaults: IS_MAC ? ['ctrl+b'] : [] },
+  // EDIT [3]: 'composer.voice' (Ctrl+B у них) снято вместе с непрерывным
+  // разговором — SPEC HX19 (owner decision 2026-09-08). Снято именно ЗДЕСЬ, а не
+  // только в обработчике: иначе сочетание осталось бы в панели клавиш строкой
+  // «начать / остановить голосовой разговор», которую нечем исполнить.
 
   // ── Profiles ─────────────────────────────────────────────────────────────
   { id: 'profile.default', category: 'profiles', defaults: ['mod+d'] },

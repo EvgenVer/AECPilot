@@ -64,7 +64,14 @@ Anything else is not an edit — it means the file does not belong in this zone.
    decision 2026-08-20). Only the name, only in user-visible text. Never in a
    storage key, a data attribute, a module path, an event name, or anything else
    the product depends on — renaming one of those is a rewrite wearing this
-   edit's number. The most common kind by count: 32 of the 57 edits in this zone.
+   edit's number. The most common kind by count: 47 of the 90 edits in this zone
+   (measured 2026-09-08; kind 3 is second at 36). The count is prose, so re-measure
+   it rather than trusting it — and exclude this file, whose examples look like
+   headers:
+
+   ```
+   grep -rhoE '^ \*   \[[0-9]\]' --include='*.ts' --include='*.tsx' --include='*.css'      apps/desktop/src/renderer/src/donor | sort | uniq -c
+   ```
 
 Not allowed, and not negotiable per-file: renaming, reformatting, restyling,
 "while I'm here" fixes, adapting to our lint preferences, or replacing their

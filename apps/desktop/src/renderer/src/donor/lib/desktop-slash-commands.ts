@@ -301,6 +301,10 @@ const NO_DESKTOP_SURFACE: Record<DesktopUnavailableReason, readonly string[]> = 
   messaging: ['/approve', '/deny'],
   settings: ['/skills', '/pets'],
   advanced: [
+    // EDIT [3]: /voice переехала сюда из 'composer-voice'. Та подсказка звала
+    // нажать кнопку «начать голосовой разговор» в композере, а разговор снят
+    // (SPEC HX19, решение владельца 2026-09-08) — обещать кнопку больше нечем.
+    '/voice',
     '/curator',
     '/fast',
     '/insights',
@@ -311,11 +315,10 @@ const NO_DESKTOP_SURFACE: Record<DesktopUnavailableReason, readonly string[]> = 
     '/reload-skills',
     '/reload_skills'
   ],
-  // /voice arms SERVER-side capture (voice.record → PortAudio on the backend
-  // host) — meaningless on desktop, which has its own composer-native voice
-  // conversation (mic menu / Ctrl+B) with client-side capture and playback.
-  // Point the user at the button instead of a generic "advanced" shrug.
-  'composer-voice': ['/voice']
+  // EDIT [3]: у 'composer-voice' не осталось команд — /voice выше. Сама
+  // причина и её подсказка оставлены дословно: это их код, и он вернётся к
+  // делу, если разговор когда-нибудь вернётся в объём.
+  'composer-voice': []
 }
 
 const ALL_SPECS: readonly DesktopCommandSpec[] = [

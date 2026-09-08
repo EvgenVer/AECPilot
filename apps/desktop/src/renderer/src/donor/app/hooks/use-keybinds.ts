@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/app/hooks/use-keybinds.ts
  * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the 'composer.voice' handler — the continuous voice
+ *       conversation it toggled is SPEC HX19 (owner decision 2026-09-08)
+ * (no other edits)
  */
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
@@ -72,7 +75,7 @@ import { toggleStatusbarVisible } from '@/store/statusbar-prefs'
 import { openNewWindow } from '@/store/windows'
 import { useTheme } from '@/themes/context'
 
-import { requestComposerFocus, requestModelMenuToggle, requestVoiceToggle } from '../chat/composer/focus'
+import { requestComposerFocus, requestModelMenuToggle } from '../chat/composer/focus'
 import { handleComposerFocusChord } from '../chat/composer/focus-chord'
 import { handleWindowPaste } from '../chat/composer/paste-to-focus'
 import { openSession } from '../open-session'
@@ -199,7 +202,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
         setModelPickerOpen(true)
       }
     },
-    'composer.voice': requestVoiceToggle,
+    // EDIT [3]: 'composer.voice' (Ctrl+B) включал непрерывный разговор — SPEC HX19 (owner decision 2026-09-08).
 
     // On the Settings overlay, ⌘K scopes to settings search; the second press
     // (or Esc) still closes as usual via toggle.

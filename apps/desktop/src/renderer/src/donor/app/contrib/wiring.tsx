@@ -10,6 +10,9 @@
  *   [3] dropped the Send Diagnostics host — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3
  *   [3] dropped the credits-notice dev demo — billing (HX2)
+ *   [3] the wake phrase no longer starts a continuous voice conversation, and no
+ *       longer raises the wake badge that only that conversation could lower —
+ *       SPEC HX19 (owner decision 2026-09-08)
  * (no other edits)
  */
 /**
@@ -50,11 +53,9 @@ import { getLatestSessionMessages } from '@/hermes'
 import { type ChatMessage, chatMessageText, preserveLocalAssistantErrors, toChatMessages } from '@/lib/chat-messages'
 import { isMessagingSource } from '@/lib/session-source'
 import { latestSessionTodos } from '@/lib/todos'
-import { activateWakeIndicator } from '@/lib/wake-indicator'
 import { playWakeSound } from '@/lib/wake-sound'
 import { $billingSettingsRequest } from '@/store/billing-block'
 import { $desktopBoot } from '@/store/boot'
-import { requestVoiceConversationStart } from '@/store/composer'
 import { $activeConnectionId } from '@/store/connections'
 import { $cronReviewRequest, setCronFocusJobId } from '@/store/cron'
 import { $pinnedSessionIds, pinSession, restoreWorktree, unpinSession } from '@/store/layout'
@@ -763,7 +764,10 @@ export function ContribWiring({ children }: { children: ReactNode }) {
         // Audible confirmation that the wake registered, before voice capture
         // starts. Gated by the shared sound-mute toggle.
         playWakeSound()
-        activateWakeIndicator()
+        // EDIT [3]: здесь поднималась табличка «слово услышано»
+        // (`activateWakeIndicator`). Опустить её умел ТОЛЬКО непрерывный
+        // разговор (`syncWakeIndicatorWithVoice`), а он снят — SPEC HX19.
+        // Оставленный вызов означал бы табличку, висящую вечно.
 
         // Multi-profile routing: a wake phrase enrolled by another profile
         // re-homes the gateway to that profile first (live swap — same path
@@ -785,7 +789,11 @@ export function ContribWiring({ children }: { children: ReactNode }) {
           startFreshSessionDraft()
         }
 
-        requestVoiceConversationStart()
+        // EDIT [3]: дальше шёл `requestVoiceConversationStart()` — непрерывный
+        // разговор, SPEC HX19 (решение владельца 2026-09-08). Слово-активатор
+        // остаётся взятым (HX19 первой половиной) и делает то, что от него
+        // осталось: переводит на нужный профиль и открывает свежую сессию.
+        // Говорить в неё человек начинает сам — диктовкой.
 
         return
       }

@@ -1650,3 +1650,85 @@ test('агент печатает и нажимает в предпросмот�
 
   await assertRendererAlive(page, 'drive preview')
 })
+
+// Задача 3E.22 (SPEC HX19, замечание D-72). Граница голоса — «кто решает»:
+// кнопка «прочитать вслух» у отдельного ответа остаётся (человек нажимает её на
+// каждый ответ), а автоматическое чтение всех ответов и непрерывный разговор с
+// перебиванием снимаются.
+//
+// ЗАЧЕМ ЭТО ЗДЕСЬ, КОГДА ЕСТЬ ТЕСТ ПО ИСХОДНИКАМ. `voice-by-human-decision.
+// test.ts` доказывает, что снятые хоки никто не вызывает. Он не видит ОКНА: у
+// этих поверхностей было семь входов, и два из них — живая кнопка в композере и
+// горячая клавиша, то есть дверь, которую открывает человек, а не импорт.
+// Здесь проверяется именно окно: кнопок нет, клавиша ничего не открывает, а
+// диктовка и чтение по нажатию — работают.
+test('окно читает ответ по нажатию, но не говорит само', async () => {
+  const page = await mainWindow()
+
+  await page.keyboard.press('Escape')
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  // Подписи берутся из их же каталога (наш русский их не переводит, см. ru.ts),
+  // поэтому промах по ключу выглядел бы как 'composer.speakReplies'.
+  const startVoice = page.getByRole('button', { name: /Start voice conversation/ })
+  const endVoice = page.getByRole('button', { name: /End voice conversation/ })
+
+  // Главная кнопка пустого композера. У них на этом месте стояла большая кнопка
+  // «начать голосовой разговор», и «Отправить» появлялась только с набранным
+  // текстом; теперь она одна и та же всегда.
+  await expect(page.getByRole('button', { name: /^(Send|Отправить)$/ })).toBeVisible({
+    timeout: 20000
+  })
+  expect(await startVoice.count(), 'кнопки «начать голосовой разговор» быть не должно').toBe(0)
+
+  // Узкая полоса композера складывает голосовые кнопки в одно меню (`foldVoice`),
+  // и снятые строки жили ИМЕННО В НЁМ — значит смотреть надо внутрь, а не на
+  // полосу. Заодно это проверяет, что меню вообще осталось.
+  const voiceMenu = page.getByRole('button', { name: /^(Voice|Голос)$/ })
+
+  await expect(voiceMenu, 'меню голоса обязано остаться — в нём диктовка').toBeVisible({
+    timeout: 20000
+  })
+  await voiceMenu.click()
+
+  const dictation = page.getByRole('menuitemcheckbox', {
+    name: /Voice dictation|Stop dictation|Transcribing/
+  })
+
+  await expect(dictation, 'диктовка обязана остаться — HX19 её оставляет').toBeVisible({
+    timeout: 15000
+  })
+
+  expect(
+    await page.getByRole('menuitemcheckbox', { name: /Read replies aloud/ }).count(),
+    'строки «читать все ответы вслух» в меню быть не должно'
+  ).toBe(0)
+  expect(
+    await page.getByRole('menuitem', { name: /Start voice conversation/ }).count(),
+    'строки «начать голосовой разговор» в меню быть не должно'
+  ).toBe(0)
+
+  // Слово-активатор — третья строка меню, и оно HX19 оставляет взятым.
+  expect(
+    await page.getByRole('menuitemcheckbox', { name: /hey |Say / }).count(),
+    'слово-активатор обязано остаться в меню'
+  ).toBeGreaterThan(0)
+
+  await page.keyboard.press('Escape')
+
+  // Ctrl+B у них включал разговор. Клавиша снята из таблицы действий — нажатие
+  // обязано остаться НИЧЕМ, а не открыть табличку разговора.
+  await page.keyboard.press('Control+b')
+  await page.waitForTimeout(1000)
+  expect(await endVoice.count(), 'Ctrl+B открыл непрерывный разговор').toBe(0)
+
+  // Второй контроль: чтение ПО НАЖАТИЮ у ответа. В ленте к этому месту уже
+  // лежат ответы предыдущих тестов.
+  expect(
+    await page.getByRole('button', { name: /^(Read aloud|Stop reading)$/ }).count(),
+    'кнопка «прочитать вслух» у ответа обязана остаться — её нажимает человек'
+  ).toBeGreaterThan(0)
+
+  await assertRendererAlive(page, 'voice by human decision')
+})

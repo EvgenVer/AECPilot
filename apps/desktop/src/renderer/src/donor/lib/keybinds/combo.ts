@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/lib/keybinds/combo.ts
  * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped 'composer.voice' from the input-safe set — the action itself
+ *       is gone with the voice conversation (SPEC HX19)
+ * (no other edits)
  */
 // Keybind combo normalization + display.
 //
@@ -257,7 +260,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 
 const INPUT_SAFE_ACTIONS = new Set([
   'composer.modelPicker',
-  'composer.voice',
+  // EDIT [3]: 'composer.voice' — SPEC HX19 (owner decision 2026-09-08).
   'keybinds.openPanel',
   'nav.commandPalette',
   'session.next',

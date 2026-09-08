@@ -3,7 +3,11 @@
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
  * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped applyAutoSpeakFromConfig — auto-speak of replies is SPEC HX19
+ *       (owner decision 2026-09-08), and `voice.auto_tts` would turn it on
+ *       with no click in the window at all
+ * (no other edits)
  */
 import { type MutableRefObject, useCallback, useRef, useState } from 'react'
 
@@ -24,7 +28,6 @@ import {
   setIntroPersonality
 } from '@/store/session'
 import {
-  applyAutoSpeakFromConfig,
   applyThinkingSoundFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
@@ -151,7 +154,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           return
         }
 
-        applyAutoSpeakFromConfig(config)
+        // EDIT [3]: `voice.auto_tts` из их конфига включал авточтение всех
+        // ответов БЕЗ единого нажатия в окне — SPEC HX19 (owner decision 2026-09-08).
         applyVoiceStopPhraseFromConfig(config)
         applyThinkingSoundFromConfig(config)
       } catch {
