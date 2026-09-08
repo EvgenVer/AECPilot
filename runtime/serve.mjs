@@ -33,6 +33,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureOurSoul } from "./default-soul.mjs";
 import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { warnIfToolsetsNarrowed } from "./narrowed-toolsets.mjs";
 
 // Re-exported so callers that already dynamically import this module (the
 // desktop app's main process, task 0.7/0.15) don't need a second dynamic
@@ -86,6 +87,10 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
   // только если файла нет; успеть раньше — единственный способ не трогать их
   // исходники и не потерять правку на подъёме пина.
   ensureOurSoul(HERMES_HOME_DIR);
+
+  // Сторож против тихого обрезания агента (замечание D-66). Говорит вслух и
+  // ничего не правит — блок мог поставить человек их же командой.
+  warnIfToolsetsNarrowed(HERMES_HOME_DIR);
 
   // Pre-mint the session token so we can authenticate the WS health-check
   // without scraping it out of the dashboard's HTML response.
