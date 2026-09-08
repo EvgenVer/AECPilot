@@ -59,11 +59,62 @@ refusal = json.loads(broken.web_search_tool(query="test", limit=1))
 out["broken_ok"] = bool(refusal.get("success"))
 out["broken_error"] = refusal.get("error", "")
 
+# ── ЧТЕНИЕ СТРАНИЦЫ (задача 3E.18) ────────────────────────────────────────
+# Меряется на СВОЁМ доме, вернув переменную назад: выше её подменили сломанным.
+import asyncio
+
+os.environ["HERMES_HOME"] = os.environ["PROBE_HOME"]
+for mod in [m for m in list(sys.modules) if m.startswith(("tools.", "hermes_cli.config"))]:
+    del sys.modules[mod]
+from tools import web_tools as ours
+
+out["extract_backend"] = ours._get_extract_backend()
+extract = json.loads(asyncio.run(ours.web_extract_tool(urls=["https://example.com"])))
+out["extract_ok"] = bool(extract.get("success"))
+out["extract_error"] = extract.get("error", "") or extract.get("message", "")
+
+# СТРОГИЙ ВЫБОР: назначенный провайдер возвращается как есть, без пробы
+# доступности. Живого вызова здесь нет намеренно — проверяется ВЫБОР.
+os.environ["HERMES_HOME"] = os.environ["PROBE_PICKED_HOME"]
+for mod in [m for m in list(sys.modules) if m.startswith(("tools.", "hermes_cli.config"))]:
+    del sys.modules[mod]
+from tools import web_tools as picked
+out["picked_extract_backend"] = picked._get_extract_backend()
+
+# БЕСКЛЮЧЕВОЙ ЯРУС — ПОСЛЕДНИЙ И ОТКЛЮЧАЕМЫЙ. Дом без выбора: что выберет
+# лестница. Потом тот же дом с keyless_fallback: false. Только выбор, без
+# вызова: живой запрос отсюда ушёл бы на публичную точку третьей стороны.
+os.environ["HERMES_HOME"] = os.environ["PROBE_EMPTY_HOME"]
+for mod in [m for m in list(sys.modules) if m.startswith(("tools.", "hermes_cli.config"))]:
+    del sys.modules[mod]
+from tools import web_tools as empty
+out["ladder_backend"] = empty._get_extract_backend()
+
+os.environ["HERMES_HOME"] = os.environ["PROBE_NOKEYLESS_HOME"]
+for mod in [m for m in list(sys.modules) if m.startswith(("tools.", "hermes_cli.config"))]:
+    del sys.modules[mod]
+from tools import web_tools as nokeyless
+out["nokeyless_backend"] = nokeyless._get_extract_backend()
+
 print("PROBE_JSON " + json.dumps(out, ensure_ascii=False))
 `
 
-const brokenHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-web-probe-'))
-fs.writeFileSync(path.join(brokenHome, 'config.yaml'), 'web:\n  backend: no-such-provider\n', 'utf-8')
+/** Временный дом ядра с заданным `config.yaml`. */
+function homeWith(config) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aecpilot-web-probe-'))
+  fs.writeFileSync(path.join(dir, 'config.yaml'), config, 'utf-8')
+  return dir
+}
+
+const brokenHome = homeWith('web:\n  backend: no-such-provider\n')
+// Задача 3E.18: провайдер НАЗНАЧЕН человеком и без ключа. Их правило — «strict
+// selection, no availability probe»: выбор возвращается как есть, а не
+// подменяется тем, что нашлось.
+const pickedHome = homeWith('web:\n  extract_backend: firecrawl\n')
+// Ничего не выбрано: работает лестница учётных данных.
+const emptyHome = homeWith('web: {}\n')
+// То же, но бесключевой ярус отключён — он обязан быть отключаемым.
+const noKeylessHome = homeWith('web:\n  keyless_fallback: false\n')
 
 let raw
 try {
@@ -74,11 +125,17 @@ try {
       ...process.env,
       HERMES_HOME: HERMES_HOME_DIR,
       PROBE_QUERY: QUERY,
-      PROBE_BROKEN_HOME: brokenHome
+      PROBE_BROKEN_HOME: brokenHome,
+      PROBE_HOME: HERMES_HOME_DIR,
+      PROBE_PICKED_HOME: pickedHome,
+      PROBE_EMPTY_HOME: emptyHome,
+      PROBE_NOKEYLESS_HOME: noKeylessHome
     }
   })
 } finally {
-  fs.rmSync(brokenHome, { recursive: true, force: true })
+  for (const dir of [brokenHome, pickedHome, emptyHome, noKeylessHome]) {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 const line = raw.split(/\r?\n/).find((one) => one.startsWith('PROBE_JSON '))
@@ -99,6 +156,48 @@ console.log(`== выбран: ${probe.backend}`)
 console.log(`== живой запрос «${QUERY}»: результатов ${probe.results}, первый — ${probe.first}`)
 console.log(`== ненастроенный провайдер («${probe.broken_backend}»): success=${probe.broken_ok}`)
 console.log(`   ${probe.broken_error}`)
+
+// ── Чтение страницы (задача 3E.18, решение владельца 2026-09-08) ──────────
+// Мы НЕ назначаем провайдера извлечения: его выбирает человек в их же панели
+// наборов (`donor/app/settings/toolset-config-panel.tsx`, экран «Навыки»).
+// Проверяется не «работает ли чтение», а что состояние ЧЕСТНОЕ: пока выбора
+// нет, инструмент отказывает словами, а не уходит тихо на публичную точку
+// третьей стороны — тот самый дефект, из-за которого 3E.2 записала выбор поиска.
+if (probe.extract_ok) {
+  problems.push('чтение страницы ответило успехом без выбранного провайдера — куда ушёл запрос?')
+}
+if (!probe.extract_error) problems.push('чтение страницы промолчало: отказ без объяснения')
+if (probe.picked_extract_backend !== 'firecrawl') {
+  problems.push(
+    `назначенный провайдер извлечения подменён на «${probe.picked_extract_backend}» — ` +
+      'сломанный выбор обязан отвечать своей ошибкой, а не тихо уезжать на другой'
+  )
+}
+// БЕСКЛЮЧЕВОЙ РЕТРАНСЛЯТОР — вот чего здесь быть не должно. Проверяется не
+// «отключился ли ярус», а куда приводит лестница: адреса страниц человека не
+// должны уходить через чужую публичную точку, которую никто не выбирал
+// (`plugins/web/keyless_mcp.py`). ЗАМЕРЕНО 2026-09-08: на машине с нашим `ddgs`
+// лестница останавливается на нём — он ставится пакетом и ключа не требует, то
+// есть до бесключевого яруса дело не доходит вовсе. Поэтому оба ответа ниже
+// одинаковы, и это не «ярус не отключился», а «ярус недостижим».
+const KEYLESS_RELAYS = ['exa', 'parallel']
+if (KEYLESS_RELAYS.includes(probe.ladder_backend)) {
+  problems.push(
+    `без выбора лестница привела на бесключевой ретранслятор «${probe.ladder_backend}»: ` +
+      'адреса страниц человека уходили бы через третью сторону'
+  )
+}
+if (KEYLESS_RELAYS.includes(probe.nokeyless_backend)) {
+  problems.push(
+    `с keyless_fallback: false выбор всё равно бесключевой — «${probe.nokeyless_backend}»`
+  )
+}
+
+console.log(`== извлечение на нашем профиле: «${probe.extract_backend}», success=${probe.extract_ok}`)
+console.log(`   ${probe.extract_error}`)
+console.log(`== назначенный человеком провайдер извлечения: «${probe.picked_extract_backend}»`)
+console.log(`== лестница без выбора: «${probe.ladder_backend}»`)
+console.log(`== она же с keyless_fallback: false: «${probe.nokeyless_backend}»`)
 
 if (problems.length > 0) {
   console.log('\n== ПРОБЛЕМЫ')

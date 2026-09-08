@@ -369,6 +369,86 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"model": "mock-model", "provider": "mock", "providers": []})
             return
 
+        # Экран «Навыки» держит НАВЫКИ И НАБОРЫ на одном запросе-предохранителе:
+        # ветка «не загрузилось» стоит ВЫШЕ ветки вкладок (`app/skills/index.tsx`),
+        # поэтому молчащий `/api/skills` гасит и вкладку наборов — замерено на
+        # снимке падения, где вкладка переключалась, а панель отвечала «Skills
+        # failed to load». Отвечаем как настоящее ядро: встроенные навыки есть.
+        if route == "/api/skills":
+            self._send(
+                200,
+                [
+                    {
+                        "category": "general",
+                        "description": "Mock bundled skill",
+                        "enabled": True,
+                        "name": "mock-skill",
+                        "provenance": "bundled",
+                    }
+                ],
+            )
+            return
+
+        # Задача 3E.18. Панель наборов — ЕДИНСТВЕННАЯ дверь человека к выбору
+        # провайдера чтения страниц: назначать его за него мы не стали (решение
+        # владельца 2026-09-08 — повторить механизм донора целиком). Ответ
+        # нарочно показывает НЕЗАВЕРШЁННОЕ состояние: поиск на `ddgs`,
+        # извлечение не назначено, — то самое, что видит человек в жизни, пока
+        # не выберет провайдера сам.
+        if route == "/api/tools/toolsets":
+            self._send(
+                200,
+                [
+                    {
+                        "configured": True,
+                        "description": "Web search and page extraction",
+                        "enabled": True,
+                        "label": "Web",
+                        "name": "web",
+                        "tools": ["web_search", "web_extract"],
+                    }
+                ],
+            )
+            return
+
+        if route == "/api/tools/toolsets/web/config":
+            self._send(
+                200,
+                {
+                    "active_extract_backend": None,
+                    "active_provider": "DuckDuckGo",
+                    "active_search_backend": "ddgs",
+                    "has_category": True,
+                    "providers": [
+                        {
+                            "badge": "free",
+                            "capabilities": ["search"],
+                            "env_vars": [],
+                            "is_active": True,
+                            "name": "DuckDuckGo",
+                            "post_setup": None,
+                            "requires_nous_auth": False,
+                            "status": "ready",
+                            "tag": "ddgs",
+                            "web_backend": "ddgs",
+                        },
+                        {
+                            "badge": "key",
+                            "capabilities": ["search", "extract"],
+                            "env_vars": [],
+                            "is_active": False,
+                            "name": "Firecrawl",
+                            "post_setup": None,
+                            "requires_nous_auth": False,
+                            "status": "needs_keys",
+                            "tag": "firecrawl",
+                            "web_backend": "firecrawl",
+                        },
+                    ],
+                },
+            )
+            return
+
         if route == "/api/config/defaults":
             self._send(200, _CONFIG)
             return
