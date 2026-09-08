@@ -291,16 +291,21 @@ export function readExclusions(specText) {
 }
 
 /** Task ids TASKS.md actually carries, so the table cannot cite a task that was
- * renumbered out from under it. */
+ * renumbered out from under it.
+ *
+ * КИРИЛЛИЦА В НОМЕРЕ — не экзотика, а половина списка: `5.1а`, `3.B3д`. До
+ * 2026-09-08 класс символов был только латинским, и такие задачи парсер не
+ * видел ВООБЩЕ — вердикт, сославшийся на живую `5.1а`, получал «в TASKS.md нет
+ * задачи». Найдено при перестановке вердикта `memory` (задача 3E.17). */
 export function readTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-z.]+) /gm)].map((m) => m[1]));
+  return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.]+) /gm)].map((m) => m[1]));
 }
 
 /** Task ids already ticked off. A verdict citing a CLOSED task is as stale as
  * one citing a task that never existed: it answers «работа впереди» for work
  * that is behind. */
 export function readClosedTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-z.]+) /gm)].map((m) => m[1]));
+  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.]+) /gm)].map((m) => m[1]));
 }
 
 /** Methods the renderer may never name, from the deny list itself rather than a

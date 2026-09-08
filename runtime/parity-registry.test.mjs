@@ -64,8 +64,15 @@ describe("document parsing", () => {
   });
 
   it("reads task ids including split and phase-prefixed ones", () => {
-    const tasks = ["- [ ] 3.7a Голос — files: x", "- [x] 3.0 Замер — files: y", "- [ ] 3.B0 Подъём — files: z"].join("\n");
-    expect([...readTaskIds(tasks)].sort()).toEqual(["3.0", "3.7a", "3.B0"]);
+    const tasks = [
+      "- [ ] 3.7a Голос — files: x",
+      "- [x] 3.0 Замер — files: y",
+      "- [ ] 3.B0 Подъём — files: z",
+      // Кириллица в номере: так подписана половина списка (`5.1а`, `3.B3д`), а
+      // до задачи 3E.17 парсер такие задачи не видел вовсе.
+      "- [ ] 5.1а Ключи провайдера — files: w"
+    ].join("\n");
+    expect([...readTaskIds(tasks)].sort()).toEqual(["3.0", "3.7a", "3.B0", "5.1а"]);
   });
 
   it("reads the deny list from the module rather than a copy of it", () => {
