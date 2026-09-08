@@ -494,6 +494,12 @@ const IMPLEMENTED: Record<string, unknown> = {
     setPercent(percent: number): void {
       void window.aecpilot.setZoomPercent(percent)
     },
+    // Задача 3E.24. Их контракт объявляет этого члена необязательным, и без него
+    // их же путь контекстного меню внутри гостя делил на `|| 1`, то есть не
+    // делил вовсе: при масштабе ≠ 100 % меню уезжало от места нажатия.
+    factor(): number {
+      return window.aecpilot.zoomFactor()
+    },
     onChanged(callback: (payload: { level: number; percent: number }) => void): () => void {
       return window.aecpilot.onZoomChanged(callback)
     }

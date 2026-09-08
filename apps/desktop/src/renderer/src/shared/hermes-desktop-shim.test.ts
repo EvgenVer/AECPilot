@@ -230,6 +230,19 @@ describe('hermes-desktop shim: zoom и themes (SPEC HX14)', () => {
     expect(onZoomChanged).toHaveBeenCalledWith(callback)
   })
 
+  it('множитель зума отдаётся СИНХРОННО — задача 3E.24', () => {
+    // Их путь контекстного меню внутри гостя делит `params.x` на
+    // `zoom.factor()`, а обещание там читать нечем. Необъявленный член означал
+    // `|| 1`, то есть деление, которого нет: при масштабе ≠ 100 % меню уезжало
+    // от места нажатия. Тем же членом пользуется наша обёртка нажатий агента
+    // (`aec/preview-scale`).
+    const zoomFactor = vi.fn().mockReturnValue(1.25)
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { zoomFactor } }
+
+    expect(createHermesDesktopBridge().zoom!.factor!()).toBe(1.25)
+    expect(zoomFactor).toHaveBeenCalledTimes(1)
+  })
+
   it('импорт темы VS Code объявлен отсутствующим (HX14)', () => {
     const bridge = createHermesDesktopBridge()
 

@@ -3,7 +3,11 @@
  * Source:  apps/desktop/src/app/chat/right-rail/preview-pane.tsx
  * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] the input channel is registered through OUR scaling wrapper
+ *       (`aec/preview-scale`): their coordinates assume zoom 1, and at any other
+ *       window zoom the agent's click misses its target (finding D-74, SPEC UR36)
+ * (no other edits)
  */
 // Side-effect import: watches the turn edge so the overlay keeps a pulse while
 // the model reasons. Lives here because the pane is what makes it reachable.
@@ -13,6 +17,7 @@ import { useStore } from '@nanostores/react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { scaledPreviewInput } from '../../../../aec/preview-scale/scale-input'
 import { openGuestContextMenu } from '@/app/context-menu/store'
 import { PanelEmpty } from '@/app/overlays/panel'
 import { Tip } from '@/components/ui/tooltip'
@@ -545,7 +550,13 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
       return
     }
 
-    return registerPreviewInput(tabId, {
+    // EDIT [3]: в таблицу входных каналов регистрируется НАША обёртка
+    // (`aec/preview-scale`), а не канал как есть. Координаты движка нажатий —
+    // CSS-пиксели гостя, `sendInputEvent` принимает пиксели фрейма, и между ними
+    // стоит множитель зума окна; без него при масштабе ≠ 100 % агент отвечает
+    // «сделано», не сделав ничего (замечание D-74, SPEC UR36). Арифметика — в
+    // нашем файле: умножение координат не входит в пять правок зоны.
+    return registerPreviewInput(tabId, scaledPreviewInput({
       focus: () => webviewRef.current?.focus?.(),
       send: event => {
         const webview = webviewRef.current
@@ -559,7 +570,7 @@ export function PreviewPane({ embedded = false, onRestartServer, reloadRequest =
 
         webview.sendInputEvent(event)
       }
-    })
+    }))
   }, [isRemoteHtml, isWebPreview, tabId])
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)

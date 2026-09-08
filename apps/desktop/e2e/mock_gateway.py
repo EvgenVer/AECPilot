@@ -373,7 +373,10 @@ async def stream_drive_turn(connection: ServerConnection) -> None:
     while not FORM_PAGE_SERVED.is_set():
         await asyncio.sleep(0.5)
 
-    for round_index in range(8):
+    # Rounds, not one shot: the test after the drive one changes the window zoom
+    # and waits for the hand to hit the same button again (task 3E.24), so the
+    # loop has to outlive both tests.
+    for round_index in range(16):
         await asyncio.sleep(3)
         try:
             await push(

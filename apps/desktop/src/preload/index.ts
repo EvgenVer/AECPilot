@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import type { AecpilotApi } from '../shared/ipc'
 
 const api: AecpilotApi = {
@@ -30,6 +30,9 @@ const api: AecpilotApi = {
     ipcRenderer.on('zoom:changed', listener)
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
+  // Синхронно и без IPC: множитель спрашивают в момент отправки нажатия агента
+  // (задача 3E.24), а не при отрисовке настроек.
+  zoomFactor: () => webFrame.getZoomFactor(),
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   getConnection: () => ipcRenderer.invoke('connection:get'),
   saveConnection: (input) => ipcRenderer.invoke('connection:save', input),
