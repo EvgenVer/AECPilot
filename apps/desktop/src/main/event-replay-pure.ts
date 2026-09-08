@@ -39,10 +39,7 @@ type EventParams = GatewayEventFrame['params']
  * доставленное.
  */
 export function noteEvent(state: ReplayWatermark, params: EventParams): ReplayWatermark {
-  const epoch =
-    params.type === 'gateway.ready'
-      ? readEpoch(params.payload)
-      : state.epoch
+  const epoch = params.type === 'gateway.ready' ? readEpoch(params.payload) : state.epoch
 
   const seq = typeof params.seq === 'number' && Number.isFinite(params.seq) ? params.seq : 0
 
@@ -123,10 +120,7 @@ export function readCatchUp(
     return typeof seq === 'number' && seq > state.lastSeq
   })
 
-  const highest = fresh.reduce(
-    (top, frame) => Math.max(top, frame.params.seq ?? 0),
-    state.lastSeq
-  )
+  const highest = fresh.reduce((top, frame) => Math.max(top, frame.params.seq ?? 0), state.lastSeq)
 
   return {
     deliver: fresh,

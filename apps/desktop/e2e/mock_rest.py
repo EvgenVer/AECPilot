@@ -440,7 +440,6 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send(404, {"detail": f"session not found: {session_id}"})
 
-
     def do_POST(self) -> None:  # noqa: N802 - stdlib signature
         """Anything the app POSTs. Nothing here needs to succeed for the list
         surfaces, but every one of them must be READ and answered — see

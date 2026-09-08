@@ -14,7 +14,10 @@ import {
   type ReplayWatermark
 } from './event-replay-pure'
 
-const ready = (epoch: string) => ({ type: 'gateway.ready' as const, payload: { replay_epoch: epoch } })
+const ready = (epoch: string) => ({
+  type: 'gateway.ready' as const,
+  payload: { replay_epoch: epoch }
+})
 const delta = (seq: number, sessionId = 'с-1') => ({
   type: 'message.delta' as const,
   session_id: sessionId,
@@ -88,12 +91,15 @@ describe('надо ли догонять', () => {
 
 describe('разбор ответа переигровки', () => {
   it('доставляются только кадры новее отметки', () => {
-    const reading = readCatchUp({ epoch: 'e1', lastSeq: 5 }, {
-      events: [frame(4), frame(5), frame(6), frame(7)],
-      latest_seq: 7,
-      truncated: false,
-      epoch: 'e1'
-    })
+    const reading = readCatchUp(
+      { epoch: 'e1', lastSeq: 5 },
+      {
+        events: [frame(4), frame(5), frame(6), frame(7)],
+        latest_seq: 7,
+        truncated: false,
+        epoch: 'e1'
+      }
+    )
 
     expect(reading.deliver.map((item) => item.params.seq)).toEqual([6, 7])
     expect(reading.watermark).toEqual({ epoch: 'e1', lastSeq: 7 })
@@ -101,12 +107,15 @@ describe('разбор ответа переигровки', () => {
   })
 
   it('кольцо проехало точку — кадры отдаём, но о дыре говорим', () => {
-    const reading = readCatchUp({ epoch: 'e1', lastSeq: 5 }, {
-      events: [frame(40)],
-      latest_seq: 40,
-      truncated: true,
-      epoch: 'e1'
-    })
+    const reading = readCatchUp(
+      { epoch: 'e1', lastSeq: 5 },
+      {
+        events: [frame(40)],
+        latest_seq: 40,
+        truncated: true,
+        epoch: 'e1'
+      }
+    )
 
     expect(reading.deliver).toHaveLength(1)
     expect(reading.gap, 'молчать о потере нельзя — она уже случилась').toBe(true)
@@ -115,12 +124,15 @@ describe('разбор ответа переигровки', () => {
   it('шлюз перезапустился — не доставляем НИ ОДНОГО кадра', () => {
     // Кадры из другой жизни процесса: их номера ничего не значат для нашей
     // отметки, и рассылать их окну — значит показать чужой разговор.
-    const reading = readCatchUp({ epoch: 'e1', lastSeq: 5 }, {
-      events: [frame(1), frame(2)],
-      latest_seq: 2,
-      truncated: false,
-      epoch: 'e2'
-    })
+    const reading = readCatchUp(
+      { epoch: 'e1', lastSeq: 5 },
+      {
+        events: [frame(1), frame(2)],
+        latest_seq: 2,
+        truncated: false,
+        epoch: 'e2'
+      }
+    )
 
     expect(reading.deliver).toEqual([])
     expect(reading.watermark).toEqual({ epoch: 'e2', lastSeq: 2 })
@@ -128,12 +140,15 @@ describe('разбор ответа переигровки', () => {
   })
 
   it('пустой ответ отметку не роняет', () => {
-    const reading = readCatchUp({ epoch: 'e1', lastSeq: 9 }, {
-      events: [],
-      latest_seq: 9,
-      truncated: false,
-      epoch: 'e1'
-    })
+    const reading = readCatchUp(
+      { epoch: 'e1', lastSeq: 9 },
+      {
+        events: [],
+        latest_seq: 9,
+        truncated: false,
+        epoch: 'e1'
+      }
+    )
 
     expect(reading.deliver).toEqual([])
     expect(reading.watermark.lastSeq).toBe(9)
@@ -142,11 +157,14 @@ describe('разбор ответа переигровки', () => {
   it('ядро без epoch в ответе не считается перезапущенным', () => {
     // Старое ядро поля не шлёт; читать его отсутствие как смену метки значило
     // бы глушить догон там, где он работает.
-    const reading = readCatchUp({ epoch: 'e1', lastSeq: 5 }, {
-      events: [frame(6)],
-      latest_seq: 6,
-      truncated: false
-    })
+    const reading = readCatchUp(
+      { epoch: 'e1', lastSeq: 5 },
+      {
+        events: [frame(6)],
+        latest_seq: 6,
+        truncated: false
+      }
+    )
 
     expect(reading.deliver.map((item) => item.params.seq)).toEqual([6])
     expect(reading.watermark.epoch).toBe('e1')

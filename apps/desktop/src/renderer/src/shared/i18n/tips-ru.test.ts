@@ -18,10 +18,10 @@ import { ru } from './ru'
 
 describe('подсказки: русский каталог полон', () => {
   it('у каждой подсказки из их каталога есть русские заголовок и текст', () => {
-    const missing = TIP_CATALOG.filter(tip => {
+    const missing = TIP_CATALOG.filter((tip) => {
       const item = ru.tips.items[tip.id]
       return !item?.title?.trim() || !item?.text?.trim()
-    }).map(tip => tip.id)
+    }).map((tip) => tip.id)
 
     expect(missing, 'подсказка без русского текста уедет на экран английской').toEqual([])
   })
@@ -29,11 +29,11 @@ describe('подсказки: русский каталог полон', () => {
   it('русский текст не совпадает с английским — то есть перевод правда есть', () => {
     // Без этой проверки заполнить каталог можно было бы копией английского, и
     // первая проверка стала бы зелёной, ничего не переводя.
-    const untranslated = TIP_CATALOG.filter(tip => {
+    const untranslated = TIP_CATALOG.filter((tip) => {
       const item = ru.tips.items[tip.id]
       const base = en.tips.items[tip.id]
       return item.title === base.title || item.text === base.text
-    }).map(tip => tip.id)
+    }).map((tip) => tip.id)
 
     expect(untranslated).toEqual([])
   })

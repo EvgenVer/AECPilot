@@ -50,7 +50,9 @@ const DONOR_ZONE = 'src/renderer/src/donor/**/*.test.{ts,tsx}'
 // `getGateway` — то есть React отбросил первый проход, а вызов в JSX успел
 // сработать дважды. Записано, потому что по одному счётчику вывод был бы
 // неверным: «дважды отрисовали» и «дважды исполнили тело» — разные вещи.
-const DONOR_TEMPORARILY_OFF = ['src/renderer/src/donor/plugins/hermes-bots/profile-config-capabilities.test.tsx']
+const DONOR_TEMPORARILY_OFF = [
+  'src/renderer/src/donor/plugins/hermes-bots/profile-config-capabilities.test.tsx'
+]
 
 // Two projects instead of one environment (task 1.6.3): component tests need
 // a DOM, the ~450 existing pure/main-process tests do not, and jsdom costs

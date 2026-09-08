@@ -44,9 +44,9 @@ describe('побочный вопрос: разбор события', () => {
   })
 
   it('другое событие с тем же полем не принимается', () => {
-    expect(isAnswerFor({ type: 'message.complete', payload: { task_id: 'btw_aaa' } }, 'btw_aaa')).toBe(
-      false
-    )
+    expect(
+      isAnswerFor({ type: 'message.complete', payload: { task_id: 'btw_aaa' } }, 'btw_aaa')
+    ).toBe(false)
   })
 
   it('поля читаются из payload, а не из корня кадра', () => {

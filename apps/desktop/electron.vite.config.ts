@@ -94,7 +94,8 @@ export default defineConfig({
       //
       // Ослаблять CSP до `font-src data:` ради этого не нужно: файлом шрифт
       // проходит как `'self'`, и правило остаётся строгим.
-      assetsInlineLimit: (filePath: string) => (/\.(woff2?|ttf|otf|eot)$/i.test(filePath) ? false : undefined),
+      assetsInlineLimit: (filePath: string) =>
+        /\.(woff2?|ttf|otf|eot)$/i.test(filePath) ? false : undefined,
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/renderer/index.html'),

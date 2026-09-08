@@ -107,10 +107,10 @@ A file left behind has no header to record itself in, so it is recorded here.
 This list is part of the port: on the next `DONOR_SHA` raise, check each line
 still holds instead of re-copying the file by reflex.
 
-| File | Why not |
-|------|---------|
-| `plugins/hermes-bots/pet.tsx` | The pet is SPEC HX1. Its only importer (`avatar-picker.tsx`) drops the import as edit [3]. |
-| `plugins/hermes-bots/pet.test.tsx` | Tests the file above. |
+| File                                               | Why not                                                                                                                                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `plugins/hermes-bots/pet.tsx`                      | The pet is SPEC HX1. Its only importer (`avatar-picker.tsx`) drops the import as edit [3].                                                                                                                                     |
+| `plugins/hermes-bots/pet.test.tsx`                 | Tests the file above.                                                                                                                                                                                                          |
 | `plugins/hermes-bots/relay-deliver-budget.test.ts` | Reads source text by a path hardcoded to THEIR repo layout (`src/plugins/hermes-bots/relay.ts`, `../../hermes_cli/config_defaults.py`). It cannot resolve here, and repointing the paths is not one of the five allowed edits. |
 
 Separately, one vendored test is temporarily excluded from the run rather than

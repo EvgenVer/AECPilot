@@ -493,9 +493,11 @@ test('an HTML artifact previews in a sandbox, and an external address opens', as
   await expect.poll(() => previewTabCount(page), { timeout: 15000 }).toBe(beforeTabs + 1)
 
   const urlLine = await waitForMockLine(/PREVIEW_READ_RESPOND .*example\.com/)
-  const live = JSON.parse(
-    JSON.parse(urlLine.slice('PREVIEW_READ_RESPOND '.length)) as string
-  ) as { kind: string; text: string; url: string }
+  const live = JSON.parse(JSON.parse(urlLine.slice('PREVIEW_READ_RESPOND '.length)) as string) as {
+    kind: string
+    text: string
+    url: string
+  }
 
   expect(live.url).toContain('example.com')
   expect(live.text, 'текст живой страницы, а не выдуманный').toContain('documentation examples')
