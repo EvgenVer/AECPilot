@@ -22,6 +22,8 @@ import ProjectSettingsDialog from './ProjectSettingsDialog'
 
 const getProjectSettings = vi.fn()
 const updateProjectSettings = vi.fn()
+const getAgentLanguage = vi.fn()
+const setAgentLanguage = vi.fn()
 const onClose = vi.fn()
 
 const SETTINGS: ProjectSettingsPayload = {
@@ -35,9 +37,13 @@ beforeEach(() => {
   window.localStorage.clear()
   getProjectSettings.mockResolvedValue(SETTINGS)
   updateProjectSettings.mockResolvedValue({ ok: true, settings: SETTINGS })
+  getAgentLanguage.mockResolvedValue({ language: '' })
+  setAgentLanguage.mockImplementation((language: string) => Promise.resolve({ language }))
   window.aecpilot = {
     getProjectSettings,
-    updateProjectSettings
+    updateProjectSettings,
+    getAgentLanguage,
+    setAgentLanguage
   } as unknown as typeof window.aecpilot
 })
 
@@ -82,12 +88,66 @@ describe('ProjectSettingsDialog', () => {
     )
   })
 
-  it('names where the other two levels live, so nobody looks for them here', async () => {
+  it('names where the fourth level lives, so nobody looks for it here', async () => {
     await renderDialog()
     // Ровно та ошибка, которой это мешает: настройку, которую не нашли,
     // заводят второй раз — так и появилась D-38.
-    expect(screen.getByText(/характере специалиста/)).toBeTruthy()
     expect(screen.getByText(/Оформление/)).toBeTruthy()
+  })
+
+  // --- Третий уровень G7: язык ответов агента (решение владельца 2026-09-08) -
+
+  it('shows the agent reply language as a field of its own, not as a note', async () => {
+    getAgentLanguage.mockResolvedValue({ language: 'ru' })
+    await renderDialog()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Язык ответов агента') as HTMLSelectElement).value).toBe('ru')
+    )
+  })
+
+  it('says whose setting it is — the user’s, not the project’s', async () => {
+    // Поле стоит рядом с проектными, и без этой подписи соседство читалось бы
+    // как «настройка этого проекта».
+    await renderDialog()
+    expect(screen.getByText(/Ваш, а не проекта/)).toBeTruthy()
+  })
+
+  it('writes the agent language without touching project settings', async () => {
+    await renderDialog()
+    choose('Язык ответов агента', 'en')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    await waitFor(() => expect(setAgentLanguage).toHaveBeenCalledWith('en'))
+    // Проектных правок не было — в project.json лезть незачем.
+    expect(updateProjectSettings).not.toHaveBeenCalled()
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('does not demand a second press for it — it costs nothing', async () => {
+    await renderDialog()
+    choose('Язык ответов агента', 'ru')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    await waitFor(() => expect(setAgentLanguage).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(WARNING)).toBeNull()
+  })
+
+  it('lets «not set» be chosen back — the empty value is a legitimate answer', async () => {
+    getAgentLanguage.mockResolvedValue({ language: 'ru' })
+    await renderDialog()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Язык ответов агента') as HTMLSelectElement).value).toBe('ru')
+    )
+    choose('Язык ответов агента', '')
+    await act(async () => {
+      button('Сохранить').click()
+    })
+
+    await waitFor(() => expect(setAgentLanguage).toHaveBeenCalledWith(''))
   })
 
   it('says nothing about re-indexing while nothing has changed', async () => {

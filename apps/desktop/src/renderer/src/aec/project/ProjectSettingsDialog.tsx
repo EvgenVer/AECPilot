@@ -10,15 +10,22 @@
 // Про языки — задача 5.14, SPEC G7.
 //
 // G7 считает три уровня языка, и они принадлежат РАЗНЫМ владельцам. Два живут в
-// проекте и правятся здесь: язык вики и язык имён в графе. Третий — язык, на
-// котором агент разговаривает, — принадлежит пользователю, а не проекту, и
-// живёт в SOUL профиля (решение владельца 2026-08-17). Четвёртый, язык
+// проекте: язык вики и язык имён в графе. Третий — язык, на котором агент
+// разговаривает, — принадлежит ПОЛЬЗОВАТЕЛЮ, а не проекту. Четвёртый, язык
 // интерфейса, тоже пользовательский и стоит в их настройках оформления.
 //
-// Поэтому окно не только правит два поля, но и НАЗЫВАЕТ два других вместе с
-// местом, где они лежат: настройка, которую человек ищет и не находит, читается
-// как отсутствующая, и следующим шагом её заводят второй раз (ровно так
-// появилась находка D-38).
+// ТРЕТИЙ УРОВЕНЬ ПЕРЕЕХАЛ СЮДА 2026-09-08 (решение владельца, задача 5.14). До
+// этого он жил строкой, которую НАШ диалог создания специалиста подставлял в
+// видимое поле; диалог заместил их плагин, и уровень открылся заново. Теперь это
+// отдельная настройка: она хранится у нас (`main/agent-language.ts`, файл в
+// userData — с человеком, а не с проектом), а строка попадает в SOUL нового
+// специалиста из неё. Поле стоит ВЫШЕ проектных и подписано «ваш, а не проекта»,
+// чтобы соседство не прочиталось как «настройка этого проекта».
+//
+// Поэтому окно правит три поля и НАЗЫВАЕТ четвёртое вместе с местом, где оно
+// лежит: настройка, которую человек ищет и не находит, читается как
+// отсутствующая, и следующим шагом её заводят второй раз (ровно так появилась
+// находка D-38).
 //
 // Про подтверждение смены языка графа. `check_compatible` в `aec_rag.rag_index`
 // откажется открыть граф, построенный на другом языке, — и это защита, а не
@@ -33,6 +40,7 @@ import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 
 const SETTINGS_KEY = ['aec', 'project-settings'] as const
+const AGENT_LANGUAGE_KEY = ['aec', 'agent-language'] as const
 
 /** Язык вики — КОД (`auto` | `ru` | `en`): им помечают текст страницы. Ключ
  * подписи хранится рядом со значением, а не собирается из него: собранный ключ
@@ -54,6 +62,14 @@ const GRAPH_LANGS = [
   { value: 'English', label: 'project.langGraphEnglish' }
 ] as const
 
+/** Язык ответов агента — закрытый список языков продукта (SPEC C7) плюс «не
+ * задан». Пустое значение законно и означает «ничего в SOUL не дописывать». */
+const AGENT_LANGS = [
+  { value: '', label: 'project.langAgentUnset' },
+  { value: 'ru', label: 'project.langAgentRu' },
+  { value: 'en', label: 'project.langAgentEn' }
+] as const
+
 /** Наименьший осмысленный интервал сканирования. Секунды хранятся в
  * `project.json`, а человеку показываются минуты: обход папок источника — не та
  * работа, которую заводят на секунды, и поле в секундах приглашает вписать
@@ -71,9 +87,18 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
 
+  const [agentLang, setAgentLang] = useState<string | undefined>(undefined)
+
   const { data: settings, isPending } = useQuery({
     queryKey: SETTINGS_KEY,
     queryFn: () => window.aecpilot.getProjectSettings()
+  })
+
+  // Своим запросом, а не вместе с проектными: настройка пользовательская и
+  // читается, даже когда проект не открыт.
+  const { data: agentLanguage } = useQuery({
+    queryKey: AGENT_LANGUAGE_KEY,
+    queryFn: () => window.aecpilot.getAgentLanguage()
   })
 
   // `undefined` — «человек этого поля не трогал», и значение показывается прямо
@@ -95,7 +120,10 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
   const embeddingChanged =
     Boolean(settings) && embedding !== undefined && embedding !== settings?.embedding_model
 
-  const dirty = graphChanged || wikiChanged || scanChanged || embeddingChanged
+  const storedAgentLang = agentLanguage?.language ?? ''
+  const agentLangChanged = agentLang !== undefined && agentLang !== storedAgentLang
+
+  const dirty = graphChanged || wikiChanged || scanChanged || embeddingChanged || agentLangChanged
   // Второй шаг нужен обоим полям, которые обесценивают уже построенный индекс:
   // язык графа и модель эмбеддингов. `check_compatible` откажется открыть и то,
   // и другое, и в обоих случаях это защита, а не ошибка.
@@ -115,6 +143,19 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
     setSaving(true)
     setError(undefined)
     try {
+      // Сначала пользовательская настройка: она не зависит от открытого проекта,
+      // и отказ проектной записи не должен её терять.
+      if (agentLangChanged) {
+        await window.aecpilot.setAgentLanguage(agentLang ?? '')
+        await queryClient.invalidateQueries({ queryKey: AGENT_LANGUAGE_KEY })
+      }
+
+      // Проектных правок может не быть вовсе — тогда и писать нечего.
+      if (!graphChanged && !wikiChanged && !scanChanged && !embeddingChanged) {
+        onClose()
+        return
+      }
+
       const result = await window.aecpilot.updateProjectSettings({
         ...(wikiChanged ? { wikiLang } : {}),
         ...(graphChanged ? { extractionLanguage: graphLang } : {}),
@@ -157,6 +198,27 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
             <span aria-hidden="true">✕</span>
             <span className="sr-only">{t('common.close')}</span>
           </Button>
+        </div>
+
+        {/* Пользовательская настройка стоит ВНЕ блока проекта: она правится и
+            тогда, когда проект не открыт, — иначе язык ответов агента зависел бы
+            от того, открыта ли папка. */}
+        <div className="flex flex-col gap-1.5 text-xs text-(--ui-text-secondary)">
+          <label htmlFor="aec-agent-lang">{t('project.langAgentLabel')}</label>
+          <select
+            className="rounded-[4px] bg-(--ui-bg-quaternary) px-2 py-1.5 text-sm text-(--ui-text-primary) outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+            disabled={saving}
+            id="aec-agent-lang"
+            onChange={(event) => setAgentLang(event.target.value)}
+            value={agentLang ?? storedAgentLang}
+          >
+            {AGENT_LANGS.map((option) => (
+              <option key={option.value || 'unset'} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
+          </select>
+          <span className="text-(--ui-text-tertiary)">{t('project.langAgentHint')}</span>
         </div>
 
         {isPending && (
@@ -263,9 +325,8 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
               </div>
             )}
 
-            {/* Два других уровня G7 — не наши поля, но человек ищет их здесь. */}
+            {/* Четвёртый уровень G7 — не наше поле, но человек ищет его здесь. */}
             <div className="flex flex-col gap-1 border-t border-(--ui-border-primary) pt-3 text-xs text-(--ui-text-tertiary)">
-              <span>{t('project.langAgentWhere')}</span>
               <span>{t('project.langUiWhere')}</span>
             </div>
           </>

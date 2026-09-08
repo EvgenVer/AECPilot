@@ -200,6 +200,24 @@ async def handle(connection: ServerConnection) -> None:
                     }
                 )
             )
+        elif method == "profiles.create":
+            # Задача 5.14. Мок печатает SOUL, с которым пришёл вызов: окно
+            # дописывает в него строку языка на проходе моста, и проверить это
+            # можно только с той стороны, куда вызов уехал.
+            created = request.get("params") or {}
+            print(
+                "MOCK_PROFILE_SOUL " + json.dumps(created.get("soul", ""), ensure_ascii=False),
+                flush=True,
+            )
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"name": created.get("name", ""), "created": True},
+                    }
+                )
+            )
         elif method == "session.close":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})

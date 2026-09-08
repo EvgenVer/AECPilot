@@ -203,7 +203,12 @@ function killProcessTree(pid: number | undefined): void {
 test.beforeAll(async () => {
   const mockPort = await getFreePort()
   mock = spawn(venvPython, [join(desktopDir, 'e2e', 'mock_gateway.py'), String(mockPort)], {
-    cwd: desktopDir
+    cwd: desktopDir,
+    // Без этого Windows отдаёт stdout мока в кодировке консоли, и русская
+    // строка, которую тест сверяет по тексту, приезжает мусором (замерено на
+    // задаче 5.14: SOUL с нужной строкой выглядел как «�������»). Тот же приём
+    // стоит в `runtime/a2a-push-probe.mjs` и по той же причине.
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   })
 
   await new Promise<void>((resolve, reject) => {
@@ -2042,4 +2047,46 @@ test('панель наборов открывается из окна и чес
   })
 
   await assertRendererAlive(page, 'toolset panel reachable')
+})
+
+// Задача 5.14, третий уровень SPEC G7. Настройка «язык ответов агента» наша и
+// видимая, а строка из неё попадает в SOUL нового специалиста на проходе моста:
+// их диалог собирает SOUL сам (`composeSoul`) и про язык не знает.
+//
+// ПОЧЕМУ СО СТОРОНЫ МОКА, А НЕ ПО НАШЕМУ ВЫЗОВУ. Проверять надо то, что УЕХАЛО
+// в ядро: утверждение «мы дописали» ничего не стоит, пока не видно, с чем вызов
+// пришёл на другую сторону. Мок печатает полученный SOUL, и тест читает именно
+// его.
+test('язык ответов агента доезжает в SOUL нового специалиста, а пустая настройка молчит', async () => {
+  const page = await mainWindow()
+
+  const soulOf = (marker: string): string => {
+    const line = mockOutput
+      .split(/\r?\n/)
+      .filter((one) => one.startsWith('MOCK_PROFILE_SOUL '))
+      .map((one) => JSON.parse(one.slice('MOCK_PROFILE_SOUL '.length)) as string)
+      .find((soul) => soul.includes(marker))
+    return line ?? ''
+  }
+
+  const BASE = '# Probe\n\n**Role:** e2e'
+
+  // 1. Язык выбран — строка дописана, и она на том же языке, о котором просит.
+  await page.evaluate(async (soul) => {
+    await window.aecpilot.setAgentLanguage('ru')
+    await window.aecpilot.gatewayRpc('profiles.create', { name: 'aec-e2e-ru', soul })
+  }, `${BASE} ru-case`)
+
+  await expect.poll(() => soulOf('ru-case'), { timeout: 15000 }).toMatch(/по-русски/)
+
+  // 2. Настройка пуста — НЕ ДОПИСАНО НИЧЕГО. Это не «на всякий случай»: молча
+  // поставленное умолчание было бы предпочтением, которого человек не выбирал.
+  await page.evaluate(async (soul) => {
+    await window.aecpilot.setAgentLanguage('')
+    await window.aecpilot.gatewayRpc('profiles.create', { name: 'aec-e2e-unset', soul })
+  }, `${BASE} unset-case`)
+
+  await expect.poll(() => soulOf('unset-case'), { timeout: 15000 }).toBe(`${BASE} unset-case`)
+
+  await assertRendererAlive(page, 'agent language in SOUL')
 })

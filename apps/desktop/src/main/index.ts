@@ -87,6 +87,8 @@ import {
   stopCronRunner
 } from './cron-runner'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
+import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
+import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
 import { levelForPercent } from './zoom-pure'
@@ -1697,6 +1699,15 @@ ipcMain.handle('zoom:get', () => ({
 
 ipcMain.handle('zoom:set-percent', (_event, percent: unknown) => setZoomPercent(percent))
 
+// Язык ответов агента — третий уровень SPEC G7 (задача 5.14). Настройка
+// ПОЛЬЗОВАТЕЛЬСКАЯ и видимая; строка в SOUL нового специалиста дописывается из
+// неё на проходе `profiles.create` (см. обработчик `gateway:rpc`).
+ipcMain.handle('agent-language:get', () => ({ language: loadAgentLanguage() }))
+
+ipcMain.handle('agent-language:set', (_event, language: unknown) => ({
+  language: saveAgentLanguage(language)
+}))
+
 ipcMain.handle('power:keep-awake', (_event, on: unknown) => {
   if (typeof on !== 'boolean') return { enabled: loadKeepAwake() }
 
@@ -3027,7 +3038,14 @@ ipcMain.handle(
       // A hidden turn is not a thing this product has (task 3.4в, risk R19).
       // Задача 3E.4 (R22): текст страницы, который окно шлёт ядру, помечается
       // недоверенным здесь — дальше по пути правку делать негде.
-      const params = markUntrustedPageText(method, sanitizeRpcParams(payload?.params)) as never
+      // Задача 5.14: язык ответов агента дописывается в SOUL создаваемого
+      // специалиста здесь — их диалог собирает SOUL сам и про язык не знает, а
+      // правка вендорного файла не входит в пять разрешённых (AGENTS §14).
+      const params = applySoulLanguage(
+        method,
+        markUntrustedPageText(method, sanitizeRpcParams(payload?.params)),
+        soulLanguageLine(loadAgentLanguage())
+      ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       return { ok: true, value: await gateway.request(method as never, params, timeoutMs) }
     } catch (error: unknown) {

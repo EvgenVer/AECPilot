@@ -74,8 +74,15 @@ export const aecLocales: PluginLocaleBundles = {
         'What language the graph names entities in — «Северная площадка» or «Severnaya Site».',
       langGraphWarning:
         'Changing this means re-indexing the whole graph. The graph you have was built in the other language and will not open — otherwise one entity would end up with two names. Nothing is deleted: it is rebuilt on the next full indexing run.',
-      langAgentWhere:
-        'The language the agent speaks in is yours, not the project’s — it lives in the specialist’s character (SOUL).',
+      // Задача 5.14, решение владельца 2026-09-08: третий уровень G7 стал
+      // настройкой — видимой и правимой. Прежняя строка «он живёт в характере
+      // специалиста» осталась подсказкой: файл SOUL по-прежнему правится руками.
+      langAgentLabel: 'Language the agent replies in',
+      langAgentUnset: 'Not set',
+      langAgentRu: 'Russian',
+      langAgentEn: 'English',
+      langAgentHint:
+        'Yours, not the project’s. The line goes into a new specialist’s character (SOUL) when it is created; an existing SOUL is edited by hand. Left unset, nothing is written — we do not choose a language for you.',
       langUiWhere: 'The interface language is in Settings → Appearance.',
       // Находка D-57 — два поля, у которых не было экрана вовсе: до 31.08.2026
       // интервал сканирования и модель эмбеддингов правились только руками в
@@ -455,8 +462,12 @@ export const aecLocales: PluginLocaleBundles = {
         'На каком языке в графе называются сущности — «Северная площадка» или «Severnaya Site».',
       langGraphWarning:
         'Смена означает полную переиндексацию графа. Тот граф, что у вас есть, построен на другом языке и не откроется — иначе у одной сущности стало бы два имени. Ничего не удаляется: он соберётся заново при следующей полной индексации.',
-      langAgentWhere:
-        'Язык, на котором говорит агент, — ваш, а не проекта: он живёт в характере специалиста (SOUL).',
+      langAgentLabel: 'Язык ответов агента',
+      langAgentUnset: 'Не задан',
+      langAgentRu: 'Русский',
+      langAgentEn: 'Английский',
+      langAgentHint:
+        'Ваш, а не проекта. Строка попадает в характер (SOUL) нового специалиста при создании; уже созданный SOUL правится руками. Пока не задан — не пишется ничего: язык за вас мы не выбираем.',
       langUiWhere: 'Язык интерфейса — в настройках, раздел «Оформление».',
       settingsTitle: 'Настройки проекта',
       scanLabel: 'Как часто проверять источники на изменения',
