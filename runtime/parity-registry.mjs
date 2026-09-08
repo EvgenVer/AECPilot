@@ -39,7 +39,16 @@ const DENY_FILE = path.join(REPO_DIR, "apps/desktop/src/main/gateway-passthrough
 const OUR_PRELOAD = path.join(REPO_DIR, "apps/desktop/src/preload/index.ts");
 
 /** Why a surface we do not carry is not a разрыв. `hx` cites the §Non-Goals
- * entry that excludes it; `task` cites the TASKS id that will bring it.
+ * entry that excludes it; `task` cites the TASKS id that will bring it;
+ * `ourWay` says the capability IS ours but arrived by another road — and names
+ * the file that proves it (the script checks the file exists, so «наше» never
+ * becomes an unverifiable promise).
+ *
+ * `ourWay` was added by D-71, and the reason is worth keeping: 46 rows were
+ * still answering «задача принесёт» about tasks closed months earlier, because
+ * the capability HAD arrived — just not through their channel. Быстрый ввод
+ * живёт в собственном preload, поиск по странице сделан в рендерере. Without a
+ * way to say that, the only honest options were a lie and a разрыв.
  *
  * Hand-written on purpose. Matching SPEC prose against directory names would
  * produce a mapping nobody can audit, and the whole value of AC9 is that a
@@ -53,8 +62,16 @@ export const CLASSIFICATION = {
   // 3E.13: фазирование N10 снято решением владельца 05.09, доска и панель
   // агентов вошли в объём как UR38. Причина отсутствия, оставленная в таблице
   // после переноса, — это ложь в реестре, и скрипт её именно так и назвал.
-  "quick-entry": { task: "3.15", note: "быстрый ввод по глобальному хоткею" },
-  "wake-indicator": { task: "3.7b", note: "индикатор слова-активатора" },
+  // Обе поверхности НАШИ и обе — своим окном со своим preload, поэтому их
+  // экрана в зоне нет и никогда не будет (задачи 3.15 и 3.7b, обе закрыты).
+  "quick-entry": {
+    ourWay: "apps/desktop/src/preload/quick-entry.ts",
+    note: "быстрый ввод по глобальному хоткею — своё окно, свой preload",
+  },
+  "wake-indicator": {
+    ourWay: "apps/desktop/src/main/wake-indicator.ts",
+    note: "индикатор слова-активатора — своё окно поверх всех, сквозное для щелчков",
+  },
   webhooks: { task: "3.11", note: "исходящие вебхуки, UR19" },
 };
 
@@ -100,64 +117,119 @@ export const ELECTRON_CLASSIFICATION = {
   cloud: { hx: "HX3", note: "вход в их облако" },
   "pet-overlay": { hx: "HX1" },
   git: { hx: "HX6", note: "голый git-UI; diff-вьюер приходит отдельно, задача 3.3" },
-  terminal: { task: "3E.8", note: "живая оболочка — HX7 отменён 2026-09-05, UR30" },
+  terminal: { ours: "terminal", note: "живая оболочка — задача 3E.8, отменённый HX7, UR30" },
   // — запланировано
-  hud: { task: "3.24" },
-  "quick-entry": { task: "3.15" },
-  "keep-awake": { task: "3.18" },
-  "wake-indicator": { task: "3.7b" },
+  hud: { ours: "hud", note: "плавающая лента — задача 3.24" },
+  "quick-entry": { ourWay: "apps/desktop/src/preload/quick-entry.ts", note: "своё окно со своим preload — задача 3.15" },
+  "keep-awake": { ours: "power", note: "power:keep-awake — задача 3.18" },
+  "wake-indicator": { ours: "wake-indicator", note: "задача 3.7b" },
   updates: { task: "3.21" },
   "open-updates": { task: "3.21" },
-  connections: { task: "3.12" },
-  connection: { task: "3.12" },
-  "connection-config": { task: "3.12" },
-  "ssh-config": { task: "3.12" },
-  "get-remote-display-reason": { task: "3.13a", note: "честное отключение поверхности в удалённом режиме" },
-  "find-in-page": { task: "3.16" },
-  "open-find-bar": { task: "3.16" },
-  "stop-find-in-page": { task: "3.16" },
-  "found-in-page": { task: "3.16" },
-  "deep-link": { task: "3.8", note: "установка MCP по внешней ссылке" },
-  "deep-link-ready": { task: "3.8" },
+  connections: { ours: "connection", note: "реестр подключений — задача 3.12, UR20" },
+  connection: { ours: "connection" },
+  "connection-config": { ours: "connection" },
+  "ssh-config": { ours: "connection", note: "connection:ssh-hosts / ssh-resolve" },
+  // Их канал спрашивает у main: «почему эта поверхность выключена при удалённом
+  // ядре». У нас спрашивать некого и незачем — причина не ВЫЧИСЛЯЕТСЯ в момент
+  // вопроса, а ЗАПИСАНА: решение по каждой из семи поверхностей принято задачей
+  // 3.13a (PLAN §«Удалённый режим»), а текст лежит в нашем каталоге
+  // (`remoteTitle`/`remoteDetail`) и рисуется самой поверхностью. Круга к main
+  // нет вовсе.
+  "get-remote-display-reason": {
+    ourWay: "apps/desktop/src/renderer/src/aec/explorer/VaultExplorer.tsx",
+    note: "причина записана в каталоге и рисуется поверхностью — задача 3.13a"
+  },
+  // Поиск по странице сделан В РЕНДЕРЕРЕ (задача 3.16): ищет по ленте наш
+  // же перенесённый стор, а не `webContents.findInPage`. Их четыре канала
+  // существуют ради второго способа, которым мы не пользуемся.
+  "find-in-page": { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts", note: "поиск по ленте в рендерере — задача 3.16" },
+  "open-find-bar": { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts" },
+  "stop-find-in-page": { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts" },
+  "found-in-page": { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts" },
+  // Третий вход задачи 3.8 (UR23) — установка по внешней ссылке. Канала у нас
+  // НЕТ и быть не может: приложение не регистрирует ни одной схемы в ОС
+  // (`app.setAsDefaultProtocolClient` не зовётся), и это стережёт тест ниже.
+  // То есть отсутствие канала — не пробел, а следствие закрытого решения.
+  "deep-link": { ourWay: "apps/desktop/src/main/no-protocol-client.test.ts", note: "схема в ОС не регистрируется — ссылке неоткуда прийти, задача 3.8" },
+  "deep-link-ready": { ourWay: "apps/desktop/src/main/no-protocol-client.test.ts" },
   // Канал — НЕ экран. Их `hermes:agents:roster` перечисляет агентов всех
   // подключённых ядер (`store/fleet-roster.ts`), то есть это ФЛОТ, а флот
   // исключён HX22 поимённо: «три члена их плагинного `host` (`connections`,
   // `agents`, `profileRoutes`) остаются без моста намеренно». Экран агентов при
   // этом наш (3E.13) — он показывает агентов ОДНОГО подключения.
   agents: { hx: "HX22", note: "реестр агентов всех подключённых ядер — у нас одно подключение за раз" },
-  "close-preview-requested": { task: "3.4" },
-  "preview-file-changed": { task: "3.4" },
-  watchPreviewFile: { task: "3.4" },
-  stopPreviewFileWatch: { task: "3.4" },
-  normalizePreviewTarget: { task: "3.4" },
-  openPreviewInBrowser: { task: "3.4" },
-  previewShortcutActive: { task: "3.4" },
+  // ЗАКРЫТИЕ ВКЛАДКИ С КЛАВИАТУРЫ У НАС ЕСТЬ, но их дорогой ходит не наша
+  // платформа. Канал существует ради macOS: там есть меню приложения, ⌘W висит
+  // ускорителем и приходит в main. Вне macOS их меню равно null — и путь идёт
+  // через их же клавиатурный разбор в рендерере (`view.closeTab` →
+  // `closeActiveTab`). Это записано их собственным комментарием в
+  // `use-desktop-integrations.ts`, а не выведено нами.
+  "close-preview-requested": {
+    ourWay: "apps/desktop/src/renderer/src/donor/app/hooks/use-keybinds.ts",
+    note: "Ctrl+W закрывает вкладку разбором в рендерере — их же путь для не-macOS"
+  },
+  // Флаг «панель предпросмотра в фокусе» СЕГОДНЯ НЕ РЕШАЕТ НИЧЕГО И У НИХ:
+  // `electron/main.ts` его пишет (`hermes:previewShortcutActive`) и не читает
+  // ни в одном месте, а там, где проверка стояла, остался их комментарий «no
+  // `previewShortcutActive` gate, so it works for every closeable tab».
+  // Перенос дал бы мёртвую половину механизма, живая половина которого — строка
+  // выше.
+  previewShortcutActive: {
+    ourWay: "apps/desktop/src/renderer/src/donor/app/hooks/use-keybinds.ts",
+    note: "их флаг ничего не гейтит на 0.21.0 — читателя у него в main нет"
+  },
+  // РАСХОЖДЕНИЕ, вынесенное владельцу (замечание D-75): вердикта у этих строк
+  // больше нет, и это честнее прежнего «принесёт задача 3.4» — та закрыта.
+  //
+  // Живая перезагрузка предпросмотра по изменению файла: их панель следит за
+  // файлом (`watchPreviewFile` → `preview-file-changed` → перерисовка), а main
+  // приводит написанное человеком к цели предпросмотра (`normalizePreviewTarget`
+  // разрешает относительный путь от рабочей папки). Панель у нас ИХ (задача
+  // 3E.12) и выключает слежение сама: `preview-pane.tsx:663` проверяет наличие
+  // членов и без них не следит. Поломки нет — нет возможности.
+  watchPreviewFile: { note: "слежение за файлом предпросмотра" },
+  stopPreviewFileWatch: { note: "снятие слежения" },
+  "preview-file-changed": { note: "уведомление об изменении файла" },
+  normalizePreviewTarget: { note: "разбор цели предпросмотра в main" },
+  // Их кнопка «открыть в браузере» у перенесённой панели отвечает отказом:
+  // `lib/local-preview.ts` зовёт `bridge.openPreviewInBrowser`, а моста нет.
+  // Гвард `donor-members.test.ts` этого не видит — вызов идёт через псевдоним
+  // `bridge.`, слепое пятно детектора (находка D-63). Наш `shell:open-external`
+  // для этого есть; чем закрыть — решение владельца.
+  openPreviewInBrowser: { note: "открыть предпросмотр во внешнем браузере" },
   requestMicrophoneAccess: { ours: "media", note: "3.7a: media:request-microphone, UR21" },
-  fetchLinkTitle: { task: "3.17", note: "вставленная ссылка становится элементом" },
-  window: { task: "3.14" },
+  // РАСХОЖДЕНИЕ, вынесенное владельцу (замечание D-75). Задача 3.17 закрыта, и
+  // вставленная ссылка ДЕЙСТВИТЕЛЬНО становится элементом — но без заголовка:
+  // их main читает страницу по ссылке, чтобы подставить её `<title>`. Это
+  // исходящий запрос в интернет ради украшения — ровно та форма, которую
+  // владелец уже отклонил в HX21 (значки сайтов у коннекторов: «не платить
+  // исходящим запросом в интернет за картинку»). Распространить HX21 на
+  // заголовки ссылок — его решение, а не вывод этой задачи.
+  fetchLinkTitle: { note: "заголовок страницы для вставленной ссылки" },
+  window: { ours: "window", note: "несколько окон — задача 3.14" },
   // — решения владельца 2026-08-16 (интервью по разрыву, найденному этим реестром)
-  zoom: { task: "3.26", note: "зум — доступность, взят" },
-  "native-theme": { task: "3.26" },
+  zoom: { ours: "zoom", note: "зум — доступность, задача 3.26" },
+  "native-theme": { ours: "theme", note: "theme:set-native — задача 3.26" },
   translucency: { hx: "HX14", note: "прозрачность окна" },
   "titlebar-theme": { hx: "HX14" },
   "vscode-theme": { hx: "HX14", note: "импорт чужого конфига с диска" },
-  selectSavePath: { task: "3.27" },
-  saveImageBuffer: { task: "3.27" },
-  saveImageFromUrl: { task: "3.27" },
-  saveGatewayFile: { task: "3.27" },
-  notify: { task: "3.28" },
-  "notification-action": { task: "3.28" },
-  "power-battery": { task: "3.28" },
-  "power-resume": { task: "3.28" },
-  logs: { task: "3.29", note: "падение рендерера должно пережить окно" },
+  selectSavePath: { ours: "dialog", note: "dialog:select-save-path — задача 3.27" },
+  saveImageBuffer: { ours: "save", note: "save:image — задача 3.27" },
+  saveImageFromUrl: { ours: "save", note: "save:image" },
+  saveGatewayFile: { ours: "save", note: "save:file" },
+  notify: { ours: "notify", note: "notify:show — задача 3.28" },
+  "notification-action": { ours: "notification", note: "notification:action" },
+  "power-battery": { ours: "power", note: "power:battery-changed / on-battery" },
+  "power-resume": { ours: "power", note: "power:resume" },
+  logs: { ours: "log", note: "падение рендерера должно пережить окно — задача 3.29" },
   uninstall: { task: "6.11" },
-  "active-work": { task: "3E.11" },
-  ambient: { task: "3E.11", note: "фоновые подсказки" },
-  devtools: { task: "3E.11", note: "запрет F12" },
-  version: { task: "3E.11" },
-  "window-state-changed": { task: "3.14" },
-  "focus-session": { task: "3.14" },
-  "open-folder-requested": { task: "3.14" },
+  "active-work": { ours: "active-work", note: "задача 3E.11" },
+  ambient: { ours: "ambient", note: "фоновые подсказки — задача 3E.11" },
+  devtools: { ours: "devtools", note: "запрет F12 — задача 3E.11" },
+  version: { ours: "version", note: "версия НАША, SPEC C12 — задача 3E.11" },
+  "window-state-changed": { ours: "window" },
+  "focus-session": { ours: "notification", note: "notification:focus-session" },
+  "open-folder-requested": { ours: "project", note: "project:opened / pick-directory" },
   // — подъём на 0.21.0 (задача 3.B3з). Единственная новая строка за всё окно, и
   //   расхождением она НЕ оказалась (задача 3.B3к, решение владельца
   //   01.09.2026). Реестр сравнивает методы шлюза с нашими каналами и потому
@@ -194,7 +266,7 @@ export const ELECTRON_CLASSIFICATION = {
     ours: "browser-popout",
     note: "вынос вкладки браузера в своё окно и возврат при закрытии — 3E.5",
   },
-  "notification-activate": { task: "3D.9", note: "клик по уведомлению бота открывает его чат" },
+  "notification-activate": { ours: "notification-activate", note: "клик по уведомлению бота открывает его чат — задача 3D.9" },
   "mcp-oauth": {
     ours: "gateway",
     note: "OAuth к удалённому MCP-серверу идёт по REST через gateway:rest; редирект ловит САМО ядро (GET /api/mcp/oauth/callback/{server}) — замерено 01.09.2026",
@@ -260,25 +332,38 @@ export function readChannelGroups(preloadText, prefix = "") {
 /** Classifies one of their capability groups against ours. Unlike a surface,
  * "ours" is a claim the table makes and the caller has already verified — an
  * unverified claim must never read as coverage. */
-export function classifyChannel(name, { rule, ourGroups }) {
+export function classifyChannel(name, { rule, ourGroups, ourFiles }) {
   const base = { kind: "канал", id: name };
   if (rule?.ours) {
     return ourGroups.has(rule.ours)
       ? { ...base, status: "ours", via: rule.ours, note: rule.note }
       : { ...base, status: "gap", brokenClaim: rule.ours };
   }
+  if (rule?.ourWay) {
+    return ourFiles?.has(rule.ourWay)
+      ? { ...base, status: "ours", via: rule.ourWay, note: rule.note }
+      : { ...base, status: "gap", brokenClaim: rule.ourWay };
+  }
   if (rule?.hx) return { ...base, status: "excluded", ...rule };
   if (rule?.task) return { ...base, status: "planned", ...rule };
-  return { ...base, status: "gap" };
+  // Строка БЕЗ вердикта, но С пояснением — это разрыв, который уже смотрели
+  // глазами (замечание D-71): «мы измерили, чего нет» читается иначе, чем «сюда
+  // никто не заглядывал», а решение владельцу нужно принимать по первому.
+  return { ...base, status: "gap", note: rule?.note };
 }
 
 /** A surface counts as ours when its ENTRY POINT is vendored, not when some
  * file under it is. Our zone carries `app/cron/job-state.ts` and no screen —
  * one helper pulled in as somebody else's dependency. Counting files would
  * report the cron surface as present at 1/9 and let a real разрыв pass. */
-export function classifySurface(name, { theirs, ours, entry, rule }) {
+export function classifySurface(name, { theirs, ours, entry, rule, ourFiles }) {
   const base = { kind: "поверхность", id: name, theirs, ours, entry };
   if (entry) return { ...base, status: "ours" };
+  if (rule?.ourWay) {
+    return ourFiles?.has(rule.ourWay)
+      ? { ...base, status: "ours", via: rule.ourWay, note: rule.note }
+      : { ...base, status: "gap", brokenClaim: rule.ourWay };
+  }
   if (rule?.hx) return { ...base, status: "excluded", ...rule };
   if (rule?.task) return { ...base, status: "planned", ...rule };
   return { ...base, status: "gap" };
@@ -287,14 +372,25 @@ export function classifySurface(name, { theirs, ours, entry, rule }) {
 /**
  * Builds the registry. Pure: takes the inventories, returns what is printed.
  */
-export function buildRegistry({ surfaces, channels, exclusions, taskIds, denied, from }) {
+/** Пути `ourWay` из обеих таблиц, которые ДЕЙСТВИТЕЛЬНО есть на диске. */
+export function existingOurWayFiles() {
+  const cited = [...Object.values(CLASSIFICATION), ...Object.values(ELECTRON_CLASSIFICATION)]
+    .map((rule) => rule.ourWay)
+    .filter(Boolean);
+
+  return new Set(cited.filter((relative) => fs.existsSync(path.join(REPO_DIR, relative))));
+}
+
+export function buildRegistry({ surfaces, channels, exclusions, taskIds, closedTaskIds, ourFiles, denied, from }) {
   const ourGroups = new Set(channels?.ours ?? []);
+  const files = new Set(ourFiles ?? []);
+  const closed = new Set(closedTaskIds ?? []);
   const rows = [
     ...Object.entries(surfaces).map(([name, counts]) =>
-      classifySurface(name, { ...counts, rule: CLASSIFICATION[name] }),
+      classifySurface(name, { ...counts, rule: CLASSIFICATION[name], ourFiles: files }),
     ),
     ...(channels?.theirs ?? []).map((name) =>
-      classifyChannel(name, { rule: ELECTRON_CLASSIFICATION[name], ourGroups }),
+      classifyChannel(name, { rule: ELECTRON_CLASSIFICATION[name], ourGroups, ourFiles: files }),
     ),
   ];
 
@@ -307,6 +403,12 @@ export function buildRegistry({ surfaces, channels, exclusions, taskIds, denied,
   }
   for (const task of usedTasks) {
     if (!taskIds.has(task)) problems.push(`таблица ссылается на задачу ${task}, которой нет в TASKS`);
+    // Замечание D-71. Вердикт «задача принесёт» про ЗАКРЫТУЮ задачу отвечает
+    // «работа впереди» о работе, которая позади, — и таких строк набралось 46,
+    // потому что проверка была написана (`readClosedTaskIds`) и не подключена.
+    else if (closed.has(task)) {
+      problems.push(`строка ссылается на ЗАКРЫТУЮ задачу ${task} — вердикт «запланировано» устарел`);
+    }
   }
   // A dead entry is not harmless: it means a surface was ported (or renamed) and
   // the reason recorded for NOT having it is now a lie sitting in the table.
@@ -323,6 +425,14 @@ export function buildRegistry({ surfaces, channels, exclusions, taskIds, denied,
       // The claim "мы это покрываем каналом X" is the one line in the table that
       // can rot silently: our preload is ours to rename.
       problems.push(`таблица каналов обещает наш канал «${rule.ours}» для «${name}», а в preload его нет`);
+    } else if (rule.ourWay && !files.has(rule.ourWay)) {
+      problems.push(`таблица каналов ссылается на файл «${rule.ourWay}» для «${name}», а его нет`);
+    }
+  }
+
+  for (const [name, rule] of Object.entries(CLASSIFICATION)) {
+    if (rule.ourWay && !files.has(rule.ourWay)) {
+      problems.push(`таблица поверхностей ссылается на файл «${rule.ourWay}» для «${name}», а его нет`);
     }
   }
 
@@ -381,7 +491,8 @@ export function formatRegistry(registry) {
       : r.kind === "канал"
         ? "их возможность main-процесса без записанного соответствия"
         : `их файлов: ${r.theirs}`;
-    lines.push(`  ${label(r)} ${why} — НУЖНО решение: перенос, §Non-Goals или задача`);
+    const what = r.note ? `${r.note}; ` : "";
+    lines.push(`  ${label(r)} ${what}${why} — НУЖНО решение: перенос, §Non-Goals или задача`);
   }
 
   if (registry.unexpressed.length > 0) {
@@ -479,6 +590,11 @@ function main() {
     },
     exclusions: readExclusions(fs.readFileSync(SPEC_FILE, "utf8")),
     taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf8")),
+    closedTaskIds: readClosedTaskIds(fs.readFileSync(TASKS_FILE, "utf8")),
+    // Файлы, на которые ссылаются записи `ourWay`, — проверенные существующими.
+    // Так же, как `ours` проверяется по preload: обещание в таблице должно быть
+    // опровержимым, иначе оно не обещание, а надпись.
+    ourFiles: existingOurWayFiles(),
     denied: readDenied(fs.readFileSync(DENY_FILE, "utf8")),
     from: { ref, sha },
   });

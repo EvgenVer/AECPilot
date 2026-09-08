@@ -36,6 +36,21 @@ describe("classifySurface", () => {
     expect(classifySurface("newthing", { theirs: 4, ours: 0, entry: false }).status).toBe("gap");
   });
 
+  it("counts a surface as ours when it arrived by another road and the file exists", () => {
+    // Быстрый ввод живёт в собственном preload, поэтому в группах каналов его
+    // нет вовсе — и без этого вида записи честных вариантов было два: соврать
+    // «запланировано» или объявить разрыв о сделанном.
+    const rule = { ourWay: "apps/desktop/src/preload/quick-entry.ts" };
+    const row = classifySurface("quick-entry", {
+      theirs: 5,
+      ours: 0,
+      entry: false,
+      rule,
+      ourFiles: new Set([rule.ourWay]),
+    });
+    expect(row.status).toBe("ours");
+  });
+
   it("prefers a port over any recorded reason for not having one", () => {
     const row = classifySurface("hud", { theirs: 11, ours: 11, entry: true, rule: { task: "3.24" } });
     expect(row.status).toBe("ours");
@@ -103,6 +118,31 @@ describe("classifyChannel", () => {
   it("leaves an unmapped capability in the разрыв", () => {
     expect(classifyChannel("translucency", { rule: undefined, ourGroups: new Set() }).status).toBe("gap");
   });
+
+  it("counts «наше, но другой дорогой» only when the cited file is really there", () => {
+    // Поиск по странице сделан в рендерере, а не через `webContents.findInPage`:
+    // их канала у нас нет и не будет, а возможность есть. Ссылка на файл — то,
+    // чем такая запись отличается от обещания.
+    const rule = { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts" };
+    const ours = classifyChannel("find-in-page", { rule, ourGroups: new Set(), ourFiles: new Set([rule.ourWay]) });
+    expect(ours.status).toBe("ours");
+    expect(ours.via).toBe(rule.ourWay);
+  });
+
+  it("turns «наше, но другой дорогой» without that file into a разрыв, not coverage", () => {
+    const rule = { ourWay: "apps/desktop/src/renderer/src/donor/store/find-in-page.ts" };
+    const row = classifyChannel("find-in-page", { rule, ourGroups: new Set(), ourFiles: new Set() });
+    expect(row.status).toBe("gap");
+    expect(row.brokenClaim).toBe(rule.ourWay);
+  });
+
+  it("keeps a measured «what is missing» on a разрыв row", () => {
+    // Строка без вердикта, но с пояснением — разрыв, который уже смотрели
+    // глазами. Владельцу это решать иначе, чем строку, куда никто не заглядывал.
+    const row = classifyChannel("watchPreviewFile", { rule: { note: "слежение за файлом" }, ourGroups: new Set() });
+    expect(row.status).toBe("gap");
+    expect(row.note).toBe("слежение за файлом");
+  });
 });
 
 describe("buildRegistry integrity", () => {
@@ -125,6 +165,28 @@ describe("buildRegistry integrity", () => {
       surfaces: { webhooks: { theirs: 9, ours: 1, entry: false } },
     });
     expect(registry.problems.join()).toContain("3.11");
+  });
+
+  it("calls a verdict citing a CLOSED task as stale as one citing a task TASKS lost", () => {
+    // Замечание D-71: 46 строк отвечали «работа впереди» про работу, которая
+    // позади. `readClosedTaskIds` был написан с этой самой формулировкой и не
+    // подключён — тест держит именно подключение, а не разбор.
+    const registry = buildRegistry({
+      ...base,
+      taskIds: new Set(["3.11"]),
+      closedTaskIds: new Set(["3.11"]),
+      surfaces: { webhooks: { theirs: 9, ours: 1, entry: false } },
+    });
+    expect(registry.problems.join()).toContain("ЗАКРЫТУЮ задачу 3.11");
+  });
+
+  it("reports a «наше, но другой дорогой» whose file the repository no longer has", () => {
+    const registry = buildRegistry({
+      ...base,
+      ourFiles: [],
+      surfaces: { "quick-entry": { theirs: 5, ours: 0, entry: false } },
+    });
+    expect(registry.problems.join()).toContain("quick-entry.ts");
   });
 
   it("reports a reason left behind after the surface was ported", () => {
