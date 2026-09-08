@@ -7,9 +7,16 @@
 // префиксами `browser_`/`mcp_` в `<untrusted_tool_result>`. Значит наша работа
 // — не построить защиту заново, а знать, ГДЕ ЕЁ НЕТ, и закрыть только это.
 //
-// НЕ ЗАКРЫТ РОВНО ОДИН ИСТОЧНИК: `desktop_preview` (action=read) — инструмент,
-// читающий нашу же панель предпросмотра. Его закрывает наш главный процесс
+// НЕ ЗАКРЫТЫ ТРИ ИСТОЧНИКА, все наши: `desktop_preview` (action=read) — текст
+// открытой вкладки; `drive_preview` — опись элементов для руки агента; `tour` —
+// цели экскурсии, собранные внутри гостя. Все три закрывает наш главный процесс
 // (`main/gateway-passthrough-pure.ts`, `markUntrustedPageText`).
+//
+// ДВА НОСИТЕЛЯ ОДНОГО ПРЕДЛОЖЕНИЯ. У текста — рамка `<untrusted_tool_result>`
+// как у ядра. У описи и целей рамка не годится: ядро делает `json.loads` нашего
+// ответа, и обёртка вокруг JSON схлопнула бы ссылки на элементы. Там пометка
+// едет полем `untrusted_content_notice` первым ключом объекта. Слова в обоих
+// носителях обязаны совпадать с ядром дословно — это тоже проверяется ниже.
 //
 // ПОЧЕМУ ЭТО ФАЙЛ, А НЕ АБЗАЦ В ЗАДАЧЕ. Множество имён живёт в ядре, а пин
 // ядра двигался шесть раз. Абзац устареет молча — и хуже всего он устареет в
@@ -44,8 +51,46 @@ export const EXPECTED = {
   names: ["web_extract", "web_search"],
   prefixes: ["browser_", "mcp_"],
   // Ожидание НЕ покрытых ядром: их закрываем мы.
-  uncovered: ["desktop_preview"],
+  //
+  // `desktop_preview` (action=read) — текст открытой вкладки.
+  // `drive_preview` и `tour` добавлены 2026-09-08 (замечание D-69, задача
+  // 3E.21): в их ответах едет СТРУКТУРА, собранная со страницы — опись
+  // элементов с подписями из `aria-label`, текста узла, `placeholder` и
+  // `value`, а у экскурсии при `surface: "preview"` цели собираются внутри
+  // гостя. Ни одного из трёх ядро не помечает — и у самого донора тоже, что
+  // проверяется ниже: появление любого из них в списке ядра означает две рамки.
+  uncovered: ["desktop_preview", "drive_preview", "tour"],
 };
+
+/** Предложение, которым ядро объясняет модели правило. Снимается из исходника,
+ * потому что ДВЕ формулировки одного правила модель читает как два правила, а
+ * наших носителей теперь два: рамка вокруг текста и поле внутри JSON. */
+export function readCoreSentence(source) {
+  const region = /<untrusted_tool_result source=[^\n]*\\n'(.*?)f'\{safe_content\}/s.exec(source);
+  if (!region) return null;
+
+  const parts = [...region[1].matchAll(/f'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]);
+  return normalizeSentence(parts.join(""));
+}
+
+/** Одна и та же нормализация для обеих сторон: переносы и повторные пробелы к
+ * одному пробелу, края обрезаны. Сравнивать сырые строки нельзя — у ядра текст
+ * разбит на f-строки, у нас на конкатенацию, и разбиение у них своё. */
+function normalizeSentence(text) {
+  return text
+    .replace(/\\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Наше предложение — из константы `UNTRUSTED_SENTENCE`. */
+export function readOurSentence(wrapperText) {
+  const block = /const UNTRUSTED_SENTENCE\s*=([\s\S]*?)\n\n/.exec(wrapperText);
+  if (!block) return null;
+
+  const parts = [...block[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]);
+  return normalizeSentence(parts.join(""));
+}
 
 /** Читает множество имён и префиксов прямо из исходника ядра. */
 export function readCoreUntrusted(source) {
@@ -64,6 +109,7 @@ export function readCoreUntrusted(source) {
     names: [...names].sort(),
     prefixes: [...prefixes].sort(),
     minChars: floor ? Number(floor[1]) : null,
+    sentence: readCoreSentence(source),
   };
 }
 
@@ -102,6 +148,31 @@ export function compare(core, ourWrapperText) {
   }
   if (core.minChars !== null && !new RegExp(`WRAP_MIN_CHARS = ${core.minChars}\\b`).test(ourWrapperText)) {
     problems.push(`порог обёртки разошёлся с ядром (у ядра ${core.minChars})`);
+  }
+
+  // Пометка для руки агента и экскурсии (задача 3E.21) — другой носитель, то же
+  // предложение. Проверяется и носитель, и совпадение слов.
+  if (!/untrusted_content_notice/.test(ourWrapperText)) {
+    problems.push("поле-пометка для preview.act / tour исчезло из gateway-passthrough-pure.ts");
+  }
+  for (const method of ["preview.act.respond", "tour.respond"]) {
+    if (!ourWrapperText.includes(`'${method}'`)) {
+      problems.push(`метод «${method}» больше не помечается — ответ со страницы уедет без пометки`);
+    }
+  }
+
+  const coreSentence = core.sentence;
+  const ourSentence = readOurSentence(ourWrapperText);
+  if (coreSentence === null) {
+    problems.push("в исходнике ядра не нашлось предложения рамки — разбор устарел, а не ядро изменилось");
+  } else if (ourSentence === null) {
+    problems.push("у нас не нашлось константы UNTRUSTED_SENTENCE");
+  } else if (coreSentence !== ourSentence) {
+    problems.push(
+      "формулировка разошлась с ядром — модель прочтёт два разных правила вместо одного:\n" +
+        `    ядро: ${coreSentence}\n` +
+        `    наше: ${ourSentence}`,
+    );
   }
 
   return problems;
