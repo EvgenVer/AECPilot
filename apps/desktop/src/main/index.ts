@@ -971,6 +971,12 @@ function applyApprovalsMode(homeDir: string): void {
  * оно остаётся: мы ДОБАВЛЯЕМ набор, а не подменяем список. Свой блок
  * `toolsets:` человека не трогается вовсе — правило то же, что у всех
  * умолчаний выше.
+ *
+ * ЭТОТ КЛЮЧ НЕ ВКЛЮЧАЕТ ИНСТРУМЕНТЫ МОДЕЛИ — он открывает доску, и только.
+ * Замерено при задаче 3E.19: попытка добавить сюда третий набор (`video`) не
+ * изменила НИ ОДНОГО предложенного инструмента. Причина в том же, что написано
+ * выше: список наборов модели считает `_get_platform_tools`, а он читает
+ * `platform_toolsets`, а не `toolsets`. Соседняя функция ниже — про тот ключ.
  */
 function applyKanbanToolset(homeDir: string): void {
   const configPath = join(homeDir, 'config.yaml')
@@ -990,6 +996,59 @@ function applyKanbanToolset(homeDir: string): void {
     writeFileSync(configPath, merged.text, 'utf-8')
   } catch (error: unknown) {
     console.error('aecpilot: could not write config.yaml with the kanban toolset', error)
+  }
+}
+
+/**
+ * Задача 3E.19 — понимание видео предложено модели (SPEC UR33, решение
+ * владельца 2026-09-08).
+ *
+ * ПОЧЕМУ ЭТО НЕ ОДНА СТРОКА В СОСЕДНЕЙ ФУНКЦИИ. У ядра есть список наборов,
+ * выключенных по умолчанию (`_DEFAULT_OFF_TOOLSETS`,
+ * `hermes_cli/tools_config.py:159`): `video`, `video_gen`, `spotify`,
+ * `discord`, `discord_admin`, `homeassistant`, `x_search`, `a2a`. Такой набор
+ * выживает фильтрацию ТОЛЬКО будучи названным явно — их словами, «anything the
+ * user explicitly listed … must survive», — и «явно» означает `platform_toolsets`,
+ * потому что именно его читает `_get_platform_tools`. Ключ `toolsets` к
+ * инструментам модели отношения не имеет (см. выше).
+ *
+ * И ЭТО ТОТ САМЫЙ КЛЮЧ, КОТОРЫЙ ОДНАЖДЫ ОБРЕЗАЛ НАС С 19 НАБОРОВ ДО 8
+ * (замечание D-66): он задаёт СПИСОК РАЗРЕШЁННОГО. Поэтому рядом с `video`
+ * обязателен `hermes-cli` — их разбор «смешанного списка» тогда берёт наш явный
+ * набор И разворачивает их составной, вместо того чтобы оставить один наш.
+ * Цена записана тестом рядом: пропажа `hermes-cli` из этого списка — поломка.
+ *
+ * ЗАМЕРЕНО ДО И ПОСЛЕ, инструментами модели, а не наборами: 53 предложенных
+ * инструмента → 54, ни один не пропал, добавился ровно `video_analyze`
+ * (в собранном виде каталог к тому же переходит на их мост `tool_search` —
+ * это их механизм для больших каталогов, а не потеря). Генерация видео
+ * (`video_gen`) остаётся выключенной: её исключает SPEC HX11 поимённо, и в
+ * список она не попадает.
+ */
+function applyVideoToolset(homeDir: string): void {
+  const configPath = join(homeDir, 'config.yaml')
+
+  let original: string
+  try {
+    original = readFileSync(configPath, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read config.yaml to apply the video toolset', error)
+    return
+  }
+
+  const merged = ensureSectionList(original, 'platform_toolsets', 'cli', ['hermes-cli', 'video'])
+  if (merged.unexpectedStructure) {
+    console.warn(
+      'aecpilot: config.yaml has a platform_toolsets: scalar — leaving the video toolset alone'
+    )
+    return
+  }
+  if (!merged.changed) return
+
+  try {
+    writeFileSync(configPath, merged.text, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write config.yaml with the video toolset', error)
   }
 }
 
@@ -1017,6 +1076,19 @@ function applyKanbanToolset(homeDir: string): void {
  * затрагивается. Она противоречит той же HX19, и это отдельная находка D-72:
  * снимать делённую поверхность — решение владельца, а не правка по дороге.
  *
+ * ВТОРОЙ ВЫЧИТАЕМЫЙ НАБОР — `project` (задача 3E.20, решение владельца
+ * 2026-09-08, SPEC HX23). В нём ровно один инструмент, `desktop_project`: он
+ * даёт АГЕНТУ создавать «Проекты» ядра и переключаться между ними, а шлюз при
+ * этом переносит рабочую папку живой сессии. Основание исключения — граница
+ * источников R7: переключая проект, агент менял бы и рабочую папку, и набор
+ * видимых ему источников, то есть сам расширял бы себе доступ к файлам.
+ *
+ * Почему это вообще потребовалось вычитать: набор приходит не из нашего
+ * конфига, а из их `_gui_surface_toolsets` — шлюз добавляет «поверхностные»
+ * наборы десктопной сессии сам, и замер 2026-09-08 показал `project` среди 21
+ * включённого. Наши собственные каналы `project:*` к этому отношения не имеют и
+ * продолжают работать: исключается инструмент МОДЕЛИ, а не поверхность проекта.
+ *
  * Выбор человека не трогается: свой блок `agent.disabled_toolsets` переживает
  * все следующие запуски.
  */
@@ -1031,7 +1103,7 @@ function applyDisabledToolsets(homeDir: string): void {
     return
   }
 
-  const merged = ensureSectionList(original, 'agent', 'disabled_toolsets', ['tts'])
+  const merged = ensureSectionList(original, 'agent', 'disabled_toolsets', ['tts', 'project'])
   if (merged.unexpectedStructure) {
     console.warn('aecpilot: config.yaml has an agent: scalar — leaving the disabled toolsets alone')
     return
@@ -4409,6 +4481,7 @@ app
           applyBrowserBackend(HERMES_HOME_DIR)
           applyApprovalsMode(HERMES_HOME_DIR)
           applyKanbanToolset(HERMES_HOME_DIR)
+          applyVideoToolset(HERMES_HOME_DIR)
           applyDisabledToolsets(HERMES_HOME_DIR)
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
