@@ -54,6 +54,24 @@ const DONOR_TEMPORARILY_OFF = [
   'src/renderer/src/donor/plugins/hermes-bots/profile-config-capabilities.test.tsx'
 ]
 
+// Замечание D-64, третий случай — и потому НЕ третье поднятие потолка.
+//
+// Строчкой ниже, у проекта `dom`, стоит обещание, данное при втором поднятии:
+// «If it happens a third time the answer is not a bigger number — it is running
+// the heavy-import files in their own group». Случилось (2026-09-08, полный
+// прогон): `markdown-editor.test.tsx` истёк на `waitFor`, в DOM висело
+// «Открываю документ…», а повторный прогон без единой правки прошёл целиком.
+//
+// ЗАМЕР, ОТ КОТОРОГО ЭТО СДЕЛАНО: тот же файл в одиночку поднимает редактор за
+// 369 мс. Значит дело не в файле, а в том, что ЧЕТЫРЕ рабочих `dom` разом
+// строят своё дерево модулей, и на загруженной машине тяжёлому не достаётся
+// процессора. Своя группа с ОДНИМ рабочим убирает конкуренцию, а не прячет её
+// за большим числом.
+//
+// Список именной, а не по маске: сюда попадает файл, ПРО КОТОРЫЙ ЗАМЕРЕНО, что
+// он мигает, — не всякий, который кажется тяжёлым.
+const HEAVY_DOM = ['src/renderer/src/aec/viewers/markdown-editor.test.tsx']
+
 // Two projects instead of one environment (task 1.6.3): component tests need
 // a DOM, the ~450 existing pure/main-process tests do not, and jsdom costs
 // real time per file. The split is by extension — `*.test.tsx` renders React
@@ -97,7 +115,7 @@ export default defineConfig({
           name: 'dom',
           environment: 'jsdom',
           include: ['**/*.test.tsx'],
-          exclude: [...exclude, DONOR_ZONE],
+          exclude: [...exclude, DONOR_ZONE, ...HEAVY_DOM],
           // Component files grew from 1 to 12 in batches 2–3, and each one
           // pays for its own jsdom instance. Run at most four at a time: on a
           // loaded machine the unbounded pool starved workers badly enough
@@ -159,6 +177,23 @@ export default defineConfig({
           // друга ровно на этом. Два: медленнее по стене, но проходит.
           maxWorkers: 2,
           sequence: { groupOrder: 2 }
+        }
+      },
+      {
+        // Тяжёлые по импорту (замечание D-64, см. HEAVY_DOM выше). Отдельной
+        // группой и в ОДИН рабочий: файл поднимается за 369 мс в одиночку и
+        // истекал на тридцати секундах, пока делил процессор с тремя соседями.
+        resolve: { alias: donorAliases },
+        test: {
+          name: 'heavy',
+          environment: 'jsdom',
+          include: HEAVY_DOM,
+          maxWorkers: 1,
+          // Тот же вынос из конвейера, что и у `dom`: их дерево модулей едет
+          // через vitest полторы минуты, снаружи — секунды.
+          server: { deps: { external: [/@milkdown/, /prosemirror/] } },
+          testTimeout: 30000,
+          sequence: { groupOrder: 3 }
         }
       }
     ]
