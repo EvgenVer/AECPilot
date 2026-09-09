@@ -225,6 +225,7 @@ import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picke
 import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
 import { decideOpenPreviewExternal } from './preview-external-pure'
 import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
+import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -1586,6 +1587,46 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
     return {
       ok: false,
       error: `Не удалось начать слежение: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+})
+
+// Задача 3E.31 (замечание D-79, решение владельца 2026-09-09). Сохранение
+// правки в ИХ редакторе предпросмотра (`preview-file.tsx`). До этого член
+// `writeTextFile` мост не отдавал, и их «Сохранить» отвечало внутренней
+// ошибкой вместо работы: заглушка непроброшенного члена истинна на вид, их же
+// честная ветка «сохранение недоступно» до человека не доходила.
+//
+// Что можно писать — в `preview-write-pure.ts`; здесь диск и отказы. Взят ОДИН
+// член из трёх (D-79): `renamePath` и `trashPath` остаются непроброшенными.
+ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+
+  const value = payload as { content?: unknown; path?: unknown } | null
+  if (typeof value?.content !== 'string') return { ok: false, error: 'Нечего сохранять' }
+
+  const decided = decideWrite(currentProject?.vaultPath, value.path, wasPickedByUser)
+  if (!decided.ok) return { ok: false, error: decided.error }
+
+  try {
+    // Файл обязан УЖЕ БЫТЬ. Редактор сохраняет то, что открыл, и создание
+    // файла ему не нужно ни разу; `realpath` заодно закрывает дыру со ссылкой
+    // наружу — на несуществующем пути он и отвечает отказом.
+    const realPath = await fs.promises.realpath(decided.absPath)
+    if (!realPathWritable(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+      return { ok: false, error: WRITE_OUTSIDE_ERROR }
+    }
+
+    const info = await fs.promises.stat(realPath)
+    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+
+    await fs.promises.writeFile(realPath, value.content, 'utf8')
+
+    return { ok: true, path: realPath }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось сохранить: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 })

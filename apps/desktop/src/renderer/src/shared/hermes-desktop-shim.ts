@@ -725,6 +725,24 @@ const IMPLEMENTED: Record<string, unknown> = {
     return answer.watch
   },
 
+  // Задача 3E.31 (замечание D-79, решение владельца 2026-09-09). Их редактор
+  // предпросмотра сохраняет правку этим членом, и до сих пор он был
+  // непроброшен: их собственная честная ветка «Saving is not available»
+  // (`lib/desktop-fs.ts`) до человека не доходила, потому что заглушка-прокси
+  // истинна на вид, — вместо неё панель показывала внутреннюю ошибку с именем
+  // члена. Взят ОДИН член из трёх: `renamePath` и `trashPath` мост по-прежнему
+  // не отдаёт, и решение по ним записано в `donor-members.test.ts`.
+  //
+  // ОТКАЗ ПОДНИМАЕТСЯ ОШИБКОЙ: их `handleSave` ловит её и печатает текст под
+  // кнопкой (`setSaveError`). Тихий успех означал бы «сохранено», хотя нет.
+  async writeTextFile(filePath: string, content: string): Promise<{ path: string }> {
+    const answer = await window.aecpilot.writePreviewText(filePath, content)
+
+    if (!answer.ok) throw new Error(answer.error)
+
+    return { path: answer.path }
+  },
+
   stopPreviewFileWatch(id: string): Promise<boolean> {
     return window.aecpilot.stopPreviewWatch(id)
   },

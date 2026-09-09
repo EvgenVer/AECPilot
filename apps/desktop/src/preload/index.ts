@@ -36,6 +36,7 @@ const api: AecpilotApi = {
   openPreviewInBrowser: (url) => ipcRenderer.invoke('preview:open-external', url),
   watchPreviewFile: (url) => ipcRenderer.invoke('preview:watch', url),
   stopPreviewWatch: (id) => ipcRenderer.invoke('preview:stop-watch', id),
+  writePreviewText: (path, content) => ipcRenderer.invoke('preview:write-text', { content, path }),
   previewWatchCount: () => ipcRenderer.invoke('preview:watch-count'),
   onPreviewFileChanged: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>

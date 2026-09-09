@@ -641,6 +641,58 @@ test('правка файла на диске перерисовывает пр�
   await assertRendererAlive(page, 'live preview reload')
 })
 
+interface SavingBridge {
+  writeTextFile: (path: string, content: string) => Promise<{ path: string }>
+}
+
+// Задача 3E.31 (замечание D-79, решение владельца 2026-09-09). Правка,
+// сохранённая в ИХ редакторе предпросмотра, доезжает на диск.
+//
+// ПРОВЕРЯЕТСЯ ЧЛЕН, А НЕ ИХ КНОПКА, и это выбор, а не срез угла. Их
+// `handleSave` (`preview-file.tsx`) зовёт `writeTextFile` из
+// `lib/desktop-fs.ts`; за этим членом стоит вся наша цепочка — шим, преload,
+// главный процесс, диск, — и до этой задачи она обрывалась на первом же звене.
+// Их редактор проверяется их же тестами в донорском проекте; здесь
+// доказывается то, чего у них нет.
+test('правка их редактора доезжает на диск, и только по показанному пути', async () => {
+  const page = await mainWindow()
+
+  const target = join(projectDir, 'zametka.md')
+  writeFileSync(target, 'PERVAYA VERSIYA', 'utf8')
+
+  const saved = await page.evaluate(
+    ([path, text]) => (window.hermesDesktop as unknown as SavingBridge).writeTextFile(path, text),
+    [target, 'VTORAYA VERSIYA']
+  )
+
+  expect(saved.path, 'мост обязан вернуть путь, по которому записал').toContain('zametka.md')
+  expect(readFileSync(target, 'utf8'), 'правка обязана доехать на диск').toBe('VTORAYA VERSIYA')
+
+  // Второе правило задачи: путь, которого главный процесс человеку НЕ
+  // показывал, отказывает — и файл на диске остаётся нетронутым. Отказ
+  // приходит исключением, потому что их панель показывает его текст человеку.
+  const outside = join(tmpdir(), 'aecpilot-e2e-ne-sohranyaem.md')
+  writeFileSync(outside, 'NE TRONUTO', 'utf8')
+
+  const refused = await page.evaluate(async (path) => {
+    try {
+      await (window.hermesDesktop as unknown as SavingBridge).writeTextFile(path, 'CHUZHOE')
+
+      return 'записалось'
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+  }, outside)
+
+  expect(refused, 'запись вне проекта обязана быть отказом словами').toContain(
+    'Сохранять можно только'
+  )
+  expect(readFileSync(outside, 'utf8'), 'чужой файл обязан остаться нетронутым').toBe('NE TRONUTO')
+  rmSync(outside, { force: true })
+
+  await assertRendererAlive(page, 'preview save')
+})
+
 interface ExternalPreviewBridge {
   openPreviewInBrowser: (url: string) => Promise<void>
 }

@@ -859,6 +859,15 @@ export interface AecpilotApi {
   watchPreviewFile(
     url: string
   ): Promise<{ ok: true; watch: { id: string; path: string } } | { ok: false; error: string }>
+  /** Сохранить правку, сделанную в их редакторе предпросмотра (задача 3E.31,
+   * замечание D-79). Правило то же, что у слежения: файл внутри открытого
+   * проекта либо выбранный человеком в нашем диалоге, и он обязан уже
+   * существовать — редактор сохраняет то, что открыл (`preview-write-pure.ts`).
+   * Отказ приходит СЛОВАМИ: их панель показывает его человеку под кнопкой. */
+  writePreviewText(
+    path: string,
+    content: string
+  ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
   stopPreviewWatch(id: string): Promise<boolean>
   previewWatchCount(): Promise<number>
   onPreviewFileChanged(
