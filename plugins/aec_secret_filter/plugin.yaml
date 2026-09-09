@@ -1,0 +1,6 @@
+name: aec-secret-filter
+version: "0.1.0"
+description: "Отказывает в записи в память, когда в тексте видно значение секрета — ключ, токен, пароль, закрытый ключ. Достаёт оба слоя сразу: встроенный `memory` и `mem0_*` провайдера. Задача 5.3, спека specs/agent-memory.md."
+author: "AECPilot"
+hooks:
+  - pre_tool_call

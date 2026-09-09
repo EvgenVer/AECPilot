@@ -39,7 +39,10 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["mcp"]
+# `plugins/` — плагины ядра hermes (задача 5.3), а не MCP-серверы: их не ставят
+# в venv, а копируют в профиль целиком. Поэтому они НЕ члены uv-workspace выше
+# (`members = ["mcp/*"]` их не захватывает) и живут отдельной строкой здесь.
+testpaths = ["mcp", "plugins"]
 addopts = ["--strict-markers"]
 
 [tool.ruff]

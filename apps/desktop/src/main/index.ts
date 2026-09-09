@@ -321,6 +321,18 @@ async function loadMemoryConfigModule(): Promise<MemoryConfigModule> {
   return (await import(/* @vite-ignore */ specifier)) as MemoryConfigModule
 }
 
+interface SecretFilterModule {
+  installSecretFilter: (hermesHomeDir: string) => { changed: boolean }
+}
+
+// Задача 5.3, та же причина динамического импорта, что у соседей выше.
+async function loadSecretFilterModule(): Promise<SecretFilterModule> {
+  const specifier = pathToFileURL(
+    join(__dirname, '../../../../runtime/register-secret-filter.mjs')
+  ).href
+  return (await import(/* @vite-ignore */ specifier)) as SecretFilterModule
+}
+
 // Same dynamic-import rationale as the loader above (task 2.12).
 async function loadRegisterAecRagModule(): Promise<RegisterAecRagModule> {
   const specifier = pathToFileURL(join(__dirname, '../../../../runtime/register-aec-rag.mjs')).href
@@ -4666,6 +4678,31 @@ app
           applyKanbanToolset(HERMES_HOME_DIR)
           applyVideoToolset(HERMES_HOME_DIR)
           applyDisabledToolsets(HERMES_HOME_DIR)
+
+          // Задача 5.3 (спека `agent-memory.md`, сценарий «Фильтр секретов»):
+          // плагин-отказ на записи в память ставится ДО подъёма ядра. Замерено
+          // по их же коду: `discover_plugins()` держит флаг `_discovered` и
+          // повторно сканирует папку только с `force=True`, которого на пути
+          // шлюза нет, — значит поставленный после старта фильтр молчал бы до
+          // следующего запуска приложения. Здесь же, рядом с остальными
+          // записями в профиль, он попадает в ту же самую подготовку.
+          //
+          // Отдельным try — и это НЕ «на всякий случай»: сорваться установка
+          // может ровно одним способом, отсутствием исходника плагина рядом
+          // (тот же вопрос упакованного приложения, что у loadServeModule), и
+          // приложение, не открывшееся из-за этого, не защитит никого. Отказ
+          // громко пишется в лог; тихой замены фильтра на его отсутствие тут
+          // нет только благодаря этой строке.
+          try {
+            const { installSecretFilter } = await loadSecretFilterModule()
+            installSecretFilter(HERMES_HOME_DIR)
+          } catch (error: unknown) {
+            console.error(
+              'aecpilot: SECRET FILTER NOT INSTALLED, memory writes are unfiltered',
+              error
+            )
+          }
+
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
