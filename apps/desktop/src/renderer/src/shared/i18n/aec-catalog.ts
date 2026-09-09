@@ -221,6 +221,19 @@ export const aecLocales: PluginLocaleBundles = {
     resumeProgress: {
       loading: 'Loading this session’s history…'
     },
+    memoryNotice: {
+      title: 'Extended memory is off',
+      package:
+        'Its package is not installed, so nothing said in this conversation is remembered beyond the core note. The conversation itself continues.',
+      config:
+        'It is selected but not configured, so nothing said in this conversation is remembered beyond the core note. The conversation itself continues.',
+      missing:
+        'The configured provider was not found by the core, so nothing said in this conversation is remembered beyond the core note. The conversation itself continues.',
+      unknown:
+        'It reports unavailable, so nothing said in this conversation is remembered beyond the core note. The conversation itself continues.',
+      toolFailed: (reason: string) =>
+        `Extended memory stopped answering: ${reason} The conversation continues; the core note still works.`
+    },
     coreNotice: {
       riskTitle: 'Check where this text came from',
       riskBody: (tool: string) =>
@@ -603,6 +616,19 @@ export const aecLocales: PluginLocaleBundles = {
     },
     resumeProgress: {
       loading: 'Загружаю историю этой сессии…'
+    },
+    memoryNotice: {
+      title: 'Расширенная память выключена',
+      package:
+        'Её пакет не установлен, поэтому сказанное в этом разговоре не запоминается — кроме записки ядра. Сам разговор продолжается.',
+      config:
+        'Она выбрана, но не настроена, поэтому сказанное в этом разговоре не запоминается — кроме записки ядра. Сам разговор продолжается.',
+      missing:
+        'Выбранного провайдера ядро не нашло, поэтому сказанное в этом разговоре не запоминается — кроме записки ядра. Сам разговор продолжается.',
+      unknown:
+        'Она сообщает, что недоступна, поэтому сказанное в этом разговоре не запоминается — кроме записки ядра. Сам разговор продолжается.',
+      toolFailed: (reason: string) =>
+        `Расширенная память перестала отвечать: ${reason} Разговор продолжается, записка ядра работает.`
     },
     coreNotice: {
       riskTitle: 'Проверьте, откуда этот текст',

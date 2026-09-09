@@ -49,6 +49,7 @@ import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { registerTranscriptBlocks } from './aec/transcript-blocks/register-blocks'
 import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
+import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
@@ -62,6 +63,11 @@ installClipboardShim()
 // и до первого рендера — ответ может прийти раньше, чем смонтируется лента.
 registerQuoteCheck()
 registerCoreNotices()
+// Задача 5.1б (спека `agent-memory.md`, сценарий «Провайдер недоступен»): о
+// невыключенной, но и не поднявшейся расширенной памяти ядро говорит только в
+// лог. Подписка ставится до первого рендера — ответ на опрос приходит раньше,
+// чем человек успеет сказать что-то в пустоту.
+registerMemoryNotice()
 // Находка D-39: при холодном возврате к старой сессии история подгружается в
 // фоне, и до этого человек всё это время смотрел на пустое окно без слова
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать
