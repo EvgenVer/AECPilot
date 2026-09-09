@@ -1,0 +1,210 @@
+// Задача 5.3/5.6 — АВТОМАТИЧЕСКАЯ ЗАПИСЬ В ПАМЯТЬ, второй путь и его защита.
+//
+// ЧТО ЭТОТ ЗОНД ОДИН РАЗ УЖЕ ДОКАЗАЛ (2026-09-09, до правки): фильтр секретов,
+// стоявший на `pre_tool_call`, этот путь НЕ ВИДИТ ВОВСЕ. Реплика «запомни:
+// пароль от почты объекта — Qwerty12345!, и ещё резерв 20%» уехала в слой 2
+// дословно, с паролем внутри, при включённом и работающем фильтре. Причина в
+// устройстве ядра: конец каждого неперебитого хода сам отправляет реплику и
+// ответ в провайдера —
+//   `run_agent.py:_sync_external_memory_for_turn` -> `MemoryManager.sync_all`
+//   -> провайдер mem0 -> `backend.add(messages, infer=True)`
+// Вызова инструмента там нет, значит и хука нет: в `VALID_HOOKS` на этом пути
+// пусто, выключателя у него тоже нет, а их `sanitize_context` снимает только их
+// собственные теги. Поэтому путь закрыт обёрткой воронки (`install_sync_guard`).
+//
+// ЧТО ЗОНД МЕРЯЕТ ТЕПЕРЬ — ДВА ПРОГОНА, И ВТОРОЙ ВАЖНЕЕ ПЕРВОГО:
+//   1. фильтр включён — секрета в хранилище нет, а обычный факт, сказанный
+//      рядом, остался (выбрасывать ход целиком нельзя);
+//   2. КОНТРОЛЬ: тот же плагин лежит в профиле, но не включён — секрет доезжает.
+// Без второго прогона первый не доказывает ничего: «секрета нет» объяснялось бы
+// и тем, что их извлечение само не сочло пароль фактом.
+//
+// ПОЧЕМУ ДВА ФАКТА В ОДНОЙ РЕПЛИКЕ. Пустое хранилище объяснимо двояко — «секрет
+// отфильтрован» и «автозапись не доехала». Обычный факт рядом разделяет их.
+//
+// ХОД ИДЁТ ЧЕРЕЗ ВОРОНКУ, А НЕ ПРЯМО В ПРОВАЙДЕРА: настоящая автозапись идёт
+// так, и защита стоит там же. Зонд, зовущий `sync_turn` напрямую, обошёл бы и
+// защиту, и смысл замера. Плагин руками не подключается — его грузит их же
+// `discover_plugins()` из профиля, куда его положил наш установщик.
+//
+// КЛЮЧ БЕРЁТСЯ ПРОГРАММНО из `.env` профиля разработки — тем же `load_env_file`,
+// которым это делает раннер эвалов. Значение не печатается и в отчёт не едет.
+//
+// Запуск: node runtime/memory-autowrite-probe.mjs
+
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
+import { applyMemoryProfile } from "./memory-config.mjs";
+import { installSecretFilter } from "./register-secret-filter.mjs";
+
+const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
+const HERMES_SRC = path.join(RUNTIME_DIR, ".hermes-src");
+const DEV_ENV = path.join(RUNTIME_DIR, "dev-profile", ".env");
+
+const SECRET = "Qwerty12345!";
+const FACT = "резерв мощности 20 процентов";
+const USER_TEXT = `запомни: пароль от почты объекта — ${SECRET}, и ещё: ${FACT}`;
+const ASSISTANT_TEXT = "Записал.";
+
+// ХОД ИДЁТ ЧЕРЕЗ ВОРОНКУ (`MemoryManager.sync_all`), А НЕ ПРЯМО В ПРОВАЙДЕРА —
+// потому что настоящая автозапись идёт именно так, и потому что наша защита стоит
+// на воронке. Зонд, зовущий `provider.sync_turn` напрямую, обошёл бы и защиту, и
+// смысл замера. Плагин при этом НЕ подключается руками: его загружает их же
+// `discover_plugins()` из профиля, куда его положил наш установщик, — то есть
+// проверяется вся цепочка, включая включение в конфиге.
+const PY = [
+  "import json, os, sys, time",
+  `sys.path.insert(0, r"${HERMES_SRC}")`,
+  `sys.path.insert(0, r"${path.join(REPO_ROOT, "eval")}")`,
+  "from pathlib import Path",
+  "from graph_cost import load_env_file",
+  `load_env_file(Path(r"${DEV_ENV}"))`,
+  "from hermes_cli.plugins import discover_plugins, get_plugin_manager",
+  "discover_plugins()",
+  `ours = [p for p in get_plugin_manager().list_plugins() if p["name"] == "aec-secret-filter"]`,
+  "print('PLUGIN ' + json.dumps(ours, ensure_ascii=False))",
+  "from agent.memory_manager import MemoryManager",
+  // Обёртка ставится при `register()` плагина. Печатаем факт, а не надежду:
+  // «секрета нет» без этой строки не отличить от «обёртки нет, просто не нашли».
+  "print('GUARD ' + str(getattr(MemoryManager.sync_all, '_aec_secret_filter_installed', False)))",
+  "from plugins.memory import load_memory_provider",
+  "p = load_memory_provider('mem0', register_skills=False)",
+  "p.initialize(session_id='autowrite-probe', platform='tui', hermes_home=os.environ['HERMES_HOME'], agent_context='primary')",
+  "print('FILTER ' + json.dumps(p._read_filters(), ensure_ascii=False))",
+  "m = MemoryManager()",
+  "m.add_provider(p)",
+  `m.sync_all(${JSON.stringify(USER_TEXT)}, ${JSON.stringify(ASSISTANT_TEXT)})`,
+  // Ждём ДВА слоя потоков: воронка кладёт работу в свой исполнитель, а их
+  // `sync_turn` внутри уходит в собственный демон-поток.
+  "time.sleep(5)",
+  "t = getattr(p, '_sync_thread', None)",
+  "t.join(timeout=180) if t is not None else None",
+  "time.sleep(3)",
+  "print('SEARCH ' + json.dumps(p.handle_tool_call('mem0_search', {'query': 'пароль почта резерв мощности', 'top_k': 20}), ensure_ascii=False))",
+].join("\n");
+
+function runPython(scriptPath, home) {
+  return new Promise((resolve) => {
+    const child = spawn(PYTHON_BIN, [scriptPath], {
+      env: { ...process.env, HERMES_HOME: home, MEM0_TELEMETRY: "false", PYTHONIOENCODING: "utf-8" },
+    });
+    let text = "";
+    child.stdout.on("data", (c) => (text += c.toString()));
+    child.stderr.on("data", (c) => (text += c.toString()));
+    child.on("close", () => resolve(text));
+  });
+}
+
+/** Кириллица приезжает экранированной ДВАЖДЫ: их инструмент отдаёт JSON строкой,
+ *  а `json.dumps` печатает её с умолчательным `ensure_ascii`. Разбираем оба слоя
+ *  разбором, а не заменой: подстрочная замена оставляет обратные косые и проверки
+ *  начинают искать в `\П\о\л` — то есть не находят ничего никогда. Ровно эта
+ *  ловушка была в зонде 5.1в. */
+function decodeSearch(line) {
+  try {
+    const inner = JSON.parse(line);
+    return JSON.stringify(JSON.parse(inner));
+  } catch {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return line;
+    }
+  }
+}
+
+/**
+ * Один замер на отдельном профиле. `armed: false` — плагин лежит в профиле, но
+ * НЕ включён: это контроль, и он обязателен. Без него «секрета нет» объясняется
+ * двояко — защита сработала ИЛИ их модель просто не сочла пароль фактом, — и
+ * замер не доказывает ничего.
+ */
+async function measure({ armed }) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-home-"));
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-vault-"));
+  const scriptPath = path.join(home, "probe.py");
+
+  const { key } = applyMemoryProfile({ hermesHomeDir: home, vaultPath: vault });
+  installSecretFilter(home);
+  if (!armed) {
+    const configPath = path.join(home, "config.yaml");
+    fs.writeFileSync(
+      configPath,
+      fs.readFileSync(configPath, "utf-8").replace("    - aec-secret-filter\n", ""),
+      "utf-8"
+    );
+  }
+  fs.writeFileSync(scriptPath, PY, "utf-8");
+
+  const raw = await runPython(scriptPath, home);
+  const search = decodeSearch(/SEARCH (.+)/.exec(raw)?.[1] ?? "");
+
+  return {
+    home,
+    key,
+    plugin: /PLUGIN (.+)/.exec(raw)?.[1] ?? "(не напечатан)",
+    readFilter: /FILTER (.+)/.exec(raw)?.[1] ?? "(не напечатан)",
+    guard: /GUARD (.+)/.exec(raw)?.[1] ?? "(не напечатана)",
+    search,
+    raw,
+    // Обычный факт рядом — признак того, что автозапись вообще доехала. Без него
+    // любой вывод про секрет бессмыслен.
+    factStored: /резерв|reserve/i.test(search) || /20/.test(search),
+    secretStored: search.includes(SECRET) || /Qwerty/i.test(search),
+    redacted: /секрет удалён/i.test(search),
+  };
+}
+
+async function main() {
+  console.log(`реплика в обоих прогонах: ${USER_TEXT.replace(SECRET, "<секрет>")}\n`);
+
+  let failures = 0;
+  const check = (label, ok, detail) => {
+    console.log(`${ok ? "OK  " : "ПЛОХО"} ${label}${detail ? ` — ${detail}` : ""}`);
+    if (!ok) failures += 1;
+  };
+
+  for (const armed of [true, false]) {
+    const r = await measure({ armed });
+    console.log(`\n=== ${armed ? "ФИЛЬТР ВКЛЮЧЁН" : "КОНТРОЛЬ: плагин не включён"} (${r.key})`);
+    if (!r.search) {
+      console.log(`зонд не отработал:\n${r.raw.trim().slice(-1200)}`);
+      process.exit(1);
+    }
+    console.log(`   плагин глазами ядра: ${r.plugin}`);
+    console.log(`   обёртка на воронке: ${r.guard}`);
+    console.log(
+      `   в слое 2: ${r.search.replace(new RegExp(SECRET, "g"), "<СЕКРЕТ>").slice(0, 420)}`
+    );
+
+    check(`${armed ? "" : "(контроль) "}автозапись доехала`, r.factStored);
+    if (armed) {
+      check("секрета в хранилище нет", !r.secretStored);
+      check("обычный факт рядом уцелел", r.factStored, "выбрасывать ход целиком нельзя");
+      // НЕ проверка, а наблюдение. Метку `<секрет удалён>` в хранилище несёт не наш
+      // код, а их извлечение: оно пересказывает ход моделью и метку может не
+      // сохранить. Требовать её значило бы требовать поведения, которого система
+      // не обещает, — проверка падала бы на ровном месте.
+      console.log(`     метка в пересказе: ${r.redacted ? "уцелела" : "не уцелела (так бывает)"}`);
+    } else {
+      check(
+        "БЕЗ фильтра секрет доезжает (значит замер способен его увидеть)",
+        r.secretStored,
+        r.secretStored ? "" : "проверка выше ничего не доказывает"
+      );
+    }
+  }
+
+  console.log(
+    failures === 0
+      ? "\nАВТОМАТИЧЕСКИЙ ПУТЬ ЗАКРЫТ — и закрыт именно фильтром"
+      : `\nпровалов: ${failures}`
+  );
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+main();

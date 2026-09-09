@@ -109,4 +109,17 @@ describe("установка в профиль", () => {
     expect(manifest).toContain("pre_tool_call");
     expect(manifest).toContain(`name: ${PLUGIN_ID}`);
   });
+
+  it("манифест объявляет вид плагина ЯВНО", () => {
+    // ЛОВУШКА, КОТОРАЯ УЖЕ СРАБОТАЛА (2026-09-09). Без явного `kind` ядро
+    // угадывает вид ПОДСТРОКОЙ в первых 8 КБ `__init__.py`
+    // (`_detect_kind_from_source`): слово `MemoryProvider` — хоть в коде, хоть в
+    // комментарии — делает плагин «чужим провайдером памяти», и ядро НЕ грузит
+    // модуль и не вешает ни одного хука. Снаружи всё выглядит целым: папка на
+    // месте, строка в `plugins.enabled` на месте. Нас поймало упоминание их
+    // класса в пояснении; замерено зондом — `hooks: 0`, `enabled: false`.
+    const manifest = fs.readFileSync(path.join(PLUGIN_SOURCE_DIR, "plugin.yaml"), "utf-8");
+
+    expect(manifest).toMatch(/^kind:\s*standalone\s*$/m);
+  });
 });

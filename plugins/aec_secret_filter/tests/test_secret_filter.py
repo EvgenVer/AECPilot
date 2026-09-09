@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 
+import sys
+import types
+
 import pytest
-from aec_secret_filter import _on_pre_tool_call
-from aec_secret_filter.secrets import find_secrets
+from aec_secret_filter import _on_pre_tool_call, install_sync_guard
+from aec_secret_filter.secrets import find_secrets, redact_secrets
 
 # ─── ЧТО ЗАПОМИНАТЬ НЕЛЬЗЯ ────────────────────────────────────────────────────
 SECRETS = [
@@ -43,6 +46,14 @@ SECRETS = [
     ("заголовок авторизации", "шлём Authorization: Bearer abcdefgh12345678ijkl", "auth_header"),
     ("пароль с названием", "пароль: Qwerty12345!", "labelled_secret"),
     ("api_key с названием", 'api_key = "a1b2c3d4e5f6g7h8"', "labelled_secret"),
+    # Добавлено по живому замеру: первая версия правила требовала разделитель
+    # ВПЛОТНУЮ и пропустила именно такую фразу — пароль уехал в слой 2.
+    (
+        "пароль через тире и три слова",
+        "запомни: пароль от почты объекта — Qwerty12345!, и ещё резерв 20 процентов",
+        "labelled_secret",
+    ),
+    ("ключ доступа через тире", "ключ доступа для выгрузки — a1b2c3d4e5f6", "labelled_secret"),
 ]
 
 
@@ -63,6 +74,11 @@ INNOCENT = [
     ("api key без значения", "api_key нужно будет запросить у подрядчика."),
     ("короткое значение", "код подъезда: 1234"),
     ("путь, похожий на ключ", "смета лежит в D:/объекты/секретный-корпус/смета.xlsx"),
+    # Разрыв между названием и значением РАЗРЕШЁН — значит эти обязаны остаться
+    # проходящими: в них нет значения, только разговор о нём.
+    ("название и тире без значения", "пароль от почты — его знает только бухгалтерия"),
+    ("название и разделитель, значение словом", "api_key это обычная строка из консоли"),
+    ("значение без букв", "ключ доступа к воротам — 12345678"),
 ]
 
 
@@ -142,3 +158,102 @@ def test_просьба_человека_фильтр_не_отменяет() ->
 
     assert verdict is not None
     assert verdict["action"] == "block"
+
+
+# ─── ВТОРОЙ ПУТЬ: АВТОЗАПИСЬ ХОДА ─────────────────────────────────────────────
+# Замер `runtime/memory-autowrite-probe.mjs` показал, что хук этот путь не видит
+# вовсе: пароль уехал в слой 2 дословно при включённом фильтре. Здесь проверяется
+# обёртка, которая его закрывает.
+def test_вырезание_убирает_значение_и_оставляет_факт() -> None:
+    clean, found = redact_secrets("пароль: Qwerty12345!, и ещё резерв мощности 20 процентов")
+
+    assert "Qwerty12345" not in clean
+    assert "labelled_secret" in found
+    assert "резерв мощности 20 процентов" in clean, "обычный факт рядом терять нельзя"
+
+
+def test_вырезание_не_трогает_обычную_фразу() -> None:
+    text = "Пароль от почты храню в менеджере паролей."
+
+    assert redact_secrets(text) == (text, [])
+
+
+def test_обёртка_встаёт_на_воронку_и_чистит_ход() -> None:
+    # Подменяется атрибут КЛАССА, поэтому проверяется на подделке с тем же именем
+    # метода: настоящий `MemoryManager` тянет за собой половину ядра.
+    seen: list[tuple[str, str]] = []
+
+    class FakeManager:
+        def sync_all(self, user_content, assistant_content, **kwargs):
+            seen.append((user_content, assistant_content))
+
+    fake_module = types.ModuleType("agent.memory_manager")
+    fake_module.MemoryManager = FakeManager
+    sys.modules["agent.memory_manager"] = fake_module
+    try:
+        assert install_sync_guard() is True
+        FakeManager().sync_all("запомни api_key = a1b2c3d4e5f6g7h8 для выгрузки", "Записал.")
+    finally:
+        del sys.modules["agent.memory_manager"]
+
+    assert seen, "обёртка обязана позвать оригинал, а не съесть ход"
+    user_text, _ = seen[0]
+    assert "a1b2c3d4e5f6g7h8" not in user_text
+    assert "для выгрузки" in user_text
+
+
+def test_обёртка_чистит_и_messages() -> None:
+    # `sync_all` умеет принимать ещё и сырой список сообщений. Почистив только
+    # текст, мы оставили бы секрет во втором аргументе — и не заметили бы.
+    seen: list[dict] = []
+
+    class FakeManager:
+        def sync_all(self, user_content, assistant_content, **kwargs):
+            seen.append(kwargs)
+
+    fake_module = types.ModuleType("agent.memory_manager")
+    fake_module.MemoryManager = FakeManager
+    sys.modules["agent.memory_manager"] = fake_module
+    try:
+        install_sync_guard()
+        FakeManager().sync_all(
+            "без секрета",
+            "Записал.",
+            messages=[{"role": "user", "content": "пароль: Qwerty12345!"}],
+        )
+    finally:
+        del sys.modules["agent.memory_manager"]
+
+    assert "Qwerty12345" not in str(seen[0]["messages"])
+
+
+def test_обёртка_не_навешивается_дважды() -> None:
+    class FakeManager:
+        def sync_all(self, user_content, assistant_content, **kwargs):
+            return None
+
+    fake_module = types.ModuleType("agent.memory_manager")
+    fake_module.MemoryManager = FakeManager
+    sys.modules["agent.memory_manager"] = fake_module
+    try:
+        install_sync_guard()
+        once = FakeManager.sync_all
+        install_sync_guard()
+        assert FakeManager.sync_all is once
+    finally:
+        del sys.modules["agent.memory_manager"]
+
+
+def test_пропавшая_воронка_видна_отказом_а_не_тишиной() -> None:
+    # Подъём пина может унести метод. Тогда автозапись снова открыта, и узнать об
+    # этом надо по `False` и строке в логе, а не по утечке.
+    class Without:
+        pass
+
+    fake_module = types.ModuleType("agent.memory_manager")
+    fake_module.MemoryManager = Without
+    sys.modules["agent.memory_manager"] = fake_module
+    try:
+        assert install_sync_guard() is False
+    finally:
+        del sys.modules["agent.memory_manager"]
