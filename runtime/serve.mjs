@@ -28,6 +28,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
+import { MEMORY_ENV } from "./memory-config.mjs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,6 +108,10 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
         // See header comment "Checkpoints" — extraEnv can still override
         // this if a future caller ever needs to opt out.
         HERMES_TUI_CHECKPOINTS: "1",
+        // Задача 5.1а. Телеметрию mem0 читают ПРИ ИМПОРТЕ модуля
+        // (`mem0/memory/telemetry.py`), поэтому выключать её можно только
+        // здесь — до старта процесса. В конфиге для неё места нет.
+        ...MEMORY_ENV,
         ...extraEnv,
       },
       stdio: ["ignore", "pipe", "pipe"],
