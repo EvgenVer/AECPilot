@@ -868,6 +868,31 @@ export interface AecpilotApi {
     path: string,
     content: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Записка слоя 1 как текст плюс состояние автозаписи (задача 5.4).
+   *
+   * ТЕКСТ, А НЕ ПУТЬ: имена файлов выбирает ядро, и окно называет только
+   * сторону — «записка агента» или «записка о человеке». `limits` — пределы
+   * ядра: записка вклеивается в каждый ход целиком, и человек должен видеть,
+   * сколько ему осталось, до того как отказ случится. */
+  readMemoryNotes(): Promise<
+    | {
+        ok: true
+        memory: string
+        user: string
+        limits: { memory: number; user: number }
+        autowrite: boolean
+      }
+    | { ok: false; error: string }
+  >
+  writeMemoryNote(
+    target: 'memory' | 'user',
+    content: string
+  ): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Выключатель автозаписи. Трогает ОБА пути пополнения — конец хода (слой 2,
+   * через наш плагин) и их фоновый разбор (слой 1, ключ конфига). */
+  setMemoryAutowrite(
+    enabled: boolean
+  ): Promise<{ ok: true; autowrite: boolean } | { ok: false; error: string }>
   stopPreviewWatch(id: string): Promise<boolean>
   previewWatchCount(): Promise<number>
   onPreviewFileChanged(

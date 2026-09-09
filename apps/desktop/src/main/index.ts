@@ -12,7 +12,7 @@ import {
 } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -20,6 +20,15 @@ import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
 import { isValidStreamId } from './speech-stream-pure'
+import {
+  AUTOWRITE_FILE,
+  decideNoteWrite,
+  mergeBackgroundReview,
+  NOTE_FILES,
+  NOTE_LIMITS,
+  parseAutowrite,
+  serializeAutowrite
+} from './memory-notes-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import { ensureSectionList, ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
 import {
@@ -3452,6 +3461,103 @@ ipcMain.handle('keys:save', async (_event, payload: unknown) => {
   // A key only reaches hermes through the child process's environment, so it
   // takes effect on the next start and not before.
   return restartBackend()
+})
+
+// --- Экран памяти, слой 1 и автозапись (задача 5.4) ------------------------
+//
+// ПОЧЕМУ ФАЙЛАМИ, А НЕ ЧЕРЕЗ ЯДРО. Записку слоя 1 ядро хранит двумя обычными
+// файлами в профиле и перечитывает при каждой сборке системного промпта
+// (`agent/system_prompt.py`: `load_from_disk()`), то есть правка доезжает со
+// следующего хода без перезапуска. Ни RPC, ни эндпойнта, который отдавал бы её
+// ТЕКСТ, у них нет: `/api/memory` сообщает только провайдера и РАЗМЕРЫ файлов.
+//
+// ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ: списка фактов слоя 2. Его хранилище — встроенный
+// qdrant, и он держит свою папку исключительно. Замерено
+// `runtime/memory-store-access-probe.mjs`: при живом ядре второй читатель
+// получает «Storage folder … is already accessed by another instance of Qdrant
+// client». Обходов нет — HTTP-маршруты плагинов монтирует их ПАНЕЛЬ, которую
+// шлюз не поднимает, а RPC «позови инструмент по имени» у шлюза отсутствует.
+// Решение (qdrant сервером против новой поверхности) — владельца, см. TASKS 5.4.
+ipcMain.handle('memory:read-notes', async () => {
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const dir = join(HERMES_HOME_DIR, 'memories')
+    const read = (file: string): string => {
+      try {
+        return readFileSync(join(dir, file), 'utf-8')
+      } catch {
+        return '' // записки ещё нет — это обычное состояние чистого профиля
+      }
+    }
+
+    return {
+      ok: true as const,
+      memory: read(NOTE_FILES.memory),
+      user: read(NOTE_FILES.user),
+      limits: NOTE_LIMITS,
+      autowrite: parseAutowrite(
+        (() => {
+          try {
+            return readFileSync(join(HERMES_HOME_DIR, AUTOWRITE_FILE), 'utf-8')
+          } catch {
+            return null
+          }
+        })()
+      ).autowrite
+    }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read the memory notes', error)
+    return { ok: false as const, error: 'Не удалось прочитать записку памяти' }
+  }
+})
+
+ipcMain.handle('memory:write-note', async (_event, payload: unknown) => {
+  const value = payload as { target?: unknown; content?: unknown } | null
+  const decision = decideNoteWrite(value?.target, value?.content)
+  if (!decision.ok) return { ok: false as const, error: decision.error }
+
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const dir = join(HERMES_HOME_DIR, 'memories')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, decision.file), decision.content, 'utf-8')
+    return { ok: true as const }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write the memory note', error)
+    return { ok: false as const, error: 'Не удалось сохранить записку' }
+  }
+})
+
+// ПЕРЕКЛЮЧАТЕЛЬ ТРОГАЕТ ДВА МЕСТА, потому что автозапись у памяти двойная:
+// слой 2 пополняется концом хода (выключателя у ядра нет — его исполняет наш
+// плагин, читая `aec-memory.json`), слой 1 — их фоновым разбором, у которого
+// выключатель есть обычным ключом конфига. Человек просил «не записывай сам», а
+// не «не записывай сам в одно из двух мест».
+ipcMain.handle('memory:set-autowrite', async (_event, enabled: unknown) => {
+  if (typeof enabled !== 'boolean') throw new Error('invalid autowrite flag')
+
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    writeFileSync(
+      join(HERMES_HOME_DIR, AUTOWRITE_FILE),
+      serializeAutowrite({ autowrite: enabled }),
+      'utf-8'
+    )
+
+    const configPath = join(HERMES_HOME_DIR, 'config.yaml')
+    let original = ''
+    try {
+      original = readFileSync(configPath, 'utf-8')
+    } catch {
+      // конфига ещё нет — секция допишется в новый файл
+    }
+    writeFileSync(configPath, mergeBackgroundReview(original, enabled), 'utf-8')
+
+    return { ok: true as const, autowrite: enabled }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not change the memory autowrite flag', error)
+    return { ok: false as const, error: 'Не удалось изменить автозапись' }
+  }
 })
 
 ipcMain.handle('approvals:get-mode', async () => {

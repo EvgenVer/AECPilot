@@ -315,6 +315,27 @@ export const aecLocales: PluginLocaleBundles = {
       shadowed: (names: string) =>
         `Your profile already has skills with these names: ${names}. While they are there, the project instructions with those names do NOT apply — the core takes the profile ones. Rename the project ones or turn the profile ones off in settings.`
     },
+    memoryScreen: {
+      title: 'Agent memory',
+      badge: 'Memory',
+      badgeHint:
+        'The note the agent carries into every turn, and whether it writes to memory on its own',
+      agentNote: 'The agent’s own note',
+      agentNoteHint:
+        'What the agent wrote down for itself about the environment and the work. It is part of every turn’s prompt.',
+      userNote: 'The note about you',
+      userNoteHint:
+        'Your preferences and role. It belongs to your profile, so it applies in every project.',
+      counter: (used: number, limit: number) => `${used} of ${limit} characters`,
+      save: 'Save',
+      close: 'Close',
+      autowrite: 'Let the agent add to memory on its own',
+      autowriteHint:
+        'Off: memory grows only when you ask for it. This covers both paths — the end of each turn (project memory) and the core’s background review (the notes above).',
+      projectFacts: 'Project memory',
+      projectFactsGap:
+        'The list of project facts is not here yet. Its store is an embedded database that the running core holds open exclusively, so this window cannot read it while the agent is alive. Ask the agent to search or delete in project memory — it has the tools. Showing the list here needs a decision about how the store is served.'
+    },
     citations: {
       unverified: 'This phrase is not in the cited place:'
     },
@@ -709,6 +730,26 @@ export const aecLocales: PluginLocaleBundles = {
       badgeHint: 'Кто их написал, что они просят и видит ли их агент',
       shadowed: (names: string) =>
         `В профиле уже есть скилы с такими именами: ${names}. Пока они там, проектные инструкции с этими именами НЕ действуют — ядро берёт профильные. Переименуйте проектные или выключите профильные в настройках.`
+    },
+    memoryScreen: {
+      title: 'Память агента',
+      badge: 'Память',
+      badgeHint: 'Записка, которую агент несёт в каждый ход, и пополняет ли он память сам',
+      agentNote: 'Записка агента',
+      agentNoteHint:
+        'Что агент записал себе об окружении и работе. Она входит в промпт каждого хода.',
+      userNote: 'Записка о вас',
+      userNoteHint:
+        'Ваши предпочтения и роль. Она принадлежит профилю, поэтому действует во всех проектах.',
+      counter: (used: number, limit: number) => `${used} из ${limit} знаков`,
+      save: 'Сохранить',
+      close: 'Закрыть',
+      autowrite: 'Разрешить агенту пополнять память самому',
+      autowriteHint:
+        'Выключено — память пополняется только по вашей просьбе. Трогает оба пути: конец каждого хода (память проекта) и фоновый разбор ядра (записки выше).',
+      projectFacts: 'Память проекта',
+      projectFactsGap:
+        'Списка фактов проекта здесь пока нет. Его хранилище — встроенная база, и живое ядро держит её папку исключительно: это окно не может её прочитать, пока агент работает. Поиск и удаление в памяти проекта попросите у агента — у него есть инструменты. Чтобы список появился здесь, нужно решение о том, как отдавать хранилище.'
     },
     citations: {
       unverified: 'Этой фразы в процитированном месте нет:'

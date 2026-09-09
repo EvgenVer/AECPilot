@@ -13,7 +13,7 @@ import sys
 import types
 
 import pytest
-from aec_secret_filter import _on_pre_tool_call, install_sync_guard
+from aec_secret_filter import _on_pre_tool_call, autowrite_enabled, install_sync_guard
 from aec_secret_filter.secrets import find_secrets, redact_secrets
 
 # ─── ЧТО ЗАПОМИНАТЬ НЕЛЬЗЯ ────────────────────────────────────────────────────
@@ -257,3 +257,53 @@ def test_пропавшая_воронка_видна_отказом_а_не_т�
         assert install_sync_guard() is False
     finally:
         del sys.modules["agent.memory_manager"]
+
+
+# ─── ПЕРЕКЛЮЧАТЕЛЬ АВТОЗАПИСИ (задача 5.4) ────────────────────────────────────
+# У ядра выключателя для этого пути нет, поэтому решение человека исполняет та же
+# обёртка воронки. Проверяется, что выключено значит выключено, а отсутствие или
+# мусор в файле НЕ выключают память молча.
+def _with_home(tmp_path, monkeypatch):
+    fake = types.ModuleType("hermes_constants")
+    fake.get_hermes_home = lambda: tmp_path
+    monkeypatch.setitem(sys.modules, "hermes_constants", fake)
+
+
+def test_нет_файла_автозапись_включена(tmp_path, monkeypatch) -> None:
+    _with_home(tmp_path, monkeypatch)
+
+    assert autowrite_enabled() is True
+
+
+def test_мусор_в_файле_не_выключает_память(tmp_path, monkeypatch) -> None:
+    _with_home(tmp_path, monkeypatch)
+    (tmp_path / "aec-memory.json").write_text("{не json", encoding="utf-8")
+
+    assert autowrite_enabled() is True
+
+
+def test_выключено_значит_выключено(tmp_path, monkeypatch) -> None:
+    _with_home(tmp_path, monkeypatch)
+    (tmp_path / "aec-memory.json").write_text('{"autowrite": false}', encoding="utf-8")
+
+    assert autowrite_enabled() is False
+
+
+def test_выключенная_автозапись_не_доходит_до_провайдера(tmp_path, monkeypatch) -> None:
+    _with_home(tmp_path, monkeypatch)
+    (tmp_path / "aec-memory.json").write_text('{"autowrite": false}', encoding="utf-8")
+
+    seen: list[tuple[str, str]] = []
+
+    class FakeManager:
+        def sync_all(self, user_content, assistant_content, **kwargs):
+            seen.append((user_content, assistant_content))
+
+    fake_module = types.ModuleType("agent.memory_manager")
+    fake_module.MemoryManager = FakeManager
+    monkeypatch.setitem(sys.modules, "agent.memory_manager", fake_module)
+
+    install_sync_guard()
+    FakeManager().sync_all("заказчик просил резерв 20%", "Записал.")
+
+    assert seen == [], "выключенный переключатель обязан останавливать ход до провайдера"

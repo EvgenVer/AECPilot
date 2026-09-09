@@ -123,7 +123,7 @@ function decodeSearch(line) {
  * двояко — защита сработала ИЛИ их модель просто не сочла пароль фактом, — и
  * замер не доказывает ничего.
  */
-async function measure({ armed }) {
+async function measure({ armed, autowrite = true }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-home-"));
   const vault = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-vault-"));
   const scriptPath = path.join(home, "probe.py");
@@ -135,6 +135,15 @@ async function measure({ armed }) {
     fs.writeFileSync(
       configPath,
       fs.readFileSync(configPath, "utf-8").replace("    - aec-secret-filter\n", ""),
+      "utf-8"
+    );
+  }
+  if (!autowrite) {
+    // Ровно тот файл, который пишет экран памяти (задача 5.4). Зонд не
+    // изобретает свой формат: он проверяет тот самый выключатель.
+    fs.writeFileSync(
+      path.join(home, "aec-memory.json"),
+      JSON.stringify({ autowrite: false }, null, 2) + "\n",
       "utf-8"
     );
   }
@@ -199,9 +208,19 @@ async function main() {
     }
   }
 
+  // ── Третий прогон: переключатель автозаписи (задача 5.4) ──────────────────
+  //
+  // У ядра выключателя для этого пути нет, поэтому решение человека исполняет та
+  // же обёртка воронки. Проверяется САМЫМ ОБЫЧНЫМ фактом, без всякого секрета:
+  // выключено — значит в памяти не появилось ничего.
+  const off = await measure({ armed: true, autowrite: false });
+  console.log(`\n=== ПЕРЕКЛЮЧАТЕЛЬ АВТОЗАПИСИ ВЫКЛЮЧЕН (${off.key})`);
+  console.log(`   в слое 2: ${off.search.slice(0, 300)}`);
+  check("выключенная автозапись не записала даже обычный факт", !off.factStored);
+
   console.log(
     failures === 0
-      ? "\nАВТОМАТИЧЕСКИЙ ПУТЬ ЗАКРЫТ — и закрыт именно фильтром"
+      ? "\nАВТОМАТИЧЕСКИЙ ПУТЬ ЗАКРЫТ — и закрыт именно фильтром; переключатель слушается"
       : `\nпровалов: ${failures}`
   );
   process.exit(failures === 0 ? 0 : 1);

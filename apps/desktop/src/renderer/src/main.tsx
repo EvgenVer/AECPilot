@@ -50,6 +50,7 @@ import { registerTranscriptBlocks } from './aec/transcript-blocks/register-block
 import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
+import { registerMemoryScreen } from './aec/memory/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
@@ -68,6 +69,7 @@ registerCoreNotices()
 // лог. Подписка ставится до первого рендера — ответ на опрос приходит раньше,
 // чем человек успеет сказать что-то в пустоту.
 registerMemoryNotice()
+registerMemoryScreen()
 // Находка D-39: при холодном возврате к старой сессии история подгружается в
 // фоне, и до этого человек всё это время смотрел на пустое окно без слова
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать
