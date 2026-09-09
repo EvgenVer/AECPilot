@@ -52,6 +52,7 @@ import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
+import { registerGraphAccess } from './aec/settings/register'
 import { AecI18nProvider } from './shared/i18n'
 import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
@@ -75,6 +76,9 @@ registerMemoryScreen()
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать
 // `loading` раньше, чем смонтируется лента.
 registerResumeProgress()
+// Задача 3E.9а: доступы Microsoft Graph. Команда палитры и её окно — поэтому
+// регистрируется до первого рендера, как и остальные команды.
+registerGraphAccess()
 // Task 3.3: «Изменения в документах» takes the place of their git review pane
 // (SPEC HX6/UR16). Called from the body on purpose — a same-id registration
 // wins only if it runs after their shell module, and module bodies run after

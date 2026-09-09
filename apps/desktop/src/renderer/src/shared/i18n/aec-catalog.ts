@@ -292,10 +292,65 @@ export const aecLocales: PluginLocaleBundles = {
         a2aSession:
           'a task from that program lands in the SAME live session as your own ' +
           'conversation, with its memory and its access to your files',
+        teamsApp:
+          'the channel runs on an Azure AD application — the one whose secret you enter ' +
+          'here — so messages and replies pass through your organisation’s Microsoft cloud ' +
+          'and are visible to everyone in that chat or channel',
+        teamsPort:
+          'an inbound Bot Framework listener on this machine (port 3978 by default), and ' +
+          'its host is unset by default, which means every network interface rather than ' +
+          'just 127.0.0.1',
+        graphPort:
+          'Microsoft itself calls into this machine with change notifications: a listener ' +
+          'on port 8646 at /msgraph/webhook, again on every interface by default, checking ' +
+          'only the shared client_state and CIDR list if you set them',
+        graphTenant:
+          'app-only access to Microsoft Graph is not «your mailbox»: the Azure AD ' +
+          'application reaches your TENANT’s data within the permissions granted to it',
         reversible:
           'You can turn the channel off at any time, but what has already left the machine stays where it went.',
         confirm: 'Open the channel'
       }
+    },
+    graphAccess: {
+      command: 'Microsoft Graph access',
+      title: 'Microsoft Graph access',
+      lead:
+        'The agent reaches Outlook, OneDrive and Teams through an Azure AD application of ' +
+        'yours. Its three values live only in the environment of the core process, so they ' +
+        'are stored here — encrypted by this machine, never written into the profile’s .env.',
+      tenantWarning:
+        'These are application credentials, not a sign-in: within the permissions the ' +
+        'application was granted, they reach your organisation’s data — not only your own ' +
+        'mailbox and files.',
+      tenant: 'Tenant (directory) ID',
+      clientId: 'Application (client) ID',
+      clientSecret: 'Client secret',
+      stateSet: 'stored',
+      stateMissing: 'not set',
+      envOverride:
+        'The same variable is assigned in the profile’s .env, and the core prefers that one — ' +
+        'remove the line there, or what you store here will have no effect.',
+      noEncryption:
+        'This machine cannot encrypt local storage, so nothing is saved: a credential in the ' +
+        'clear is worse than a credential missing.',
+      save: 'Save',
+      clear: 'Delete',
+      restartNote:
+        'A saved value reaches the core through the environment of its process, so the core ' +
+        'restarts — the current conversation stays, the run in flight does not.',
+      readinessTitle: 'What is still missing',
+      needCredentials: 'all three application values',
+      needPipeline: 'the teams_pipeline plugin (Settings → Plugins) — meeting summaries',
+      needNotifications:
+        'the Microsoft Graph notifications channel (Settings → Messaging) — Microsoft calls into this machine',
+      needChannelPlugin:
+        'the teams-platform plugin (Settings → Plugins) — without it the Teams card has no credential fields',
+      needTeams: 'the Teams channel itself (Settings → Messaging), if replies should go there',
+      profileUnread:
+        'The core’s profile could not be read — it runs on another machine, and these switches live there.',
+      noLiveCheck:
+        'This window shows what is configured and does not call Microsoft: a real check needs the Azure AD application with its permissions already granted.'
     },
     install: {
       skillTitle: (name: string) => `Install the “${name}” skill?`,
@@ -731,10 +786,64 @@ export const aecLocales: PluginLocaleBundles = {
         a2aSession:
           'задача от той программы попадает в ТУ ЖЕ живую сессию, в которой идёт ваш ' +
           'разговор, — с её памятью и её доступом к вашим файлам',
+        teamsApp:
+          'канал работает приложением Azure AD — тем самым, чей секрет вы здесь вводите, — ' +
+          'поэтому сообщения и ответы идут через облако Microsoft вашей организации и видны ' +
+          'всем, кто есть в том чате или канале',
+        teamsPort:
+          'входящий слушатель Bot Framework на этой машине (порт по умолчанию 3978), причём ' +
+          'host по умолчанию НЕ ЗАДАН — это значит все сетевые интерфейсы, а не только ' +
+          '127.0.0.1',
+        graphPort:
+          'в машину звонит сам Microsoft — уведомлениями об изменениях: слушатель на порту ' +
+          '8646 по пути /msgraph/webhook, по умолчанию тоже на всех интерфейсах, и ' +
+          'проверяются только общий client_state и список CIDR, если вы их задали',
+        graphTenant:
+          'доступ приложения к Microsoft Graph — это не «ваша почта»: приложение Azure AD ' +
+          'достаёт данные ТЕНАНТА в пределах выданных ему разрешений',
         reversible:
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
       }
+    },
+    graphAccess: {
+      command: 'Доступы Microsoft Graph',
+      title: 'Доступы Microsoft Graph',
+      lead:
+        'К Outlook, OneDrive и Teams агент ходит вашим приложением Azure AD. Три его значения ' +
+        'ядро читает только из окружения своего процесса, поэтому они хранятся здесь — ' +
+        'зашифрованными этой машиной, и никогда не пишутся в .env профиля.',
+      tenantWarning:
+        'Это учётные данные приложения, а не вход под собой: в пределах выданных приложению ' +
+        'разрешений они достают данные вашей организации, а не только вашу почту и ваши файлы.',
+      tenant: 'Идентификатор тенанта (каталога)',
+      clientId: 'Идентификатор приложения (client ID)',
+      clientSecret: 'Секрет приложения',
+      stateSet: 'задан',
+      stateMissing: 'не задан',
+      envOverride:
+        'Та же переменная задана в .env профиля, и ядро предпочитает её — уберите строку ' +
+        'оттуда, иначе сохранённое здесь ни на что не повлияет.',
+      noEncryption:
+        'Эта машина не умеет шифровать локальное хранилище, поэтому ничего не сохраняется: ' +
+        'учётные данные в открытом виде хуже, чем их отсутствие.',
+      save: 'Сохранить',
+      clear: 'Удалить',
+      restartNote:
+        'Сохранённое значение доходит до ядра окружением его процесса, поэтому ядро ' +
+        'перезапускается — разговор остаётся, идущая работа прерывается.',
+      readinessTitle: 'Чего ещё не хватает',
+      needCredentials: 'все три значения приложения',
+      needPipeline: 'плагин teams_pipeline (Настройки → Плагины) — разбор встреч',
+      needNotifications:
+        'канал уведомлений Microsoft Graph (Настройки → Каналы) — в машину звонит сам Microsoft',
+      needChannelPlugin:
+        'плагин teams-platform (Настройки → Плагины) — без него у карточки Teams нет полей для учётных данных',
+      needTeams: 'сам канал Teams (Настройки → Каналы), если ответы должны уходить туда',
+      profileUnread:
+        'Профиль ядра прочитать не удалось — оно на другой машине, и эти выключатели там же.',
+      noLiveCheck:
+        'Это окно показывает, что настроено, и не обращается к Microsoft: настоящая проверка требует приложения Azure AD с уже выданными разрешениями.'
     },
     install: {
       skillTitle: (name: string) => `Установить скил «${name}»?`,

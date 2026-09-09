@@ -151,9 +151,11 @@ import {
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import { decideGraphMark } from './graph-scope-pure'
+import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
 import type {
   CuratorStatus,
   GatewayRpcOutcome,
+  GraphAccessState,
   GraphAddState,
   IngestState,
   LearningGraph,
@@ -3463,6 +3465,50 @@ ipcMain.handle('keys:save', async (_event, payload: unknown) => {
   // A key only reaches hermes through the child process's environment, so it
   // takes effect on the next start and not before.
   return restartBackend()
+})
+
+// --- Доступы Microsoft Graph (задача 3E.9а, SPECIFICATION UR34) ------------
+//
+// ТОЛЬКО ЧТЕНИЕ. Записывать учётные данные здесь нечем и не нужно: для этого
+// уже есть `keys:save` — наше шифрованное хранилище, из которого значения
+// попадают в окружение дочернего процесса ядра и никогда в `.env` профиля
+// (решение владельца R2). Второй путь записи был бы вторым местом, где можно
+// ошибиться секретом.
+//
+// ЗАЧЕМ ТОГДА ЭТОТ ОБРАБОТЧИК. Доступ к Graph складывается из четырёх мест
+// (см. `graph-access-pure.ts`), и три из них живут в профиле, а не у нас.
+// Человеку нужен один ответ на вопрос «чего не хватает», иначе он вводит секрет
+// и получает тишину.
+ipcMain.handle('graph:access', async (): Promise<GraphAccessState> => {
+  const stored = new Set(storedProviderKeyNames())
+  let profileDir: string | undefined
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch (error: unknown) {
+    console.error('aecpilot: could not locate the hermes profile for Graph access', error)
+  }
+
+  let configText: string | undefined
+  if (profileDir) {
+    try {
+      configText = readFileSync(join(profileDir, 'config.yaml'), 'utf-8')
+    } catch (error: unknown) {
+      console.error('aecpilot: could not read config.yaml for Graph access', error)
+    }
+  }
+
+  return {
+    encryptionAvailable: isEncryptionAvailable(),
+    keys: GRAPH_ENV_VARS.map((envVar) => ({
+      envVar,
+      hasKey: stored.has(envVar),
+      envOverrides: profileDir ? keyEnvVarStatus(profileDir, envVar) : false
+    })),
+    // Профиль не прочитан — говорим это значением, а не показываем четыре
+    // «выключено»: ядро на другой машине, и выключателей тут нет вовсе.
+    profileRead: configText !== undefined,
+    readiness: readGraphReadiness(configText ?? '')
+  }
 })
 
 // --- Экран памяти, слой 1 и автозапись (задача 5.4) ------------------------

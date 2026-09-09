@@ -46,23 +46,38 @@ export const CHANNEL_DISCLOSURE_ITEMS = [
 export type ChannelDisclosureItem = (typeof CHANNEL_DISCLOSURE_ITEMS)[number]
 
 /**
- * Что добавляется к перечню для отдельных платформ (задача 3.11).
+ * Что добавляется к перечню для отдельных платформ (задачи 3.11, 3E.9а).
  *
- * Три пункта выше верны для любого канала, но A2A отличается по СУЩЕСТВУ, а не
- * по степени: с той стороны не человек в переписке, а ДРУГАЯ ПРОГРАММА, и
- * приходит она не в чат, а на сетевой порт этой машины. Ядро к тому же
- * рассказывает о себе карточкой агента — что он умеет и как к нему обратиться.
- * Человек, включающий канал, должен понимать именно это; общими словами про
- * «сообщения» такого не скажешь.
+ * Три пункта выше верны для любого канала. Здесь живут те, что отличаются по
+ * СУЩЕСТВУ, а не по степени, — и каждый пункт стоит на замере ядра, а не на
+ * общих словах про «сообщения».
  *
- * Замерено на ядре 0.20.4 (`plugins/platforms/a2a`): порт по умолчанию 9900,
- * без токена слушает только 127.0.0.1, задача попадает в ЖИВУЮ сессию — ту же,
- * в которой идёт разговор человека, со всей её памятью и файлами.
+ * A2A (ядро 0.20.4, `plugins/platforms/a2a`): с той стороны не человек в
+ * переписке, а ДРУГАЯ ПРОГРАММА, и приходит она не в чат, а на сетевой порт
+ * этой машины; порт по умолчанию 9900, без токена слушает только 127.0.0.1,
+ * задача попадает в ЖИВУЮ сессию — ту же, в которой идёт разговор человека.
+ *
+ * Teams (ядро 0.21.0, `plugins/platforms/teams`): канал держится приложением
+ * Azure AD — тем самым, чей секрет человек вводит, — и принимает сообщения
+ * входящим слушателем Bot Framework. Умолчание порта 3978, а host по умолчанию
+ * НЕ ЗАДАН, то есть слушаются все интерфейсы, а не только 127.0.0.1.
+ *
+ * Microsoft Graph (ядро 0.21.0, `gateway/platforms/msgraph_webhook`): в машину
+ * звонит сам Microsoft — уведомлениями об изменениях подписанных ресурсов.
+ * Порт 8646 по пути `/msgraph/webhook`, host по умолчанию снова не задан (в их
+ * комментарии так и сказано: умолчание на все интерфейсы), а проверяется лишь
+ * `client_state`, если его задали, и список CIDR, если его задали. Доступ
+ * приложения к Graph — не «ваша почта»: это права приложения Azure AD на
+ * данные ТЕНАНТА в пределах выданных ему разрешений.
  */
+const EXTRA_DISCLOSURE: Record<string, readonly string[]> = {
+  a2a: ['channels.disclosure.a2aPort', 'channels.disclosure.a2aSession'],
+  teams: ['channels.disclosure.teamsApp', 'channels.disclosure.teamsPort'],
+  msgraph_webhook: ['channels.disclosure.graphPort', 'channels.disclosure.graphTenant']
+}
+
 export function extraDisclosureItems(platformId: string): readonly string[] {
-  return platformId === 'a2a'
-    ? (['channels.disclosure.a2aPort', 'channels.disclosure.a2aSession'] as const)
-    : []
+  return EXTRA_DISCLOSURE[platformId] ?? []
 }
 
 /**
@@ -77,8 +92,21 @@ export function extraDisclosureItems(platformId: string): readonly string[] {
  * ВКЛЮЧЁННЫЙ канал не прячется никогда, даже если он не в списке. Спрятать
  * работающий канал значило бы отобрать у человека выключатель от того, что
  * прямо сейчас выносит его переписку наружу.
+ *
+ * ПОПОЛНЕН 2026-09-09 задачей 3E.9а: `teams` и `msgraph_webhook`. Решение O7
+ * (2026-08-22) утвердило четыре канала, UR34 (2026-09-05) взял Microsoft Graph
+ * в объём — и без карточки канал не включить вовсе, то есть требование
+ * оставалось бы недостижимым из окна. За оба пункта мы отвечаем: у каждого свой
+ * перечень того, что уходит и что приходит, ниже.
  */
-export const CHANNEL_SHORTLIST = ['telegram', 'email', 'webhook', 'a2a'] as const
+export const CHANNEL_SHORTLIST = [
+  'telegram',
+  'email',
+  'webhook',
+  'a2a',
+  'teams',
+  'msgraph_webhook'
+] as const
 
 /** Их экран запрашивает список платформ этим GET. */
 export function isPlatformListing(request: { path: string; method?: string }): boolean {

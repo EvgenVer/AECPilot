@@ -580,6 +580,22 @@ export interface GraphRunReport {
   forecast: { chunks_estimate: number; documents: number; not_indexed: number }
 }
 
+/** Готовность Microsoft Graph (задача 3E.9а, UR34): что из четырёх мест уже
+ *  настроено. Значения — состояния, не секреты: `hasKey` и флаги профиля, и
+ *  ничего похожего на само значение переменной в обе стороны не едет. */
+export interface GraphAccessState {
+  encryptionAvailable: boolean
+  keys: { envOverrides: boolean; envVar: string; hasKey: boolean }[]
+  /** `false` — профиль прочитать не удалось (ядро на другой машине, нет файла).
+   *  Тогда `readiness` ничего не значит, и окно обязано сказать это, а не
+   *  показать четыре «выключено». */
+  profileRead: boolean
+  readiness: {
+    channels: { notifications: boolean; teams: boolean }
+    plugins: { channel: boolean; pipeline: boolean }
+  }
+}
+
 /** Состояние графового прогона. Отдельное от `IngestState` нарочно: уровень 1
  *  бесплатен, уровень 2 стоит вызова модели на каждый фрагмент, и один
  *  индикатор на оба скрыл бы, за что именно идут деньги. */
@@ -1293,6 +1309,10 @@ export interface AecpilotApi {
     rel: string,
     kind: GraphScopeKind
   ): Promise<{ error?: string; started: boolean }>
+  /** Чего не хватает доступу к Microsoft Graph (задача 3E.9а). Только чтение:
+   *  учётные данные пишутся через `saveProviderKey` — наше шифрованное
+   *  хранилище, — а три из четырёх мест живут в профиле ядра. */
+  getGraphAccess(): Promise<GraphAccessState>
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a

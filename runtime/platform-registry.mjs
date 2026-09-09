@@ -103,8 +103,17 @@ export const VERDICTS = {
   buzz: { status: "ours", where: "UR19 — мессенджер поверх Nostr; нужен сторонний двоичный buzz CLI" },
   raft: { status: "ours", where: "UR19 — мессенджер рабочего пространства Raft; нужен сторонний Raft CLI" },
   photon: { status: "ours", where: "UR19 — iMessage через управляемую площадку Photon Spectrum и Node-посредник" },
-  teams: { status: "ours", where: "UR34 — Teams назван прямо (Microsoft Graph выведен из HX11)" },
-  msgraph_webhook: { status: "ours", where: "UR34 — уведомления об изменениях Microsoft Graph" },
+  // Задача 3E.9а пополнила короткий список: UR34 (2026-09-05) взял Microsoft
+  // Graph в объём ПОСЛЕ решения O7 о четырёх каналах, а без карточки канал не
+  // включить из окна вовсе. У каждого свой перечень в `extraDisclosureItems`.
+  teams: {
+    status: "shown",
+    where: "UR34 — Teams назван прямо; короткий список пополнен задачей 3E.9а",
+  },
+  msgraph_webhook: {
+    status: "shown",
+    where: "UR34 — уведомления об изменениях Graph; вход ВХОДЯЩИЙ, звонит сам Microsoft",
+  },
 
   // ── исключено номером SPEC ──────────────────────────────────────────────
   discord: { status: "excluded", hx: "HX11", where: "Discord" },

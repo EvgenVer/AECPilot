@@ -97,6 +97,23 @@ describe('A2A говорит о себе отдельно', () => {
     ])
   })
 
+  it('у Teams свои два пункта: чужое облако и слушатель на всех интерфейсах', () => {
+    // Задача 3E.9а. Общих трёх пунктов тут не хватает: канал держится
+    // приложением Azure AD, а его входящий слушатель по умолчанию слушает НЕ
+    // только 127.0.0.1 — это и есть то, что человек узнаёт до включения.
+    expect(extraDisclosureItems('teams')).toEqual([
+      'channels.disclosure.teamsApp',
+      'channels.disclosure.teamsPort'
+    ])
+  })
+
+  it('у уведомлений Graph — порт, в который звонит Microsoft, и область доступа', () => {
+    expect(extraDisclosureItems('msgraph_webhook')).toEqual([
+      'channels.disclosure.graphPort',
+      'channels.disclosure.graphTenant'
+    ])
+  })
+
   it('прочим платформам ничего не добавляется — лишний текст никто не читает', () => {
     expect(extraDisclosureItems('telegram')).toEqual([])
     expect(extraDisclosureItems('')).toEqual([])
@@ -113,6 +130,8 @@ describe('короткий список каналов', () => {
       { id: 'a2a', enabled: false },
       { id: 'webhook', enabled: false },
       { id: 'email', enabled: false },
+      { id: 'teams', enabled: false },
+      { id: 'msgraph_webhook', enabled: false },
       { id: 'weixin', enabled: false },
       { id: 'qqbot', enabled: false }
     ]
