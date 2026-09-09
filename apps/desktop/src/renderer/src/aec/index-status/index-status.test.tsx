@@ -8,16 +8,25 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
-import type { IngestState, RagStatus } from '../../../../shared/ipc'
+import type { GraphAddState, IngestState, RagStatus } from '../../../../shared/ipc'
 
 import { IndexStatus } from './IndexStatus'
 
 const getIndexStatus = vi.fn()
 const getIngestState = vi.fn()
 const startIngest = vi.fn()
+const getGraphAddState = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
+let emitGraphState: (state: GraphAddState) => void = () => {}
 
 const IDLE: IngestState = { error: null, lastReport: null, progress: null, running: false }
+const GRAPH_IDLE: GraphAddState = {
+  error: null,
+  lastReport: null,
+  path: null,
+  progress: null,
+  running: false
+}
 
 function status(patch: Partial<RagStatus> = {}): RagStatus {
   return {
@@ -47,12 +56,18 @@ beforeEach(() => {
   getIndexStatus.mockResolvedValue({ ok: true, status: status() })
   getIngestState.mockResolvedValue(IDLE)
   startIngest.mockResolvedValue({ started: true })
+  getGraphAddState.mockResolvedValue(GRAPH_IDLE)
   window.aecpilot = {
     getIndexStatus,
     getIngestState,
     startIngest,
+    getGraphAddState,
     onIngestState: (cb: (state: IngestState) => void) => {
       emitIngestState = cb
+      return () => {}
+    },
+    onGraphAddState: (cb: (state: GraphAddState) => void) => {
+      emitGraphState = cb
       return () => {}
     }
   } as unknown as typeof window.aecpilot
@@ -155,6 +170,33 @@ describe('IndexStatus', () => {
     expect(screen.getByText('tasks/ЭОМ')).toBeTruthy()
     expect(screen.getByText(/2 новых документ.*96 фрагментов/)).toBeTruthy()
     expect(screen.getByText(/7 документ\(ов\) вне графа/)).toBeTruthy()
+  })
+
+  it('показывает ход графового прогона: окно подтверждения могли закрыть', async () => {
+    // Задача 5.15. Уровень 2 тратит деньги минутами, а окно, из которого его
+    // запустили, человек вправе закрыть. Если ход не видно здесь, расход
+    // становится невидимым вовсе.
+    renderIndicator()
+    await openPanel()
+
+    await act(async () => {
+      emitGraphState({
+        ...GRAPH_IDLE,
+        path: 'tasks/ЭОМ',
+        progress: {
+          chunks: 7,
+          done: 3,
+          error: '',
+          rel_path: 'ЭОМ/задание.pdf',
+          source_id: 'tasks',
+          stage: 'graph',
+          total: 12
+        },
+        running: true
+      })
+    })
+
+    expect(screen.getByText('строю граф: 3 из 12')).toBeTruthy()
   })
 
   it('shows nothing at all when no project is open', async () => {

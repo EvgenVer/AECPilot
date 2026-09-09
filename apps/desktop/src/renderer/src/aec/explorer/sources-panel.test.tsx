@@ -5,11 +5,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { SourcesPanel } from './SourcesPanel'
 import { AecI18nProvider } from '../../shared/i18n'
+import type { GraphAddState, GraphPreview } from '../../../../shared/ipc'
+
+import { closeGraphAdd } from './graph-add-store'
 
 const listSources = vi.fn()
 const addSource = vi.fn()
@@ -17,8 +20,33 @@ const removeSource = vi.fn()
 const getSourceStatus = vi.fn()
 const pickProjectDirectory = vi.fn()
 const getConnection = vi.fn()
+const getSourceTree = vi.fn()
+const previewGraphAdd = vi.fn()
+const startGraphAdd = vi.fn()
+const getGraphAddState = vi.fn()
+let emitGraphState: (state: GraphAddState) => void = () => {}
 
 const source = { id: 's1', root_path: 'D:/проект/чертежи', added_at: '2026-08-06T00:00:00Z' }
+
+const GRAPH_IDLE: GraphAddState = {
+  error: null,
+  lastReport: null,
+  path: null,
+  progress: null,
+  running: false
+}
+
+function preview(patch: Partial<GraphPreview> = {}): GraphPreview {
+  return {
+    adds: [{ added_at: '2026-09-09', kind: 'folder', path: 's1' }],
+    chunks_estimate: 96,
+    documents: 2,
+    entries: [{ added_at: '2026-09-09', kind: 'folder', path: 's1' }],
+    index_missing: false,
+    not_indexed: 0,
+    ...patch
+  }
+}
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -28,19 +56,45 @@ beforeEach(() => {
   removeSource.mockResolvedValue({ ok: true })
   pickProjectDirectory.mockResolvedValue('D:/проект/новая-папка')
   getConnection.mockResolvedValue({ mode: 'local' })
+  getSourceTree.mockResolvedValue({
+    ok: true,
+    status: 'ok',
+    tree: [
+      {
+        name: 'ЭОМ',
+        path: 'ЭОМ',
+        type: 'dir',
+        children: [{ name: 'задание.pdf', path: 'ЭОМ/задание.pdf', type: 'file' }]
+      }
+    ]
+  })
+  previewGraphAdd.mockResolvedValue({ ok: true, preview: preview() })
+  startGraphAdd.mockResolvedValue({ started: true })
+  getGraphAddState.mockResolvedValue(GRAPH_IDLE)
   window.aecpilot = {
     listSources,
     getConnection,
     addSource,
     removeSource,
     getSourceStatus,
-    pickProjectDirectory
+    pickProjectDirectory,
+    getSourceTree,
+    previewGraphAdd,
+    startGraphAdd,
+    getGraphAddState,
+    onGraphAddState: (cb: (state: GraphAddState) => void) => {
+      emitGraphState = cb
+      return () => {}
+    }
   } as unknown as typeof window.aecpilot
 })
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  // Цель отметки живёт в сторе, а не в DOM: без сброса следующий тест начался бы
+  // с открытым окном подтверждения.
+  closeGraphAdd()
 })
 
 const renderPanel = () =>
@@ -132,6 +186,133 @@ describe('SourcesPanel', () => {
 
     expect(removeSource).toHaveBeenCalledWith('s1')
     await waitFor(() => expect(screen.getByText('источник занят индексацией')).toBeTruthy())
+  })
+})
+
+// Задача 5.15 — отметка в граф из проводника. Проверяется то, что требует
+// SPECIFICATION UR24: объём и стоимость названы ДО запуска, а отказ не
+// запускает ничего.
+describe('добавление в граф', () => {
+  const openMenuOn = async (title: string) => {
+    const row = screen.getByTitle(title).closest('div') as HTMLElement
+    await act(async () => {
+      fireEvent.contextMenu(row)
+    })
+  }
+
+  const chooseAddToGraph = async () => {
+    await act(async () => {
+      screen.getByRole('menuitem', { name: 'Добавить в граф знаний' }).click()
+    })
+  }
+
+  const expand = async () => {
+    await act(async () => {
+      screen.getByTitle('D:/проект/чертежи').click()
+    })
+  }
+
+  it('показывает объём и стоимость до запуска', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+
+    await openMenuOn('D:/проект/чертежи')
+    await chooseAddToGraph()
+
+    // Корень источника — тоже единица выбора: путь от корня пустой.
+    await waitFor(() => expect(previewGraphAdd).toHaveBeenCalledWith('s1', '', 'folder'))
+    expect(await screen.findByText(/2 документ.*примерно 96 фрагмент/)).toBeTruthy()
+    // Ничего не запущено: прогноз — это вопрос, а не действие.
+    expect(startGraphAdd).not.toHaveBeenCalled()
+  })
+
+  it('отказ не запускает ничего', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+
+    await openMenuOn('D:/проект/чертежи')
+    await chooseAddToGraph()
+    await screen.findByText(/2 документ/)
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Закрыть' }).click()
+    })
+
+    expect(startGraphAdd).not.toHaveBeenCalled()
+    expect(screen.queryByText(/2 документ/)).toBeNull()
+  })
+
+  it('согласие запускает прогон по тому же пути', async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await expand()
+    // Папка источника тоже открывается щелчком: дерево показывает свой уровень.
+    await waitFor(() => expect(screen.getByTitle('ЭОМ')).toBeTruthy())
+    await act(async () => {
+      screen.getByTitle('ЭОМ').click()
+    })
+    await waitFor(() => expect(screen.getByText('задание.pdf')).toBeTruthy())
+
+    await openMenuOn('ЭОМ/задание.pdf')
+    await chooseAddToGraph()
+    await screen.findByText(/2 документ/)
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Добавить' }).click()
+    })
+
+    // Вид записи взят из дерева, а не угадан по расширению.
+    expect(previewGraphAdd).toHaveBeenCalledWith('s1', 'ЭОМ/задание.pdf', 'file')
+    expect(startGraphAdd).toHaveBeenCalledWith('s1', 'ЭОМ/задание.pdf', 'file')
+
+    await act(async () => {
+      emitGraphState({
+        ...GRAPH_IDLE,
+        path: 's1/ЭОМ/задание.pdf',
+        progress: {
+          chunks: 7,
+          done: 1,
+          error: '',
+          rel_path: 'ЭОМ/задание.pdf',
+          source_id: 's1',
+          stage: 'graph',
+          total: 2
+        },
+        running: true
+      })
+    })
+
+    expect(screen.getByText('Строю граф: 1 из 2')).toBeTruthy()
+  })
+
+  it('без индекса соглашаться не на что — кнопки запуска нет', async () => {
+    previewGraphAdd.mockResolvedValue({
+      ok: true,
+      preview: preview({ adds: [], chunks_estimate: 0, documents: 0, index_missing: true })
+    })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+
+    await openMenuOn('D:/проект/чертежи')
+    await chooseAddToGraph()
+
+    expect(await screen.findByText(/не проиндексированы/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Добавить' })).toBeNull()
+  })
+
+  it('несостоявшийся прогноз виден словами, а не пустым окном', async () => {
+    previewGraphAdd.mockResolvedValue({
+      ok: false,
+      error: 'aec-rag graph-preview не ответил вовремя'
+    })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+
+    await openMenuOn('D:/проект/чертежи')
+    await chooseAddToGraph()
+
+    expect(await screen.findByText(/не ответил вовремя/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Добавить' })).toBeNull()
   })
 })
 

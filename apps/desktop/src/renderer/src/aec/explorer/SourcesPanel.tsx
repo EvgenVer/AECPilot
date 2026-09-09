@@ -13,10 +13,19 @@ import { useCallback, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger
+} from '../../donor/components/ui/context-menu'
 import { useAecT } from '../../shared/i18n'
 import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
 
 import { openDocument } from '../viewers/viewer-store'
+
+import { GraphAddDialog } from './GraphAddDialog'
+import { askGraphAdd } from './graph-add-store'
 
 const SOURCES_KEY = ['aec', 'sources'] as const
 
@@ -59,45 +68,67 @@ function SourceNodes({
     <ul className="flex flex-col">
       {nodes.map((node) => (
         <li key={node.path}>
-          <div
-            className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
-            style={{ paddingLeft: `${depth * 0.75}rem` }}
-          >
-            <button
-              className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
-              // Задача 4.2a: файл источника открывается тем же просмотрщиком.
-              // Открывается — не правится: источники read-only (SPEC UR2, AC6).
-              onClick={() =>
-                node.type === 'dir'
-                  ? setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
-                  : openDocument({ locator: {}, relPath: node.path, sourceId })
-              }
-              title={node.path}
-              type="button"
-            >
-              <Codicon
-                className="text-(--ui-text-secondary)"
-                name={
-                  node.type === 'dir'
-                    ? open[node.path]
-                      ? 'chevron-down'
-                      : 'chevron-right'
-                    : 'file'
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div
+                className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
+                style={{ paddingLeft: `${depth * 0.75}rem` }}
+              >
+                <button
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
+                  // Задача 4.2a: файл источника открывается тем же просмотрщиком.
+                  // Открывается — не правится: источники read-only (SPEC UR2, AC6).
+                  onClick={() =>
+                    node.type === 'dir'
+                      ? setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
+                      : openDocument({ locator: {}, relPath: node.path, sourceId })
+                  }
+                  title={node.path}
+                  type="button"
+                >
+                  <Codicon
+                    className="text-(--ui-text-secondary)"
+                    name={
+                      node.type === 'dir'
+                        ? open[node.path]
+                          ? 'chevron-down'
+                          : 'chevron-right'
+                        : 'file'
+                    }
+                  />
+                  <span className="truncate">{node.name}</span>
+                </button>
+                <Button
+                  aria-label={t('explorer.reveal')}
+                  className="hidden group-focus-within:flex group-hover:flex"
+                  onClick={() =>
+                    void window.aecpilot.showSourceEntryInExplorer(sourceId, node.path)
+                  }
+                  size="icon-xs"
+                  title={t('explorer.reveal')}
+                  variant="ghost"
+                >
+                  <Codicon name="folder-opened" />
+                </Button>
+              </div>
+            </ContextMenuTrigger>
+            {/* Единица выбора UR24 — папка либо файл, и вид здесь берётся из
+                дерева, а не из догадки по расширению. */}
+            <ContextMenuContent>
+              <ContextMenuItem
+                onSelect={() =>
+                  askGraphAdd({
+                    kind: node.type === 'dir' ? 'folder' : 'file',
+                    label: `${sourceId}/${node.path}`,
+                    rel: node.path,
+                    sourceId
+                  })
                 }
-              />
-              <span className="truncate">{node.name}</span>
-            </button>
-            <Button
-              aria-label={t('explorer.reveal')}
-              className="hidden group-focus-within:flex group-hover:flex"
-              onClick={() => void window.aecpilot.showSourceEntryInExplorer(sourceId, node.path)}
-              size="icon-xs"
-              title={t('explorer.reveal')}
-              variant="ghost"
-            >
-              <Codicon name="folder-opened" />
-            </Button>
-          </div>
+              >
+                {t('graphAdd.menu')}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
           {node.type === 'dir' && open[node.path] && (
             <SourceNodes depth={depth + 1} nodes={node.children ?? []} sourceId={sourceId} />
           )}
@@ -262,47 +293,69 @@ export function SourcesPanel() {
 
             return (
               <li key={source.id}>
-                <div className="group flex items-center gap-1 rounded-[4px] px-1 hover:bg-(--chrome-action-hover)">
-                  <button
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left"
-                    onClick={() => setExpanded((c) => ({ ...c, [source.id]: !c[source.id] }))}
-                    title={source.root_path}
-                    type="button"
-                  >
-                    <Codicon
-                      className="text-(--ui-text-secondary)"
-                      name={expanded[source.id] ? 'chevron-down' : 'chevron-right'}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)">
-                      {source.root_path}
-                    </span>
-                  </button>
-                  {status && status !== 'ok' && (
-                    // A source that has gone away is the failure this panel
-                    // exists to make visible — a moved drive, a share that is no
-                    // longer mounted.
-                    <span className="shrink-0 text-xs text-destructive">
-                      {t('sources.unavailable')}
-                    </span>
-                  )}
-                  <Button
-                    aria-label={t('sources.remove')}
-                    className="hidden group-focus-within:flex group-hover:flex"
-                    disabled={busy}
-                    onClick={() => void handleRemove(source)}
-                    size="icon-xs"
-                    title={t('sources.remove')}
-                    variant="ghost"
-                  >
-                    <Codicon name="trash" />
-                  </Button>
-                </div>
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <div className="group flex items-center gap-1 rounded-[4px] px-1 hover:bg-(--chrome-action-hover)">
+                      <button
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left"
+                        onClick={() => setExpanded((c) => ({ ...c, [source.id]: !c[source.id] }))}
+                        title={source.root_path}
+                        type="button"
+                      >
+                        <Codicon
+                          className="text-(--ui-text-secondary)"
+                          name={expanded[source.id] ? 'chevron-down' : 'chevron-right'}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)">
+                          {source.root_path}
+                        </span>
+                      </button>
+                      {status && status !== 'ok' && (
+                        // A source that has gone away is the failure this panel
+                        // exists to make visible — a moved drive, a share that is no
+                        // longer mounted.
+                        <span className="shrink-0 text-xs text-destructive">
+                          {t('sources.unavailable')}
+                        </span>
+                      )}
+                      <Button
+                        aria-label={t('sources.remove')}
+                        className="hidden group-focus-within:flex group-hover:flex"
+                        disabled={busy}
+                        onClick={() => void handleRemove(source)}
+                        size="icon-xs"
+                        title={t('sources.remove')}
+                        variant="ghost"
+                      >
+                        <Codicon name="trash" />
+                      </Button>
+                    </div>
+                  </ContextMenuTrigger>
+                  {/* Корень источника — тоже единица выбора (UR24), и для него
+                      путь области это один идентификатор источника. */}
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        askGraphAdd({
+                          kind: 'folder',
+                          label: source.root_path,
+                          rel: '',
+                          sourceId: source.id
+                        })
+                      }
+                    >
+                      {t('graphAdd.menu')}
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
                 {expanded[source.id] && <SourceTree sourceId={source.id} />}
               </li>
             )
           })}
         </ul>
       )}
+
+      <GraphAddDialog />
     </div>
   )
 }

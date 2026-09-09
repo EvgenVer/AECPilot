@@ -544,6 +544,54 @@ export interface IngestState {
   running: boolean
 }
 
+/** Единица выбора UR24: папка (в том числе корень источника) либо файл. */
+export type GraphScopeKind = 'file' | 'folder'
+
+/** Одна отметка «это входит в граф» — то, что лежит в `project.json`. */
+export interface GraphScopeEntry {
+  added_at: string
+  kind: string
+  path: string
+}
+
+/** Прогноз `aec-rag graph-preview` (задача 5.15): сколько будет стоить отметка,
+ *  посчитанное БЕЗ записи выбора. Показывается человеку до запуска — UR24
+ *  требует именно этого порядка, и отказ обязан оставить проект как был. */
+export interface GraphPreview {
+  /** Чего в области ещё нет. Пусто — названное уже в графе (само или папкой
+   *  выше), и спрашивать не о чем. */
+  adds: GraphScopeEntry[]
+  chunks_estimate: number
+  documents: number
+  /** Область целиком, какой она стала бы: подтверждение касается всего, что в
+   *  ней ждёт, а не только той папки, на которой щёлкнули. */
+  entries: GraphScopeEntry[]
+  /** Индекса нет вовсе — нули выше не означают «работы нет». */
+  index_missing: boolean
+  not_indexed: number
+}
+
+/** Итог графового прогона. `forecast` — числа, на которые согласились. */
+export interface GraphRunReport {
+  chunks: number
+  documents_added: number
+  errors: { error: string; rel_path: string; source_id: string }[]
+  failed: number
+  forecast: { chunks_estimate: number; documents: number; not_indexed: number }
+}
+
+/** Состояние графового прогона. Отдельное от `IngestState` нарочно: уровень 1
+ *  бесплатен, уровень 2 стоит вызова модели на каждый фрагмент, и один
+ *  индикатор на оба скрыл бы, за что именно идут деньги. */
+export interface GraphAddState {
+  error: null | string
+  lastReport: GraphRunReport | null
+  /** Что добавляют прямо сейчас. `null` — ничего не идёт. */
+  path: null | string
+  progress: IngestProgressEvent | null
+  running: boolean
+}
+
 /** Вердикт по одной выдержке (SPEC UR26): сама фраза, её место в тексте ответа
  * и была ли она найдена в источнике. `start`/`end` нужны интерфейсу — пометка
  * ставится на конкретный кусок, а одинаковых фраз в ответе может быть две.
@@ -1229,6 +1277,24 @@ export interface AecpilotApi {
   startIngest(full?: boolean): Promise<{ error?: string; started: boolean }>
   getIngestState(): Promise<IngestState>
   onIngestState(cb: (state: IngestState) => void): () => void
+  /** Сколько работы будет, если отметить эту запись в граф (задача 5.15).
+   *  Ничего не помечает и не индексирует: это вопрос, который задают ДО
+   *  подтверждения, и отказ обязан оставить проект байт в байт таким же. */
+  previewGraphAdd(
+    sourceId: string,
+    rel: string,
+    kind: GraphScopeKind
+  ): Promise<{ error: string; ok: false } | { ok: true; preview: GraphPreview }>
+  /** Отмечает запись в граф и строит его по тому, что ждёт. Зовётся только
+   *  после согласия человека — тратит деньги именно этот вызов. Возвращается
+   *  сразу, ход прогона приходит через `onGraphAddState`. */
+  startGraphAdd(
+    sourceId: string,
+    rel: string,
+    kind: GraphScopeKind
+  ): Promise<{ error?: string; started: boolean }>
+  getGraphAddState(): Promise<GraphAddState>
+  onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a
    * connected source; omitted, the path is read from the vault. The path is
    * resolved inside that root by the main process — the renderer never builds

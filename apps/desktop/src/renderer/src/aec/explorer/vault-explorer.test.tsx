@@ -45,7 +45,19 @@ beforeEach(() => {
     createVaultDir,
     renameVaultEntry,
     deleteVaultEntry,
-    onProjectOpened: () => () => {}
+    onProjectOpened: () => () => {},
+    // Панель источников висит в том же дереве и с задачи 5.15 слушает состояние
+    // графового прогона. Сам граф к этим тестам не относится — заглушки ровно
+    // настолько, чтобы окно не падало на подписке.
+    getGraphAddState: () =>
+      Promise.resolve({
+        error: null,
+        lastReport: null,
+        path: null,
+        progress: null,
+        running: false
+      }),
+    onGraphAddState: () => () => {}
   } as unknown as typeof window.aecpilot
 })
 

@@ -242,6 +242,16 @@ const api: AecpilotApi = {
     ipcRenderer.on('index:ingest-state', listener)
     return () => ipcRenderer.removeListener('index:ingest-state', listener)
   },
+  previewGraphAdd: (sourceId, rel, kind) =>
+    ipcRenderer.invoke('graph:preview', { kind, rel, sourceId }),
+  startGraphAdd: (sourceId, rel, kind) => ipcRenderer.invoke('graph:add', { kind, rel, sourceId }),
+  getGraphAddState: () => ipcRenderer.invoke('graph:add-state'),
+  onGraphAddState: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
+      cb(state)
+    ipcRenderer.on('graph:add-state', listener)
+    return () => ipcRenderer.removeListener('graph:add-state', listener)
+  },
   getVaultTree: () => ipcRenderer.invoke('vault:tree'),
   createVaultFile: (parentRel, name) =>
     ipcRenderer.invoke('vault:create-file', { parentRel, name }),

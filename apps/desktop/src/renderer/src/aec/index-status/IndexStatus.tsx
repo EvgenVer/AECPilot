@@ -14,14 +14,26 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '../../donor/components/ui/popover'
 import { useAecT } from '../../shared/i18n'
-import type { IngestState } from '../../../../shared/ipc'
+import type { GraphAddState, IngestState } from '../../../../shared/ipc'
 
 const IDLE: IngestState = { error: null, lastReport: null, progress: null, running: false }
+
+// Задача 5.15: графовый прогон идёт минутами и стоит денег, а окно, из которого
+// его запустили, человек вправе закрыть. Значит ход должен быть виден там же,
+// где всё остальное про индекс, — иначе расход становится невидимым.
+const GRAPH_IDLE: GraphAddState = {
+  error: null,
+  lastReport: null,
+  path: null,
+  progress: null,
+  running: false
+}
 
 export function IndexStatus(): React.JSX.Element | null {
   const t = useAecT()
   const queryClient = useQueryClient()
   const [ingest, setIngest] = useState<IngestState>(IDLE)
+  const [graph, setGraph] = useState<GraphAddState>(GRAPH_IDLE)
 
   const status = useQuery({
     queryKey: ['aec', 'index-status'],
@@ -35,6 +47,14 @@ export function IndexStatus(): React.JSX.Element | null {
     return window.aecpilot.onIngestState((next) => {
       setIngest(next)
       // A finished run changes every number in the indicator.
+      if (!next.running) void queryClient.invalidateQueries({ queryKey: ['aec', 'index-status'] })
+    })
+  }, [queryClient])
+
+  useEffect(() => {
+    void window.aecpilot.getGraphAddState().then(setGraph)
+    return window.aecpilot.onGraphAddState((next) => {
+      setGraph(next)
       if (!next.running) void queryClient.invalidateQueries({ queryKey: ['aec', 'index-status'] })
     })
   }, [queryClient])
@@ -107,7 +127,7 @@ export function IndexStatus(): React.JSX.Element | null {
           </Button>
         </div>
 
-        <GraphScope data={data} />
+        <GraphScope data={data} graph={graph} />
       </PopoverContent>
     </Popover>
   )
@@ -120,11 +140,13 @@ export function IndexStatus(): React.JSX.Element | null {
  * what is in the graph, what is waiting, and how big the waiting work is —
  * before agreeing to it. */
 function GraphScope({
-  data
+  data,
+  graph
 }: {
   data: NonNullable<
     Awaited<ReturnType<typeof window.aecpilot.getIndexStatus>> & { ok: true }
   >['status']
+  graph: GraphAddState
 }): React.JSX.Element {
   const t = useAecT()
   const entries = data.graph_entries ?? []
@@ -150,6 +172,11 @@ function GraphScope({
       {data.graph.documents > 0 && !data.graph.covers_whole_project ? (
         <div className="text-muted-foreground text-xs">
           {t('index.graphPartial', data.graph.documents_outside)}
+        </div>
+      ) : null}
+      {graph.running ? (
+        <div className="text-amber-500">
+          {t('index.graphRunning', graph.progress?.done ?? 0, graph.progress?.total ?? 0)}
         </div>
       ) : null}
       {pending.documents > 0 ? (

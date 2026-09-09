@@ -33,35 +33,51 @@ export type IngestLines = {
   rest: string
 }
 
-/** Splits `buffered` into complete lines and reads what each one says.
+/** Splits `buffered` into complete lines and parses the JSON objects among them.
  *
- * A line that is not JSON, or is JSON of a shape we do not know, is skipped
- * rather than thrown on: python warnings and library chatter do reach stdout,
- * and one stray line must not abort an ingest that is otherwise fine.
+ * A line that is not JSON, or is not an object, is skipped rather than thrown
+ * on: python warnings and library chatter do reach stdout, and one stray line
+ * must not abort a run that is otherwise fine.
+ *
+ * Shared with the graph runner (task 5.15), which reads a stream of the same
+ * shape but a report of its own. The awkward parts — a line split across two
+ * reads, a partial line at the end, a line that is not ours at all — are what
+ * this file exists for, and a second copy of them would be a second set of
+ * bugs.
  */
-export function readIngestLines(buffered: string): IngestLines {
+export function readJsonLines(buffered: string): {
+  records: Record<string, unknown>[]
+  rest: string
+} {
   const newline = buffered.lastIndexOf('\n')
-  if (newline === -1) return { progress: [], rest: buffered }
+  if (newline === -1) return { records: [], rest: buffered }
 
-  const complete = buffered.slice(0, newline)
-  const rest = buffered.slice(newline + 1)
-
-  const progress: IngestProgress[] = []
-  let report: IngestReport | undefined
-
-  for (const line of complete.split('\n')) {
+  const records: Record<string, unknown>[] = []
+  for (const line of buffered.slice(0, newline).split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
-
     let parsed: unknown
     try {
       parsed = JSON.parse(trimmed)
     } catch {
       continue
     }
-    if (typeof parsed !== 'object' || parsed === null) continue
+    if (typeof parsed === 'object' && parsed !== null) {
+      records.push(parsed as Record<string, unknown>)
+    }
+  }
 
-    const record = parsed as Record<string, unknown>
+  return { records, rest: buffered.slice(newline + 1) }
+}
+
+/** Reads what an ingest run's lines say: progress events and the final report. */
+export function readIngestLines(buffered: string): IngestLines {
+  const { records, rest } = readJsonLines(buffered)
+
+  const progress: IngestProgress[] = []
+  let report: IngestReport | undefined
+
+  for (const record of records) {
     if (isProgress(record.progress)) {
       progress.push(record.progress)
       continue
@@ -72,7 +88,7 @@ export function readIngestLines(buffered: string): IngestLines {
   return { progress, report, rest }
 }
 
-function isProgress(value: unknown): value is IngestProgress {
+export function isProgress(value: unknown): value is IngestProgress {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
   return typeof record.stage === 'string' && typeof record.done === 'number'

@@ -152,12 +152,38 @@ export const aecLocales: PluginLocaleBundles = {
       runFull: 'Re-read everything',
       failed: (count: number) => `${count} file(s) could not be read — see the run report.`,
       graphTitle: 'Knowledge graph',
-      graphEmpty: 'Empty. Ask the agent to add a folder — it costs a model call per fragment.',
+      graphEmpty:
+        'Empty. Mark a folder in the explorer (right-click → add to the graph), or ask the agent — it costs a model call per fragment.',
       graphSummary: (documents: number, chunks: number) =>
         `${documents} document(s), ${chunks} fragment(s)`,
       graphPartial: (outside: number) => `${outside} document(s) are outside the graph.`,
       graphPending: (documents: number, chunks: number) =>
-        `${documents} new document(s) in a marked folder are not in the graph — about ${chunks} fragments of work. They are already searchable.`
+        `${documents} new document(s) in a marked folder are not in the graph — about ${chunks} fragments of work. They are already searchable.`,
+      graphRunning: (done: number, total: number) => `building the graph: ${done} of ${total}`
+    },
+    graphAdd: {
+      menu: 'Add to the knowledge graph',
+      title: 'Add to the knowledge graph',
+      measuring: 'Measuring how much work this is…',
+      failed: (reason: string) => `Could not measure it: ${reason}`,
+      target: (path: string) => `Marking: ${path}`,
+      indexMissing:
+        'These documents are not indexed yet. Tier one (indexing) is free and comes first — without it the graph has nothing to read.',
+      nothing:
+        'Nothing to add: this is already in the graph, or there are no readable documents here.',
+      forecast: (documents: number, chunks: number) =>
+        `${documents} document(s), about ${chunks} fragment(s) — one model call per fragment.`,
+      notIndexed: (count: number) =>
+        `${count} of them are not indexed yet and will not enter the graph until they are.`,
+      pendingNote:
+        'The estimate covers everything waiting in folders already marked — the run adds those too.',
+      confirm: 'Add',
+      running: (done: number, total: number) => `Building the graph: ${done} of ${total}`,
+      runningHint:
+        'You can close this window — the run continues, and its progress stays in the index indicator.',
+      done: (documents: number, chunks: number) =>
+        `Done: ${documents} document(s), ${chunks} fragment(s) added.`,
+      someFailed: (count: number) => `${count} document(s) were not added.`
     },
     viewer: {
       title: 'Document',
@@ -569,12 +595,34 @@ export const aecLocales: PluginLocaleBundles = {
       failed: (count: number) => `${count} файл(ов) не прочитались — смотрите отчёт прогона.`,
       graphTitle: 'Граф знаний',
       graphEmpty:
-        'Пуст. Попросите агента добавить папку — это стоит вызова модели на каждый фрагмент.',
+        'Пуст. Отметьте папку в проводнике (правый клик → в граф) или попросите агента — это стоит вызова модели на каждый фрагмент.',
       graphSummary: (documents: number, chunks: number) =>
         `${documents} документ(ов), ${chunks} фрагмент(ов)`,
       graphPartial: (outside: number) => `${outside} документ(ов) вне графа.`,
       graphPending: (documents: number, chunks: number) =>
-        `${documents} новых документ(ов) в отмеченной папке не в графе — работы примерно на ${chunks} фрагментов. Поиском они уже находятся.`
+        `${documents} новых документ(ов) в отмеченной папке не в графе — работы примерно на ${chunks} фрагментов. Поиском они уже находятся.`,
+      graphRunning: (done: number, total: number) => `строю граф: ${done} из ${total}`
+    },
+    graphAdd: {
+      menu: 'Добавить в граф знаний',
+      title: 'Добавить в граф знаний',
+      measuring: 'Считаю объём работы…',
+      failed: (reason: string) => `Не удалось посчитать объём: ${reason}`,
+      target: (path: string) => `Отмечается: ${path}`,
+      indexMissing:
+        'Эти документы ещё не проиндексированы. Уровень 1 (индексация) бесплатен и идёт первым — без него графу нечего читать.',
+      nothing: 'Добавлять нечего: это уже в графе либо читаемых документов здесь нет.',
+      forecast: (documents: number, chunks: number) =>
+        `${documents} документ(ов), примерно ${chunks} фрагмент(ов) — по одному вызову модели на фрагмент.`,
+      notIndexed: (count: number) =>
+        `${count} из них ещё не проиндексированы — в граф они не попадут, пока это не пройдёт.`,
+      pendingNote: 'В оценку входит всё, что ждёт в уже отмеченных папках: прогон добавит и это.',
+      confirm: 'Добавить',
+      running: (done: number, total: number) => `Строю граф: ${done} из ${total}`,
+      runningHint: 'Окно можно закрыть — прогон продолжится, его ход виден в индикаторе индекса.',
+      done: (documents: number, chunks: number) =>
+        `Готово: добавлено ${documents} документ(ов), ${chunks} фрагмент(ов).`,
+      someFailed: (count: number) => `${count} документ(ов) не добавились.`
     },
     viewer: {
       title: 'Документ',

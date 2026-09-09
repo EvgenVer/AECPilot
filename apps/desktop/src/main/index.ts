@@ -150,9 +150,11 @@ import {
 } from './context-menu'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
+import { decideGraphMark } from './graph-scope-pure'
 import type {
   CuratorStatus,
   GatewayRpcOutcome,
+  GraphAddState,
   IngestState,
   LearningGraph,
   McpLiveStatus,
@@ -4378,6 +4380,97 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
     .catch((error: unknown) => {
       publishIngestState({
         error: error instanceof Error ? error.message : String(error),
+        progress: null,
+        running: false
+      })
+    })
+
+  return { started: true }
+})
+
+// Задача 5.15: отметка папки или файла в граф из проводника.
+//
+// ПОРЯДОК ЗДЕСЬ И ЕСТЬ ТРЕБОВАНИЕ UR24. Сначала `graph:preview` — вопрос,
+// который ничего не пишет и не индексирует; человек видит число документов и
+// оценку фрагментов; и только его согласие заводит `graph:add`. Отказ — это
+// просто отсутствие второго вызова, а не откат первого: откат пришлось бы
+// писать и можно было бы забыть.
+//
+// Уровень 2 платный, поэтому состояние у него своё, а не общее с индексацией:
+// «идёт индексация» и «строится граф» — разные новости, и вторая про деньги.
+//
+// Удалённый режим отдельной дверью не закрывается: дерево источников в нём не
+// рисуется вовсе (SourcesPanel показывает вместо него объяснение), так что
+// меню, из которого это зовут, там недостижимо.
+let graphState: GraphAddState = {
+  error: null,
+  lastReport: null,
+  path: null,
+  progress: null,
+  running: false
+}
+
+function publishGraphState(next: Partial<GraphAddState>): void {
+  graphState = { ...graphState, ...next }
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('graph:add-state', graphState)
+  }
+}
+
+/** Путь области графа собирает главный процесс, а не окно: он уезжает в
+ *  project.json как выбор человека, и рендерер путей не строит. */
+function markRequest(payload: unknown): ReturnType<typeof decideGraphMark> {
+  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  const sourceIds = listProjectSources(currentProject.vaultPath).map((source) => source.id)
+  return decideGraphMark(payload, sourceIds)
+}
+
+ipcMain.handle('graph:preview', async (_event, payload: unknown) => {
+  const request = markRequest(payload)
+  if (!request.ok) return { error: request.error, ok: false }
+
+  try {
+    const { runGraphPreview } = await import('./graph-runner')
+    const vaultPath = currentProject!.vaultPath
+    return { ok: true, preview: await runGraphPreview(vaultPath, request.path, request.kind) }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
+ipcMain.handle('graph:add-state', () => graphState)
+
+ipcMain.handle('graph:add', async (_event, payload: unknown) => {
+  const request = markRequest(payload)
+  if (!request.ok) return { error: request.error, started: false }
+  if (graphState.running) return { error: 'Граф уже строится', started: false }
+  // Один процесс на индекс: ingest и граф пишут одни и те же таблицы и один и
+  // тот же векторный стор (находка D-49 — та же причина, только там граница
+  // стоит внутри сервера, а здесь между нашими процессами).
+  if (ingestState.running) {
+    return { error: 'Идёт индексация — граф строится после неё', started: false }
+  }
+
+  const vaultPath = currentProject!.vaultPath
+  const { runGraphAdd } = await import('./graph-runner')
+
+  publishGraphState({ error: null, path: request.path, progress: null, running: true })
+
+  void runGraphAdd(vaultPath, request.path, request.kind, (progress) => {
+    if (currentProject?.vaultPath !== vaultPath) return
+    publishGraphState({ progress })
+  })
+    .then((report) => {
+      if (currentProject?.vaultPath !== vaultPath) {
+        publishGraphState({ path: null, progress: null, running: false })
+        return
+      }
+      publishGraphState({ lastReport: report, path: null, progress: null, running: false })
+    })
+    .catch((error: unknown) => {
+      publishGraphState({
+        error: error instanceof Error ? error.message : String(error),
+        path: null,
         progress: null,
         running: false
       })
