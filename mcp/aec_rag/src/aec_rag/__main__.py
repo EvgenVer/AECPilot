@@ -185,6 +185,105 @@ def run_ingest(project_arg: Path, *, mode: str) -> dict:
     return asyncio.run(run())
 
 
+def run_graph_preview(project_arg: Path, paths: list[str], kind: str) -> dict:
+    """What adding ``paths`` to the graph would cost, writing nothing (task 5.15).
+
+    The app asks this from the explorer's context menu, before showing the
+    confirmation UR24 requires. The one thing this command must never do is mark
+    anything: a person who answers «нет» has to find the project exactly as it
+    was, index included.
+    """
+    from aec_rag.graph_scope import preview_add
+
+    project_path = _resolve_project_json(project_arg)
+    index_db_path = project_path.parent / "index.db"
+    if not index_db_path.is_file():
+        # Opening the index here would CREATE it, and a preview that leaves a
+        # file behind is not a preview. Nothing is indexed, so there is nothing
+        # to forecast — and the app has to say that, not show a confident zero.
+        return {
+            "documents": 0,
+            "chunks_estimate": 0,
+            "not_indexed": 0,
+            "adds": [],
+            "entries": [],
+            "index_missing": True,
+        }
+
+    conn = open_index(index_db_path)
+    try:
+        preview = preview_add(conn, project_path, paths, dict.fromkeys(paths, kind))
+    finally:
+        conn.close()
+    return {**preview, "index_missing": False}
+
+
+def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
+    """Mark ``paths`` and build the graph over what is pending (task 5.15, UR24).
+
+    Tier 2: one model call per chunk. Spawned only after the person agreed to the
+    forecast `graph-preview` printed, which is why this command does not ask
+    anything of its own.
+
+    Progress streams as one JSON object per line, exactly as `ingest` does — a
+    run over a real folder takes minutes, and an indicator that only moves at the
+    end is the same as no indicator.
+
+    The choice is written down FIRST, the way the `rag_graph_add` tool writes it:
+    the scope is what the interface shows as «что входит в граф», and documents in
+    the graph that nobody marked would make that answer a lie.
+    """
+    import asyncio
+
+    from aec_rag.graph_scope import (
+        add_documents_to_graph,
+        add_to_scope,
+        estimate,
+        pending_for_scope,
+    )
+    from aec_rag.ingest import Progress
+    from aec_rag.rag_index import load_settings
+    from aec_rag.rag_index import open_index as open_rag_index
+
+    project_path = _resolve_project_json(project_arg)
+    vault = project_path.parent.parent
+    settings = load_settings(project_path)
+
+    def emit(progress: Progress) -> None:
+        print(json.dumps({"progress": progress.as_dict()}, ensure_ascii=False), flush=True)
+
+    async def run() -> dict:
+        conn = open_index(project_path.parent / "index.db")
+        try:
+            entries = add_to_scope(project_path, paths, dict.fromkeys(paths, kind))
+            pending = pending_for_scope(conn, entries)
+            forecast = estimate(conn, pending)
+            # Said before the model is even opened: the total is what the person
+            # agreed to, and the app shows «0 из N» while extraction starts.
+            emit(Progress(stage="started", done=0, total=forecast["documents"]))
+
+            rag = await open_rag_index(vault, settings)
+
+            def note(done: int, total: int, file, chunks: int) -> None:
+                emit(
+                    Progress(
+                        stage="graph",
+                        done=done,
+                        total=total,
+                        source_id=file.source_id,
+                        rel_path=file.rel_path,
+                        chunks=chunks,
+                    )
+                )
+
+            report = await add_documents_to_graph(conn, rag, pending, on_progress=note)
+            return {**report, "forecast": forecast}
+        finally:
+            conn.close()
+
+    return asyncio.run(run())
+
+
 def run_status(project_arg: Path) -> dict:
     """What the index holds, for the desktop's indicator (task 2.15).
 
@@ -336,6 +435,24 @@ def main(argv: list[str] | None = None) -> int:
     status_parser = subparsers.add_parser("status", help="Print what the index holds")
     status_parser.add_argument("--project", required=True, type=Path)
 
+    # Both graph commands take the same three arguments, and `--kind` applies to
+    # every `--path` given: the interface marks one node from a context menu, and
+    # a per-path kind would be a flag nobody calls.
+    for name, help_text in (
+        ("graph-preview", "How much adding paths to the graph would cost (writes nothing)"),
+        ("graph-add", "Add paths to the project's knowledge graph (tier 2 — costs money)"),
+    ):
+        graph_parser = subparsers.add_parser(name, help=help_text)
+        graph_parser.add_argument("--project", required=True, type=Path)
+        graph_parser.add_argument(
+            "--path",
+            required=True,
+            action="append",
+            dest="paths",
+            help="'<source_id>/<relative path>', or a bare source id for its root; repeatable",
+        )
+        graph_parser.add_argument("--kind", choices=("folder", "file"), default="folder")
+
     serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
     serve_parser.add_argument("--project", required=True, type=Path)
 
@@ -363,6 +480,10 @@ def main(argv: list[str] | None = None) -> int:
             report = run_detach(args.project, args.source)
         elif args.command == "status":
             report = run_status(args.project)
+        elif args.command == "graph-preview":
+            report = run_graph_preview(args.project, args.paths, args.kind)
+        elif args.command == "graph-add":
+            report = run_graph_add(args.project, args.paths, args.kind)
         elif args.command == "ingest":
             report = run_ingest(args.project, mode="full" if args.full else "incremental")
         elif args.command == "serve":

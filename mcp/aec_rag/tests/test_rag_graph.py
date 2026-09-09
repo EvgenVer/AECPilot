@@ -208,3 +208,34 @@ async def test_the_choice_survives_in_project_json(project, monkeypatch, calls):
     data = json.loads(project_json.read_text(encoding="utf-8"))
     assert data["graph_scope"]["entries"][0]["path"] == "tasks/ЭОМ"
     assert data["sources"], "чужие ключи project.json обязаны пережить запись"
+
+
+@pytest.mark.anyio
+async def test_the_forecast_shown_before_the_run_is_what_the_run_does(project, monkeypatch, calls):
+    """Задача 5.15: подтверждение из проводника показывает числа, полученные БЕЗ
+    записи выбора, — и они обязаны совпасть с тем, что потом сделает прогон.
+
+    Расхождение здесь стоило бы дороже отсутствия предпросмотра: человек согласился
+    бы на одну сумму, а заплатил другую.
+    """
+    from aec_rag.graph_scope import preview_add
+
+    project_json, source = project
+    add_scanned(project_json, source, "ЭОМ/задание.pdf", "Мощность 250 кВт.\nЩит ЩС-1.")
+    add_scanned(project_json, source, "ОВ/задание.pdf", "Тепловая нагрузка 40 кВт.")
+    server = await graph_server(project_json, monkeypatch, calls)
+    before = project_json.read_bytes()
+
+    async with connected_session(server) as client:
+        await ingest_and_wait(client, server)
+
+        preview = preview_add(server.rag_state.db(), project_json, ["tasks/ЭОМ"], {})
+        assert project_json.read_bytes() == before, "предпросмотр не пишет выбор"
+
+        started, job = await graph_add_and_wait(client, server, ["tasks/ЭОМ"])
+
+    assert preview["documents"] == started["documents"] == 1
+    assert preview["chunks_estimate"] == started["chunks_estimate"] == 2
+    assert preview["not_indexed"] == started["not_indexed"] == 0
+    assert job.report["documents_added"] == 1
+    assert job.report["chunks"] == preview["chunks_estimate"]

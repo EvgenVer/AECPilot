@@ -56,18 +56,33 @@ def file_path(source_id: str, rel_path: str) -> str:
     return f"{source_id}/{rel_path}"
 
 
-def covers(entry: ScopeEntry, source_id: str, rel_path: str) -> bool:
-    """Does ``entry`` include this file?
+def clean_path(path: str) -> str:
+    """How a path is written down in the scope: no surrounding space, no slashes
+    at the ends.
+
+    One place on purpose (task 5.15): the forecast shown before a run and the
+    choice written down by it must agree on what «the same path» means, and two
+    copies of this would disagree exactly where a person clicks twice.
+    """
+    return str(path).strip().strip("/")
+
+
+def covers_path(entry: ScopeEntry, path: str) -> bool:
+    """Does ``entry`` include ``path`` — a ``<source>/<rel path>`` string?
 
     A folder entry covers everything under it; a file entry covers exactly
     itself. The comparison is on path segments, so marking ``tasks/ЭОМ`` does
     not silently pull in ``tasks/ЭОМ-2``.
     """
-    target = file_path(source_id, rel_path)
     if entry.kind == "file":
-        return target == entry.path
+        return path == entry.path
     marker = entry.path.rstrip("/")
-    return target == marker or target.startswith(f"{marker}/")
+    return path == marker or path.startswith(f"{marker}/")
+
+
+def covers(entry: ScopeEntry, source_id: str, rel_path: str) -> bool:
+    """Does ``entry`` include this file?"""
+    return covers_path(entry, file_path(source_id, rel_path))
 
 
 # --- the choice: project.json -------------------------------------------------
@@ -90,31 +105,49 @@ def read_scope(project_json: Path | str) -> list[ScopeEntry]:
     return result
 
 
+def merge_scope(
+    existing: list[ScopeEntry], paths: list[str], kinds: dict[str, str]
+) -> tuple[list[ScopeEntry], list[ScopeEntry]]:
+    """The scope as it WOULD be after marking ``paths``, and what is new in it.
+
+    Split out of ``add_to_scope`` by task 5.15: the interface has to show what a
+    run would cost BEFORE the choice is written down (UR24), and the only way a
+    forecast cannot drift from the run is for both to decide «what is actually
+    new» here, once.
+
+    Re-marking something the scope already covers is a no-op rather than an
+    error: the interface offers «add to graph» on a folder whether or not it is
+    already there, and the honest answer to the second click is «it already is».
+    A file INSIDE a marked folder is covered too — its own entry would change
+    nothing about the graph and would make the list of «what is in it» longer
+    than the truth.
+    """
+    entries = list(existing)
+    added: list[ScopeEntry] = []
+
+    for path in paths:
+        cleaned = clean_path(path)
+        if not cleaned or any(covers_path(entry, cleaned) for entry in entries):
+            continue
+        kind = kinds.get(path, kinds.get(cleaned, "folder"))
+        entry = ScopeEntry(path=cleaned, kind=kind, added_at=_now())
+        entries.append(entry)
+        added.append(entry)
+
+    return entries, added
+
+
 def add_to_scope(
     project_json: Path | str, paths: list[str], kinds: dict[str, str]
 ) -> list[ScopeEntry]:
-    """Mark ``paths`` as belonging in the graph; returns the whole scope after.
-
-    Re-marking something already marked is a no-op rather than an error: the
-    interface offers «add to graph» on a folder whether or not it is already
-    there, and the honest answer to the second click is «it already is».
-    """
+    """Mark ``paths`` as belonging in the graph; returns the whole scope after."""
     project_json = Path(project_json)
     data = _read_project(project_json)
-    existing = read_scope(project_json)
-    known = {entry.path for entry in existing}
+    entries, _added = merge_scope(read_scope(project_json), paths, kinds)
 
-    for path in paths:
-        cleaned = str(path).strip().strip("/")
-        if not cleaned or cleaned in known:
-            continue
-        kind = kinds.get(path, kinds.get(cleaned, "folder"))
-        existing.append(ScopeEntry(path=cleaned, kind=kind, added_at=_now()))
-        known.add(cleaned)
-
-    data["graph_scope"] = {"entries": [entry.as_dict() for entry in existing]}
+    data["graph_scope"] = {"entries": [entry.as_dict() for entry in entries]}
     _write_project(project_json, data)
-    return existing
+    return entries
 
 
 def remove_from_scope(project_json: Path | str, paths: list[str]) -> list[ScopeEntry]:
@@ -331,3 +364,32 @@ def estimate(conn: sqlite3.Connection, files: list[PendingFile]) -> dict[str, in
         else:
             total += row[0]
     return {"documents": len(files), "chunks_estimate": total, "not_indexed": not_indexed}
+
+
+def preview_add(
+    conn: sqlite3.Connection, project_json: Path | str, paths: list[str], kinds: dict[str, str]
+) -> dict[str, Any]:
+    """What marking ``paths`` would cost — and nothing at all is written (5.15).
+
+    UR24 requires the number of documents and the size of the work to be shown
+    before the run starts, and the interface asks this from a context menu — a
+    click that may well end in «нет». So the candidate scope is built in memory
+    and thrown away: a refusal has to leave ``project.json`` exactly as it was,
+    which is a property of this code path and not of a promise.
+
+    The numbers are the ones ``rag_graph_add`` answers with, and they cover the
+    WHOLE pending scope rather than only the new path — that is what the run
+    would do, and a forecast quietly leaving out the files waiting in a folder
+    marked last month would understate the bill.
+
+    ``adds`` empty means the scope already covers everything asked for; the
+    interface needs that to say «уже в графе» instead of showing a confirmation
+    for nothing.
+    """
+    entries, added = merge_scope(read_scope(project_json), paths, kinds)
+    pending = pending_for_scope(conn, entries)
+    return {
+        **estimate(conn, pending),
+        "adds": [entry.as_dict() for entry in added],
+        "entries": [entry.as_dict() for entry in entries],
+    }

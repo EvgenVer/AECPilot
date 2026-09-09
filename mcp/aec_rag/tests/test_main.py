@@ -359,3 +359,48 @@ def test_another_operational_error_is_not_dressed_up_as_a_lock():
 
     assert "no such column: мощность" in message
     assert "приложением" not in message
+
+
+def test_graph_preview_without_an_index_says_so_and_creates_nothing(tmp_path, capsys):
+    """Задача 5.15. Предпросмотр — это вопрос, а не действие: у него нет права
+    ни создать index.db, ни отметить путь. Пустые числа без признака были бы
+    уверенным нулём вместо ответа «индекса ещё нет»."""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    project_json = vault / ".aecpilot" / "project.json"
+    before = project_json.read_bytes()
+
+    code = main(["graph-preview", "--project", str(vault), "--path", "src-1/ЭОМ"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["index_missing"] is True
+    assert report["documents"] == 0
+    assert not (vault / ".aecpilot" / "index.db").exists()
+    assert project_json.read_bytes() == before
+
+
+def test_graph_preview_on_an_empty_index_marks_nothing(tmp_path, capsys):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    # Формат из читаемых: `.txt` в граф не попадает вовсе, и тест мерил бы
+    # тогда не предпросмотр, а список поддерживаемых расширений.
+    (source_dir / "задание.csv").write_text("узел;мощность;250", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    assert main(["scan", "--project", str(vault)]) == 0
+    capsys.readouterr()
+    project_json = vault / ".aecpilot" / "project.json"
+    before = project_json.read_bytes()
+
+    code = main(["graph-preview", "--project", str(vault), "--path", "src-1", "--kind", "folder"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["index_missing"] is False
+    # Файл просканирован, но не проиндексирован (tier 1 не запускался), поэтому
+    # он в графе «ждёт» и стоит нуля фрагментов — и это видно отдельным числом.
+    assert report["documents"] == 1
+    assert report["not_indexed"] == 1
+    assert [entry["path"] for entry in report["adds"]] == ["src-1"]
+    assert project_json.read_bytes() == before
