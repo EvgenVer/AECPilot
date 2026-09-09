@@ -22,6 +22,7 @@
 //
 // Здесь только решения и построение значений; запись на диск — задача 5.2.
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -146,6 +147,44 @@ export function mergeMemoryProviderIntoConfigYaml(yamlText, provider = MEMORY_PR
   };
 }
 
+// ── Задача 5.2: проектный скоуп второго слоя.
+//
+// У ЯДРА ПРОЕКТНОЙ ОСИ ПАМЯТИ НЕТ (`specs/agent-memory.md` §Скоупы): провайдер
+// получает профиль, сессию, канал и личность — но не каталог проекта. Спека
+// назвала двух кандидатов и оставила выбор задаче.
+//
+// ВЫБРАН КЛЮЧ РАЗДЕЛЕНИЯ, КОТОРЫЙ MEM0 И ТАК ПРИМЕНЯЕТ К ЧТЕНИЮ, и выбор сделан
+// замером (2026-09-09, зонд на venv ядра). Провайдер загружается заново на каждый
+// ход — ядро строит агента на сообщение, — и `_load_config()` перечитывает
+// `mem0.json`. Замерено на двух подряд загрузках с разными значениями:
+//   проект A -> {'user_id': 'project-aaaa1111'}
+//   проект B -> {'user_id': 'project-bbbb2222'}   разные экземпляры: True
+// То есть смена проекта доезжает СО СЛЕДУЮЩЕГО ХОДА и без перезапуска ядра, а
+// фильтр применяет их плагин (`_read_filters`), а не подсказка модели — ровно то
+// требование, которое спека ставит любому кандидату.
+//
+// Второй кандидат (отдельное хранилище на проект) даёт ту же гарантию, но добавляет
+// по векторному хранилищу на проект и оставляет клиента прошлого висеть до выхода.
+// Больше движущихся частей за тот же результат.
+//
+// ПОЧЕМУ ЭТО НЕ ЛОМАЕТ ПОЛЬЗОВАТЕЛЬСКИЙ СКОУП: факты о человеке спека кладёт в
+// слой 1 (`USER.md` профиля), который от проекта не зависит вовсе. Слой 2 —
+// проектный, и `user_id` внутри профиля свободен: профиль и ЕСТЬ человек
+// (PLAN §«Что оставляем открытым для многопользовательского сервера»).
+
+/** Ключ проекта для второго слоя. Путь хранилища — не идентификатор: его
+ *  показывают человеку, он длинный и на Windows отличается регистром. Берётся
+ *  устойчивый отпечаток нормализованного пути.
+ *
+ *  Приставка `project-` не украшение: их плагин считает значение `hermes-user`
+ *  «не задано» (`_DEFAULT_USER_ID`), и ключ обязан быть на него не похож. */
+export function projectMemoryKey(vaultPath) {
+  const abs = path.resolve(vaultPath);
+  const normalized = process.platform === "win32" ? abs.toLowerCase() : abs;
+  const digest = crypto.createHash("sha256").update(normalized, "utf8").digest("hex");
+  return `project-${digest.slice(0, 16)}`;
+}
+
 /** Читает `mem0.json` профиля, если он есть. Битый файл — не авария: их плагин
  *  на нём тоже молчит (`__init__.py:_load_config`, `except Exception: pass`), а
  *  наши ключи всё равно выставляются заново. */
@@ -155,4 +194,62 @@ export function readMem0Json(hermesHomeDir) {
   } catch {
     return {};
   }
+}
+
+/**
+ * Задача 5.2 — привести профиль в состояние, описанное спекой, под открытый
+ * проект. Идемпотентно: зовётся при каждом открытии проекта.
+ *
+ * ЛУЧШИЕ УСИЛИЯ, А НЕ ГАРАНТИЯ. Отказ записи не повод не открыть проект: без
+ * второго слоя разговор идёт на первом, и человек об этом узнаёт сообщением
+ * (задача 5.1б), а не пустым окном.
+ *
+ * Возвращает `{ changed, key }`. `changed` — правда, если что-то на диске
+ * действительно изменилось: вызывающему это нужно, чтобы не дёргать ядро зря.
+ */
+export function applyMemoryProfile({ hermesHomeDir, vaultPath, env = process.env }) {
+  const key = projectMemoryKey(vaultPath);
+  const configPath = path.join(hermesHomeDir, "config.yaml");
+  const mem0Path = path.join(hermesHomeDir, "mem0.json");
+  let changed = false;
+
+  fs.mkdirSync(hermesHomeDir, { recursive: true });
+
+  let yamlText = "";
+  try {
+    yamlText = fs.readFileSync(configPath, "utf-8");
+  } catch {
+    // Конфига ещё нет — ядро создаст свой при старте, наш ключ его переживёт:
+    // слияние текстовое и дописывает секцию, а не переписывает файл.
+  }
+
+  const merged = mergeMemoryProviderIntoConfigYaml(yamlText);
+  if (merged.changed) {
+    fs.writeFileSync(configPath, merged.text, "utf-8");
+    changed = true;
+  }
+
+  const existing = readMem0Json(hermesHomeDir);
+  const next = {
+    ...buildMem0Json(existing, {
+      baseUrl: coreEndpoint(env),
+      vectorPath: vectorStorePath(hermesHomeDir),
+    }),
+    user_id: key,
+  };
+  const text = JSON.stringify(next, null, 2) + "\n";
+
+  let before = "";
+  try {
+    before = fs.readFileSync(mem0Path, "utf-8");
+  } catch {
+    // нет файла — значит точно меняем
+  }
+
+  if (before !== text) {
+    fs.writeFileSync(mem0Path, text, "utf-8");
+    changed = true;
+  }
+
+  return { changed, key };
 }

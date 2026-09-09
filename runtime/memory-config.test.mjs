@@ -1,4 +1,4 @@
-// Задача 5.1а — ГЕЙТ четырёх ключей второго слоя памяти.
+// Задачи 5.1а и 5.2 — ГЕЙТ четырёх ключей второго слоя памяти и проектный скоуп.
 //
 // Этот файл существует ради одного: правка, потерявшая любой из четырёх, должна
 // краснеть ЗДЕСЬ, а не всплывать месяцем позже тем, что память не пополнялась
@@ -8,10 +8,12 @@
 // никуда не подключённый, не настраивает ничего.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  applyMemoryProfile,
   buildMem0Json,
   CORE_BASE_URL_ENV,
   CORE_OPENAI_BASE_URL,
@@ -19,6 +21,7 @@ import {
   MEMORY_ENV,
   MEMORY_PROVIDER,
   mergeMemoryProviderIntoConfigYaml,
+  projectMemoryKey,
   vectorStorePath,
 } from "./memory-config.mjs";
 import { RUNTIME_DIR } from "./hermes-env.mjs";
@@ -151,5 +154,78 @@ describe("слияние с тем, что написало ядро", () => {
     expect(merged.mode).toBe("oss");
     expect(merged.oss.llm.provider).toBe("openai");
     expect(merged.oss.llm.config.openai_base_url).toBe(CORE_OPENAI_BASE_URL);
+  });
+});
+
+describe("задача 5.2: проектный скоуп", () => {
+  const home = () => fs.mkdtempSync(path.join(os.tmpdir(), "aec-mem-"));
+
+  it("у двух проектов ключи разные — иначе изоляции нет вовсе", () => {
+    const a = projectMemoryKey(path.join(HOME, "объект-A"));
+    const b = projectMemoryKey(path.join(HOME, "объект-B"));
+
+    expect(a).not.toBe(b);
+  });
+
+  it("у одного проекта ключ один и тот же — иначе память терялась бы при каждом открытии", () => {
+    const vault = path.join(HOME, "объект-A");
+
+    expect(projectMemoryKey(vault)).toBe(projectMemoryKey(path.join(vault, ".", "")));
+  });
+
+  it("ключ не похож на их «не задано»: `hermes-user` они считают пустым", () => {
+    expect(projectMemoryKey(HOME)).toMatch(/^project-[0-9a-f]{16}$/);
+  });
+
+  it("применение к профилю пишет обе стороны настройки", () => {
+    const dir = home();
+    const { changed, key } = applyMemoryProfile({
+      hermesHomeDir: dir,
+      vaultPath: path.join(HOME, "объект-A"),
+      env: {},
+    });
+
+    expect(changed).toBe(true);
+    expect(fs.readFileSync(path.join(dir, "config.yaml"), "utf-8")).toContain("provider: mem0");
+
+    const written = JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8"));
+    expect(written.mode).toBe("oss");
+    expect(written.user_id).toBe(key);
+    expect(written.oss.llm.config.openai_base_url).toBe(CORE_OPENAI_BASE_URL);
+  });
+
+  it("повторное открытие того же проекта ничего не меняет", () => {
+    const dir = home();
+    const opts = { hermesHomeDir: dir, vaultPath: path.join(HOME, "объект-A"), env: {} };
+
+    expect(applyMemoryProfile(opts).changed).toBe(true);
+    expect(applyMemoryProfile(opts).changed).toBe(false);
+  });
+
+  it("переключение проекта меняет РОВНО ключ разделения", () => {
+    const dir = home();
+    applyMemoryProfile({ hermesHomeDir: dir, vaultPath: path.join(HOME, "объект-A"), env: {} });
+    const a = JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8"));
+
+    applyMemoryProfile({ hermesHomeDir: dir, vaultPath: path.join(HOME, "объект-B"), env: {} });
+    const b = JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8"));
+
+    expect(b.user_id).not.toBe(a.user_id);
+    expect({ ...b, user_id: null }).toEqual({ ...a, user_id: null });
+  });
+
+  it("чужой `user_id`, записанный их мастером, замещается проектным", () => {
+    // Их ключ означает ЧЕЛОВЕКА, наш — проект внутри профиля этого человека.
+    // Оставить чужой значило бы отдать оба проекта в одну память.
+    const dir = home();
+    fs.writeFileSync(path.join(dir, "mem0.json"), JSON.stringify({ user_id: "hermes-user" }), "utf-8");
+
+    const { key } = applyMemoryProfile({
+      hermesHomeDir: dir,
+      vaultPath: path.join(HOME, "объект-A"),
+      env: {},
+    });
+
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8")).user_id).toBe(key);
   });
 });

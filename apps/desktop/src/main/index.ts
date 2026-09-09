@@ -308,6 +308,19 @@ async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule>
   return (await import(/* @vite-ignore */ specifier)) as RegisterAecSourcesModule
 }
 
+interface MemoryConfigModule {
+  applyMemoryProfile: (opts: { hermesHomeDir: string; vaultPath: string }) => {
+    changed: boolean
+    key: string
+  }
+}
+
+// Задача 5.2, та же причина динамического импорта, что у соседей выше.
+async function loadMemoryConfigModule(): Promise<MemoryConfigModule> {
+  const specifier = pathToFileURL(join(__dirname, '../../../../runtime/memory-config.mjs')).href
+  return (await import(/* @vite-ignore */ specifier)) as MemoryConfigModule
+}
+
 // Same dynamic-import rationale as the loader above (task 2.12).
 async function loadRegisterAecRagModule(): Promise<RegisterAecRagModule> {
   const specifier = pathToFileURL(join(__dirname, '../../../../runtime/register-aec-rag.mjs')).href
@@ -426,6 +439,19 @@ async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
     changed = changed || rag.changed
   } catch (error: unknown) {
     console.error('aecpilot: could not register aec-rag for the opened project', error)
+  }
+
+  // Задача 5.2 (спека `agent-memory.md`): второй слой памяти включается и
+  // получает ПРОЕКТНЫЙ скоуп. Отдельным try — профиль без расширенной памяти
+  // остаётся рабочим профилем, и человек узнаёт о ней сообщением (5.1б), а не
+  // закрытым проектом. Перезагрузки ядра не требует: провайдер грузится заново
+  // на каждый ход и перечитывает `mem0.json` (замерено зондом 2026-09-09).
+  try {
+    const { applyMemoryProfile } = await loadMemoryConfigModule()
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    applyMemoryProfile({ hermesHomeDir: HERMES_HOME_DIR, vaultPath })
+  } catch (error: unknown) {
+    console.error('aecpilot: could not apply the memory profile for the opened project', error)
   }
 
   if (!changed) return
