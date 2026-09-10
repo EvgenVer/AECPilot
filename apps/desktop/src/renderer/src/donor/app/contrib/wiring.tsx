@@ -4,8 +4,6 @@
  * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the webhooks surface — UR19 is in scope but its screens are
- *       task 3.11 and are not vendored yet
  *   [3] removed the pet surface (HX1)
  *   [3] dropped the Send Diagnostics host — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3
@@ -174,12 +172,12 @@ import type { WiringActions, WiringApi } from './types'
 const AgentsView = lazy(async () => ({ default: (await import('../agents')).AgentsView }))
 const CommandCenterView = lazy(async () => ({ default: (await import('../command-center')).CommandCenterView }))
 const CronView = lazy(async () => ({ default: (await import('../cron')).CronView }))
-// EDIT [3]: the webhooks view is not vendored yet — UR19 is in scope, its
-// screens are task 3.11. Agents and Command Center above came back with the
-// cancellation of SPEC N10 (UR38, task 3E.13).
+// Agents and Command Center above came back with the cancellation of SPEC N10
+// (UR38, task 3E.13); the webhooks view came back with task 3.11 (UR19).
 const ProfilesView = lazy(async () => ({ default: (await import('../profiles')).ProfilesView }))
 const SettingsView = lazy(async () => ({ default: (await import('../settings')).SettingsView }))
 const StarmapView = lazy(async () => ({ default: (await import('../starmap')).StarmapView }))
+const WebhooksView = lazy(async () => ({ default: (await import('../webhooks')).WebhooksView }))
 
 // Surfaces (the four wired panes), the render context + WiredPane, and the
 // WiringActions/WiringApi contracts all live in sibling modules — this file is
@@ -1236,6 +1234,12 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             onClose={closeOverlayToPreviousRoute}
             onOpenSession={sessionId => openSession(sessionId, navigate)}
           />
+        </Suspense>
+      )}
+
+      {webhooksOpen && (
+        <Suspense fallback={null}>
+          <WebhooksView onClose={closeOverlayToPreviousRoute} />
         </Suspense>
       )}
 

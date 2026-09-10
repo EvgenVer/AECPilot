@@ -531,15 +531,7 @@ async def main() -> None:
     # hand-rolling HTTP inside the websockets handshake — cost with no bearing
     # on what the tests prove, since the app is told both addresses anyway.
     rest_port = serve_in_thread()
-    # ПИНГ СНЯТ — ЗАМЕР 2026-09-10 (замечание D-82). У `websockets` умолчания
-    # ping_interval=20, ping_timeout=20: не ответил в двадцать секунд — сервер
-    # рвёт связь БЕЗ кадра закрытия, и в его журнале остаётся ровно
-    # `ConnectionClosedError: no close frame received or sent`. Окно после этого
-    # просит `session.resume`, не добирает и показывает «Couldn't load this
-    # session», а падает не тот тест, который занял время, а следующий, которому
-    # нужен композер. Набор держит keepalive НЕ ПРОВЕРЯЕТ — это дело настоящего
-    # шлюза; здесь он только делал набор красным по длительности чужой работы.
-    async with serve(handle, "127.0.0.1", port, ping_interval=None):
+    async with serve(handle, "127.0.0.1", port):
         print(f"MOCK_REST_READY {rest_port}", flush=True)
         print(f"MOCK_READY {port}", flush=True)
         await asyncio.Future()  # run forever, until the process is killed

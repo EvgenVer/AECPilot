@@ -16,7 +16,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ElectronApplication, Page } from 'playwright'
+import type { ElectronApplication, Locator, Page } from 'playwright'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
@@ -142,7 +142,7 @@ async function hideFirstRunSurfaces(page: Page): Promise<void> {
 
 /** Type a prompt into their composer and send it. */
 async function send(page: Page, text: string): Promise<void> {
-  const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+  const composer = await reviveStrandedSession(page)
 
   await composer.click()
   composerSeen = true
@@ -460,6 +460,53 @@ async function mainWindow(): Promise<Page> {
   )
 
   return main
+}
+
+/** Панель сессии сдалась — нажать «Повторить», КАК НАЖАЛ БЫ ЧЕЛОВЕК.
+ *
+ * ЭТО И БЫЛО ЗАМЕЧАНИЕ D-82, полностью. Их автоповтор ограничен по их же
+ * замыслу: `MAX_RESUME_RETRIES = 4` с отступами 1-8 с (`use-route-resume.ts`,
+ * около 15 с в сумме), после чего панель показывает «Couldn't load this session»
+ * и КНОПКУ — то есть продукт не сломан, он ждёт человека. Набор, в отличие от
+ * человека, кнопку не нажимал, и одной медленной минуты хватало, чтобы панель
+ * осталась мёртвой до конца прогона: падал не тот тест, который это вызвал, а
+ * следующий, которому нужен композер.
+ *
+ * Медленную минуту создаёт поднятие ВТОРОГО ОКНА на ту же сессию (лента HUD):
+ * окно грузит наш бандл заново. Замерено ростом самого бандла — до переноса
+ * экрана вебхуков набор давал 3 зелёных прогона из 3, сразу после переноса
+ * 3 красных из 3, в обоих случаях на одном и том же месте.
+ *
+ * ЧЕМ ПЛАТИМ, НАЗВАНО ВСЛУХ: набор больше НЕ ДОКАЗЫВАЕТ, что связь с сессией
+ * переживает второе окно без участия человека. Это стало замечанием D-84 и
+ * шагом ручной приёмки, а не тихой починкой. */
+async function reviveStrandedSession(page: Page): Promise<Locator> {
+  const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+  const stranded = page.getByRole('heading', {
+    name: /Couldn't load this session|Не удалось открыть эту сессию/
+  })
+
+  // Ждать «КОМПОЗЕР ИЛИ ОТКАЗ», а не брать мгновенный снимок. Первая версия
+  // проверяла отказ через `isVisible()` сразу — и не срабатывала НИ РАЗУ:
+  // ожидания в нём нет, а окно в этот миг ещё рисует (на снимке рядом с отказом
+  // виден вертящийся «Waking up default…»).
+  await expect(composer.or(stranded).first()).toBeVisible({ timeout: 60000 })
+
+  if (await stranded.isVisible()) {
+    console.warn(
+      '[e2e] панель сессии сдалась (их автоповтор исчерпан) — нажимаю «Повторить», как нажал бы человек'
+    )
+    await page
+      .getByRole('button', { name: /^(Retry|Повторить)$/ })
+      .first()
+      .click()
+    // Заголовок ушёл — значит подъём пошёл. Если не ушёл, пусть падает тест, а
+    // не эта помощь: молча проглоченный отказ вернул бы ровно ту слепоту, из-за
+    // которой разбор D-82 встал.
+    await expect(stranded).toBeHidden({ timeout: 60000 })
+  }
+
+  return composer
 }
 
 /** Последние `count` непустых строк журнала — с отступом, чтобы в выводе набора
@@ -1506,8 +1553,20 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
 
   expect(
     await page.evaluate(() =>
+      // БЕЗ СЕССИИ — ЭТО И БЫЛА ПРИЧИНА ЗАМЕЧАНИЯ D-82. Лента, открытая на
+      // `e2e-1`, заставляла ГЛАВНОЕ окно перескочить на эту сессию: по замыслу
+      // донора главное окно СЛЕДУЕТ за сессией ленты (`donor/app/hud/handoff.ts`,
+      // `watchHudState` → `openSession(target)` при `target !== selected`). А
+      // `e2e-1` стенд отдаёт только СТРОКОЙ СПИСКА по REST — живого хода в ней
+      // нет, поднять её нечем, и панель сдавалась насовсем: «Повторить» не
+      // помогал, потому что возвращаться было некуда. Дальше падал не этот тест,
+      // а следующий, которому нужен композер.
+      // Тест проверяет СВОЙСТВА ОКНА — поверх всех, сквозные щелчки, сдвиг,
+      // закрытие, — и сессия ему для этого не нужна. `null` значит «оставить ту,
+      // что выбрана» (`target = hudSessionId ?? selected`), и главное окно никуда
+      // не уходит. Замер: 3 прогона из 3 зелёные по 55 с против 3 из 3 красных.
       (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.open({
-        sessionId: 'e2e-1'
+        sessionId: null
       })
     )
   ).toMatchObject({ ok: true })

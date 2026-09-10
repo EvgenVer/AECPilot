@@ -166,12 +166,17 @@ describe("buildRegistry integrity", () => {
     const registry = buildRegistry({
       ...base,
       taskIds: new Set(),
-      // Фикстура обязана называть строку, которая ЕЩЁ стоит в CLASSIFICATION:
+      // Фикстура обязана называть строку, которая ЕЩЁ ССЫЛАЕТСЯ НА ЗАДАЧУ:
       // проверяется механизм, но берётся живая таблица, и перенос поверхности
-      // роняет такой тест (так и случилось с `cron` при закрытии D-50).
-      surfaces: { webhooks: { theirs: 9, ours: 1, entry: false } },
+      // роняет такой тест. Так случилось дважды — с `cron` при закрытии D-50 и
+      // с `webhooks` при переносе экрана 2026-09-10 (задача 3.11). Поэтому
+      // подопытное взято из ELECTRON_CLASSIFICATION (`updates` → 3.21): в
+      // поверхностях строк с задачей больше НЕ ОСТАЛОСЬ, а эта ждёт упаковки
+      // фазы 6 и переживёт всё, что до неё.
+      surfaces: {},
+      channels: { theirs: ["updates"], ours: [] },
     });
-    expect(registry.problems.join()).toContain("3.11");
+    expect(registry.problems.join()).toContain("3.21");
   });
 
   it("calls a verdict citing a CLOSED task as stale as one citing a task TASKS lost", () => {
@@ -180,11 +185,12 @@ describe("buildRegistry integrity", () => {
     // подключён — тест держит именно подключение, а не разбор.
     const registry = buildRegistry({
       ...base,
-      taskIds: new Set(["3.11"]),
-      closedTaskIds: new Set(["3.11"]),
-      surfaces: { webhooks: { theirs: 9, ours: 1, entry: false } },
+      taskIds: new Set(["3.21"]),
+      closedTaskIds: new Set(["3.21"]),
+      surfaces: {},
+      channels: { theirs: ["updates"], ours: [] },
     });
-    expect(registry.problems.join()).toContain("ЗАКРЫТУЮ задачу 3.11");
+    expect(registry.problems.join()).toContain("ЗАКРЫТУЮ задачу 3.21");
   });
 
   it("reports a «наше, но другой дорогой» whose file the repository no longer has", () => {
@@ -199,7 +205,12 @@ describe("buildRegistry integrity", () => {
   it("reports a reason left behind after the surface was ported", () => {
     // The dangerous direction: the table keeps explaining why we do not have a
     // screen we now do have, and the explanation reads as current.
-    const registry = buildRegistry({ ...base, surfaces: { webhooks: { theirs: 9, ours: 9, entry: true } } });
+    // Подопытное — `pet-overlay`: она исключена HX1 навсегда, то есть в таблице
+    // останется при любом переносе, и механизм на ней не осиротеет.
+    const registry = buildRegistry({
+      ...base,
+      surfaces: { "pet-overlay": { theirs: 2, ours: 2, entry: true } },
+    });
     expect(registry.problems.join()).toContain("перенесена");
   });
 

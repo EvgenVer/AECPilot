@@ -478,6 +478,31 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"messages": []})
             return
 
+        # ОДНА СЕССИЯ ПО ИДЕНТИФИКАТОРУ — НАСТОЯЩАЯ ПРИЧИНА ЗАМЕЧАНИЯ D-82.
+        # Маршрута здесь не было, а у ядра он есть (`web_routers/sessions.py`,
+        # `@manage_router.get("/api/sessions/{session_id}")`). Окно спрашивает
+        # сессию всякий раз, когда теряет живую ссылку на неё — в том числе когда
+        # рядом поднимается второе окно на ту же сессию (лента HUD). На 404 их
+        # ограниченный автоповтор (`use-route-resume.ts`) сдаётся, панель
+        # показывает «Couldn't load this session», и дальше падает НЕ тот тест,
+        # который это вызвал, а следующий, которому нужен композер. Ответ — сама
+        # запись, как у ядра: оно отдаёт объект сессии, а не обёртку.
+        match = SESSION_PATH.match(route)
+
+        if match:
+            wanted = match.group(1)
+            with _LOCK:
+                row = next((dict(item) for item in _SESSIONS if item["id"] == wanted), None)
+
+            if row is None:
+                self._send(404, {"detail": "Session not found"})
+                return
+            row["cwd"] = _CWD
+            row["profile"] = "default"
+            row["is_default_profile"] = True
+            self._send(200, row)
+            return
+
         self._send(404, {"detail": f"No such API endpoint: {route}"})
 
     def do_PUT(self) -> None:  # noqa: N802 - stdlib signature
