@@ -11,7 +11,7 @@
 
 import { test, expect, _electron } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
@@ -21,6 +21,9 @@ import type { ElectronApplication, Page } from 'playwright'
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
 const closeGraceMs = 90000
+/** Префикс временного профиля прогона. Он же — признак, по которому сирота
+ *  прошлого прогона отличается от любого другого Electron на машине (D-82). */
+const E2E_PROFILE_PREFIX = 'aecpilot-e2e-profile-'
 
 let mock: ChildProcessWithoutNullStreams
 let mockOutput = ''
@@ -29,6 +32,8 @@ let preExistingElectronPids = new Set<number>()
 let projectDir = ''
 let userDataDir = ''
 let mainOutput = ''
+/** Композер хоть раз был жив — значит его исчезновение есть о чём сказать. */
+let composerSeen = false
 let restPort = 0
 
 function listElectronPids(): Set<number> {
@@ -47,6 +52,54 @@ function listElectronPids(): Set<number> {
     return pids
   } catch {
     return new Set()
+  }
+}
+
+/** Осиротевшие `electron.exe` ОТ ПРОШЛОГО ПРОГОНА НАБОРА — по их командной строке.
+ *
+ * Замечание D-82: набор дважды подряд дал одни и те же семь падений, и на снимках
+ * было видно чужое состояние — их экран «Couldn't load this session» и наш экран
+ * выбора проекта со словами «Пока нет недавних проектов». Ни то, ни другое не
+ * объясняется внутри одного процесса: список недавних лежит в
+ * `userData/recent-projects.json`, а `userData` у прогона свой временный и к концу
+ * прогона удаляется. Пустой список означает ДРУГОЙ `userData`, то есть другой
+ * экземпляр приложения.
+ *
+ * Откуда он берётся: `afterAll` убивает всё, что сам поднял, но прерванный прогон
+ * (Ctrl+C, таймаут, упавший воркер) до `afterAll` не доходит — и экземпляр остаётся
+ * жить со временным профилем, который уже удалён.
+ *
+ * Отличаем ИМЕННО такие: в командной строке стоит `--user-data-dir` с нашим
+ * префиксом. Своё приложение владельца, открытое рядом, под это не подпадает и
+ * прогону не мешает. */
+/** Живые electron.exe с e2e-профилем в командной строке, КРОМЕ процессов
+ *  профиля `exceptProfile`. Сужение обязательно: своё приложение — это дерево из
+ *  восьми процессов с тем же профилем, и без вычета показатель всегда горит. */
+function listE2eLeftovers(exceptProfile?: string): number[] {
+  if (process.platform !== 'win32') return []
+  try {
+    const output = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        'Get-CimInstance Win32_Process -Filter "Name=\'electron.exe\'" | ' +
+          'Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress'
+      ],
+      { encoding: 'utf8' }
+    )
+    const parsed: unknown = JSON.parse(output.trim() || 'null')
+    const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
+    return rows
+      .filter((row) => {
+        const line = String((row as { CommandLine?: string }).CommandLine ?? '')
+
+        return line.includes(E2E_PROFILE_PREFIX) && !(exceptProfile && line.includes(exceptProfile))
+      })
+      .map((row) => Number((row as { ProcessId: number }).ProcessId))
+  } catch {
+    // Нет powershell или запрещён CIM — отказываться от прогона из-за этого нельзя.
+    return []
   }
 }
 
@@ -92,6 +145,7 @@ async function send(page: Page, text: string): Promise<void> {
   const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
 
   await composer.click()
+  composerSeen = true
   await page.keyboard.type(text)
   // Their send button, not Enter: once a turn has run, the composer offers
   // "Queue message" as well, and Enter lands on the queue instead of the wire.
@@ -201,6 +255,24 @@ function killProcessTree(pid: number | undefined): void {
 }
 
 test.beforeAll(async () => {
+  // СТРАХОВКА ПЕРЕД СТАРТОМ (замечание D-82). Ловит оба случая, и оба были на
+  // разборе: сироту прерванного набора (её временный профиль уже удалён) и
+  // СОСЕДНИЙ ЖИВОЙ ПРОГОН — второй набор, запущенный, пока первый ещё идёт. Это
+  // моя же ошибка того разбора: я начал второй прогон поверх первого, прочитал
+  // его процессы как сирот и сделал из этого вывод. Набор отказывается стартовать
+  // в обоих случаях: прогон, который может соврать, хуже непрогона. Своё
+  // приложение владельца под это не подпадает — у него нет e2e-профиля в
+  // командной строке.
+  const leftovers = listE2eLeftovers()
+  if (leftovers.length > 0) {
+    throw new Error(
+      `[e2e] рядом живы electron.exe с e2e-профилем: ${leftovers.join(', ')}. ` +
+        'Это либо сирота прерванного набора, либо второй набор, идущий прямо сейчас. ' +
+        'Рядом с ними прогон показывает чужое состояние — замечание D-82. Дождитесь ' +
+        `того прогона или закройте их и повторите: Stop-Process -Id ${leftovers.join(',')} -Force`
+    )
+  }
+
   const mockPort = await getFreePort()
   mock = spawn(venvPython, [join(desktopDir, 'e2e', 'mock_gateway.py'), String(mockPort)], {
     cwd: desktopDir,
@@ -238,7 +310,7 @@ test.beforeAll(async () => {
   // userData: the persisted pane tree, the locale, the preview tabs and the
   // recent-project list all survive between runs, and a layout left over from
   // an older build silently decides where this run's panes land.
-  userDataDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-profile-'))
+  userDataDir = mkdtempSync(join(tmpdir(), E2E_PROFILE_PREFIX))
 
   // The REST half (task 3.16). The sidebar's session list travels HTTP, not the
   // socket, so without this the list is empty in every run and no test can tell
@@ -310,6 +382,16 @@ test.afterAll(async () => {
     for (const pid of listElectronPids()) {
       if (!preExistingElectronPids.has(pid)) killProcessTree(pid)
     }
+    // ЖУРНАЛЫ ОСТАЮТСЯ ПОСЛЕ ПРОГОНА (замечание D-82). Хвоста в двенадцать строк
+    // на разборе не хватило: причина падения обычно старше его на минуту. Файлы
+    // лежат в `test-results/`, который и так вне репозитория.
+    try {
+      mkdirSync(join(desktopDir, 'test-results'), { recursive: true })
+      writeFileSync(join(desktopDir, 'test-results', 'main-output.log'), mainOutput, 'utf-8')
+      writeFileSync(join(desktopDir, 'test-results', 'mock-output.log'), mockOutput, 'utf-8')
+    } catch {
+      // Журнал — не цель прогона: не сумели записать, значит не сумели.
+    }
     if (projectDir) rmSync(projectDir, { force: true, recursive: true })
     if (userDataDir) rmSync(userDataDir, { force: true, recursive: true })
   }
@@ -363,9 +445,13 @@ function appWindows(): Page[] {
  * тест набора нельзя было запустить отдельно, а это первое, что делают, когда
  * разбирают падение.
  */
+/** Окно, которое `mainWindow()` отдал последним, — для разбора падения. */
+let pickedMainWindow: Page | undefined
+
 async function mainWindow(): Promise<Page> {
   const page = await app.firstWindow()
   const main = appWindows().find((candidate) => !candidate.url().includes('win=')) ?? page
+  pickedMainWindow = main
 
   await main.waitForFunction(
     () => (window as unknown as { hermesDesktop?: unknown }).hermesDesktop !== undefined,
@@ -375,6 +461,100 @@ async function mainWindow(): Promise<Page> {
 
   return main
 }
+
+/** Последние `count` непустых строк журнала — с отступом, чтобы в выводе набора
+ *  было видно, где чужой текст начинается и где кончается. */
+function tail(text: string, count: number): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== '')
+    .slice(-count)
+    .map((line) => `      | ${line}`)
+    .join('\n')
+}
+
+/** Когда тест упал — СРАЗУ сказать то, чего не хватило в разборе D-82.
+ *
+ * Там два одинаковых прогона дали одни и те же семь падений, и объяснить их было
+ * нечем: к моменту проверки живых процессов уже не осталось, а снимки показывали
+ * чужое состояние без следов его происхождения. Эти четыре строки стоят ровно
+ * столько, сколько стоит один `console.log`, и превращают следующий такой случай
+ * из вопроса в ответ. */
+// Пустой разбор — требование Playwright: первым аргументом обязан стоять объект
+// фикстур, даже когда ни одна из них не нужна.
+// eslint-disable-next-line no-empty-pattern
+test.afterEach(async ({}, testInfo) => {
+  // ГДЕ УМИРАЕТ СВЯЗЬ С СЕССИЕЙ — показатель, которого стенду не хватало (D-82).
+  // Композер нужен тесту 3 и потом только тесту 18; всё, что между ними, может
+  // оборвать связь молча, и падение достаётся тому, кто просто оказался следующим.
+  // Эта проверка идёт ДО выхода по зелёному тесту: она и нужна на зелёных.
+  if (composerSeen && app?.process()?.exitCode === null) {
+    // Окно ищется ЗАНОВО, а не берётся из `pickedMainWindow`: тесты открывают и
+    // закрывают окна, и первая версия этой проверки соврала именно так — указала
+    // на тест HUD, потому что её страница к тому времени была уже закрыта.
+    const main = appWindows().find((candidate) => !candidate.url().includes('win='))
+    const alive = main
+      ? await main
+          .getByRole('textbox', { name: /Message|Сообщение/ })
+          .isVisible({ timeout: 2000 })
+          .catch(() => false)
+      : false
+
+    if (!alive) {
+      composerSeen = false
+      console.warn(
+        `[e2e] СВЯЗЬ С СЕССИЕЙ УМЕРЛА НА ТЕСТЕ «${testInfo.title}» — композера нет в окне ` +
+          `${main?.url() ?? '(окна не нашлось)'}`
+      )
+    }
+  }
+
+  if (testInfo.status === testInfo.expectedStatus) return
+
+  const leftovers = listE2eLeftovers(userDataDir)
+  // ПЕРЕЧЕНЬ ОКОН — то, без чего разбор D-82 встал. Семья этих падений уже
+  // разбиралась в D-70, и причиной там было НЕ ТО ОКНО: `mainWindow()` берёт
+  // первое без `win=` в адресе, и лишнее окно неизвестного происхождения уводило
+  // все нажатия в сторону. Отличить это от «сессия не поднялась» по снимку
+  // нельзя — обе версии выглядят одинаково, и без списка адресов выбор между
+  // ними остаётся догадкой.
+  const windows = app
+    ? app.windows().map((candidate) => {
+        const url = candidate.url()
+        const short = url.length > 120 ? `…${url.slice(-120)}` : url
+
+        return candidate === pickedMainWindow ? `ВЫБРАНО ← ${short}` : short
+      })
+    : []
+  console.warn(
+    [
+      `[e2e] ПАДЕНИЕ «${testInfo.title}» — состояние стенда на этот момент:`,
+      `      свой профиль прогона: ${userDataDir}`,
+      `      мок жив: ${mock?.exitCode === null ? 'да' : `нет (код ${mock?.exitCode})`}`,
+      `      ЧУЖИЕ e2e-электроны: ${leftovers.length} (${leftovers.join(', ') || 'нет'})`,
+      `      своё приложение живо: ${app?.process()?.exitCode === null ? 'да' : 'нет'}`,
+      `      окон у приложения: ${windows.length}`,
+      ...windows.map((line) => `        - ${line}`),
+      // Вторая версия того же экрана «Пока нет недавних проектов», которую старый
+      // разбор исключил зря: запись недавних проектов — best-effort, и её отказ
+      // главный процесс ПРОГЛАТЫВАЕТ в `console.error`. Эта строка разводит две
+      // версии между собой — чужой экземпляр против непрошедшей записи.
+      `      недавние проекты: ${
+        mainOutput.includes('could not record recent project')
+          ? 'main ЖАЛОВАЛСЯ на запись'
+          : 'жалоб нет'
+      }`,
+      // Хвосты журналов — то, чего не хватило разбору D-82 больше всего: экран
+      // говорил «связь с сессией не поднялась», а чем ответили главный процесс и
+      // мок в ту же секунду, узнать было уже негде.
+      `      --- последнее от главного процесса ---`,
+      tail(mainOutput, 12),
+      `      --- последнее от мока ---`,
+      tail(mockOutput, 12),
+      '      полные журналы лягут после прогона: test-results/main-output.log и mock-output.log'
+    ].join('\n')
+  )
+})
 
 test('their shell paints and the composer goes live over our bridge', async () => {
   const page = await mainWindow()
