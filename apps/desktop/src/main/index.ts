@@ -151,6 +151,7 @@ import {
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import { decideGraphMark } from './graph-scope-pure'
+import { decideFactsOpen } from './memory-facts-pure'
 import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
 import type {
   CuratorStatus,
@@ -332,6 +333,18 @@ interface MemoryConfigModule {
 async function loadMemoryConfigModule(): Promise<MemoryConfigModule> {
   const specifier = pathToFileURL(join(__dirname, '../../../../runtime/memory-config.mjs')).href
   return (await import(/* @vite-ignore */ specifier)) as MemoryConfigModule
+}
+
+interface HermesEnvModule {
+  HERMES_SRC_DIR: string
+  PYTHON_BIN: string
+}
+
+// Задача 5.16: читателю фактов памяти нужен python ЯДРА (mem0 стоит в его venv)
+// и корень их исходников. Динамический импорт — та же причина, что у соседей.
+async function loadHermesEnvModule(): Promise<HermesEnvModule> {
+  const specifier = pathToFileURL(join(__dirname, '../../../../runtime/hermes-env.mjs')).href
+  return (await import(/* @vite-ignore */ specifier)) as HermesEnvModule
 }
 
 interface SecretFilterModule {
@@ -3362,6 +3375,20 @@ async function reconnectForConnection(): Promise<ReconnectOutcome> {
   return { ok: restarted.ok, error: restarted.error }
 }
 
+/** Гасит наш процесс ядра и НЕ поднимает его обратно (задача 5.16).
+ *
+ * Зачем отдельно от `restartBackend`: список фактов памяти читается только при
+ * остановленном ядре — встроенный qdrant держит папку исключительно, — и между
+ * остановкой и подъёмом стоит человек, а не одна последовательность. Подъём
+ * обратно делает та же `restartBackend`, что и везде. */
+async function stopBackend(): Promise<void> {
+  if (serveHandle && stopServeFn) {
+    const handle = serveHandle
+    serveHandle = undefined
+    await stopServeFn(handle)
+  }
+}
+
 /** Stops the hermes backend, applies `configOverride` to the profile's
  * config.yaml if given, and starts it again with the current credential env.
  *
@@ -4523,6 +4550,116 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
     })
 
   return { started: true }
+})
+
+// --- Список фактов памяти проекта (задача 5.16) ----------------------------
+//
+// ПОСЛЕДОВАТЕЛЬНОСТЬ ЖИВЁТ ЗДЕСЬ, А НЕ В ОКНЕ. Список возможен только при
+// остановленном ядре (встроенный qdrant держит папку исключительно — замер 5.4),
+// значит чтение идёт «погасить → прочитать → поднять обратно». Окно вправе
+// предупредить и спросить, но оставить машину без агента оно не вправе: подъём
+// делает главный процесс.
+//
+// ИЗВЕСТНЫЙ КРАЙ: если окно закрыли целиком, пока список открыт, ядро останется
+// погашенным до следующего закрытия списка или до перезапуска приложения. Лечить
+// это обработчиком закрытия окна не стал — подъём ядра на пути выхода означал бы
+// ждать здоровья шлюза ради процесса, который сейчас умрёт.
+let memoryFactsOpen = false
+
+// ЧТЕНИЕ И ПОДЪЁМ НЕ ДОЛЖНЫ НАЛОЖИТЬСЯ — это тот же урок, что находка D-49.
+// Пока читатель держит папку хранилища, поднятое ядро НЕ получит своё хранилище
+// обратно: его провайдер молча останется без backend (замер 5.16 — отказ приходит
+// словами qdrant, а `is_available()` при этом отвечает True). Поэтому подъём ждёт
+// текущего чтения, а не гонится с ним.
+let memoryFactsRun: Promise<unknown> = Promise.resolve()
+
+ipcMain.handle('memory:facts-read', async () => {
+  const decision = decideFactsOpen({
+    factsOpen: memoryFactsOpen,
+    graphRunning: graphState.running,
+    ingestRunning: ingestState.running,
+    // Удалённое ядро — это и удалённое хранилище: гасить здесь нечего, а читать
+    // нечего тем более (задача 3.12, правило 3.13b).
+    remote:
+      remoteTarget() !== undefined ||
+      connectionMode() === 'ssh' ||
+      Boolean(process.env.AEC_GATEWAY_URL)
+  })
+  if (!decision.ok) return { busy: false as const, error: decision.error, ok: false as const }
+
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const { HERMES_SRC_DIR, PYTHON_BIN } = await loadHermesEnvModule()
+    const { runMemoryFacts } = await import('./memory-facts-runner')
+
+    // Флаг ставится ДО остановки, а не после удачного чтения: с этой секунды ядро
+    // может быть уже погашено, и подъём обратно обязан случиться — и когда список
+    // не прочитан, и когда сама остановка кончилась отказом.
+    memoryFactsOpen = true
+    await stopBackend()
+
+    const run = runMemoryFacts({
+      args: ['list'],
+      extraEnv: buildExtraEnv(),
+      hermesHome: HERMES_HOME_DIR,
+      hermesSrc: HERMES_SRC_DIR,
+      python: PYTHON_BIN
+    })
+    memoryFactsRun = run.catch(() => undefined)
+    return await run
+  } catch (error: unknown) {
+    console.error('aecpilot: could not read the project memory facts', error)
+    return {
+      busy: false as const,
+      error: 'Не удалось прочитать память проекта',
+      ok: false as const
+    }
+  }
+})
+
+ipcMain.handle('memory:facts-delete', async (_event, id: unknown) => {
+  if (typeof id !== 'string' || id.trim() === '') {
+    return { error: 'Не сказано, какой факт удалить', ok: false as const }
+  }
+  if (!memoryFactsOpen) {
+    return {
+      error: 'Ядро снова работает — удалять можно только при открытом списке',
+      ok: false as const
+    }
+  }
+
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const { HERMES_SRC_DIR, PYTHON_BIN } = await loadHermesEnvModule()
+    const { runMemoryFacts } = await import('./memory-facts-runner')
+
+    // Ответ на удаление разбирается тем же кодом, что список: читателю важно
+    // ровно `ok`/`error`, а список фактов в нём просто пуст.
+    const run = runMemoryFacts({
+      args: ['delete', id],
+      extraEnv: buildExtraEnv(),
+      hermesHome: HERMES_HOME_DIR,
+      hermesSrc: HERMES_SRC_DIR,
+      python: PYTHON_BIN
+    })
+    memoryFactsRun = run.catch(() => undefined)
+    const answer = await run
+    return answer.ok ? { ok: true as const } : { error: answer.error, ok: false as const }
+  } catch (error: unknown) {
+    console.error('aecpilot: could not delete a project memory fact', error)
+    return { error: 'Не удалось удалить факт', ok: false as const }
+  }
+})
+
+ipcMain.handle('memory:facts-close', async () => {
+  if (!memoryFactsOpen) return { ok: true as const }
+
+  memoryFactsOpen = false
+  await memoryFactsRun
+  const restarted = await restartBackend()
+  return restarted.ok
+    ? { ok: true as const }
+    : { error: restarted.error ?? 'Не удалось поднять ядро обратно', ok: false as const }
 })
 
 // A document is opened for reading by size, not by trust: a citation names a

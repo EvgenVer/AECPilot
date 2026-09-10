@@ -414,8 +414,22 @@ export const aecLocales: PluginLocaleBundles = {
       autowriteHint:
         'Off: memory grows only when you ask for it. This covers both paths — the end of each turn (project memory) and the core’s background review (the notes above).',
       projectFacts: 'Project memory',
-      projectFactsGap:
-        'The list of project facts is not here yet. Its store is an embedded database that the running core holds open exclusively, so this window cannot read it while the agent is alive. Ask the agent to search or delete in project memory — it has the tools. Showing the list here needs a decision about how the store is served.'
+      factsWhyStop:
+        'The list of project facts can only be read while the agent is stopped: its store is an embedded database the running core holds open exclusively. The current conversation ends the same way it does when you change the model, and the agent comes back as soon as you close the list.',
+      factsShow: 'Show the list (the agent will stop)',
+      factsReading: 'Stopping the agent and reading the store…',
+      factsBusy:
+        'The store is busy — the agent is still running. Close the list and open it again.',
+      factsStopped:
+        'The agent is stopped while this list is open. It comes back when you close it.',
+      factsSearch: 'Search the facts',
+      factsCount: (count: number) => `${count} facts in this project`,
+      factsEmpty: 'This project has no remembered facts yet.',
+      factsNoMatch: 'Nothing matches that.',
+      factsDelete: 'Delete',
+      factsHide: 'Close the list and start the agent',
+      factsRestoring: 'Starting the agent…',
+      factsChannel: (channel: string) => `from ${channel}`
     },
     citations: {
       unverified: 'This phrase is not in the cited place:'
@@ -905,8 +919,21 @@ export const aecLocales: PluginLocaleBundles = {
       autowriteHint:
         'Выключено — память пополняется только по вашей просьбе. Трогает оба пути: конец каждого хода (память проекта) и фоновый разбор ядра (записки выше).',
       projectFacts: 'Память проекта',
-      projectFactsGap:
-        'Списка фактов проекта здесь пока нет. Его хранилище — встроенная база, и живое ядро держит её папку исключительно: это окно не может её прочитать, пока агент работает. Поиск и удаление в памяти проекта попросите у агента — у него есть инструменты. Чтобы список появился здесь, нужно решение о том, как отдавать хранилище.'
+      factsWhyStop:
+        'Список фактов проекта читается только при остановленном агенте: его хранилище — встроенная база, и работающее ядро держит её папку исключительно. Текущий разговор при этом оборвётся так же, как при смене модели, а агент поднимется сразу, как вы закроете список.',
+      factsShow: 'Показать список (агент остановится)',
+      factsReading: 'Останавливаю агента и читаю хранилище…',
+      factsBusy: 'Хранилище занято — агент ещё работает. Закройте список и откройте снова.',
+      factsStopped:
+        'Пока список открыт, агент остановлен. Он поднимется, когда вы закроете список.',
+      factsSearch: 'Поиск по фактам',
+      factsCount: (count: number) => `Фактов в этом проекте: ${count}`,
+      factsEmpty: 'В этом проекте агент пока ничего не запомнил.',
+      factsNoMatch: 'Ничего не нашлось.',
+      factsDelete: 'Удалить',
+      factsHide: 'Закрыть список и поднять агента',
+      factsRestoring: 'Поднимаю агента…',
+      factsChannel: (channel: string) => `из ${channel}`
     },
     citations: {
       unverified: 'Этой фразы в процитированном месте нет:'

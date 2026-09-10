@@ -608,6 +608,22 @@ export interface GraphAddState {
   running: boolean
 }
 
+/** Один факт памяти проекта (слой 2). Форма ЗАМЕРЕНА на живом хранилище
+ *  (задача 5.16), а не взята из спеки: `metadata` несёт только канал. */
+export interface MemoryFact {
+  /** Канал, из которого факт приехал. Пусто — запись без канала. */
+  channel: string
+  created_at: string
+  id: string
+  text: string
+}
+
+/** Ответ на чтение списка фактов. `busy` — отдельно от всякого другого отказа:
+ *  «папку держит другой процесс» означает, что ядро ещё живо, и человеку надо
+ *  сказать именно это, а не показывать чужую английскую строку про Qdrant. */
+export type MemoryFactsAnswer =
+  { facts: MemoryFact[]; ok: true; userId: string } | { busy: boolean; error: string; ok: false }
+
 /** Вердикт по одной выдержке (SPEC UR26): сама фраза, её место в тексте ответа
  * и была ли она найдена в источнике. `start`/`end` нужны интерфейсу — пометка
  * ставится на конкретный кусок, а одинаковых фраз в ответе может быть две.
@@ -957,6 +973,18 @@ export interface AecpilotApi {
   setMemoryAutowrite(
     enabled: boolean
   ): Promise<{ ok: true; autowrite: boolean } | { ok: false; error: string }>
+  /** Факт памяти проекта (слой 2), как его отдаёт хранилище — задача 5.16.
+   *
+   * ПОЛЕЙ РОВНО СТОЛЬКО, СКОЛЬКО ЕСТЬ. Замер формы: `metadata` несёт только
+   * канал, `session` в записи не появляется вовсе. Поле, которое всегда пусто,
+   * на экране выглядело бы потерянным фактом. */
+  readMemoryFacts(): Promise<MemoryFactsAnswer>
+  /** Удаляет один факт ИХ инструментом (`mem0_delete`). Зовётся только пока
+   * открыт список, то есть пока ядро остановлено нами же. */
+  deleteMemoryFact(id: string): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Поднимает ядро обратно. Зовётся при закрытии списка — и в том числе когда
+   * список не удалось прочитать: иначе человек остался бы без агента. */
+  closeMemoryFacts(): Promise<{ ok: true } | { ok: false; error: string }>
   stopPreviewWatch(id: string): Promise<boolean>
   previewWatchCount(): Promise<number>
   onPreviewFileChanged(

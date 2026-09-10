@@ -41,6 +41,9 @@ const api: AecpilotApi = {
   writeMemoryNote: (target, content) =>
     ipcRenderer.invoke('memory:write-note', { content, target }),
   setMemoryAutowrite: (enabled) => ipcRenderer.invoke('memory:set-autowrite', enabled),
+  readMemoryFacts: () => ipcRenderer.invoke('memory:facts-read'),
+  deleteMemoryFact: (id) => ipcRenderer.invoke('memory:facts-delete', id),
+  closeMemoryFacts: () => ipcRenderer.invoke('memory:facts-close'),
   previewWatchCount: () => ipcRenderer.invoke('preview:watch-count'),
   onPreviewFileChanged: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>

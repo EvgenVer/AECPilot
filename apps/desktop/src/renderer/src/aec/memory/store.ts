@@ -6,6 +6,8 @@
 
 import { atom } from 'nanostores'
 
+import type { MemoryFact } from '../../../../shared/ipc'
+
 export interface MemoryNotesView {
   /** Пусто — записки ещё нет; это обычное состояние чистого профиля. */
   memory: string
@@ -60,4 +62,66 @@ export async function setAutowrite(enabled: boolean): Promise<string> {
 
   $memoryNotes.set({ ...$memoryNotes.get(), autowrite: answer.autowrite, error: '' })
   return ''
+}
+
+// --- Факты памяти проекта (задача 5.16) ------------------------------------
+//
+// ПОЧЕМУ СОСТОЯНИЕ ЧЕТЫРЁХЧАСТНОЕ, А НЕ «ЕСТЬ СПИСОК / НЕТ СПИСКА». Между
+// «не просили» и «список открыт» стоит остановка ядра: человек должен видеть,
+// что она идёт, а отказ после неё означает, что агент УЖЕ погашен — и его надо
+// поднять, а не просто показать сообщение.
+
+export interface MemoryFactsView {
+  /** Хранилище занято живым ядром. Отдельно от прочих отказов: это поправимо
+   *  человеком, а не поломка. */
+  busy: boolean
+  error: string
+  facts: MemoryFact[]
+  state: 'failed' | 'idle' | 'open' | 'reading'
+}
+
+export const FACTS_IDLE: MemoryFactsView = {
+  busy: false,
+  error: '',
+  facts: [],
+  state: 'idle'
+}
+
+export const $memoryFacts = atom<MemoryFactsView>(FACTS_IDLE)
+
+/** Гасит агента и читает хранилище. Цену человек видит до нажатия — текстом
+ *  рядом с кнопкой. */
+export async function openMemoryFacts(): Promise<void> {
+  $memoryFacts.set({ ...FACTS_IDLE, state: 'reading' })
+
+  const answer = await window.aecpilot.readMemoryFacts()
+  $memoryFacts.set(
+    answer.ok
+      ? { busy: false, error: '', facts: answer.facts, state: 'open' }
+      : { busy: answer.busy, error: answer.error, facts: [], state: 'failed' }
+  )
+}
+
+/** Возвращает текст отказа или пустую строку. Из списка факт исчезает только
+ *  после подтверждённого удаления: вычеркнуть строку раньше значило бы показать
+ *  память, которой нет. */
+export async function deleteMemoryFact(id: string): Promise<string> {
+  const answer = await window.aecpilot.deleteMemoryFact(id)
+  if (!answer.ok) return answer.error
+
+  const view = $memoryFacts.get()
+  $memoryFacts.set({ ...view, facts: view.facts.filter((fact) => fact.id !== id) })
+  return ''
+}
+
+/** Поднимает агента обратно. Зовётся и кнопкой «закрыть список», и закрытием
+ *  окна — в том числе когда список прочитать не удалось: ядро к этому моменту
+ *  уже погашено, и молча оставить его погашенным нельзя. */
+export async function closeMemoryFacts(): Promise<string> {
+  const state = $memoryFacts.get().state
+  $memoryFacts.set(FACTS_IDLE)
+  if (state === 'idle') return ''
+
+  const answer = await window.aecpilot.closeMemoryFacts()
+  return answer.ok ? '' : answer.error
 }

@@ -1,20 +1,44 @@
-// Задача 5.4 — что экран памяти делает руками человека.
+// Задачи 5.4 и 5.16 — что экран памяти делает руками человека.
 //
-// Проверяется не вид, а три вещи, без которых экран бесполезен или опасен:
-// правка доезжает до главного процесса ТЕМ ЖЕ текстом; отказ ядра виден словами,
-// а не проглочен; переключатель автозаписи доходит до главного процесса.
+// Проверяется не вид, а то, без чего экран бесполезен или опасен: правка доезжает
+// до главного процесса ТЕМ ЖЕ текстом; отказ ядра виден словами, а не проглочен;
+// переключатель автозаписи доходит до главного процесса; и цена остановки агента
+// названа ДО остановки, а поднять его обратно окно не забывает ни на одном пути —
+// включая неудачное чтение и закрытие окна.
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { MemoryFact } from '../../../../shared/ipc'
 import { AecI18nProvider } from '../../shared/i18n'
 
 import MemoryDialog from './MemoryDialog'
-import { $memoryNotes, $memoryOpen, EMPTY } from './store'
+import { $memoryFacts, $memoryNotes, $memoryOpen, EMPTY, FACTS_IDLE } from './store'
 
 const writes: { target: string; content: string }[] = []
 const toggles: boolean[] = []
+const deletes: string[] = []
 let refusal = ''
+let reads = 0
+let closes = 0
+let closeRefusal = ''
+let deleteRefusal = ''
+let factsAnswer: unknown = null
+
+const FACTS: MemoryFact[] = [
+  {
+    channel: 'tui',
+    created_at: '2026-09-01T08:00:00+00:00',
+    id: 'f-1',
+    text: 'Резерв мощности на объекте: 20%.'
+  },
+  {
+    channel: '',
+    created_at: '2026-09-02T09:30:00+00:00',
+    id: 'f-2',
+    text: 'Срок сдачи раздела ОВ — 20 мая.'
+  }
+]
 
 function show(): void {
   render(
@@ -27,8 +51,15 @@ function show(): void {
 beforeEach(() => {
   writes.length = 0
   toggles.length = 0
+  deletes.length = 0
   refusal = ''
+  reads = 0
+  closes = 0
+  closeRefusal = ''
+  deleteRefusal = ''
+  factsAnswer = { facts: FACTS, ok: true, userId: 'project-aaaa1111' }
   $memoryOpen.set(true)
+  $memoryFacts.set(FACTS_IDLE)
   $memoryNotes.set({
     ...EMPTY,
     user: 'Ведёт раздел ОВ.',
@@ -43,6 +74,18 @@ beforeEach(() => {
     setMemoryAutowrite: (enabled: boolean) => {
       toggles.push(enabled)
       return Promise.resolve({ ok: true, autowrite: enabled })
+    },
+    readMemoryFacts: () => {
+      reads += 1
+      return Promise.resolve(factsAnswer)
+    },
+    deleteMemoryFact: (id: string) => {
+      deletes.push(id)
+      return Promise.resolve(deleteRefusal ? { ok: false, error: deleteRefusal } : { ok: true })
+    },
+    closeMemoryFacts: () => {
+      closes += 1
+      return Promise.resolve(closeRefusal ? { ok: false, error: closeRefusal } : { ok: true })
     }
   }
 })
@@ -54,10 +97,16 @@ afterEach(() => {
   cleanup()
   $memoryOpen.set(false)
   $memoryNotes.set(EMPTY)
+  $memoryFacts.set(FACTS_IDLE)
 })
 
 const userBox = (): HTMLTextAreaElement =>
   screen.getByLabelText('Записка о вас') as HTMLTextAreaElement
+
+const showList = async (): Promise<void> => {
+  fireEvent.click(screen.getByRole('button', { name: 'Показать список (агент остановится)' }))
+  await waitFor(() => expect(screen.getByText(/агент остановлен/i)).toBeTruthy())
+}
 
 describe('экран памяти', () => {
   it('показывает записку текстом и считает знаки против предела', () => {
@@ -98,12 +147,119 @@ describe('экран памяти', () => {
 
     await waitFor(() => expect(toggles).toEqual([false]))
   })
+})
 
-  it('про отсутствующий список фактов сказано прямо', () => {
-    // Требование спеки тут не выполнено, и экран обязан сказать это человеку, а
-    // не промолчать: молчание читается как «фактов нет».
+describe('список фактов памяти проекта', () => {
+  it('цена остановки названа ДО остановки, и сама собой она не случается', () => {
+    // Главное свойство всего этого места: пока человек не нажал, агент работает.
     show()
 
-    expect(screen.getByText(/не может её прочитать, пока агент работает/)).toBeTruthy()
+    expect(screen.getByText(/читается только при остановленном агенте/)).toBeTruthy()
+    expect(screen.getByText(/разговор при этом оборвётся/i)).toBeTruthy()
+    expect(reads).toBe(0)
+  })
+
+  it('по нажатию показывает факты и говорит, что агент стоит', async () => {
+    show()
+    await showList()
+
+    expect(reads).toBe(1)
+    expect(screen.getByText('Резерв мощности на объекте: 20%.')).toBeTruthy()
+    expect(screen.getByText('Срок сдачи раздела ОВ — 20 мая.')).toBeTruthy()
+    expect(screen.getByText('Фактов в этом проекте: 2')).toBeTruthy()
+  })
+
+  it('поиск отбирает по тексту факта', async () => {
+    show()
+    await showList()
+    fireEvent.change(screen.getByLabelText('Поиск по фактам'), { target: { value: 'резерв' } })
+
+    expect(screen.getByText('Резерв мощности на объекте: 20%.')).toBeTruthy()
+    expect(screen.queryByText('Срок сдачи раздела ОВ — 20 мая.')).toBeNull()
+  })
+
+  it('удаление уходит с тем же id, и строка исчезает только после подтверждения', async () => {
+    show()
+    await showList()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[1])
+
+    await waitFor(() => expect(deletes).toEqual(['f-2']))
+    await waitFor(() => expect(screen.queryByText('Срок сдачи раздела ОВ — 20 мая.')).toBeNull())
+    expect(screen.getByText('Резерв мощности на объекте: 20%.')).toBeTruthy()
+  })
+
+  it('отказ в удалении оставляет факт на месте и виден словами', async () => {
+    deleteRefusal = 'Факт не удалён: хранилище ответило отказом'
+    show()
+    await showList()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0])
+
+    await waitFor(() => expect(screen.getByText(deleteRefusal)).toBeTruthy())
+    expect(screen.getByText('Резерв мощности на объекте: 20%.')).toBeTruthy()
+  })
+
+  it('«занято» сказано нашими словами, а не чужой строкой про Qdrant', async () => {
+    factsAnswer = {
+      busy: true,
+      error:
+        'RuntimeError: Mem0 backend not initialized: Storage folder … is already accessed by another instance of Qdrant client.',
+      ok: false
+    }
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Показать список (агент остановится)' }))
+
+    await waitFor(() => expect(screen.getByText(/Хранилище занято/)).toBeTruthy())
+    expect(screen.queryByText(/Qdrant client/)).toBeNull()
+  })
+
+  it('неудачное чтение тоже даёт поднять агента: он уже остановлен', async () => {
+    factsAnswer = { busy: false, error: 'Читатель памяти не ответил', ok: false }
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Показать список (агент остановится)' }))
+    await waitFor(() => expect(screen.getByText('Читатель памяти не ответил')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть список и поднять агента' }))
+
+    await waitFor(() => expect(closes).toBe(1))
+  })
+
+  it('закрытие списка поднимает агента', async () => {
+    show()
+    await showList()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть список и поднять агента' }))
+
+    await waitFor(() => expect(closes).toBe(1))
+    expect(screen.getByText(/читается только при остановленном агенте/)).toBeTruthy()
+  })
+
+  it('закрытие ОКНА при открытом списке тоже поднимает агента', async () => {
+    // Человек закрывает окно крестиком, а не кнопкой списка — агент обязан
+    // вернуться и на этом пути.
+    show()
+    await showList()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+
+    await waitFor(() => expect(closes).toBe(1))
+    await waitFor(() => expect($memoryOpen.get()).toBe(false))
+  })
+
+  it('окно не закрывается, пока агент не поднят', async () => {
+    // Закрыть окно после неудачного подъёма значило бы оставить человека без
+    // агента и без единого слова о том, почему.
+    closeRefusal = 'Ядро не поднялось: шлюз не ответил на проверку здоровья'
+    show()
+    await showList()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+
+    await waitFor(() => expect(screen.getByText(closeRefusal)).toBeTruthy())
+    expect($memoryOpen.get()).toBe(true)
+  })
+
+  it('пока список не открывали, закрытие окна ядро не трогает', async () => {
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+
+    await waitFor(() => expect($memoryOpen.get()).toBe(false))
+    expect(closes).toBe(0)
   })
 })
