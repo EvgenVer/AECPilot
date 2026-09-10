@@ -1286,8 +1286,19 @@ test('a renderer crash outlives the window, and the log carries no token', async
 
   // "Open logs" opens the folder. Stubbed rather than really opened: a test
   // must not leave an Explorer window on the developer's screen.
+  //
+  // ПОДМЕНА СНИМАЕТСЯ НИЖЕ, И ЭТО НЕ АККУРАТНОСТЬ РАДИ АККУРАТНОСТИ. `shell` в
+  // главном процессе один на всё приложение, а тесты идут в одном приложении
+  // подряд: оставленная заглушка молча обезвредила бы открытие папки для всех
+  // последующих тестов — то есть следующий такой тест прошёл бы, ничего не
+  // проверив. Заглушка `shell.openExternal` в тесте про выгрузку в браузер —
+  // другое дело и снята НЕ БУДЕТ: та держит закрытым браузер этой машины и
+  // должна стоять до конца прогона.
   await app.evaluate(({ shell }) => {
-    ;(globalThis as unknown as { openedPath?: string }).openedPath = ''
+    const slot = globalThis as unknown as { openedPath?: string; realOpenPath?: unknown }
+
+    slot.openedPath = ''
+    slot.realOpenPath = shell.openPath
     shell.openPath = (async (target: string) => {
       ;(globalThis as unknown as { openedPath?: string }).openedPath = target
       return ''
@@ -1296,10 +1307,24 @@ test('a renderer crash outlives the window, and the log carries no token', async
   const revealed = await page.evaluate(() =>
     (window as unknown as { hermesDesktop: LogBridge }).hermesDesktop.revealLogs()
   )
+  const openedPath = await app.evaluate(
+    () => (globalThis as unknown as { openedPath?: string }).openedPath
+  )
+  // Возврат идёт ДО проверок: упавшая проверка не должна оставлять заглушку.
+  // Сам возврат тоже проверяется — «положил на место» без доказательства ничем
+  // не лучше, чем не положить.
+  const restored = await app.evaluate(({ shell }) => {
+    const slot = globalThis as unknown as { realOpenPath?: unknown }
+
+    if (typeof slot.realOpenPath !== 'function') return false
+    shell.openPath = slot.realOpenPath as never
+
+    return shell.openPath === slot.realOpenPath
+  })
+
   expect(revealed.ok).toBe(true)
-  expect(
-    await app.evaluate(() => (globalThis as unknown as { openedPath?: string }).openedPath)
-  ).toBe(revealed.path)
+  expect(openedPath).toBe(revealed.path)
+  expect(restored, 'настоящий `shell.openPath` обязан вернуться на место').toBe(true)
 
   // Замечание D-43 и решение владельца 2026-08-21: картинки с ЭТОЙ машины
   // показываются, удалённые — нет. Проверяется настоящей загрузкой в живом
