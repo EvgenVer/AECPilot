@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HERMES_SHA, HERMES_SRC_DIR, HERMES_VERSION, PYTHON_BIN, VENV_DIR } from "./hermes-env.mjs";
@@ -34,8 +35,23 @@ const OUT_DIR = path.join(RUNTIME_DIR, "contracts");
 
 /** The snapshot's own shape. Bumped when a section is added or its meaning
  * changes, so contract-diff can say "this pair is not comparable here" instead
- * of reporting an absent section as a removal. */
-const SNAPSHOT_FORMAT = 3;
+ * of reporting an absent section as a removal.
+ *   3 → 4 (0.21.2): gatewayMethods comes from the live registry instead of a
+ *   decorator regex; per-method `line` and `via` added. A format-3 method
+ *   inventory is incomplete against a format-4 one — regenerate the older side
+ *   from a worktree of its SHA (`--core`, `--version`, `--sha`) before diffing. */
+const SNAPSHOT_FORMAT = 4;
+
+/** `--core <dir> --version <v> --sha <sha>` snapshot a checkout other than the
+ * installed one — the previous pin in a `git worktree`, so both sides of a diff
+ * are taken the same way. The venv still supplies the dependencies. */
+function argValue(flag) {
+  const at = process.argv.indexOf(flag);
+  return at === -1 ? null : process.argv[at + 1];
+}
+const CORE_OVERRIDE = argValue("--core");
+const VERSION_LABEL = argValue("--version") ?? HERMES_VERSION;
+const SHA_LABEL = argValue("--sha") ?? HERMES_SHA;
 
 /** Where the core's Python actually lives. Since 0.20.0 the install is editable
  * (their build backend refuses to build a wheel — see PLAN §Stack), so the
@@ -43,6 +59,11 @@ const SNAPSHOT_FORMAT = 3;
  * site-packages branch stays for the day a normal install becomes possible
  * again. */
 function coreRoot() {
+  if (CORE_OVERRIDE) {
+    const dir = path.resolve(CORE_OVERRIDE);
+    if (!fs.existsSync(path.join(dir, "tui_gateway"))) throw new Error(`no tui_gateway/ under --core ${dir}`);
+    return dir;
+  }
   const candidates = [HERMES_SRC_DIR, path.join(VENV_DIR, "Lib", "site-packages")];
   for (const dir of candidates) {
     if (fs.existsSync(path.join(dir, "tui_gateway"))) return dir;
@@ -81,55 +102,160 @@ function gatewaySources() {
     .map((name) => ({ name, text: read(path.join(dir, name)) }));
 }
 
-// Registration decorators. Most handlers use `@method("x")`; the projects CRUD
-// goes through a wrapper (`@_projects_method("x")`) that injects the DB handle.
-// Both register a callable RPC, so both belong in the inventory — counting only
-// the first would silently omit eleven methods.
-const METHOD_DECORATOR = /@(?:method|_[a-z_]+_method)\(\s*"([a-z_.]+)"\s*\)/g;
-
-/** Default values a handler reads out of its JSON-RPC params, as literals.
+/** Every RPC the gateway registers, read from the gateway's OWN registry.
  *
- * This is the section that would have caught 0.18 → 0.19: the signature does
- * not change when `params.get("include_unconfigured", True)` becomes
+ * Until 0.21.0 every handler was declared as `@method("x")` or
+ * `@_projects_method("x")`, and a regex over the source was a complete
+ * inventory. 0.21.2 registers in five shapes at once — `@_rpc("x", 5030)`,
+ * `@_profile_handler("x", 5061)`, dict tables (`"tools.list": (5031, lambda …)`),
+ * factory calls (`_correction_method("session.steer", …)`) and f-string names in
+ * loops (`_rpc(f"learning.{name}", …)`) — and the regex found 119 of 225,
+ * reporting `learning.delete` as gone when it was registered under a computed
+ * name. So the inventory is now the registry itself: `tui_gateway.server`
+ * fills `_methods` at import, and importing it in the core's venv (with a
+ * throwaway HERMES_HOME so nothing of the dev profile is touched) is the only
+ * reading that cannot miss a registration style invented next month.
+ *
+ * Per method: the module it lives in, the source of the innermost function
+ * (decorator wrappers are unwrapped through `__wrapped__` and closure cells, so
+ * four handlers minted by one factory hash differently), the `.get("k", literal)`
+ * defaults found in that source, and a hash — the point is "did it change",
+ * not a copy of someone else's source.
+ *
+ * `defaults` is the section that would have caught 0.18 → 0.19: the signature
+ * does not change when `params.get("include_unconfigured", True)` becomes
  * `params.get("include_unconfigured", False)`, the handler still answers, and
  * the screen just shows less. Only simple literals are captured — an expression
  * with its own call or comma is not a default anyone can compare across
  * versions, and a false entry in a diagnostic is worse than a missing one. */
-function paramDefaults(body) {
-  const found = {};
-  for (const m of body.matchAll(/\.get\(\s*"([A-Za-z0-9_]+)"\s*,\s*([^,()[\]{}]+?)\s*\)/g)) {
-    const [, key, literal] = m;
-    if (/^(True|False|None|-?\d+(\.\d+)?|"[^"]*"|'[^']*')$/.test(literal)) {
-      found[key] = literal;
-    }
-  }
-  return Object.fromEntries(Object.entries(found).sort(([a], [b]) => a.localeCompare(b)));
-}
+function gatewayMethodsLive() {
+  const script = `
+import hashlib, inspect, json, os, re, sys, types
 
-/** Body of one registered handler: everything up to the next registration.
- * Hashed rather than stored — the point is "did it change", and a snapshot
- * carrying thousands of lines of someone else's source would be unreadable. */
-function handlerBody(text, at, markerLength) {
-  const rest = text.slice(at + markerLength);
-  const next = rest.search(/\n@(?:method|_[a-z_]+_method)\(/);
-  return next === -1 ? rest : rest.slice(0, next);
-}
+sys.path.insert(0, os.getcwd())
+import tui_gateway.server as server
 
-/** Every RPC the gateway registers, with the module it lives in. */
-function gatewayMethods(sources) {
-  const methods = {};
-  for (const { name, text } of sources) {
-    for (const match of text.matchAll(METHOD_DECORATOR)) {
-      const body = handlerBody(text, match.index, match[0].length);
-      methods[match[1]] = {
-        file: name,
-        lines: body.split("\n").length,
-        hash: shortHash(body.trim()),
-        defaults: paramDefaults(body),
-      };
+CORE = os.path.abspath(os.getcwd())
+# Under --core the editable install's own finder could still win over the
+# worktree; a snapshot of the wrong tree is worse than none.
+_loaded = os.path.abspath(server.__file__)
+if not _loaded.startswith(CORE + os.sep):
+    raise SystemExit(f"tui_gateway.server loaded from {_loaded}, expected under {CORE}")
+GET_DEFAULT = re.compile(r'\\.get\\(\\s*"([A-Za-z0-9_]+)"\\s*,\\s*([^,()\\[\\]{}]+?)\\s*\\)')
+LITERAL = re.compile(r'^(True|False|None|-?\\d+(\\.\\d+)?|"[^"]*"|\\'[^\\']*\\')$')
+
+def unwrap(fn):
+    """Down through decorator wrappers to the handler a person would read.
+    functools.wraps leaves __wrapped__; their hand-rolled wrappers ('scoped',
+    'handler') do not, but they hold the wrapped function in a closure cell
+    named fn / func / handler / body. A closure with one function and no such
+    name is followed too; anything else is the handler itself and stays."""
+    seen = set()
+    while id(fn) not in seen:
+        seen.add(id(fn))
+        if hasattr(fn, "__wrapped__"):
+            fn = fn.__wrapped__
+            continue
+        names = getattr(getattr(fn, "__code__", None), "co_freevars", ())
+        inner = [(n, c.cell_contents) for n, c in zip(names, getattr(fn, "__closure__", None) or ())
+                 if _is_fn_cell(c)]
+        if "<locals>" in fn.__qualname__:
+            pick = [f for n, f in inner if n in ("fn", "func", "handler", "body", "inner")]
+            if len(pick) == 1:
+                fn = pick[0]
+                continue
+            if len(inner) == 1:
+                fn = inner[0][1]
+                continue
+        break
+    return fn
+
+def _is_fn_cell(cell):
+    try:
+        return isinstance(cell.cell_contents, types.FunctionType)
+    except ValueError:
+        return False
+
+def source_of(fn):
+    try:
+        lines, start = inspect.getsourcelines(fn)
+        return "".join(lines), start
+    except (OSError, TypeError):
+        return "", 0
+
+def closure_parts(fn, depth=0):
+    """What a factory-made handler closes over: the inner functions (by source)
+    and the plain values (by repr). Two handlers from one factory differ here."""
+    parts, sources = [], []
+    for cell in (getattr(fn, "__closure__", None) or ()):
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if isinstance(value, types.FunctionType):
+            src, _ = source_of(value)
+            sources.append(src)
+            parts.append("fn:" + value.__qualname__ + ":" + hashlib.sha256(src.encode()).hexdigest()[:12])
+            if depth < 2:
+                inner_parts, inner_sources = closure_parts(value, depth + 1)
+                parts.extend(inner_parts)
+                sources.extend(inner_sources)
+        elif isinstance(value, (str, int, float, bool, tuple, list, frozenset, set, type(None))):
+            rendered = sorted(map(repr, value)) if isinstance(value, (frozenset, set)) else repr(value)
+            parts.append("val:" + str(rendered))
+        else:
+            parts.append("obj:" + type(value).__name__)
+    return parts, sources
+
+def defaults_in(text):
+    found = {}
+    for key, literal in GET_DEFAULT.findall(text):
+        if LITERAL.match(literal):
+            found[key] = literal
+    return dict(sorted(found.items()))
+
+out = {}
+for name, fn in server._methods.items():
+    inner = unwrap(fn)
+    src, start = source_of(inner)
+    parts, extra_sources = closure_parts(inner)
+    file = inspect.getsourcefile(inner) or ""
+    rel = os.path.relpath(file, CORE).replace(os.sep, "/") if file else None
+    if rel and rel.startswith("tui_gateway/"):
+        rel = rel[len("tui_gateway/"):]
+    material = src.strip() + "\\n" + "\\n".join(parts)
+    out[name] = {
+        "file": rel,
+        "line": start,
+        "lines": len(src.splitlines()),
+        "hash": hashlib.sha256(material.encode()).hexdigest()[:12],
+        "defaults": defaults_in("\\n".join([src, *extra_sources])),
+        "via": inner.__qualname__,
     }
+# The gateway owns stdout (JSON-RPC over stdio) and rebinds it on import, so the
+# dump goes to a file, not to print().
+with open(os.environ["AECPILOT_INVENTORY_OUT"], "w", encoding="utf-8") as fh:
+    json.dump(dict(sorted(out.items())), fh)
+`;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "aecpilot-contract-home-"));
+  const dump = path.join(home, "inventory.json");
+  try {
+    const result = spawnSync(PYTHON_BIN, ["-c", script], {
+      encoding: "utf-8",
+      cwd: CORE_DIR, // their modules import each other by top-level name
+      env: { ...process.env, HERMES_HOME: home, PYTHONPATH: CORE_DIR, AECPILOT_INVENTORY_OUT: dump },
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 180_000,
+    });
+    if (result.status !== 0 || !fs.existsSync(dump)) {
+      throw new Error(
+        `reading the gateway registry failed (status ${result.status}):\n${(result.stderr || result.stdout).slice(-3000)}`,
+      );
+    }
+    return JSON.parse(read(dump));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
   }
-  return Object.fromEntries(Object.entries(methods).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 // ------------------------------------------------------------------ core: REST
@@ -239,7 +365,7 @@ function ourRestRoutes() {
 
 function main() {
   const sources = gatewaySources();
-  const allMethods = gatewayMethods(sources);
+  const allMethods = gatewayMethodsLive();
   const restRoutes = coreRestRoutes();
   const { configDefaults, requiresDist } = coreConfigAndDeps();
 
@@ -255,20 +381,29 @@ function main() {
   }
 
   const allText = sources.map((s) => s.text).join("\n");
-  const emitted = [
-    ...new Set([...allText.matchAll(/_emit\(\s*"([a-z_.]+)"/g)].map((m) => m[1]))
-  ].sort();
+  // `_emit("x", …)` is the common shape; 0.21.2 also routes the side-agent
+  // completions through `_spawn_side_agent(rid, session, task_id, parent, "btw.complete", …)`,
+  // where the name is the first dotted literal among the arguments. Reading
+  // only `_emit(` reported those three events as gone while our BTW surface was
+  // still receiving them — so both shapes are read.
+  const emitted = new Set([...allText.matchAll(/_emit\(\s*"([a-z_.]+)"/g)].map((m) => m[1]));
+  for (const call of allText.matchAll(/_spawn_side_agent\(([^()]{0,300})/g)) {
+    const literal = call[1].match(/"([a-z_]+\.[a-z_.]+)"/);
+    if (literal) emitted.add(literal[1]);
+  }
+  const emittedList = [...emitted].sort();
 
   const checkpointManager = readIfPresent(path.join(CORE_DIR, "tools", "checkpoint_manager.py"));
-  const markerBlock = checkpointManager.match(/markers = \{([^}]*)\}/);
+  // a local `markers = {…}` until 0.21.0, a module constant `_PROJECT_MARKERS = {…}` since 0.21.2
+  const markerBlock = checkpointManager.match(/(?:_PROJECT_MARKERS|markers) = \{([^}]*)\}/);
   const markers = markerBlock
     ? [...markerBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort()
     : [];
 
   const snapshot = {
     snapshotFormat: SNAPSHOT_FORMAT,
-    hermesVersion: HERMES_VERSION,
-    hermesSha: HERMES_SHA,
+    hermesVersion: VERSION_LABEL,
+    hermesSha: SHA_LABEL,
     takenBy: "runtime/contract-snapshot.mjs",
     note:
       "Поверхность ядра и наша зависимость от неё. Сравнивать через " +
@@ -284,7 +419,7 @@ function main() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     gatewayMethods: allMethods,
-    gatewayEmittedEvents: emitted,
+    gatewayEmittedEvents: emittedList,
     coreRestRoutes: restRoutes,
     configDefaults,
     requiresDist,
@@ -299,18 +434,18 @@ function main() {
   }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const out = path.join(OUT_DIR, `hermes-${HERMES_VERSION}.json`);
+  const out = path.join(OUT_DIR, `hermes-${VERSION_LABEL}.json`);
   fs.writeFileSync(out, `${JSON.stringify(snapshot, null, 2)}\n`);
 
   const missing = Object.entries(ourMethodView).filter(([, v]) => v.hash === null);
   const missingRoutes = Object.entries(ourRouteView).filter(([, present]) => !present);
   const withDefaults = Object.values(allMethods).filter((m) => Object.keys(m.defaults).length > 0);
-  console.log(`слепок ядра ${HERMES_VERSION} (${HERMES_SHA.slice(0, 12)}) → ${path.relative(REPO_DIR, out)}`);
+  console.log(`слепок ядра ${VERSION_LABEL} (${SHA_LABEL.slice(0, 12)}) → ${path.relative(REPO_DIR, out)}`);
   console.log(`  ядро: методов ${Object.keys(allMethods).length} в ${snapshot.gatewayModules.length} модулях, ` +
     `маршрутов ${Object.keys(restRoutes).length}, дефолтов конфига ${Object.keys(configDefaults).length}`);
   console.log(`  умолчания параметров записаны у ${withDefaults.length} методов`);
   console.log(`  наша поверхность: методов ${Object.keys(ourMethodView).length}, маршрутов ${Object.keys(ourRouteView).length}`);
-  console.log(`  ядро эмитит событий: ${emitted.length}, маркеров чекпойнтов: ${markers.length}`);
+  console.log(`  ядро эмитит событий: ${emittedList.length}, маркеров чекпойнтов: ${markers.length}`);
   if (missing.length > 0) {
     console.log(`  ВНИМАНИЕ, метод не найден в ядре: ${missing.map(([k]) => k).join(", ")}`);
   }

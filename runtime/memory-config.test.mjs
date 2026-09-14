@@ -103,11 +103,17 @@ describe("ключ 3: openai_base_url обоих блоков", () => {
   it("умолчание совпадает с тем, что ядро читает у себя", () => {
     // Значение продублировано у нас, и разъехаться оно может молча. Источник
     // истины — их реестр провайдеров; читается исходником, а не импортом.
+    // До 0.21.0 запись была `"openai-api": ProviderConfig(inference_base_url=…,
+    // base_url_env_var=…)`, с 0.21.2 — кортеж-строка `_REGISTRY_ROWS`:
+    // `("openai-api", name, inference_base_url, api_key_env_vars, base_url_env_var)`.
+    // Окно в 600 символов от `"openai-api"` покрывает запись в любой из форм.
     const auth = fs.readFileSync(path.join(HERMES_SRC, "hermes_cli", "auth.py"), "utf-8");
-    const entry = auth.slice(auth.indexOf('"openai-api": ProviderConfig('));
+    const start = auth.indexOf('"openai-api"');
+    expect(start).toBeGreaterThan(-1);
+    const entry = auth.slice(start, start + 600);
 
-    expect(entry).toContain(`inference_base_url="${CORE_OPENAI_BASE_URL}"`);
-    expect(entry).toContain(`base_url_env_var="${CORE_BASE_URL_ENV}"`);
+    expect(entry).toContain(`"${CORE_OPENAI_BASE_URL}"`);
+    expect(entry).toContain(`"${CORE_BASE_URL_ENV}"`);
   });
 });
 

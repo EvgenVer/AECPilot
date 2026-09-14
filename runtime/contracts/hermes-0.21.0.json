@@ -1,5 +1,5 @@
 {
-  "snapshotFormat": 3,
+  "snapshotFormat": 4,
   "hermesVersion": "0.21.0",
   "hermesSha": "29112bef099274229cadff79cdff7bf7b99c4b77",
   "takenBy": "runtime/contract-snapshot.mjs",
@@ -189,143 +189,186 @@
   "gatewayMethods": {
     "agents.list": {
       "file": "methods_tools.py",
-      "lines": 24,
-      "hash": "15ae1f6aa9ed",
-      "defaults": {}
+      "line": 1709,
+      "lines": 22,
+      "hash": "d996c7e06e4e",
+      "defaults": {},
+      "via": "_"
     },
     "approval.pending": {
       "file": "methods_prompt.py",
-      "lines": 13,
-      "hash": "dfd0af557b19",
-      "defaults": {}
+      "line": 1776,
+      "lines": 11,
+      "hash": "b28f7aa0da94",
+      "defaults": {},
+      "via": "_"
     },
     "approval.received": {
       "file": "methods_prompt.py",
-      "lines": 64,
-      "hash": "75e77f75ba98",
-      "defaults": {}
+      "line": 1789,
+      "lines": 17,
+      "hash": "461c4abcf808",
+      "defaults": {},
+      "via": "_"
     },
     "approval.respond": {
       "file": "methods_prompt.py",
-      "lines": 62,
-      "hash": "b954668ade0f",
+      "line": 1853,
+      "lines": 29,
+      "hash": "f6e12d4d0674",
       "defaults": {
         "all": "False",
         "choice": "\"deny\""
-      }
+      },
+      "via": "_"
     },
     "billing.auto_reload": {
       "file": "methods_session.py",
-      "lines": 22,
-      "hash": "a50a56a36908",
-      "defaults": {}
+      "line": 2674,
+      "lines": 20,
+      "hash": "ed2ca881973a",
+      "defaults": {},
+      "via": "_"
     },
     "billing.charge": {
       "file": "methods_session.py",
-      "lines": 26,
-      "hash": "8b2895405a5a",
-      "defaults": {}
+      "line": 2619,
+      "lines": 24,
+      "hash": "d8778114cf29",
+      "defaults": {},
+      "via": "_"
     },
     "billing.charge_status": {
       "file": "methods_session.py",
-      "lines": 29,
-      "hash": "23ee660cdbf5",
-      "defaults": {}
+      "line": 2645,
+      "lines": 27,
+      "hash": "c57b57eafc5c",
+      "defaults": {},
+      "via": "_"
     },
     "billing.state": {
       "file": "methods_session.py",
-      "lines": 16,
-      "hash": "9498c1709c78",
-      "defaults": {}
+      "line": 2468,
+      "lines": 14,
+      "hash": "cb94decc5436",
+      "defaults": {},
+      "via": "_"
     },
     "billing.step_up": {
       "file": "methods_session.py",
-      "lines": 41,
-      "hash": "66c9925cf7db",
-      "defaults": {}
+      "line": 2696,
+      "lines": 39,
+      "hash": "5df07e2b7e7e",
+      "defaults": {},
+      "via": "_"
     },
     "bot_relay.deliver": {
       "file": "methods_bot_relay.py",
-      "lines": 106,
-      "hash": "68a00e3741b5",
-      "defaults": {}
+      "line": 75,
+      "lines": 104,
+      "hash": "5638d7514aa2",
+      "defaults": {},
+      "via": "_"
     },
     "bot_relay.outbox.drain": {
       "file": "methods_bot_relay.py",
-      "lines": 20,
-      "hash": "3a4f4f29bb0c",
-      "defaults": {}
+      "line": 55,
+      "lines": 18,
+      "hash": "3d24a80aae25",
+      "defaults": {},
+      "via": "_"
     },
     "bot_relay.reply": {
       "file": "methods_bot_relay.py",
-      "lines": 48,
-      "hash": "eaae7365c649",
-      "defaults": {}
+      "line": 181,
+      "lines": 30,
+      "hash": "53f8da3d80ff",
+      "defaults": {},
+      "via": "_"
     },
     "bot_relay.roster.sync": {
       "file": "methods_bot_relay.py",
-      "lines": 22,
-      "hash": "6ef072f48efe",
-      "defaults": {}
+      "line": 33,
+      "lines": 20,
+      "hash": "0564ca800de9",
+      "defaults": {},
+      "via": "_"
     },
     "browser.controller.detach": {
       "file": "methods_browser_control.py",
-      "lines": 38,
-      "hash": "dc548938a78b",
-      "defaults": {}
+      "line": 346,
+      "lines": 32,
+      "hash": "4344f7a3b4c7",
+      "defaults": {},
+      "via": "_"
     },
     "browser.controller.heartbeat": {
       "file": "methods_browser_control.py",
-      "lines": 35,
-      "hash": "e593309aeeac",
-      "defaults": {}
+      "line": 311,
+      "lines": 33,
+      "hash": "322ee1f60531",
+      "defaults": {},
+      "via": "_"
     },
     "browser.controller.register": {
       "file": "methods_browser_control.py",
-      "lines": 114,
-      "hash": "337fd4e3d76a",
-      "defaults": {}
+      "line": 128,
+      "lines": 112,
+      "hash": "3e8645b979d3",
+      "defaults": {},
+      "via": "_"
     },
     "browser.controller.result": {
       "file": "methods_browser_control.py",
-      "lines": 69,
-      "hash": "b3a6944ec7d9",
-      "defaults": {}
+      "line": 242,
+      "lines": 67,
+      "hash": "d929f0979b3e",
+      "defaults": {},
+      "via": "_"
     },
     "browser.manage": {
       "file": "methods_tools.py",
-      "lines": 17,
-      "hash": "656d2057a147",
+      "line": 1456,
+      "lines": 15,
+      "hash": "010d8388464d",
       "defaults": {
         "action": "\"status\""
-      }
+      },
+      "via": "_"
     },
     "clarify.respond": {
       "file": "methods_prompt.py",
-      "lines": 11,
-      "hash": "612a8bc975ca",
-      "defaults": {}
+      "line": 1701,
+      "lines": 9,
+      "hash": "fe77a541b849",
+      "defaults": {},
+      "via": "_"
     },
     "cli.exec": {
       "file": "methods_tools.py",
-      "lines": 41,
-      "hash": "40604b0e3e51",
+      "line": 408,
+      "lines": 39,
+      "hash": "7e7675e97613",
       "defaults": {
         "timeout": "240"
-      }
+      },
+      "via": "_"
     },
     "clipboard.paste": {
       "file": "methods_prompt.py",
-      "lines": 40,
-      "hash": "d5b2c0fdde29",
+      "line": 1052,
+      "lines": 38,
+      "hash": "c48a4067f352",
       "defaults": {
         "image_counter": "0"
-      }
+      },
+      "via": "_"
     },
     "command.dispatch": {
       "file": "methods_tools.py",
-      "lines": 697,
-      "hash": "eb196615e07d",
+      "line": 469,
+      "lines": 695,
+      "hash": "ad64ae3ea000",
       "defaults": {
         "arg": "\"\"",
         "command": "\"\"",
@@ -336,45 +379,55 @@
         "session_id": "\"\"",
         "session_key": "\"\"",
         "target": "\"\""
-      }
+      },
+      "via": "_"
     },
     "command.resolve": {
       "file": "methods_tools.py",
-      "lines": 20,
-      "hash": "b1f698a3a0d3",
+      "line": 449,
+      "lines": 18,
+      "hash": "bdb4c49cd4fe",
       "defaults": {
         "name": "\"\""
-      }
+      },
+      "via": "_"
     },
     "commands.catalog": {
       "file": "methods_tools.py",
-      "lines": 153,
-      "hash": "6c7d7554bca2",
+      "line": 255,
+      "lines": 151,
+      "hash": "df9c3872b192",
       "defaults": {
         "description": "\"Skill\"",
         "type": "\"\""
-      }
+      },
+      "via": "_"
     },
     "complete.path": {
       "file": "methods_complete.py",
-      "lines": 289,
-      "hash": "98be4857c297",
+      "line": 41,
+      "lines": 287,
+      "hash": "fc86b399a8cc",
       "defaults": {
         "word": "\"\""
-      }
+      },
+      "via": "_"
     },
     "complete.slash": {
       "file": "methods_complete.py",
-      "lines": 139,
-      "hash": "885bf028d7e0",
+      "line": 330,
+      "lines": 137,
+      "hash": "fc27312864f3",
       "defaults": {
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "config.get": {
       "file": "methods_config.py",
-      "lines": 199,
-      "hash": "82758d6d2b1d",
+      "line": 181,
+      "lines": 197,
+      "hash": "4d8088c730e1",
       "defaults": {
         "custom_prompt": "\"\"",
         "cwd": "\"\"",
@@ -390,12 +443,14 @@
         "tui_status_indicator": "\"\"",
         "tui_statusbar": "\"top\"",
         "tui_theme": "\"auto\""
-      }
+      },
+      "via": "_"
     },
     "config.set": {
       "file": "server.py",
-      "lines": 836,
-      "hash": "b17113515750",
+      "line": 14068,
+      "lines": 773,
+      "hash": "32fa608e7abd",
       "defaults": {
         "battery": "False",
         "confirm_expensive_model": "False",
@@ -409,23 +464,27 @@
         "tui_compact": "False",
         "tui_statusbar": "\"top\"",
         "value": "\"\""
-      }
+      },
+      "via": "_"
     },
     "config.show": {
       "file": "methods_tools.py",
-      "lines": 41,
-      "hash": "3e60fe6a3ac1",
+      "line": 1495,
+      "lines": 39,
+      "hash": "a4a3fb948026",
       "defaults": {
+        "HERMES_BASE_URL": "\"\"",
         "api_key": "\"\"",
         "base_url": "\"\"",
-        "HERMES_BASE_URL": "\"\"",
         "verbose": "False"
-      }
+      },
+      "via": "_"
     },
     "cron.manage": {
       "file": "methods_tools.py",
-      "lines": 87,
-      "hash": "9e00b0d0a6fc",
+      "line": 1733,
+      "lines": 85,
+      "hash": "6405e975dce0",
       "defaults": {
         "action": "\"list\"",
         "include_disabled": "False",
@@ -433,905 +492,1143 @@
         "prompt": "\"\"",
         "repeat": "\"\"",
         "schedule": "\"\""
-      }
+      },
+      "via": "_"
     },
     "delegation.pause": {
       "file": "methods_session.py",
-      "lines": 8,
-      "hash": "211e7dd47773",
+      "line": 3424,
+      "lines": 6,
+      "hash": "ef9feadd463f",
       "defaults": {
         "paused": "True"
-      }
+      },
+      "via": "_"
     },
     "delegation.status": {
       "file": "methods_session.py",
-      "lines": 20,
-      "hash": "1decba9f868a",
-      "defaults": {}
+      "line": 3404,
+      "lines": 18,
+      "hash": "4bb41cf4c733",
+      "defaults": {},
+      "via": "_"
     },
     "diagnostics.share_nous": {
       "file": "methods_config.py",
-      "lines": 96,
-      "hash": "ff842743fe39",
-      "defaults": {}
+      "line": 465,
+      "lines": 90,
+      "hash": "0240373945a1",
+      "defaults": {},
+      "via": "_"
     },
     "file.attach": {
       "file": "methods_prompt.py",
-      "lines": 47,
-      "hash": "1062f10be5f7",
+      "line": 1322,
+      "lines": 45,
+      "hash": "9f275cf87570",
       "defaults": {
         "data_url": "\"\"",
         "name": "\"\"",
         "path": "\"\""
-      }
+      },
+      "via": "_"
     },
     "groups.approve": {
       "file": "methods_groups.py",
-      "lines": 21,
-      "hash": "2e7b543ae803",
-      "defaults": {}
+      "line": 701,
+      "lines": 19,
+      "hash": "e82fb7788b2b",
+      "defaults": {},
+      "via": "_"
     },
     "groups.capabilities": {
       "file": "methods_groups.py",
-      "lines": 93,
-      "hash": "a6d0d65ec670",
+      "line": 196,
+      "lines": 91,
+      "hash": "75ac821babbe",
       "defaults": {
         "persistent_process": "False"
-      }
+      },
+      "via": "_"
     },
     "groups.create": {
       "file": "methods_groups.py",
-      "lines": 26,
-      "hash": "b419b4ad3427",
-      "defaults": {}
+      "line": 508,
+      "lines": 24,
+      "hash": "de260029c31d",
+      "defaults": {},
+      "via": "_"
     },
     "groups.demote": {
       "file": "methods_groups.py",
-      "lines": 23,
-      "hash": "c3ba3df2df5a",
-      "defaults": {}
+      "line": 845,
+      "lines": 18,
+      "hash": "9c89897380bf",
+      "defaults": {},
+      "via": "_"
     },
     "groups.disband": {
       "file": "methods_groups.py",
-      "lines": 63,
-      "hash": "1fa0cc5faecd",
-      "defaults": {}
+      "line": 621,
+      "lines": 61,
+      "hash": "c991cace0699",
+      "defaults": {},
+      "via": "_"
     },
     "groups.list": {
       "file": "methods_groups.py",
-      "lines": 30,
-      "hash": "80866202b3bd",
+      "line": 478,
+      "lines": 28,
+      "hash": "8a0ec9438bfd",
       "defaults": {
         "offset": "0"
-      }
+      },
+      "via": "_"
     },
     "groups.log": {
       "file": "methods_groups.py",
-      "lines": 21,
-      "hash": "7be1cea983f4",
+      "line": 752,
+      "lines": 19,
+      "hash": "f11053648970",
       "defaults": {
         "limit": "100",
         "since_seq": "0"
-      }
+      },
+      "via": "_"
     },
     "groups.peer.invite": {
       "file": "methods_groups.py",
-      "lines": 65,
-      "hash": "8ae7c6e3d3e8",
+      "line": 289,
+      "lines": 63,
+      "hash": "843f2c6199a2",
       "defaults": {
         "ttl_seconds": "3600"
-      }
+      },
+      "via": "_"
     },
     "groups.peer.register": {
       "file": "methods_groups.py",
-      "lines": 93,
-      "hash": "17a4cc79ccbf",
-      "defaults": {}
+      "line": 385,
+      "lines": 91,
+      "hash": "977f6a4d8abb",
+      "defaults": {},
+      "via": "_"
     },
     "groups.peer.revoke": {
       "file": "methods_groups.py",
-      "lines": 31,
-      "hash": "82b460480f04",
-      "defaults": {}
+      "line": 354,
+      "lines": 29,
+      "hash": "89e27a287863",
+      "defaults": {},
+      "via": "_"
     },
     "groups.promote": {
       "file": "methods_groups.py",
-      "lines": 32,
-      "hash": "5f947534cacb",
+      "line": 813,
+      "lines": 30,
+      "hash": "25daa27c5d66",
       "defaults": {
         "reason": "\"authority-unreachable\""
-      }
+      },
+      "via": "_"
     },
     "groups.rename": {
       "file": "methods_groups.py",
-      "lines": 20,
-      "hash": "0b84bd9d75f4",
-      "defaults": {}
+      "line": 601,
+      "lines": 18,
+      "hash": "784c71632e01",
+      "defaults": {},
+      "via": "_"
     },
     "groups.replica_state": {
       "file": "methods_groups.py",
-      "lines": 14,
-      "hash": "1b4db4fb0434",
-      "defaults": {}
+      "line": 799,
+      "lines": 12,
+      "hash": "1152fc14af0d",
+      "defaults": {},
+      "via": "_"
     },
     "groups.replicate": {
       "file": "methods_groups.py",
-      "lines": 26,
-      "hash": "10e3dfb0d3d1",
-      "defaults": {}
+      "line": 773,
+      "lines": 24,
+      "hash": "08de352ac56e",
+      "defaults": {},
+      "via": "_"
     },
     "groups.retry": {
       "file": "methods_groups.py",
-      "lines": 30,
-      "hash": "5eb5bac1ee91",
-      "defaults": {}
+      "line": 722,
+      "lines": 28,
+      "hash": "82b476417a45",
+      "defaults": {},
+      "via": "_"
     },
     "groups.send": {
       "file": "methods_groups.py",
-      "lines": 37,
-      "hash": "f6a416775d35",
-      "defaults": {}
+      "line": 564,
+      "lines": 35,
+      "hash": "68b1c2b525b6",
+      "defaults": {},
+      "via": "_"
     },
     "groups.state": {
       "file": "methods_groups.py",
-      "lines": 30,
-      "hash": "c8ad4bce594f",
-      "defaults": {}
+      "line": 534,
+      "lines": 28,
+      "hash": "cea301bd6613",
+      "defaults": {},
+      "via": "_"
     },
     "groups.stop": {
       "file": "methods_groups.py",
-      "lines": 17,
-      "hash": "6ec48d75b294",
-      "defaults": {}
+      "line": 684,
+      "lines": 15,
+      "hash": "15c4cbf209f6",
+      "defaults": {},
+      "via": "_"
     },
     "handoff.fail": {
       "file": "methods_session.py",
-      "lines": 37,
-      "hash": "993b26d69396",
-      "defaults": {}
+      "line": 1681,
+      "lines": 35,
+      "hash": "7e789ffd1e7c",
+      "defaults": {},
+      "via": "_"
     },
     "handoff.request": {
       "file": "methods_session.py",
-      "lines": 88,
-      "hash": "1d70bc469dd9",
+      "line": 1566,
+      "lines": 86,
+      "hash": "20eabc4d1913",
       "defaults": {
         "platform": "\"\""
-      }
+      },
+      "via": "_"
     },
     "handoff.state": {
       "file": "methods_session.py",
-      "lines": 27,
-      "hash": "4daa8bc89c2e",
-      "defaults": {}
+      "line": 1654,
+      "lines": 25,
+      "hash": "7aa98a162b87",
+      "defaults": {},
+      "via": "_"
     },
     "image.attach": {
       "file": "methods_prompt.py",
-      "lines": 43,
-      "hash": "e1fc43eb642c",
+      "line": 1092,
+      "lines": 41,
+      "hash": "6faa1837b912",
       "defaults": {
         "path": "\"\""
-      }
+      },
+      "via": "_"
     },
     "image.attach_bytes": {
       "file": "methods_prompt.py",
-      "lines": 61,
-      "hash": "7f4a68e4570f",
+      "line": 1135,
+      "lines": 59,
+      "hash": "d2701c57c4a8",
       "defaults": {
         "ext": "\"\"",
         "filename": "\"\""
-      }
+      },
+      "via": "_"
     },
     "image.detach": {
       "file": "methods_prompt.py",
-      "lines": 20,
-      "hash": "32ff3c0166f1",
+      "line": 1369,
+      "lines": 18,
+      "hash": "edc979537171",
       "defaults": {
         "path": "\"\""
-      }
+      },
+      "via": "_"
     },
     "image.generate": {
       "file": "methods_images.py",
-      "lines": 110,
-      "hash": "7a24af0f3bed",
+      "line": 22,
+      "lines": 105,
+      "hash": "9d92a6112700",
       "defaults": {
         "probe": "False"
-      }
+      },
+      "via": "_"
     },
     "input.detect_drop": {
       "file": "methods_prompt.py",
-      "lines": 47,
-      "hash": "6b2e4d89fcaf",
+      "line": 1389,
+      "lines": 45,
+      "hash": "d9fc823e3222",
       "defaults": {
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "insights.get": {
       "file": "methods_tools.py",
-      "lines": 25,
-      "hash": "3fb4d8b71649",
+      "line": 1320,
+      "lines": 23,
+      "hash": "8acb5a769658",
       "defaults": {
         "days": "30",
         "message_count": "0"
-      }
+      },
+      "via": "_"
     },
     "learning.delete": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "4be5ac62bd2c",
+      "line": 1855,
+      "lines": 9,
+      "hash": "aaf029b18acb",
       "defaults": {
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.detail": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "4240e5fb18b3",
+      "line": 1844,
+      "lines": 9,
+      "hash": "db164354e3a6",
       "defaults": {
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.edit": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "01474a373ef0",
+      "line": 1866,
+      "lines": 9,
+      "hash": "9f23fc2a56c1",
       "defaults": {
         "content": "\"\"",
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.frames": {
       "file": "methods_tools.py",
-      "lines": 24,
-      "hash": "680b72ae6727",
+      "line": 1820,
+      "lines": 22,
+      "hash": "47c72ffade12",
       "defaults": {
         "cols": "80",
         "frames": "48",
         "rows": "24"
-      }
+      },
+      "via": "_"
     },
     "llm.oneshot": {
       "file": "methods_session.py",
-      "lines": 59,
-      "hash": "270ab4fc5139",
-      "defaults": {}
+      "line": 1507,
+      "lines": 57,
+      "hash": "2276b2d1f4a0",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.catalog": {
       "file": "methods_tools.py",
-      "lines": 72,
-      "hash": "bf73b841e08e",
-      "defaults": {}
+      "line": 1961,
+      "lines": 56,
+      "hash": "9994a524bbe4",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.add": {
       "file": "methods_tools.py",
-      "lines": 73,
-      "hash": "c38ca8a23624",
-      "defaults": {}
+      "line": 2063,
+      "lines": 71,
+      "hash": "90f18b4e4d50",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.list": {
       "file": "methods_tools.py",
-      "lines": 30,
-      "hash": "121d7fd87e3e",
-      "defaults": {}
+      "line": 2033,
+      "lines": 28,
+      "hash": "4e4c18904185",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.oauth.callback": {
       "file": "methods_tools.py",
-      "lines": 38,
-      "hash": "e36a70994b5c",
-      "defaults": {}
+      "line": 2429,
+      "lines": 36,
+      "hash": "c7c877b1ed43",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.oauth.poll": {
       "file": "methods_tools.py",
-      "lines": 33,
-      "hash": "fae982fa13d3",
-      "defaults": {}
+      "line": 2396,
+      "lines": 31,
+      "hash": "8bc2cff13c79",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.oauth.start": {
       "file": "methods_tools.py",
-      "lines": 75,
-      "hash": "4427f745df25",
-      "defaults": {}
+      "line": 2321,
+      "lines": 73,
+      "hash": "c19183643696",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.remove": {
       "file": "methods_tools.py",
-      "lines": 26,
-      "hash": "275da316896a",
-      "defaults": {}
+      "line": 2295,
+      "lines": 24,
+      "hash": "40770c5eb005",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.set_api_key": {
       "file": "methods_tools.py",
-      "lines": 80,
-      "hash": "26463455de19",
-      "defaults": {}
+      "line": 2136,
+      "lines": 78,
+      "hash": "6b7074a03874",
+      "defaults": {},
+      "via": "_"
     },
     "mcp.servers.test": {
       "file": "methods_tools.py",
-      "lines": 79,
-      "hash": "9ef8fc927400",
+      "line": 2216,
+      "lines": 77,
+      "hash": "4d90fb59f16f",
       "defaults": {
         "prompts": "0",
         "resources": "0"
-      }
+      },
+      "via": "_"
     },
     "mcp.setup.respond": {
       "file": "methods_prompt.py",
-      "lines": 9,
-      "hash": "a9be973b9ded",
-      "defaults": {}
+      "line": 1757,
+      "lines": 7,
+      "hash": "af5ed443e3a0",
+      "defaults": {},
+      "via": "_"
     },
     "message.react": {
       "file": "methods_session.py",
-      "lines": 53,
-      "hash": "5d68500d1198",
-      "defaults": {}
+      "line": 1454,
+      "lines": 51,
+      "hash": "62e5fd6ef90f",
+      "defaults": {},
+      "via": "_"
     },
     "model.disconnect": {
       "file": "methods_complete.py",
-      "lines": 56,
-      "hash": "5da393b1df68",
-      "defaults": {}
+      "line": 572,
+      "lines": 50,
+      "hash": "4e5d361dfc51",
+      "defaults": {},
+      "via": "_"
     },
     "model.options": {
       "file": "methods_complete.py",
-      "lines": 23,
-      "hash": "df5c3254b124",
+      "line": 469,
+      "lines": 21,
+      "hash": "6f5ab71a878a",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "model.save_key": {
       "file": "methods_complete.py",
-      "lines": 80,
-      "hash": "935fe93ec1b5",
+      "line": 492,
+      "lines": 78,
+      "hash": "f373a7597b52",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "paste.collapse": {
       "file": "methods_complete.py",
-      "lines": 27,
-      "hash": "d12d7b85a50e",
+      "line": 14,
+      "lines": 25,
+      "hash": "0fd0c371fb52",
       "defaults": {
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "pdf.attach": {
       "file": "methods_prompt.py",
-      "lines": 126,
-      "hash": "e1b4bb090fe4",
+      "line": 1196,
+      "lines": 124,
+      "hash": "ee846976d118",
       "defaults": {
         "filename": "\"\"",
         "path": "\"\""
-      }
+      },
+      "via": "_"
     },
     "pet.cancel": {
       "file": "methods_session.py",
-      "lines": 14,
-      "hash": "f465340d8094",
-      "defaults": {}
+      "line": 2211,
+      "lines": 12,
+      "hash": "8cf62b889993",
+      "defaults": {},
+      "via": "_"
     },
     "pet.cells": {
       "file": "methods_session.py",
-      "lines": 105,
-      "hash": "54e3d97939b7",
+      "line": 1831,
+      "lines": 103,
+      "hash": "0d0bc9911e9c",
       "defaults": {
         "render_mode": "\"auto\"",
         "slug": "\"\"",
         "unicode_cols": "0"
-      }
+      },
+      "via": "_"
     },
     "pet.disable": {
       "file": "methods_session.py",
-      "lines": 14,
-      "hash": "396e46a06838",
-      "defaults": {}
+      "line": 2176,
+      "lines": 12,
+      "hash": "52e372f40471",
+      "defaults": {},
+      "via": "_"
     },
     "pet.export": {
       "file": "methods_session.py",
-      "lines": 27,
-      "hash": "1cf20a572f8c",
-      "defaults": {}
+      "line": 2076,
+      "lines": 25,
+      "hash": "ccd1d6794aa7",
+      "defaults": {},
+      "via": "_"
     },
     "pet.gallery": {
       "file": "methods_session.py",
-      "lines": 83,
-      "hash": "4e996f774fda",
+      "line": 1936,
+      "lines": 81,
+      "hash": "4bb30652d7a3",
       "defaults": {
         "slug": "\"\""
-      }
+      },
+      "via": "_"
     },
     "pet.generate": {
       "file": "methods_session.py",
-      "lines": 113,
-      "hash": "9dc561d3056c",
-      "defaults": {}
+      "line": 2256,
+      "lines": 111,
+      "hash": "1cc41f299c77",
+      "defaults": {},
+      "via": "_"
     },
     "pet.generate.status": {
       "file": "methods_session.py",
-      "lines": 31,
-      "hash": "cb0b6290ba9c",
-      "defaults": {}
+      "line": 2225,
+      "lines": 29,
+      "hash": "69826770af5d",
+      "defaults": {},
+      "via": "_"
     },
     "pet.hatch": {
       "file": "methods_session.py",
-      "lines": 99,
-      "hash": "d48a7183ab8b",
+      "line": 2369,
+      "lines": 97,
+      "hash": "8659dbd77891",
       "defaults": {
         "index": "0"
-      }
+      },
+      "via": "_"
     },
     "pet.info": {
       "file": "methods_session.py",
-      "lines": 36,
-      "hash": "7b16aed507d7",
+      "line": 1772,
+      "lines": 34,
+      "hash": "fe8b02271c26",
       "defaults": {
         "knownRevision": "\"\""
-      }
+      },
+      "via": "_"
     },
     "pet.info.meta": {
       "file": "methods_session.py",
-      "lines": 23,
-      "hash": "0040939a06f8",
-      "defaults": {}
+      "line": 1808,
+      "lines": 21,
+      "hash": "ea3afe98cd19",
+      "defaults": {},
+      "via": "_"
     },
     "pet.remove": {
       "file": "methods_session.py",
-      "lines": 30,
-      "hash": "3d173a0982cb",
-      "defaults": {}
+      "line": 2046,
+      "lines": 28,
+      "hash": "6adb071aa557",
+      "defaults": {},
+      "via": "_"
     },
     "pet.rename": {
       "file": "methods_session.py",
-      "lines": 38,
-      "hash": "30c6b7fa24d9",
-      "defaults": {}
+      "line": 2103,
+      "lines": 36,
+      "hash": "c29220c4ea3d",
+      "defaults": {},
+      "via": "_"
     },
     "pet.scale": {
       "file": "methods_session.py",
-      "lines": 21,
-      "hash": "bebf0439783a",
-      "defaults": {}
+      "line": 2190,
+      "lines": 19,
+      "hash": "b69ce184be48",
+      "defaults": {},
+      "via": "_"
     },
     "pet.select": {
       "file": "methods_session.py",
-      "lines": 27,
-      "hash": "c6d6d95b0608",
-      "defaults": {}
+      "line": 2019,
+      "lines": 25,
+      "hash": "22abd5a803f8",
+      "defaults": {},
+      "via": "_"
     },
     "pet.thumb": {
       "file": "methods_session.py",
-      "lines": 35,
-      "hash": "24b3b537e1a6",
-      "defaults": {}
+      "line": 2141,
+      "lines": 33,
+      "hash": "80c98dde4a6d",
+      "defaults": {},
+      "via": "_"
     },
     "ping": {
       "file": "server.py",
-      "lines": 15,
-      "hash": "0d90677a8660",
-      "defaults": {}
+      "line": 16978,
+      "lines": 13,
+      "hash": "ed82110f1205",
+      "defaults": {},
+      "via": "_"
     },
     "plugins.list": {
       "file": "methods_tools.py",
-      "lines": 22,
-      "hash": "7895cc5c51a3",
-      "defaults": {}
+      "line": 1473,
+      "lines": 20,
+      "hash": "8c8c4cc9237c",
+      "defaults": {},
+      "via": "_"
     },
     "plugins.manage": {
       "file": "methods_tools.py",
-      "lines": 134,
-      "hash": "2447d3661ef3",
+      "line": 2492,
+      "lines": 132,
+      "hash": "f283f2d3125e",
       "defaults": {
         "action": "\"list\"",
         "enable": "True"
-      }
+      },
+      "via": "_"
     },
     "preview.act.respond": {
       "file": "methods_prompt.py",
-      "lines": 9,
-      "hash": "a8686efc16db",
-      "defaults": {}
+      "line": 1729,
+      "lines": 7,
+      "hash": "a4736b68289e",
+      "defaults": {},
+      "via": "_"
     },
     "preview.read.respond": {
       "file": "methods_prompt.py",
-      "lines": 8,
-      "hash": "b865cc644169",
-      "defaults": {}
+      "line": 1721,
+      "lines": 6,
+      "hash": "85efa21bde47",
+      "defaults": {},
+      "via": "_"
     },
     "preview.restart": {
       "file": "methods_prompt.py",
-      "lines": 132,
-      "hash": "57f33dc0c29e",
+      "line": 1569,
+      "lines": 130,
+      "hash": "64bb62d44902",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "process.kill": {
       "file": "methods_tools.py",
-      "lines": 23,
-      "hash": "b858cc9aeadb",
-      "defaults": {}
+      "line": 61,
+      "lines": 21,
+      "hash": "937b0e7206cd",
+      "defaults": {},
+      "via": "_"
     },
     "process.list": {
       "file": "methods_tools.py",
-      "lines": 12,
-      "hash": "383b396c3049",
-      "defaults": {}
+      "line": 49,
+      "lines": 10,
+      "hash": "7f79a10e600c",
+      "defaults": {},
+      "via": "_"
     },
     "process.stop": {
       "file": "methods_tools.py",
-      "lines": 10,
-      "hash": "0a53426e0c8a",
-      "defaults": {}
+      "line": 39,
+      "lines": 8,
+      "hash": "a8f8233ee05f",
+      "defaults": {},
+      "via": "_"
     },
     "profiles.configure": {
       "file": "methods_profiles.py",
-      "lines": 272,
-      "hash": "65695a746558",
+      "line": 749,
+      "lines": 270,
+      "hash": "1e71fb53557b",
       "defaults": {
         "confirm_expensive_model": "False"
-      }
+      },
+      "via": "_"
     },
     "profiles.create": {
       "file": "methods_profiles.py",
-      "lines": 239,
-      "hash": "622163399cc0",
+      "line": 339,
+      "lines": 237,
+      "hash": "1bf9767ddc32",
       "defaults": {
         "clone_all": "False",
         "mirror_credentials": "True",
         "no_skills": "False",
         "share_auth": "False"
-      }
+      },
+      "via": "_"
     },
     "profiles.describe": {
       "file": "methods_profiles.py",
-      "lines": 171,
-      "hash": "c85b29f7d10b",
+      "line": 578,
+      "lines": 169,
+      "hash": "2fd8405e126d",
       "defaults": {
         "disabled": "False"
-      }
+      },
+      "via": "_"
     },
     "profiles.get_asset": {
       "file": "methods_profiles.py",
-      "lines": 44,
-      "hash": "2ce6ccb59cca",
-      "defaults": {}
+      "line": 1107,
+      "lines": 39,
+      "hash": "43864e366599",
+      "defaults": {},
+      "via": "_"
     },
     "profiles.list": {
       "file": "methods_profiles.py",
-      "lines": 317,
-      "hash": "9a49d9e6dbc4",
+      "line": 22,
+      "lines": 315,
+      "hash": "6cdb8ad4df7d",
       "defaults": {
         "include_sessions": "True"
-      }
+      },
+      "via": "_"
     },
     "profiles.set_asset": {
       "file": "methods_profiles.py",
-      "lines": 86,
-      "hash": "5ccf72d630d9",
+      "line": 1021,
+      "lines": 84,
+      "hash": "b97c3d0dcca6",
       "defaults": {
         "clear": "False"
-      }
+      },
+      "via": "_"
     },
     "project.facts": {
       "file": "methods_session.py",
-      "lines": 18,
-      "hash": "4c285242f8f3",
-      "defaults": {}
+      "line": 331,
+      "lines": 16,
+      "hash": "05b88c6da168",
+      "defaults": {},
+      "via": "_"
     },
     "projects.add_folder": {
       "file": "server.py",
-      "lines": 13,
-      "hash": "52ed0b29095a",
-      "defaults": {}
+      "line": 14948,
+      "lines": 11,
+      "hash": "d8f41e010589",
+      "defaults": {},
+      "via": "_"
     },
     "projects.archive": {
       "file": "server.py",
-      "lines": 7,
-      "hash": "04009597062b",
-      "defaults": {}
+      "line": 14975,
+      "lines": 5,
+      "hash": "08e8fb9d0080",
+      "defaults": {},
+      "via": "_"
     },
     "projects.create": {
       "file": "server.py",
-      "lines": 19,
-      "hash": "a4693f1498c5",
-      "defaults": {}
+      "line": 14914,
+      "lines": 17,
+      "hash": "a5912cc8e301",
+      "defaults": {},
+      "via": "_"
     },
     "projects.delete": {
       "file": "server.py",
-      "lines": 7,
-      "hash": "535ea9fa6808",
-      "defaults": {}
+      "line": 14982,
+      "lines": 5,
+      "hash": "37a342524157",
+      "defaults": {},
+      "via": "_"
     },
     "projects.discover_repos": {
       "file": "methods_config.py",
-      "lines": 33,
-      "hash": "94bf1617fa3e",
-      "defaults": {}
+      "line": 19,
+      "lines": 31,
+      "hash": "ee9cffa7e695",
+      "defaults": {},
+      "via": "_"
     },
     "projects.for_cwd": {
       "file": "server.py",
-      "lines": 1983,
-      "hash": "7a9e17dd5bfe",
-      "defaults": {
-        "always": "False",
-        "barge_in": "True",
-        "barge_in_grace_seconds": "0.5",
-        "barge_in_threshold_multiplier": "0",
-        "HERMES_VOICE": "\"\"",
-        "HERMES_VOICE_TTS": "\"\"",
-        "system_prompt": "\"\"",
-        "text": "\"\"",
-        "warning": "\"\""
-      }
+      "line": 14995,
+      "lines": 5,
+      "hash": "6d9370e771ff",
+      "defaults": {},
+      "via": "_"
     },
     "projects.get": {
       "file": "server.py",
-      "lines": 5,
-      "hash": "c0ced18103d2",
-      "defaults": {}
+      "line": 14909,
+      "lines": 3,
+      "hash": "e78c158dbc98",
+      "defaults": {},
+      "via": "_"
     },
     "projects.list": {
       "file": "server.py",
-      "lines": 5,
-      "hash": "7eb2c37e2c49",
-      "defaults": {}
+      "line": 14904,
+      "lines": 3,
+      "hash": "c671702978c4",
+      "defaults": {},
+      "via": "_"
     },
     "projects.project_sessions": {
       "file": "methods_config.py",
-      "lines": 30,
-      "hash": "7bc0413e46ab",
-      "defaults": {}
+      "line": 151,
+      "lines": 28,
+      "hash": "66e429b38aac",
+      "defaults": {},
+      "via": "_"
     },
     "projects.record_repos": {
       "file": "methods_config.py",
-      "lines": 65,
-      "hash": "0e2cc43dfc59",
-      "defaults": {}
+      "line": 52,
+      "lines": 63,
+      "hash": "43a6d3cf6eb1",
+      "defaults": {},
+      "via": "_"
     },
     "projects.remove_folder": {
       "file": "server.py",
-      "lines": 7,
-      "hash": "ee5ec8636089",
-      "defaults": {}
+      "line": 14961,
+      "lines": 5,
+      "hash": "afae812b43fc",
+      "defaults": {},
+      "via": "_"
     },
     "projects.set_active": {
       "file": "server.py",
-      "lines": 6,
-      "hash": "c197d8d5851d",
-      "defaults": {}
+      "line": 14989,
+      "lines": 4,
+      "hash": "3e0660ef1d88",
+      "defaults": {},
+      "via": "_"
     },
     "projects.set_primary": {
       "file": "server.py",
-      "lines": 7,
-      "hash": "62e652670aba",
-      "defaults": {}
+      "line": 14968,
+      "lines": 5,
+      "hash": "dc61c3e9d80f",
+      "defaults": {},
+      "via": "_"
     },
     "projects.tree": {
       "file": "methods_config.py",
-      "lines": 34,
-      "hash": "153d3fa3805c",
-      "defaults": {}
+      "line": 117,
+      "lines": 32,
+      "hash": "b33488633b21",
+      "defaults": {},
+      "via": "_"
     },
     "projects.update": {
       "file": "server.py",
-      "lines": 15,
-      "hash": "19c189c8224d",
-      "defaults": {}
+      "line": 14933,
+      "lines": 13,
+      "hash": "f0643052a907",
+      "defaults": {},
+      "via": "_"
     },
     "prompt.background": {
       "file": "methods_prompt.py",
-      "lines": 62,
-      "hash": "43b3bf657655",
+      "line": 1436,
+      "lines": 60,
+      "hash": "19bfd4bf3580",
       "defaults": {
         "session_id": "\"\"",
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "prompt.btw": {
       "file": "methods_prompt.py",
-      "lines": 71,
-      "hash": "eb563105fc64",
+      "line": 1498,
+      "lines": 69,
+      "hash": "5c5161c88fd4",
       "defaults": {
         "session_id": "\"\"",
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "prompt.submit": {
       "file": "methods_prompt.py",
-      "lines": 765,
-      "hash": "de3ffcf4b52d",
+      "line": 287,
+      "lines": 763,
+      "hash": "756dd104e75a",
       "defaults": {
         "history_version": "0",
         "message": "\"agent initialization failed\"",
         "session_id": "\"\"",
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "reload.env": {
       "file": "methods_tools.py",
-      "lines": 21,
-      "hash": "d8cb0cd1cb8b",
-      "defaults": {}
+      "line": 234,
+      "lines": 19,
+      "hash": "abc95ce5f1ce",
+      "defaults": {},
+      "via": "_"
     },
     "reload.mcp": {
       "file": "methods_tools.py",
-      "lines": 150,
-      "hash": "a9f611b1ace4",
+      "line": 84,
+      "lines": 148,
+      "hash": "47189471754e",
       "defaults": {
         "confirm": "False",
         "mcp_reload_confirm": "True",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.diff": {
       "file": "methods_tools.py",
-      "lines": 23,
-      "hash": "54c6d3bc14fa",
+      "line": 1433,
+      "lines": 21,
+      "hash": "beb7889dabe3",
       "defaults": {
         "cols": "80",
         "diff": "\"\"",
         "hash": "\"\"",
         "stat": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.list": {
       "file": "methods_tools.py",
-      "lines": 30,
-      "hash": "aee976b06688",
+      "line": 1345,
+      "lines": 28,
+      "hash": "f376308a8d6e",
       "defaults": {
         "hash": "\"\"",
         "message": "\"\"",
         "timestamp": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.restore": {
       "file": "methods_tools.py",
-      "lines": 58,
-      "hash": "58029ffa42ca",
+      "line": 1375,
+      "lines": 56,
+      "hash": "ff33ce70dcf7",
       "defaults": {
         "file_path": "\"\"",
         "hash": "\"\""
-      }
+      },
+      "via": "_"
     },
     "secret.respond": {
       "file": "methods_prompt.py",
-      "lines": 5,
-      "hash": "11a48aa3890c",
-      "defaults": {}
+      "line": 1771,
+      "lines": 3,
+      "hash": "f09cac86318e",
+      "defaults": {},
+      "via": "_"
     },
     "session.activate": {
       "file": "methods_session.py",
-      "lines": 25,
-      "hash": "236a083774aa",
+      "line": 1243,
+      "lines": 23,
+      "hash": "0e0b5171d362",
       "defaults": {
         "omit_messages": "False"
-      }
+      },
+      "via": "_"
     },
     "session.active_list": {
       "file": "methods_session.py",
-      "lines": 38,
-      "hash": "a0295bed13ae",
-      "defaults": {}
+      "line": 1205,
+      "lines": 36,
+      "hash": "4646f65b28ab",
+      "defaults": {},
+      "via": "_"
     },
     "session.branch": {
       "file": "methods_session.py",
-      "lines": 222,
-      "hash": "eba5d720c06e",
+      "line": 3148,
+      "lines": 220,
+      "hash": "13af6a6b4aae",
       "defaults": {
         "cols": "80",
         "name": "\"\"",
         "role": "\"user\""
-      }
+      },
+      "via": "_"
     },
     "session.close": {
       "file": "methods_session.py",
-      "lines": 12,
-      "hash": "477d2426e169",
+      "line": 3136,
+      "lines": 10,
+      "hash": "dab440453892",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.compress": {
       "file": "methods_session.py",
-      "lines": 172,
-      "hash": "a8389757cb9f",
+      "line": 2892,
+      "lines": 170,
+      "hash": "dec05a670afe",
       "defaults": {
         "focus_topic": "\"\"",
         "history_version": "0",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.context_breakdown": {
       "file": "methods_session.py",
-      "lines": 30,
-      "hash": "ad92f53322d5",
+      "line": 1742,
+      "lines": 28,
+      "hash": "3540e626bb08",
       "defaults": {
         "context_max": "0",
         "context_percent": "0",
         "context_used": "0",
         "model": "\"\"",
         "total": "0"
-      }
+      },
+      "via": "_"
     },
     "session.create": {
       "file": "methods_session.py",
-      "lines": 151,
-      "hash": "ae4c5840f9d0",
+      "line": 14,
+      "lines": 149,
+      "hash": "651372c95adb",
       "defaults": {
         "close_on_disconnect": "False",
         "cols": "80",
         "follow_profile_config": "False",
         "hidden": "False",
         "room_plumbing": "False"
-      }
+      },
+      "via": "_"
     },
     "session.cwd.set": {
       "file": "methods_session.py",
-      "lines": 25,
-      "hash": "b1c8b7b46400",
+      "line": 1105,
+      "lines": 23,
+      "hash": "614683c080d4",
       "defaults": {
         "cwd": "\"\"",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.delete": {
       "file": "methods_session.py",
-      "lines": 50,
-      "hash": "5efc1b4b99e3",
+      "line": 1268,
+      "lines": 48,
+      "hash": "bb5729bc319a",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.events.since": {
       "file": "methods_session.py",
-      "lines": 31,
-      "hash": "eac37f3eaa98",
+      "line": 3695,
+      "lines": 29,
+      "hash": "0167c02a8318",
       "defaults": {
         "last_seen": "0"
-      }
+      },
+      "via": "_"
     },
     "session.events.stats": {
       "file": "methods_session.py",
-      "lines": 12,
-      "hash": "9bedc61272ee",
-      "defaults": {}
+      "line": 3726,
+      "lines": 6,
+      "hash": "564b66a0403b",
+      "defaults": {},
+      "via": "_"
     },
     "session.history": {
       "file": "methods_session.py",
-      "lines": 32,
-      "hash": "fe359fea9a2c",
-      "defaults": {}
+      "line": 2813,
+      "lines": 30,
+      "hash": "dbe5fa60fe4f",
+      "defaults": {},
+      "via": "_"
     },
     "session.interrupt": {
       "file": "methods_session.py",
-      "lines": 34,
-      "hash": "52527860bed9",
-      "defaults": {}
+      "line": 3370,
+      "lines": 32,
+      "hash": "3c395ddfe04e",
+      "defaults": {},
+      "via": "_"
     },
     "session.list": {
       "file": "methods_session.py",
-      "lines": 117,
-      "hash": "c27bbdcfd2e2",
+      "line": 165,
+      "lines": 115,
+      "hash": "d4f7c32d3882",
       "defaults": {
         "include_hidden": "False",
         "limit": "200"
-      }
+      },
+      "via": "_"
     },
     "session.most_recent": {
       "file": "methods_session.py",
-      "lines": 49,
-      "hash": "ebdd61c33084",
-      "defaults": {}
+      "line": 282,
+      "lines": 47,
+      "hash": "026874798a51",
+      "defaults": {},
+      "via": "_"
     },
     "session.redirect": {
       "file": "methods_session.py",
-      "lines": 42,
-      "hash": "4fcf887f5b0a",
-      "defaults": {}
+      "line": 3644,
+      "lines": 40,
+      "hash": "59c3c7dd97b0",
+      "defaults": {},
+      "via": "_"
     },
     "session.resume": {
       "file": "methods_session.py",
-      "lines": 731,
-      "hash": "2418c8f751e2",
+      "line": 374,
+      "lines": 729,
+      "hash": "cf90def21543",
       "defaults": {
         "close_on_disconnect": "False",
         "cols": "80",
@@ -1340,322 +1637,411 @@
         "lazy": "False",
         "omit_messages": "False",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.save": {
       "file": "methods_session.py",
-      "lines": 72,
-      "hash": "c8716ab5afa6",
-      "defaults": {}
+      "line": 3064,
+      "lines": 70,
+      "hash": "1ab7b921f4a8",
+      "defaults": {},
+      "via": "_"
     },
     "session.set_hidden": {
       "file": "methods_session.py",
-      "lines": 52,
-      "hash": "e1e3bf9e091f",
+      "line": 1402,
+      "lines": 50,
+      "hash": "37e54af612e8",
       "defaults": {
         "hidden": "True"
-      }
+      },
+      "via": "_"
     },
     "session.status": {
       "file": "methods_session.py",
-      "lines": 76,
-      "hash": "0f4c73ef8eaa",
-      "defaults": {}
+      "line": 2737,
+      "lines": 74,
+      "hash": "7378ae03f95f",
+      "defaults": {},
+      "via": "_"
     },
     "session.steer": {
       "file": "methods_session.py",
-      "lines": 37,
-      "hash": "efe3124fce82",
-      "defaults": {}
+      "line": 3607,
+      "lines": 35,
+      "hash": "1bdd4993714a",
+      "defaults": {},
+      "via": "_"
     },
     "session.title": {
       "file": "methods_session.py",
-      "lines": 84,
-      "hash": "abc1ca306f9f",
+      "line": 1318,
+      "lines": 82,
+      "hash": "c394e193e4b0",
       "defaults": {
         "session_id": "\"\"",
         "title": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.undo": {
       "file": "methods_session.py",
-      "lines": 47,
-      "hash": "0bcad982b9da",
-      "defaults": {}
+      "line": 2845,
+      "lines": 45,
+      "hash": "410840b38b2e",
+      "defaults": {},
+      "via": "_"
     },
     "session.usage": {
       "file": "methods_session.py",
-      "lines": 24,
-      "hash": "135da014ed1c",
-      "defaults": {}
+      "line": 1718,
+      "lines": 22,
+      "hash": "f56044d0472a",
+      "defaults": {},
+      "via": "_"
     },
     "session.workspace.move": {
       "file": "methods_session.py",
-      "lines": 75,
-      "hash": "30d25d6d7160",
+      "line": 1130,
+      "lines": 73,
+      "hash": "3fab5a58c8e5",
       "defaults": {
         "cwd": "\"\""
-      }
+      },
+      "via": "_"
     },
     "setup.runtime_check": {
       "file": "methods_config.py",
-      "lines": 75,
-      "hash": "a2211ac0a867",
-      "defaults": {}
+      "line": 390,
+      "lines": 73,
+      "hash": "7ec20433a6d5",
+      "defaults": {},
+      "via": "_"
     },
     "setup.status": {
       "file": "methods_config.py",
-      "lines": 10,
-      "hash": "e4c56e66997b",
-      "defaults": {}
+      "line": 380,
+      "lines": 8,
+      "hash": "932e9a9effcc",
+      "defaults": {},
+      "via": "_"
     },
     "shell.exec": {
       "file": "methods_tools.py",
-      "lines": 49,
-      "hash": "0339181fdd16",
+      "line": 2626,
+      "lines": 43,
+      "hash": "4a5b488b7da3",
       "defaults": {
         "command": "\"\""
-      }
+      },
+      "via": "_"
     },
     "skills.manage": {
       "file": "methods_tools.py",
-      "lines": 84,
-      "hash": "d6056a17e82e",
+      "line": 1877,
+      "lines": 82,
+      "hash": "141d0537f2d7",
       "defaults": {
         "action": "\"list\"",
         "page": "0",
         "page_size": "20",
         "query": "\"\""
-      }
+      },
+      "via": "_"
     },
     "skills.reload": {
       "file": "methods_tools.py",
-      "lines": 25,
-      "hash": "ff63c4420748",
-      "defaults": {}
+      "line": 2467,
+      "lines": 23,
+      "hash": "509e2ed4df7c",
+      "defaults": {},
+      "via": "_"
     },
     "slash.exec": {
       "file": "methods_tools.py",
-      "lines": 154,
-      "hash": "a23019f8c3fd",
+      "line": 1166,
+      "lines": 152,
+      "hash": "f228291cbb23",
       "defaults": {
         "command": "\"\"",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "spawn_tree.list": {
       "file": "methods_session.py",
-      "lines": 51,
-      "hash": "03edb49fbb97",
-      "defaults": {}
+      "line": 3532,
+      "lines": 49,
+      "hash": "dad1996d314e",
+      "defaults": {},
+      "via": "_"
     },
     "spawn_tree.load": {
       "file": "methods_session.py",
-      "lines": 24,
-      "hash": "4ec1cdbde789",
-      "defaults": {}
+      "line": 3583,
+      "lines": 22,
+      "hash": "a0090dca5cbd",
+      "defaults": {},
+      "via": "_"
     },
     "spawn_tree.save": {
       "file": "methods_session.py",
-      "lines": 43,
-      "hash": "a01f9d9b791e",
-      "defaults": {}
+      "line": 3489,
+      "lines": 41,
+      "hash": "516addca9ea8",
+      "defaults": {},
+      "via": "_"
     },
     "subagent.interrupt": {
       "file": "methods_session.py",
-      "lines": 11,
-      "hash": "a9de3eb68876",
-      "defaults": {}
+      "line": 3432,
+      "lines": 9,
+      "hash": "e2b55327c12d",
+      "defaults": {},
+      "via": "_"
     },
     "subagent.steer": {
       "file": "methods_session.py",
-      "lines": 46,
-      "hash": "ed4957a58985",
-      "defaults": {}
+      "line": 3443,
+      "lines": 44,
+      "hash": "cc8f5d94a7f0",
+      "defaults": {},
+      "via": "_"
     },
     "subscription.change": {
       "file": "methods_session.py",
-      "lines": 23,
-      "hash": "249aa8beacb2",
-      "defaults": {}
+      "line": 2540,
+      "lines": 21,
+      "hash": "451d2d4e39a7",
+      "defaults": {},
+      "via": "_"
     },
     "subscription.preview": {
       "file": "methods_session.py",
-      "lines": 25,
-      "hash": "d71953fdbb2e",
-      "defaults": {}
+      "line": 2515,
+      "lines": 23,
+      "hash": "8b208ae6f6e7",
+      "defaults": {},
+      "via": "_"
     },
     "subscription.resume": {
       "file": "methods_session.py",
-      "lines": 18,
-      "hash": "5370e171991f",
-      "defaults": {}
+      "line": 2563,
+      "lines": 16,
+      "hash": "fec9eec635e4",
+      "defaults": {},
+      "via": "_"
     },
     "subscription.state": {
       "file": "methods_session.py",
-      "lines": 16,
-      "hash": "860a99afc26c",
-      "defaults": {}
+      "line": 2499,
+      "lines": 14,
+      "hash": "bd098eb72df5",
+      "defaults": {},
+      "via": "_"
     },
     "subscription.upgrade": {
       "file": "methods_session.py",
-      "lines": 38,
-      "hash": "fe66d7bb1d71",
-      "defaults": {}
+      "line": 2581,
+      "lines": 36,
+      "hash": "5ea089ce5fae",
+      "defaults": {},
+      "via": "_"
     },
     "sudo.respond": {
       "file": "methods_prompt.py",
-      "lines": 5,
-      "hash": "1670ec117c4a",
-      "defaults": {}
+      "line": 1766,
+      "lines": 3,
+      "hash": "22857452dbb2",
+      "defaults": {},
+      "via": "_"
     },
     "system.battery": {
       "file": "methods_tools.py",
-      "lines": 25,
-      "hash": "b7f5e4d603e3",
-      "defaults": {}
+      "line": 14,
+      "lines": 23,
+      "hash": "b833c685083a",
+      "defaults": {},
+      "via": "_"
     },
     "terminal.read.respond": {
       "file": "methods_prompt.py",
-      "lines": 9,
-      "hash": "38e874060ba9",
-      "defaults": {}
+      "line": 1712,
+      "lines": 7,
+      "hash": "5cc4308e894c",
+      "defaults": {},
+      "via": "_"
     },
     "terminal.resize": {
       "file": "methods_session.py",
-      "lines": 9,
-      "hash": "43ea893bafd3",
+      "line": 3686,
+      "lines": 7,
+      "hash": "8321a8fda987",
       "defaults": {
         "cols": "80"
-      }
+      },
+      "via": "_"
     },
     "tools.configure": {
       "file": "methods_tools.py",
-      "lines": 69,
-      "hash": "59edc1d88746",
+      "line": 1610,
+      "lines": 67,
+      "hash": "822f423b9be5",
       "defaults": {
         "action": "\"\"",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "tools.list": {
       "file": "methods_tools.py",
-      "lines": 31,
-      "hash": "937fc6d88613",
+      "line": 1536,
+      "lines": 29,
+      "hash": "5b932cf45401",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "tools.show": {
       "file": "methods_tools.py",
-      "lines": 43,
-      "hash": "a487da4c7195",
+      "line": 1567,
+      "lines": 41,
+      "hash": "e2df0b6eae69",
       "defaults": {
         "description": "\"\"",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "toolsets.list": {
       "file": "methods_tools.py",
-      "lines": 30,
-      "hash": "43deee25514f",
+      "line": 1679,
+      "lines": 28,
+      "hash": "3f77c3166f87",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "tour.respond": {
       "file": "methods_prompt.py",
-      "lines": 10,
-      "hash": "130c606cbb61",
-      "defaults": {}
+      "line": 1747,
+      "lines": 8,
+      "hash": "3fe42768f6e8",
+      "defaults": {},
+      "via": "_"
     },
     "usage.bars": {
       "file": "methods_session.py",
-      "lines": 15,
-      "hash": "362b68497f7a",
-      "defaults": {}
+      "line": 2484,
+      "lines": 13,
+      "hash": "61e9717473dd",
+      "defaults": {},
+      "via": "_"
     },
     "verification.status": {
       "file": "methods_session.py",
-      "lines": 25,
-      "hash": "72069f0ce587",
-      "defaults": {}
+      "line": 349,
+      "lines": 23,
+      "hash": "974a1f84438a",
+      "defaults": {},
+      "via": "_"
     },
     "voice.record": {
       "file": "server.py",
-      "lines": 154,
-      "hash": "174a2b583f5e",
+      "line": 17422,
+      "lines": 152,
+      "hash": "ee3b71b8416e",
       "defaults": {
         "action": "\"start\""
-      }
+      },
+      "via": "_"
     },
     "voice.toggle": {
       "file": "server.py",
-      "lines": 114,
-      "hash": "3390f375b9ac",
+      "line": 17308,
+      "lines": 112,
+      "hash": "6f9fd8070509",
       "defaults": {
         "action": "\"status\""
-      }
+      },
+      "via": "_"
     },
     "voice.tts": {
       "file": "server.py",
-      "lines": 340,
-      "hash": "6d52decb0f6e",
+      "line": 17576,
+      "lines": 18,
+      "hash": "74a94b3e3766",
       "defaults": {
-        "BROWSER_CDP_URL": "\"\"",
-        "cdp_url": "\"\"",
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "wake.feed": {
       "file": "server.py",
-      "lines": 39,
-      "hash": "c43ce0a2066e",
-      "defaults": {}
+      "line": 17269,
+      "lines": 37,
+      "hash": "1de12776a6e0",
+      "defaults": {},
+      "via": "_"
     },
     "wake.pause": {
       "file": "server.py",
-      "lines": 18,
-      "hash": "431be49c89cf",
-      "defaults": {}
+      "line": 17169,
+      "lines": 16,
+      "hash": "b271d71d59ae",
+      "defaults": {},
+      "via": "_"
     },
     "wake.resume": {
       "file": "server.py",
-      "lines": 12,
-      "hash": "486fa405d5d3",
-      "defaults": {}
+      "line": 17187,
+      "lines": 10,
+      "hash": "c2ef452ef212",
+      "defaults": {},
+      "via": "_"
     },
     "wake.start": {
       "file": "server.py",
-      "lines": 149,
-      "hash": "0e7c3b8179d4",
+      "line": 16993,
+      "lines": 147,
+      "hash": "0534d8ddb815",
       "defaults": {
         "frame_length": "1280",
         "sample_rate": "16000",
         "start_new_session": "True"
-      }
+      },
+      "via": "_"
     },
     "wake.status": {
       "file": "server.py",
-      "lines": 70,
-      "hash": "21959d538fd8",
+      "line": 17199,
+      "lines": 68,
+      "hash": "1163140e6498",
       "defaults": {
         "frame_length": "1280",
         "hint": "\"\"",
         "sample_rate": "16000"
-      }
+      },
+      "via": "_"
     },
     "wake.stop": {
       "file": "server.py",
-      "lines": 27,
-      "hash": "f98701ee76f5",
-      "defaults": {}
+      "line": 17142,
+      "lines": 25,
+      "hash": "8773b03bc514",
+      "defaults": {},
+      "via": "_"
     },
     "window.read.respond": {
       "file": "methods_prompt.py",
-      "lines": 9,
-      "hash": "9a0f32987194",
-      "defaults": {}
+      "line": 1738,
+      "lines": 7,
+      "hash": "b06df63286e4",
+      "defaults": {},
+      "via": "_"
     }
   },
   "gatewayEmittedEvents": [
@@ -2820,7 +3206,7 @@
     "asyncpg==0.31.0; extra == \"matrix\"",
     "azure-identity==1.25.3; extra == \"azure-identity\"",
     "boto3==1.42.89; extra == \"bedrock\"",
-    "brotlicffi==1.2.0.1; extra == \"messaging\"",
+    "brotlicffi==1.2.0.2; extra == \"messaging\"",
     "certifi==2026.5.20",
     "concurrent-log-handler==0.9.29; sys_platform == \"win32\"",
     "croniter==6.0.0",
@@ -2881,7 +3267,7 @@
     "microsoft-teams-apps==2.0.13.4; extra == \"teams\"",
     "mistralai==2.4.8; extra == \"mistral\"",
     "modal==1.3.4; extra == \"modal\"",
-    "nemo-relay<0.8,>=0.7.1; (sys_platform == \"darwin\" and platform_machine == \"arm64\") or (sys_platform == \"linux\" and platform_machine == \"x86_64\" and \"android\" not in platform_release) or (sys_platform == \"linux\" and platform_machine == \"aarch64\" and \"android\" not in platform_release) or (sys_platform == \"win32\" and platform_machine == \"AMD64\") or (sys_platform == \"win32\" and platform_machine == \"ARM64\")",
+    "nemo-relay<0.9,>=0.8.3; (sys_platform == \"darwin\" and platform_machine == \"arm64\") or (sys_platform == \"linux\" and platform_machine == \"x86_64\" and \"android\" not in platform_release) or (sys_platform == \"linux\" and platform_machine == \"aarch64\" and \"android\" not in platform_release) or (sys_platform == \"win32\" and platform_machine == \"AMD64\") or (sys_platform == \"win32\" and platform_machine == \"ARM64\")",
     "numpy==2.4.3; extra == \"voice\"",
     "numpy==2.4.3; extra == \"wake\"",
     "onnxruntime==1.27.0; extra == \"wake\"",
@@ -2954,37 +3340,46 @@
   "ourMethods": {
     "agents.list": {
       "file": "methods_tools.py",
-      "lines": 24,
-      "hash": "15ae1f6aa9ed",
-      "defaults": {}
+      "line": 1709,
+      "lines": 22,
+      "hash": "d996c7e06e4e",
+      "defaults": {},
+      "via": "_"
     },
     "approval.respond": {
       "file": "methods_prompt.py",
-      "lines": 62,
-      "hash": "b954668ade0f",
+      "line": 1853,
+      "lines": 29,
+      "hash": "f6e12d4d0674",
       "defaults": {
         "all": "False",
         "choice": "\"deny\""
-      }
+      },
+      "via": "_"
     },
     "clarify.respond": {
       "file": "methods_prompt.py",
-      "lines": 11,
-      "hash": "612a8bc975ca",
-      "defaults": {}
+      "line": 1701,
+      "lines": 9,
+      "hash": "fe77a541b849",
+      "defaults": {},
+      "via": "_"
     },
     "clipboard.paste": {
       "file": "methods_prompt.py",
-      "lines": 40,
-      "hash": "d5b2c0fdde29",
+      "line": 1052,
+      "lines": 38,
+      "hash": "c48a4067f352",
       "defaults": {
         "image_counter": "0"
-      }
+      },
+      "via": "_"
     },
     "command.dispatch": {
       "file": "methods_tools.py",
-      "lines": 697,
-      "hash": "eb196615e07d",
+      "line": 469,
+      "lines": 695,
+      "hash": "ad64ae3ea000",
       "defaults": {
         "arg": "\"\"",
         "command": "\"\"",
@@ -2995,37 +3390,45 @@
         "session_id": "\"\"",
         "session_key": "\"\"",
         "target": "\"\""
-      }
+      },
+      "via": "_"
     },
     "commands.catalog": {
       "file": "methods_tools.py",
-      "lines": 153,
-      "hash": "6c7d7554bca2",
+      "line": 255,
+      "lines": 151,
+      "hash": "df9c3872b192",
       "defaults": {
         "description": "\"Skill\"",
         "type": "\"\""
-      }
+      },
+      "via": "_"
     },
     "complete.path": {
       "file": "methods_complete.py",
-      "lines": 289,
-      "hash": "98be4857c297",
+      "line": 41,
+      "lines": 287,
+      "hash": "fc86b399a8cc",
       "defaults": {
         "word": "\"\""
-      }
+      },
+      "via": "_"
     },
     "complete.slash": {
       "file": "methods_complete.py",
-      "lines": 139,
-      "hash": "885bf028d7e0",
+      "line": 330,
+      "lines": 137,
+      "hash": "fc27312864f3",
       "defaults": {
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "config.get": {
       "file": "methods_config.py",
-      "lines": 199,
-      "hash": "82758d6d2b1d",
+      "line": 181,
+      "lines": 197,
+      "hash": "4d8088c730e1",
       "defaults": {
         "custom_prompt": "\"\"",
         "cwd": "\"\"",
@@ -3041,12 +3444,14 @@
         "tui_status_indicator": "\"\"",
         "tui_statusbar": "\"top\"",
         "tui_theme": "\"auto\""
-      }
+      },
+      "via": "_"
     },
     "config.set": {
       "file": "server.py",
-      "lines": 836,
-      "hash": "b17113515750",
+      "line": 14068,
+      "lines": 773,
+      "hash": "32fa608e7abd",
       "defaults": {
         "battery": "False",
         "confirm_expensive_model": "False",
@@ -3060,223 +3465,273 @@
         "tui_compact": "False",
         "tui_statusbar": "\"top\"",
         "value": "\"\""
-      }
+      },
+      "via": "_"
     },
     "config.show": {
       "file": "methods_tools.py",
-      "lines": 41,
-      "hash": "3e60fe6a3ac1",
+      "line": 1495,
+      "lines": 39,
+      "hash": "a4a3fb948026",
       "defaults": {
+        "HERMES_BASE_URL": "\"\"",
         "api_key": "\"\"",
         "base_url": "\"\"",
-        "HERMES_BASE_URL": "\"\"",
         "verbose": "False"
-      }
+      },
+      "via": "_"
     },
     "image.detach": {
       "file": "methods_prompt.py",
-      "lines": 20,
-      "hash": "32ff3c0166f1",
+      "line": 1369,
+      "lines": 18,
+      "hash": "edc979537171",
       "defaults": {
         "path": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.delete": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "4be5ac62bd2c",
+      "line": 1855,
+      "lines": 9,
+      "hash": "aaf029b18acb",
       "defaults": {
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.detail": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "4240e5fb18b3",
+      "line": 1844,
+      "lines": 9,
+      "hash": "db164354e3a6",
       "defaults": {
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "learning.edit": {
       "file": "methods_tools.py",
-      "lines": 11,
-      "hash": "01474a373ef0",
+      "line": 1866,
+      "lines": 9,
+      "hash": "9f23fc2a56c1",
       "defaults": {
         "content": "\"\"",
         "id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "model.options": {
       "file": "methods_complete.py",
-      "lines": 23,
-      "hash": "df5c3254b124",
+      "line": 469,
+      "lines": 21,
+      "hash": "6f5ab71a878a",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "plugins.manage": {
       "file": "methods_tools.py",
-      "lines": 134,
-      "hash": "2447d3661ef3",
+      "line": 2492,
+      "lines": 132,
+      "hash": "f283f2d3125e",
       "defaults": {
         "action": "\"list\"",
         "enable": "True"
-      }
+      },
+      "via": "_"
     },
     "process.kill": {
       "file": "methods_tools.py",
-      "lines": 23,
-      "hash": "b858cc9aeadb",
-      "defaults": {}
+      "line": 61,
+      "lines": 21,
+      "hash": "937b0e7206cd",
+      "defaults": {},
+      "via": "_"
     },
     "process.list": {
       "file": "methods_tools.py",
-      "lines": 12,
-      "hash": "383b396c3049",
-      "defaults": {}
+      "line": 49,
+      "lines": 10,
+      "hash": "7f79a10e600c",
+      "defaults": {},
+      "via": "_"
     },
     "prompt.submit": {
       "file": "methods_prompt.py",
-      "lines": 765,
-      "hash": "de3ffcf4b52d",
+      "line": 287,
+      "lines": 763,
+      "hash": "756dd104e75a",
       "defaults": {
         "history_version": "0",
         "message": "\"agent initialization failed\"",
         "session_id": "\"\"",
         "text": "\"\""
-      }
+      },
+      "via": "_"
     },
     "reload.mcp": {
       "file": "methods_tools.py",
-      "lines": 150,
-      "hash": "a9f611b1ace4",
+      "line": 84,
+      "lines": 148,
+      "hash": "47189471754e",
       "defaults": {
         "confirm": "False",
         "mcp_reload_confirm": "True",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.diff": {
       "file": "methods_tools.py",
-      "lines": 23,
-      "hash": "54c6d3bc14fa",
+      "line": 1433,
+      "lines": 21,
+      "hash": "beb7889dabe3",
       "defaults": {
         "cols": "80",
         "diff": "\"\"",
         "hash": "\"\"",
         "stat": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.list": {
       "file": "methods_tools.py",
-      "lines": 30,
-      "hash": "aee976b06688",
+      "line": 1345,
+      "lines": 28,
+      "hash": "f376308a8d6e",
       "defaults": {
         "hash": "\"\"",
         "message": "\"\"",
         "timestamp": "\"\""
-      }
+      },
+      "via": "_"
     },
     "rollback.restore": {
       "file": "methods_tools.py",
-      "lines": 58,
-      "hash": "58029ffa42ca",
+      "line": 1375,
+      "lines": 56,
+      "hash": "ff33ce70dcf7",
       "defaults": {
         "file_path": "\"\"",
         "hash": "\"\""
-      }
+      },
+      "via": "_"
     },
     "secret.respond": {
       "file": "methods_prompt.py",
-      "lines": 5,
-      "hash": "11a48aa3890c",
-      "defaults": {}
+      "line": 1771,
+      "lines": 3,
+      "hash": "f09cac86318e",
+      "defaults": {},
+      "via": "_"
     },
     "session.activate": {
       "file": "methods_session.py",
-      "lines": 25,
-      "hash": "236a083774aa",
+      "line": 1243,
+      "lines": 23,
+      "hash": "0e0b5171d362",
       "defaults": {
         "omit_messages": "False"
-      }
+      },
+      "via": "_"
     },
     "session.active_list": {
       "file": "methods_session.py",
-      "lines": 38,
-      "hash": "a0295bed13ae",
-      "defaults": {}
+      "line": 1205,
+      "lines": 36,
+      "hash": "4646f65b28ab",
+      "defaults": {},
+      "via": "_"
     },
     "session.branch": {
       "file": "methods_session.py",
-      "lines": 222,
-      "hash": "eba5d720c06e",
+      "line": 3148,
+      "lines": 220,
+      "hash": "13af6a6b4aae",
       "defaults": {
         "cols": "80",
         "name": "\"\"",
         "role": "\"user\""
-      }
+      },
+      "via": "_"
     },
     "session.compress": {
       "file": "methods_session.py",
-      "lines": 172,
-      "hash": "a8389757cb9f",
+      "line": 2892,
+      "lines": 170,
+      "hash": "dec05a670afe",
       "defaults": {
         "focus_topic": "\"\"",
         "history_version": "0",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.context_breakdown": {
       "file": "methods_session.py",
-      "lines": 30,
-      "hash": "ad92f53322d5",
+      "line": 1742,
+      "lines": 28,
+      "hash": "3540e626bb08",
       "defaults": {
         "context_max": "0",
         "context_percent": "0",
         "context_used": "0",
         "model": "\"\"",
         "total": "0"
-      }
+      },
+      "via": "_"
     },
     "session.create": {
       "file": "methods_session.py",
-      "lines": 151,
-      "hash": "ae4c5840f9d0",
+      "line": 14,
+      "lines": 149,
+      "hash": "651372c95adb",
       "defaults": {
         "close_on_disconnect": "False",
         "cols": "80",
         "follow_profile_config": "False",
         "hidden": "False",
         "room_plumbing": "False"
-      }
+      },
+      "via": "_"
     },
     "session.delete": {
       "file": "methods_session.py",
-      "lines": 50,
-      "hash": "5efc1b4b99e3",
+      "line": 1268,
+      "lines": 48,
+      "hash": "bb5729bc319a",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.history": {
       "file": "methods_session.py",
-      "lines": 32,
-      "hash": "fe359fea9a2c",
-      "defaults": {}
+      "line": 2813,
+      "lines": 30,
+      "hash": "dbe5fa60fe4f",
+      "defaults": {},
+      "via": "_"
     },
     "session.list": {
       "file": "methods_session.py",
-      "lines": 117,
-      "hash": "c27bbdcfd2e2",
+      "line": 165,
+      "lines": 115,
+      "hash": "d4f7c32d3882",
       "defaults": {
         "include_hidden": "False",
         "limit": "200"
-      }
+      },
+      "via": "_"
     },
     "session.resume": {
       "file": "methods_session.py",
-      "lines": 731,
-      "hash": "2418c8f751e2",
+      "line": 374,
+      "lines": 729,
+      "hash": "cf90def21543",
       "defaults": {
         "close_on_disconnect": "False",
         "cols": "80",
@@ -3285,82 +3740,105 @@
         "lazy": "False",
         "omit_messages": "False",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.steer": {
       "file": "methods_session.py",
-      "lines": 37,
-      "hash": "efe3124fce82",
-      "defaults": {}
+      "line": 3607,
+      "lines": 35,
+      "hash": "1bdd4993714a",
+      "defaults": {},
+      "via": "_"
     },
     "session.title": {
       "file": "methods_session.py",
-      "lines": 84,
-      "hash": "abc1ca306f9f",
+      "line": 1318,
+      "lines": 82,
+      "hash": "c394e193e4b0",
       "defaults": {
         "session_id": "\"\"",
         "title": "\"\""
-      }
+      },
+      "via": "_"
     },
     "session.undo": {
       "file": "methods_session.py",
-      "lines": 47,
-      "hash": "0bcad982b9da",
-      "defaults": {}
+      "line": 2845,
+      "lines": 45,
+      "hash": "410840b38b2e",
+      "defaults": {},
+      "via": "_"
     },
     "session.usage": {
       "file": "methods_session.py",
-      "lines": 24,
-      "hash": "135da014ed1c",
-      "defaults": {}
+      "line": 1718,
+      "lines": 22,
+      "hash": "f56044d0472a",
+      "defaults": {},
+      "via": "_"
     },
     "setup.runtime_check": {
       "file": "methods_config.py",
-      "lines": 75,
-      "hash": "a2211ac0a867",
-      "defaults": {}
+      "line": 390,
+      "lines": 73,
+      "hash": "7ec20433a6d5",
+      "defaults": {},
+      "via": "_"
     },
     "skills.reload": {
       "file": "methods_tools.py",
-      "lines": 25,
-      "hash": "ff63c4420748",
-      "defaults": {}
+      "line": 2467,
+      "lines": 23,
+      "hash": "509e2ed4df7c",
+      "defaults": {},
+      "via": "_"
     },
     "sudo.respond": {
       "file": "methods_prompt.py",
-      "lines": 5,
-      "hash": "1670ec117c4a",
-      "defaults": {}
+      "line": 1766,
+      "lines": 3,
+      "hash": "22857452dbb2",
+      "defaults": {},
+      "via": "_"
     },
     "terminal.read.respond": {
       "file": "methods_prompt.py",
-      "lines": 9,
-      "hash": "38e874060ba9",
-      "defaults": {}
+      "line": 1712,
+      "lines": 7,
+      "hash": "5cc4308e894c",
+      "defaults": {},
+      "via": "_"
     },
     "tools.configure": {
       "file": "methods_tools.py",
-      "lines": 69,
-      "hash": "59edc1d88746",
+      "line": 1610,
+      "lines": 67,
+      "hash": "822f423b9be5",
       "defaults": {
         "action": "\"\"",
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     },
     "tools.list": {
       "file": "methods_tools.py",
-      "lines": 31,
-      "hash": "937fc6d88613",
+      "line": 1536,
+      "lines": 29,
+      "hash": "5b932cf45401",
       "defaults": {
         "session_id": "\"\""
-      }
+      },
+      "via": "_"
     }
   },
   "ourRestRoutes": {
     "/api/audio/speak-stream": true,
     "/api/curator": true,
+    "/api/env": true,
     "/api/learning/graph": true,
     "/api/mcp/servers": true,
+    "/api/memory": true,
     "/api/profiles": true,
     "/api/profiles/active": true,
     "/api/sessions": true,

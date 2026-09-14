@@ -419,9 +419,10 @@ inline-маркеров.
 ## 5. Ядро — что уже известно до чтения контракта (3.B4б)
 
 Проверено по тому, что зовёт наш `main/index.ts`, на `refs/aecpilot/v2026.9.11`:
-42 из 45 методов шлюза на месте, 12 из 12 REST-маршрутов на месте; исчезли
-`learning.delete`, `learning.detail`, `learning.edit` (остался `learning.frames`) — экран
-обучения ломается, решение нужно ДО переноса. Контракт памяти цел (`memory_manager.sync_all`,
+45 из 45 методов шлюза на месте, 12 из 12 REST-маршрутов на месте; первый замер давал 42 — «исчезли
+`learning.delete`, `learning.detail`, `learning.edit`» — **ложная находка, снята 3.B4б
+2026-09-14**: они регистрируются циклом `_rpc(f"learning.{_name}", …)`, и живой реестр
+показывает 45 из 45 (`reading-0.21.2.md` §0). Контракт памяти цел (`memory_manager.sync_all`,
 ABC `memory_provider`, `background_review`, плагин `mem0`), но **плагин Mem0 переписан**
 (−4404/+2117 строк по `plugins/memory/mem0/`), поэтому пять проб памяти и `memory-config.mjs`
 перепроверяются на живом ядре. `compat_manifest.json` (12 552 строки) не изменился с 9.7 —
