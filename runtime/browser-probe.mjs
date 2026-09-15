@@ -60,6 +60,9 @@ from hermes_cli.plugins import discover_plugins
 discover_plugins()
 
 from tools import browser_tool as bt
+# Уборка переехала в browser_tool_lifecycle (0.21.3 предупреждает, что старый
+# путь в browser_tool оставлен только внешним плагинам и снимается).
+from tools.browser_tool_lifecycle import cleanup_all_browsers
 from tools.browser_use_cli import get_browser_backend, is_browser_use_cli_mode
 from tools.registry import registry
 
@@ -171,7 +174,7 @@ try:
         out["ports"] = sorted(during - before)
 finally:
     try:
-        bt.cleanup_all_browsers()
+        cleanup_all_browsers()
     except Exception as exc:
         out["cleanup_error"] = repr(exc)[:200]
     server.shutdown()

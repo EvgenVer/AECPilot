@@ -472,11 +472,101 @@
        понятной ошибкой, AVIF читает Pillow 12.3. `pi-heif` + переходник отклонён как хак.
        Запись — PLAN §Selected dependencies, SPEC C3. Правка setup.mjs — в Vibe Diff
        переустановки (задача 3.B5). -->
-- [ ] 3.B5 Поднять пин ядра и донора на **0.21.3** (`v2026.9.14`, коммит `345cd2b057a452236de401d3534b8502a7465e8d`) по плану 3.0: пины в `hermes-env.mjs`/`donor-env.mjs`, `node runtime/setup.mjs` с `--override runtime/uv-overrides.txt` без `pillow-heif` (Vibe Diff — зависимости ядра), слепок контракта с УСТАНОВЛЕННОГО ядра и сверка с `hermes-0.21.3.json` из worktree, перенос по `donor-move-0.21.3.md`: 163 копируются, 25 заново с наложением 37 наборов по заголовкам, 3 исчезнувших → `donor/hermes-shared/` (третий корень `vendor-donor.mjs`), 25 + 14 новых по решениям §4 (не взятые — мёртвыми в `DEAD_SURFACE_FILES`) — files: runtime/hermes-env.mjs, runtime/donor-env.mjs, runtime/setup.mjs, runtime/uv-overrides.txt, runtime/vendor-donor.mjs, donor/**, runtime/contracts/ · verify: `uv pip list` в venv ядра без `pillow-heif`; `donor-report.mjs refs/aecpilot/v2026.9.14` даёт «изменившихся 0, исчезнувших 0»; **`pnpm -C apps/desktop build` проходит**; typecheck/eslint/prettier; vitest целиком; e2e ≥3 зелёных подряд на одной сборке; pytest + ruff; три реестра паритета по нулю без новых строк; все пробы на новом ядре — пять проб памяти обязательно, `mcp-project-switch-probe` (изменённый `reload.mcp`), новая `server-requests-probe` (3.B5в); падение пробы на приватном имени ядра сверяется с дифом ДО записи (ловушка 5); worktree `%TEMP%/hermes-0.21.3-wt` снят · dep: 3.B5а, 3.B5б, 3.B5е · parallel: no
-- [ ] 3.B5в Мост: вопросы сервер→клиент по новому протоколу ядра (`tui_gateway/server_requests.py`) вместо двенадцати `*.respond` и события `approval.request` — files: apps/desktop/src/shared/gateway/client.ts, apps/desktop/src/shared/gateway/events-parsing.test.ts, apps/desktop/src/shared/gateway/types.ts, apps/desktop/src/main/index.ts (~2586–2660), apps/desktop/src/main/gateway-passthrough-pure.ts, apps/desktop/src/main/gateway-passthrough-pure.test.ts, apps/desktop/src/main/ipc.ts, apps/desktop/src/renderer/src/donor/sdk/index.ts (правка [1]), donor/store/server-requests.ts, donor/…/gateway-event/server-requests.ts, donor/hermes-shared/json-rpc-channel.ts, runtime/server-requests-probe.mjs (новая), runtime/serve.mjs при необходимости · verify: `parseFrame` принимает кадр `{jsonrpc, id:"srq-…", method, params}` как запрос и уведомление `request.cancel` (тесты); `respond(id, result)` шлёт кадр-ответ с тем же строковым id, ответ на закрытый id не роняет клиент; `open_requests` из `session.resume`/`session.activate`/`session.events.since` восстанавливают карточки после переподключения (тест); четыре наших ответа (`clarify`, `secret`, отказ `sudo`, `terminal.read`) и подтверждение команды едут кадром, вызовов `*.respond` в main не остаётся (grep-тест); рамка недоверенного текста предпросмотра (R22) ставится в РЕЗУЛЬТАТЕ ответа `preview.read` — `gateway-passthrough-pure.test.ts` переписан на новую форму; проба `server-requests-probe.mjs` на живом ядре 0.21.3: уточнение, подтверждение разрушающей команды (R21), секрет, чтение терминала, `preview.read` с рамкой — все пять доезжают до клиента и отвечаются, `request.cancel` по прерыванию снимает вопрос · dep: 3.B5 · parallel: no
-- [ ] 3.B5г Снять ряд «пределы пула» из настроек (D-84, SPEC HX27) — files: apps/desktop/src/renderer/src/donor/app/settings/config-settings.tsx, apps/desktop/src/renderer/src/shared/donor-members.test.ts, runtime/parity-registry.mjs · verify: `<PoolLimitsSetting />` не регистрируется — правка [3] записана в заголовке файла; `pool-limits-setting.tsx` и `store/pool-limits.ts` остаются в зоне дословно и попадают в `DEAD_SURFACE_FILES`; `getPoolLimits`/`setPoolLimits` в `UNBRIDGED` с ссылкой на HX27; реестр паритета знает строку HX27 и сходится по нулю; vitest зелёный · dep: 3.B5 · parallel: yes
-- [ ] 3.B5д Выключить проверку обновлений ядра (D-88, SPEC R10) — files: apps/desktop/src/main/index.ts, apps/desktop/src/main/config-yaml-pure.test.ts · verify: `applyCoreOptOuts` дописывает `updates:\n  check: false` только когда ключа нет (тест на `ensureSectionScalar` с этой секцией); после старта приложения в `config.yaml` профиля стоит `updates.check: false`, `.update_check` в профиле больше не обновляется, в `serve.log` нет обращения к `api.github.com` (проверка по `hermes_cli/banner.py`: passive-ветка чтит ключ) · dep: — · parallel: yes
-- [ ] 3.B5ж Живой голосовой разговор 0.21.3 — снять входы (SPEC HX19, решение владельца 2026-09-15) — files: apps/desktop/src/renderer/src/donor/components/chat/composer/index.tsx, …/composer/controls.tsx, …/composer/voice-menu.tsx (правка [3] с записью в заголовках), donor/components/chat/composer/hooks/use-voice-live-conversation.ts, …/composer/start-voice-button.tsx, …/composer/voice-engine-rows.tsx, donor/lib/voice-live.ts, donor/store/voice-live.ts (вендорятся дословно, мёртвыми), apps/desktop/src/renderer/src/shared/i18n/no-hermes-literals.test.ts (`DEAD_SURFACE_FILES`), apps/desktop/src/renderer/src/shared/voice-by-human-decision.test.ts · verify: тест 3E.22 расширен на пять новых файлов — на диске есть, вызывающего нет (обе стороны: диктовка и кнопка у ответа по-прежнему зарегистрированы); в композере нет кнопки «начать разговор», в меню голоса нет строк live и рядов движка; маршруты `/api/audio/voice-live/*` в коде не зовутся; ключи `voice.gpt_live.*`/`voice.voice_chat_mode` в `config.yaml` не пишутся; `prompt.submit` не шлёт `surface: "voice-live"` · dep: 3.B5 · parallel: yes
+- [x] 3.B5 Поднять пин ядра и донора на **0.21.3** (`v2026.9.14`, коммит `345cd2b057a452236de401d3534b8502a7465e8d`) по плану 3.0: пины в `hermes-env.mjs`/`donor-env.mjs`, `node runtime/setup.mjs` с `--override runtime/uv-overrides.txt` без `pillow-heif` (Vibe Diff — зависимости ядра), слепок контракта с УСТАНОВЛЕННОГО ядра и сверка с `hermes-0.21.3.json` из worktree, перенос по `donor-move-0.21.3.md`: 163 копируются, 25 заново с наложением 37 наборов по заголовкам, 3 исчезнувших → `donor/hermes-shared/` (третий корень `vendor-donor.mjs`), 25 + 14 новых по решениям §4 (не взятые — мёртвыми в `DEAD_SURFACE_FILES`) — files: runtime/hermes-env.mjs, runtime/donor-env.mjs, runtime/setup.mjs, runtime/uv-overrides.txt, runtime/vendor-donor.mjs, donor/**, runtime/contracts/ · verify: `uv pip list` в venv ядра без `pillow-heif`; `donor-report.mjs refs/aecpilot/v2026.9.14` даёт «изменившихся 0, исчезнувших 0»; **`pnpm -C apps/desktop build` проходит**; typecheck/eslint/prettier; vitest целиком; e2e ≥3 зелёных подряд на одной сборке; pytest + ruff; три реестра паритета по нулю без новых строк; все пробы на новом ядре — пять проб памяти обязательно, `mcp-project-switch-probe` (изменённый `reload.mcp`), новая `server-requests-probe` (3.B5в); падение пробы на приватном имени ядра сверяется с дифом ДО записи (ловушка 5); worktree `%TEMP%/hermes-0.21.3-wt` снят · dep: 3.B5а, 3.B5б, 3.B5е · parallel: no
+  <!-- ЗАКРЫТА 2026-09-15. Пины 0.21.3/`v2026.9.14`/`345cd2b0` (054f794), ядро
+       переустановлено `--override runtime/uv-overrides.txt` — `uv pip list`: pillow 12.3.0,
+       pillow-heif нет; слепок с живого ядра — 14/20/21 (`reading-0.21.3.md` §0: две
+       ловушки самого слепка починены). Перенос: 163 как есть, 56 новых (в т.ч. 14 →
+       `donor/hermes-shared/`, JSON — побайтово + `.json.provenance`), 25 правленых —
+       трёхсторонний merge по коммиту ИЗ ЗАГОЛОВКА каждого файла (не по общему пину:
+       `constants.ts` стоял на 29112bef); `donor-report.mjs refs/aecpilot/v2026.9.14`:
+       1246 файлов / 78 правленых / изменилось 0 / исчезло 0. Гейт: build, typecheck,
+       eslint (попутно: три записи `TECHNICAL` в `no-hermes-literals.test.ts` стояли с
+       одинарным `\.` с коммита 25c7047 — eslint был красным с 3.B4, исправлено),
+       prettier (`.prettierignore` + `donor/**/*.json`), vitest 255 файлов / 2986
+       (их тесты `apps/shared` — свой проект `donor-shared` под node), e2e 25/25 ×3 на одной сборке,
+       pytest 412 + ruff, три реестра по нулю (`savePastedText` записан в паритет как
+       `attach`). ПРОБЫ — все 32 на 0.21.3: 30 зелёных, `a2a-push` красная штатно
+       (`security.py` между пинами менялся — редакция исходящего текста и аудит, — но
+       подпись push не трогали: проба показывает ту же картину, подпись сходится с
+       канонической строкой, а не с телом), `server-requests-probe` — см. 3.B5в.
+       `browser-probe` в общем прогоне была КРАСНОЙ (`agent-browser CLI not found`, в
+       двух повторах — `snapshot`/`fill` по 30 с) — по ловушке 5 сверено с дифом ДО
+       записи: браузерные модули между пинами меняли ключи кэша «на профиль» и
+       распознавание шлюза Nous, путь демона и команд не трогали; тот же путь ядра на
+       спокойной машине — open 7.6 с (с авто-слепком), snapshot 3.1 с, CLI напрямую
+       3 с на команду; третий прогон пробы зелёный за 34 с. Причина — среда, не ядро:
+       проверка `npx --version` у ядра с потолком 10 с и команды с потолком 30 с не
+       укладывались, пока рядом шли остальные пробы, а каждый таймаут поднимал ещё
+       один Chromium (14 профилей `agent-browser-chrome-*` и 9 папок `agent-browser-h_*`
+       остались в `%TEMP%` — вне рабочей папки, не трогал). Попутно проба переведена с
+       `browser_tool.cleanup_all_browsers` на `browser_tool_lifecycle` (0.21.3
+       предупреждает, что старый путь снимается — то же переселение приватных имён,
+       что в 3.B4). Worktree `%TEMP%/hermes-0.21.3-wt` снят (`git worktree remove`). -->
+- [x] 3.B5в Мост: вопросы сервер→клиент по новому протоколу ядра (`tui_gateway/server_requests.py`) вместо двенадцати `*.respond` и события `approval.request` — files: apps/desktop/src/shared/gateway/client.ts, apps/desktop/src/shared/gateway/events-parsing.test.ts, apps/desktop/src/shared/gateway/types.ts, apps/desktop/src/main/index.ts (~2586–2660), apps/desktop/src/main/gateway-passthrough-pure.ts, apps/desktop/src/main/gateway-passthrough-pure.test.ts, apps/desktop/src/main/ipc.ts, apps/desktop/src/renderer/src/donor/sdk/index.ts (правка [1]), donor/store/server-requests.ts, donor/…/gateway-event/server-requests.ts, donor/hermes-shared/json-rpc-channel.ts, runtime/server-requests-probe.mjs (новая), runtime/serve.mjs при необходимости · verify: `parseFrame` принимает кадр `{jsonrpc, id:"srq-…", method, params}` как запрос и уведомление `request.cancel` (тесты); `respond(id, result)` шлёт кадр-ответ с тем же строковым id, ответ на закрытый id не роняет клиент; `open_requests` из `session.resume`/`session.activate`/`session.events.since` восстанавливают карточки после переподключения (тест); четыре наших ответа (`clarify`, `secret`, отказ `sudo`, `terminal.read`) и подтверждение команды едут кадром, вызовов `*.respond` в main не остаётся (grep-тест); рамка недоверенного текста предпросмотра (R22) ставится в РЕЗУЛЬТАТЕ ответа `preview.read` — `gateway-passthrough-pure.test.ts` переписан на новую форму; проба `server-requests-probe.mjs` на живом ядре 0.21.3: уточнение, подтверждение разрушающей команды (R21), секрет, чтение терминала, `preview.read` с рамкой — все пять доезжают до клиента и отвечаются, `request.cancel` по прерыванию снимает вопрос · dep: 3.B5 · parallel: no
+  <!-- ЗАКРЫТА 2026-09-15. Клиент main: кадр `{id:"srq-…", method, params}` — запрос,
+       `onServerRequest`/`respondToServerRequest` (первый ответ на id, остальные глушатся),
+       `open_requests` из resume/activate/events.since доезжают как `replayed` ДО
+       резолва результата; `request.cancel` — обычное событие; четыре снятых `*.respond`
+       вычеркнуты из карты методов (`approval.respond` остаётся прокси) — 7 тестов
+       `events-parsing`. Main: `gateway:server-request` во ВСЕ окна (фоновая сессия тоже
+       вправе спросить, кому отвечать — решают их обработчики), `gateway:server-respond`
+       ставит рамку R22 на `value` ответа `preview.read` и поле-пометку на `preview.act`/
+       `tour` (`markUntrustedPageText`, 43 теста), секрет не читается и не журналируется;
+       пять мёртвых обработчиков IPC сняты. Рендерер: `GatewayBridge.onRequest` — контракт
+       их `JsonRpcRequestChannel` с одним намеренным отличием: без обработчика МОЛЧАНИЕ,
+       а не -32601 (сокет общий на все окна; их же `use-gateway-boot` сам отвечает -32601
+       на незнакомый метод); `@hermes/shared` реэкспортирует `ServerRequest`,
+       `JsonRpcRequestChannel` (типы и чистые помощники), `gateway-events` (их
+       типизированный конверт вместо нашего alias'а). e2e: мок переписан на запросы
+       (`ask`/`take_answer`, `MCP_SETUP_RESPOND {id,result}`), тест согласия MCP отвечает
+       `respondGatewayServerRequest(id, {result:{value}})`. Живьём — новая
+       `runtime/server-requests-probe.mjs`, 17 проверок зелёные: clarify (пакетная форма
+       `questions` → замки `clarify.lock`, ответ дошёл до инструмента), `open_requests`
+       показывает открытый вопрос, `request.cancel reason=interrupted` по
+       `session.interrupt` и ответ на снятый вопрос не рвёт сокет, approval (`deny` →
+       «BLOCKED: Command denied by user», R21), secret (пропуск — `.env` профиля не
+       изменился), terminal.read и preview.read (маркеры в `tool.complete.result`; текст
+       страницы дошёл до модели В РАМКЕ R22, инъекция со страницы не исполнена).
+       ДВЕ НАХОДКИ пробы: набор `desktop_ui` шлюз даёт только сессии `source: "desktop"`
+       — так их заводит оболочка донора (в `state.db` 85 таких сессий); и сессия с cwd в
+       корне репозитория получает наш AGENTS.md — модель отказывается удалять папку «без
+       Vibe Diff», поэтому проба живёт во временном cwd, а подтверждение снимается на
+       `taskkill /F` процесса, которого нет. Проба недетерминирована со стороны МОДЕЛИ,
+       не моста: после починки самой пробы (первые четыре прогона — её крах на approval и
+       отказы из-за AGENTS.md) пять прогонов, каждая из 17 проверок проходила, но в трёх из
+       пяти один ход (терминал или предпросмотр) закрывался репликой «инструмент
+       недоступен» без единого вызова — примерно один ход из двадцати. Поэтому ход без
+       вызова инструмента повторяется один раз той же подсказкой (повтор печатается и
+       считается отдельно); ход, где инструмент вызван, а вопроса нет, не повторяется —
+       это был бы мост. Прогон с повтором в коде — 17/17, повтор не понадобился.
+       Попутно: `savePastedText` (большая
+       вставка → `.txt`-вложение) проброшен через `attachments:save-paste` в каталог
+       вложений, `skipIntro` объявлен отсутствующим (HX26). -->
+- [x] 3.B5г Снять ряд «пределы пула» из настроек (D-84, SPEC HX27) — files: apps/desktop/src/renderer/src/donor/app/settings/config-settings.tsx, apps/desktop/src/renderer/src/shared/donor-members.test.ts, runtime/parity-registry.mjs · verify: `<PoolLimitsSetting />` не регистрируется — правка [3] записана в заголовке файла; `pool-limits-setting.tsx` и `store/pool-limits.ts` остаются в зоне дословно и попадают в `DEAD_SURFACE_FILES`; `getPoolLimits`/`setPoolLimits` в `UNBRIDGED` с ссылкой на HX27; реестр паритета знает строку HX27 и сходится по нулю; vitest зелёный · dep: 3.B5 · parallel: yes
+  <!-- ЗАКРЫТА 2026-09-15. `<PoolLimitsSetting />` снят из `config-settings.tsx` правкой [3]
+       (импорт снят, EDIT-комментарий, шапка); `pool-limits-setting.tsx` и
+       `store/pool-limits.ts` лежат дословно; `getPoolLimits`/`setPoolLimits` в `UNBRIDGED`
+       со ссылкой на HX27; `parity-registry.mjs`: `"pool-limits": { hx: "HX27" }`, реестр
+       сходится по нулю; vitest зелёный. -->
+- [x] 3.B5д Выключить проверку обновлений ядра (D-88, SPEC R10) — files: apps/desktop/src/main/index.ts, apps/desktop/src/main/config-yaml-pure.test.ts · verify: `applyCoreOptOuts` дописывает `updates:\n  check: false` только когда ключа нет (тест на `ensureSectionScalar` с этой секцией); после старта приложения в `config.yaml` профиля стоит `updates.check: false`, `.update_check` в профиле больше не обновляется, в `serve.log` нет обращения к `api.github.com` (проверка по `hermes_cli/banner.py`: passive-ветка чтит ключ) · dep: — · parallel: yes
+  <!-- ЗАКРЫТА 2026-09-15. `applyCoreOptOuts` дописывает `updates.check: false` тем же
+       правилом «только когда ключа нет» (тест в `config-yaml-pure.test.ts`: свежий файл
+       получает секцию, `check: true` человека не переписывается). Замер на живом ядре
+       двумя ВРЕМЕННЫМИ профилями: без ключа `.update_check` появляется (`behind: 707`,
+       запрос на api.github.com), с `updates.check: false` — файла нет. В dev-profile ключ
+       появится при первом старте приложения (пробы идут мимо main), и `.update_check` там
+       ещё обновился 11:27 первой пробой — это ожидаемо до старта приложения. -->
+- [x] 3.B5ж Живой голосовой разговор 0.21.3 — снять входы (SPEC HX19, решение владельца 2026-09-15) — files: apps/desktop/src/renderer/src/donor/components/chat/composer/index.tsx, …/composer/controls.tsx, …/composer/voice-menu.tsx (правка [3] с записью в заголовках), donor/components/chat/composer/hooks/use-voice-live-conversation.ts, …/composer/start-voice-button.tsx, …/composer/voice-engine-rows.tsx, donor/lib/voice-live.ts, donor/store/voice-live.ts (вендорятся дословно, мёртвыми), apps/desktop/src/renderer/src/shared/i18n/no-hermes-literals.test.ts (`DEAD_SURFACE_FILES`), apps/desktop/src/renderer/src/shared/voice-by-human-decision.test.ts · verify: тест 3E.22 расширен на пять новых файлов — на диске есть, вызывающего нет (обе стороны: диктовка и кнопка у ответа по-прежнему зарегистрированы); в композере нет кнопки «начать разговор», в меню голоса нет строк live и рядов движка; маршруты `/api/audio/voice-live/*` в коде не зовутся; ключи `voice.gpt_live.*`/`voice.voice_chat_mode` в `config.yaml` не пишутся; `prompt.submit` не шлёт `surface: "voice-live"` · dep: 3.B5 · parallel: yes
+  <!-- ЗАКРЫТА 2026-09-15. `composer/controls.tsx` и `voice-menu.tsx` — наши версии
+       сохранены при merge, новые импорты живого голоса сняты (правка [3], шапки);
+       `use-hermes-config.ts` — вызов `refreshVoiceLiveStatus()` снят (правка [3]);
+       `use-voice-live-conversation.ts`, `start-voice-button.tsx`, `voice-engine-rows.tsx`,
+       `lib/voice-live.ts`, `store/voice-live.ts` вендорены дословно, мёртвыми;
+       `voice-by-human-decision.test.ts` — пять новых файловых случаев по реальному графу
+       вызовов (`voice-engine-rows` зовёт `start-voice-button`, `store/voice-live` —
+       `setVoiceChatMode`) + проверка маршрутов и `surface`, 16 тестов; реплики живого
+       голоса — в `DEAD_SURFACE_FILES` гварда литералов. -->
 - [x] 3.B4а Снять план повторного переноса ДО подъёма на `v2026.9.11`: зафиксировать числа `donor-report.mjs` и наборы наших правок по заголовкам, пока `runtime/.hermes-src` ещё стоит на старом `DONOR_SHA` — files: runtime/contracts/donor-move-0.21.2.md · verify: `node runtime/donor-report.mjs 29112bef… 939e45c9…` воспроизводит числа отчёта; каждый правленый файл выписан с наборами правок из ЗАГОЛОВКА; исчезнувшие источники названы поимённо · dep: — · parallel: yes
   <!-- ЗАКРЫТА 2026-09-14. Отчёт — `runtime/contracts/donor-move-0.21.2.md` (444 строки,
        собран из JSON отчёта и строк `Edits:` заголовков зоны). Числа: в зоне 1078,
