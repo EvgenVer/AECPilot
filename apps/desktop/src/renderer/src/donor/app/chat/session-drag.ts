@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-drag.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 
 import { queryAllVisible } from '@/components/pane-shell/pane-visibility'
-import { findGroup } from '@/components/pane-shell/tree/model'
 import {
   rectContains,
   slotBefore,
@@ -45,20 +44,13 @@ import {
   type StripSnapshot,
   subZonePosition
 } from '@/components/pane-shell/tree/renderer/drag-session'
-import {
-  $layoutTree,
-  $treeDragging,
-  type DropHint,
-  isMainStripPane,
-  isSessionStripPane,
-  revealTreePane,
-  SESSION_TILE_DRAG
-} from '@/components/pane-shell/tree/store'
+import { $treeDragging, type DropHint, revealTreePane, SESSION_TILE_DRAG } from '@/components/pane-shell/tree/store'
 import type { EngineZone, ZoneRect } from '@/components/pane-shell/tree/zones-engine'
 import { openSessionTile, type TileDock } from '@/store/session-states'
 
 import { requestComposerInsertRefs } from './composer/focus'
 import { type SessionDragPayload, sessionInlineRef, sessionLabel } from './composer/inline-refs'
+import { tileZoneHost } from './tile-zone-host'
 
 /** A chat surface's drag-start geometry: the anchor pane id it advertises
  *  (`data-session-anchor`) and the composer a link drop routes to
@@ -87,16 +79,9 @@ function snapshotSurfaces(): SurfaceSnapshot[] {
 }
 
 /** A session may land in any zone hosting a MAIN tile — another chat stack, a
- *  Browser tile, a page — never the sidebar/terminal zones. Returns the pane a
- *  stack anchors to, plus whether the zone hosts a CHAT surface (only those
- *  offer the link-to-composer center; a preview zone's center stacks). */
-function tileZoneHost(groupId: string): { chat: boolean; pane: string } | null {
-  const tree = $layoutTree.get()
-  const panes = tree ? (findGroup(tree, groupId)?.panes ?? []) : []
-  const pane = panes.find(isSessionStripPane) ?? panes.find(isMainStripPane)
-
-  return pane ? { chat: panes.some(isSessionStripPane), pane } : null
-}
+ *  Browser tile, a page — never the sidebar/terminal zones. Resolves via the
+ *  shared {@link tileZoneHost} (tile-zone-host.ts) so the eligibility answer
+ *  is byte-identical to what the zone overlay paints. */
 
 /**
  * Begin dragging a session — a sidebar row OR a tile's own tab (same drop

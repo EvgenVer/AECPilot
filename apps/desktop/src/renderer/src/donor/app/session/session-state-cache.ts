@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/session-state-cache.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -52,6 +52,7 @@ export class SessionStateCache extends Map<string, ClientSessionState> {
   readonly #maxBytes: number
   readonly #maxCount: number
   readonly #recency = new Map<string, number>()
+  readonly #transcriptWeights = new WeakMap<ClientSessionState['messages'], number>()
   #clock = 0
 
   constructor(callbacks: SessionStateCacheCallbacks, limits: SessionStateCacheLimits = {}) {
@@ -98,7 +99,7 @@ export class SessionStateCache extends Map<string, ClientSessionState> {
         continue
       }
 
-      const weight = transcriptBytes(state)
+      const weight = this.#weight(state)
       candidates.push({ bytes: weight, runtimeId, state, touched: this.#recency.get(runtimeId) ?? 0 })
       bytes += weight
     }
@@ -150,6 +151,19 @@ export class SessionStateCache extends Map<string, ClientSessionState> {
       !hasDraftOrInFlightMessage(state) &&
       !this.#callbacks.isReferenced(runtimeId, state)
     )
+  }
+
+  #weight(state: ClientSessionState): number {
+    const cached = this.#transcriptWeights.get(state.messages)
+
+    if (cached !== undefined) {
+      return cached
+    }
+
+    const weight = transcriptBytes(state)
+    this.#transcriptWeights.set(state.messages, weight)
+
+    return weight
   }
 
   #touch(runtimeId: string): void {

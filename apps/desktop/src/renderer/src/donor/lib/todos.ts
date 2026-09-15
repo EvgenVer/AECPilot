@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/todos.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,6 +24,10 @@ export interface TodoPatch {
 }
 
 const STATUSES: readonly TodoStatus[] = ['pending', 'in_progress', 'completed', 'cancelled']
+
+/** The task tool is `todo_list` on the wire since the core-tool rename; `todo`
+ *  survives as the legacy alias in stored transcripts and older backends. */
+export const isTodoToolName = (name: unknown): boolean => name === 'todo_list' || name === 'todo'
 
 const isRecord = (v: unknown): v is Record<string, unknown> => Boolean(v && typeof v === 'object' && !Array.isArray(v))
 const isStatus = (v: unknown): v is TodoStatus => (STATUSES as readonly string[]).includes(v as string)
@@ -247,7 +251,7 @@ export function todosFromMessageContent(content: unknown): null | TodoItem[] {
   let latest: null | TodoItem[] = null
 
   for (const part of content) {
-    if (!isRecord(part) || part.type !== 'tool-call' || part.toolName !== 'todo') {
+    if (!isRecord(part) || part.type !== 'tool-call' || !isTodoToolName(part.toolName)) {
       continue
     }
 

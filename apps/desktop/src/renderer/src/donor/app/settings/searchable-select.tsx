@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/searchable-select.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -95,7 +95,11 @@ export function SearchableSelect({
           <Codicon className="shrink-0 opacity-60" name={open ? 'chevron-up' : 'chevron-down'} size="1rem" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
+      {/* min-w, not w: the trigger shrink-wraps to its current value inside the
+          settings grid, so a width pinned to it clipped every IANA row after
+          "Africa/A…". The popover keeps its own width and only grows to cover a
+          trigger wider than that. */}
+      <PopoverContent align="start" className="min-w-(--radix-popover-trigger-width) p-0">
         <Command filter={rankSearchOption}>
           <CommandInput autoFocus placeholder={placeholder} />
           <CommandList>

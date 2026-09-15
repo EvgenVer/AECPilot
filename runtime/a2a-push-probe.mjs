@@ -20,7 +20,7 @@ import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 
-import { HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-secret-9f8e7d6c'
 const A2A_DIR = path.join(HERMES_SRC_DIR, 'plugins', 'platforms', 'a2a')
@@ -88,7 +88,8 @@ async function sendFromCore(callbackUrl) {
   const child = spawn(PYTHON_BIN, ['-c', script, callbackUrl, 'task-42', REPLY], {
     // Без этого Windows отдаёт stdout в кодировке консоли, и кириллица в
     // отчёте превращается в мусор — а сравнивать надо ровно те же байты.
-    env: { ...process.env, A2A_PUSH_SECRET: SECRET, PYTHONIOENCODING: 'utf-8' }
+    // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).
+    env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR, A2A_PUSH_SECRET: SECRET, PYTHONIOENCODING: 'utf-8' }
   })
 
   let out = ''

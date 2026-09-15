@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/cron-detail.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,8 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
   return { ...sdk, host: { ...sdk.host, request } }
 })
 
-const { RoutineDetailDialog, RoutineRow, routineDetailIssue, routineDetailRows } = await import('./cron')
+const { RoutineDetailDialog, RoutineRow, routineDetailIssue, routineDetailRows, routineLastResult } =
+  await import('./cron')
 
 const activeJob: RoutineJob = {
   deliver: 'bot-chat',
@@ -93,6 +94,22 @@ describe('the facts the row never showed', () => {
 
     expect(valueOf(passthrough, 'Schedule (raw)')).toBeUndefined()
     expect(valueOf(passthrough, 'Schedule')).toBe('0 9 * * 1-5')
+  })
+
+  it('spells out every last_status the scheduler writes', () => {
+    // The gateway's literal set is closed; each one gets a human reading, and
+    // delivery_failed in particular must not read as a success.
+    expect(routineLastResult('ok')).toBe('Succeeded')
+    expect(routineLastResult('error')).toBe('Failed')
+    expect(routineLastResult('delivery_failed')).toBe('Ran, but delivery failed')
+    expect(routineLastResult('blocked_config')).toBe('Blocked by configuration (not run)')
+    // Unknown literals pass through rather than vanish.
+    expect(routineLastResult('something_new')).toBe('something_new')
+    expect(routineLastResult(undefined)).toBeNull()
+
+    expect(valueOf(routineDetailRows({ ...activeJob, last_status: 'delivery_failed' }), 'Last result')).toBe(
+      'Ran, but delivery failed'
+    )
   })
 
   it('explains a failing or scheduler-paused job in failure order', () => {

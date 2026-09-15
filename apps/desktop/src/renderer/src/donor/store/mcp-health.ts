@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/mcp-health.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,8 +56,10 @@ let timer: ReturnType<typeof setInterval> | null = null
 // Bumped on profile switch; in-flight sweeps compare and bail so a slow
 // profile-A probe can't record (or notify) into profile B's state.
 let sweepEpoch = 0
-// Sweeps are chained, never concurrent — sequential probes, no parallel bursts.
-let sweepChain: Promise<void> = Promise.resolve()
+// At most one sweep runs and one follow-up is remembered. Reconnect storms
+// still request a fresh pass, but cannot append an unbounded backlog.
+let sweepInFlight: Promise<void> | null = null
+let sweepQueued = false
 let offGatewayState: (() => void) | null = null
 let offProfile: (() => void) | null = null
 
@@ -150,7 +152,24 @@ async function sweep(): Promise<void> {
 }
 
 function queueSweep(): void {
-  sweepChain = sweepChain.then(sweep, sweep)
+  if (sweepInFlight) {
+    sweepQueued = true
+
+    return
+  }
+
+  sweepInFlight = sweep()
+
+  const settled = () => {
+    sweepInFlight = null
+
+    if (sweepQueued) {
+      sweepQueued = false
+      queueSweep()
+    }
+  }
+
+  sweepInFlight.then(settled, settled)
 }
 
 function arm(): void {
@@ -163,6 +182,8 @@ function arm(): void {
 }
 
 function disarm(): void {
+  sweepQueued = false
+
   if (timer !== null) {
     clearInterval(timer)
     timer = null

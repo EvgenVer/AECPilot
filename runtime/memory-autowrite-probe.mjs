@@ -27,6 +27,12 @@
 // защиту, и смысл замера. Плагин руками не подключается — его грузит их же
 // `discover_plugins()` из профиля, куда его положил наш установщик.
 //
+// ЧЕТВЁРТЫЙ ПРОГОН (задача 3.B4е): ДЛИННЫЙ ХОД. С 0.21.2 их плагин режет каждое
+// сообщение до `sync_max_chars` символов по последней границе предложения,
+// умолчание — 450. Наш `mem0.json` ставит 16 000; проверяется фактом, который
+// стоит ЗА 450-м символом реплики: на их умолчании он в извлечение не попал бы
+// вовсе, а с нашим порогом обязан лежать в слое 2.
+//
 // КЛЮЧ БЕРЁТСЯ ПРОГРАММНО из `.env` профиля разработки — тем же `load_env_file`,
 // которым это делает раннер эвалов. Значение не печатается и в отчёт не едет.
 //
@@ -38,7 +44,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
-import { applyMemoryProfile } from "./memory-config.mjs";
+import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 import { installSecretFilter } from "./register-secret-filter.mjs";
 
 const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
@@ -50,13 +56,25 @@ const FACT = "резерв мощности 20 процентов";
 const USER_TEXT = `запомни: пароль от почты объекта — ${SECRET}, и ещё: ${FACT}`;
 const ASSISTANT_TEXT = "Записал.";
 
+// Длинный ход: обычные фразы инженера ДО 450-го символа, проверяемый факт —
+// после. Границу берём с запасом (их срез ищет последнюю точку ПЕРЕД порогом).
+const LONG_FACT = "номер разрешения на строительство объекта — 7731";
+const FILLER = Array.from(
+  { length: 6 },
+  (_, i) => `Сегодня на площадке проходила ${i + 1}-я проверка монтажа вентиляции, замечаний по шумоизоляции нет, акты подписаны.`
+).join(" ");
+const LONG_USER_TEXT = `${FILLER} И ещё запомни: ${LONG_FACT}.`;
+if (LONG_USER_TEXT.indexOf(LONG_FACT) < 450) {
+  throw new Error("зонд построен неверно: факт длинного хода стоит до 450-го символа");
+}
+
 // ХОД ИДЁТ ЧЕРЕЗ ВОРОНКУ (`MemoryManager.sync_all`), А НЕ ПРЯМО В ПРОВАЙДЕРА —
 // потому что настоящая автозапись идёт именно так, и потому что наша защита стоит
 // на воронке. Зонд, зовущий `provider.sync_turn` напрямую, обошёл бы и защиту, и
 // смысл замера. Плагин при этом НЕ подключается руками: его загружает их же
 // `discover_plugins()` из профиля, куда его положил наш установщик, — то есть
 // проверяется вся цепочка, включая включение в конфиге.
-const PY = [
+const buildPy = (userText) => [
   "import json, os, sys, time",
   `sys.path.insert(0, r"${HERMES_SRC}")`,
   `sys.path.insert(0, r"${path.join(REPO_ROOT, "eval")}")`,
@@ -77,20 +95,21 @@ const PY = [
   "print('FILTER ' + json.dumps(p._read_filters(), ensure_ascii=False))",
   "m = MemoryManager()",
   "m.add_provider(p)",
-  `m.sync_all(${JSON.stringify(USER_TEXT)}, ${JSON.stringify(ASSISTANT_TEXT)})`,
+  `m.sync_all(${JSON.stringify(userText)}, ${JSON.stringify(ASSISTANT_TEXT)})`,
   // Ждём ДВА слоя потоков: воронка кладёт работу в свой исполнитель, а их
   // `sync_turn` внутри уходит в собственный демон-поток.
   "time.sleep(5)",
   "t = getattr(p, '_sync_thread', None)",
   "t.join(timeout=180) if t is not None else None",
   "time.sleep(3)",
-  "print('SEARCH ' + json.dumps(p.handle_tool_call('mem0_search', {'query': 'пароль почта резерв мощности', 'top_k': 20}), ensure_ascii=False))",
+  "print('SYNC_MAX ' + str(p._sync_max_chars))",
+  "print('SEARCH ' + json.dumps(p.handle_tool_call('mem0_search', {'query': 'пароль почта резерв мощности разрешение на строительство', 'top_k': 20}), ensure_ascii=False))",
 ].join("\n");
 
 function runPython(scriptPath, home) {
   return new Promise((resolve) => {
     const child = spawn(PYTHON_BIN, [scriptPath], {
-      env: { ...process.env, HERMES_HOME: home, MEM0_TELEMETRY: "false", PYTHONIOENCODING: "utf-8" },
+      env: { ...process.env, HERMES_HOME: home, ...memoryEnv(home), PYTHONIOENCODING: "utf-8" },
     });
     let text = "";
     child.stdout.on("data", (c) => (text += c.toString()));
@@ -123,7 +142,7 @@ function decodeSearch(line) {
  * двояко — защита сработала ИЛИ их модель просто не сочла пароль фактом, — и
  * замер не доказывает ничего.
  */
-async function measure({ armed, autowrite = true }) {
+async function measure({ armed, autowrite = true, userText = USER_TEXT }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-home-"));
   const vault = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-vault-"));
   const scriptPath = path.join(home, "probe.py");
@@ -147,7 +166,7 @@ async function measure({ armed, autowrite = true }) {
       "utf-8"
     );
   }
-  fs.writeFileSync(scriptPath, PY, "utf-8");
+  fs.writeFileSync(scriptPath, buildPy(userText), "utf-8");
 
   const raw = await runPython(scriptPath, home);
   const search = decodeSearch(/SEARCH (.+)/.exec(raw)?.[1] ?? "");
@@ -158,12 +177,14 @@ async function measure({ armed, autowrite = true }) {
     plugin: /PLUGIN (.+)/.exec(raw)?.[1] ?? "(не напечатан)",
     readFilter: /FILTER (.+)/.exec(raw)?.[1] ?? "(не напечатан)",
     guard: /GUARD (.+)/.exec(raw)?.[1] ?? "(не напечатана)",
+    syncMax: /SYNC_MAX (.+)/.exec(raw)?.[1] ?? "(не напечатан)",
     search,
     raw,
     // Обычный факт рядом — признак того, что автозапись вообще доехала. Без него
     // любой вывод про секрет бессмыслен.
     factStored: /резерв|reserve/i.test(search) || /20/.test(search),
     secretStored: search.includes(SECRET) || /Qwerty/i.test(search),
+    longFactStored: /7731/.test(search),
     redacted: /секрет удалён/i.test(search),
   };
 }
@@ -218,9 +239,21 @@ async function main() {
   console.log(`   в слое 2: ${off.search.slice(0, 300)}`);
   check("выключенная автозапись не записала даже обычный факт", !off.factStored);
 
+  // ── Четвёртый прогон: длинный ход (задача 3.B4е) ─────────────────────────
+  //
+  // Факт стоит за 450-м символом. На их умолчании `sync_max_chars` он в
+  // извлечение не попал бы; наш `mem0.json` ставит 16 000 — и плагин обязан
+  // прочитать его из файла (печатается), а факт — лежать в слое 2.
+  const long = await measure({ armed: true, userText: LONG_USER_TEXT });
+  console.log(`\n=== ДЛИННЫЙ ХОД: факт за ${LONG_USER_TEXT.indexOf(LONG_FACT)}-м символом (${long.key})`);
+  console.log(`   порог плагина глазами ядра: ${long.syncMax}`);
+  console.log(`   в слое 2: ${long.search.slice(0, 420)}`);
+  check("плагин прочитал наш порог из mem0.json", long.syncMax === "16000", long.syncMax);
+  check("факт за 450-м символом доехал до слоя 2", long.longFactStored);
+
   console.log(
     failures === 0
-      ? "\nАВТОМАТИЧЕСКИЙ ПУТЬ ЗАКРЫТ — и закрыт именно фильтром; переключатель слушается"
+      ? "\nАВТОМАТИЧЕСКИЙ ПУТЬ ЗАКРЫТ — и закрыт именно фильтром; переключатель слушается; длинный ход доезжает целиком"
       : `\nпровалов: ${failures}`
   );
   process.exit(failures === 0 ? 0 : 1);

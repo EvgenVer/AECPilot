@@ -35,7 +35,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
 import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -63,11 +63,14 @@ export const VERDICTS = {
   skills_list: { status: "ours", where: "UR5/UR23, наша поверхность скилов — aec/project-skills/**" },
   skill_view: { status: "ours", where: "UR5/UR23, aec/project-skills/**" },
   skill_manage: { status: "ours", where: "UR5/UR23, aec/project-skills/**" },
-  cronjob: { status: "ours", where: "UR18, наш тик — aec/cron-runner/**, поверхность их плагина — cron.tsx" },
+  // Пять имён переименованы ядром 0.21.2 (задача 3.B4): `cronjob` → `cronjob_manage`,
+  // `todo` → `todo_list`, `tip` → `show_tip`, `process` → `process_manage`,
+  // `tour` → `gui_tour`. Вердикты те же — переехали за именами.
+  cronjob_manage: { status: "ours", where: "UR18, наш тик — aec/cron-runner/**, поверхность их плагина — cron.tsx" },
   session_search: { status: "ours", where: "инструмент ядра поверх сессий, которые у нас уже есть" },
   clarify: { status: "ours", where: "donor/app/session/hooks/use-message-stream/gateway-event/input-requests.ts" },
-  todo: { status: "ours", where: "инструмент ядра, клиента не требует; в §Non-Goals не значится → взят по UR13" },
-  tip: { status: "ours", where: "взят решением владельца 2026-09-01 (SPEC HX16, граница); ветка tip.show в donor/.../desktop-bridge.ts" },
+  todo_list: { status: "ours", where: "инструмент ядра, клиента не требует; в §Non-Goals не значится → взят по UR13" },
+  show_tip: { status: "ours", where: "взят решением владельца 2026-09-01 (SPEC HX16, граница); ветка tip.show в donor/.../desktop-bridge.ts" },
   focus_pane: { status: "ours", where: "ветка pane.reveal в donor/.../desktop-bridge.ts" },
   react_to_message: { status: "ours", where: "ветка message.reaction в donor/.../desktop-bridge.ts" },
   setup_mcp: { status: "ours", where: "ветка mcp.setup.request в donor/.../input-requests.ts" },
@@ -103,7 +106,7 @@ export const VERDICTS = {
   execute_code: { status: "ours", where: "UR30 — задача 3E.8; проверено живым прогоном: посчитал и построил график (matplotlib/pandas в venv ядра); граница исполнения — 3E.7 (R21)" },
   computer_use: { status: "ours", where: "UR30 — набор включён, наша сторона ничего не закрывает; двоичный `cua-driver` ставит ЧЕЛОВЕК кнопкой их панели (её установщик просит повышения прав), задача 3E.8" },
   terminal: { status: "ours", where: "UR30 — инструмент ядра доступен модели, поверхность оболочки дана 3E.8 (node-pty), граница — 3E.7" },
-  process: { status: "ours", where: "UR30 — см. terminal" },
+  process_manage: { status: "ours", where: "UR30 — см. terminal" },
   read_terminal: { status: "ours", where: "их же ветка `terminal.read.request` в зоне сериализует буфер xterm; недостающей половиной была ОБОЛОЧКА, её дала 3E.8" },
   close_terminal: { status: "ours", where: "см. read_terminal — та же ветка в зоне, та же недостающая половина" },
   read_window_below: { status: "ours", where: "UR30, HX12 отменён 05.09 — задача 3E.8: `main/os-windows.ts` через `get-windows`, только метаданные" },
@@ -122,7 +125,7 @@ export const VERDICTS = {
     status: "ours",
     where: "UR10 — управление памятью двух слоёв; окно 5.4, список фактов проекта 5.16, маршрутизация 5.5, фильтр 5.3",
   },
-  tour: { status: "ours", where: "UR36 — задача 3E.12: ветка `tour.request` вернулась повторным переносом, driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
+  gui_tour: { status: "ours", where: "UR36 — задача 3E.12: ветка `tour.request` вернулась повторным переносом, driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
   drive_preview: { status: "ours", where: "UR36 — задача 3E.12: `preview.act.request` вернулась там же; e2e доказан эхом самой страницы (агент напечатал и нажал)" },
   annotate_preview: { status: "ours", where: "UR36 — тот же канал `preview.act` (kind pin/unpin/hold), что и drive_preview; живьём в 3E.12 прогнаны elements/type/click, пометки — нет" },
 
@@ -133,6 +136,13 @@ export const VERDICTS = {
   // после правки: 21 набор вместо 22, `text_to_speech` в разрешении не
   // резолвится. Голосовая поверхность самого окна — отдельный вопрос D-72.
   text_to_speech: { status: "excluded", hx: "HX19", where: "голос сверх диктовки — решение владельца 2026-09-05; набор `tts` вычтен из профиля 2026-09-08" },
+  // Новый в 0.21.2 (задача 3.B4): коннекторы Gmail/Linear/Notion через их Nous tool
+  // gateway. Решение владельца 2026-09-14 — HX3 расширен. Исключение действует не
+  // только на бумаге (урок D-67): `check_fn=_connectors_available` регистрирует
+  // инструмент лишь при личности Nous — гостевой (`nous.guest`, выключена нами в
+  // профиле задачей 3.B4д) или по входу в их портал (поверхности входа сняты, HX3).
+  // Модель инструмента не видит; вычитать набор `connections` отдельно незачем.
+  manage_connections: { status: "excluded", hx: "HX3", where: "коннекторы через Nous tool gateway — их облако; без личности Nous ядро инструмент не регистрирует (nous.guest: false — 3.B4д)" },
   // Исключение ДЕЙСТВУЮЩЕЕ, а не записанное: набор `project` шлюз добавляет
   // десктопной сессии сам (`_gui_surface_toolsets`), поэтому на уровне НАБОРОВ
   // он остаётся включённым — и первый замер этим обманулся. Решает вычитание на
@@ -177,7 +187,14 @@ export const VERDICTS = {
  * would report a surface of zero tools and call it parity. */
 export function readToolsets({ python = PYTHON_BIN, src = HERMES_SRC_DIR } = {}) {
   const code = "import json,toolsets;print(json.dumps({k:{'tools':v.get('tools',[]),'includes':v.get('includes',[])} for k,v in toolsets.TOOLSETS.items()}))";
-  const answer = execFileSync(python, ["-c", code], { cwd: src, encoding: "utf-8" });
+  // HERMES_HOME — наш профиль, а не умолчание ядра (`%LOCALAPPDATA%\hermes`):
+  // импорт заводит каталог профиля, и без переменной он ложился бы туда, где
+  // живёт обычная установка Hermes на этой же машине (D-86).
+  const answer = execFileSync(python, ["-c", code], {
+    cwd: src,
+    encoding: "utf-8",
+    env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR },
+  });
   const parsed = JSON.parse(answer);
 
   if (!parsed || Object.keys(parsed).length === 0) throw new Error("реестр инструментов ядра пуст");

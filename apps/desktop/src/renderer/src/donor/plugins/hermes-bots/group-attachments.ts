@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-attachments.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,8 +34,8 @@ function groupAttachmentKind(file: File): AttachmentKind {
 
 /** File objects → [{ name, data, kind }] (data URLs), oversized files skipped
  *  with a toast. Images are downscaled; PDFs and other files ride as raw data
- *  URLs for the gateway's pdf.attach / file.attach staging. Shared by the
- *  picker button, the composer paste handler, and room drag & drop. */
+ *  URLs for the gateway's file.attach staging. Shared by the picker button,
+ *  the composer paste handler, and room drag & drop. */
 export async function filesToGroupAttachments(files: File[] | FileList | null | undefined): Promise<Attachment[]> {
   const picked: Attachment[] = []
 

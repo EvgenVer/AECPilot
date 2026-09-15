@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/skills.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type {
+  OfficialSkillInfo,
   SkillHubPreview,
   SkillHubScanResult,
   SkillHubSearchResponse,
@@ -102,6 +103,16 @@ export function editLearningNode(
 
 const HUB_REQUEST_TIMEOUT_MS = 45_000
 
+/** The full built-in optional-skills catalog (local checkout scan — fast),
+ *  with per-profile installed flags. Feeds the Capabilities Skills list's
+ *  "available to install" rows. */
+export function getOfficialSkills(profile?: ProfileScope): Promise<{ skills: OfficialSkillInfo[] }> {
+  return window.hermesDesktop.api<{ skills: OfficialSkillInfo[] }>({
+    ...capabilityScoped(profile),
+    path: '/api/skills/hub/official'
+  })
+}
+
 export function getSkillHubSources(profile?: null | string): Promise<SkillHubSourcesResponse> {
   return hermesApi<SkillHubSourcesResponse>({
     ...profileScoped(profile),
@@ -125,9 +136,9 @@ export function searchSkillsHub(
   })
 }
 
-export function previewSkillHub(identifier: string, profile?: null | string): Promise<SkillHubPreview> {
-  return hermesApi<SkillHubPreview>({
-    ...profileScoped(profile),
+export function previewSkillHub(identifier: string, profile?: ProfileScope): Promise<SkillHubPreview> {
+  return window.hermesDesktop.api<SkillHubPreview>({
+    ...capabilityScoped(profile),
     path: `/api/skills/hub/preview?identifier=${encodeURIComponent(identifier)}`,
     timeoutMs: HUB_REQUEST_TIMEOUT_MS
   })

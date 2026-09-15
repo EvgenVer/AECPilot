@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/gateway-menu-panel.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -178,20 +178,19 @@ export function GatewayMenuPanel({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          {!gatewayOpen && (
-            <Tip label={copy.reconnectGateway}>
-              <Button
-                aria-label={copy.reconnectGateway}
-                className="text-muted-foreground hover:text-foreground"
-                disabled={reconnecting}
-                onClick={reconnect}
-                size="icon-xs"
-                variant="ghost"
-              >
-                <RefreshCw className={cn(reconnecting && 'animate-spin')} />
-              </Button>
-            </Tip>
-          )}
+          {/* An open transport can still be wedged; recovery must remain reachable. */}
+          <Tip label={copy.reconnectGateway}>
+            <Button
+              aria-label={copy.reconnectGateway}
+              className="text-muted-foreground hover:text-foreground"
+              disabled={reconnecting}
+              onClick={reconnect}
+              size="icon-xs"
+              variant="ghost"
+            >
+              <RefreshCw className={cn(reconnecting && 'animate-spin')} />
+            </Button>
+          </Tip>
           <Tip label={copy.openSystem}>
             <Button
               aria-label={copy.openSystem}

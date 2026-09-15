@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/workspace-session-target.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { MutableRefObject } from 'react'
 
-import { followActiveSessionCwd, resolveNewSessionCwd } from '@/store/projects'
+import { pinNewChatProfile } from '@/store/profile'
+import { followActiveSessionCwd, projectProfile, resolveNewSessionCwd } from '@/store/projects'
 import {
   $newChatWorkspaceTargetGeneration,
   type NewChatWorkspaceTarget,
@@ -33,6 +34,16 @@ export function startWorkspaceSession({
   requestGateway,
   startFreshSessionDraft
 }: WorkspaceSessionOptions): void {
+  // The project tree is rendered under one profile; the "+" belongs to it.
+  // Pin that intent now — otherwise desktopSessionCreateParams falls back to
+  // $activeGatewayProfile, which a still-settling profile swap can move
+  // between this click and Send (#79005). All-profiles view has no owner.
+  const profile = projectProfile()
+
+  if (profile) {
+    pinNewChatProfile(profile)
+  }
+
   // Home's "+" passes path=null on purpose ("no folder"). That must stay
   // detached — do NOT fall through to resolveNewSessionCwd(), which can still
   // return a default/remembered project folder and re-attach the last repo

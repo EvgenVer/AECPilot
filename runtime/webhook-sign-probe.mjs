@@ -24,7 +24,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 
-import { HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-outbound-4b3c2d1e'
 const NOTE = 'Смета пересчитана: 3 позиции изменены.'
@@ -79,7 +79,8 @@ async function sendFromCore(url) {
     cwd: HERMES_SRC_DIR,
     // Иначе Windows отдаёт stdout в кодировке консоли и кириллица в отчёте
     // превращается в мусор, а сравнивать надо ровно те же байты.
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+    // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).
+    env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR, PYTHONIOENCODING: 'utf-8' }
   })
 
   let out = ''

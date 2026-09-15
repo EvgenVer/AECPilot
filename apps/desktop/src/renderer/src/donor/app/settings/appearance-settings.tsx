@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
@@ -19,6 +19,7 @@ import { useDebounced } from '@/app/hooks/use-debounced'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
@@ -29,25 +30,84 @@ import { $backdrop, setBackdrop } from '@/store/backdrop'
 import { $composerPopoutGesturesEnabled, setComposerPopoutGesturesEnabled } from '@/store/composer-popout'
 import { $embedAllowed, $embedMode, clearEmbedAllowed, type EmbedMode, setEmbedMode } from '@/store/embed-consent'
 import { $introSplash, setIntroSplash } from '@/store/intro-splash'
+import { notifyError } from '@/store/notifications'
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
 import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enabled'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
 import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
 import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
-import { $retiredTips, $tipsEnabled, resetTips, setTipsEnabled } from '@/store/tips'
+import { $spentTipCount, $tipsEnabled, resetTips, setTipsEnabled } from '@/store/tips'
+import {
+  $titlebarAppActionsSide,
+  setTitlebarAppActionsSide,
+  type TitlebarAppActionsSide
+} from '@/store/titlebar-app-actions'
 import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
 import { $toursEnabled, setToursEnabled } from '@/store/tours'
+import {
+  beginTranslucencyPeek,
+  endTranslucencyPeek,
+  pulseTranslucencyPeek,
+  TRANSLUCENCY_MAX,
+  TRANSLUCENCY_MIN,
+  TRANSLUCENCY_STEP
+} from '@/store/translucency'
+import { $userBubbleTransparency, setUserBubbleTransparency } from '@/store/user-bubble-transparency'
 import { $vibeHeartsEnabled, setVibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
 import { $zoomPercent, setZoomPercent } from '@/store/zoom'
 import { getBaseColors, useTheme } from '@/themes/context'
 import type { DesktopTheme } from '@/themes/types'
 import { isUserTheme, removeUserTheme } from '@/themes/user-themes'
 
+import { setHermesConfigCache, useHermesConfigRecord } from '../hooks/use-config-record'
+
 import { MODE_OPTIONS } from './constants'
+import { setNested } from './helpers'
 import { ListRow, SectionHeading, SettingsContent, ToggleRow } from './primitives'
 import { APPEARANCE_SETTING_IDS } from './settings-search'
 import { TerminalFontSetting } from './terminal-font-setting'
 import { useDeepLinkHighlight } from './use-deep-link-highlight'
+
+// display.resume_last_session lives in the backend config record (shared with
+// config.yaml and the cold-start restore in use-desktop-integrations), not a
+// renderer store. Saves write through the shared react-query cache so the
+// restore gate sees the new value on the next launch.
+function ResumeLastSessionSetting() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const configQuery = useHermesConfigRecord()
+  const config = configQuery.data
+  const checked = (config?.display as { resume_last_session?: unknown } | undefined)?.resume_last_session !== false
+
+  const update = (on: boolean) => {
+    if (!config) {
+      return
+    }
+
+    const next = setNested(config, 'display.resume_last_session', on)
+    setHermesConfigCache(next)
+    void saveHermesConfig(next)
+      .then(result => {
+        if (!result.ok) {
+          throw new Error(t.settings.config.autosaveFailed)
+        }
+      })
+      .catch(error => {
+        setHermesConfigCache(config)
+        notifyError(error, t.settings.config.autosaveFailed)
+      })
+  }
+
+  return (
+    <ToggleRow
+      checked={checked}
+      description={a.resumeLastSessionDesc}
+      disabled={!config}
+      label={a.resumeLastSessionTitle}
+      onChange={update}
+    />
+  )
+}
 
 function ThemePreview({ name, mode }: { name: string; mode: 'light' | 'dark' }) {
   // Preview in the *current* mode: the dark palette in Dark, and the light
@@ -103,8 +163,67 @@ function matchUiScalePreset(percent: number): UiScalePreset | null {
 
 const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
 
-// EDIT [3]: `SLIDER_STEP_KEYS`, `TranslucencySlider` and `GlassRow` are gone
-// with the translucency row they served — window translucency is HX14.
+// EDIT [3]: `GlassRow` is gone with the window-translucency row it served
+// (HX14). `TranslucencySlider` stays: since 0.21.2 it also drives the
+// user-bubble transparency row below, which is not HX14.
+const SLIDER_STEP_KEYS = new Set([
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'End',
+  'Home',
+  'PageDown',
+  'PageUp'
+])
+
+interface TranslucencySliderProps {
+  label: string
+  onChange: (value: number) => void
+  value: number
+}
+
+/**
+ * One 0–100 lever, used up to twice: Clear's window opacity, and under Glass
+ * the tint plus an optional native fade.
+ *
+ * Peek while the hand is on it — the overlay (scrim + near-opaque card) ghosts
+ * so the window behind IS the live preview. The pointer pair covers
+ * mouse/touch drags; the keyboard path pulses per step instead, and blur ends
+ * any residual hold.
+ */
+function TranslucencySlider({ label, onChange, value }: TranslucencySliderProps) {
+  return (
+    <>
+      <input
+        aria-label={label}
+        className="h-1 w-40 cursor-pointer appearance-none rounded-full bg-(--ui-stroke-tertiary)"
+        max={TRANSLUCENCY_MAX}
+        min={TRANSLUCENCY_MIN}
+        onBlur={endTranslucencyPeek}
+        onChange={event => {
+          triggerHaptic('selection')
+          onChange(Number(event.target.value))
+        }}
+        onKeyDown={event => {
+          if (SLIDER_STEP_KEYS.has(event.key)) {
+            pulseTranslucencyPeek()
+          }
+        }}
+        onLostPointerCapture={endTranslucencyPeek}
+        onPointerDown={beginTranslucencyPeek}
+        onPointerUp={endTranslucencyPeek}
+        step={TRANSLUCENCY_STEP}
+        style={{ accentColor: 'var(--dt-primary)' }}
+        type="range"
+        value={value}
+      />
+      <span className="w-9 text-right text-[length:var(--conversation-caption-font-size)] tabular-nums text-(--ui-text-tertiary)">
+        {value}%
+      </span>
+    </>
+  )
+}
 
 export function AppearanceSettings() {
   const { t, isSavingLocale } = useI18n()
@@ -113,14 +232,16 @@ export function AppearanceSettings() {
   const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault)
   const sessionListDensity = useStore($sessionListDensity)
   const tabStripDefault = useStore($tabStripDefault)
+  const titlebarAppActionsSide = useStore($titlebarAppActionsSide)
   const zoomPercent = useStore($zoomPercent)
   const embedMode = useStore($embedMode)
   const embedAllowed = useStore($embedAllowed)
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
+  const userBubbleTransparency = useStore($userBubbleTransparency)
   const reactionsEnabled = useStore($reactionsEnabled)
   const tipsEnabled = useStore($tipsEnabled)
   const toursEnabled = useStore($toursEnabled)
-  const retiredTips = useStore($retiredTips)
+  const spentTips = useStore($spentTipCount)
   const vibeHeartsEnabled = useStore($vibeHeartsEnabled)
   const backdrop = useStore($backdrop)
   const introSplash = useStore($introSplash)
@@ -176,6 +297,11 @@ export function AppearanceSettings() {
     { id: 'always', label: a.tabStripAlways },
     { id: 'never', label: a.tabStripNever }
   ] as const satisfies readonly { id: TabStripDefault; label: string }[]
+
+  const appActionsOptions = [
+    { id: 'right', label: a.appActionsRight },
+    { id: 'left', label: a.appActionsLeft }
+  ] as const satisfies readonly { id: TitlebarAppActionsSide; label: string }[]
 
   const embedOptions = [
     { id: 'ask', label: a.embedsAsk },
@@ -351,7 +477,41 @@ export function AppearanceSettings() {
             title={a.tabStripTitle}
           />
 
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={id => {
+                  triggerHaptic('selection')
+                  setTitlebarAppActionsSide(id)
+                }}
+                options={appActionsOptions}
+                value={titlebarAppActionsSide}
+              />
+            }
+            description={a.appActionsDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.appActions)}
+            title={a.appActionsTitle}
+          />
+
           {/* EDIT [3]: the window-translucency row is removed — HX14. */}
+
+          <ListRow
+            action={
+              // Same peek as the window lever: the bubble being tuned sits
+              // behind this overlay, so the overlay ghosts while the hand is
+              // on the slider.
+              <div className="flex items-center gap-3" data-translucency-peek-scope="">
+                <TranslucencySlider
+                  label={a.userBubbleTitle}
+                  onChange={setUserBubbleTransparency}
+                  value={userBubbleTransparency}
+                />
+              </div>
+            }
+            description={a.userBubbleDesc}
+            id={appearanceSettingElementId(APPEARANCE_SETTING_IDS.userBubble)}
+            title={a.userBubbleTitle}
+          />
 
           <ListRow
             action={
@@ -398,6 +558,8 @@ export function AppearanceSettings() {
             onChange={setComposerPopoutGesturesEnabled}
           />
 
+          <ResumeLastSessionSetting />
+
           <ListRow
             action={
               <SegmentedControl
@@ -430,9 +592,9 @@ export function AppearanceSettings() {
                   ]}
                   value={tipsEnabled ? 'on' : 'off'}
                 />
-                {/* The ✕ on a tip is permanent, so this is the only way back.
-                    It appears once there is something to bring back. */}
-                {retiredTips.length > 0 && (
+                {/* A tip shows once (✕ or timer), so this is the only way to a
+                    second lap. It appears once there is something to bring back. */}
+                {spentTips > 0 && (
                   <Button
                     onClick={() => {
                       triggerHaptic('selection')
@@ -441,7 +603,7 @@ export function AppearanceSettings() {
                     size="inline"
                     variant="text"
                   >
-                    {a.tipsReset(retiredTips.length)}
+                    {a.tipsReset(spentTips)}
                   </Button>
                 )}
               </div>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tour/engine.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -63,6 +63,10 @@ export interface TourHolder {
  *  supplies the actual navigation (see TourHost), so the engine itself stays
  *  self-contained and portable to a guest page. */
 export interface TourStep {
+  /** Draw this step accent-lit: a slowly travelling ring around the popover
+   *  instead of the usual hairline. For the moment in a run that is worth more
+   *  than a step — used sparingly, or it stops meaning anything. */
+  accent?: boolean
   navigate?: string
   pane?: string
   selector?: string
@@ -123,7 +127,7 @@ export function runTourEngine(
     step.title || step.text
       ? {
           description: step.text || '',
-          popoverClass: first ? 'tour-pop-in' : 'tour-pop-next',
+          popoverClass: (first ? 'tour-pop-in' : 'tour-pop-next') + (step.accent ? ' tour-pop-accent' : ''),
           side: step.side || undefined,
           title: step.title || ''
         }

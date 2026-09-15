@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tool-render-class.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,6 +14,8 @@
  * what the grouping actually renders, so the classification lives on its own
  * rather than inside either one.
  */
+
+import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 
 const FILE_EDIT_TOOL_NAMES = new Set(['edit_file', 'patch', 'write_file'])
 
@@ -31,7 +33,7 @@ export function isFileEditTool(toolName: string): boolean {
 //   - `clarify`, `image_generate` and `delegate_task` bypass ToolEntry to
 //     render their own markup: a question the user has to answer, an image
 //     they asked for, the several agents a fan-out is running.
-//   - `setup_mcp` is the same kind: an inline consent card the user has to
+//   - `setup_mcp` and `manage_connections` are inline consent cards the user has to
 //     act on. Folding it into a "Using 2 tools" summary hides the buttons.
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
@@ -39,14 +41,18 @@ export function isFileEditTool(toolName: string): boolean {
 const CARD_TOOL_NAMES = new Set(['clarify', 'delegate_task', 'image_generate', 'setup_mcp'])
 
 export function isCardTool(toolName: string): boolean {
-  return CARD_TOOL_NAMES.has(toolName) || isFileEditTool(toolName)
+  return (
+    CARD_TOOL_NAMES.has(toolName) ||
+    isFileEditTool(toolName) ||
+    (toolName === 'manage_connections' && isOnboardingEnabled())
+  )
 }
 
 // Activity tools that render nothing at all: `todo` parts are hoisted to a
 // dedicated panel above the message content, and a reaction's UI is the emoji
 // landing on the bubble. Both still render when they FAIL, which is a bounded
 // error row either way.
-const SILENT_TOOL_NAMES = new Set(['react_to_message', 'todo'])
+const SILENT_TOOL_NAMES = new Set(['react_to_message', 'todo', 'todo_list'])
 
 export function isSilentTool(toolName: string): boolean {
   return SILENT_TOOL_NAMES.has(toolName)

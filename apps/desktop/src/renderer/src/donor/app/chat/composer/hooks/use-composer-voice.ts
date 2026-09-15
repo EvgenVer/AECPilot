@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,7 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n'
 import { chatMessageText, collectUnspokenTurnSpeech } from '@/lib/chat-messages'
 import { triggerHaptic } from '@/lib/haptics'
-import { markAssistantIdSpoken, resolveSpokenReply } from '@/lib/spoken-reply'
+import { adoptSpokenReplySession, markAssistantIdSpoken, resolveSpokenReply } from '@/lib/spoken-reply'
+import { CONVERSATION_LEASE, READ_ALOUD_LEASE, syncTtsLease } from '@/lib/tts-lease'
 import { clearWakeIndicator, syncWakeIndicatorWithVoice } from '@/lib/wake-indicator'
 import { $voiceConversationStartRequest, takeVoiceConversationStart } from '@/store/composer'
 import { resetBrowseState } from '@/store/composer-input-history'
@@ -71,7 +72,14 @@ export function useComposerVoice({
   const { $messages } = useComposerScope()
   const [voiceConversationActive, setVoiceConversationActive] = useState(false)
   const ownsWakeIndicatorRef = useRef(false)
+  const previousSessionIdRef = useRef(sessionId)
   const voiceStartRequest = useStore($voiceConversationStartRequest)
+
+  // eslint-disable-next-line no-restricted-syntax -- session-id adopt token, not an atom mirror
+  useEffect(() => {
+    adoptSpokenReplySession(previousSessionIdRef.current, sessionId)
+    previousSessionIdRef.current = sessionId
+  }, [sessionId])
 
   const { dictate, voiceActivityState, voiceStatus } = useVoiceRecorder({
     focusInput,
@@ -271,6 +279,26 @@ export function useComposerVoice({
   }, [t, voiceConversationActive])
 
   useEffect(() => resumeWakeIfPaused, [resumeWakeIfPaused])
+
+  // Speech-output toggles are TTS warm-up / release signals. Entering a voice
+  // conversation acquires this window's lease (pre-loads the engine so the
+  // first spoken reply doesn't start with dead air); ending it releases the
+  // lease, and the backend unloads resident local models once no surface holds
+  // one. Fire-and-forget — the toggle never waits on or fails from this.
+  useEffect(() => {
+    void syncTtsLease(CONVERSATION_LEASE, voiceConversationActive)
+  }, [voiceConversationActive])
+
+  useEffect(() => () => void syncTtsLease(CONVERSATION_LEASE, false), [])
+
+  // "Read replies aloud" is the same signal, held for as long as the toggle is
+  // on (it mirrors voice.auto_tts, so this also warms at startup when the
+  // preference is already set).
+  const autoSpeakReplies = useStore($autoSpeakReplies)
+
+  useEffect(() => {
+    void syncTtsLease(READ_ALOUD_LEASE, autoSpeakReplies)
+  }, [autoSpeakReplies])
 
   // Explicit start/end for the on-screen conversation controls (the hotkey uses
   // the gated toggle above).

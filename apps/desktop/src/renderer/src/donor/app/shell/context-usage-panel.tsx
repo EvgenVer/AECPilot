@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/context-usage-panel.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,11 +47,17 @@ export function ContextUsagePanel({ breakdown, loading, usage }: ContextUsagePan
         <p className="font-medium text-foreground">{copy.title}</p>
 
         <span className="text-[0.6875rem] text-muted-foreground">
-          {copy.tokenSummary(`~${compactNumber(contextUsed)}`, compactNumber(contextMax))}
+          {copy.tokenSummary(
+            `${usage.context_estimated ? '~' : ''}${compactNumber(contextUsed)}`,
+            compactNumber(contextMax)
+          )}
         </span>
       </div>
 
-      <p className="text-[0.6875rem] text-foreground">{copy.percentFull(contextPercent)}</p>
+      <p className="text-[0.6875rem] text-foreground">
+        {usage.context_estimated ? '~' : ''}
+        {copy.percentFull(contextPercent)}
+      </p>
 
       <ContextUsageBar categories={categories} segmentTotal={segmentTotal} />
 
@@ -64,7 +70,7 @@ export function ContextUsagePanel({ breakdown, loading, usage }: ContextUsagePan
               <span className="truncate text-muted-foreground">{category.label}</span>
             </span>
 
-            <span className="shrink-0 tabular-nums text-foreground">{compactNumber(category.tokens)}</span>
+            <span className="shrink-0 tabular-nums text-foreground">~{compactNumber(category.tokens)}</span>
           </li>
         ))}
       </ul>

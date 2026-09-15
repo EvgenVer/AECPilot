@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/settings-search.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import type { DesktopConfigSection, SettingsView } from './types'
 export type CredentialSettingsView = 'settings' | 'tools'
 
 export const APPEARANCE_SETTING_IDS = {
+  appActions: 'appearance.app-actions',
   backdrop: 'appearance.backdrop',
   embeds: 'appearance.embeds',
   introSplash: 'appearance.intro-splash',
@@ -25,14 +26,14 @@ export const APPEARANCE_SETTING_IDS = {
   theme: 'appearance.theme',
   toolView: 'appearance.tool-view',
   translucency: 'appearance.translucency',
-  uiScale: 'appearance.ui-scale'
+  uiScale: 'appearance.ui-scale',
+  userBubble: 'appearance.user-bubble'
 } as const
 
 export interface SettingsSearchTarget {
   field?: string
   key?: string
   keysView?: CredentialSettingsView
-  plugin?: string
   providerView?: 'accounts' | 'custom-endpoints' | 'keys'
   setting?: string
   view: SettingsView
@@ -225,10 +226,6 @@ export function settingsSearchTargetQuery(target: SettingsSearchTarget): string 
 
   if (target.key) {
     params.set('key', target.key)
-  }
-
-  if (target.plugin) {
-    params.set('plugin', target.plugin)
   }
 
   return params.toString()

@@ -33,6 +33,23 @@ export const MEMORY_PROVIDER = "mem0";
  *  переменную читают при импорте `mem0`, и после старта её не поставить. */
 export const MEMORY_ENV = Object.freeze({ MEM0_TELEMETRY: "false" });
 
+/** Каталог служебных файлов mem0 — ВНУТРИ профиля ядра (решение владельца
+ *  2026-09-15, D-85). Без переменной библиотека пишет журнал операций памяти
+ *  `history.db` (с текстом фактов) и `config.json` в `~/.mem0`
+ *  (`mem0/configs/base.py:13`, `mem0/memory/setup.py:11`) — за пределы профиля
+ *  и в ОДИН файл с любым другим экземпляром Hermes на этой машине. Плагин ядра
+ *  `history_db_path` из `mem0.json` не пробрасывает, так что конфигом это не
+ *  задать — только окружением, и тоже при импорте. Имя каталога продублировано
+ *  в `apps/desktop/src/main/cron-runner.ts` и `runtime/memory-facts.py` (main-процесс
+ *  этот модуль статически не импортирует) — прибито тестом, читающим их текст. */
+export const MEM0_DIR_NAME = "mem0";
+
+/** Окружение памяти для процесса ядра с профилем `homeDir`: телеметрия выключена,
+ *  файлы mem0 — в профиле. */
+export function memoryEnv(homeDir) {
+  return { ...MEMORY_ENV, MEM0_DIR: path.join(homeDir, MEM0_DIR_NAME) };
+}
+
 /** Умолчание ядра для провайдера `openai-api` — `hermes_cli/auth.py`,
  *  `ProviderConfig(inference_base_url=…, base_url_env_var="OPENAI_BASE_URL")`.
  *
@@ -67,7 +84,18 @@ export function vectorStorePath(hermesHomeDir) {
  * Модели НЕ выдумываются: берутся умолчания их же таблицы
  * (`plugins/memory/mem0/_oss_providers.py`), чтобы вторая копия настроек не
  * разъезжалась с первой по составу полей.
+ *
+ * `sync_max_chars` — задача 3.B4е (решение владельца 2026-09-14). С 0.21.2
+ * их плагин режет КАЖДОЕ сообщение хода до 450 символов по последней границе
+ * предложения перед отправкой в извлечение (`_SYNC_MSG_MAX_CHARS`) — порог
+ * под 512-токенные локальные эмбеддеры. У нас эмбеддер `text-embedding-3-small`
+ * (8 191 токен) и `gpt-5-mini`, а факт в длинной реплике инженера стоит где
+ * угодно, не в первых 450 символах. Ключ читается их `initialize()`:
+ * `int(cfg.get("sync_max_chars") or 450)`; файл переписывается при каждом
+ * открытии проекта, так что число меняется здесь одной константой.
  */
+export const SYNC_MAX_CHARS = 16000;
+
 export function buildMem0Json(existing, { baseUrl, vectorPath }) {
   const base = existing && typeof existing === "object" ? existing : {};
   const oss = base.oss && typeof base.oss === "object" ? base.oss : {};
@@ -75,6 +103,7 @@ export function buildMem0Json(existing, { baseUrl, vectorPath }) {
   return {
     ...base,
     mode: "oss",
+    sync_max_chars: SYNC_MAX_CHARS,
     oss: {
       ...oss,
       llm: {

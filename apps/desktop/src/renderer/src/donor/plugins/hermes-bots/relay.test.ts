@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/relay.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -514,6 +514,31 @@ describe('the drain loop wires drain → deliver → reply', () => {
     })
     // A delivered background DM is this bot's "good turn".
     expect(clearBotAttentionMock).toHaveBeenCalledWith('b::ops')
+
+    stopBotRelay()
+  })
+
+  it('tells the target which connection the sender is on, so its author id names the machine', async () => {
+    const calls = respondWith(call => {
+      if (call.method === 'bot_relay.outbox.drain') {
+        return {
+          envelopes: call.connectionId === 'a' ? [{ ...envelope, from_handle: 'scout', from_profile: 'scout' }] : []
+        }
+      }
+
+      return { reply: 'ok' }
+    })
+
+    const { startBotRelay, stopBotRelay } = await loadRelay()
+
+    startBotRelay()
+    await pushAndSettle()
+
+    expect(calls.find(call => call.method === 'bot_relay.deliver')?.params).toMatchObject({
+      from_connection: 'a',
+      from_handle: 'scout',
+      from_profile: 'scout'
+    })
 
     stopBotRelay()
   })

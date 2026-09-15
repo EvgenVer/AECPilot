@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/chat-swap-overlay.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useEffect, useState } from 'react'
 
+import { useOnboardingChatActive } from '@/components/onboarding-chat/assembly'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils'
 // the label doesn't blank. Purely visual — pointer-events-none.
 export function ChatSwapOverlay({ profile }: { profile: string | null }) {
   const { t } = useI18n()
+  const onboarding = useOnboardingChatActive()
   const [label, setLabel] = useState<null | string>(profile)
 
   useEffect(() => {
@@ -23,6 +25,16 @@ export function ChatSwapOverlay({ profile }: { profile: string | null }) {
       setLabel(profile)
     }
   }, [profile])
+
+  // The first run swaps profiles twice — into the setup profile, then into the
+  // task profile — and neither is a thing the user asked for or has a name for.
+  // "Waking up hermes-setup…" over a greeting that is already on screen reads
+  // as a stall in the one moment that has to feel instant. The flow narrates
+  // its own handoff (the handoff card) and the greeting is banked, so there
+  // is nothing here to cover.
+  if (onboarding) {
+    return null
+  }
 
   return (
     <div

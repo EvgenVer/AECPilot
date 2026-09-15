@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/flow.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -153,7 +153,7 @@ function Step({ children, title }: { children: React.ReactNode; title: string })
 // Device-code display: OTP-style — each character in its own readonly cell.
 // The whole row is the copy button (no side button, no checkmark); on copy the
 // cells flash emerald for feedback. Dashes render as quiet separators.
-function DeviceCode({ code, copied, onCopy }: { code: string; copied: boolean; onCopy: () => void }) {
+export function DeviceCode({ code, copied, onCopy }: { code: string; copied: boolean; onCopy: () => void }) {
   const { t } = useI18n()
 
   return (

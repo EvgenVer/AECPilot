@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/bot-row.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,10 +23,11 @@
  */
 
 import type * as HermesSdk from '@hermes/plugin-sdk'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BotRow } from './bot-row'
+import { $groupChats } from './group-chat'
 import { translateBots } from './i18n-test-helper'
 import type { RosterRow } from './types'
 
@@ -66,7 +67,7 @@ vi.mock('./roster-actions', () => ({ openRosterBot }))
 const noop = () => undefined
 
 function renderRow(bot: RosterRow) {
-  render(<BotRow bot={bot} onDelete={noop} onEdit={noop} onGroup={noop} />)
+  render(<BotRow bot={bot} onDelete={noop} onEdit={noop} onGroup={noop} onNewSection={noop} />)
 
   return screen.getByRole('button')
 }
@@ -76,6 +77,29 @@ beforeEach(() => {
   ensureBotMetadata.mockResolvedValue({ pinned: true })
   openRosterBot.mockResolvedValue(true)
   requestProfile.mockResolvedValue({})
+})
+
+describe('group-turn presence', () => {
+  it('updates only the exact member face and clears it when the room stops', () => {
+    const local: RosterRow = { name: 'default', connectionId: 'local' }
+    const remote: RosterRow = { name: 'default', connectionId: 'remote', remoteSource: true }
+
+    const { container } = render(
+      <>
+        {[local, remote].map(bot => (
+          <BotRow bot={bot} key={bot.connectionId} onDelete={noop} onEdit={noop} onGroup={noop} onNewSection={noop} />
+        ))}
+      </>
+    )
+
+    const moods = () => [...container.querySelectorAll('[data-hb-mood]')].map(el => el.getAttribute('data-hb-mood'))
+    act(() => $groupChats.set({ Room: { log: [], watermarks: {}, running: true, turn: remote } }))
+    expect(moods()).toEqual(['idle', 'think'])
+    act(() => $groupChats.set({ Room: { log: [], watermarks: {}, running: true, turn: local } }))
+    expect(moods()).toEqual(['think', 'idle'])
+    act(() => $groupChats.set({}))
+    expect(moods()).toEqual(['idle', 'idle'])
+  })
 })
 
 describe('pre-warm is hover-scoped, never roster-wide', () => {
@@ -139,14 +163,14 @@ describe('the row delegates the open and claims no activation authority', () => 
   })
 })
 
-describe('the menu carries the explicit ask for the forever-chat', () => {
-  it('opens the canonical chat, which a plain row click deliberately does not', async () => {
+describe('the menu opens the same forever-chat a row click does', () => {
+  it('opens the canonical chat', async () => {
     const bot = { name: 'alpha' } as RosterRow
 
     fireEvent.contextMenu(renderRow(bot))
     fireEvent.click(await screen.findByText('Open Bot Chat'))
 
-    expect(openRosterBot.mock.calls).toEqual([[bot, { canonical: true }]])
+    expect(openRosterBot.mock.calls).toEqual([[bot]])
   })
 })
 

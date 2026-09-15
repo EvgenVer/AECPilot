@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/tools.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { reportFirstBuildToolComplete } from '@/components/onboarding-chat/first-build'
 import { invalidateSlashCompletions } from '@/lib/slash-completion-cache'
 import { refreshBackgroundProcesses } from '@/store/composer-status'
 import { flashPetActivity, setPetActivity } from '@/store/pet'
@@ -75,6 +76,9 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
     if (sessionId) {
       flushQueuedDeltas(sessionId)
       upsertToolCall(sessionId, toTodoPayload(payload) ?? payload, 'complete', event.type, occurredAt)
+      // Onboarding's first build paces its check-ins off real work done
+      // (no-op in every other session).
+      reportFirstBuildToolComplete(sessionId)
 
       if (isActiveEvent) {
         setPetActivity({ toolRunning: false })

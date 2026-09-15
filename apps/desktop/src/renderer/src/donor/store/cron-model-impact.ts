@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/cron-model-impact.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -81,7 +81,6 @@ export function parseCronModelImpact(value: unknown): CronModelImpact | null {
 
   if (
     typeof impact.available !== 'boolean' ||
-    typeof impact.guard_enabled !== 'boolean' ||
     !Number.isSafeInteger(impact.affected_count) ||
     (impact.affected_count ?? -1) < 0 ||
     typeof impact.truncated !== 'boolean' ||
@@ -128,15 +127,17 @@ function publishImpact(impact: CronModelImpact, profile: string, connection: str
     return
   }
 
-  if (!impact.guard_enabled || impact.affected_count === 0) {
+  if (impact.affected_count === 0) {
     dismissNotification(CRON_MODEL_IMPACT_NOTIFICATION_ID)
 
     return
   }
 
+  // Informational: these jobs keep running on the model they were created under; nothing is
+  // skipped. The action is a read-only review so the user can pin or move them deliberately.
   notify({
     id: CRON_MODEL_IMPACT_NOTIFICATION_ID,
-    kind: 'warning',
+    kind: 'info',
     title: translateNow('cron.modelImpact.title'),
     message: translateNow('cron.modelImpact.message', impact.affected_count),
     detail: detailFor(impact),

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-test-utils.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -97,6 +97,9 @@ export interface GatewayOptions {
    *  `profiles.configure`, then reject it as a CAS conflict — the race the
    *  sync worker's pull-merge-retry exists for. */
   conflictOnce?: { key: string; value: unknown }
+  /** Reject attach RPCs whose method is in this map — after recording the call
+   *  so tests can see the staging attempt even when it throws. */
+  failAttach?: Record<string, unknown>
   /** Reject every prompt.submit with this — a fatal, non-recoverable failure. */
   failEverySubmitWith?: unknown
   /** Reject only the FIRST prompt.submit — the 4001 reap the retry recovers. */
@@ -299,6 +302,10 @@ export function createGroupGateway(options: GatewayOptions = {}): ScriptedGatewa
         profile: session.profile,
         runtime: String(params.session_id ?? '')
       })
+
+      if (Object.hasOwn(options.failAttach ?? {}, method)) {
+        throw options.failAttach![method]
+      }
 
       return method === 'file.attach'
         ? { attached: true, ref_text: `@file:attachments/${String(params.name ?? 'attachment')}` }

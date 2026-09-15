@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/sessions.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,7 +17,16 @@ import type {
   SessionSearchResponse
 } from '@/types/hermes'
 
-import { capabilityScoped, getApiRequestConnection, hermesApi, type ProfileScope, profileScoped } from './client'
+import {
+  ambientOwnerConnectionId,
+  capabilityScoped,
+  connectionScoped,
+  getApiRequestConnection,
+  getApiRequestProfile,
+  hermesApi,
+  type ProfileScope,
+  profileScoped
+} from './client'
 
 const SESSION_LIST_REQUEST_TIMEOUT_MS = 60_000
 
@@ -155,6 +164,11 @@ export interface SidebarSessionSlice {
   /** Per-profile tokens and spend over every session, not just this window.
    *  Absent from the legacy per-slice endpoint, which has no aggregate. */
   profiles_usage?: Record<string, { cost_usd: number; tokens: number }>
+  /** Profiles whose scan for THIS slice failed. Batched `/sidebar` stamps the
+   *  same profile errors on every slice (one DB open). Legacy per-slice calls
+   *  stamp only the slice that actually failed, so a cron I/O error cannot
+   *  carry-forward recents. */
+  errors?: Array<{ profile: string; error: string }>
 }
 
 /** Which profiles filled their per-profile window in a returned page. The
@@ -223,16 +237,24 @@ async function listSidebarSessionsLegacy(req: SidebarSessionsRequest): Promise<S
     })
   ])
 
-  const errors = [...(recents.errors ?? []), ...(cron.errors ?? []), ...(messaging.errors ?? [])]
+  const recentsErrors = recents.errors ?? []
+  const cronErrors = cron.errors ?? []
+  const messagingErrors = messaging.errors ?? []
 
   return {
     recents: {
       profiles_truncated: profilesTruncatedFrom(recents.sessions, req.recentsLimit),
-      sessions: recents.sessions
+      sessions: recents.sessions,
+      ...(recentsErrors.length ? { errors: recentsErrors } : {})
     },
-    cron: { sessions: cron.sessions },
-    messaging: { sessions: messaging.sessions },
-    ...(errors.length ? { errors } : {})
+    cron: {
+      sessions: cron.sessions,
+      ...(cronErrors.length ? { errors: cronErrors } : {})
+    },
+    messaging: {
+      sessions: messaging.sessions,
+      ...(messagingErrors.length ? { errors: messagingErrors } : {})
+    }
   }
 }
 
@@ -295,9 +317,21 @@ export async function listSidebarSessions(req: SidebarSessionsRequest): Promise<
   }
 
   return {
-    recents: { ...result.recents, sessions: stampActiveConnectionOwner(result.recents?.sessions ?? []) },
-    cron: { ...result.cron, sessions: stampActiveConnectionOwner(result.cron?.sessions ?? []) },
-    messaging: { ...result.messaging, sessions: stampActiveConnectionOwner(result.messaging?.sessions ?? []) },
+    recents: {
+      ...result.recents,
+      sessions: stampActiveConnectionOwner(result.recents?.sessions ?? []),
+      ...(result.errors?.length ? { errors: result.errors } : {})
+    },
+    cron: {
+      ...result.cron,
+      sessions: stampActiveConnectionOwner(result.cron?.sessions ?? []),
+      ...(result.errors?.length ? { errors: result.errors } : {})
+    },
+    messaging: {
+      ...result.messaging,
+      sessions: stampActiveConnectionOwner(result.messaging?.sessions ?? []),
+      ...(result.errors?.length ? { errors: result.errors } : {})
+    },
     errors: result.errors
   }
 }
@@ -378,7 +412,8 @@ export function getSession(id: string, profile?: ProfileScope): Promise<SessionI
 export function getSessionMessages(
   id: string,
   profile?: ProfileScope,
-  page: { limit?: number; offset?: number; order?: 'latest' | 'oldest'; includeCompacted?: boolean } = {}
+  page: { limit?: number; offset?: number; order?: 'latest' | 'oldest'; includeCompacted?: boolean } = {},
+  options: { passive?: boolean } = {}
 ): Promise<SessionMessagesResponse> {
   const query = new URLSearchParams()
 
@@ -408,7 +443,8 @@ export function getSessionMessages(
 
   return hermesApi<SessionMessagesResponse>({
     ...sessionScope,
-    path: `/api/sessions/${encodeURIComponent(id)}/messages${suffix}`
+    path: `/api/sessions/${encodeURIComponent(id)}/messages${suffix}`,
+    ...(options.passive ? { passive: true } : {})
   })
 }
 
@@ -421,23 +457,49 @@ export function getSessionMessages(
  */
 export const LATEST_SESSION_MESSAGES_LIMIT = 120
 
-export function getLatestSessionMessages(id: string, profile?: ProfileScope): Promise<SessionMessagesResponse> {
+export function getLatestSessionMessages(
+  id: string,
+  profile?: ProfileScope,
+  options: { passive?: boolean } = {}
+): Promise<SessionMessagesResponse> {
+  // Key pagination by the effective request owner, not the caller's spelling
+  // (ambient, profile string, or explicit pin). Otherwise refreshes create
+  // duplicate tail entries and "Show earlier" cannot resolve the loaded tail.
+  // Capture before awaiting: the active gateway may change during the read.
+  const route = { ...connectionScoped(), ...sessionScoped(profile) }
+  // Only the lookup key is normalized — backfill replays `route` verbatim.
+  const ambientConnectionId = route.connectionId || ambientOwnerConnectionId()
+  const ambientProfile = getApiRequestProfile() || 'default'
+
   // includeCompacted: durable display history must include rows preserved by
   // in-place compaction (active=0, compacted=1); without them the transcript
   // silently ends at the compaction boundary and earlier turns are unreachable.
-  return getSessionMessages(id, profile, {
-    limit: LATEST_SESSION_MESSAGES_LIMIT,
-    order: 'latest',
-    includeCompacted: true
-  }).then(page => {
+  return getSessionMessages(
+    id,
+    profile,
+    {
+      limit: LATEST_SESSION_MESSAGES_LIMIT,
+      order: 'latest',
+      includeCompacted: true
+    },
+    options
+  ).then(page => {
     // Record whether the tail was truncated (page came back full) and where
     // the next older page starts, so "Show earlier" can backfill over REST
     // (app/chat/transcript-backfill). Keyed under both the requested id and
     // the resolved id — callers hold either.
-    recordTranscriptTail(id, page, profile)
+    // A backend that predates the `profile` field cannot name itself; its
+    // untagged read landed on the ambient profile.
+    const owner = {
+      ...route,
+      connectionId: ambientConnectionId,
+      profile: route.profile || page.profile || ambientProfile
+    }
+
+    recordTranscriptTail(id, page, route, owner)
 
     if (page.session_id && page.session_id !== id) {
-      recordTranscriptTail(page.session_id, page, profile)
+      recordTranscriptTail(page.session_id, page, route, owner)
     }
 
     return page

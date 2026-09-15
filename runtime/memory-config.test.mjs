@@ -18,10 +18,13 @@ import {
   CORE_BASE_URL_ENV,
   CORE_OPENAI_BASE_URL,
   coreEndpoint,
+  MEM0_DIR_NAME,
   MEMORY_ENV,
+  memoryEnv,
   MEMORY_PROVIDER,
   mergeMemoryProviderIntoConfigYaml,
   projectMemoryKey,
+  SYNC_MAX_CHARS,
   vectorStorePath,
 } from "./memory-config.mjs";
 import { RUNTIME_DIR } from "./hermes-env.mjs";
@@ -129,14 +132,37 @@ describe("ключ 4: MEM0_TELEMETRY", () => {
     // Читается исходник: окружение процесса иначе не проверить без запуска.
     const serve = fs.readFileSync(path.join(RUNTIME_DIR, "serve.mjs"), "utf-8");
 
-    expect(serve).toContain('import { MEMORY_ENV } from "./memory-config.mjs"');
-    expect(serve).toContain("...MEMORY_ENV,");
+    expect(serve).toContain('import { memoryEnv } from "./memory-config.mjs"');
+    expect(serve).toContain("...memoryEnv(HERMES_HOME_DIR),");
   });
 
   it("переменная стоит ДО extraEnv: вызывающий вправе её перекрыть", () => {
     const serve = fs.readFileSync(path.join(RUNTIME_DIR, "serve.mjs"), "utf-8");
 
-    expect(serve.indexOf("...MEMORY_ENV,")).toBeLessThan(serve.indexOf("...extraEnv,"));
+    expect(serve.indexOf("...memoryEnv(HERMES_HOME_DIR),")).toBeLessThan(serve.indexOf("...extraEnv,"));
+  });
+});
+
+describe("D-85: каталог mem0 внутри профиля, а не ~/.mem0", () => {
+  it("memoryEnv несёт телеметрию и MEM0_DIR под профилем", () => {
+    const env = memoryEnv("C:\\profile");
+
+    expect(env.MEM0_TELEMETRY).toBe("false");
+    expect(env.MEM0_DIR).toBe(path.join("C:\\profile", MEM0_DIR_NAME));
+  });
+
+  it("два других запуска ядра из main-процесса называют тот же каталог", () => {
+    // Main-процесс этот модуль статически не импортирует, имя продублировано —
+    // читается исходник, чтобы дубликаты не разъехались молча.
+    const cron = fs.readFileSync(
+      path.join(RUNTIME_DIR, "..", "apps", "desktop", "src", "main", "cron-runner.ts"),
+      "utf-8",
+    );
+    const facts = fs.readFileSync(path.join(RUNTIME_DIR, "memory-facts.py"), "utf-8");
+
+    expect(cron).toContain(`MEM0_DIR: join(env.homeDir, '${MEM0_DIR_NAME}')`);
+    expect(cron).toContain("MEM0_TELEMETRY: 'false'");
+    expect(facts).toContain(`os.environ.setdefault("MEM0_DIR", os.path.join(home, "${MEM0_DIR_NAME}"))`);
   });
 });
 
@@ -160,6 +186,25 @@ describe("слияние с тем, что написало ядро", () => {
     expect(merged.mode).toBe("oss");
     expect(merged.oss.llm.provider).toBe("openai");
     expect(merged.oss.llm.config.openai_base_url).toBe(CORE_OPENAI_BASE_URL);
+  });
+});
+
+describe("задача 3.B4е: порог синхронизации хода", () => {
+  it("стоит на верхнем уровне mem0.json — там, где его читает их initialize()", () => {
+    expect(mem0().sync_max_chars).toBe(SYNC_MAX_CHARS);
+    expect(SYNC_MAX_CHARS).toBe(16000);
+  });
+
+  it("выше их умолчания 450, а не равен ему: иначе ключ ничего не меняет", () => {
+    expect(mem0().sync_max_chars).toBeGreaterThan(450);
+  });
+
+  it("выставляется заново поверх чужого значения", () => {
+    const merged = buildMem0Json(
+      { sync_max_chars: 450 },
+      { baseUrl: CORE_OPENAI_BASE_URL, vectorPath: vectorStorePath(HOME) }
+    );
+    expect(merged.sync_max_chars).toBe(SYNC_MAX_CHARS);
   });
 });
 

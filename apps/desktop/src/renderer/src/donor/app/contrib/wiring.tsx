@@ -1,13 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/wiring.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet surface (HX1)
  *   [3] dropped the Send Diagnostics host — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3
  *   [3] dropped the credits-notice dev demo — billing (HX2)
+ *   [3] dropped the intro-reveal film and the onboarding-chat gate with its
+ *       kickoff/handoff hooks (HX26) and the free-tier sign-in dialog (HX3)
  *   [3] the wake phrase no longer starts a continuous voice conversation, and no
  *       longer raises the wake badge that only that conversation could lower —
  *       SPEC HX19 (owner decision 2026-09-08)
@@ -56,8 +58,10 @@ import { $billingSettingsRequest } from '@/store/billing-block'
 import { $desktopBoot } from '@/store/boot'
 import { $activeConnectionId } from '@/store/connections'
 import { $cronReviewRequest, setCronFocusJobId } from '@/store/cron'
+import { requestGatewayForProfile } from '@/store/gateway'
 import { $pinnedSessionIds, pinSession, restoreWorktree, unpinSession } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
+import { $poolLimitsSettingsRequest } from '@/store/pool-limits'
 import { $previewTarget } from '@/store/preview'
 import {
   $activeGatewayProfile,
@@ -69,7 +73,7 @@ import {
   normalizeProfileKey,
   refreshActiveProfile
 } from '@/store/profile'
-import { $startWorkSessionRequest, followActiveSessionCwd } from '@/store/projects'
+import { $newProjectSessionRequest, $startWorkSessionRequest, followActiveSessionCwd } from '@/store/projects'
 import {
   $activeSessionId,
   $connection,
@@ -92,6 +96,7 @@ import {
   setBusy,
   setMessages
 } from '@/store/session'
+import { $titlebarAppActionsSide, titlebarAppActionsClusterCounts } from '@/store/titlebar-app-actions'
 import { clearSessionTodos, setSessionTodos, todosForHydration } from '@/store/todos'
 import { armWakeWord, stopClientCapture } from '@/store/wake-word'
 import { isAuxiliaryWindow, isBrowserWindow, isHudWindow } from '@/store/windows'
@@ -104,6 +109,7 @@ import { CommandPalette } from '../command-palette'
 import { triggerAndRefreshCronJobs } from '../cron/cron-actions'
 import { useGatewayBoot } from '../gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from '../gateway/hooks/use-gateway-request'
+import { useHermesConfigRecord } from '../hooks/use-config-record'
 import { useKeybinds } from '../hooks/use-keybinds'
 import { useHudHandoff } from '../hud/handoff'
 import { ModelPickerOverlay } from '../model-picker-overlay'
@@ -122,6 +128,7 @@ import {
   SETTINGS_ROUTE,
   syncWorkspaceRoute
 } from '../routes'
+import { SessionImportView } from '../session-import'
 import { SessionPickerOverlay } from '../session-picker-overlay'
 import { SessionSwitcher } from '../session-switcher'
 import { useBackgroundQueueDrain } from '../session/hooks/use-background-queue-drain'
@@ -161,10 +168,13 @@ import { useDesktopIntegrations } from './hooks/use-desktop-integrations'
 import { useQuickEntryBridge } from './hooks/use-quick-entry-bridge'
 import { useSessionTileDelegate } from './hooks/use-session-tile-delegate'
 import { McpInstallDeepLinkDialog } from './mcp-install-deeplink-dialog'
+// EDIT [3]: the onboarding-chat kickoff/handoff hooks are gone with the
+// onboarding chat (HX26) — see the gates below.
 import { $restartPreviewServer, useTitlebarToolContributions } from './panes'
-import { createSessionRpcDispatcher } from './session-rpc-dispatcher'
+import { type AmbientGatewayRequest, createSessionRpcDispatcher } from './session-rpc-dispatcher'
 import { ChatRoutesSurface, SidebarSurface, StatusbarSurface, TerminalSurface } from './surfaces'
 import type { WiringActions, WiringApi } from './types'
+import { POOL_LIMITS_SETTINGS_ROUTE } from './wiring-routing'
 
 // Overlay views the controller mounts over the shell — lazy, load on demand.
 // The workspace-route full-page views (skills/messaging/artifacts) are the
@@ -184,6 +194,9 @@ const WebhooksView = lazy(async () => ({ default: (await import('../webhooks')).
 // the controller that assembles them.
 export { WiredPane } from './context'
 
+// Only the RPCs issued by session creation follow the handoff's profile pin.
+const HANDOFF_CREATE_LEG_METHODS = new Set(['config.set', 'session.close', 'session.create'])
+
 export function ContribWiring({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const location = useLocation()
@@ -195,6 +208,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   // context (the sticky toast). The shell owns `navigate`, so it consumes the
   // intent counter here; the ref skips the initial mount value.
   const billingSettingsSeenRef = useRef(0)
+  const poolLimitsSettingsSeenRef = useRef(0)
   const cronReviewSeenRef = useRef(0)
   const activeTranscriptSignatureRef = useRef(new Map<string, string>())
   const activeTranscriptRequestSequenceRef = useRef(0)
@@ -205,6 +219,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   const gatewayState = useStore($gatewayState)
   const activeSessionId = useStore($activeSessionId)
   const billingSettingsRequest = useStore($billingSettingsRequest)
+  const poolLimitsSettingsRequest = useStore($poolLimitsSettingsRequest)
   const cronReviewRequest = useStore($cronReviewRequest)
   const currentCwd = useStore($currentCwd)
 
@@ -220,6 +235,22 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       navigate(`${SETTINGS_ROUTE}?tab=billing`)
     }
   }, [billingSettingsRequest, navigate])
+
+  // Pool-cap recovery is fired by the notification action, which has no router
+  // context. Keep navigation user-initiated: the counter changes only when the
+  // user clicks "Open Advanced Settings" on a pool-slot failure.
+  // eslint-disable-next-line no-restricted-syntax -- one-shot request-seen sentinel, not an atom mirror
+  useEffect(() => {
+    if (poolLimitsSettingsRequest === poolLimitsSettingsSeenRef.current) {
+      return
+    }
+
+    poolLimitsSettingsSeenRef.current = poolLimitsSettingsRequest
+
+    if (poolLimitsSettingsRequest > 0) {
+      navigate(POOL_LIMITS_SETTINGS_ROUTE)
+    }
+  }, [navigate, poolLimitsSettingsRequest])
 
   // eslint-disable-next-line no-restricted-syntax -- one-shot request-seen sentinel, not an atom mirror
   useEffect(() => {
@@ -309,12 +340,18 @@ export function ContribWiring({ children }: { children: ReactNode }) {
 
   const { connectionRef, gateway, gatewayRef, requestGateway: ambientRequestGateway } = useGatewayRequest()
 
+  // The guide remains selected while handoff creates on another profile.
+  // Without this pin, the owner ladder sends session.create to hermes-setup
+  // despite the gateway switch (#89206). Scope it to the create leg so
+  // concurrent session traffic keeps its recorded owner.
+  const handoffCreateProfileRef = useRef<null | string>(null)
+
   // When chrome stays on the launch backend (Bot Mode / all-profiles
   // navigation), session-owned RPCs still have to hit the session's backend.
   // The routing itself lives in createSessionRpcDispatcher (routed by the
   // session the RPC targets, owner ladder in resolveSessionRpcOwner) so the
   // exact production dispatcher is what the integration tests drive.
-  const requestGateway = useMemo(
+  const dispatchSessionRpc = useMemo(
     () =>
       createSessionRpcDispatcher({
         ambientRequest: ambientRequestGateway,
@@ -323,6 +360,21 @@ export function ContribWiring({ children }: { children: ReactNode }) {
         sessionStateByRuntimeIdRef
       }),
     [ambientRequestGateway, runtimeIdByStoredSessionIdRef, selectedStoredSessionIdRef, sessionStateByRuntimeIdRef]
+  )
+
+  const requestGateway = useCallback<AmbientGatewayRequest>(
+    (method, params, timeoutMs, signal) => {
+      // The new build belongs to the handoff target; the selected guide's
+      // owner ladder would send its create to the wrong socket (#89206).
+      const handoffProfile = handoffCreateProfileRef.current
+
+      if (handoffProfile !== null && HANDOFF_CREATE_LEG_METHODS.has(method)) {
+        return requestGatewayForProfile(handoffProfile, method, params ?? {}, timeoutMs, signal)
+      }
+
+      return dispatchSessionRpc(method, params, timeoutMs, signal)
+    },
+    [dispatchSessionRpc]
   )
 
   const { loadMoreMessagingForPlatform, loadMoreSessions, refreshCronJobs, refreshMessagingSessions, refreshSessions } =
@@ -354,6 +406,8 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   const { refreshHermesConfig, sttEnabled, voiceMaxRecordingSeconds } = useHermesConfig({ activeSessionIdRef })
 
   const { applySavedMainModel, refreshCurrentModel, selectModel } = useModelControls({
+    cacheOwnerConnectionId: activeConnectionId || undefined,
+    cacheProfile: activeGatewayProfile,
     queryClient,
     requestGateway
   })
@@ -609,6 +663,34 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     }
   }, [startSessionInWorkspace, startWorkSessionRequest])
 
+  // EDIT [3]: `runCreatePinnedTo` (the onboarding handoff's only caller) is gone
+  // with the hooks above (HX26); `handoffCreateProfileRef` stays unset.
+
+  // "New project" DRAG completion: the dialog created a project that was
+  // dropped onto a chat zone (tab-strip slot / pane edge / pane center). Open
+  // its fresh session draft exactly there — the same `openNewSessionTile`
+  // create path the new-session drags use — so the project starts, and stays,
+  // where it was dropped. Consume-once: drop the request after handling.
+  const newProjectSessionRequest = useStore($newProjectSessionRequest)
+
+  useEffect(() => {
+    if (!newProjectSessionRequest) {
+      return
+    }
+
+    const { path, placement } = newProjectSessionRequest
+
+    $newProjectSessionRequest.set(null)
+    void openNewSessionTile(placement.dir, {
+      anchor: placement.anchor,
+      before: placement.before,
+      cwd: path,
+      // Same draft-tab contract as onNewSessionSplit: a center/strip drop is
+      // an unlisted draft tab until its first turn; an edge split lists.
+      listed: placement.dir === 'center' ? false : undefined
+    })
+  }, [newProjectSessionRequest, openNewSessionTile])
+
   const composer = useComposerActions({ activeSessionId, currentCwd, requestGateway })
 
   const branchInNewChat = useCallback(
@@ -858,6 +940,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   // remembered-session restore, and cross-window session-list sync.
   const previewTarget = useStore($previewTarget)
 
+  // display.resume_last_session gates the cold-start restore. `undefined` while
+  // the record is still loading holds the restore latch open; a failed fetch
+  // falls back to the historical behavior (resume).
+  const configRecord = useHermesConfigRecord()
+
+  const resumeLastSession = configRecord.isPending
+    ? undefined
+    : (configRecord.data?.display as { resume_last_session?: unknown } | undefined)?.resume_last_session !== false
+
   useDesktopIntegrations({
     activeProfile: normalizeProfileKey(activeGatewayProfile),
     chatOpen,
@@ -866,6 +957,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     navigate,
     profileReady: boot.phase === 'renderer.ready',
     refreshSessions,
+    resumeLastSession,
     resumeExhaustedSessionId,
     routedSessionId,
     runtimeIdByStoredSessionId: runtimeIdByStoredSessionIdRef,
@@ -997,7 +1089,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     },
     onNavigate: selectSidebarItem,
     onNewSessionInWorkspace: path => startSessionInWorkspace(path, { openTab: true }),
-    onNewSessionSplit: dir => void openNewSessionTile(dir),
+    onNewSessionSplit: (dir, opts) =>
+      void openNewSessionTile(dir, {
+        ...opts,
+        // A CENTER drop stacks a fresh TAB: keep the existing draft-tab
+        // contract and leave it out of the sidebar until its first turn
+        // persists (same as the tab-strip "+" and the occupied-project "+").
+        // An EDGE drop SPLITS a visible pane — list it like every other split.
+        listed: dir === 'center' ? false : undefined
+      }),
     onPasteClipboardImage: opts => composer.pasteClipboardImage(opts),
     onPickFiles: () => void composer.pickContextPaths('file'),
     onPickFolders: () => void composer.pickContextPaths('folder'),
@@ -1115,20 +1215,16 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   }
 
   const titlebarToolsRight = titlebarToolsRightCss(nativeOverlayWidth, titlebarChrome)
-  // Pane-registered tools (preview's monitor/devtools cluster) anchor flush
-  // against the static system cluster — in the tree layout the titlebar band
-  // sits ABOVE the grid, so AppShell's pane-width anchoring doesn't apply.
-  // Count every button the static cluster actually renders: four systemTools
-  // (layout, haptics, keybinds, settings) PLUS the always-present
-  // right-sidebar toggle (see titlebar-controls.tsx). A shared width that
-  // under-counts leaves the find bar, the titlebar header padding, and the
-  // pane-cluster anchor overlapping the fifth button.
-  const SYSTEM_TOOL_COUNT = 5
+  const appActionsSide = useStore($titlebarAppActionsSide)
   const paneToolCount = rightTitlebarTools.filter(tool => !tool.hidden).length
-  const systemToolsWidth = titlebarToolsWidthCss(SYSTEM_TOOL_COUNT)
+  const leftExtraCount = leftTitlebarTools.filter(tool => !tool.hidden).length
+  const clusters = titlebarAppActionsClusterCounts(appActionsSide, leftExtraCount, 0)
+  const systemToolsWidth = titlebarToolsWidthCss(clusters.right)
 
   const titlebarToolsWidth =
     paneToolCount > 0 ? `calc(${systemToolsWidth} + ${titlebarToolsWidthCss(paneToolCount)})` : systemToolsWidth
+
+  const leftToolsWidth = titlebarToolsWidthCss(clusters.left)
 
   return (
     <ContribWiringContext.Provider value={api}>
@@ -1138,6 +1234,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
           {
             '--titlebar-controls-left': `${controlsPos.left}px`,
             '--titlebar-controls-top': `${controlsPos.top}px`,
+            '--titlebar-controls-width': leftToolsWidth,
             '--titlebar-controls-y-nudge': titlebarControlsYNudge(titlebarChrome),
             '--titlebar-tools-right': titlebarToolsRight,
             '--titlebar-tools-width': titlebarToolsWidth,
@@ -1161,6 +1258,8 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       {/* The full real overlay set (mirrors DesktopController's `overlays`). */}
       <RemoteDisplayBanner />
       {!isAuxiliaryWindow() && <DesktopInstallOverlay />}
+      {/* EDIT [3]: their first launch — the intro-reveal film and the onboarding
+          chat gate — is HX26; our own first-run wizard (aec/onboarding) runs instead. */}
       {!isAuxiliaryWindow() && (
         <DesktopOnboardingOverlay
           enabled={gatewayState === 'open'}
@@ -1173,11 +1272,19 @@ export function ContribWiring({ children }: { children: ReactNode }) {
           requestGateway={requestGateway}
         />
       )}
-      <ModelPickerOverlay gateway={gateway || undefined} onSelect={selectModel} profile={activeGatewayProfile} />
+      {/* EDIT [3]: the free-tier sign-in dialog is their cloud (HX3). */}
+      <ModelPickerOverlay
+        gateway={gateway || undefined}
+        onSelect={selectModel}
+        ownerConnectionId={activeConnectionId || undefined}
+        profile={activeGatewayProfile}
+        requestGateway={requestGateway}
+      />
       <SessionPickerOverlay onResume={sessionId => openSession(sessionId, navigate)} />
       <ModelVisibilityOverlay
         gateway={gateway || undefined}
         onOpenProviders={openProviderSettings}
+        ownerConnectionId={activeConnectionId || undefined}
         profile={activeGatewayProfile}
       />
       <UpdatesOverlay />
@@ -1208,6 +1315,18 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             }}
           />
         </Suspense>
+      )}
+
+      {currentView === 'session-import' && (
+        <SessionImportView
+          key={`${activeConnectionId}:${activeGatewayProfile}`}
+          onClose={closeOverlayToPreviousRoute}
+          onOpenSession={sessionId => {
+            closeOverlayToPreviousRoute()
+            openSession(sessionId, navigate, 'stack')
+          }}
+          owner={{ connectionId: activeConnectionId || 'local', profile: activeGatewayProfile }}
+        />
       )}
 
       {commandCenterOpen && (

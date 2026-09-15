@@ -43,7 +43,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
 import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -151,8 +151,11 @@ export function readPlatforms({ python = PYTHON_BIN, src = HERMES_SRC_DIR } = {}
     "import json",
     // The private name is deliberate: this is the function their REST route
     // `/api/messaging/platforms` calls, so the registry measures the list the
-    // window shows, not a second list that agrees with it today.
-    "from hermes_cli.web_server import _messaging_platform_catalog",
+    // window shows, not a second list that agrees with it today. Since 0.21.2
+    // it lives in `web_server_messaging.py` (the monolith was split into
+    // `web_routers/*` + per-area modules; the route in `web_routers/messaging.py`
+    // imports it from there) — задача 3.B4.
+    "from hermes_cli.web_server_messaging import _messaging_platform_catalog",
     "from hermes_cli.platforms import PLATFORMS",
     "import toolsets",
     "cat = _messaging_platform_catalog()",
@@ -165,7 +168,12 @@ export function readPlatforms({ python = PYTHON_BIN, src = HERMES_SRC_DIR } = {}
     'print("PLATFORM_JSON " + json.dumps(out))',
   ].join("\n");
 
-  const answer = execFileSync(python, ["-c", code], { cwd: src, encoding: "utf-8" });
+  // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).
+  const answer = execFileSync(python, ["-c", code], {
+    cwd: src,
+    encoding: "utf-8",
+    env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR },
+  });
   const line = answer.split(/\r?\n/).find((one) => one.startsWith("PLATFORM_JSON "));
   if (!line) throw new Error("ядро не отдало каталог платформ");
 

@@ -1,12 +1,12 @@
 // Russian catalog for the roster plugin's own strings (task 3D.5, SPEC C7).
 //
-// Unlike `ru.ts` this one is COMPLETE, and the difference is deliberate. `ru.ts`
-// is a partial over ~2900 donor strings whose screens arrive across many tasks,
-// so an untranslated key falls back to English on a screen nobody has seen yet.
-// The roster is the opposite: its screens are in the product NOW (tasks 3D.2–
-// 3D.3), a person meets them on first launch, and a half-Russian roster would be
-// the first thing they see. Typing it as their `BotsMessages` on the donor side
-// makes "complete" a compile error rather than a promise.
+// This one is COMPLETE by construction: typing it as their `BotsMessages` on the
+// donor side makes a missing key a compile error rather than a promise, and a
+// core raise that adds a key to their bundle (3.B4: `sections`,
+// `slashCommandsUnsupported`) fails typecheck until the Russian line exists.
+// The roster is the first screen a person meets, so a half-Russian roster would
+// be the first thing they see. (`ru.ts` is their own full catalog since 3.B4в;
+// the bots plugin keeps its bundle apart, so its Russian lives here.)
 //
 // VOCABULARY IS OURS, NOT A LITERAL TRANSLATION. Their `bot` is our
 // «специалист» and their `group chat` is our «комната» — the words SPEC UR27
@@ -62,6 +62,29 @@ export const botsRu = {
       `Список недоступен: ${reason}. Если ваш шлюз старше profiles.list, обновите AECPilot и перезапустите шлюз.`,
     waitingForGateway:
       'Ждём подключения к шлюзу… (удалённый шлюз отвечает не сразу; повтор идёт сам)'
+  },
+  sections: {
+    newSection: 'Новый раздел',
+    newTitle: 'Новый раздел',
+    renameTitle: 'Переименовать раздел',
+    nameLabel: 'Название раздела',
+    namePlaceholder: 'например, Заказчики',
+    create: 'Создать',
+    rename: 'Переименовать…',
+    moveUp: 'Переместить выше',
+    moveDown: 'Переместить ниже',
+    unassigned: 'Без раздела',
+    options: (name: string) => `Действия с разделом «${name}»`,
+    headingTip: 'Перетащите специалистов сюда · двойной щелчок — переименовать',
+    emptyHint: 'Перетащите специалистов сюда',
+    moveTo: 'Переместить в раздел',
+    newSectionEllipsis: 'Новый раздел…',
+    removeFromSection: 'Убрать из раздела',
+    deleted: (name: string, count: number) =>
+      count === 0
+        ? `Раздел «${name}» удалён`
+        : `Раздел «${name}» удалён — перенесено в «Без раздела»: ${count}`,
+    undo: 'Отменить'
   },
   bot: {
     newTitle: 'Новый специалист',
@@ -125,6 +148,8 @@ export const botsRu = {
     deleteTitle: 'Удалить комнату?',
     deleteAction: 'Удалить',
     composerPlaceholder: 'Напишите — вас слышат все в комнате.',
+    slashCommandsUnsupported:
+      'Слэш-команды в комнате не работают. Откройте чат отдельного специалиста, чтобы ими воспользоваться.',
     attachHint: 'Приложить файлы — их увидит каждый, кто ответит',
     newThread: 'Новая ветка',
     reply: 'Ответить',

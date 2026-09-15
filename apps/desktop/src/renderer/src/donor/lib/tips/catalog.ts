@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tips/catalog.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -42,7 +42,6 @@ export type TipId =
   | 'composer-mentions'
   | 'cron'
   | 'messaging'
-  | 'model-switch'
   | 'new-session'
   | 'profiles'
   | 'right-pane'
@@ -60,6 +59,5 @@ export const TIP_CATALOG: readonly TipDef[] = [
   { id: 'command-palette', keybind: 'nav.commandPalette', side: 'right', targets: ['[data-tour="sessions-sidebar"]'] },
   { id: 'profiles', keybind: 'profile.next', side: 'right', targets: ['[data-tour="profile-rail"]'] },
   { id: 'composer-mentions', side: 'top', targets: ['[data-tour="composer"]'] },
-  { id: 'model-switch', keybind: 'composer.modelPicker', side: 'top', targets: ['[data-tour="model-pill"]'] },
   { id: 'right-pane', keybind: 'view.toggleRightSidebar', side: 'bottom', targets: ['[data-tour="right-pane-toggle"]'] }
 ]

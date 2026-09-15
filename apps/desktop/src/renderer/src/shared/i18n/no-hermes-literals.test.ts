@@ -30,8 +30,21 @@ import { describe, expect, it } from 'vitest'
 const ZONE = join(__dirname, '..', '..', 'donor')
 
 /** Чужие каталоги переводов: их языки не предлагаются (SPEC C7), а английский
- * переписывается на лету (`debrand.ts`). */
-const SKIP_FILES = new Set(['en.ts', 'ar.ts', 'ja.ts', 'zh.ts', 'zh-hant.ts', 'voice-stop-word.ts'])
+ * и — с 0.21.2 — их русский переписываются на лету (`debrand.ts`; собранные
+ * каталоги мерит `no-hermes.test.ts`). */
+const SKIP_FILES = new Set(['en.ts', 'ru.ts', 'ar.ts', 'ja.ts', 'zh.ts', 'zh-hant.ts', 'voice-stop-word.ts'])
+
+/** Файлы поверхности, которой в продукте НЕТ: их онбординг-чат (SPEC HX26).
+ * Регистрация снята в `wiring.tsx` (правка [3]), флаг `guestOnboardingEnabled`
+ * объявлен отсутствующим в шиме, и весь чат стоит за `isOnboardingEnabled()`.
+ * Здесь лежат его промпты и имя его профиля — человеку не показываются, агенту
+ * не отправляются. Переписывать промпт мёртвого кода значило бы править
+ * инструкцию агента, которую никто не исполняет. Если HX26 когда-нибудь
+ * пересмотрят, строки снимаются отсюда, и гвард потребует правку [5]. */
+const DEAD_SURFACE_FILES = new Set([
+  join('components', 'onboarding-chat', 'setup-profile.ts'),
+  join('store', 'onboarding-script.ts')
+])
 
 const TECHNICAL = new RegExp(
   [
@@ -102,7 +115,21 @@ const TECHNICAL = new RegExp(
     // разрешённых видов правок (AGENTS §14).
     'hermes-watch', // имя их пользовательского элемента накладки
     'HERMES-WATCH', // оно же в верхнем регистре: сравнение с `tagName`
-    '__hermes-tour-' // id слоёв экскурсии: стиль, подсветка, маска
+    '__hermes-tour-', // id слоёв экскурсии: стиль, подсветка, маска
+    // Пополнение при подъёме донора на 0.21.2 (задача 3.B4) — все технические.
+    // Первые два — аннотации на предпросмотре, тот же класс, что `hermes-watch`
+    // выше: имя элемента-хоста, который движок вписывает в чужую страницу, и
+    // имя API внутри неё (`window.__hermesAnnotate`).
+    'hermes-annotate',
+    '__hermesAnnotate',
+    'hermes-plugin-pick', // тип сообщения выбора из каталога плагинов, как `hermes-skill-pick`
+    '\.hermes-package\.json', // маркер-файл рядом с половиной пакета плагина
+    // Ключи их локального хранилища: квитанция передачи онбординга, «заставку
+    // видели», время последней фоновой проверки обновлений.
+    'hermes\.onboarding\.handoff',
+    'hermes-intro-reveal-seen',
+    'hermes\.updates\.',
+    "^'hermes-setup'$" // имя ПРОФИЛЯ их онбординг-гида — ключ реестра профилей
   ].join('|')
 )
 
@@ -117,6 +144,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
     }
     if (!/\.tsx?$/.test(entry) || SKIP_FILES.has(entry)) continue
     if (/\.test\.tsx?$/.test(entry)) continue // тесты зоны — не интерфейс, см. шапку
+    if (DEAD_SURFACE_FILES.has(path.slice(ZONE.length + 1))) continue
     out.push(path)
   }
   return out

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/preview-row.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -128,12 +128,14 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
     >
       <Tip
         label={
-          // inline-flex (not flex): a block child collapses Tip's decoration
-          // wrapper geometry and mis-positions the tooltip (#62022).
-          <span className="inline-flex flex-col gap-0.5">
-            <span>{item.target}</span>
+          // Inline flow with a hard break, not a flex column: Tip's background
+          // only wraps inline content, so a flex box would light the first
+          // line and leave the rest dark-on-dark.
+          <>
+            {item.target}
+            <br />
             <span className="opacity-70">{t.preview.linkHint}</span>
-          </span>
+          </>
         }
       >
         <span className="min-w-0 truncate text-[0.73rem] leading-4 text-foreground/92">{item.label}</span>

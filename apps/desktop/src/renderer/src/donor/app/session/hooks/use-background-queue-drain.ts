@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-background-queue-drain.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,7 +20,7 @@ import {
   shouldAutoDrain
 } from '@/store/composer-queue'
 import { notify } from '@/store/notifications'
-import { $sessions, idsShareLineage } from '@/store/session'
+import { $sessions, $sessionsLoading, idsShareLineage } from '@/store/session'
 import { $workingSessionIds } from '@/store/session-states'
 
 import type { SubmitTextOptions } from './use-prompt-actions/utils'
@@ -53,6 +53,7 @@ export function useBackgroundQueueDrain({
   const { t } = useI18n()
   const queuedPromptsBySession = useStore($queuedPromptsBySession)
   const parkedQueueSessions = useStore($parkedQueueSessions)
+  const sessionsLoading = useStore($sessionsLoading)
   const workingSessionIds = useStore($workingSessionIds)
   const submitTextRef = useRef(submitText)
   const drainingSessionIdsRef = useRef(new Set<string>())
@@ -158,7 +159,10 @@ export function useBackgroundQueueDrain({
   )
 
   useEffect(() => {
-    if (!enabled) {
+    // Preserve the retry budget while session discovery runs at boot, on a
+    // gateway/profile switch, or during a refresh over an empty list.
+    // Once discovery settles, submitText can resume by stored id.
+    if (!enabled || sessionsLoading) {
       return
     }
 
@@ -201,6 +205,7 @@ export function useBackgroundQueueDrain({
     queuedPromptsBySession,
     retryTick,
     selectedStoredSessionId,
+    sessionsLoading,
     workingSessionIds
   ])
 }

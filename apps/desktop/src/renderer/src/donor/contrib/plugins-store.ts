@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/plugins-store.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,6 +31,10 @@ export interface PluginRecord {
   error?: string
   /** Absolute plugin.js path (disk plugins) — powers "Reveal in Finder". */
   file?: string
+  /** Agent package this is the desktop half of (unified agent+desktop packages). */
+  packageName?: string
+  /** Where that package came from (catalog sidecar or git remote), when known. */
+  packageOrigin?: { catalogName?: string; repo?: string; sha?: string }
 }
 
 // Explicit user enable/disable choices, id -> boolean. ABSENCE means "no

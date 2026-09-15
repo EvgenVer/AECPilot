@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/registry.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import type { RichFenceProps } from './types'
 // renderer is its own split chunk (mermaid pulls in the mermaid lib, svg pulls
 // in DOMPurify), loaded only when a block of that language actually appears.
 const LAZY_FENCE: Record<string, LazyExoticComponent<ComponentType<RichFenceProps>>> = {
+  listing: lazy(() => import('./listing-embed')),
   mermaid: lazy(() => import('./mermaid-embed')),
   svg: lazy(() => import('./svg-embed'))
 }

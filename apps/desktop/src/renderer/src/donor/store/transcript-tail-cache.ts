@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/transcript-tail-cache.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,8 +30,10 @@ import { withUniqueToolCallIdsWithinMessage } from '@/lib/chat-messages'
 //     profile switches in the same window: an unscoped key let profile A's
 //     tail be painted against profile B's backend, which then retried a
 //     session id that does not exist there ("session not found") on every
-//     wake. The scope mirrors the in-memory twin's transcriptTailKey
-//     (transcript-tail.ts). Entries persisted before scoping shipped (v1,
+//     wake. The scope is the REQUEST scope the resume path passes (always a
+//     named profile); the in-memory twin (transcript-tail.ts) keys by the
+//     resolved owner instead and the two are never cross-read. Entries
+//     persisted before scoping shipped (v1,
 //     bare-id keys) carry no owner and are unreachable by construction —
 //     they are swept once per window so a stale tail can never paint again.
 

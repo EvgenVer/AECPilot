@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/status.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -20,13 +20,17 @@ import { SCAFFOLD_LABEL_CLASS } from '@/components/chat/scaffold-row'
 import { Codicon } from '@/components/ui/codicon'
 import { Loader } from '@/components/ui/loader'
 import { StatusPulse } from '@/components/ui/status-pulse'
+import { getLocalModelsStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { $backgroundResume } from '@/store/background-delegation'
 import { sessionCompacting } from '@/store/compaction'
+import { $localModelsEnabled } from '@/store/local-models-flag'
 import { sessionAwaitingInput } from '@/store/prompts'
-import { sessionProviderWait } from '@/store/provider-wait'
+import { parseModelLoadWait, sessionProviderWait } from '@/store/provider-wait'
+import { $currentModel } from '@/store/session'
 import { type DraftingTool, sessionDraftingTool } from '@/store/tool-drafting'
+import type { LocalModelLoadProgress } from '@/types/hermes'
 
 // A status line is scaffolding like any other — "Editing" while the model
 // drafts a call is the same kind of line as "Explored 3 files" once it has run,
@@ -58,6 +62,100 @@ const COMPACTION_LABEL = 'Summarizing thread'
 
 const HintText: FC<{ children: ReactNode }> = ({ children }) => (
   <span className={cn(SCAFFOLD_LABEL_CLASS, 'shimmer min-w-0 flex-1 truncate')}>{children}</span>
+)
+
+/** Renderer-side load synthesis: poll the local-models status while a turn
+ * is busy with NO progress frame from the backend. The backend's wait loop
+ * only narrates the MAIN chat request — a model load triggered while the
+ * gateway is still initializing, or one consumed by a parallel auxiliary
+ * call (title generation autoloads the same model), never gets a frame,
+ * and the load looked like nothing was happening. The status route reads
+ * the same SSE snapshot, so this bar carries the identical percent. */
+function useLocalModelLoad(active: boolean): (LocalModelLoadProgress & { model: string }) | null {
+  const model = useStore($currentModel)
+  const [progress, setProgress] = useState<(LocalModelLoadProgress & { model: string }) | null>(null)
+
+  // Behind the --local launch flag: without it, no status polling and no
+  // load bar (the local server can't be the current provider anyway).
+  const enabled = $localModelsEnabled.get()
+
+  useEffect(() => {
+    if (!enabled || !active || !model) {
+      setProgress(null)
+
+      return
+    }
+
+    let cancelled = false
+    let timer: number | undefined
+
+    const tick = async () => {
+      try {
+        const status = await getLocalModelsStatus()
+        const entry = status.loading?.[model]
+
+        if (!cancelled) {
+          setProgress(entry ? { ...entry, model } : null)
+        }
+      } catch {
+        if (!cancelled) {
+          setProgress(null)
+        }
+      }
+
+      if (!cancelled) {
+        timer = window.setTimeout(() => void tick(), 1_500)
+      }
+    }
+
+    void tick()
+
+    return () => {
+      cancelled = true
+
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+      }
+    }
+  }, [enabled, active, model])
+
+  return progress
+}
+
+/** Wait hint with a real progress bar for managed-local model loads and
+ * prompt processing. The percents come from llama-server itself (per-tensor
+ * load callback / live prefill counter, via the gateway's wait frames), so a
+ * determinate bar is honest — a 40s cold load or a long prefill reads as
+ * visible progress instead of an alarming stall. */
+const WaitHint: FC<{ hint: string }> = ({ hint }) => {
+  const { t } = useI18n()
+  const load = parseModelLoadWait(hint)
+
+  if (!load) {
+    return <HintText>{hint}</HintText>
+  }
+
+  const label =
+    load.kind === 'load' ? t.assistant.thread.loadingLocalModel(load.model) : t.assistant.thread.processingPrompt
+
+  return <ProgressHint label={label} percent={load.percent} />
+}
+
+const ProgressHint: FC<{ label: string; percent: null | number }> = ({ label, percent }) => (
+  <span className="flex min-w-0 flex-1 items-center gap-2">
+    <span className={cn(SCAFFOLD_LABEL_CLASS, 'shimmer min-w-0 shrink truncate')}>{label}</span>
+    {percent !== null && (
+      <>
+        <span className="h-1 w-24 shrink-0 overflow-hidden rounded-full bg-(--ui-bg-tertiary)">
+          <span
+            className="block h-full rounded-full bg-primary transition-[width] duration-500"
+            style={{ width: `${Math.max(2, percent)}%` }}
+          />
+        </span>
+        <span className={cn(SCAFFOLD_LABEL_CLASS, 'shrink-0 tabular-nums')}>{percent}%</span>
+      </>
+    )}
+  </span>
 )
 
 /** These indicators render inside whichever transcript mounted them, so every
@@ -156,6 +254,10 @@ export const ResponseLoadingIndicator: FC = () => {
   const { compacting, drafting, providerWait, turnStartedAt } = useThreadSessionStatus()
   const elapsed = useElapsedSeconds(true, undefined, turnStartedAt)
   const hint = useStatusHint(compacting, drafting, providerWait)
+  // Renderer-synthesized load bar: covers loads the backend's wait loop
+  // can't narrate (gateway still initializing, or an auxiliary call — not
+  // the main request — triggered the autoload). A real wait frame wins.
+  const localLoad = useLocalModelLoad(!hint)
 
   return (
     <StatusRow data-slot="aui_response-loading" label={hint || t.assistant.thread.loadingResponse}>
@@ -164,7 +266,11 @@ export const ResponseLoadingIndicator: FC = () => {
         className="dither inline-block size-3 rounded-[2px] text-midground/80"
         kind="opacity"
       />
-      {hint && <HintText>{hint}</HintText>}
+      {hint ? (
+        <WaitHint hint={hint} />
+      ) : localLoad ? (
+        <ProgressHint label={t.assistant.thread.loadingLocalModel(localLoad.model)} percent={localLoad.percent} />
+      ) : null}
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )
@@ -216,6 +322,7 @@ export const BackgroundResumeNotice: FC = () => {
 // so that per-token updates re-render only this leaf, not the whole
 // AssistantMessage subtree.
 export const TurnActivityIndicator: FC = () => {
+  const { t } = useI18n()
   const activity = useAuiState(s => activitySignature(s.message.content))
 
   // Timestamp of the last visible progress, held from the moment the quiet
@@ -236,6 +343,10 @@ export const TurnActivityIndicator: FC = () => {
   // turn of a fresh chat — so the row can't wait for the store to catch up.
   const messageRunning = useAuiState(s => s.message.status?.type === 'running')
 
+  // Renderer-synthesized load bar (see ResponseLoadingIndicator).
+  const working = busy || messageRunning
+  const localLoad = useLocalModelLoad(working && !hint && !toolNarrating)
+
   useEffect(() => {
     setQuietSince(undefined)
     const seenAt = Date.now()
@@ -249,8 +360,10 @@ export const TurnActivityIndicator: FC = () => {
   // TURN_QUIET_S first, or a run of quick calls would strobe a row between
   // each one. The two exemptions are waits already accounted for elsewhere: a
   // question the user is answering, and a tool call carrying its own timer.
-  const working = busy || messageRunning
-  const active = working && !awaitingInput && !toolNarrating && (Boolean(hint) || quietSince !== undefined)
+  // A live local-model load is a named wait too — it must not wait out the
+  // quiet window (the load IS the story from second one).
+  const active =
+    working && !awaitingInput && !toolNarrating && (Boolean(hint) || localLoad !== null || quietSince !== undefined)
 
   // Compaction owns the whole turn, so it keeps counting from the turn's start;
   // anything else counts from the moment the turn last produced something — the
@@ -272,7 +385,11 @@ export const TurnActivityIndicator: FC = () => {
         className="dither inline-block size-3 rounded-[2px] text-midground/80"
         kind="opacity"
       />
-      {hint && <HintText>{hint}</HintText>}
+      {hint ? (
+        <WaitHint hint={hint} />
+      ) : localLoad ? (
+        <ProgressHint label={t.assistant.thread.loadingLocalModel(localLoad.model)} percent={localLoad.percent} />
+      ) : null}
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )

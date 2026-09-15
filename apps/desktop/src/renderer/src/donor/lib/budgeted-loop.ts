@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/budgeted-loop.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,8 +16,8 @@
  *  - **fps budget** — paints are skipped until `1000 / fps` elapsed; the loop
  *    still rides rAF so Chromium can align and pause it natively.
  *  - **observability pause** — wired to `createRendererLoopPauseController`:
- *    the loop cancels while the window is hidden, minimized, or unfocused and
- *    resumes when observable.
+ *    the loop cancels while the window is hidden or minimized and resumes
+ *    when visible, even if another window has focus.
  *  - **idle dormancy** — when `idleWhen()` returns true after a draw, the loop
  *    parks (zero pending frames, zero timers) until `wake()` is called. This
  *    is the piece every hand-rolled loop forgot: "nothing visible to animate"
@@ -50,7 +50,7 @@ export interface BudgetedLoopOptions {
    *  animation finished). Checked after every draw; when true the loop parks
    *  until `wake()`. Omit for loops that should run whenever observable. */
   idleWhen?: () => boolean
-  /** Forwarded to the pause controller. Default true (pause on blur). */
+  /** Forwarded to the pause controller. Default false (animate while visible). */
   pauseWhenUnfocused?: boolean
 }
 
@@ -67,7 +67,7 @@ export interface BudgetedLoop {
 
 export function createBudgetedLoop(
   draw: (now: number) => void,
-  { fps = 15, idleWhen, pauseWhenUnfocused = true }: BudgetedLoopOptions = {}
+  { fps = 15, idleWhen, pauseWhenUnfocused = false }: BudgetedLoopOptions = {}
 ): BudgetedLoop {
   const frameInterval = 1000 / fps
   let frame = 0

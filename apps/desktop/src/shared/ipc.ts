@@ -948,6 +948,16 @@ export interface AecpilotApi {
     path: string,
     content: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Снимок гостя предпросмотра PNG как data-URL (задача 3.B4, SPEC UR4:
+   * их аннотации на предпросмотре). `rect` — CSS-пиксели viewport'а гостя,
+   * `viewport` — его размер в тех же единицах; без `rect` — видимая область
+   * целиком. Гость обязан принадлежать окну, которое просит
+   * (`preview-capture-pure.ts`). Отказ приходит СЛОВАМИ. */
+  capturePreview(payload: {
+    rect?: { height: number; width: number; x: number; y: number }
+    viewport?: { height: number; width: number }
+    webContentsId: number
+  }): Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>
   /** Записка слоя 1 как текст плюс состояние автозаписи (задача 5.4).
    *
    * ТЕКСТ, А НЕ ПУТЬ: имена файлов выбирает ядро, и окно называет только

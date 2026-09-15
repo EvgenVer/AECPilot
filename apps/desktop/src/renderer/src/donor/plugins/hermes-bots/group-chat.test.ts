@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] the test-side half of the same edit: these expectations PIN a
@@ -114,8 +114,9 @@ describe('room naming', () => {
 describe('speaker labels', () => {
   it('the default profile speaks as Hermes in transcripts, not @default', async () => {
     const { rounds } = await loadRoom()
+    const { formatGroupChatLine } = await import('./group-round-prompt')
 
-    const line = rounds.formatGroupChatLine(
+    const line = formatGroupChatLine(
       { from: { kind: 'member', name: 'default' }, text: 'hello room' } as GroupMessage,
       'builder'
     )
@@ -124,15 +125,16 @@ describe('speaker labels', () => {
 
     // Other members keep their profile name; the (you) suffix survives.
     expect(
-      rounds.formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' } as GroupMessage, 'default')
+      formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' } as GroupMessage, 'default')
     ).toBe('AECPilot (you): hi')
     expect(
-      rounds.formatGroupChatLine({ from: { kind: 'member', name: 'builder' }, text: 'yo' } as GroupMessage, 'research')
+      formatGroupChatLine({ from: { kind: 'member', name: 'builder' }, text: 'yo' } as GroupMessage, 'research')
     ).toBe('builder: yo')
   })
 
   it('honor friendly identity: Bot Mode title, then display_name, never a stale Hermes', async () => {
     const { chat, rounds } = await loadRoom()
+    const { formatGroupChatLine } = await import('./group-round-prompt')
     const data = await import('./data')
 
     // A renamed default (core display_name via `hermes profile rename`) must
@@ -142,7 +144,7 @@ describe('speaker labels', () => {
 
     expect(chat.groupSpeakerLabel('default')).toBe('Lucy')
     expect(
-      rounds.formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' } as GroupMessage, 'builder')
+      formatGroupChatLine({ from: { kind: 'member', name: 'default' }, text: 'hi' } as GroupMessage, 'builder')
     ).toBe('Lucy: hi')
 
     // A Bot Mode title outranks display_name (same precedence as displayName).

@@ -1,20 +1,9 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/relay.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
- *
- * МЁРТВЫЙ КОД У НАС, И ЭТО РЕШЕНИЕ, А НЕ НЕДОСМОТР (владелец, 2026-09-01).
- * Этот релей адресует специалиста на ДРУГОЙ машине через реестр нескольких
- * ядер — `host.connections` / `host.agents` / `host.profileRoutes`. Наш мост
- * их не даёт: «одно подключение за раз» (решение владельца 2026-08-23), и
- * каждый вызов здесь заперт проверкой `typeof … === 'function'` либо
- * `job.connectionId`. Обращение по имени на другую машину у нас работает
- * своим путём — MCP-сервер `mcp/aec_roster` (задача 3C.7).
- * Файл перенесён, а не выброшен, чтобы следующий подъём пина не решал этот
- * вопрос заново и чтобы включение флота стоило снятия заглушек, а не
- * повторного переноса.
  */
 /**
  * The cross-connection bot relay: the Desktop-as-router loops that let a bot
@@ -67,10 +56,10 @@ const RELAY_DRAIN_INTERVAL_MS = 30_000
 //
 // These three are mirrors of backend values, so a change there must not
 // silently invalidate this constant: relay-deliver-budget.test.ts reads
-// hermes_cli/config_defaults.py and tui_gateway/methods_bot_relay.py and fails
-// if the mirrors drift or the margin stops being positive.
+// hermes_cli/config_defaults.py and tools/bot_relay.py and fails if the
+// mirrors drift or the margin stops being positive.
 const RELAY_TURN_LOCK_WAIT_MS = 120_000 // bot_mode.turn_wait_seconds default
-const RELAY_TURN_ATTEMPT_MS = 600_000 // subprocess.run(..., timeout=600)
+const RELAY_TURN_ATTEMPT_MS = 600_000 // tools/bot_relay.py TURN_ATTEMPT_TIMEOUT_SECONDS
 const RELAY_TURN_MAX_ATTEMPTS = 2 // first attempt + the policy-gated re-run
 
 const RELAY_DELIVER_BACKEND_CEILING_MS = RELAY_TURN_LOCK_WAIT_MS + RELAY_TURN_ATTEMPT_MS * RELAY_TURN_MAX_ATTEMPTS
@@ -78,6 +67,7 @@ const RELAY_DELIVER_BACKEND_CEILING_MS = RELAY_TURN_LOCK_WAIT_MS + RELAY_TURN_AT
 // Settlement + transport headroom on top of the ceiling, so a backend that
 // answers at its own limit still wins the race against this timer.
 const RELAY_DELIVER_SETTLEMENT_MARGIN_MS = 180_000
+// tools/bot_relay.py REPLY_WAIT_SECONDS rebuilds this sum and waits past it for the timeout reply below.
 const RELAY_DELIVER_TIMEOUT_MS = RELAY_DELIVER_BACKEND_CEILING_MS + RELAY_DELIVER_SETTLEMENT_MARGIN_MS
 // Push path (#93091): the gateway broadcasts `bot_relay.outbox.pending` when
 // an envelope lands on disk; a burst of signals inside this window collapses
@@ -142,6 +132,8 @@ interface RelayAgentRow {
 interface RelayEnvelope {
   id?: string
   message?: string
+  from_profile?: string
+  from_handle?: string
   target_connection?: string
   target_profile?: string
 }
@@ -416,7 +408,10 @@ async function drainRelayOutboxes() {
             'bot_relay.deliver',
             {
               profile: String(envelope?.target_profile || ''),
-              message: String(envelope?.message || '')
+              message: String(envelope?.message || ''),
+              from_profile: String(envelope?.from_profile || ''),
+              from_handle: String(envelope?.from_handle || ''),
+              from_connection: String(sender.id)
             },
             RELAY_DELIVER_TIMEOUT_MS
           )

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/types.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -105,4 +105,26 @@ export interface DesktopTheme {
   terminal?: DesktopTerminalPalette
   /** Dark-variant terminal ANSI palette. Falls back to `terminal`. */
   darkTerminal?: DesktopTerminalPalette
+}
+
+// The minimal set of color keys a stored theme must carry to be usable. We keep
+// this loose — `applyTheme` tolerates missing optionals via fallbacks — but a
+// theme with no background/foreground/primary is junk and gets dropped.
+const REQUIRED_COLOR_KEYS: ReadonlyArray<keyof DesktopThemeColors> = ['background', 'foreground', 'primary']
+
+/** Shape check for a theme read back from storage or a contribution. */
+export function isValidTheme(value: unknown): value is DesktopTheme {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const theme = value as Partial<DesktopTheme>
+
+  if (typeof theme.name !== 'string' || typeof theme.label !== 'string' || !theme.colors) {
+    return false
+  }
+
+  const colors = theme.colors as unknown as Record<string, unknown>
+
+  return REQUIRED_COLOR_KEYS.every(key => typeof colors[key] === 'string')
 }

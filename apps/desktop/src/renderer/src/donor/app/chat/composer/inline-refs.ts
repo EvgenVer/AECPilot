@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/inline-refs.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -141,7 +141,11 @@ function buildRefFragment(
   return fragment
 }
 
-export function insertInlineRefsIntoEditor(editor: HTMLDivElement, refs: readonly InlineRefInput[]) {
+export function insertInlineRefsIntoEditor(
+  editor: HTMLDivElement,
+  refs: readonly InlineRefInput[],
+  { interactive = true }: { interactive?: boolean } = {}
+) {
   const parsed = refs.map(parseInlineRef).filter((ref): ref is NonNullable<typeof ref> => ref !== null)
   const hasEmptySentinel = editor.childNodes.length === 1 && editor.firstChild?.nodeName === 'BR'
 
@@ -153,9 +157,11 @@ export function insertInlineRefsIntoEditor(editor: HTMLDivElement, refs: readonl
     editor.replaceChildren()
   }
 
-  editor.focus({ preventScroll: true })
+  if (interactive) {
+    editor.focus({ preventScroll: true })
+  }
 
-  const selection = window.getSelection()
+  const selection = interactive ? window.getSelection() : null
 
   const range =
     !hasEmptySentinel && selection?.rangeCount && editor.contains(selection.getRangeAt(0).commonAncestorContainer)
@@ -184,7 +190,10 @@ export function insertInlineRefsIntoEditor(editor: HTMLDivElement, refs: readonl
         needsBeforeSpace: current.length > 0 && !/\s$/.test(current)
       })
     )
-    placeCaretEnd(editor)
+
+    if (interactive) {
+      placeCaretEnd(editor)
+    }
   }
 
   normalizeComposerEditorDom(editor)

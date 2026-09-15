@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/artifact-detect.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,11 +41,15 @@ const CODE_MIN_CHARS = 3000
 const HTML_LANGUAGES = new Set(['html', 'htm', 'xhtml'])
 
 // Languages whose fences are never artifacts: prose-ish, terminal output, and
-// the fences already owned by richer renderers (mermaid diagrams, small svg).
+// the fences already owned by richer renderers (mermaid diagrams, small svg,
+// listing cards). Artifact detection runs BEFORE the rich-fence registry, so a
+// language that has its own renderer must opt out here or a long enough fence
+// gets promoted to a code card and never reaches it.
 const NON_ARTIFACT_LANGUAGES = new Set([
   '',
   'console',
   'diff',
+  'listing',
   'log',
   'logs',
   'markdown',

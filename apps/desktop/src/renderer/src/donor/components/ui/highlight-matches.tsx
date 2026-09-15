@@ -1,13 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/highlight-matches.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ReactNode } from 'react'
 
-import { normalize } from '@/lib/text'
+import { normalize, searchFold } from '@/lib/text'
 import { cn } from '@/lib/utils'
 
 /**
@@ -19,17 +19,19 @@ import { cn } from '@/lib/utils'
  *
  * The query must mirror the surface's OWN filter semantics, or the emphasis
  * lies about why a row matched:
- * - a string for literal-substring filters (the model pickers) — spaces and
- *   all, exactly what `.includes()` saw;
- * - a string[] for per-term AND matchers (the command palette) — every term
- *   is marked wherever it occurs, overlapping/adjacent ranges merged.
+ * - literal matching by default, including per-term string[] queries in the
+ *   command palette;
+ * - `foldSeparators` only for model surfaces whose filter uses `foldIncludes`.
+ *   Replacing separators one-for-one keeps ranges aligned with the label.
  */
 export function HighlightMatches({
   className,
+  foldSeparators = false,
   query,
   text
 }: {
   className?: string
+  foldSeparators?: boolean
   query: string | string[]
   text: string
 }) {
@@ -39,7 +41,9 @@ export function HighlightMatches({
     return <>{text}</>
   }
 
-  const ranges = matchRanges(text.toLowerCase(), terms)
+  const ranges = foldSeparators
+    ? matchRanges(searchFold(text), terms.map(searchFold))
+    : matchRanges(text.toLowerCase(), terms)
 
   if (ranges.length === 0) {
     // No occurrence (the row matched on its id/slug/keywords, not this label).

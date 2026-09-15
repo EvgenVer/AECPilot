@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/section-states.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -57,6 +57,26 @@ export function SidebarPinnedEmptyState() {
         <Codicon name="pin" size="0.75rem" />
       </span>
       <span>{t.sidebar.shiftClickHint}</span>
+    </div>
+  )
+}
+
+// A failed drill-in load must not share the "no sessions yet" copy — that
+// reads as data loss. Borrows the row chrome so it resolves into the rows it
+// replaces without the list stepping sideways.
+export function SidebarLoadErrorState({ onRetry }: { onRetry: () => void }) {
+  const { t } = useI18n()
+
+  return (
+    <div className="grid min-h-16 place-items-center rounded-lg px-2 text-center">
+      <div className="flex flex-col items-center gap-2">
+        <Codicon className="text-(--ui-text-quaternary)" name="error" size="1rem" />
+        <p className="text-xs text-(--ui-text-tertiary)">{t.sidebar.projectLoadFailed}</p>
+        <Button className="mt-0.5 text-(--ui-text-secondary)" onClick={onRetry} size="sm" variant="ghost">
+          <Codicon name="refresh" size="0.75rem" />
+          {t.common.retry}
+        </Button>
+      </div>
     </div>
   )
 }

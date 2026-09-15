@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/composer-dock.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,9 +26,13 @@ const composerDockEdge = (edge: 'bottom' | 'top') =>
 
 /** Glassy docked card — the status stack / queue. Paints the SAME
  *  `--composer-fill` as the surface, so rest / scrolled / focused / drawer-open
- *  all match the composer by construction. */
+ *  all match the composer by construction.
+ *
+ * Keep the card non-shrinking inside capped flex scroll containers. Otherwise
+ * flexbox compresses the card to the cap and its own overflow-hidden clips
+ * later status rows before the outer status stack gets anything to scroll. */
 export const composerDockCard = (edge: 'bottom' | 'top' = 'top') =>
-  cn(composerDockEdge(edge), composerFill, composerSurfaceGlass)
+  cn('shrink-0', composerDockEdge(edge), composerFill, composerSurfaceGlass)
 
 /** Floating composer panel skin — the `/`·`@`·`?` completion drawer and the
  *  attach (`+`) menu. Glassy translucent card, hairline border, full radius,

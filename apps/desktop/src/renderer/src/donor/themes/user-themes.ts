@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/user-themes.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,7 +23,7 @@ import { registry } from '@/contrib/registry'
 
 import { $backendThemes } from './backend-sync'
 import { BUILTIN_THEMES } from './presets'
-import type { DesktopTheme, DesktopThemeColors } from './types'
+import { type DesktopTheme, isValidTheme } from './types'
 
 const USER_THEMES_KEY = 'hermes-desktop-user-themes-v1'
 
@@ -31,27 +31,6 @@ const USER_THEMES_KEY = 'hermes-desktop-user-themes-v1'
 // (see `convertVscodeColorTheme`). This is the one place that convention is read
 // back out, so every install surface can tell what's already installed.
 const MARKETPLACE_DESC_PREFIX = 'VS Code · '
-
-// The minimal set of color keys a stored theme must carry to be usable. We keep
-// this loose — `applyTheme` tolerates missing optionals via fallbacks — but a
-// theme with no background/foreground/primary is junk and gets dropped.
-const REQUIRED_COLOR_KEYS: ReadonlyArray<keyof DesktopThemeColors> = ['background', 'foreground', 'primary']
-
-function isValidTheme(value: unknown): value is DesktopTheme {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const theme = value as Partial<DesktopTheme>
-
-  if (typeof theme.name !== 'string' || typeof theme.label !== 'string' || !theme.colors) {
-    return false
-  }
-
-  const colors = theme.colors as unknown as Record<string, unknown>
-
-  return REQUIRED_COLOR_KEYS.every(key => typeof colors[key] === 'string')
-}
 
 function readStored(): Record<string, DesktopTheme> {
   try {

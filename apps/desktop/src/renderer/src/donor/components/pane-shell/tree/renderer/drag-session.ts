@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/drag-session.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -519,6 +519,20 @@ export function startPaneDrag(
 
         // Tear-off: the tab leaves the strip and becomes a zone move.
         enterZoneMode()
+      }
+
+      // A strip is an exact target. Resolve it before the fuzzy zone engine:
+      // near a panel seam, proximity can otherwise pick the neighboring sidebar.
+      const hitStrip = !shift && strips.find(strip => rectContains(strip.rect, x, y))
+
+      if (hitStrip) {
+        return {
+          kind: 'group',
+          groupId: hitStrip.groupId,
+          groupIds: [hitStrip.groupId],
+          pos: 'center',
+          stack: slotBefore(hitStrip.slots, x, moving)
+        }
       }
 
       // The hint updates on highlight-set changes AND on sub-zone position

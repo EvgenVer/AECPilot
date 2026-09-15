@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/tree-node.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,17 +24,30 @@ export function TreeNode({
   parentAxis,
   railSide,
   root,
-  rootRow
+  rootRow,
+  topEdge = false,
+  leftEdge = false,
+  rightEdge = false
 }: {
   node: LayoutNode
   parentAxis?: 'column' | 'row'
   railSide?: 'left' | 'right'
   root?: boolean
   rootRow?: boolean
+  topEdge?: boolean
+  leftEdge?: boolean
+  rightEdge?: boolean
 }) {
   return node.type === 'split' ? (
-    <TreeSplit node={node} root={root} rootRow={rootRow} />
+    <TreeSplit leftEdge={leftEdge} node={node} rightEdge={rightEdge} root={root} rootRow={rootRow} topEdge={topEdge} />
   ) : (
-    <TreeGroup node={node} parentAxis={parentAxis} railSide={railSide} />
+    <TreeGroup
+      leftEdge={leftEdge}
+      node={node}
+      parentAxis={parentAxis}
+      railSide={railSide}
+      rightEdge={rightEdge}
+      topEdge={topEdge}
+    />
   )
 }

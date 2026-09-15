@@ -79,3 +79,20 @@ export type GatewayEventName = string
 // The definition lives there because that is what throws it; re-exported here so
 // `@hermes/shared` keeps resolving for their files.
 export { JsonRpcGatewayError } from '../gateway-bridge'
+
+// Kind 3 again (0.21.2, task 3.B4): a URL predicate that lives beside their
+// socket client — `use-gateway-boot` narrows a remote connection's address on
+// it before it would dial. Pure, copied verbatim from their
+// `json-rpc-gateway.ts` so the narrowing keeps their exact meaning.
+/** True for a `ws://` / `wss://` URL string — the only thing their client would dial. */
+export function isGatewayWebSocketUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+
+  try {
+    const protocol = new URL(value).protocol
+
+    return protocol === 'ws:' || protocol === 'wss:'
+  } catch {
+    return false
+  }
+}

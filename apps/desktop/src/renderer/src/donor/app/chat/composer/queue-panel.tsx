@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/queue-panel.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -53,10 +53,6 @@ export function QueuePanel({
   }
 
   return (
-    // Keyed on the park flag: StatusSection owns its collapse state from
-    // defaultCollapsed, so remount on park/unpark. A Stop must EXPAND the
-    // panel — the halted prompts' only presence is here, and leaving them
-    // behind a collapsed "N queued" pill is how they read as vanished.
     <StatusSection
       accessory={
         parked ? (
@@ -73,9 +69,7 @@ export function QueuePanel({
           </Tip>
         ) : undefined
       }
-      defaultCollapsed={!parked}
       icon={<Codicon className="text-muted-foreground/70" name={parked ? 'debug-pause' : 'layers'} size="0.8rem" />}
-      key={parked ? 'parked' : 'flowing'}
       label={parked ? c.queuedPaused(entries.length) : c.queued(entries.length)}
     >
       {entries.map(entry => {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/media.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -78,6 +78,10 @@ export function mediaMarkdownHref(path: string): string {
 
 export function isInlineMediaSrc(path: string): boolean {
   return /^(?:https?|data):/i.test(path)
+}
+
+export function isArtifactFilePath(path: string): boolean {
+  return /^(?:file:|\/|[~.][\\/]|\.\.[\\/]|[a-z]:[\\/]|\\\\)/i.test(path)
 }
 
 export function isFileMediaPath(path: string): boolean {
@@ -211,9 +215,11 @@ export async function gatewayMediaDataUrl(path: string): Promise<string> {
 // avoids browser/OS downloads losing OAuth cookies and avoids the data-URL cap
 // used by preview endpoints.
 export async function downloadGatewayMediaFile(
-  path: string
+  path: string,
+  origin?: { sessionId: string; profile?: string }
 ): Promise<{ canceled?: boolean; path?: string; saved: boolean }> {
-  const file = filePathFromMediaPath(path)
+  // URI conversion belongs to the gateway OS, not the renderer's URL parser.
+  const file = path
   const conn = $connection.get()
 
   if (!window.hermesDesktop?.saveGatewayFile) {
@@ -223,8 +229,15 @@ export async function downloadGatewayMediaFile(
   return window.hermesDesktop.saveGatewayFile({
     connectionId: conn?.connectionId,
     path: file,
-    profile: conn?.profile,
-    suggestedName: mediaName(file)
+    profile: origin?.profile ?? conn?.profile,
+    ...(origin ? { sessionId: origin.sessionId } : {}),
+    suggestedName: mediaName(file).replace(/(?:%[0-9a-f]{2})+/gi, encoded => {
+      try {
+        return decodeURIComponent(encoded)
+      } catch {
+        return encoded
+      }
+    })
   })
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/directive-actions.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,8 +27,10 @@ import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 /** Moving between the chip and the pill crosses a gap where neither is hovered.
- *  Short enough that it still reads as instant on the way out. */
-const HIDE_DELAY_MS = 120
+ *  Long enough that a pointer travelling diagonally across that gap reaches the
+ *  pill's own hover before the grace window closes; still reads as instant when
+ *  leaving the chip for good. */
+const HIDE_DELAY_MS = 500
 
 /** The actionable directive chip under `target` that also belongs to `editor`,
  *  if there is one. */
@@ -101,8 +103,10 @@ export function ComposerDirectiveActions({ editorRef }: { editorRef: RefObject<H
       const editor = editorRef.current
       const chip = editor && actionableChipAt(event.target, editor)
 
-      // A move within the same chip (its icon → its label) is not a leave.
-      if (chip && editor && chip === actionableChipAt(event.relatedTarget, editor)) {
+      // Only this editor's chip departures start the grace window. The pill
+      // owns its own boundary; internal pill or unrelated document transitions
+      // must neither dismiss a hovered action nor postpone an existing leave.
+      if (!chip || !editor || chip === actionableChipAt(event.relatedTarget, editor)) {
         return
       }
 

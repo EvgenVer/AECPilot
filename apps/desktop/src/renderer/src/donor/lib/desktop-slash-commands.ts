@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-slash-commands.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -66,6 +66,7 @@ export interface DesktopThemeCommandOption {
 export type DesktopActionId =
   | 'branch'
   | 'browser'
+  | 'btw'
   | 'compress'
   | 'handoff'
   | 'help'
@@ -73,6 +74,7 @@ export type DesktopActionId =
   | 'new'
   | 'profile'
   | 'skin'
+  | 'stop'
   | 'title'
   | 'wake'
   | 'yolo'
@@ -182,6 +184,11 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   // Local client actions
   { name: '/new', description: 'Start a new desktop chat', aliases: ['/reset'], surface: action('new') },
   {
+    name: '/stop',
+    description: 'Stop the active turn and background processes',
+    surface: action('stop')
+  },
+  {
     name: '/branch',
     description: 'Branch the latest message into a new chat',
     aliases: ['/fork'],
@@ -249,6 +256,15 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     surface: action('compress'),
     argumentMode: 'text'
   },
+  // /btw must be an action (prompt.btw RPC), not exec: the slash worker
+  // prints the answer after process_command returns, so Desktop only ever
+  // saw the acknowledgement (#99065). The answer arrives as btw.complete.
+  {
+    name: '/btw',
+    description: 'Ask a side question about this conversation without interrupting it',
+    surface: action('btw'),
+    argumentMode: 'text'
+  },
   // EDIT [3]: /pet and /hatch are gone with the pet surface (HX1).
   {
     name: '/save',
@@ -299,7 +315,7 @@ const NO_DESKTOP_SURFACE: Record<DesktopUnavailableReason, readonly string[]> = 
     '/verbose'
   ],
   messaging: ['/approve', '/deny'],
-  settings: ['/skills', '/pets'],
+  settings: ['/skills', '/pets', '/login'],
   advanced: [
     // EDIT [3]: /voice переехала сюда из 'composer-voice'. Та подсказка звала
     // нажать кнопку «начать голосовой разговор» в композере, а разговор снят

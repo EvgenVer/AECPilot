@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/virtual-session-list.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,6 +47,12 @@ export interface VirtualSessionListProps {
   className?: string
   /** Hover-revealed control for date dividers (the group-level "+"). */
   dividerAction?: React.ReactNode
+  /** Collapse/expand the sessions under a date or status divider. */
+  dividerToggle?: {
+    ariaLabel: (label: string, open: boolean) => string
+    onToggle: (key: string) => void
+    open: (key: string) => boolean
+  }
   rows: SidebarListRow[]
   onArchiveSession: (sessionId: string) => void
   onBranchSession?: (sessionId: string, profile?: string) => void
@@ -71,6 +77,7 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
   card = false,
   className,
   dividerAction,
+  dividerToggle,
   rows: listRows,
   onArchiveSession,
   onBranchSession,
@@ -133,11 +140,23 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
 
     // Dividers are non-sortable, self-measured rows interleaved with sessions.
     if (row.kind === 'divider') {
+      const label = 'label' in row ? row.label : sessionBucketLabel(row.bucket, dividerLabels)
+      const open = dividerToggle?.open(row.key) ?? true
+
       return (
         <div data-index={virtualItem.index} key={row.key} ref={virtualizer.measureElement} style={itemStyle}>
           <SidebarDateDivider
             action={dividerAction}
-            label={'label' in row ? row.label : sessionBucketLabel(row.bucket, dividerLabels)}
+            label={label}
+            toggle={
+              dividerToggle
+                ? {
+                    ariaLabel: dividerToggle.ariaLabel(label, open),
+                    onToggle: () => dividerToggle.onToggle(row.key),
+                    open
+                  }
+                : undefined
+            }
           />
         </div>
       )

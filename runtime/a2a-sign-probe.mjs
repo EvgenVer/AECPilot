@@ -20,7 +20,7 @@ import { createHmac } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
-import { HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-secret-9f8e7d6c'
 
@@ -51,7 +51,8 @@ function fromCore() {
 
   const run = spawnSync(PYTHON_BIN, ['-c', script, JSON.stringify(PAYLOAD)], {
     encoding: 'utf-8',
-    env: { ...process.env, A2A_PUSH_SECRET: SECRET }
+    // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).
+    env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR, A2A_PUSH_SECRET: SECRET }
   })
 
   if (run.status !== 0) {

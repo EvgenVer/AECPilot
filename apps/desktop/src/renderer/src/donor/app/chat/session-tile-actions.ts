@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile-actions.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -511,6 +511,8 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
         return
       }
 
+      const messages = state.messages
+
       update(current => applyReloadOptimistic(current, plan))
 
       try {
@@ -525,11 +527,20 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
             plan.truncateMessageId,
             plan.truncateRowId,
             plan.sourceText,
-            durableRowIdsForRebind(state.messages)
+            durableRowIdsForRebind(messages)
           )
         )
       } catch (err) {
-        update(current => ({ ...current, busy: false, awaitingResponse: false, turnLive: false, turnStartedAt: null }))
+        // Mirror the primary-chat reload catch: optimistic hide/truncate
+        // must roll back when the submit is rejected (#95745).
+        update(current => ({
+          ...current,
+          busy: false,
+          awaitingResponse: false,
+          turnLive: false,
+          turnStartedAt: null,
+          messages
+        }))
         notifyError(err, copy.regenerateFailed)
       }
     },

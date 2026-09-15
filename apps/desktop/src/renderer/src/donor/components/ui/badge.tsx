@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/badge.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ const badgeVariants = cva(
       variant: {
         default: 'bg-primary/10 text-primary',
         muted: 'bg-muted text-muted-foreground',
+        success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
         warn: 'bg-amber-500/10 text-amber-600 dark:text-amber-300',
         destructive: 'bg-destructive/10 text-destructive',
         outline: 'border border-(--ui-stroke-secondary) text-muted-foreground',

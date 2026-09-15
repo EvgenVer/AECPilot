@@ -260,6 +260,23 @@ export const ELECTRON_CLASSIFICATION = {
     ours: "preview",
     note: "туннель к localhost удалённого ядра — 3E.5; отдельная сессия `ssh -N -L` по уже открытому подключению (ControlMaster в OpenSSH под Windows нет)",
   },
+  // — приехало с пином 0.21.2 (задача 3.B4, решения владельца 2026-09-14 по
+  //   таблице PLAN §«Решения интервью 2026-09-14»)
+  capturePreview: {
+    ours: "preview",
+    note: "preview:capture — снимок гостя для их аннотаций на предпросмотре (пакет 9.7, берём)",
+  },
+  "intro-reveal": { hx: "HX26", note: "3D-заставка первого запуска" },
+  "chat-onboarding": { hx: "HX26", note: "сборка окна вокруг их онбординг-чата" },
+  machine: {
+    hx: "HX26",
+    note: "факты о машине для их онбординг-чата; вторая роль — подсказка языка ОС при незаданном display.language — у нас недостижима: язык интерфейса задан всегда (shared/i18n/config-client.ts)",
+  },
+  app: { task: "3.21", note: "hermes:app:relaunch — перезапуск после подмены бандла их обновлятором; едет с механизмом обновлений" },
+  "pool-limits": {
+    task: "D-84",
+    note: "пределы пула бэкендов: пула у нас нет (один hermes serve на все профили) — решение владельца, замечание D-84",
+  },
   "preview-nav": {
     ours: "preview-nav",
     note: "жесты «назад/вперёд/обновить», не доходящие до окна сами (app-command, свайп) — 3E.5",
@@ -302,14 +319,15 @@ export function readExclusions(specText) {
  * видел ВООБЩЕ — вердикт, сославшийся на живую `5.1а`, получал «в TASKS.md нет
  * задачи». Найдено при перестановке вердикта `memory` (задача 3E.17). */
 export function readTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.]+) /gm)].map((m) => m[1]));
+  return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.-]+) /gm)].map((m) => m[1]));
 }
 
 /** Task ids already ticked off. A verdict citing a CLOSED task is as stale as
  * one citing a task that never existed: it answers «работа впереди» for work
- * that is behind. */
+ * that is behind. The id class admits a hyphen since 3.B4: findings (`D-84`)
+ * are TASKS entries of the same form and can be cited as a pending decision. */
 export function readClosedTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.]+) /gm)].map((m) => m[1]));
+  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.-]+) /gm)].map((m) => m[1]));
 }
 
 /** Methods the renderer may never name, from the deny list itself rather than a

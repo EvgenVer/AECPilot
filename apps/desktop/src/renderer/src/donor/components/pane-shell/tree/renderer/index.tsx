@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/index.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,6 +33,7 @@ import { type ReactNode, useEffect } from 'react'
 import { useLayoutEditHotkey } from '../../edit-mode'
 import { publishWorkspaceGeometry } from '../../geometry'
 import { $layoutTree, trackActiveTreeGroup } from '../store'
+import { useTabKeyHints } from '../tab-key-hint-state'
 import { ZoneEditor } from '../zone-editor'
 
 import { TreeEditBar } from './edit-bar'
@@ -40,10 +41,11 @@ import { FloatingPanes } from './floating-panes'
 import { NarrowOverlays } from './narrow-overlays'
 import { TreeNode } from './tree-node'
 
-export function LayoutTreeRoot({ children }: { children?: ReactNode }) {
+export function LayoutTreeRoot({ children, titlebar = false }: { children?: ReactNode; titlebar?: boolean }) {
   const tree = useStore($layoutTree)
 
   useLayoutEditHotkey(true)
+  useTabKeyHints()
   // Track the interacted zone so ⌘W closes the right tab even when nothing is
   // DOM-focused.
   useEffect(trackActiveTreeGroup, [])
@@ -79,7 +81,14 @@ export function LayoutTreeRoot({ children }: { children?: ReactNode }) {
           display: none;
         }
       `}</style>
-      <TreeNode node={tree} root rootRow={tree.type === 'split' && tree.orientation === 'row'} />
+      <TreeNode
+        leftEdge={titlebar}
+        node={tree}
+        rightEdge={titlebar}
+        root
+        rootRow={tree.type === 'split' && tree.orientation === 'row'}
+        topEdge={titlebar}
+      />
       <NarrowOverlays />
       {/* Non-tiling panes: fixed cards above the tree, outside every zone. */}
       <FloatingPanes />

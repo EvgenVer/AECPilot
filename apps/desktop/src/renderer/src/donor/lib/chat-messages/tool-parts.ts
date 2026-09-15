@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/tool-parts.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { firstStringField, normalize } from '@/lib/text'
-import { parseTodos } from '@/lib/todos'
+import { isTodoToolName, parseTodos } from '@/lib/todos'
 import type { SessionMessage } from '@/types/hermes'
 
 import type { ChatMessage, ChatMessagePart, GatewayEventPayload } from './types'
@@ -186,10 +186,15 @@ function findToolPartIndex(
     }
   }
 
-  const pendingIndices = parts
-    .map((part, index) => ({ part, index }))
-    .filter(({ part }) => part.type === 'tool-call' && part.toolName === name && part.result === undefined)
-    .map(({ index }) => index)
+  const pendingIndices: number[] = []
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+
+    if (part.type === 'tool-call' && part.toolName === name && part.result === undefined) {
+      pendingIndices.push(index)
+    }
+  }
 
   if (pendingIndices.length === 0) {
     return -1
@@ -238,7 +243,7 @@ function carryTodos(payload: GatewayEventPayload | undefined, ...prev: unknown[]
     return next === null ? undefined : { todos: next }
   }
 
-  if (payload?.name !== 'todo') {
+  if (!isTodoToolName(payload?.name)) {
     return undefined
   }
 
@@ -286,11 +291,17 @@ function toolResult(
 }
 
 function completeOpenStreamParts(parts: ChatMessagePart[], completedAt: number): ChatMessagePart[] {
-  return parts.map(part =>
-    (part.type === 'text' || part.type === 'reasoning') && part.completedAt === undefined
-      ? ({ ...part, completedAt } as ChatMessagePart)
-      : part
-  )
+  const next = parts.slice()
+
+  for (let index = 0; index < next.length; index += 1) {
+    const part = next[index]
+
+    if ((part.type === 'text' || part.type === 'reasoning') && part.completedAt === undefined) {
+      next[index] = { ...part, completedAt } as ChatMessagePart
+    }
+  }
+
+  return next
 }
 
 export function upsertToolPart(
@@ -332,10 +343,10 @@ export function upsertToolPart(
   } satisfies ChatMessagePart
 
   if (index === -1) {
-    return [...next, base]
+    next.push(base)
+  } else {
+    next[index] = { ...next[index], ...base }
   }
-
-  next[index] = { ...next[index], ...base }
 
   return next
 }

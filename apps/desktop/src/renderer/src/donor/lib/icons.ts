@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/icons.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,6 +47,7 @@ import {
   IconEar as Ear,
   IconEarOff as EarOff,
   IconEgg as Egg,
+  IconPlayerEjectFilled as Eject,
   IconExternalLink as ExternalLink,
   IconEye as Eye,
   IconEyeOff as EyeOff,
@@ -103,6 +104,7 @@ import {
   IconPlayerPlay as Play,
   IconPlus as Plus,
   IconPower as Power,
+  IconQrcode as QrCode,
   IconRefresh as RefreshCw,
   IconRefresh as RefreshCwIcon,
   IconDeviceFloppy as Save,
@@ -111,6 +113,7 @@ import {
   IconSend as Send,
   IconSettings as Settings,
   IconSettings2 as Settings2,
+  IconShieldLock as ShieldLock,
   IconAdjustmentsHorizontal as SlidersHorizontal,
   IconMoodPlus as SmilePlusIcon,
   IconSquare as Square,
@@ -177,6 +180,7 @@ export {
   Ear,
   EarOff,
   Egg,
+  Eject,
   ExternalLink,
   Eye,
   EyeOff,
@@ -233,6 +237,7 @@ export {
   Play,
   Plus,
   Power,
+  QrCode,
   RefreshCw,
   RefreshCwIcon,
   Save,
@@ -241,6 +246,7 @@ export {
   Send,
   Settings,
   Settings2,
+  ShieldLock,
   SlidersHorizontal,
   SmilePlusIcon,
   Square,

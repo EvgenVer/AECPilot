@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/index.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,17 +29,14 @@ import {
   updateComposerAttachment
 } from '@/store/composer'
 import { resetSessionBackground } from '@/store/composer-status'
-import { requestGatewayForAgent } from '@/store/gateway'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import { clearPreviewArtifacts } from '@/store/preview-status'
 import { clearAllPrompts } from '@/store/prompts'
 import {
   $busy,
-  $connection,
   $currentCwd,
   $messages,
   $terminalBackend,
-  getSessionOwnerHint,
   setActiveSessionId,
   setAwaitingResponse,
   setBusy,
@@ -493,30 +490,6 @@ export function usePromptActions({
     }
   }, [activeSessionId, composerAttachments, eagerlyUploadAttachment])
 
-  // Session resume can be routed through a registry connection while the
-  // render-time requestGateway still points at the local default socket. Keep
-  // every follow-up session RPC on the same composite owner; otherwise resume
-  // succeeds on HERMES01 and prompt.submit immediately fails locally with
-  // "session not found".
-  const requestForPromptSession = useCallback<GatewayRequest>(
-    (method, params = {}, timeoutMs) => {
-      const storedSessionId = selectedStoredSessionIdRef.current
-      const owner = storedSessionId ? getSessionOwnerHint(storedSessionId) : undefined
-      const ambientConnection = $connection.get()
-
-      const connectionId =
-        owner?.connectionId ||
-        (ambientConnection?.mode === 'remote' ? ambientConnection.connectionId?.trim() || '' : '')
-
-      if (connectionId) {
-        return requestGatewayForAgent(connectionId, owner?.profile || 'default', method, params, timeoutMs)
-      }
-
-      return timeoutMs === undefined ? requestGateway(method, params) : requestGateway(method, params, timeoutMs)
-    },
-    [requestGateway, selectedStoredSessionIdRef]
-  )
-
   const submitPromptText = useSubmitPrompt({
     activeSessionIdRef,
     busyRef,
@@ -525,7 +498,9 @@ export function usePromptActions({
     getRoutedStoredSessionId,
     getRuntimeIdForStoredSession,
     getRouteToken,
-    requestGateway: requestForPromptSession,
+    // Window dispatcher: exact owner + turn lease through the terminal event.
+    // A private requestGatewayForAgent wrapper released the only client at ACK.
+    requestGateway,
     runtimeIdByStoredSessionIdRef,
     resumeStoredSession,
     selectedStoredSessionIdRef,
@@ -939,12 +914,16 @@ export function usePromptActions({
 
         applySurvivorRowIds(sessionId, survivorRowIds)
       } catch (err) {
+        // Same rollback as restoreToMessage below: applyReloadOptimistic
+        // already hid/truncated the transcript, and leaving that in place
+        // after a rejected submit is what blanked the chat (#95745).
         updateSessionState(sessionId, state => ({
           ...state,
           busy: false,
           awaitingResponse: false,
           turnLive: false,
-          turnStartedAt: null
+          turnStartedAt: null,
+          messages
         }))
         notifyError(err, copy.regenerateFailed)
       }

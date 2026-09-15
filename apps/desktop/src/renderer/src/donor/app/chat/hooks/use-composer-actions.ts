@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/hooks/use-composer-actions.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -525,7 +525,8 @@ export function useComposerActions({
       try {
         const buffer = await blob.arrayBuffer()
         const data = new Uint8Array(buffer)
-        const savedPath = await window.hermesDesktop?.saveImageBuffer(data, blobExtension(blob))
+        const name = blob instanceof File ? blob.name : undefined
+        const savedPath = await window.hermesDesktop?.saveImageBuffer(data, blobExtension(blob), name)
 
         if (!savedPath) {
           notify({ kind: 'error', title: copy.imageAttach, message: copy.imageWriteFailed })

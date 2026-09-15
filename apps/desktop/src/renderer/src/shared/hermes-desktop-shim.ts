@@ -429,6 +429,30 @@ const IMPLEMENTED: Record<string, unknown> = {
   getConnectionFor: undefined,
   getGatewayWsUrlFor: undefined,
 
+  // ── Приехало с пином 0.21.2 (задача 3.B4, решения владельца 2026-09-14) ──
+  //
+  // `guestOnboardingEnabled`, `introReveal`, `chatOnboarding` — их первый
+  // запуск: 3D-заставка и онбординг-чат (SPEC HX26, не берём). Их же главный
+  // процесс отдаёт флаг истинным только за переменной окружения
+  // `HERMES_GUEST_ONBOARDING=1`, то есть «выключено» — их собственное
+  // состояние по умолчанию, и весь чат стоит за `isOnboardingEnabled()`.
+  // Объявлены ОТСУТСТВУЮЩИМИ, а не оставлены заглушке: флаг — булево, два
+  // других — разделы, и на всех трёх истинный прокси соврал бы «есть».
+  guestOnboardingEnabled: undefined,
+  introReveal: undefined,
+  chatOnboarding: undefined,
+  // `localModelsEnabled` — локальные модели (SPEC UR39, берём). Их главный
+  // процесс включает флаг на Windows и macOS безусловно; рантайм и все данные
+  // живут в ядре (`/api/local-models/*`), окну нужен только этот флаг.
+  localModelsEnabled: true,
+  // `resolveFavicon` — иконка САЙТА коннектора, которую их главный процесс
+  // скачивает с этого сайта (`electron/favicon.ts`). Их же ветка на
+  // отсутствие — монограмма вместо иконки (`components/ui/favicon.tsx`
+  // проверяет наличие члена). Заглушка отдала бы истинный прокси, и каждая
+  // отрисовка ждала бы отклонённый промис; главный процесс у нас в чужие
+  // сайты за украшением не ходит.
+  resolveFavicon: undefined,
+
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main
   // owns the socket — so the honest answer is a descriptor that names the IPC
@@ -741,6 +765,25 @@ const IMPLEMENTED: Record<string, unknown> = {
     if (!answer.ok) throw new Error(answer.error)
 
     return { path: answer.path }
+  },
+
+  // Задача 3.B4 (SPEC UR4, пакет 9.7 донора). Их аннотации на предпросмотре:
+  // человек обводит место на странице, панель снимает гостя и кладёт вырез в
+  // композер. Приехало с 0.21.2 и взято решением владельца 2026-09-14.
+  //
+  // ОТКАЗ ПОДНИМАЕТСЯ ОШИБКОЙ: их `capture` ждёт data-URL и сам бросает
+  // «preview capture is unavailable» на пустой ответ — заглушка-прокси
+  // отдала бы отклонённый промис с именем члена вместо причины.
+  async capturePreview(payload: {
+    rect?: { height: number; width: number; x: number; y: number }
+    viewport?: { height: number; width: number }
+    webContentsId: number
+  }): Promise<string> {
+    const answer = await window.aecpilot.capturePreview(payload)
+
+    if (!answer.ok) throw new Error(answer.error)
+
+    return answer.dataUrl
   },
 
   stopPreviewFileWatch(id: string): Promise<boolean> {

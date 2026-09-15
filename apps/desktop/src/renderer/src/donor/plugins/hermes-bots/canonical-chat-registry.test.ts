@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/canonical-chat-registry.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -286,5 +286,30 @@ describe('a failed lookup fails CLOSED — never "no chat exists"', () => {
 
     await expect(createCanonicalChat('ops')).rejects.toThrow(/Bot Chat registry/)
     expect(calls.some(call => call.method === 'session.create')).toBe(false)
+  })
+
+  // #98383: a profile backend mid-restart can answer `session.list`
+  // SUCCESSFULLY with an empty list instead of throwing. `rows.find(...) ||
+  // null` used to read that identically to "this bot never had a chat",
+  // which minted a replacement and re-fired the kickoff on every click.
+  it('refuses to mint on an empty lookup when the roster already confirmed a canonical chat', async () => {
+    const calls = respondWith(method => {
+      if (method === 'session.list') {
+        return { sessions: [] }
+      }
+
+      if (method === 'session.create') {
+        throw new Error('must not create: an empty result is not confirmed absence')
+      }
+
+      return {}
+    })
+
+    const bot = { canonical_session: { id: 'forever-chat' }, name: 'ops' } as RosterRow
+    const { openBotCanonicalChat } = await loadModule()
+
+    await expect(openBotCanonicalChat(bot)).rejects.toThrow(/Bot Chat registry/)
+    expect(calls.some(call => call.method === 'session.create')).toBe(false)
+    expect(hostMock.openSession).not.toHaveBeenCalled()
   })
 })

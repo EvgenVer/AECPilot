@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/order.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -232,4 +232,18 @@ function clusterId(rows: SidebarListRow[]): string {
 /** The reorderable ids of a rendered row list: root sessions, in render order. */
 export function reorderableRowIds(rows: SidebarListRow[]): string[] {
   return rows.flatMap(row => (row.kind === 'session' && !row.entry.branchStem ? [row.entry.session.id] : []))
+}
+
+/** Splice a new visible-id order back into the full id list, keeping hidden
+ *  ids in their original slots. A drag while some date groups are collapsed
+ *  must not wipe those groups' saved ranking. */
+export function mergeVisibleReorder(allIds: string[], nextVisibleIds: string[]): string[] {
+  if (nextVisibleIds.length === allIds.length) {
+    return nextVisibleIds
+  }
+
+  const visible = new Set(nextVisibleIds)
+  let i = 0
+
+  return allIds.map(id => (visible.has(id) ? (nextVisibleIds[i++] ?? id) : id))
 }

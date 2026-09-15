@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/hub-actions.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,10 @@ export const HUB_SOURCES_KEY = ['skill-hub-sources'] as const
 // The Capabilities Skills-list query key (see app/skills/index.tsx) — kept in
 // sync here so a hub (un)install updates the Skills tab, not just the hub.
 const SKILLS_LIST_KEY = ['skills-list'] as const
+// The built-in optional-skills catalog rows in the Skills tab: an install
+// flips one of them to an installed (toggle) row, so the catalog's
+// installed-flags must refetch alongside the skills list.
+export const OFFICIAL_SKILLS_KEY = ['official-skills'] as const
 // Non-identifier key for the fleet-wide "Update installed" action.
 export const UPDATE_ALL_KEY = '__update_all__'
 
@@ -126,6 +130,7 @@ async function runHubAction(
     // (un)install adds/removes a skill, so its count/rows must update too.
     void queryClient.invalidateQueries({ queryKey: HUB_SOURCES_KEY })
     void queryClient.invalidateQueries({ queryKey: SKILLS_LIST_KEY })
+    void queryClient.invalidateQueries({ queryKey: OFFICIAL_SKILLS_KEY })
     // …and the composer's `/` list, which caches the command catalog for an
     // hour and would otherwise keep offering the skill we just removed.
     invalidateSlashCompletions()

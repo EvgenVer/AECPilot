@@ -30,22 +30,24 @@ const TOP_LEVEL_LINE = /^\S/
  * смысла: правило зовётся на каждом старте, и однажды выбранное человеком
  * значение обязано пережить все следующие запуски.
  *
- * Число пишется числом, строка — в кавычках. Разница не косметическая: этот
- * файл человек читает и правит руками, и `run_budget_seconds: "3600"` он
- * прочитает как чужую ошибку. Ядро-то стерпит (`float(value)`), а человек
- * поверит, что число здесь почему-то текст.
+ * Число пишется числом, булево — словом `true`/`false`, строка — в кавычках.
+ * Разница не косметическая: этот файл человек читает и правит руками, и
+ * `run_budget_seconds: "3600"` он прочитает как чужую ошибку. Ядро-то
+ * стерпит (`float(value)`), а человек поверит, что число здесь почему-то
+ * текст. Булево в кавычках хуже: `auto_prune: "false"` для их YAML — непустая
+ * строка, то есть ИСТИНА, ровно обратное записанному (задача 3.B4д).
  */
 export function ensureSectionScalar(
   yamlText: string,
   section: string,
   key: string,
-  value: number | string
+  value: boolean | number | string
 ): ConfigScalarResult {
   const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
   const keyLine = new RegExp(`^\\s+${key}:`)
 
-  const written = typeof value === 'number' ? String(value) : JSON.stringify(value)
+  const written = typeof value === 'string' ? JSON.stringify(value) : String(value)
   const lines = yamlText.split('\n')
 
   if (lines.some((line) => sectionScalar.test(line))) {

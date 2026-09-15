@@ -62,8 +62,16 @@ function launch(): void {
 
   // `gateway run` — их же способ поднять шлюз в переднем плане. Платформы не
   // настроены, поэтому наружу он не ходит; в лог он это и пишет.
+  // Память в этом процессе живёт по тем же правилам, что в `hermes serve`
+  // (runtime/memory-config.mjs, задача 5.1а и D-85): телеметрия mem0 выключена,
+  // её файлы — в профиле, а не в `~/.mem0`. Обе переменные читаются при импорте.
   const proc = spawn(env.binary, ['gateway', 'run'], {
-    env: { ...process.env, HERMES_HOME: env.homeDir },
+    env: {
+      ...process.env,
+      HERMES_HOME: env.homeDir,
+      MEM0_TELEMETRY: 'false',
+      MEM0_DIR: join(env.homeDir, 'mem0')
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   })
 

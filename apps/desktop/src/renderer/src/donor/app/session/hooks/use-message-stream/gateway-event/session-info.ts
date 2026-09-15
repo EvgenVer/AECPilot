@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/session-info.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,12 @@ import {
 import { reportInstallMethodWarning } from '@/store/updates'
 
 import { finalizeInterruptedMessages } from '../../use-prompt-actions/rewind'
-import { hasSessionInfoStatePatch, PRE_TURN_LIVE_SETTLE_GRACE_MS, sessionInfoStatePatch } from '../utils'
+import {
+  applySessionInfoStatePatch,
+  hasSessionInfoStatePatch,
+  PRE_TURN_LIVE_SETTLE_GRACE_MS,
+  sessionInfoStatePatch
+} from '../utils'
 
 import type { GatewayEventContext } from './types'
 
@@ -260,12 +265,7 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
     if (sessionId && hasStatePatch) {
       updateSessionState(
         sessionId,
-        state => ({
-          ...state,
-          ...statePatch,
-          branch: statePatch.branch ?? state.branch,
-          cwd: statePatch.cwd ?? state.cwd
-        }),
+        state => applySessionInfoStatePatch(state, statePatch),
         payload?.stored_session_id || undefined
       )
     }

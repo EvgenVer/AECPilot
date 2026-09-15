@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/text.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,4 +33,20 @@ export const firstStringField = (record: Record<string, unknown>, keys: readonly
   }
 
   return ''
+}
+
+/** Search-equivalence fold: separators (`-`, `_`, `.`) and case stop matter —
+ *  `qwen3.8-flash`, `Qwen3.8 Flash` and `qwen3 8_flash` all fold to the same
+ *  string. One char in, one char out (length preserved), so highlight ranges
+ *  computed on folded text index the ORIGINAL text unchanged. Model ids use
+ *  hyphens, display names use spaces, quants use underscores — a picker search
+ *  must not care. Filter and highlight MUST call this on BOTH sides; a fold on
+ *  only one is what made hyphen queries match without ever highlighting. */
+export function searchFold(v: unknown): string {
+  return asText(v).toLowerCase().replace(/[-_.]/g, ' ')
+}
+
+/** `searchFold` + substring: the one matcher every searchable picker uses. */
+export function foldIncludes(text: unknown, query: unknown): boolean {
+  return searchFold(text).includes(searchFold(query))
 }

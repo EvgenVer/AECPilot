@@ -8,7 +8,8 @@ import {
   safeStorage,
   session,
   shell,
-  systemPreferences
+  systemPreferences,
+  webContents
 } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
@@ -240,6 +241,7 @@ import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './previe
 import { decideOpenPreviewExternal } from './preview-external-pure'
 import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
 import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
+import { cropCapture } from './preview-capture-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
   buildVaultTree,
@@ -867,7 +869,7 @@ function applyConfigDefault(
   homeDir: string,
   section: string,
   key: string,
-  value: number | string,
+  value: boolean | number | string,
   what: string
 ): void {
   const configPath = join(homeDir, 'config.yaml')
@@ -900,6 +902,25 @@ function applyRunBudget(homeDir: string): void {
 
 function applyLoopBudget(homeDir: string): void {
   applyConfigDefault(homeDir, 'loops', 'max_ticks', LOOP_MAX_TICKS, 'the loop tick budget')
+}
+
+/** Задача 3.B4д (решение владельца 2026-09-14, интервью 3.B4б). Два умолчания
+ * ядра 0.21.2, которые нам не подходят, закрепляются в профиле — именно
+ * УМОЛЧАНИЕМ: человек правит значение в том же файле, и правило его больше
+ * не трогает.
+ *
+ * `sessions.auto_prune` — с 0.21.2 `true`: удалять завершённые сессии старше
+ * 90 дней при старте. У `hermes serve` этот код не исполняется вовсе
+ * (`reading-0.21.2.md` §2.2); строка страхует историю разговоров (UR4) на
+ * случай ручного `hermes` на нашем профиле или переноса вызова в `serve`.
+ *
+ * `nous.guest` — бесплатный ярус их облака: без настроенного провайдера ядро
+ * само заводит анонимную личность Nous. Их облако — SPEC HX3; сегодня код
+ * стоит за их же флагом предрелиза, и `false` закрепляет отказ на случай,
+ * когда флаг снимут. */
+function applyCoreOptOuts(homeDir: string): void {
+  applyConfigDefault(homeDir, 'sessions', 'auto_prune', false, 'the session auto-prune opt-out')
+  applyConfigDefault(homeDir, 'nous', 'guest', false, 'the Nous free-tier opt-out')
 }
 
 /** Задача 3E.2 — ВЫБОР ПРОВАЙДЕРА ВЕБ-ПОИСКА, а не его включение.
@@ -3798,6 +3819,30 @@ ipcMain.handle('preview:reach', (_event, url: unknown) =>
   reachablePreviewUrl(typeof url === 'string' ? url : '')
 )
 
+// Задача 3.B4 (SPEC UR4, аннотации на предпросмотре). Снимок гостя
+// `<webview>` для их режима «обвести и спросить». Гость обязан ПРИНАДЛЕЖАТЬ
+// окну, которое просит: по номеру `webContents` можно назвать любой
+// документ процесса, а снимать окно разрешено только своих гостей.
+// Геометрия выреза — в `preview-capture-pure.ts`; здесь гость и отказы.
+ipcMain.handle('preview:capture', async (event, payload: unknown) => {
+  const value = payload as { rect?: unknown; viewport?: unknown; webContentsId?: unknown } | null
+  const guest =
+    typeof value?.webContentsId === 'number' ? webContents.fromId(value.webContentsId) : undefined
+  if (!guest || guest.isDestroyed() || guest.hostWebContents?.id !== event.sender.id) {
+    return { ok: false, error: 'Гость предпросмотра не найден' }
+  }
+
+  try {
+    const image = await guest.capturePage()
+    return { ok: true, dataUrl: cropCapture(image, value?.rect, value?.viewport) }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось снять предпросмотр: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+})
+
 // Задача 3E.8 (UR30, отменённый HX7). Живая оболочка терминала. Сессия
 // принадлежит ОКНУ: закрыли окно — оболочки этого окна убиты (см. шапку
 // `terminal.ts`). Цена канала названа в отменённом HX7 и принята владельцем;
@@ -5054,6 +5099,7 @@ app
           applyDefaultWakePhrase(HERMES_HOME_DIR)
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
+          applyCoreOptOuts(HERMES_HOME_DIR)
           applyWebBackend(HERMES_HOME_DIR)
           applyBrowserBackend(HERMES_HOME_DIR)
           applyApprovalsMode(HERMES_HOME_DIR)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/connections-registry.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -42,6 +42,7 @@ import {
 } from '@/lib/icons'
 import { coerceRemoteUrlScheme } from '@/lib/remote-url'
 import { $activeConnectionId, setConnectionsRegistry } from '@/store/connections'
+import { refreshFleetRoster } from '@/store/fleet-roster'
 import { notify, notifyError } from '@/store/notifications'
 
 import { EmptyState, ListRow, Pill, SectionHeading, ToggleRow } from './primitives'
@@ -559,6 +560,9 @@ export function ConnectionsRegistrySection() {
 
         if (reachable) {
           notify({ title: conn.label, message: s.testOk })
+          // A successful Test may have warmed a cold OAuth session that the
+          // roster missed; explicit recovery should bypass its cache window.
+          void refreshFleetRoster({ force: true })
         } else {
           notifyError(new Error(result.error || conn.label), s.testFailed)
         }

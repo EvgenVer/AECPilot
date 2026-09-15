@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-pin-sync.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,7 +34,7 @@ import { setSessionPinnedRemote } from '@/hermes'
 import { onConnectionScopeChange } from '@/lib/connection-scoped'
 import { $pinnedSessionIds, pinSession, unpinSession } from '@/store/layout'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
-import { $sessions, sessionMatchesStoredId, sessionPinId } from '@/store/session'
+import { $cronSessions, $messagingSessions, $sessions, sessionMatchesStoredId, sessionPinId } from '@/store/session'
 import type { SessionInfo } from '@/types/hermes'
 
 // pin ids we've successfully PATCHed pinned=true this session.
@@ -78,7 +78,24 @@ function publishUnconfirmed(): void {
 }
 
 function profileFor(pinId: string): null | string | undefined {
-  return $sessions.get().find(row => sessionMatchesStoredId(row, pinId))?.profile
+  return loadedRowFor(pinId)?.profile
+}
+
+function loadedSessionRows(): SessionInfo[] {
+  return [...$sessions.get(), ...$cronSessions.get(), ...$messagingSessions.get()]
+}
+
+/**
+ * The row a stored pin id resolves to, across every slice. Same tie-break as
+ * `rowsByPinId`: when two profiles share the id, the write must target the
+ * row the pull adopted — the active gateway's — or an unpin PATCHes the other
+ * profile and the next page re-adopts the pin.
+ */
+function loadedRowFor(pinId: string): SessionInfo | undefined {
+  const rows = loadedSessionRows().filter(row => sessionMatchesStoredId(row, pinId))
+  const gateway = normalizeProfileKey($activeGatewayProfile.get())
+
+  return rows.find(row => normalizeProfileKey(row.profile) === gateway) ?? rows[0]
 }
 
 /**
@@ -147,7 +164,7 @@ function writePin(id: string, pinned: boolean, profile?: null | string): Promise
 function pullRemotePins(): void {
   const local = new Set($pinnedSessionIds.get())
 
-  for (const row of rowsByPinId($sessions.get()).values()) {
+  for (const row of rowsByPinId(loadedSessionRows()).values()) {
     // A backend without the flag has no opinion; never act on `undefined`.
     if (typeof row.pinned !== 'boolean') {
       continue
@@ -197,8 +214,8 @@ function pullRemotePins(): void {
   }
 }
 
-// Re-entrancy guard: reconcile() is subscribed to BOTH $sessions and
-// $pinnedSessionIds, and pullRemotePins() mutates $pinnedSessionIds (via
+// Re-entrancy guard: reconcile() is subscribed to every loaded-session slice
+// and $pinnedSessionIds, and pullRemotePins() mutates $pinnedSessionIds (via
 // pinSession/unpinSession), which fires reconcile() again synchronously.
 // Without this guard, a session whose pin state oscillates — two rows with the
 // same durable id but conflicting `pinned` flags, possible when profile
@@ -254,9 +271,9 @@ function reconcileInner(): void {
   }
 
   // Flush whatever we can resolve now; unresolved ids (row not loaded yet)
-  // retry on the next $sessions change.
+  // retry on the next loaded-session slice change.
   for (const id of [...pending]) {
-    const row = $sessions.get().find(entry => sessionMatchesStoredId(entry, id))
+    const row = loadedRowFor(id)
 
     if (!row) {
       continue
@@ -283,6 +300,8 @@ export function watchSessionPins(): void {
   reconcile()
   $pinnedSessionIds.listen(reconcile)
   $sessions.listen(reconcile)
+  $cronSessions.listen(reconcile)
+  $messagingSessions.listen(reconcile)
 }
 
 /**

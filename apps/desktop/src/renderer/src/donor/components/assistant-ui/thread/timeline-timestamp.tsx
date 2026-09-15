@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/timeline-timestamp.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -64,7 +64,11 @@ export const TimelineTimestamp: FC<{
 
   return (
     <span
-      className={cn('text-[0.625rem] leading-4 tabular-nums text-muted-foreground/55', className)}
+      // The same meta ink as the tool rows' stamps (SCAFFOLD_META_CLASS).
+      // `text-muted-foreground/55` doubled an alpha: muted-foreground is
+      // already a 54% mix of the base ink, so the stamp landed near 30% —
+      // faint over a dark chrome and fainter over a light one.
+      className={cn('text-[0.625rem] leading-4 tabular-nums text-(--conversation-scaffold-meta)', className)}
       data-slot="timeline-timestamp"
       title={title}
     >

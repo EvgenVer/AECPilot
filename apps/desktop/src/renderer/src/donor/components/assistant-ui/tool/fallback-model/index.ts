@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/fallback-model/index.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -355,6 +355,7 @@ const DEFAULT_COUNT_NOUN_BY_TOOL: Record<string, string> = {
   search_files: 'result',
   session_search_recall: 'result',
   todo: 'todo',
+  todo_list: 'todo',
   web_search: 'result'
 }
 

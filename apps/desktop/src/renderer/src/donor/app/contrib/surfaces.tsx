@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -124,6 +124,7 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
   actions: WiringActions
   maxVoiceRecordingSeconds?: number
 }) {
+  const activeConnectionId = useStore($activeConnectionId)
   const activeGatewayProfile = useStore($activeGatewayProfile)
   const gateway = useStore($gateway)
   const gatewayState = useStore($gatewayState)
@@ -136,11 +137,12 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
         <ModelMenuPanel
           gateway={gateway || undefined}
           onSelectModel={actions.selectModel}
+          ownerConnectionId={activeConnectionId || undefined}
           profile={activeGatewayProfile}
           requestGateway={actions.requestGateway}
         />
       ) : null,
-    [actions, activeGatewayProfile, gateway, gatewayState]
+    [actions, activeConnectionId, activeGatewayProfile, gateway, gatewayState]
   )
 
   const chatActions = useMemo(() => latestChatActions(actions), [actions])
@@ -150,6 +152,9 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
       gateway={gateway}
       maxVoiceRecordingSeconds={maxVoiceRecordingSeconds}
       modelMenuContent={modelMenuContent}
+      modelOptionsOwnerConnectionId={activeConnectionId || undefined}
+      modelOptionsProfile={activeGatewayProfile}
+      requestModelOptionsForOwner={actions.requestGateway}
       {...chatActions}
     />
   )

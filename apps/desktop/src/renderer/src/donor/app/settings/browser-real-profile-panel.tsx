@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/browser-real-profile-panel.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,9 @@ interface BrowserRealProfilePanelProps {
   profile?: ProfileScope
 }
 
-function readUseRealProfile(record: Record<string, unknown> | undefined): boolean {
+/** Shared with the Browser pane's first-open consent prompt, so both surfaces
+ *  agree on what "on" means for `browser.use_real_profile`. */
+export function readUseRealProfile(record: Record<string, unknown> | undefined): boolean {
   const browser = record?.browser
 
   if (browser && typeof browser === 'object' && !Array.isArray(browser)) {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/lifecycle.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,9 +13,11 @@ import {
   notifyPetChanged,
   notifyPlatformsChanged,
   notifySessionsChanged,
+  notifySetupReady,
   type PetChangeMeta,
   setChangeEventsAvailable
 } from '@/store/live-sync'
+import { markRuntimeGone } from '@/store/runtime-gone'
 import { dropSessionState, unbindTileRuntime } from '@/store/session-states'
 // Leaf import (not the `@/themes` barrel) to avoid pulling the ThemeProvider
 // module graph into the gateway event hot path.
@@ -23,7 +25,7 @@ import { ingestBackendSkin } from '@/themes/backend-sync'
 
 import type { GatewayEventContext } from './types'
 
-/** gateway.ready / skin.changed / change-watcher broadcasts / session.reclaimed. */
+/** gateway.ready / setup.ready / skin.changed / change-watcher broadcasts / session.reclaimed. */
 export function handleLifecycleEvent(ctx: GatewayEventContext): boolean {
   const { deps, event, payload, fromActiveSource } = ctx
 
@@ -34,6 +36,20 @@ export function handleLifecycleEvent(ctx: GatewayEventContext): boolean {
     // Backends with the change watcher broadcast pet/cron/sessions change
     // events; consumers demote their legacy polls to slow backstops.
     setChangeEventsAvailable(Boolean((payload as { change_events?: boolean } | undefined)?.change_events))
+
+    return true
+  }
+
+  if (event.type === 'setup.ready') {
+    // The boot bootstrap (hermes_cli/free_tier_bootstrap.py) resolved the
+    // free-tier identity and the inference route, and broadcast once. The
+    // payload is only a hint — the status snapshot re-reads `setup.status` /
+    // `setup.runtime_check` / `free_tier.status` through its own scoped
+    // requester so the chip, strip and onboarding react now rather than on
+    // the next ambient tick. Only the active source's boot matters here.
+    if (fromActiveSource()) {
+      notifySetupReady()
+    }
 
     return true
   }
@@ -87,6 +103,8 @@ export function handleLifecycleEvent(ctx: GatewayEventContext): boolean {
     const reclaimedRuntimeId = String((payload as { session_id?: string } | undefined)?.session_id ?? '')
 
     if (reclaimedRuntimeId) {
+      // Heal while the cached stored-id mapping is still intact, then drop.
+      markRuntimeGone(reclaimedRuntimeId)
       dropSessionState(reclaimedRuntimeId)
       // A tile bound to the reclaimed runtime would otherwise render an
       // empty transcript forever: its view reads $sessionStates[runtime]

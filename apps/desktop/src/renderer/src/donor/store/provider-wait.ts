@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/provider-wait.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -52,5 +52,42 @@ export function clearAllProviderWaits(): void {
 export function providerWaitText(text: string): string {
   const value = text.trim()
 
-  return /^(?:⏳|⚠|↻)\s*(?:waiting on|no (?:output|response)|model returned)/i.test(value) ? value : ''
+  return /^(?:⏳|⚠|↻|⚙)\s*(?:waiting on|loading|processing prompt|no (?:output|response)|model returned)/i.test(value)
+    ? value
+    : ''
+}
+
+/** Parse a managed-local progress frame into bar-renderable parts, or null
+ * for every other wait frame. Two shapes, both minted by the backend's
+ * _managed_local_load_notice (the percents are real — per-tensor load
+ * callback / live prefill counter — so a determinate bar is honest):
+ *   "⏳ loading <model> into memory — 43% …"  -> kind: 'load'
+ *   "⚙ processing prompt — 31%"               -> kind: 'prefill'
+ * A percentless prefill frame ("⚙ processing prompt") parses with
+ * percent: null and renders as label-only, no fake bar. */
+export function parseModelLoadWait(
+  text: string
+): null | { kind: 'load' | 'prefill'; model: string; percent: null | number } {
+  const value = text.trim()
+  const load = /^⏳\s*loading\s+(.+?)\s+into memory\s+—\s+(\d{1,3})%/i.exec(value)
+
+  if (load) {
+    return {
+      kind: 'load',
+      model: load[1],
+      percent: Math.max(0, Math.min(100, Number(load[2])))
+    }
+  }
+
+  const prefill = /^⚙\s*processing prompt(?:\s+—\s+(\d{1,3})%)?/i.exec(value)
+
+  if (prefill) {
+    return {
+      kind: 'prefill',
+      model: '',
+      percent: prefill[1] === undefined ? null : Math.max(0, Math.min(100, Number(prefill[1])))
+    }
+  }
+
+  return null
 }

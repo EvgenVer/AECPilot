@@ -22,7 +22,7 @@ import path from "node:path";
 
 import { connectWs, rpcCall } from "./gateway-client.mjs";
 import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
-import { applyMemoryProfile } from "./memory-config.mjs";
+import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 import { HERMES_HOME_DIR, startServe, stopServe, waitHealthy } from "./serve.mjs";
 
 const PORT = 18991;
@@ -56,7 +56,7 @@ function runPython() {
       env: {
         ...process.env,
         HERMES_HOME: HERMES_HOME_DIR,
-        MEM0_TELEMETRY: "false",
+        ...memoryEnv(HERMES_HOME_DIR),
         PYTHONIOENCODING: "utf-8",
       },
     });

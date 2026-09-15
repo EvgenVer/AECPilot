@@ -159,6 +159,8 @@ def main():
 
     load_env(home)
     os.environ["MEM0_TELEMETRY"] = "false"
+    # D-85: журнал mem0 — в профиле, а не в ~/.mem0 (см. runtime/memory-config.mjs).
+    os.environ.setdefault("MEM0_DIR", os.path.join(home, "mem0"))
 
     provider = None
     try:

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/index.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -182,6 +182,7 @@ export const Thread = memo(function Thread({
           components={messageComponents}
           emptyPlaceholder={emptyPlaceholder}
           loadingIndicator={loadingIndicator}
+          sessionId={sessionId}
           sessionKey={sessionKey}
         />
         {loading === 'session' && <CenteredThreadSpinner />}

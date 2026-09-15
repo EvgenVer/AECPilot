@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/cron-selected-bot.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,7 +11,7 @@
  * #89625 (PR #89637 residual): nanostores' `.listen()` never replays the
  * current value the way `.subscribe()` does, so the focused-owner listener in
  * register() only kept `$selectedBot` current from the moment it was attached.
- * A disable → profile switch → re-enable cycle (Settings ▸ Plugins) left
+ * A disable → profile switch → re-enable cycle (Capabilities ▸ Plugins) left
  * `$selectedBot` pointed at whichever bot was active before the plugin was
  * disabled. `bindProfileSync` reseeds from the store's CURRENT value before
  * attaching the listener, so every register() starts in sync.

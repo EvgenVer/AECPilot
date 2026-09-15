@@ -23,7 +23,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
-import { applyMemoryProfile } from "./memory-config.mjs";
+import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 
 const HERMES_SRC = path.join(RUNTIME_DIR, ".hermes-src");
 const USER_FACT = "Ведёт раздел ОВ. Отвечать коротко.";
@@ -40,7 +40,7 @@ const PY = [
 
 function askCore(home, scriptPath) {
   const out = spawnSync(PYTHON_BIN, [scriptPath], {
-    env: { ...process.env, HERMES_HOME: home, PYTHONIOENCODING: "utf-8" },
+    env: { ...process.env, HERMES_HOME: home, ...memoryEnv(home), PYTHONIOENCODING: "utf-8" },
     encoding: "utf-8",
   });
   const text = `${out.stdout ?? ""}${out.stderr ?? ""}`;

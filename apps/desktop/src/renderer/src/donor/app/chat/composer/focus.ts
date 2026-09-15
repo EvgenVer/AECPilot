@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/focus.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,7 +17,7 @@
  * steal focus from the composer effect.
  */
 
-import { queryAllVisible, queryVisible } from '@/components/pane-shell/pane-visibility'
+import { isElementInHiddenPane, queryAllVisible, queryVisible } from '@/components/pane-shell/pane-visibility'
 import { $hoveredTreeGroup } from '@/components/pane-shell/tree/store'
 
 import type { InlineRefInput } from './inline-refs'
@@ -403,10 +403,21 @@ export const focusComposerInput = (el: HTMLElement | null) => {
   // Skip when already focused: focus() runs the full focusing steps (forcing
   // layout) even on the active element, and during a session switch the DOM is
   // large and dirty — the redundant retries were measurably expensive there.
+  // Also skip when another VISIBLE composer holds the caret — a keep-alive
+  // remount must not yank typing. A hidden tab that still has DOM focus must
+  // not block the pane the user just switched to.
   const focus = () => {
-    if (document.activeElement !== el) {
-      el.focus({ preventScroll: true })
+    if (document.activeElement === el) {
+      return
     }
+
+    const active = document.activeElement
+
+    if (active instanceof HTMLElement && active.dataset.slot === RICH_INPUT_SLOT && !isElementInHiddenPane(active)) {
+      return
+    }
+
+    el.focus({ preventScroll: true })
   }
 
   focus()

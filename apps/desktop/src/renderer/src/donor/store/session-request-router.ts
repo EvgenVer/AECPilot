@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-request-router.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { requestGatewayForAgent, requestGatewayForProfile, retainGatewayForSessionTurn } from '@/store/gateway'
+
+import { resetBackgroundPollingGuardAfterRebind } from './session-gone-latch'
 
 /**
  * The ONE authoritative exact owner of a session: the registry connection whose
@@ -114,13 +116,14 @@ async function withRoutedTurnLease<T>(
   const sessionId = promptSessionId(method, params)
 
   if (!sessionId) {
-    return request()
+    return requestWithRebindGuard(method, params, request)
   }
 
   const release = await retainGatewayForSessionTurn(connectionId, profile, sessionId)
 
   try {
     const result = await request()
+    resetBackgroundPollingGuardAfterRebind(method, params, result)
 
     if (!turnKeepsRunning(result)) {
       release()
@@ -131,6 +134,17 @@ async function withRoutedTurnLease<T>(
     release()
     throw error
   }
+}
+
+async function requestWithRebindGuard<T>(
+  method: string,
+  params: Record<string, unknown>,
+  request: () => Promise<T>
+): Promise<T> {
+  const result = await request()
+  resetBackgroundPollingGuardAfterRebind(method, params, result)
+
+  return result
 }
 
 /**
@@ -200,14 +214,14 @@ export function requestForSessionProfile<T>(
     // for a deadline (the plugin host bridge in contrib/wiring is the only one
     // that does).
     if (signal !== undefined) {
-      return ambientRequest<T>(method, params, timeoutMs, signal)
+      return requestWithRebindGuard(method, params, () => ambientRequest<T>(method, params, timeoutMs, signal))
     }
 
     if (timeoutMs !== undefined) {
-      return ambientRequest<T>(method, params, timeoutMs)
+      return requestWithRebindGuard(method, params, () => ambientRequest<T>(method, params, timeoutMs))
     }
 
-    return ambientRequest<T>(method, params)
+    return requestWithRebindGuard(method, params, () => ambientRequest<T>(method, params))
   }
 
   const profile = normKey(ownerProfile)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/layout-constants.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,8 +25,15 @@ export const PAGE_INSET_NEG_X = '-mx-[clamp(1.25rem,4vw,4rem)]'
 // for Tailwind's scanner (see PAGE_INSET_X note).
 export const PAGE_MAX_W = 'max-w-[75rem]'
 
-// Below this viewport width a docked sidebar leaves no room for content, so both
-// rails auto-collapse into the hover-reveal overlay. Single source of truth for
+// Narrowest window that still docks a rail in the grid; under it both rails
+// leave the grid and become the hover-reveal overlay. Single source of truth for
 // the responsive collapse point.
-export const SIDEBAR_COLLAPSE_BREAKPOINT_PX = 768
-export const SIDEBAR_COLLAPSE_MEDIA_QUERY = `(max-width: ${SIDEBAR_COLLAPSE_BREAKPOINT_PX}px)`
+//
+// A rail costs 237px (SIDEBAR_DEFAULT_WIDTH) and the chat beside it wants roughly
+// what a popped-out session window enforces on itself (420px), so docking stops
+// paying for itself around here — while still leaving an overlay band down to the
+// window's own 400px minimum. Expressed as a dock floor rather than a collapse
+// ceiling so half-screen splits stay docked on common laptop widths (1280 → 640).
+export const SIDEBAR_DOCK_MIN_WIDTH_PX = 640
+// `max-width` is inclusive: shave a hair so an exactly-640px window docks.
+export const SIDEBAR_COLLAPSE_MEDIA_QUERY = `(max-width: ${SIDEBAR_DOCK_MIN_WIDTH_PX - 0.02}px)`

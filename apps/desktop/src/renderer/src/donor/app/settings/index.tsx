@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/index.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the billing section (HX2)
+ *   [3] removed the Credential Vault entry and view (HX24)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -21,12 +22,12 @@ import {
   Archive,
   BarChart3,
   Bell,
+  Cpu,
   Download,
   Globe,
   Info,
   Keyboard,
   KeyRound,
-  Package,
   RefreshCw,
   Search,
   Settings2,
@@ -39,14 +40,16 @@ import { typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
 import { cn } from '@/lib/utils'
 import { $commandPaletteOpen, openCommandPalettePage } from '@/store/command-palette'
 import { confirm } from '@/store/confirm'
+import { $activeConnectionId } from '@/store/connections'
 import { bindingsFor } from '@/store/keybinds'
+import { $localModelsEnabled } from '@/store/local-models-flag'
 import { notifyError } from '@/store/notifications'
+import { $settingsScopeProfile } from '@/store/settings-scope'
 
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
 import { OverlayIconButton } from '../overlays/overlay-chrome'
 import { OverlayMain, OverlayNav, type OverlayNavGroup, OverlaySplitLayout } from '../overlays/overlay-split-layout'
 import { OverlayView } from '../overlays/overlay-view'
-import { SKILLS_ROUTE } from '../routes'
 
 import { AboutSettings } from './about-settings'
 import { AppearanceSettings } from './appearance-settings'
@@ -57,8 +60,8 @@ import { SECTIONS } from './constants'
 import { GatewaySettings } from './gateway-settings'
 import { KeybindSettings } from './keybind-settings'
 import { KEYS_VIEWS, KeysSettings, type KeysView } from './keys-settings'
+import { movedSettingsTabRedirect } from './moved-tabs'
 import { NotificationsSettings } from './notifications-settings'
-import { PluginsSettings } from './plugins-settings'
 import { PROVIDER_VIEWS, ProvidersSettings, type ProviderView } from './providers-settings'
 import { SessionsSettings } from './sessions-settings'
 import type { SettingsPageProps, SettingsView as SettingsViewId } from './types'
@@ -73,27 +76,25 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'keybinds',
   'keys',
   'notifications',
-  'plugins',
   'sessions',
   'about'
 ]
 
 export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: SettingsPageProps) {
+  const scopeProfile = useStore($settingsScopeProfile)
+  const activeConnectionId = useStore($activeConnectionId)
   const { t } = useI18n()
   const navigate = useNavigate()
   const { hash, pathname, search } = useLocation()
 
-  // MCP moved out of Settings into Capabilities (/skills?tab=mcp). Keep old
-  // `/settings?tab=mcp` deep links working — `useRouteEnumParam` would silently
-  // coerce the unknown tab to the default view otherwise. Preserve `server=` so
-  // an old bookmark still lands on (and highlights) the selected server.
+  // MCP and Plugins moved out of Settings into Capabilities. Keep old
+  // `/settings?tab=mcp|plugins` deep links working — `useRouteEnumParam` would
+  // silently coerce the unknown tab to the default view otherwise.
   useEffect(() => {
-    const params = new URLSearchParams(search)
+    const redirect = movedSettingsTabRedirect(search)
 
-    if (params.get('tab') === 'mcp') {
-      const server = params.get('server')
-      const suffix = server ? `&server=${encodeURIComponent(server)}` : ''
-      navigate(`${SKILLS_ROUTE}?tab=mcp${suffix}`, { replace: true })
+    if (redirect) {
+      navigate(redirect, { replace: true })
     }
   }, [navigate, search])
 
@@ -178,16 +179,20 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
 
   const navGroups: OverlayNavGroup[] = useMemo(
     () => [
-      ...SECTIONS.map(s => {
+      ...SECTIONS.flatMap(s => {
         const view = `config:${s.id}` as SettingsViewId
 
-        return {
+        const entry = {
           active: activeView === view,
           icon: s.icon,
           id: view,
           label: t.settings.sections[s.id] ?? s.label,
           onSelect: () => setActiveView(view)
         }
+
+        // EDIT [3]: the Credential Vault entry that sat beside Browser is gone —
+        // logins, payment cards and addresses for agent autofill are SPEC HX24.
+        return [entry]
       }),
       {
         active: activeView === 'notifications',
@@ -219,7 +224,22 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             id: 'pview:custom-endpoints',
             label: t.settings.nav.providerCustomEndpoints,
             onSelect: () => openProviderView('custom-endpoints')
-          }
+          },
+          // Local models ships behind the --local launch flag: no flag, no
+          // nav entry (the pane itself also refuses to render, so a stale
+          // ?pview=local deep link falls back to accounts-shaped emptiness
+          // rather than a hidden feature).
+          ...($localModelsEnabled.get()
+            ? [
+                {
+                  active: activeView === 'providers' && providerView === 'local',
+                  icon: Cpu,
+                  id: 'pview:local',
+                  label: t.settings.nav.providerLocalModels,
+                  onSelect: () => openProviderView('local')
+                }
+              ]
+            : [])
         ],
         gapBefore: true,
         icon: Zap,
@@ -263,13 +283,6 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
         id: 'keys',
         label: t.settings.nav.apiKeys,
         onSelect: () => setActiveView('keys')
-      },
-      {
-        active: activeView === 'plugins',
-        icon: Package,
-        id: 'plugins',
-        label: t.settings.nav.plugins,
-        onSelect: () => setActiveView('plugins')
       },
       {
         active: activeView === 'sessions',
@@ -317,8 +330,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
   // Fake search pill riding the card's top edge, dead-center and half off it.
   // Clicking (or just typing) opens the ⌘K palette scoped to settings; while
   // the palette is up the pill hands over to it — grows slightly and fades,
-  // then fades back when the palette closes. It renders as chrome, not an
-  // input — no border, recessed fill, live ⌘K hint.
+  // then fades back when the palette closes. It sits outside the raised card,
+  // so it needs its own opaque glass surface to mask the content underneath.
   const searchCombo = bindingsFor('nav.commandPalette')[0]
   const paletteOpen = useStore($commandPaletteOpen)
 
@@ -328,6 +341,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
         'flex h-(--titlebar-control-height) items-center gap-1.5 rounded-full border border-(--ui-stroke-secondary) bg-(--ui-chat-surface-background) px-2.5 text-(--ui-text-tertiary) shadow-sm transition-all duration-200 ease-out hover:text-foreground motion-reduce:transition-none',
         paletteOpen && 'pointer-events-none scale-110 opacity-0'
       )}
+      data-glass-opaque=""
       onClick={() => {
         triggerHaptic('open')
         openCommandPalettePage('settings')
@@ -392,6 +406,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       />
     ) : activeView === 'providers' ? (
       <ProvidersSettings
+        key={scopeProfile}
         onClose={onClose}
         onConfigSaved={onConfigSaved}
         onMainModelChanged={onMainModelChanged}
@@ -402,8 +417,6 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       <KeysSettings view={keysView} />
     ) : activeView === 'notifications' ? (
       <NotificationsSettings />
-    ) : activeView === 'plugins' ? (
-      <PluginsSettings />
     ) : (
       <SessionsSettings />
     )

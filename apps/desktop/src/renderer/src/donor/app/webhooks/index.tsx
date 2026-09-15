@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/webhooks/index.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -154,19 +154,21 @@ export function WebhooksView({ onClose }: WebhooksViewProps) {
   const restartGatewayNow = useCallback(async () => {
     setRestarting(true)
 
-    try {
-      await runGatewayRestart()
+    // runGatewayRestart never rejects (it toasts its own failure); the boolean
+    // is the only signal that the receiver actually came back.
+    const ok = await runGatewayRestart()
+
+    if (ok) {
       setRestartNeeded(false)
       setRestartError(null)
       // Give the receiver a moment to bind before re-reading state.
       window.setTimeout(() => void reload(true), 4000)
-    } catch (err) {
+    } else {
       setRestartNeeded(true)
-      setRestartError(String(err))
-      notifyError(err, w.restartFailed(''))
-    } finally {
-      setRestarting(false)
+      setRestartError(w.restartFailed(''))
     }
+
+    setRestarting(false)
   }, [reload, w])
 
   const handleEnable = useCallback(async () => {

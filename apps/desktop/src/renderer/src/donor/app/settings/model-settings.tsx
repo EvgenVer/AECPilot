@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/model-settings.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -27,17 +27,19 @@ import {
 } from '@/hermes'
 import type {
   AuxiliaryModelsResponse,
+  AuxiliaryTaskAssignment,
   MoaConfigResponse,
   MoaModelSlot,
   ModelOptionProvider,
   StaleAuxAssignment
 } from '@/hermes'
 import { useI18n } from '@/i18n'
+import { isCodeSkewRestartRequired } from '@/lib/code-skew-error'
 import { AlertTriangle, Cpu, Loader2 } from '@/lib/icons'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_VALUES } from '@/lib/reasoning-effort'
 import { cn } from '@/lib/utils'
 import { setMainModelAssignment } from '@/store/cron-model-impact'
-import { notifyError } from '@/store/notifications'
+import { notifyError, readableError } from '@/store/notifications'
 import { startManualLocalEndpoint, startManualOnboarding, startManualProviderOAuth } from '@/store/onboarding'
 
 import { hermesConfigCacheWriter, invalidateHermesConfig, useHermesConfigRecord } from '../hooks/use-config-record'
@@ -153,6 +155,30 @@ export const moaConfigComplete = (config: MoaConfigResponse): boolean =>
       moaSlotComplete(preset.aggregator)
   )
 
+// Persistent mismatch: any aux slot pinned to a provider different from the
+// current main, regardless of whether the user just switched. Catches the
+// "I pinned aux months ago and forgot, now it bills a dead provider" case.
+// A pin on a private/LAN endpoint (per-task base_url, e.g. a home Ollama box)
+// never bills a provider, so the backend's `local_endpoint` verdict exempts it.
+export function staleAuxAssignments(
+  tasks: readonly AuxiliaryTaskAssignment[],
+  mainProvider: string
+): StaleAuxAssignment[] {
+  const main = mainProvider.toLowerCase()
+
+  if (!main) {
+    return []
+  }
+
+  return tasks
+    .filter(entry => {
+      const p = (entry.provider ?? '').toLowerCase()
+
+      return p && p !== 'auto' && p !== main && !entry.local_endpoint
+    })
+    .map(entry => ({ task: entry.task, provider: entry.provider, model: entry.model }))
+}
+
 interface StaleAuxWarningProps {
   applying: boolean
   onReset: () => void
@@ -202,6 +228,8 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
   const m = t.settings.model
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [skewRestart, setSkewRestart] = useState(false)
+  const [restartingBackend, setRestartingBackend] = useState(false)
   const [mainModel, setMainModel] = useState<{ model: string; provider: string } | null>(null)
   const [providers, setProviders] = useState<ModelOptionProvider[]>([])
   const [selectedProvider, setSelectedProvider] = useState('')
@@ -238,11 +266,21 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
   // A's models/providers into profile B (or fire onMainModelChanged for A).
   const profileEpoch = useRef(0)
 
+  const setCaughtError = useCallback(
+    (err: unknown, fallback: string) => {
+      const skew = isCodeSkewRestartRequired(err)
+      setSkewRestart(skew)
+      setError(skew ? m.restartRequired : readableError(err, fallback).message)
+    },
+    [m.restartRequired]
+  )
+
   const refresh = useCallback(
     async ({ replaceSelection = false }: { replaceSelection?: boolean } = {}) => {
       const epoch = profileEpoch.current
       setLoading(true)
       setError('')
+      setSkewRestart(false)
 
       try {
         const [modelInfo, modelOptions, auxiliaryModels, moaModels] = await Promise.all([
@@ -279,7 +317,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
         void invalidateHermesConfig(scopeProfile)
       } catch (err) {
         if (profileEpoch.current === epoch) {
-          setError(err instanceof Error ? err.message : String(err))
+          setCaughtError(err, m.loadFailed)
         }
       } finally {
         if (profileEpoch.current === epoch) {
@@ -287,7 +325,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
         }
       }
     },
-    [scopeProfile]
+    [m.loadFailed, scopeProfile, setCaughtError]
   )
 
   useEffect(() => {
@@ -417,12 +455,12 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
           })
           .catch(err => {
             if (moaSaveGeneration.current === generation) {
-              setError(err instanceof Error ? err.message : String(err))
+              setCaughtError(err, m.loadFailed)
             }
           })
       }, 600)
     },
-    [scopeProfile]
+    [m.loadFailed, scopeProfile, setCaughtError]
   )
 
   const updateMoaPreset = useCallback(
@@ -486,34 +524,20 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
 
         setMoa(saved)
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        setCaughtError(err, m.loadFailed)
       } finally {
         setApplying(false)
       }
     },
-    [scopeProfile]
+    [m.loadFailed, scopeProfile, setCaughtError]
   )
 
   const auxiliaryTaskLabel = useCallback((key: string) => m.tasks[key]?.label ?? key, [m.tasks])
 
-  // Persistent mismatch: any aux slot pinned to a provider different from the
-  // current main, regardless of whether the user just switched. Catches the
-  // "I pinned aux months ago and forgot, now it bills a dead provider" case.
-  const persistentStaleAux = useMemo<StaleAuxAssignment[]>(() => {
-    const mainProvider = (mainModel?.provider ?? '').toLowerCase()
-
-    if (!mainProvider || !auxiliary) {
-      return []
-    }
-
-    return auxiliary.tasks
-      .filter(entry => {
-        const p = (entry.provider ?? '').toLowerCase()
-
-        return p && p !== 'auto' && p !== mainProvider
-      })
-      .map(entry => ({ task: entry.task, provider: entry.provider, model: entry.model }))
-  }, [auxiliary, mainModel])
+  const persistentStaleAux = useMemo<StaleAuxAssignment[]>(
+    () => staleAuxAssignments(auxiliary?.tasks ?? [], mainModel?.provider ?? ''),
+    [auxiliary, mainModel]
+  )
 
   // Capabilities of the APPLIED main model — gates the profile-default
   // reasoning/speed controls the same way the composer picker gates per-model
@@ -619,11 +643,11 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
       const fallbackModel = refreshedRow?.models?.[0] ?? ''
       setSelectedModel(nextModel || fallbackModel)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setCaughtError(err, m.loadFailed)
     } finally {
       setActivating(false)
     }
-  }, [apiKeyDraft, scopeProfile, selectedProviderRow])
+  }, [apiKeyDraft, m.loadFailed, scopeProfile, selectedProviderRow, setCaughtError])
 
   // OAuth / external providers can't be activated with a pasted key — hand off
   // to the shared onboarding flow scoped to this provider's real sign-in. The
@@ -687,11 +711,20 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
 
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setCaughtError(err, m.loadFailed)
     } finally {
       setApplying(false)
     }
-  }, [onMainModelChanged, refresh, scopeProfile, selectedModel, selectedProvider, selectedProviderRow])
+  }, [
+    m.loadFailed,
+    onMainModelChanged,
+    refresh,
+    scopeProfile,
+    selectedModel,
+    selectedProvider,
+    selectedProviderRow,
+    setCaughtError
+  ])
 
   // Sibling of the applyMainModel endpoint passthrough (#65254): auxiliary
   // assignments targeting a user-defined provider must carry that provider's
@@ -729,12 +762,12 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
         )
         await refresh()
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        setCaughtError(err, m.loadFailed)
       } finally {
         setApplying(false)
       }
     },
-    [endpointForProvider, mainModel, refresh, scopeProfile]
+    [endpointForProvider, m.loadFailed, mainModel, refresh, scopeProfile, setCaughtError]
   )
 
   const applyAuxiliaryDraft = useCallback(
@@ -760,12 +793,12 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
         setEditingAuxTask(null)
         await refresh()
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        setCaughtError(err, m.loadFailed)
       } finally {
         setApplying(false)
       }
     },
-    [auxDraft, endpointForProvider, refresh, scopeProfile]
+    [auxDraft, endpointForProvider, m.loadFailed, refresh, scopeProfile, setCaughtError]
   )
 
   const beginAuxiliaryEdit = useCallback(
@@ -803,11 +836,26 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
       setSwitchStaleAux([])
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setCaughtError(err, m.loadFailed)
     } finally {
       setApplying(false)
     }
-  }, [mainModel, refresh, scopeProfile])
+  }, [m.loadFailed, mainModel, refresh, scopeProfile, setCaughtError])
+
+  const recycleStaleBackend = useCallback(async () => {
+    setRestartingBackend(true)
+    setError('')
+    setSkewRestart(false)
+
+    try {
+      await window.hermesDesktop?.recycleBackend?.(scopeProfile)
+      await refresh({ replaceSelection: true })
+    } catch (err) {
+      setCaughtError(err, m.restartFailed)
+    } finally {
+      setRestartingBackend(false)
+    }
+  }, [m.restartFailed, refresh, scopeProfile, setCaughtError])
 
   if (loading && !mainModel) {
     return <ModelSettingsSkeleton />
@@ -927,7 +975,22 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
             )}
           </div>
         )}
-        {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
+        {error && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-destructive">
+            <span>{error}</span>
+            {skewRestart && (
+              <Button
+                disabled={restartingBackend}
+                onClick={() => void recycleStaleBackend()}
+                size="sm"
+                variant="textStrong"
+              >
+                {restartingBackend && <Loader2 className="size-3.5 animate-spin" />}
+                {restartingBackend ? m.restartingBackend : m.restartBackend}
+              </Button>
+            )}
+          </div>
+        )}
         {switchStaleAux.length > 0 && (
           <div className="mt-2">
             <StaleAuxWarning
@@ -1044,6 +1107,9 @@ export function ModelSettings({ onMainModelChanged, scopeProfile }: ModelSetting
                   description={
                     <span className="font-mono text-[0.68rem]">
                       {isAuto ? m.autoUseMain : `${current.provider} · ${current.model || m.providerDefault}`}
+                      {!isAuto && current.base_url && (
+                        <span className="text-muted-foreground"> · {current.base_url}</span>
+                      )}
                     </span>
                   }
                   title={

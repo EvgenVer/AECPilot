@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-session.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -861,7 +861,7 @@ export function useTerminalSession({
         // user last `cd`'d; the main side falls back to the launch cwd (then
         // home) if that dir no longer exists.
         .start({ cols: term.cols, cwd: initialRestoreCwdRef.current || cwd, rows: term.rows })
-        .then(session => {
+        .then(async session => {
           if (disposed) {
             void terminalApi.dispose(session.id)
 
@@ -877,8 +877,6 @@ export function useTerminalSession({
           const initial = term.hasSelection() ? term.getSelection() : ''
           selectionRef.current = initial
           selectionLabelRef.current = initial ? terminalSelectionLabel(term, shellNameRef.current, initial) : ''
-
-          setStatus('open')
 
           cleanup.push(
             terminalApi.onData(session.id, data => {
@@ -898,6 +896,14 @@ export function useTerminalSession({
               }
             })
           )
+
+          const attached = await terminalApi.attach(session.id)
+
+          if (!attached) {
+            throw new Error('Terminal session disappeared before its output stream attached')
+          }
+
+          setStatus('open')
 
           window.requestAnimationFrame(() => {
             term.clearSelection() // drop any selection painted over transient boot rows

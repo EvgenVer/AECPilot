@@ -1,17 +1,29 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/runtime-readiness.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 export interface SetupStatusSnapshot {
   provider_configured?: boolean
+  /** Additive launch-profile fields (newer backends only; absent on older
+   *  ones). Carried for consumers that read the record — readiness itself
+   *  still keys on `provider_configured` + `setup.runtime_check`. */
+  ready?: boolean
+  free_tier?: boolean
+  other_providers?: boolean
+  inference_provider?: string
 }
 
 export interface RuntimeCheckSnapshot {
   error?: string
+  /** True when the resolved route is the free tier rather than a credential of
+   *  the user's own. Absent on older backends. */
+  free_tier?: boolean
+  model?: string
   ok?: boolean
+  provider?: string
 }
 
 export interface RuntimeReadinessSignals {
@@ -29,6 +41,13 @@ export interface RuntimeReadinessOptions {
 
 export interface RuntimeReadinessResult {
   checksDisagree: boolean
+  /** Passed through from `setup.runtime_check`: the resolved route is the free
+   *  tier. Undefined when the check did not answer (older backend, transport
+   *  fallback) — never read it as "not free tier". */
+  freeTier?: boolean
+  /** Passed through from `setup.runtime_check`: the model the route resolved
+   *  to. Undefined when the check did not answer. */
+  model?: string
   ready: boolean
   reason: null | string
   source: 'fallback' | 'runtime_check' | 'setup_status'
@@ -107,12 +126,21 @@ export function interpretRuntimeReadiness(
   const runtimeFailure = normalizeMessage(signals.runtime?.error) ?? normalizeMessage(signals.runtimeError)
   const setupFailure = normalizeMessage(signals.setupError)
 
+  // Route facts the check reported, carried through untouched so consumers
+  // (free-tier chrome) don't have to re-issue setup.runtime_check. Left
+  // undefined when the check said nothing — "absent" and "false" differ.
+  const route = {
+    freeTier: typeof signals.runtime?.free_tier === 'boolean' ? signals.runtime.free_tier : undefined,
+    model: normalizeMessage(signals.runtime?.model) ?? undefined
+  }
+
   const checksDisagree =
     typeof setupConfigured === 'boolean' && typeof runtimeOk === 'boolean' && setupConfigured !== runtimeOk
 
   if (typeof runtimeOk === 'boolean') {
     if (runtimeOk) {
       return {
+        ...route,
         checksDisagree,
         ready: true,
         reason: null,
@@ -127,6 +155,7 @@ export function interpretRuntimeReadiness(
     }
 
     return {
+      ...route,
       checksDisagree,
       ready: false,
       reason,
@@ -136,6 +165,7 @@ export function interpretRuntimeReadiness(
 
   if (typeof setupConfigured === 'boolean') {
     return {
+      ...route,
       checksDisagree: false,
       ready: setupConfigured,
       reason: setupConfigured ? null : (runtimeFailure ?? setupFailure ?? defaultReason),
@@ -144,6 +174,7 @@ export function interpretRuntimeReadiness(
   }
 
   return {
+    ...route,
     checksDisagree: false,
     ready: unknownReady,
     reason: unknownReady ? null : (runtimeFailure ?? setupFailure ?? defaultReason),

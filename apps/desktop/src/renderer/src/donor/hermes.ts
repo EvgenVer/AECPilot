@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/hermes.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,6 +25,7 @@ export {
 export type { ProfileScope } from './api/client'
 export * from './api/config'
 export * from './api/cron'
+export * from './api/local-models'
 export * from './api/mcp'
 export * from './api/messaging'
 export * from './api/models'
@@ -46,9 +47,11 @@ export type {
   AnalyticsTotals,
   AudioSpeakResponse,
   AudioTranscriptionResponse,
+  AudioTtsLeaseResponse,
   AutomationBlueprint,
   AutomationBlueprintField,
   AuxiliaryModelsResponse,
+  AuxiliaryTaskAssignment,
   BackendUpdateCheckResponse,
   ComputerUseCheck,
   ComputerUsePermissionSource,
@@ -125,6 +128,9 @@ export type {
   StaleAuxAssignment,
   StarmapGraph,
   StatusResponse,
+  TelegramOnboardingApplyResponse,
+  TelegramOnboardingStartResponse,
+  TelegramOnboardingStatusResponse,
   ToolsetConfig,
   ToolsetInfo,
   ToolsetModel,

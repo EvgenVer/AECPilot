@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/model-visibility-dialog.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@ import { useI18n } from '@/i18n'
 import { Search } from '@/lib/icons'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
-import { normalize } from '@/lib/text'
+import { foldIncludes, normalize } from '@/lib/text'
 import {
   $visibleModels,
   collapseModelFamilies,
@@ -39,6 +39,7 @@ interface ModelVisibilityDialogProps {
   onOpenChange: (open: boolean) => void
   onOpenProviders: () => void
   open: boolean
+  ownerConnectionId?: string
   profile?: string
   sessionId?: string | null
 }
@@ -48,6 +49,7 @@ export function ModelVisibilityDialog({
   onOpenChange,
   onOpenProviders,
   open,
+  ownerConnectionId,
   profile = 'default',
   sessionId
 }: ModelVisibilityDialogProps) {
@@ -58,8 +60,8 @@ export function ModelVisibilityDialog({
   const collapsedProviders = useStore($collapsedProviders)
 
   const modelOptions = useQuery({
-    queryKey: modelOptionsQueryKey(profile, sessionId),
-    queryFn: (): Promise<ModelOptionsResponse> => requestModelOptions({ gateway: gw, sessionId }),
+    queryKey: modelOptionsQueryKey(profile, sessionId, ownerConnectionId),
+    queryFn: (): Promise<ModelOptionsResponse> => requestModelOptions({ gateway: gw, profile, sessionId }),
     enabled: open
   })
 
@@ -81,7 +83,7 @@ export function ModelVisibilityDialog({
   const q = normalize(search)
 
   const matches = (provider: ModelOptionProvider, model: string) =>
-    !q || `${model} ${provider.name} ${provider.slug} ${displayModelName(model)}`.toLowerCase().includes(q)
+    !q || foldIncludes(`${model} ${provider.name} ${provider.slug} ${displayModelName(model)}`, q)
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -134,7 +136,7 @@ export function ModelVisibilityDialog({
                       type="button"
                     >
                       <span className="min-w-0 truncate">
-                        <HighlightMatches query={search} text={provider.name} />
+                        <HighlightMatches foldSeparators query={search} text={provider.name} />
                       </span>
                       <DisclosureCaret
                         className="shrink-0 opacity-0 transition group-hover/label:opacity-100"
@@ -158,7 +160,7 @@ export function ModelVisibilityDialog({
                           key={key}
                         >
                           <span className="min-w-0 flex-1 truncate">
-                            <HighlightMatches query={search} text={name} />
+                            <HighlightMatches foldSeparators query={search} text={name} />
                             {tag ? <span className="text-(--ui-text-tertiary)"> {tag}</span> : null}
                           </span>
                           <Switch

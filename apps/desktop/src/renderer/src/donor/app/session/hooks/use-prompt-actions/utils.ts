@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/utils.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { AppendMessage } from '@assistant-ui/react'
+import { JsonRpcGatewayError } from '@hermes/shared'
 
 import { translateNow, type Translations } from '@/i18n'
 import type { ChatMessage } from '@/lib/chat-messages'
@@ -286,6 +287,17 @@ export const SESSION_BUSY_RETRY_INTERVAL_MS = 150
 
 export function isSessionBusyError(error: unknown): boolean {
   return /session busy/i.test(error instanceof Error ? error.message : String(error))
+}
+
+// prompt.submit refused because another surface (TUI, messaging gateway)
+// holds this session's lease (4090 / SESSION_NOT_OWNED, #106217). The gateway
+// stamps the machine reason in `error.data.reason`; the prose fallback covers
+// backends older than that contract. Deterministic until the owner lets go —
+// Retry reproduces it, so the card offers "Start new session" instead.
+export function isSessionNotOwnedError(error: unknown): boolean {
+  const reason = error instanceof JsonRpcGatewayError ? (error.data as { reason?: unknown } | undefined)?.reason : null
+
+  return reason === 'SESSION_NOT_OWNED' || /already has a live owner/i.test(error instanceof Error ? error.message : '')
 }
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))

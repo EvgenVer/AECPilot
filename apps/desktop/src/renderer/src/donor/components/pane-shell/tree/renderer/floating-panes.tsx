@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/floating-panes.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef,
 
 import { HUD_SURFACE } from '@/app/floating-hud'
 import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
+import { useOnboardingChatActive } from '@/components/onboarding-chat/assembly'
 import { Codicon } from '@/components/ui/codicon'
 import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
@@ -197,7 +198,11 @@ export function FloatingPanes() {
   const panes = useContributions('panes')
   const hidden = useStore($hiddenTreePanes)
 
-  const floating = panes.filter(pane => paneChrome(pane).placement === FLOATING_PLACEMENT && !hidden.has(pane.id))
+  const onboardingActive = useOnboardingChatActive()
+
+  const floating = onboardingActive
+    ? []
+    : panes.filter(pane => paneChrome(pane).placement === FLOATING_PLACEMENT && !hidden.has(pane.id))
 
   if (floating.length === 0) {
     return null

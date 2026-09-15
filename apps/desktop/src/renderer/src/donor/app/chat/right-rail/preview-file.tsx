@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-file.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -354,19 +354,7 @@ function MarkdownCode({ className, children, ...props }: ComponentProps<'code'>)
 
   const code = String(children).replace(/\n$/, '')
 
-  const highlighted = (
-    <ShikiHighlighter
-      addDefaultStyles={false}
-      as="div"
-      defaultColor="light-dark()"
-      delay={80}
-      language={language}
-      showLanguage={false}
-      theme={SHIKI_THEME}
-    >
-      {code}
-    </ShikiHighlighter>
-  )
+  const highlighted = <ShikiHighlighter code={code} language={language} theme={SHIKI_THEME} />
 
   // ```mermaid / ```svg fences route to the shared lazy renderers (same
   // registry the chat transcript uses); everything else stays on Shiki.
@@ -668,17 +656,7 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
               })}
             </div>
             <div className="preview-source-code min-w-0 [&_pre]:m-0" data-selectable-text="true">
-              <ShikiHighlighter
-                addDefaultStyles={false}
-                as="div"
-                defaultColor="light-dark()"
-                delay={80}
-                language={language || 'text'}
-                showLanguage={false}
-                theme={SHIKI_THEME}
-              >
-                {chunk.text}
-              </ShikiHighlighter>
+              <ShikiHighlighter code={chunk.text} language={language || 'text'} theme={SHIKI_THEME} />
             </div>
           </Fragment>
         ))}

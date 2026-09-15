@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/master-detail.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -425,23 +425,27 @@ export function ListStripButton({
 }
 
 interface CapRowProps {
+  /** Rendered in the switch slot instead of the Switch (e.g. an Install
+   *  button for not-yet-installed catalog rows). */
+  action?: ReactNode
   active: boolean
   busy?: boolean
   enabled: boolean
   meta?: ReactNode
   onSelect: () => void
-  onToggle: (checked: boolean) => void
+  onToggle?: (checked: boolean) => void
   rowId?: string
   /** Second line under the name (category, description, status). Rows grow to h-11. */
   subtitle?: ReactNode
   title: string
-  toggleLabel: string
+  toggleLabel?: string
 }
 
 // The one row used by all three lists. Fixed height, always-visible switch —
 // state reads from the switch + dimmed title, toggling never requires
 // selecting first. Off rows dim; the switch itself dims when off.
 export function CapRow({
+  action,
   active,
   busy,
   enabled,
@@ -491,15 +495,19 @@ export function CapRow({
           </span>
         )}
       </RowButton>
-      <Switch
-        aria-label={toggleLabel}
-        checked={enabled}
-        className={cn('mr-1.5 shrink-0 cursor-pointer', !enabled && 'opacity-60')}
-        disabled={busy}
-        onCheckedChange={onToggle}
-        size="xs"
-        title={toggleLabel}
-      />
+      {action != null ? (
+        <span className="mr-1.5 flex shrink-0 items-center">{action}</span>
+      ) : (
+        <Switch
+          aria-label={toggleLabel ?? title}
+          checked={enabled}
+          className={cn('mr-1.5 shrink-0 cursor-pointer', !enabled && 'opacity-60')}
+          disabled={busy}
+          onCheckedChange={onToggle}
+          size="xs"
+          title={toggleLabel ?? title}
+        />
+      )}
     </div>
   )
 }

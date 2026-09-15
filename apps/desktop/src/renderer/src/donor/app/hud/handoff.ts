@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hud/handoff.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,7 @@ import { $selectedStoredSessionId } from '@/store/session'
 import { focusOpenSession, sessionTileDelegate } from '@/store/session-states'
 import { isHudWindow } from '@/store/windows'
 
-import { getActiveComposer } from '../chat/composer/focus'
+import { getActiveComposer, requestComposerFocus } from '../chat/composer/focus'
 import { openSession, type OpenSessionNavigate } from '../open-session'
 import { sessionRoute } from '../routes'
 
@@ -76,6 +76,11 @@ export function useHudHandoff({ navigate, resumeSession }: HudHandoffParams): vo
     return watchHudState(hudSessionId => {
       // The HUD may have typed or sent since this window last read the stash.
       reloadPersistedDrafts()
+
+      // The user was typing in the HUD; they are now looking at the app. Put
+      // the caret where they left it. Main re-keys the OS window, but a key
+      // window with no focused element still eats the first keystrokes.
+      requestComposerFocus()
 
       const selected = $selectedStoredSessionId.get()
       const target = hudSessionId ?? selected

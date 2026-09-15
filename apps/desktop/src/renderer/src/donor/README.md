@@ -18,6 +18,14 @@ upstream becomes `donor/app/chat/…` here. Their `@/…` import alias resolves 
 this directory (see the renderer's vite/tsconfig aliases), which is what lets
 their intra-tree imports survive the copy unedited.
 
+Two more of their source roots are reached from the renderer and get a mirror
+of their own: `apps/shared/src` (their `@hermes/shared` package) lands in
+`donor/hermes-shared/…` behind our alias stand-in `shared/hermes-shared/`, and
+`apps/desktop/electron` (their main process, imported by relative path
+`../electron/…`) lands in `donor/hermes-electron/…` behind a re-export stub of
+ours at `renderer/src/electron/<name>.ts`. Only renderer-safe modules (types,
+constants, pure helpers) may be taken from the electron root.
+
 ## Provenance header — required on every file
 
 ```ts

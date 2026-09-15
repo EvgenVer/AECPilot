@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the wake-word fallback → ours (SPEC C12)
@@ -39,6 +39,7 @@ export function ComposerControls({
   disabled,
   foldVoice = false,
   hasComposerPayload,
+  hideModelPill = false,
   minimal = false,
   state,
   voiceStatus,
@@ -52,6 +53,7 @@ export function ComposerControls({
   disabled: boolean
   foldVoice?: boolean
   hasComposerPayload: boolean
+  hideModelPill?: boolean
   minimal?: boolean
   state: ChatBarState
   voiceStatus: VoiceStatus
@@ -96,7 +98,7 @@ export function ComposerControls({
     <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
       {minimal ? null : (
         <>
-          <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
+          {hideModelPill ? null : <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />}
           {voiceControls}
         </>
       )}

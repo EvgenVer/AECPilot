@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/client.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -94,6 +94,25 @@ export function setApiRequestConnection(connectionId: null | string): void {
 // 'local' must remain tagged when the legacy primary points elsewhere.
 export function connectionScoped(): { connectionId?: string } {
   return _apiConnectionId ? { connectionId: _apiConnectionId } : {}
+}
+
+// Whether the window's primary connection is the local pool. Pushed from
+// store/session's setConnection (same no-store-import contract as _apiProfile)
+// so api/ helpers can name the backend an UNTAGGED request lands on without
+// importing the heavy session store — which would close a module cycle
+// through @/hermes.
+let _apiLocalMode = false
+
+export function setApiRequestLocalMode(local: boolean): void {
+  _apiLocalMode = local
+}
+
+/** The connection an ambient (untagged) request is served by: the registry
+ *  tag when one is active, else `'local'` for the local pool. Identity only —
+ *  never send this as a request pin (an explicit `'local'` bypasses Electron's
+ *  legacy per-profile remote overrides). */
+export function ambientOwnerConnectionId(): string | undefined {
+  return _apiConnectionId ?? (_apiLocalMode ? 'local' : undefined)
 }
 
 /** Send a REST request to the renderer's active registry source. Request-level

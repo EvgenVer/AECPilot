@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-status-presence.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,8 +10,9 @@ import { useSyncExternalStore } from 'react'
 import { $composerActionsBySession } from '@/store/composer-actions'
 import { $statusItemsBySession } from '@/store/composer-status'
 import { $previewStatusBySession } from '@/store/preview-status'
+import { $sessionControlBySession } from '@/store/session-control'
 
-/** Structural view of the three per-session feeds — they hold different item
+/** Structural view of the per-session feeds — they hold different item
  *  types, and all this hook needs from each is "does this key have rows". */
 interface PresenceFeed {
   get(): Record<string, undefined | unknown[]>
@@ -21,7 +22,7 @@ interface PresenceFeed {
 const FEEDS: PresenceFeed[] = [$statusItemsBySession, $composerActionsBySession, $previewStatusBySession]
 
 const subscribe = (onChange: () => void) => {
-  const offs = FEEDS.map(feed => feed.listen(onChange))
+  const offs = [...FEEDS.map(feed => feed.listen(onChange)), $sessionControlBySession.listen(onChange)]
 
   return () => {
     for (const off of offs) {
@@ -31,8 +32,9 @@ const subscribe = (onChange: () => void) => {
 }
 
 /**
- * Whether a session has any status items, micro actions, or previews, as a
- * coarse *edge*: the boolean only flips when the stack appears/disappears.
+ * Whether a session has any status items, micro actions, previews, or
+ * structured session controls (goal, loop, heartbeat), as a coarse *edge*:
+ * the boolean only flips when the stack appears/disappears.
  * ChatBar uses it to toggle a styling data-attr — subscribing to the whole
  * `$statusItemsBySession` (a `computed` that rebuilds the entire map) /
  * `$previewStatusBySession` maps re-rendered the ~1.4k ChatBar on every
@@ -46,6 +48,16 @@ export function useSessionStatusPresence(sessionId: string | null): boolean {
       return false
     }
 
-    return FEEDS.some(feed => (feed.get()[sessionId]?.length ?? 0) > 0)
+    if (FEEDS.some(feed => (feed.get()[sessionId]?.length ?? 0) > 0)) {
+      return true
+    }
+
+    const control = $sessionControlBySession.get()[sessionId]
+
+    return Boolean(
+      control?.error ||
+      (control?.snapshot &&
+        (control.snapshot.goal !== null || control.snapshot.loop !== null || control.snapshot.heartbeat !== null))
+    )
   })
 }

@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/catalog.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] registration table: added 'ru', whose catalog is ours (SPEC C7)
- *   [3] registration table: 'en' now points at our catalog too — their strings
- *       with their product name rewritten to ours (owner decision 2026-08-20)
+ *   [3] registration table: 'en' and 'ru' point at OUR catalogs — their strings
+ *       with their product name rewritten to ours (owner decision 2026-08-20;
+ *       'ru' is their own catalog since 0.21.2, debranded the same way — 3.B4в)
  * (no other edits)
  */
 import { en } from '../../shared/i18n/en'

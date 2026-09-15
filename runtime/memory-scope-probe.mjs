@@ -32,7 +32,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
-import { applyMemoryProfile } from "./memory-config.mjs";
+import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 
 const HERMES_SRC = path.join(RUNTIME_DIR, ".hermes-src");
 const FACT = "заказчик просил закладывать резерв мощности 20 процентов";
@@ -124,7 +124,7 @@ function runPython(scriptPath, action, home) {
         // Клиент OpenAI отказывается строиться с пустым ключом. Значение
         // заведомо негодное и уходит только на нашу же петлю.
         OPENAI_API_KEY: "probe-not-a-key",
-        MEM0_TELEMETRY: "false",
+        ...memoryEnv(home),
         PYTHONIOENCODING: "utf-8",
       },
     });

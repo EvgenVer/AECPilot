@@ -32,9 +32,13 @@ function header(source) {
   ].join("\n");
 }
 
-// Their monorepo has a second source root: `apps/shared/src`, published to
-// their app as the `@hermes/shared` package. A `shared/…` argument reads from
-// there and lands in `donor/hermes-shared/…`, which our alias points at.
+// Their monorepo has two more source roots the renderer reaches into.
+// `apps/shared/src` is published to their app as the `@hermes/shared` package:
+// a `shared/…` argument reads from there and lands in `donor/hermes-shared/…`,
+// which our alias points at. `apps/desktop/electron` is their main process,
+// imported by relative path (`../electron/…` from `src/`): an `electron/…`
+// argument lands in `donor/hermes-electron/…`, and a re-export stub of ours at
+// `renderer/src/electron/<name>.ts` is what the relative path resolves to.
 function locate(rel) {
   if (rel.startsWith("shared/")) {
     const inner = rel.slice("shared/".length);
@@ -42,6 +46,14 @@ function locate(rel) {
       from: path.join(DONOR_SRC_DIR, "..", "..", "shared", "src", inner),
       to: path.join(VENDOR_DIR, "hermes-shared", inner),
       source: `apps/shared/src/${inner}`
+    };
+  }
+  if (rel.startsWith("electron/")) {
+    const inner = rel.slice("electron/".length);
+    return {
+      from: path.join(DONOR_SRC_DIR, "..", "electron", inner),
+      to: path.join(VENDOR_DIR, "hermes-electron", inner),
+      source: `apps/desktop/electron/${inner}`
     };
   }
   return {

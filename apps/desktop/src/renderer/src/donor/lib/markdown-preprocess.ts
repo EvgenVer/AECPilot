@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/markdown-preprocess.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,7 +19,7 @@ const PREVIEW_MARKER_RE = /\[Preview:[^\]]+\]\(#preview[:/][^)]+\)/gi
 
 const FENCE_LINE_RE = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
 const EMPTY_FENCE_BLOCK_RE = /(^|\n)[ \t]*(?:`{3,}|~{3,})[^\n]*\n[ \t]*(?:`{3,}|~{3,})[ \t]*(?=\n|$)/g
-const CODE_FENCE_SPLIT_RE = /((?:```|~~~)[\s\S]*?(?:```|~~~))/g
+const CODE_FENCE_SPLIT_RE = /((?:```|~~~)[\s\S]*?(?:```|~~~|$))/g
 const INLINE_CODE_SPLIT_RE = /(`[^`\n]+`)/g
 // Math spans as remark-math will see them: a `$$…$$` block, which may span
 // lines, or a same-line `$…$`. A delimiter escaped as `\$` is prose — that is
@@ -644,34 +644,13 @@ export function preprocessMarkdown(text: string): string {
         return part
       }
 
-      // Whitespace-only segments (e.g. the `\n\n` between two adjacent
-      // fences) must NOT go through stripPreviewTargets — its internal
-      // .trim() would collapse them to '' and glue the surrounding
-      // fences together, producing things like ``````math which the
-      // markdown parser then reads as a single 6-backtick block.
-      if (!part.trim()) {
-        return part
-      }
-
-      // Preserve leading/trailing whitespace around the prose body so
-      // that fence-prose-fence sequences keep their blank-line gaps.
-      // stripPreviewTargets internally calls .trim() on its result for
-      // the benefit of its other (single-segment) callers; here we're
-      // operating on a SEGMENT of a larger document where outer
-      // whitespace is structural and must survive.
-      const leading = part.match(/^\s*/)?.[0] ?? ''
-      const trailing = part.match(/\s*$/)?.[0] ?? ''
-
       // Run only on prose segments so `$5` literals and `\(` inside code
       // blocks stay intact. The HTML-depth clamp belongs here for the same
       // reason: a fenced block renders as code and never reaches rehype-raw,
       // so escaping tags inside one would corrupt the listing for nothing.
-      const transformed = clampHtmlNestingDepth(normalizeVisibleProse(stripPreviewTargets(normalizeProseMath(part))))
-
-      return leading + transformed + trailing
+      return clampHtmlNestingDepth(normalizeVisibleProse(stripPreviewTargets(normalizeProseMath(part))))
     })
     .join('')
-    .replace(/[ \t]+\n/g, '\n')
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/spoken-reply.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -116,6 +116,38 @@ export function markAssistantIdSpoken(
   }
 
   markSpokenReply(sessionId, { id, ordinal })
+}
+
+/**
+ * Carry the spoken anchor when a chat gets a real session id (null → created)
+ * mid voice-conversation. Do not copy across two real sessions — that would
+ * leak "already spoken" into a different transcript. The null-session entry is
+ * moved, not copied: left behind, it would mark the NEXT new chat's first reply
+ * as already spoken.
+ */
+export function adoptSpokenReplySession(
+  fromSessionId: string | null | undefined,
+  toSessionId: string | null | undefined
+): void {
+  const fromKey = sessionKey(fromSessionId)
+  const toKey = sessionKey(toSessionId)
+
+  if (fromKey !== NO_SESSION || toKey === NO_SESSION) {
+    return
+  }
+
+  const from = lastSpokenBySession.get(fromKey)
+
+  if (!from) {
+    return
+  }
+
+  // Dropped even when not adopted below: the anchor belongs to this chat.
+  lastSpokenBySession.delete(fromKey)
+
+  if (!lastSpokenBySession.has(toKey)) {
+    lastSpokenBySession.set(toKey, from)
+  }
 }
 
 /** Current spoken anchor, migrated in place when the live row was rewritten. */

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/live-sync.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,6 +40,12 @@ export interface PetChangeMeta {
 
 export const $petChange = atom<{ meta?: PetChangeMeta; tick: number }>({ tick: 0 })
 
+/** `setup.ready` — the boot bootstrap (free-tier identity + provider resolution)
+ *  finished, so inference readiness and the free-tier verdict may have just
+ *  changed. One-shot: the status snapshot re-reads both legs once instead of
+ *  waiting for its next ambient tick. */
+export const $setupReadyTick = atom(0)
+
 export function setChangeEventsAvailable(available: boolean): void {
   $changeEventsAvailable.set(available)
 }
@@ -62,6 +68,10 @@ export function notifyPlatformsChanged(): void {
 
 export function notifyPairingChanged(): void {
   $pairingChangeTick.set($pairingChangeTick.get() + 1)
+}
+
+export function notifySetupReady(): void {
+  $setupReadyTick.set($setupReadyTick.get() + 1)
 }
 
 /** Reset on gateway wipe/reconnect — a new backend re-advertises capability on

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/env-var-actions-menu.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { useI18n } from '@/i18n'
+import { openExternalLink } from '@/lib/external-link'
 import { triggerHaptic } from '@/lib/haptics'
 import { ExternalLink, Eye, EyeOff, KeyRound, Trash2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
@@ -68,7 +69,7 @@ function useEnvVarItems({
         onSelect: event => {
           event.preventDefault()
           triggerHaptic('selection')
-          window.open(docsUrl!, '_blank', 'noopener,noreferrer')
+          openExternalLink(docsUrl!)
         }
       })
     }

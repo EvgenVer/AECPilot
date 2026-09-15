@@ -138,7 +138,30 @@ async function hideFirstRunSurfaces(page: Page): Promise<void> {
       [role='region'][aria-label='С чего начать'] { display: none !important }
     `
   })
+
+  // Третья поверхность первого запуска — с пина 0.21.2 (задача 3.B4, их пакет
+  // 9.7): диалог согласия на настоящий профиль браузера. Он поднимается при
+  // ПЕРВОМ монтировании панели браузера в каждом запуске приложения, а не
+  // при старте, и как модальное окно прячет всё остальное от ролевых запросов
+  // — первый прогон на 0.21.2 уронил им пятнадцать тестов из одного. CSS тут
+  // не помогает: спрятанный диалог оставляет `aria-hidden` на окне. Поэтому
+  // обработчик: когда бы кнопка ни появилась во время действия или ожидания,
+  // набор нажимает «Не сейчас» — как нажал бы человек, — и их же стор глушит
+  // диалог до конца запуска.
+  if (!consentHandlerInstalled.has(page)) {
+    consentHandlerInstalled.add(page)
+    await page.addLocatorHandler(
+      page.getByRole('button', { name: /^(Not now|Не сейчас)$/ }),
+      async (notNow) => {
+        await notNow.click().catch(() => undefined)
+      }
+    )
+  }
 }
+
+/** Страницы, на которых обработчик диалога согласия уже стоит: после
+ *  перезапуска воркера окно другое, и обработчик ставится заново. */
+const consentHandlerInstalled = new WeakSet<Page>()
 
 /** Type a prompt into their composer and send it. */
 async function send(page: Page, text: string): Promise<void> {
@@ -1795,10 +1818,14 @@ test('the session list separates days, archives over PATCH, and knows what is un
   await expect(page.getByText('Убранный в архив')).toHaveCount(0)
 
   // Позиция 2: между днями стоит разделитель, а не сплошной список. Ярлык — из
-  // ИХ каталога: выдуманная строка прошла бы мимо перевода.
+  // ИХ каталога: выдуманная строка прошла бы мимо перевода. С пина 0.21.2 их
+  // русский каталог полон (задача 3.B4в), и в русском окне ярлык русский —
+  // до этого он падал на английский и совпадал с первой половиной шаблона.
   await expect(
     page
-      .getByText(/Earlier today|Yesterday|Earlier this week|Last week|Earlier this month/i)
+      .getByText(
+        /Earlier today|Yesterday|Earlier this week|Last week|Earlier this month|Ранее сегодня|Вчера|Ранее на этой неделе|На прошлой неделе|Ранее в этом месяце/i
+      )
       .first()
   ).toBeVisible()
 
@@ -1808,7 +1835,7 @@ test('the session list separates days, archives over PATCH, and knows what is un
   await expect(
     yesterday.getByRole('status'),
     'у строки с непрочитанным ответом обязана быть отметка'
-  ).toHaveAccessibleName(/unread/i)
+  ).toHaveAccessibleName(/unread|не прочитан/i)
   // У прочитанной строки отметки НЕТ ВООБЩЕ — проверяется отсутствие элемента,
   // а не его имя: `not.toHaveAccessibleName` на несуществующем элементе ждёт
   // его появления и падает по таймауту, то есть красит тест там, где всё верно.
@@ -1847,7 +1874,7 @@ test('the session list separates days, archives over PATCH, and knows what is un
   // показывает свой тост, а он ложится поверх и перехватывает нажатие.
   await clearNotifications(page)
   await page.getByRole('button', { name: /^Filters$/i }).click()
-  await page.getByRole('menuitemcheckbox', { name: /^Archived$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве)$/i }).click()
   await page.keyboard.press('Escape')
   await expect(week, 'при включённом показе архивных строка возвращается').toBeVisible({
     timeout: 30000
@@ -1857,7 +1884,7 @@ test('the session list separates days, archives over PATCH, and knows what is un
   // хранилище) и меняет то, что видит следующая проверка.
   await clearNotifications(page)
   await page.getByRole('button', { name: /^Filters$/i }).click()
-  await page.getByRole('menuitemcheckbox', { name: /^Archived$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве)$/i }).click()
   await page.keyboard.press('Escape')
 
   await assertRendererAlive(page, 'end of session-list test')
@@ -1878,7 +1905,7 @@ test('Ctrl+F highlights in the transcript, steps between hits, and Esc clears th
   await expect(page.getByText(/ромашка/).first()).toBeVisible({ timeout: 60000 })
 
   await page.keyboard.press('Control+f')
-  const find = page.getByPlaceholder(/Find in page|Поиск по странице/i)
+  const find = page.getByPlaceholder(/Find in page|Найти на странице|Поиск по странице/i)
   await expect(find, 'Ctrl+F обязан открыть полосу поиска').toBeVisible({ timeout: 15000 })
 
   await find.fill('ромашка')
@@ -1979,7 +2006,7 @@ test('the composer attaches what the picker returns, asks it for the right thing
   // ── Файлы ──────────────────────────────────────────────────────────────────
   await stubPicker({ canceled: false, filePaths: [fileA, fileB] })
   await openAttachMenu()
-  await page.getByRole('menuitem', { name: /^Files/ }).click()
+  await page.getByRole('menuitem', { name: /^(Files|Файлы)/ }).click()
 
   await expect(attachments, 'выбранные файлы обязаны стать элементами контекста').toContainText(
     'смета.txt',
@@ -1997,7 +2024,7 @@ test('the composer attaches what the picker returns, asks it for the right thing
   // ── Папка ──────────────────────────────────────────────────────────────────
   await stubPicker({ canceled: false, filePaths: [projectDir] })
   await openAttachMenu()
-  await page.getByRole('menuitem', { name: /^Folder/ }).click()
+  await page.getByRole('menuitem', { name: /^(Folder|Папка)/ }).click()
 
   await expect
     .poll(async () => (await lastPickCall())?.properties, {
@@ -2015,7 +2042,7 @@ test('the composer attaches what the picker returns, asks it for the right thing
   const attachedBefore = await attachments.innerText()
   await stubPicker({ canceled: true, filePaths: [] })
   await openAttachMenu()
-  await page.getByRole('menuitem', { name: /^Files/ }).click()
+  await page.getByRole('menuitem', { name: /^(Files|Файлы)/ }).click()
   await page.waitForTimeout(1000)
   expect(
     await attachments.innerText(),
@@ -2243,8 +2270,12 @@ test('окно читает ответ по нажатию, но не говор
 
   // Подписи берутся из их же каталога (наш русский их не переводит, см. ru.ts),
   // поэтому промах по ключу выглядел бы как 'composer.speakReplies'.
-  const startVoice = page.getByRole('button', { name: /Start voice conversation/ })
-  const endVoice = page.getByRole('button', { name: /End voice conversation/ })
+  const startVoice = page.getByRole('button', {
+    name: /Start voice conversation|Начать голосовой разговор/
+  })
+  const endVoice = page.getByRole('button', {
+    name: /End voice conversation|Завершить голосовой разговор/
+  })
 
   // Главная кнопка пустого композера. У них на этом месте стояла большая кнопка
   // «начать голосовой разговор», и «Отправить» появлялась только с набранным
@@ -2265,7 +2296,7 @@ test('окно читает ответ по нажатию, но не говор
   await voiceMenu.click()
 
   const dictation = page.getByRole('menuitemcheckbox', {
-    name: /Voice dictation|Stop dictation|Transcribing/
+    name: /Voice dictation|Stop dictation|Transcribing|Голосовая диктовка|Остановить диктовку|Расшифровка/
   })
 
   await expect(dictation, 'диктовка обязана остаться — HX19 её оставляет').toBeVisible({
@@ -2273,17 +2304,23 @@ test('окно читает ответ по нажатию, но не говор
   })
 
   expect(
-    await page.getByRole('menuitemcheckbox', { name: /Read replies aloud/ }).count(),
+    await page
+      .getByRole('menuitemcheckbox', { name: /Read replies aloud|Зачитывать ответы вслух/ })
+      .count(),
     'строки «читать все ответы вслух» в меню быть не должно'
   ).toBe(0)
   expect(
-    await page.getByRole('menuitem', { name: /Start voice conversation/ }).count(),
+    await page
+      .getByRole('menuitem', { name: /Start voice conversation|Начать голосовой разговор/ })
+      .count(),
     'строки «начать голосовой разговор» в меню быть не должно'
   ).toBe(0)
 
   // Слово-активатор — третья строка меню, и оно HX19 оставляет взятым.
   expect(
-    await page.getByRole('menuitemcheckbox', { name: /hey |Say / }).count(),
+    await page
+      .getByRole('menuitemcheckbox', { name: /hey |Say |Wake word|Слово-пробуждение/ })
+      .count(),
     'слово-активатор обязано остаться в меню'
   ).toBeGreaterThan(0)
 
@@ -2298,7 +2335,9 @@ test('окно читает ответ по нажатию, но не говор
   // Второй контроль: чтение ПО НАЖАТИЮ у ответа. В ленте к этому месту уже
   // лежат ответы предыдущих тестов.
   expect(
-    await page.getByRole('button', { name: /^(Read aloud|Stop reading)$/ }).count(),
+    await page
+      .getByRole('button', { name: /^(Read aloud|Stop reading|Зачитать вслух|Остановить чтение)$/ })
+      .count(),
     'кнопка «прочитать вслух» у ответа обязана остаться — её нажимает человек'
   ).toBeGreaterThan(0)
 
@@ -2334,8 +2373,9 @@ test('панель наборов открывается из окна и чес
   // Экран «Навыки» делится на три вкладки; наборы живут во второй, и счётчик
   // рядом с её названием — их количество. Переключаемся ЩЕЛЧКОМ, как человек:
   // маршрут (`#/skills?tab=toolsets`) тоже работает, но проверять надо дверь,
-  // а не ссылку на неё.
-  const toolsTab = page.getByRole('button', { name: /^Tools( \d+)?$/ }).first()
+  // а не ссылку на неё. Ярлыки — из их каталога, по-русски с пина 0.21.2
+  // (задача 3.B4в); до него русское окно падало на английский.
+  const toolsTab = page.getByRole('button', { name: /^(Tools|Инструменты)( \d+)?$/ }).first()
 
   await expect(toolsTab, 'вкладка наборов обязана быть на экране «Навыки»').toBeVisible({
     timeout: 30000
@@ -2351,9 +2391,9 @@ test('панель наборов открывается из окна и чес
 
   // «Search: ddgs» — выбор записан нами и подтверждён живой пробой (3E.2).
   // «Extract: not set» — ровно то, чего мы за человека НЕ решили.
-  await expect(page.getByText(/Search:\s*ddgs/)).toBeVisible({ timeout: 20000 })
+  await expect(page.getByText(/(Search|Поиск):\s*ddgs/)).toBeVisible({ timeout: 20000 })
   await expect(
-    page.getByText(/Extract:\s*(not set|не задан)/i),
+    page.getByText(/(Extract|Извлечение):\s*(not set|не задан)/i),
     'извлечение обязано быть НЕ назначено: провайдера выбирает человек'
   ).toBeVisible()
 

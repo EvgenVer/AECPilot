@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/glyph-spinner.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -84,7 +84,7 @@ export function GlyphSpinner({
 }: GlyphSpinnerProps) {
   const spin = FRAMES_BY_NAME[spinner] ?? FRAMES_BY_NAME.braille!
   // Pause when this surface is a hidden (kept-alive) tab: N mounted tabs each
-  // animating burns CPU for pixels nobody can see. Window blur / minimize /
+  // animating burns CPU for pixels nobody can see. Window minimize /
   // document-hidden are handled globally instead, by the
   // `:root[data-renderer-animations-paused]` rule in styles.css that
   // main.tsx's installRendererAnimationPauseState() drives — the same

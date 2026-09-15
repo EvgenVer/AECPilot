@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/reactions-enabled.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,7 +20,7 @@
 import { atom } from 'nanostores'
 
 import { persistString, storedString } from '@/lib/storage'
-import { activeGateway } from '@/store/gateway'
+import { mirrorDisplayToggle } from '@/store/display-toggles'
 
 const KEY = 'hermes.desktop.reactions.v1'
 
@@ -31,17 +31,9 @@ export function setReactionsEnabled(enabled: boolean): void {
 }
 
 if (typeof window !== 'undefined') {
-  // listen, not subscribe: fire on CHANGE only, so app startup doesn't write
-  // config.set (or clobber a profile's setting with another window's default).
-  $reactionsEnabled.listen(enabled => {
-    persistString(KEY, enabled ? 'on' : 'off')
-    // Mirror into gateway config: the backend gates the agent's
-    // react_to_message tool and the model-context annotation on
-    // display.message_reactions, so the renderer toggle is the one lever.
-    void activeGateway()
-      ?.request('config.set', { key: 'display.message_reactions', value: enabled ? 'true' : 'false' })
-      .catch(() => {
-        // Not connected yet — the next toggle (or default-off) still holds.
-      })
-  })
+  $reactionsEnabled.listen(enabled => persistString(KEY, enabled ? 'on' : 'off'))
 }
+
+// The backend gates the agent's react_to_message tool and the model-context
+// annotation on display.message_reactions, so this toggle is the one lever.
+mirrorDisplayToggle('display.message_reactions', KEY, $reactionsEnabled)

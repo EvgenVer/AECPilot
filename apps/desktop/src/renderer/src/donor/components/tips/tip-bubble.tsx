@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/tips/tip-bubble.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,8 +28,11 @@ import { useI18n } from '@/i18n'
 import { iconSize, X } from '@/lib/icons'
 import { useKeybindHint } from '@/lib/keybinds/use-keybind-hint'
 import type { TipSide } from '@/lib/tips/catalog'
+import type { ActiveTip } from '@/store/tips'
 
 export interface TipBubbleProps {
+  /** A call to action rendered as the bubble's one button. See ActiveTip. */
+  action?: ActiveTip['action']
   /** The element the arrow points at. */
   anchor: HTMLElement
   /** Keybind action id; its live combo prints under the text. */
@@ -41,7 +44,7 @@ export interface TipBubbleProps {
   title?: string
 }
 
-export function TipBubble({ anchor, keybind, onClose, side, text, title }: TipBubbleProps) {
+export function TipBubble({ action, anchor, keybind, onClose, side, text, title }: TipBubbleProps) {
   const { t } = useI18n()
   const combo = useKeybindHint(keybind ?? '')
   const anchorRef = useRef<HTMLElement | null>(anchor)
@@ -88,6 +91,19 @@ export function TipBubble({ anchor, keybind, onClose, side, text, title }: TipBu
               {text}
             </p>
             {combo && <KbdCombo className="mt-2" combo={combo} size="sm" variant="inverted" />}
+            {action && (
+              // The CTA: still not a focus trap — the button is tabbable when
+              // reached but nothing steals the caret to get there. Inverted
+              // fill against the accent surface, same currentColor discipline
+              // as the rest of the bubble.
+              <button
+                className="mt-2.5 inline-flex cursor-pointer items-center rounded-md bg-current/15 px-2.5 py-1 text-[length:var(--conversation-caption-font-size)] font-semibold transition-colors hover:bg-current/25"
+                onClick={action.onSelect}
+                type="button"
+              >
+                {action.label}
+              </button>
+            )}
           </div>
           <button
             aria-label={t.tips.close}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/types.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,6 +25,8 @@ export type ChatMessage = {
   id: string
   role: SessionMessage['role']
   parts: ChatMessagePart[]
+  /** Result body only; the system text remains the compact completion label. */
+  asyncResult?: string
   timestamp?: number
   completedAt?: number
   pending?: boolean
@@ -101,6 +103,8 @@ export type GatewayEventPayload = {
   // clarify.request
   request_id?: string
   question?: string
+  // btw.complete / background.complete — id of the side/background task
+  task_id?: string
   choices?: string[] | null
   multi_select?: boolean
   // clarify.request batch form: questions replaces question/choices, and
@@ -120,6 +124,13 @@ export type GatewayEventPayload = {
   // secret.request (skill credential capture)
   env_var?: string
   prompt?: string
+  // vault.unlock.request (external password-manager unlock)
+  backend?: string
+  display_name?: string
+  /** vault.save_login.request / vault.code.request */
+  origin?: string
+  site?: string
+  hint?: string
   // terminal.read.request / preview.read.request (GUI agent reading the
   // in-app terminal pane or the browser/preview pane)
   start?: number

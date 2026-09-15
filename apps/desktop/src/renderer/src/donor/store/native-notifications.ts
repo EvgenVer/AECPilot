@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/native-notifications.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,8 +13,9 @@ import { persistString, storedString } from '@/lib/storage'
 import { $gateway } from './gateway'
 import { withinNativeNotifyBaseline } from './notify-baseline'
 import { clearApprovalRequest } from './prompts'
+import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
 import { $activeSessionId } from './session'
-import { requestForOwnedSession } from './session-states'
+import { requestForOwnedSession, storedSessionIdForRuntimeId } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -218,6 +219,7 @@ export function dispatchNativeNotification(input: NativeNotificationInput): bool
     actions: input.actions,
     activate: input.activate,
     body: input.body,
+    focusSessionId: input.sessionId ? (storedSessionIdForRuntimeId(input.sessionId) ?? undefined) : undefined,
     icon: input.icon,
     kind: input.kind,
     notifyId: input.notifyId,
@@ -360,6 +362,10 @@ export async function respondToApprovalAction(sessionId: null | string, actionId
     return
   }
 
+  if (sessionId && isSessionGone(sessionId)) {
+    return
+  }
+
   const gateway = $gateway.get()
 
   if (!gateway) {
@@ -380,7 +386,11 @@ export async function respondToApprovalAction(sessionId: null | string, actionId
       { choice, session_id: sessionId ?? undefined }
     )
     clearApprovalRequest(sessionId)
-  } catch {
+  } catch (error) {
+    if (sessionId && isSessionGoneForBackgroundPolling(error)) {
+      markSessionGone(sessionId)
+    }
+
     // Leave the prompt parked so the user can still resolve it in-app.
   }
 }

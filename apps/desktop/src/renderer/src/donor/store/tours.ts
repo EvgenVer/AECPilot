@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/tours.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,8 +19,15 @@
  */
 
 import { Codecs, persistentAtom } from '@/lib/persisted'
+import { mirrorDisplayToggle } from '@/store/display-toggles'
 
-export const $toursEnabled = persistentAtom('hermes.desktop.tours.v1', true, Codecs.bool)
+const KEY = 'hermes.desktop.tours.v1'
+
+export const $toursEnabled = persistentAtom(KEY, true, Codecs.bool)
+
+// Off has to reach the agent, not just the renderer: the `tour` tool leaves the
+// model's schema entirely rather than staying on offer and failing.
+mirrorDisplayToggle('display.in_app_tours', KEY, $toursEnabled)
 
 export function setToursEnabled(enabled: boolean): void {
   $toursEnabled.set(enabled)

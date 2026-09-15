@@ -24,6 +24,7 @@
 // Код возврата 1, когда замер разошёлся с ожиданием.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -71,7 +72,9 @@ export const KNOWN_GAPS = [
 const PROBE = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
-from tools.approval import detect_dangerous_command, detect_hardline_command, _get_approval_mode
+from tools.approval import detect_dangerous_command, detect_hardline_command
+# 0.21.2 (задача 3.B4): чтение режима переехало из tools/approval.py в approval_context.py.
+from tools.approval_context import _get_approval_mode
 out = {"mode_without_key": _get_approval_mode(), "commands": {}}
 for cmd in json.loads(sys.argv[2]):
     asks, why, _ = detect_dangerous_command(cmd)
@@ -82,11 +85,21 @@ print(json.dumps(out, ensure_ascii=False))
 
 /** Спрашивает у ядра его собственный вердикт по каждой команде. */
 export function askCore(commands) {
-  const raw = execFileSync(PYTHON_BIN, ["-c", PROBE, HERMES_SRC_DIR, JSON.stringify(commands)], {
-    encoding: "utf8",
-    cwd: HERMES_SRC_DIR,
-  });
-  return JSON.parse(raw.trim().split("\n").at(-1));
+  // «Режим без ключа» замеряется на ПУСТОМ профиле — не на dev-profile, где ключ
+  // `approvals.mode` уже стоит (3E.7), и не на умолчании ядра `%LOCALAPPDATA%\hermes`,
+  // где живёт обычная установка Hermes на этой же машине (D-86). Каталог — на один
+  // вызов, как в contract-snapshot.mjs.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "aecpilot-boundary-home-"));
+  try {
+    const raw = execFileSync(PYTHON_BIN, ["-c", PROBE, HERMES_SRC_DIR, JSON.stringify(commands)], {
+      encoding: "utf8",
+      cwd: HERMES_SRC_DIR,
+      env: { ...process.env, HERMES_HOME: home },
+    });
+    return JSON.parse(raw.trim().split("\n").at(-1));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 /** Сверяет вердикты ядра с тем, чего требует R21. */

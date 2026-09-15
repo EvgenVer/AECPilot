@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/composer-utils.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { Unstable_TriggerItem } from '@assistant-ui/core'
+import type { ConnectionState } from '@hermes/shared'
 
 import type { SlashChipKind } from '@/components/assistant-ui/directive-text'
 import type { ComposerAttachment } from '@/store/composer'
@@ -58,6 +59,18 @@ export const COMPOSER_FADE_BACKGROUND =
 // Quiet period after the last keystroke before persisting the draft;
 // unmount/pagehide flushes bypass it.
 export const DRAFT_PERSIST_DEBOUNCE_MS = 400
+
+/**
+ * Keep a reconnecting draft editable so transient gateway dials cannot blur
+ * the editor and discard the user's caret. Submission still reads the
+ * independent `disabled` prop, so non-open states cannot send.
+ *
+ * An `open` state paired with `disabled=true` is a transient disagreement
+ * between the connection atoms; fail closed until they converge.
+ */
+export function shouldDisableComposerInput(disabled: boolean, gatewayState: ConnectionState): boolean {
+  return disabled && gatewayState === 'open'
+}
 
 export const pickPlaceholder = (pool: readonly string[]) => pool[Math.floor(Math.random() * pool.length)]
 

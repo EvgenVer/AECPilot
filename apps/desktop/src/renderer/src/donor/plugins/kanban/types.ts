@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/types.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -124,7 +124,10 @@ export interface KanbanTaskDetail {
   task: KanbanTaskFull
   comments: KanbanComment[]
   events: KanbanEvent[]
-  attachments: KanbanAttachment[]
+  /** Kanban backends before attachments landed (#35395, May 2026) omit this
+   *  key and have no /tasks/{id}/attachments endpoints; absent/null hides the
+   *  section instead of offering uploads the backend would 404 on. */
+  attachments?: KanbanAttachment[] | null
   links: { parents: string[]; children: string[] }
   runs: KanbanRun[]
 }

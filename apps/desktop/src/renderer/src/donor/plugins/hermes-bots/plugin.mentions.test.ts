@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/plugin.mentions.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,8 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { RosterRow } from './types'
 
 interface MentionCompletionItem {
   display: string
@@ -65,7 +67,7 @@ const ROSTER = {
 }
 
 const { cache, hostMock, live } = vi.hoisted(() => {
-  const live = { focused: 'default', profile: 'default' }
+  const live = { focused: 'default', profile: 'default', stored: null as string | null }
 
   return {
     cache: new Map<string, { key: unknown[]; value: unknown }>(),
@@ -76,7 +78,7 @@ const { cache, hostMock, live } = vi.hoisted(() => {
       state: {
         connectionId: { get: () => 'local', listen: () => () => undefined },
         focusedSessionProfile: { get: () => live.focused, listen: () => () => undefined },
-        focusedStoredSessionId: { get: () => null, listen: () => () => undefined },
+        focusedStoredSessionId: { get: () => live.stored, listen: () => () => undefined },
         gateway: { get: () => null, listen: () => () => undefined },
         profile: { get: () => live.profile, listen: () => () => undefined }
       }
@@ -180,6 +182,54 @@ beforeEach(() => {
   vi.clearAllMocks()
   live.focused = 'default'
   live.profile = 'default'
+  live.stored = null
+})
+
+describe('Bot Chat reset guard', () => {
+  it.each([
+    { connectionId: 'local', sourceScoped: true },
+    { connectionId: 'remote', remoteSource: true, sourceScoped: true },
+    {}
+  ])('compacts only the selected bot canonical chat: %j', async source => {
+    const { handler } = await contributions()
+    const { $lastRoster } = await import('./data')
+    const { saveSelectedRosterBot } = await import('./bot-state')
+
+    const selected: RosterRow = {
+      ...source,
+      name: 'writer',
+      canonical_session: { id: 'bot-root', resolved_id: 'bot-tip' }
+    }
+
+    // An identically named bot on another connection must not win the lookup.
+    $lastRoster.set([
+      { name: 'writer', connectionId: 'other', sourceScoped: true, canonical_session: { id: 'other-chat' } },
+      selected
+    ])
+    saveSelectedRosterBot(selected)
+
+    for (const stored of ['bot-root', 'bot-tip']) {
+      live.stored = stored
+
+      for (const text of ['/new', '/reset']) {
+        hostMock.notify.mockClear()
+        expect(await handler({ text })).toEqual({ text: '/compact' })
+        expect(hostMock.notify).toHaveBeenCalledOnce()
+        expect(hostMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: 'This chat never resets' }))
+      }
+    }
+
+    for (const stored of ['scratch-chat', 'other-chat', null]) {
+      live.stored = stored
+
+      for (const text of ['/new', '/reset']) {
+        hostMock.notify.mockClear()
+        const draft = { text }
+        expect(await handler(draft)).toBe(draft)
+        expect(hostMock.notify).not.toHaveBeenCalled()
+      }
+    }
+  })
 })
 
 describe('@-mention completions', () => {
@@ -260,12 +310,35 @@ describe('the mention middleware', () => {
     expect(hostMock.requestProfile).not.toHaveBeenCalled()
   })
 
-  it('hands the agent the connection-qualified message_agent target', async () => {
+  it('hands the agent a relay-resolvable canonical target', async () => {
     const { handler } = await contributions()
     const result = await handler({ text: 'ping @default-vera' })
 
-    expect(result.text).toMatch(/message_agent target: "default-vera@vera"/)
+    // The UI alias ('default-vera') is not a relay identity: resolve_remote_target()
+    // accepts only a roster row's handle/profile, optionally @connection-qualified.
+    // The annotation must carry the canonical profile@connection form (#97678).
+    expect(result.text).toMatch(/message_agent target: "default@vera"/)
+    expect(result.text).not.toMatch(/message_agent target: "default-vera/)
     expect(result.text).toMatch(/on Vera/)
+  })
+
+  it('annotates the resolvable handle for a local row whose UI alias differs', async () => {
+    // The reporter's shape (#97678 / Discord video): the LOCAL twin carries
+    // the 'default-this-device' alias when the remote gateway is active.
+    // The local resolver only knows bare profile names / 'hermes'.
+    const { handler } = await contributions({
+      focused: 'ops',
+      profiles: [
+        { connectionId: 'local', connectionKind: 'local', handle: 'default-this-device', name: 'default' },
+        { name: 'ops' }
+      ]
+    })
+
+    const result = await handler({ text: 'ping @default-this-device' })
+
+    expect(result.text).toMatch(/@default-this-device = agent profile "default"/)
+    expect(result.text).toMatch(/message_agent target: "hermes"/)
+    expect(result.text).not.toMatch(/message_agent target: "default-this-device/)
   })
 
   it('passes a draft with no mention straight through', async () => {

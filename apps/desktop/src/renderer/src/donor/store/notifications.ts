@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/notifications.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
 
 import { translateNow } from '@/i18n'
+import { isLocalBackendSlotWaitTimeout, requestPoolLimitsSettings } from '@/store/pool-limits'
 
 export type NotificationKind = 'error' | 'warning' | 'info' | 'success'
 
@@ -136,6 +137,10 @@ const ERROR_SUMMARIES: { test: (msg: string) => boolean; summarize: (msg: string
   {
     test: msg => /microphone permission/i.test(msg),
     summarize: () => translateNow('notifications.errors.microphonePermission')
+  },
+  {
+    test: msg => /Restart required:/i.test(msg),
+    summarize: () => translateNow('notifications.errors.codeSkewRestartRequired')
   }
 ]
 
@@ -198,12 +203,19 @@ export function notify(input: NotificationInput): string {
 
 export function notifyError(error: unknown, fallback: string): string {
   const readable = readableError(error, fallback)
+  const poolSlotTimeout = isLocalBackendSlotWaitTimeout(error)
 
   return notify({
+    action: poolSlotTimeout
+      ? {
+          label: translateNow('desktop.poolSlotTimeoutOpenSettings'),
+          onClick: requestPoolLimitsSettings
+        }
+      : undefined,
     kind: 'error',
     title: fallback,
-    message: readable.message,
-    detail: readable.detail
+    message: poolSlotTimeout ? translateNow('desktop.poolSlotTimeoutBody') : readable.message,
+    detail: poolSlotTimeout ? readable.message : readable.detail
   })
 }
 

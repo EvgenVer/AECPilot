@@ -85,6 +85,29 @@ describe('дописать поле в их конфиг', () => {
     expect(ensureSectionScalar('', 'agent', 'note', '3600').text).toContain('note: "3600"')
   })
 
+  // Задача 3.B4д. Булево в кавычках для их YAML — непустая строка, то есть
+  // истина: `auto_prune: "false"` включило бы то, что должно было выключить.
+  it('булево пишется словом, без кавычек', () => {
+    expect(ensureSectionScalar('', 'sessions', 'auto_prune', false).text).toBe(
+      'sessions:\n  auto_prune: false\n'
+    )
+    expect(ensureSectionScalar('', 'nous', 'guest', true).text).toContain('guest: true')
+  })
+
+  // Решение владельца 2026-09-14: у ядра 0.21.2 умолчание `sessions.auto_prune`
+  // стало `true` (удалять завершённые сессии старше 90 дней), а `nous.guest` —
+  // бесплатный ярус их облака (SPEC HX3). Оба закрепляются УМОЛЧАНИЕМ: человек
+  // правит значение в том же файле, и правило больше его не трогает.
+  it('выключенная чистка сессий ставится, а выбранное человеком не переписывается', () => {
+    const fresh = ensureSectionScalar('agent:\n  model: x\n', 'sessions', 'auto_prune', false)
+    expect(fresh.changed).toBe(true)
+    expect(fresh.text).toBe('agent:\n  model: x\nsessions:\n  auto_prune: false\n')
+
+    const chosen = ensureSectionScalar('sessions:\n  auto_prune: true\n', 'sessions', 'auto_prune', false)
+    expect(chosen.changed).toBe(false)
+    expect(chosen.text).toBe('sessions:\n  auto_prune: true\n')
+  })
+
   // Замечание D-40, решение владельца 2026-08-24. `/loop` приходит в композер из
   // каталога ядра БЕЗ нашей работы, и их умолчание — сто ходов одной строкой.
   // Опускаем до десяти, но именно УМОЛЧАНИЕМ: человек правит число в том же

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] the default profile's display name -> ours (SPEC C12)
@@ -758,6 +758,8 @@ export function durableGroupChatRooms(all: Record<string, GroupChat> = $groupCha
       // already carries.
       roomId: typeof room.roomId === 'string' && room.roomId ? room.roomId : null,
       image: room.image || null,
+      rosterOrder: room.rosterOrder,
+      pinned: room.pinned,
       syncRevision: Math.max(0, Number(room.syncRevision || 0))
     }
   }
@@ -1357,6 +1359,8 @@ export function updateGroupChat(
         roomId: typeof room.roomId === 'string' && room.roomId ? room.roomId : null,
         // Room picture (small data URL, same normalization as bot avatars).
         image: room.image || null,
+        rosterOrder: room.rosterOrder,
+        pinned: room.pinned,
         syncRevision: Math.max(0, Number(room.syncRevision || 0))
       }
     }
@@ -1384,12 +1388,12 @@ export interface GroupHoldStamp extends GroupHold {
 }
 
 /** The room record as the coordination engine handles it: `GroupChat` plus
- *  `turn`, the runtime-only name of the member currently mid-turn. Like
+ *  `turn`, the runtime-only descriptor of the member currently mid-turn. Like
  *  `running`/`epoch` it never persists, so it has no place in the durable
  *  shape. Holds carry the fuller live stamp. */
 export interface GroupChatRoom extends GroupChat {
   holds?: Record<string, GroupHoldStamp>
-  turn?: null | string
+  turn?: GroupMember | null
 }
 
 /** Set or clear a group chat's room picture (small data URL, normalized by

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/backend-sync.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,12 +26,29 @@
 import type { HermesSkin } from '@hermes/shared/skin'
 import { atom } from 'nanostores'
 
+import { readJson, writeJson } from '@/lib/storage'
+
 import { BUILTIN_THEMES } from './presets'
 import { skinToDesktopTheme } from './skin'
-import type { DesktopTheme } from './types'
+import { type DesktopTheme, isValidTheme } from './types'
+
+// Cached so the boot-time paint (which runs before the gateway connects) can
+// resolve a persisted skin pick synchronously, like a built-in or a user
+// install. Without it the stored name failed `resolveTheme` on every launch
+// and the app silently painted the default until the next `skin.changed`.
+const BACKEND_THEMES_KEY = 'hermes-desktop-backend-themes-v1'
+
+const readCached = (): Record<string, DesktopTheme> =>
+  Object.fromEntries(
+    Object.entries(readJson<Record<string, unknown>>(BACKEND_THEMES_KEY) ?? {}).filter(
+      (entry): entry is [string, DesktopTheme] => !BUILTIN_THEMES[entry[0]] && isValidTheme(entry[1])
+    )
+  )
 
 /** Skins pushed by the backend, keyed by name. Merged by `listAllThemes`. */
-export const $backendThemes = atom<Record<string, DesktopTheme>>({})
+export const $backendThemes = atom<Record<string, DesktopTheme>>(typeof window === 'undefined' ? {} : readCached())
+
+$backendThemes.listen(themes => writeJson(BACKEND_THEMES_KEY, themes))
 
 /** One-shot skin name the ThemeProvider should switch to (it clears this). */
 export const $pendingSkinApply = atom<string | null>(null)

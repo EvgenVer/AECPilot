@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/vitest.setup.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import { configure } from '@testing-library/react'
 // Storage when the global resolves to nothing, before any test module reads it.
 if (typeof (globalThis as any).localStorage === 'undefined') {
   const store = new Map<string, string>()
+
   const storage: Storage = {
     get length() {
       return store.size
@@ -32,6 +33,7 @@ if (typeof (globalThis as any).localStorage === 'undefined') {
     removeItem: (k: string) => void store.delete(String(k)),
     clear: () => store.clear(),
   }
+
   for (const target of [globalThis, (globalThis as any).window].filter(Boolean)) {
     Object.defineProperty(target, 'localStorage', {
       value: storage,
@@ -40,6 +42,18 @@ if (typeof (globalThis as any).localStorage === 'undefined') {
     })
   }
 }
+
+// jsdom has no layout or intersection delivery. Tests of observer behavior
+// supply their own callbacks; ordinary component tests only need the lifecycle.
+globalThis.IntersectionObserver = class {
+  readonly root = null
+  readonly rootMargin = '0px'
+  readonly thresholds = [0]
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] { return [] }
+} as typeof IntersectionObserver
 
 // React 19 + Testing Library 16: opt into the act environment so render(),
 // fireEvent(), and findBy* queries automatically flush state updates without

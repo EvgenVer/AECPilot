@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-membership.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,42 @@ import { $botMeta, botFriendlyNames, botMetaKey, botRosterKey } from './data'
 import { $groupChats, groupChatRoomKey } from './group-chat'
 import { botConnectionRoute, botRosterMeta, resolveBotConnectionRoute } from './routing'
 import type { BotMeta, GroupChat, GroupMember, RosterRow } from './types'
+
+/** Follow the authoritative room record for one async operation. Rename moves
+ * the record wholesale (including legacy rooms without a roomId); disband
+ * retires this binding permanently, even if the same display name is reused. */
+export function followGroupChat(group: string, onRename: (name: string) => void) {
+  let live = !$groupChats.get()[group]?.tombstone
+
+  const dispose = $groupChats.listen((rooms, previous) => {
+    const prior = previous?.[group]
+
+    if (!live || !prior) {
+      return
+    }
+
+    const current = rooms[group]
+
+    if (current && !current.tombstone && current.roomId === prior.roomId) {
+      return
+    }
+
+    const moved = Object.entries(rooms).find(
+      ([, room]) => !room.tombstone && (prior.roomId ? room.roomId === prior.roomId : room === prior)
+    )
+
+    if (!moved) {
+      live = false
+
+      return
+    }
+
+    group = moved[0]
+    onRename(group)
+  })
+
+  return { dispose, isLive: () => live }
+}
 
 export function groupWorkspaceOwnerKey(group: string) {
   return `group:${groupChatRoomKey(group, $groupChats.get()[group])}`

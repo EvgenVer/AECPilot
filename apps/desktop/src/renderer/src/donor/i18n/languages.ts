@@ -1,11 +1,9 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/languages.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [3] registration table: added the 'ru' option and its aliases (SPEC C7)
- * (no other edits)
+ * Edits: none
  */
 import { normalize } from '@/lib/text'
 
@@ -98,8 +96,12 @@ const LOCALE_ALIASES: Record<string, Locale> = {
   ru: 'ru',
   'ru-ru': 'ru',
   ru_ru: 'ru',
+  'ru-by': 'ru',
+  'ru-kz': 'ru',
   russian: 'ru',
-  русский: 'ru'
+  'russian-russian': 'ru',
+  русский: 'ru',
+  руский: 'ru'
 }
 
 export function isLocale(value: unknown): value is Locale {
@@ -116,6 +118,32 @@ export function normalizeLocale(value: unknown): Locale {
 
 export function isSupportedLocaleValue(value: unknown): boolean {
   return typeof value === 'string' && LOCALE_ALIASES[normalize(value)] != null
+}
+
+/** OS tags can include regions absent from the picker aliases, such as ru-UA. */
+export function osPreferredLocale(tag: string | null | undefined): Locale | null {
+  if (!tag) {
+    return null
+  }
+
+  const exact = LOCALE_ALIASES[normalize(tag)]
+
+  if (exact) {
+    return exact
+  }
+
+  const base = tag.split(/[-_]/)[0]
+
+  return (base && LOCALE_ALIASES[normalize(base)]) || null
+}
+
+/** An explicit choice must win even when it differs from the OS language. */
+export function resolveInitialLocale(saved: string | null | undefined, osLocale: string | null | undefined): Locale {
+  if (isSupportedLocaleValue(saved)) {
+    return normalizeLocale(saved)
+  }
+
+  return osPreferredLocale(osLocale) ?? DEFAULT_LOCALE
 }
 
 export function localeConfigValue(locale: Locale): string {
