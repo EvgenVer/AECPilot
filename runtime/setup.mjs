@@ -15,6 +15,7 @@ import {
   HERMES_SRC_DIR,
   HERMES_VERSION,
   PYTHON_VERSION,
+  RUNTIME_DIR,
   VENV_DIR,
 } from "./hermes-env.mjs";
 
@@ -119,7 +120,32 @@ console.log(`== 3/4: installing hermes-agent[mcp,mem0] ${HERMES_VERSION} (editab
 // `.venv` ему делать нечего. Замерено `--dry-run` против этого venv: 12 новых
 // пакетов, 21 МБ колёсами, ничего не понижается, OCR-конвейер в корневом venv
 // не затрагивается вовсе (numpy и protobuf приезжают сюда впервые).
-run("uv", ["pip", "install", "--python", VENV_DIR, "-e", `${HERMES_SRC_DIR}[mcp,mem0]`]);
+//
+// `--override`: the core's base dependency list is taken as-is with one
+// exception, `pillow-heif` (0.21.3, task 3.B5е). Its Windows wheel bundles
+// libx265 under GPLv2 and declares the wheel itself GPLv2 — excluded by SPEC
+// N8/C3 (owner decision 2026-09-15). The core imports it inside a try/except
+// (`tools/vision_tools_image_prep.py`, `agent/image_routing.py`): without it
+// HEIC/HEIF photos are rejected with an actionable error, AVIF is decoded by
+// Pillow itself. The override file carries a marker that is never true, which
+// removes the requirement from the resolution instead of pinning it.
+// The file is named relative to RUNTIME_DIR (and the command runs there):
+// uv 0.12.1 splits the `--override` value at whitespace, so an absolute path
+// under `D:\my program\…` is read as `D:\my` (measured, task 3.B5).
+run(
+  "uv",
+  [
+    "pip",
+    "install",
+    "--python",
+    VENV_DIR,
+    "--override",
+    "uv-overrides.txt",
+    "-e",
+    `${HERMES_SRC_DIR}[mcp,mem0]`,
+  ],
+  RUNTIME_DIR,
+);
 
 console.log(`== 4/4: preparing isolated HERMES_HOME at ${HERMES_HOME_DIR}`);
 fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });

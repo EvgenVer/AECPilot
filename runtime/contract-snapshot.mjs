@@ -183,6 +183,18 @@ def source_of(fn):
     except (OSError, TypeError):
         return "", 0
 
+def stable_repr(value):
+    """repr() that survives a process restart: a function inside a tuple or list
+    (a lambda extractor in a params= spec, e.g. groups.log) would otherwise
+    render as <function <lambda> at 0x...> and hash differently on every run."""
+    if isinstance(value, types.FunctionType):
+        src, _ = source_of(value)
+        return "fn:" + value.__qualname__ + ":" + hashlib.sha256(src.encode()).hexdigest()[:12]
+    if isinstance(value, (tuple, list)):
+        inner = ", ".join(stable_repr(v) for v in value)
+        return ("(" + inner + ")") if isinstance(value, tuple) else ("[" + inner + "]")
+    return repr(value)
+
 def closure_parts(fn, depth=0):
     """What a factory-made handler closes over: the inner functions (by source)
     and the plain values (by repr). Two handlers from one factory differ here."""
@@ -201,7 +213,7 @@ def closure_parts(fn, depth=0):
                 parts.extend(inner_parts)
                 sources.extend(inner_sources)
         elif isinstance(value, (str, int, float, bool, tuple, list, frozenset, set, type(None))):
-            rendered = sorted(map(repr, value)) if isinstance(value, (frozenset, set)) else repr(value)
+            rendered = sorted(map(stable_repr, value)) if isinstance(value, (frozenset, set)) else stable_repr(value)
             parts.append("val:" + str(rendered))
         else:
             parts.append("obj:" + type(value).__name__)
@@ -288,16 +300,33 @@ function coreRestRoutes() {
 
 // -------------------------------------------------------- core: config + deps
 
-/** DEFAULT_CONFIG and the dependency pins, read out of the installed core by
- * the core's own Python. Parsing a 3000-line dict literal with a regex would be
- * guesswork; importing it is exact, and the venv has to work for the snapshot to
- * mean anything anyway. Keys are flattened to dotted paths so a diff can name
- * the one that moved. */
+/** DEFAULT_CONFIG and the dependency pins, read out of the core by the core's
+ * own Python. Parsing a 3000-line dict literal with a regex would be guesswork;
+ * importing it is exact, and the venv has to work for the snapshot to mean
+ * anything anyway. Keys are flattened to dotted paths so a diff can name the
+ * one that moved. The pins come from the TREE's pyproject.toml, not from
+ * importlib.metadata: under `--core` the metadata belongs to the installed
+ * version, so the 0.21.3 worktree snapshot silently carried 0.21.2's list and
+ * missed the new `pillow-heif` (measured, task 3.B5). Rendered through
+ * packaging.Requirement so both modes print the same string per pin. */
 function coreConfigAndDeps() {
   const script = `
-import json
-from importlib.metadata import requires
+import json, os, tomllib
+from packaging.requirements import Requirement
 from hermes_cli import config_defaults
+
+def pins():
+    with open(os.path.join(os.getcwd(), "pyproject.toml"), "rb") as fh:
+        project = tomllib.load(fh)["project"]
+    out = [str(Requirement(dep)) for dep in project.get("dependencies", [])]
+    for extra, deps in project.get("optional-dependencies", {}).items():
+        for dep in deps:
+            req = Requirement(dep)
+            # A dep that already carries a marker (platform_system == ...) joins it with
+            # the extra marker the way the wheel metadata does.
+            marker = f'({req.marker}) and extra == "{extra}"' if req.marker else f'extra == "{extra}"'
+            out.append(str(Requirement(f"{str(req).split(';')[0].strip()}; {marker}")))
+    return sorted(out)
 
 def flatten(prefix, value, out):
     if isinstance(value, dict) and value:
@@ -310,7 +339,7 @@ flat = {}
 flatten("", config_defaults.DEFAULT_CONFIG, flat)
 print(json.dumps({
     "configDefaults": dict(sorted(flat.items())),
-    "requiresDist": sorted(requires("hermes-agent") or []),
+    "requiresDist": pins(),
 }, default=str))
 `;
   const result = spawnSync(PYTHON_BIN, ["-c", script], {
