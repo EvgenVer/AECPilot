@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/board.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,6 +40,7 @@ import {
   formatModifierToken,
   host,
   Input,
+  isSubmitEnter,
   Loader,
   SearchField,
   Select,
@@ -690,7 +691,7 @@ function NewTaskDialog({
             autoFocus
             onChange={event => setTitle(event.target.value)}
             onKeyDown={event => {
-              if (event.key === 'Enter') {
+              if (isSubmitEnter(event)) {
                 event.preventDefault()
                 void submit()
               }

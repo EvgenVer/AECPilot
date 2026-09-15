@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/wiring.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet surface (HX1)
@@ -508,7 +508,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     [activeSessionIdRef, busyRef, selectedStoredSessionIdRef, updateSessionState]
   )
 
-  const { handleGatewayEvent } = useMessageStream({
+  const { handleGatewayEvent, handleServerRequest } = useMessageStream({
     activeGatewayProfile,
     activeSessionIdRef,
     hydrateFromStoredSession,
@@ -716,6 +716,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     reloadFromMessage,
     restoreToMessage,
     steerPrompt,
+    injectHiddenPrompt,
     submitText,
     transcribeVoiceAudio
   } = usePromptActions({
@@ -891,6 +892,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       closeAllTerminals()
     },
     handleGatewayEvent: handleGatewayEventWithPlugins,
+    handleServerRequest,
     onConnectionReady: c => {
       connectionRef.current = c
     },
@@ -1068,6 +1070,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     onAttachDroppedItems: composer.attachDroppedItems,
     onAttachImageBlob: composer.attachImageBlob,
     onAttachPrCommentUrl: composer.attachPrCommentUrl,
+    onAttachPastedText: composer.attachPastedText,
     onBranchInNewChat: messageId => void branchInNewChat(messageId),
     onBranchSession: sessionId => void branchStoredSession(sessionId),
     onCancel: cancelRun,
@@ -1130,6 +1133,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     },
     onRetryResume: sessionId => void resumeSession(sessionId, true),
     onSteer: steerPrompt,
+    onSteerHidden: injectHiddenPrompt,
     onSubmit: submitText,
     onThreadMessagesChange: handleThreadMessagesChange,
     onToggleSelectedPin: toggleSelectedPin,

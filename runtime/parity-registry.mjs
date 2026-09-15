@@ -114,6 +114,7 @@ export const ELECTRON_CLASSIFICATION = {
   readClipboard: { ours: "attach", note: "attach:paste" },
   writeClipboard: { ours: "attach" },
   saveClipboardImage: { ours: "attach" },
+  savePastedText: { ours: "attach", note: "attachments:save-paste — большая вставка текста как .txt-вложение (0.21.3, 3.B5в)" },
   watchDirectory: { ours: "scan", note: "детект изменений источников, UR7" },
   setting: { ours: "settings" },
   "data-url-read-max": { ours: "settings", note: "лимит на встраиваемый файл" },
@@ -274,8 +275,8 @@ export const ELECTRON_CLASSIFICATION = {
   },
   app: { task: "3.21", note: "hermes:app:relaunch — перезапуск после подмены бандла их обновлятором; едет с механизмом обновлений" },
   "pool-limits": {
-    task: "D-84",
-    note: "пределы пула бэкендов: пула у нас нет (один hermes serve на все профили) — решение владельца, замечание D-84",
+    hx: "HX27",
+    note: "пределы пула бэкендов: пула у нас нет (один hermes serve на все профили) — ряд снят правкой [3], решение владельца 2026-09-15, замечание D-84",
   },
   "preview-nav": {
     ours: "preview-nav",

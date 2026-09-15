@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/native-notifications.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,10 +12,11 @@ import { persistString, storedString } from '@/lib/storage'
 
 import { $gateway } from './gateway'
 import { withinNativeNotifyBaseline } from './notify-baseline'
+import { $approvalRequests, answerApproval } from './prompts'
 import { clearApprovalRequest } from './prompts'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
 import { $activeSessionId } from './session'
-import { requestForOwnedSession, storedSessionIdForRuntimeId } from './session-states'
+import { storedSessionIdForRuntimeId } from './session-states'
 
 export type { HermesOpenTarget }
 
@@ -373,18 +374,11 @@ export async function respondToApprovalAction(sessionId: null | string, actionId
   }
 
   try {
-    // Route through the session's OWNER (tile route → known profile); the
-    // ambient socket follows foreground focus and, for a background approval
-    // raised by a cross-profile session, points at a backend that never held
-    // the approval (#91684 client half). Ambient only when no owner is known.
-    await requestForOwnedSession(
-      sessionId,
-      // Bound (not wrapped) so the ambient fallback keeps the exact 2-arg
-      // call shape gateway.request callers assert on.
-      gateway.request.bind(gateway) as typeof gateway.request,
-      'approval.respond',
-      { choice, session_id: sessionId ?? undefined }
-    )
+    // The parked prompt knows how to answer itself: the live server request when
+    // still open, else the owner-routed queue-level RPC (#91684 client half).
+    const parked = $approvalRequests.get()[sessionId ?? '']
+
+    await answerApproval(gateway, parked ?? { sessionId: sessionId ?? null }, choice)
     clearApprovalRequest(sessionId)
   } catch (error) {
     if (sessionId && isSessionGoneForBackgroundPolling(error)) {

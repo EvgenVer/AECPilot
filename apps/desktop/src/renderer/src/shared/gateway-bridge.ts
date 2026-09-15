@@ -9,6 +9,7 @@
 // Their surface, matched member for member and signature for signature:
 //   request(method, params?, timeoutMs?, signal?)
 //   on(type, handler) / onAny / onEvent / onState
+//   onRequest(handler) — requests the GATEWAY makes of the window (0.21.3)
 //   connect(wsUrl) / close() / connectionState
 //
 // `connect` and `close` are no-ops on purpose: the connection is main's, it is
@@ -26,7 +27,15 @@
 // null. Pinned by `hermes-desktop-shim.test.ts`.
 
 import type { GatewayRpcOutcome } from '../../../shared/ipc'
-import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
+import type {
+  GatewayConnectionState,
+  GatewayEvent,
+  GatewayServerRequest
+} from '../../../shared/gateway/types'
+import type {
+  GatewayEvent as DonorTypedEvent,
+  GatewayEventName
+} from '../donor/hermes-shared/gateway-events'
 
 /**
  * Отказ шлюза в ИХ форме. Класс жил только внутри их невендоренного
@@ -63,15 +72,12 @@ export function unwrapRpcOutcome<T>(outcome: GatewayRpcOutcome<T>): T {
   })
 }
 
-/** Their event envelope. Generic in the payload because their code annotates
- * per-subscription (`on<{ done?: string }>('pet.hatch.progress', …)`), and
- * carrying `profile` because their multi-backend registry tags events with it. */
-export interface DonorGatewayEvent<P = unknown> {
-  payload?: P
-  profile?: string
-  session_id?: string
-  type: string
-}
+/** Their event envelope — since 0.21.3 generated from the core's contract
+ * (`donor/hermes-shared/gateway-events.ts`, generic in the EVENT NAME, which
+ * types the payload), so their `on('gateway.ready', …)` reads `payload.skin`
+ * without a cast. The envelope carries `profile`/`connectionId` because their
+ * multi-backend registry tags events with them. */
+export type DonorGatewayEvent<K extends GatewayEventName = GatewayEventName> = DonorTypedEvent<K>
 
 /** Their state vocabulary, which their components switch on. */
 export type DonorConnectionState = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
@@ -112,12 +118,30 @@ export function toDonorState(state: GatewayConnectionState): DonorConnectionStat
 
 type EventHandler = (event: DonorGatewayEvent) => void
 
+/** Their `ServerRequest` (`apps/shared/src/json-rpc-channel.ts`), shape for
+ * shape: a request the gateway makes of the window, with the two ways to
+ * answer it bound to the request's own id. `replayed` marks a request that
+ * came back through `open_requests` after a reconnect. */
+export interface DonorServerRequest {
+  id: string
+  method: string
+  params: Record<string, unknown> & { session_id?: string }
+  respond: (result: Record<string, unknown>) => void
+  fail: (code: number, message: string) => void
+  replayed?: boolean
+}
+
+/** Their handler contract: return `false` to decline, and the next handler
+ * is tried. */
+export type DonorServerRequestHandler = (request: DonorServerRequest) => boolean | void
+
 const ANY = '*'
 
 export class GatewayBridge {
   private state: GatewayConnectionState = 'closed'
   private readonly handlers = new Map<string, Set<EventHandler>>()
   private readonly stateHandlers = new Set<(state: DonorConnectionState) => void>()
+  private readonly requestHandlers: DonorServerRequestHandler[] = []
   private readonly disposers: (() => void)[] = []
   private readonly api: Window['aecpilot']
 
@@ -135,6 +159,9 @@ export class GatewayBridge {
       }),
       this.api.onGatewayState((state) => {
         this.setState(state)
+      }),
+      this.api.onGatewayServerRequest((request: GatewayServerRequest) => {
+        this.dispatchRequest(request)
       })
     )
     // Main can reach 'ready' before this renderer mounts, so the push channel
@@ -180,8 +207,12 @@ export class GatewayBridge {
     })
   }
 
-  /** Subscribes to one event type. Returns an unsubscribe function. */
-  on<P = unknown>(type: string, handler: (event: DonorGatewayEvent<P>) => void): () => void {
+  /** Subscribes to one event type. Returns an unsubscribe function. Their
+   * signature: the name types the payload. */
+  on<K extends GatewayEventName>(
+    type: K,
+    handler: (event: DonorGatewayEvent<K>) => void
+  ): () => void {
     const set = this.handlers.get(type) ?? new Set<EventHandler>()
     set.add(handler as EventHandler)
     this.handlers.set(type, set)
@@ -190,14 +221,35 @@ export class GatewayBridge {
     }
   }
 
-  /** Subscribes to every event. */
+  /** Subscribes to every event. `*` is a client-side wildcard, not a wire
+   * name — the same trick as their hub. */
   onAny(handler: EventHandler): () => void {
-    return this.on(ANY, handler)
+    return this.on(ANY as GatewayEventName, handler as (event: DonorGatewayEvent) => void)
   }
 
   /** Their alias for `onAny`. */
   onEvent(handler: EventHandler): () => void {
-    return this.on(ANY, handler)
+    return this.onAny(handler)
+  }
+
+  /** Subscribes to requests the gateway makes of this window (hermes 0.21.3:
+   * clarify, approval, secret, sudo, terminal/preview reads, MCP-setup consent,
+   * a tour step). Handlers run in registration order until one accepts —
+   * anything but `false` — the same contract as their
+   * `JsonRpcRequestChannel.onRequest`.
+   *
+   * ONE DIFFERENCE, on purpose: their channel answers an unhandled request
+   * with -32601 at once, because their socket belongs to exactly one window.
+   * Ours is shared by every window (see the header), so a window with no
+   * handler must stay silent — another window may be the one to answer — and
+   * the gateway's own deadline is the backstop. Returns an unsubscribe
+   * function. */
+  onRequest(handler: DonorServerRequestHandler): () => void {
+    this.requestHandlers.push(handler)
+    return () => {
+      const index = this.requestHandlers.indexOf(handler)
+      if (index >= 0) this.requestHandlers.splice(index, 1)
+    }
   }
 
   /** Subscribes to connection-state changes, and fires once immediately with
@@ -222,6 +274,33 @@ export class GatewayBridge {
     for (const dispose of this.disposers.splice(0)) dispose()
     this.handlers.clear()
     this.stateHandlers.clear()
+    this.requestHandlers.splice(0)
+  }
+
+  private dispatchRequest(incoming: GatewayServerRequest): void {
+    // First answer wins, here and again in main: a card that answers twice is
+    // a no-op on the wire, as in their channel.
+    let settled = false
+    const send = (
+      answer: { result: Record<string, unknown> } | { error: { code: number; message: string } }
+    ): void => {
+      if (settled) return
+      settled = true
+      void this.api.respondGatewayServerRequest(incoming.id, answer).catch(() => {
+        // The connection is gone; the gateway withdraws the request itself.
+      })
+    }
+    const request: DonorServerRequest = {
+      id: incoming.id,
+      method: incoming.method,
+      params: incoming.params,
+      replayed: incoming.replayed,
+      respond: (result) => send({ result }),
+      fail: (code, message) => send({ error: { code, message } })
+    }
+    for (const handler of [...this.requestHandlers]) {
+      if (handler(request) !== false) return
+    }
   }
 
   private setState(state: GatewayConnectionState): void {

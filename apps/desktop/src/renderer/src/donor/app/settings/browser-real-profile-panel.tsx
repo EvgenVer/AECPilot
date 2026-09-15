@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/browser-real-profile-panel.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -72,7 +72,9 @@ export function BrowserRealProfilePanel({ profile }: BrowserRealProfilePanelProp
       setConfig(next)
 
       try {
-        await saveHermesConfigRecord(next, profile)
+        // Sparse patch: PUT /api/config deep-merges, and echoing the cached
+        // snapshot would overwrite keys other surfaces changed since it loaded.
+        await saveHermesConfigRecord({ browser: { use_real_profile: on } }, profile)
         notify({
           kind: 'info',
           title: on ? copy.enabledTitle : copy.disabledTitle,

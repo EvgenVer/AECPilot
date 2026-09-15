@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-turns.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -108,8 +108,10 @@ interface GroupSessionSnapshot {
   inflight?: boolean
   message_count?: number
   messages?: GroupTurnTranscriptMessage[]
+  /** Still-open server→client requests (`server_requests.open_requests`); the
+   *  member's blocking clarify question lives here as `{ id, method: 'clarify', params }`. */
+  open_requests?: { id: string; method: string; params: Record<string, unknown> }[]
   pending_approval?: GroupPendingApproval
-  pending_clarify?: GroupPendingClarify
   running?: boolean
   session_id?: string
   session_key?: string
@@ -444,13 +446,20 @@ const GROUP_TURN_HARD_CAP_MS = 20 * 60000
  *  `${group}::${memberKey}` (#90694). Returns true while a prompt is
  *  blocking, so the turn poll can extend its deadline — a waiting prompt
  *  must not be eaten by the group-turn timeout. Feature-detected: older
- *  backends without `pending_clarify`/`pending_approval` in the resume
+ *  backends without `open_requests`/`pending_approval` in the resume
  *  payload always sync to "no prompt". Clarify wins when both are somehow
  *  present (approvals resolve inside tool batches; clarify is the outer
  *  blocker). */
 export function syncGroupClarify(group: string, member: GroupMember, state: GroupSessionSnapshot | null): boolean {
   const key = `${group}::${groupMemberKey(member)}`
-  const clarify = state && typeof state.pending_clarify === 'object' ? state.pending_clarify : null
+
+  const openClarify = Array.isArray(state?.open_requests)
+    ? state.open_requests.find(entry => entry?.method === 'clarify' && typeof entry.id === 'string' && entry.id)
+    : null
+
+  const clarify: GroupPendingClarify | null = openClarify
+    ? { ...(openClarify.params as GroupPendingClarify), request_id: openClarify.id }
+    : null
 
   // The `!requestId` bail below is what makes the approval branch reachable,
   // so an approval read there is never the null arm of this ternary — a fact
@@ -593,15 +602,16 @@ export function renameGroupClarify(oldName: string, newName: string) {
   }
 }
 
-/** Answer a member's pending prompt from the room. Routes to the member's
- *  OWN source (requestForBot), so cross-connection members work.
- *  - clarify: `clarify.respond`; batch questions send one respond per
- *    question, sequentially — the LAST lock resolves the blocked tool
- *    server-side (same contract as the 1:1 batch card). allow_expired
- *    server-side makes racing the timeout harmless.
+/** Answer a member's pending prompt from the room. The prompt was mirrored
+ *  from the member's resume snapshot (`open_requests` / `pending_approval`), so
+ *  this window never held the live server request: answer through RPCs routed
+ *  to the member's OWN source (requestForBot), so cross-connection members work.
+ *  - clarify: `clarify.lock` per question, sequentially — the LAST lock
+ *    resolves the blocked server request (same contract as the 1:1 batch
+ *    card). A single question answers the open request by id through
+ *    `request.answer` (the cross-socket proxy for a response frame).
  *  - approval: `approval.respond` with the choice (once/session/always/deny),
- *    keyed by session + request_id — the same wire the 1:1 approval card
- *    and native notifications use. */
+ *    keyed by session + request_id — the queue-level wire every surface shares. */
 export async function answerGroupClarify(
   entry: GroupPrompt,
   member: GroupMember,
@@ -625,16 +635,16 @@ export async function answerGroupClarify(
         // Question ids are opaque on the wire (`GroupPrompt.questions` types
         // them `unknown`); the batch card keys its answer bag by exactly them.
         const qid = (question?.qid ?? question?.id) as string
-        await requestForBot(member, 'clarify.respond', {
+        await requestForBot(member, 'clarify.lock', {
           request_id: entry.requestId,
           question_id: qid,
           answer: (answers as Record<string, string>)?.[qid] ?? ''
         })
       }
     } else {
-      await requestForBot(member, 'clarify.respond', {
-        request_id: entry.requestId,
-        answer: typeof answers === 'string' ? answers : ''
+      await requestForBot(member, 'request.answer', {
+        id: entry.requestId,
+        result: { answer: typeof answers === 'string' ? answers : '' }
       })
     }
 

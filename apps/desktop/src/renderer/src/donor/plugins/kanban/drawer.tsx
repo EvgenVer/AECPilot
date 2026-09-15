@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/drawer.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
   ErrorState,
   host,
+  isSubmitEnter,
   Loader,
   LogView,
   Textarea,
@@ -329,7 +330,7 @@ function CommentComposer({
           className={cn('field-sizing-content max-h-40 min-h-0 resize-none', running ? 'pr-[3.5rem]' : 'pr-[5rem]')}
           onChange={event => setBody(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
+            if (isSubmitEnter(event) && !event.shiftKey) {
               event.preventDefault()
               submit()
             }

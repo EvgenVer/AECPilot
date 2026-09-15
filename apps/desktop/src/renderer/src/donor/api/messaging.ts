@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/messaging.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,12 +29,20 @@ export function getMessagingPlatforms(profile?: null | string): Promise<Messagin
   })
 }
 
+/** `hot_served`: a live multiplexer serving this named profile rebuilt its adapters from the new
+ *  credentials right away — no gateway restart is needed for the change to take effect. */
+export interface MessagingPlatformUpdateResponse {
+  hot_served?: boolean
+  ok: boolean
+  platform: string
+}
+
 export function updateMessagingPlatform(
   platformId: string,
   body: MessagingPlatformUpdate,
   profile?: null | string
-): Promise<{ ok: boolean; platform: string }> {
-  return hermesApi<{ ok: boolean; platform: string }>({
+): Promise<MessagingPlatformUpdateResponse> {
+  return hermesApi<MessagingPlatformUpdateResponse>({
     ...profileScoped(profile),
     path: `/api/messaging/platforms/${encodeURIComponent(platformId)}`,
     method: 'PUT',

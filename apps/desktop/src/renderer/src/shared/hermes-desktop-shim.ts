@@ -441,6 +441,11 @@ const IMPLEMENTED: Record<string, unknown> = {
   guestOnboardingEnabled: undefined,
   introReveal: undefined,
   chatOnboarding: undefined,
+  // `skipIntro` (0.21.3, задача 3.B5в) — флаг запуска «пропустить заставку»
+  // (`HERMES_SKIP_INTRO=1`) той же поверхности: их `isIntroRevealEnabled()`
+  // читает его после `isOnboardingEnabled()`, которая у нас всегда ложь.
+  // Булево — объявлен отсутствующим по той же причине, что флаг выше.
+  skipIntro: undefined,
   // `localModelsEnabled` — локальные модели (SPEC UR39, берём). Их главный
   // процесс включает флаг на Windows и macOS безусловно; рантайм и все данные
   // живут в ядре (`/api/local-models/*`), окну нужен только этот флаг.
@@ -1075,6 +1080,16 @@ const IMPLEMENTED: Record<string, unknown> = {
 
   async saveClipboardImage(): Promise<string> {
     const result = await window.aecpilot.saveClipboardImage()
+    if (!result.ok) throw new Error(result.error)
+    return result.path
+  },
+
+  // Ядро 0.21.3 (задача 3.B5в): очень большая вставка текста становится
+  // `.txt`-вложением — та же форма ответа, что у картинки из буфера выше:
+  // путь при удаче, исключение при отказе (их `notifyError` берёт текст из
+  // `error.message`, а на `''` они оставляют вставку в поле).
+  async savePastedText(text: string): Promise<string> {
+    const result = await window.aecpilot.savePastedText(text)
     if (!result.ok) throw new Error(result.error)
     return result.path
   },

@@ -68,6 +68,15 @@ function vendor(rel) {
   if (!fs.existsSync(from)) throw new Error(`not in the donor tree: ${rel}`);
 
   fs.mkdirSync(path.dirname(to), { recursive: true });
+  if (to.endsWith(".json")) {
+    // JSON cannot carry a comment. The file lands byte-identical and the same
+    // header goes to a `<name>.json.provenance` sidecar, which is what
+    // donor-report.mjs then reads as the vendored entry (README, «Provenance
+    // header»). Edits to a JSON file are listed in the sidecar.
+    fs.writeFileSync(to, fs.readFileSync(from));
+    fs.writeFileSync(`${to}.provenance`, header(source));
+    return path.relative(VENDOR_DIR, `${to}.provenance`).replace(/\\/g, "/");
+  }
   fs.writeFileSync(to, header(source) + fs.readFileSync(from, "utf8"));
   return path.relative(VENDOR_DIR, to).replace(/\\/g, "/");
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/changed-files.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import {
   isFileEditTool,
   parseMaybeObject
 } from '@/components/assistant-ui/tool/fallback-model'
+import { type ToolResultMetadata, toolResultRecord } from '@/lib/tool-result-metadata'
 
 export interface ChangedFile {
   added: number
@@ -27,6 +28,7 @@ export interface ChangedFile {
 }
 
 interface ChangedFilePart {
+  toolResultMetadata?: ToolResultMetadata
   args?: unknown
   result?: unknown
   toolName?: unknown
@@ -48,7 +50,7 @@ export function deriveChangedFiles(parts: readonly unknown[]): ChangedFile[] {
       continue
     }
 
-    const result = parseMaybeObject(part.result)
+    const result = toolResultRecord(part)
     const diff = inlineDiffFromResult(result)
 
     if (!diff) {

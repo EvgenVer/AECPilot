@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,6 +32,7 @@ import { contributedRoutes, NEW_CHAT_ROUTE, ROUTES_AREA, sessionRoute } from '..
 import { useStatusSnapshot } from '../shell/hooks/use-status-snapshot'
 import { useStatusbarItems } from '../shell/hooks/use-statusbar-items'
 import { ModelMenuPanel } from '../shell/model-menu-panel'
+import { ReasoningMenuPanel } from '../shell/reasoning-menu-panel'
 import { StatusbarControls } from '../shell/statusbar-controls'
 
 import { latestChatActions, latestSidebarActions } from './latest-actions'
@@ -145,6 +146,20 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
     [actions, activeConnectionId, activeGatewayProfile, gateway, gatewayState]
   )
 
+  const reasoningMenuContent = useMemo(
+    () =>
+      gatewayState === 'open' ? (
+        <ReasoningMenuPanel
+          gateway={gateway || undefined}
+          onSelectModel={actions.selectModel}
+          ownerConnectionId={activeConnectionId || undefined}
+          profile={activeGatewayProfile}
+          requestGateway={actions.requestGateway}
+        />
+      ) : null,
+    [actions, activeConnectionId, activeGatewayProfile, gateway, gatewayState]
+  )
+
   const chatActions = useMemo(() => latestChatActions(actions), [actions])
 
   const chatView = (
@@ -154,6 +169,7 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
       modelMenuContent={modelMenuContent}
       modelOptionsOwnerConnectionId={activeConnectionId || undefined}
       modelOptionsProfile={activeGatewayProfile}
+      reasoningMenuContent={reasoningMenuContent}
       requestModelOptionsForOwner={actions.requestGateway}
       {...chatActions}
     />

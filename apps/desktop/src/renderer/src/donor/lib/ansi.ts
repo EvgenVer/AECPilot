@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/ansi.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -179,15 +179,4 @@ export function ansiColorClass(color: AnsiColor): string {
 export function hasAnsiCodes(input: string): boolean {
   // eslint-disable-next-line no-control-regex
   return /\x1b\[/.test(input)
-}
-
-/** Remove all ANSI escape sequences, returning plain text. Use when output is
- *  rendered as text (e.g. chat system messages) rather than styled segments —
- *  otherwise the ESC byte is invisible and the `[1;31m…` payload leaks through. */
-export function stripAnsi(input: string): string {
-  if (!input) {
-    return input
-  }
-
-  return input.replace(OTHER_ESCAPE_RE, '').replace(CSI_RE, '')
 }

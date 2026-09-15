@@ -1,0 +1,12 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/lib/desktop-slash-registry.json
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits:
+ *   [3] "/voice": "composer-voice" → "advanced" (SPEC HX19, owner decision 2026-09-08):
+ *       the 'composer-voice' hint tells the person to click «Start voice chat» in the
+ *       composer, and that button is gone with the voice conversation; 'advanced'
+ *       says the command has no desktop surface here, which is true
+ * (no other edits)
+ */

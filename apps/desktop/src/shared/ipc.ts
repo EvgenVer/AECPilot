@@ -11,6 +11,8 @@ import type {
   ContextBreakdownResult,
   GatewayConnectionState,
   GatewayEvent,
+  GatewayServerRequest,
+  GatewayServerResponse,
   HistoryMessage,
   LiveSessionId,
   LiveSessionSummary,
@@ -712,26 +714,18 @@ export interface AecpilotApi {
       timeoutMs?: number
     }
   ): Promise<T>
-  /** Responds to the oldest pending `approval.request` for the active
-   * session (or all of them, with `all: true`). `choice` must only be
-   * 'always' when the matching request's `allow_permanent` was true. */
-  respondApproval(
-    choice: 'once' | 'session' | 'always' | 'deny',
-    all?: boolean
-  ): Promise<{ resolved: number }>
-  /** Answers a blocking `clarify.request` (task 1.5.D1). `requestId` must be
-   * the one from the event — the gateway matches by it and rejects a stale
-   * id (its request may have timed out), so callers must handle rejection. */
-  respondClarify(requestId: string, answer: string): Promise<{ status: string }>
-  /** Answers a blocking `secret.request` (task 1.5.D1). `value` is the secret
-   * itself: it exists only in transit — the renderer must clear it right
-   * after this call and must never place it in chat state, the transcript or
-   * a log. Passing an empty string is the documented "skip". */
-  respondSecret(requestId: string, value: string): Promise<{ status: string }>
-  /** Declines a blocking `sudo.request` (task 1.5.D1). Takes NO password by
-   * design: this app never collects an OS password, so no caller is able to
-   * send one. Unblocks the agent, which proceeds without elevation. */
-  declineSudo(requestId: string): Promise<{ status: string }>
+  /** Requests the GATEWAY makes of the window (hermes 0.21.3, task 3.B5в):
+   * clarify, approval, secret, sudo, a terminal/preview read, MCP-setup
+   * consent, a tour step. Main forwards every one to every window — the
+   * donor's handlers decide which window answers (a preview read: the one
+   * whose session is on screen). `replayed` marks a request re-delivered by
+   * `open_requests` after a reconnect. Returns an unsubscribe function. */
+  onGatewayServerRequest(cb: (request: GatewayServerRequest) => void): () => void
+  /** Answers one server→client request. `id` is the request's own string id;
+   * the first answer per id reaches the gateway, a later one resolves
+   * `false`. The answer to `preview.read` / `preview.act` / `tour` is marked
+   * untrusted in main on its way out (R22) — the renderer sends it raw. */
+  respondGatewayServerRequest(id: string, answer: GatewayServerResponse): Promise<boolean>
   /** Lists existing sessions, in the order returned by the gateway.
    * Internal 'tool' sub-agent sessions are already filtered out server-side. */
   listSessions(): Promise<{ sessions: SessionSummary[] }>
@@ -795,6 +789,12 @@ export interface AecpilotApi {
    * прочитать для предпросмотра. Пустой буфер — это `path: ''`, а не ошибка:
    * их вызывающая сторона показывает на него «в буфере нет картинки». */
   saveClipboardImage(): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Очень большая вставка текста как вложение (0.21.3, задача 3.B5в, их
+   * `savePastedText`): композер кладёт её `.txt`-файлом рядом с картинками из
+   * буфера — той же дисциплиной, что и они: путь выбирает не окно, а
+   * главный процесс, и файл падает в каталог вложений. Слишком большая
+   * вставка — отказ, и их композер оставляет текст в поле. */
+  savePastedText(text: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>
   /** Нативный диалог «сохранить как» (задача 3.27, их `selectSavePath`).
    * Возвращает выбранный путь или `null`, если человек закрыл диалог. Пишет по
    * этому пути тот, кто спрашивал: экспорт профиля отдаёт путь шлюзу. */
@@ -1512,15 +1512,6 @@ export interface AecpilotApi {
    * `confirmed` is checked in main. `status` distinguishes `killed` /
    * `already_exited` / `not_found`, all of which resolve rather than reject. */
   killProcess(payload: { processId: string; confirmed: true }): Promise<ProcessKillResult>
-  /** Answers the agent's `read_terminal` (task 1.6.B6.16). `text` is a JSON
-   * STRING of `TerminalReadPayload` — their handler passes it through to the
-   * tool untouched.
-   *
-   * Their bridge holds the agent's turn for 30 s waiting for this, so the
-   * renderer answers every request, empty buffer included. A 4009 back means
-   * the request had already expired: nothing left to answer, nothing to
-   * report. */
-  respondTerminalRead(requestId: string, text: string): Promise<{ status: string }>
   /** "Would a prompt sent right now reach a model?" (task 1.6.B2.4). Never
    * rejects on a provider problem — that is the answer, not an error. */
   checkRuntime(): Promise<RuntimeCheckResult>

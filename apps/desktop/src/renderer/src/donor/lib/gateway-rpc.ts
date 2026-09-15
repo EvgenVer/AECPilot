@@ -1,12 +1,23 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-rpc.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-/** True when a JSON-RPC call failed because the backend predates the method. */
+import { JSON_RPC_METHOD_NOT_FOUND } from '@hermes/shared'
+
+/** True when a JSON-RPC call failed because the backend predates the method.
+ *  The gateway answers -32601 (`tui_gateway/server.py::dispatch`) and the
+ *  shared client keeps that code on the error; the message match is only for
+ *  errors that lost their frame across the IPC bridge or a wrapped rethrow. */
 export function isMissingRpcMethod(error: unknown): boolean {
+  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined
+
+  if (typeof code === 'number') {
+    return code === JSON_RPC_METHOD_NOT_FOUND
+  }
+
   const message = error instanceof Error ? error.message : String(error)
 
   return /method not found|-32601|unknown method|no such method/i.test(message)

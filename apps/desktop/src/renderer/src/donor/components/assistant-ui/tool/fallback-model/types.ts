@@ -1,14 +1,17 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/fallback-model/types.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { ToolResultMetadata } from '@/lib/tool-result-metadata'
+
 export type ToolTone = 'agent' | 'browser' | 'default' | 'file' | 'image' | 'terminal' | 'web'
-export type ToolStatus = 'error' | 'running' | 'success' | 'warning'
+export type ToolStatus = 'error' | 'notice' | 'running' | 'success' | 'warning'
 
 export interface ToolPart {
+  toolResultMetadata?: ToolResultMetadata
   args?: unknown
   completedAt?: number
   isError?: boolean

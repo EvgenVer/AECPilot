@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/tools.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@ import { SUBAGENT_EVENT_TYPES, toTodoPayload } from '../utils'
 
 import type { GatewayEventContext } from './types'
 
-/** tool.generating / tool.start / tool.progress / tool.complete / subagent.*. */
+/** tool.generating / tool.start / tool.complete / subagent.*. */
 export function handleToolEvent(ctx: GatewayEventContext): boolean {
   const { deps, event, payload, sessionId, isActiveEvent, occurredAt } = ctx
   const { flushQueuedDeltas, nativeSubagentSessionsRef, sessionInterrupted, updateSessionState, upsertToolCall } = deps
@@ -57,7 +57,7 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
     return true
   }
 
-  if (event.type === 'tool.start' || event.type === 'tool.progress') {
+  if (event.type === 'tool.start') {
     if (!sessionId) {
       return true
     }

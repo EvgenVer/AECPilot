@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-actions/index.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -57,7 +57,7 @@ import {
   resolveNewChatOwnerRoute
 } from '@/store/profile'
 import { $projectScope, resolveNewSessionCwd } from '@/store/projects'
-import { setApprovalRequest } from '@/store/prompts'
+import { receiveApprovalRequest } from '@/store/prompts'
 import { clearStoredTranscriptReadOnly, markStoredTranscriptReadOnly } from '@/store/read-only-transcript'
 import {
   $activeSessionStoredIdRotation,
@@ -138,7 +138,7 @@ import {
   saveTranscriptTail
 } from '@/store/transcript-tail-cache'
 import { isWatchWindow } from '@/store/windows'
-import type { SessionCreateResponse, SessionMessage, SessionResumeResponse, UsageStats } from '@/types/hermes'
+import type { SessionCreateResponse, SessionMessage, SessionResumeResult, UsageStats } from '@/types/hermes'
 
 import { navigateToWorkspacePage, NEW_CHAT_ROUTE, sessionRoute, SETTINGS_ROUTE } from '../../../routes'
 import type { ClientSessionState, SidebarNavItem } from '../../../types'
@@ -179,7 +179,8 @@ import {
   sessionMatchesStoredId,
   sessionShouldHaveTranscript,
   toBranchMessages,
-  upsertOptimisticSession
+  upsertOptimisticSession,
+  upsertUnlistedSessionOwner
 } from './utils'
 
 interface SessionActionsOptions {
@@ -264,7 +265,7 @@ function applyStoredUsage(stored: { input_tokens?: number | null; output_tokens?
 function reconcileAuthoritativeChatMessages(
   authoritativeMessages: ChatMessage[],
   previousMessages: ChatMessage[],
-  liveProjection?: Pick<SessionResumeResponse, 'inflight' | 'queued' | 'session_id'>
+  liveProjection?: Pick<SessionResumeResult, 'inflight' | 'queued' | 'session_id'>
 ): ChatMessage[] {
   const withLiveProjection = liveProjection
     ? appendLiveSessionProjection(authoritativeMessages, liveProjection)
@@ -277,9 +278,9 @@ function reconcileAuthoritativeChatMessages(
 }
 
 function reconcileAuthoritativeMessages(
-  authoritativeMessages: SessionResumeResponse['messages'],
+  authoritativeMessages: SessionResumeResult['messages'],
   previousMessages: ChatMessage[],
-  liveProjection?: Pick<SessionResumeResponse, 'inflight' | 'queued' | 'session_id'>
+  liveProjection?: Pick<SessionResumeResult, 'inflight' | 'queued' | 'session_id'>
 ): ChatMessage[] {
   return reconcileAuthoritativeChatMessages(toChatMessages(authoritativeMessages), previousMessages, liveProjection)
 }
@@ -344,14 +345,17 @@ interface FreshSessionDraftOptions {
   workspaceTarget?: NewChatWorkspaceTarget
 }
 
-function restorePendingApproval(response: SessionResumeResponse, sessionId: string): boolean {
+function restorePendingApproval(response: SessionResumeResult, sessionId: string): boolean {
   const pending = response.pending_approval
 
   if (!pending) {
     return false
   }
 
-  setApprovalRequest({
+  // The live `approval` server request (re-delivered from `open_requests`
+  // before this ran) already parked itself with the same queue id; don't
+  // clobber it with a copy that can only answer through the RPC fallback.
+  void receiveApprovalRequest(null, {
     allowPermanent: pending.allow_permanent !== false,
     choices: pending.choices,
     command: pending.command ?? '',
@@ -775,7 +779,30 @@ export function useSessionActions({
         // occupied (openTab path for "New session in Home").
         const capturedRoute = options?.route !== undefined ? options.route : resolveNewChatOwnerRoute(options?.profile)
 
-        const workspaceScope = options?.workspaceScope ?? { workspaceMode: 'sessions' }
+        // A named local profile uses the legacy profile-only transport (no
+        // connectionId). Tab-strip "+" omits `options.profile`; the draft or
+        // active profile is still the owner. Unique non-default local roster
+        // names stay authoritative; default/remote/duplicate stay unresolved.
+        const requestedProfile = normalizeProfileKey(
+          typeof options?.profile === 'string' && options.profile
+            ? options.profile
+            : $newChatProfile.get() || $activeGatewayProfile.get()
+        )
+
+        const legacyOwnerProfile =
+          options?.route === undefined &&
+          !capturedRoute &&
+          requestedProfile !== null &&
+          requestedProfile !== 'default' &&
+          $connection.get()?.mode !== 'remote' &&
+          $profiles.get().filter(profile => normalizeProfileKey(profile.name) === requestedProfile).length === 1
+            ? requestedProfile
+            : undefined
+
+        const workspaceScope: SessionTileWorkspaceScope = {
+          ...(options?.workspaceScope ?? { workspaceMode: 'sessions' }),
+          ...(legacyOwnerProfile ? { ownerProfile: legacyOwnerProfile } : {})
+        }
 
         const cwd =
           options?.cwd === null ? '' : typeof options?.cwd === 'string' ? options.cwd.trim() : resolveNewSessionCwd()
@@ -813,6 +840,10 @@ export function useSessionActions({
             // moment on, and its socket stays pinned until the tile mounts.
             setSessionOwnerHint(stored, capturedRoute)
             holdSessionOwnerUntilForeground(stored, capturedRoute)
+          } else if (stored && legacyOwnerProfile) {
+            // The tile below persists this bare owner as the stored-id hint;
+            // bridge the create-to-mount gap with the same profile pool.
+            holdSessionOwnerUntilForeground(stored, legacyOwnerProfile)
           }
         } finally {
           releaseCreateLease()
@@ -836,9 +867,16 @@ export function useSessionActions({
         // Seed the per-runtime cache so the tile renders immediately without a
         // redundant resume. Only add the row to the SIDEBAR when `listed` — an
         // unlisted (draft) tab stays out of the session list until its first
-        // turn persists and a refresh surfaces it.
+        // turn persists and a refresh surfaces it. An unlisted draft still
+        // records an ownership stub (same stamps, off-list atom): without it a
+        // draft minted on the legacy ambient route (null route) owns NOTHING
+        // the ladder reads — no tile route, no hint, no row — and its
+        // immediate session.resume fails closed on multi-profile installs
+        // (#102792).
         if (listed) {
           upsertOptimisticSession(created, stored, null, null, null, undefined, capturedRoute)
+        } else {
+          upsertUnlistedSessionOwner(created, stored, capturedRoute)
         }
 
         // A tile lives in its OWN worktree, so it must not run the full
@@ -1166,13 +1204,13 @@ export function useSessionActions({
           setSessionStartedAt(Date.now())
 
           try {
-            let activated: SessionResumeResponse | null = null
+            let activated: SessionResumeResult | null = null
             const activateStartedAt = Date.now() / 1000
             const activateBaselineState = sessionStateByRuntimeIdRef.current.get(cachedRuntimeId) ?? cachedViewState
             const clarifyRequestIdAtActivateStart = $clarifyRequests.get()[cachedRuntimeId]?.requestId
 
             try {
-              activated = await requestForSession<SessionResumeResponse>('session.activate', {
+              activated = await requestForSession<SessionResumeResult>('session.activate', {
                 session_id: cachedRuntimeId,
                 cols: 96,
                 omit_messages: true
@@ -1571,7 +1609,7 @@ export function useSessionActions({
         const resumeStartedAt = Date.now() / 1000
 
         const resumePromise = singleFlightSessionResume(storedSessionId, () =>
-          requestForSession<SessionResumeResponse>('session.resume', {
+          requestForSession<SessionResumeResult>('session.resume', {
             session_id: storedSessionId,
             cols: 96,
             source: 'desktop',

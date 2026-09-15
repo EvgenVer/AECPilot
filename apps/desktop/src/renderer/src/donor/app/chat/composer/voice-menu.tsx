@@ -1,12 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/voice-menu.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the "start voice chat" item and the "speak replies" checkbox —
  *       SPEC HX19 (owner decision 2026-09-08). What is left is what HX19 keeps:
- *       dictation and the wake word.
+ *       dictation and the wake word. At v2026.9.14 the item came back as the
+ *       live-voice entry plus `./voice-engine-rows` (engine picker for that
+ *       conversation) — same surface, same [3]: not imported, not rendered
+ *       (2026-09-15)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'

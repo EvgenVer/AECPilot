@@ -10,7 +10,11 @@ import type {
   GatewayIncomingFrame,
   GatewayMethod,
   GatewayMethodMap,
-  GatewayResultFrame
+  GatewayResultFrame,
+  GatewayServerRequest,
+  GatewayServerRequestFrame,
+  GatewayServerRequestParams,
+  GatewayServerResponseFrame
 } from './types'
 
 export interface GatewayClientOptions {
@@ -27,6 +31,7 @@ export interface GatewayClientOptions {
 
 type EventListener = (event: GatewayEvent) => void
 type StateListener = (state: GatewayConnectionState) => void
+type ServerRequestListener = (request: GatewayServerRequest) => void
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000
 const DEFAULT_RECONNECT_MIN_DELAY_MS = 500
@@ -74,6 +79,19 @@ function parseFrame(data: unknown): GatewayIncomingFrame | undefined {
   if (typeof parsed !== 'object' || parsed === null) return undefined
   const frame = parsed as Record<string, unknown>
 
+  // A request FROM the gateway (hermes 0.21.3): string id, a method that is
+  // not the event envelope. Checked first — an `event` notification carries
+  // no id at all, a response carries no method.
+  if (
+    typeof frame.id === 'string' &&
+    typeof frame.method === 'string' &&
+    frame.method !== 'event'
+  ) {
+    return {
+      ...(frame as unknown as GatewayServerRequestFrame),
+      params: isRecord(frame.params) ? (frame.params as GatewayServerRequestParams) : {}
+    }
+  }
   if (frame.method === 'event' && typeof frame.params === 'object' && frame.params !== null) {
     const params = frame.params as Record<string, unknown>
     if (typeof params.type !== 'string') return undefined
@@ -107,6 +125,39 @@ function isEventFrame(frame: GatewayIncomingFrame): frame is GatewayEventFrame {
   return 'method' in frame && frame.method === 'event'
 }
 
+function isServerRequestFrame(frame: GatewayIncomingFrame): frame is GatewayServerRequestFrame {
+  return (
+    'method' in frame && frame.method !== 'event' && 'id' in frame && typeof frame.id === 'string'
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The reconnect contract of hermes 0.21.3: `session.resume`, `session.activate`
+ * and `session.events.since` answer with `open_requests` — the server→client
+ * requests still waiting on that session. They are not events, so the replay
+ * ring cannot carry them; the client re-delivers them from the result, marked
+ * `replayed`, before the caller sees it. */
+function openRequestsOf(result: unknown): GatewayServerRequest[] {
+  const open = isRecord(result) ? result.open_requests : undefined
+  if (!Array.isArray(open)) return []
+  const out: GatewayServerRequest[] = []
+  for (const entry of open) {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.method !== 'string') {
+      continue
+    }
+    out.push({
+      id: entry.id,
+      method: entry.method,
+      params: isRecord(entry.params) ? (entry.params as GatewayServerRequestParams) : {},
+      replayed: true
+    })
+  }
+  return out
+}
+
 /** JSON-RPC/WebSocket client for tui_gateway: connect, typed request/response
  * matching, typed event dispatch, and auto-reconnect with backoff. */
 export class GatewayClient {
@@ -122,6 +173,7 @@ export class GatewayClient {
   private readonly pending = new Map<number, PendingRequest>()
   private readonly eventListeners = new Set<EventListener>()
   private readonly stateListeners = new Set<StateListener>()
+  private readonly serverRequestListeners = new Set<ServerRequestListener>()
 
   private manualClose = false
   private everReady = false
@@ -217,6 +269,36 @@ export class GatewayClient {
     return () => this.stateListeners.delete(callback)
   }
 
+  /** Subscribes to requests the GATEWAY makes of this client (task 3.B5в):
+   * live frames and the `open_requests` replayed after a reconnect alike.
+   * Every listener sees every request; the answer goes through
+   * `respondToServerRequest`, and only the first answer per id reaches the
+   * wire. Returns an unsubscribe function. */
+  onServerRequest(callback: ServerRequestListener): () => void {
+    this.serverRequestListeners.add(callback)
+    return () => this.serverRequestListeners.delete(callback)
+  }
+
+  /** Answers a server→client request: a response frame with the request's
+   * own string id. No promise to settle — the gateway does not acknowledge an
+   * answer, and one for an id it no longer holds is dropped on its side
+   * (withdrawn by `request.cancel`, or already answered). Returns false when
+   * nothing was sent: the socket is gone, or this id was answered already. */
+  respondToServerRequest(
+    id: string,
+    answer: { result: Record<string, unknown> } | { error: { code: number; message: string } }
+  ): boolean {
+    if (!this.ws || this.state !== 'ready' || this.answeredServerRequests.has(id)) return false
+    const frame: GatewayServerResponseFrame = { jsonrpc: '2.0', id, ...answer }
+    try {
+      this.ws.send(JSON.stringify(frame))
+    } catch {
+      return false
+    }
+    this.rememberAnswered(id)
+    return true
+  }
+
   private openSocket(): void {
     this.setState(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting')
 
@@ -253,6 +335,16 @@ export class GatewayClient {
     const frame = parseFrame(data)
     if (!frame) return // malformed/unrecognized frame — ignore, don't crash
 
+    if (isServerRequestFrame(frame)) {
+      this.deliverServerRequest({
+        id: frame.id,
+        method: frame.method,
+        params: frame.params,
+        replayed: false
+      })
+      return
+    }
+
     if (isEventFrame(frame)) {
       const evt = frame.params as GatewayEvent
       if (evt.type === 'gateway.ready') {
@@ -285,7 +377,38 @@ export class GatewayClient {
         new GatewayRequestError(frame.error.code, frame.error.message, frame.error.data)
       )
     } else {
+      // Re-delivered BEFORE the caller sees the result, over the very socket
+      // that owns them — the same order as the donor's own channel.
+      for (const request of openRequestsOf(frame.result)) this.deliverServerRequest(request)
       pending.resolve(frame.result)
+    }
+  }
+
+  private deliverServerRequest(request: GatewayServerRequest): void {
+    // A replay reuses the id of a request that may have been answered on the
+    // old generation; the gateway re-asks, so the id is open again.
+    this.answeredServerRequests.delete(request.id)
+    for (const listener of this.serverRequestListeners) {
+      try {
+        listener(request)
+      } catch {
+        // isolate a bad subscriber — don't log the params (a secret prompt
+        // names what is being asked for)
+        console.error('gateway server-request listener threw')
+      }
+    }
+  }
+
+  /** Ids already answered, so a second card answering the same question is a
+   * no-op here rather than a second frame on the wire. Bounded: the gateway
+   * mints one id per question, so the oldest can go once there are many. */
+  private readonly answeredServerRequests = new Set<string>()
+
+  private rememberAnswered(id: string): void {
+    this.answeredServerRequests.add(id)
+    if (this.answeredServerRequests.size > 256) {
+      const oldest = this.answeredServerRequests.values().next().value
+      if (oldest !== undefined) this.answeredServerRequests.delete(oldest)
     }
   }
 

@@ -32,7 +32,15 @@ const ZONE = join(__dirname, '..', '..', 'donor')
 /** Чужие каталоги переводов: их языки не предлагаются (SPEC C7), а английский
  * и — с 0.21.2 — их русский переписываются на лету (`debrand.ts`; собранные
  * каталоги мерит `no-hermes.test.ts`). */
-const SKIP_FILES = new Set(['en.ts', 'ru.ts', 'ar.ts', 'ja.ts', 'zh.ts', 'zh-hant.ts', 'voice-stop-word.ts'])
+const SKIP_FILES = new Set([
+  'en.ts',
+  'ru.ts',
+  'ar.ts',
+  'ja.ts',
+  'zh.ts',
+  'zh-hant.ts',
+  'voice-stop-word.ts'
+])
 
 /** Файлы поверхности, которой в продукте НЕТ: их онбординг-чат (SPEC HX26).
  * Регистрация снята в `wiring.tsx` (правка [3]), флаг `guestOnboardingEnabled`
@@ -40,10 +48,15 @@ const SKIP_FILES = new Set(['en.ts', 'ru.ts', 'ar.ts', 'ja.ts', 'zh.ts', 'zh-han
  * Здесь лежат его промпты и имя его профиля — человеку не показываются, агенту
  * не отправляются. Переписывать промпт мёртвого кода значило бы править
  * инструкцию агента, которую никто не исполняет. Если HX26 когда-нибудь
- * пересмотрят, строки снимаются отсюда, и гвард потребует правку [5]. */
+ * пересмотрят, строки снимаются отсюда, и гвард потребует правку [5].
+ *
+ * Третий файл — их живой голосовой разговор (SPEC HX19, не берём; пин 0.21.3,
+ * задача 3.B5ж): реплики, которые он ПРОИЗНОСИТ. Что его никто не зовёт,
+ * держит `voice-by-human-decision.test.ts`. */
 const DEAD_SURFACE_FILES = new Set([
   join('components', 'onboarding-chat', 'setup-profile.ts'),
-  join('store', 'onboarding-script.ts')
+  join('store', 'onboarding-script.ts'),
+  join('app', 'chat', 'composer', 'hooks', 'use-voice-live-conversation.ts')
 ])
 
 const TECHNICAL = new RegExp(
@@ -123,12 +136,14 @@ const TECHNICAL = new RegExp(
     'hermes-annotate',
     '__hermesAnnotate',
     'hermes-plugin-pick', // тип сообщения выбора из каталога плагинов, как `hermes-skill-pick`
-    '\.hermes-package\.json', // маркер-файл рядом с половиной пакета плагина
-    // Ключи их локального хранилища: квитанция передачи онбординга, «заставку
-    // видели», время последней фоновой проверки обновлений.
-    'hermes\.onboarding\.handoff',
+    '\\.hermes-package\\.json', // маркер-файл рядом с половиной пакета плагина
+    // Ключи их локального хранилища: квитанция передачи онбординга (с 0.21.3 —
+    // всё семейство `hermes.onboarding.*`: ещё «первая сборка» и её коннекторы,
+    // задача 3.B5), «заставку видели», время последней фоновой проверки
+    // обновлений.
+    'hermes\\.onboarding\\.',
     'hermes-intro-reveal-seen',
-    'hermes\.updates\.',
+    'hermes\\.updates\\.',
     "^'hermes-setup'$" // имя ПРОФИЛЯ их онбординг-гида — ключ реестра профилей
   ].join('|')
 )

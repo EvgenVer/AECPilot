@@ -187,7 +187,8 @@ import type {
   AgentProcessEntry,
   GatewayConnectionState,
   GatewayEvent,
-  GatewayEventFrame
+  GatewayEventFrame,
+  GatewayServerResponse
 } from '../shared/gateway/types'
 import {
   buildProviderKeyEnv,
@@ -608,6 +609,10 @@ function startScanSchedulerForProject(vaultPath: string): void {
 // fires while no window exists to receive the push, so a push-only channel
 // would leave the renderer stuck at 'closed'.
 let gatewayState: GatewayConnectionState = 'closed'
+/** Метод каждого открытого вопроса ядра по его id — чтобы на ответ окна
+ * поставить пометку R22 по ИМЕНИ запроса, которого в ответе нет. Запись живёт
+ * до ответа или отзыва (`request.cancel`); ядро минтит один id на вопрос. */
+const serverRequestMethods = new Map<string, string>()
 /** Отметка догона событий: до какого номера кадра окна всё получили. */
 let replayWatermark: ReplayWatermark = EMPTY_WATERMARK
 
@@ -632,9 +637,27 @@ async function connectGateway(url: string): Promise<void> {
 
     // Only forward events for the active session, plus session-less
     // events (e.g. `gateway.ready`, which carries no session_id).
+    if (event.type === 'request.cancel') {
+      // Отзыв вопроса едет всем окнам, как и сам вопрос: карточку снимает
+      // то окно, которое её показало, а фильтр по сессии его бы не пропустил.
+      const cancelled = event.payload as { id?: unknown } | undefined
+      if (typeof cancelled?.id === 'string') serverRequestMethods.delete(cancelled.id)
+      broadcastToWindows('chat:event', event)
+      return
+    }
     if (event.session_id && event.session_id !== sessionId) return
     rememberMcpStatus(event)
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+  })
+  // Вопросы ядра окну (0.21.3, задача 3.B5в): уточнение, подтверждение команды,
+  // секрет, sudo, чтение терминала/предпросмотра, согласие на MCP, шаг тура.
+  // Идут во ВСЕ окна без фильтра по сессии — фоновая сессия тоже вправе
+  // спросить, а какому окну отвечать, решают обработчики донора (чтение
+  // предпросмотра — то, чья сессия на экране). Первый ответ на id уходит
+  // ядру, остальные глушит клиент.
+  gateway.onServerRequest((request) => {
+    serverRequestMethods.set(request.id, request.method)
+    broadcastToWindows('gateway:server-request', request)
   })
   gateway.onStateChange((state) => {
     const wasReconnecting = gatewayState === 'reconnecting'
@@ -917,10 +940,18 @@ function applyLoopBudget(homeDir: string): void {
  * `nous.guest` — бесплатный ярус их облака: без настроенного провайдера ядро
  * само заводит анонимную личность Nous. Их облако — SPEC HX3; сегодня код
  * стоит за их же флагом предрелиза, и `false` закрепляет отказ на случай,
- * когда флаг снимут. */
+ * когда флаг снимут.
+ *
+ * `updates.check` — задача 3.B5д (решение владельца 2026-09-15, замечание
+ * D-88, SPEC R10). Каждый старт шлюза ходит на `api.github.com` сравнить наш
+ * HEAD с их `main` (`prefetch_update_check` → `check_for_updates(passive=True)`
+ * в `hermes_cli/banner.py`) и пишет `.update_check` в профиль. Пин по SHA
+ * делает это бесполезным, а исходящего запроса ядра нет на экране каналов.
+ * Passive-ветка чтит ключ: `updates.check: false` — и запроса нет. */
 function applyCoreOptOuts(homeDir: string): void {
   applyConfigDefault(homeDir, 'sessions', 'auto_prune', false, 'the session auto-prune opt-out')
   applyConfigDefault(homeDir, 'nous', 'guest', false, 'the Nous free-tier opt-out')
+  applyConfigDefault(homeDir, 'updates', 'check', false, 'the core update-check opt-out')
 }
 
 /** Задача 3E.2 — ВЫБОР ПРОВАЙДЕРА ВЕБ-ПОИСКА, а не его включение.
@@ -2577,26 +2608,6 @@ ipcMain.handle('processes:kill', async (_event, payload: unknown) => {
   })
 })
 
-// Answers the agent's blocking `read_terminal` (task 1.6.B6.16). The renderer
-// serializes the visible terminal buffer; this only forwards it.
-//
-// Never rejects on 4009: that code means the request expired (their bridge
-// gave up after 30 s) and there is nothing left to answer — surfacing it as a
-// failed IPC call would turn a race into an error the user cannot act on.
-ipcMain.handle('terminal:read-respond', async (_event, payload: unknown) => {
-  if (!gateway) throw new Error('no gateway connection')
-  const { requestId, text } = (payload ?? {}) as { requestId?: unknown; text?: unknown }
-  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
-  if (typeof text !== 'string') throw new Error('invalid terminal payload')
-  try {
-    return await gateway.request('terminal.read.respond', { request_id: requestId, text })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('4009')) return { status: 'expired' }
-    throw error
-  }
-})
-
 // Never rejects on a provider problem: "no usable credentials" IS the answer
 // this screen exists to show.
 ipcMain.handle('setup:runtime-check', async () => {
@@ -2606,55 +2617,6 @@ ipcMain.handle('setup:runtime-check', async () => {
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
-})
-
-const APPROVAL_CHOICES = ['once', 'session', 'always', 'deny'] as const
-type ApprovalChoice = (typeof APPROVAL_CHOICES)[number]
-function isApprovalChoice(value: string): value is ApprovalChoice {
-  return APPROVAL_CHOICES.includes(value as ApprovalChoice)
-}
-
-// Task 1.5.D1: answers a blocking `clarify.request`. The gateway matches the
-// reply by `request_id` (its `_respond` keys a pending map by it) and returns
-// error 4009 once that request is gone — e.g. it already timed out — so the
-// renderer must surface a failure rather than assume success.
-ipcMain.handle('chat:respond-clarify', async (_event, requestId: unknown, answer: unknown) => {
-  if (!gateway) throw new Error('no gateway connection')
-  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
-  if (typeof answer !== 'string') throw new Error('invalid answer')
-  return gateway.request('clarify.respond', { request_id: requestId, answer })
-})
-
-// Task 1.5.D1: answers a blocking `secret.request`. `value` is the secret
-// itself. It is forwarded straight to the gateway and NOTHING here may
-// observe it: never logged, never echoed into an error, never persisted
-// (specs/agent-chat.md §Security). An empty string is the documented "skip".
-ipcMain.handle('chat:respond-secret', async (_event, requestId: unknown, value: unknown) => {
-  if (!gateway) throw new Error('no gateway connection')
-  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
-  // Validate the shape only — the value is never inspected or reported.
-  if (typeof value !== 'string') throw new Error('invalid secret value')
-  return gateway.request('secret.respond', { request_id: requestId, value })
-})
-
-// Task 1.5.D1: DECLINES a blocking `sudo.request`. Deliberately takes no
-// password argument — this app never collects an OS password, so there is no
-// code path through which one could be sent. The gateway needs the key
-// present, so an empty string is passed, which it treats as "no password".
-ipcMain.handle('chat:decline-sudo', async (_event, requestId: unknown) => {
-  if (!gateway) throw new Error('no gateway connection')
-  if (typeof requestId !== 'string' || requestId === '') throw new Error('invalid request id')
-  return gateway.request('sudo.respond', { request_id: requestId, password: '' })
-})
-
-ipcMain.handle('chat:respond-approval', async (_event, choice: string, all?: boolean) => {
-  if (!gateway || !sessionId) throw new Error('no active session')
-  if (!isApprovalChoice(choice)) throw new Error('invalid approval choice')
-  return gateway.request('approval.respond', {
-    session_id: sessionId,
-    choice,
-    all
-  })
 })
 
 // Task 1.20: scoped to the open project — a session.list row only shows up
@@ -3162,14 +3124,12 @@ ipcMain.handle(
       if (!gateway) throw new Error('gateway is not connected')
       const method = checkRpcCall(payload?.method)
       // A hidden turn is not a thing this product has (task 3.4в, risk R19).
-      // Задача 3E.4 (R22): текст страницы, который окно шлёт ядру, помечается
-      // недоверенным здесь — дальше по пути правку делать негде.
       // Задача 5.14: язык ответов агента дописывается в SOUL создаваемого
       // специалиста здесь — их диалог собирает SOUL сам и про язык не знает, а
       // правка вендорного файла не входит в пять разрешённых (AGENTS §14).
       const params = applySoulLanguage(
         method,
-        markUntrustedPageText(method, sanitizeRpcParams(payload?.params)),
+        sanitizeRpcParams(payload?.params),
         soulLanguageLine(loadAgentLanguage())
       ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
@@ -3179,6 +3139,42 @@ ipcMain.handle(
     }
   }
 )
+
+// Ответ окна на вопрос ядра (0.21.3, задача 3.B5в) — кадр с id вопроса. Задача
+// 3E.4 (R22): текст страницы предпросмотра, который окно шлёт ядру, помечается
+// недоверенным ЗДЕСЬ, по имени запроса — дальше по пути правку делать негде
+// (ядро не патчится, обработчик в окне — зона донора). Секрет (`secret`) едет
+// в `answer.result.value` и здесь не читается, не пишется в журнал и не
+// попадает в текст ошибки.
+ipcMain.handle(
+  'gateway:server-respond',
+  (_event, payload: { id?: unknown; answer?: unknown }): boolean => {
+    if (!gateway) return false
+    const id = payload?.id
+    const answer = payload?.answer as GatewayServerResponse | undefined
+    if (typeof id !== 'string' || id === '' || !answer || typeof answer !== 'object') return false
+    const method = serverRequestMethods.get(id)
+    let outcome: boolean
+    if ('result' in answer) {
+      const result = isPlainRecord(answer.result) ? answer.result : {}
+      outcome = gateway.respondToServerRequest(id, {
+        result: method ? markUntrustedPageText(method, result) : result
+      })
+    } else if ('error' in answer && isPlainRecord(answer.error)) {
+      const code = typeof answer.error.code === 'number' ? answer.error.code : -32000
+      const message = typeof answer.error.message === 'string' ? answer.error.message : 'error'
+      outcome = gateway.respondToServerRequest(id, { error: { code, message } })
+    } else {
+      return false
+    }
+    if (outcome) serverRequestMethods.delete(id)
+    return outcome
+  }
+)
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 /**
  * Записать учётные данные, пришедшие из ИХ панели настроек, по нашему правилу
@@ -3737,6 +3733,27 @@ ipcMain.handle('attachments:save-clipboard', async () => {
   if (image.isEmpty()) return { ok: true, path: '' }
   try {
     return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, image.toPNG(), 'png') }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Ядро 0.21.3 (задача 3.B5в). Очень большая вставка текста — их композер
+// превращает её в `.txt`-вложение (`use-composer-actions.ts`,
+// `attachPastedText`). Их главный процесс пишет файл в свой каталог
+// `composer-pastes`; у нас он падает туда же, куда картинки из буфера, —
+// по той же причине: это единственный каталог, который окну потом дадут
+// прочитать. Предел размера — тот же, что у любого вложения.
+ipcMain.handle('attachments:save-paste', async (_event, payload: unknown) => {
+  const { text } = (payload ?? {}) as { text?: unknown }
+  if (typeof text !== 'string' || text.length === 0) {
+    return { ok: false, error: 'text must be a non-empty string' }
+  }
+  try {
+    return {
+      ok: true,
+      path: await saveAttachment(ATTACHMENTS_DIR, Buffer.from(text, 'utf8'), 'txt')
+    }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/review/ship-bar.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import { SplitButton } from '@/components/ui/split-button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { isSubmitEnter } from '@/lib/ime'
 import { formatCombo } from '@/lib/keybinds/combo'
 import { notifyError } from '@/store/notifications'
 import {
@@ -92,7 +93,7 @@ export function ReviewShipBar() {
           disabled={generating}
           onChange={event => setMessage(event.target.value)}
           onKeyDown={event => {
-            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            if ((event.metaKey || event.ctrlKey) && isSubmitEnter(event)) {
               event.preventDefault()
               runCommit(commitDefault)
             }

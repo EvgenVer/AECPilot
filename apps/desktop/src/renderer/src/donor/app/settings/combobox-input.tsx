@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/combobox-input.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,8 @@ import { Codicon } from '@/components/ui/codicon'
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { useI18n } from '@/i18n'
+import { isSubmitEnter } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 
 /**
@@ -41,6 +43,7 @@ export function ComboboxInput({
   placeholder?: string
   className?: string
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -64,7 +67,7 @@ export function ComboboxInput({
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={e => {
-              if (e.key === 'Escape' || e.key === 'Enter' || e.key === 'Tab') {
+              if (e.key === 'Escape' || e.key === 'Tab' || isSubmitEnter(e)) {
                 setOpen(false)
               }
             }}
@@ -73,7 +76,7 @@ export function ComboboxInput({
             value={value}
           />
           <button
-            aria-label="Show options"
+            aria-label={t.settings.config.showOptions}
             className="absolute inset-y-0 right-1.5 flex items-center text-muted-foreground"
             onClick={() => {
               setOpen(current => !current)

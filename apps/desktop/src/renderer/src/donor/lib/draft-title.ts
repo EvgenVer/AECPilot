@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/draft-title.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { SLASH_COMMAND_RE } from './chat-runtime'
+import { SLASH_COMMAND_RE } from '@hermes/shared'
 
 /** Matches `agent/title_generator.py`'s MAX_DERIVED_TITLE_CHARS, so a draft
  *  doesn't visibly reflow the moment the backend's derived title replaces it. */

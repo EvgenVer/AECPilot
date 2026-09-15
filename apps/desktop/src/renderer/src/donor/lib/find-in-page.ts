@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/find-in-page.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { isImeComposing } from './ime'
+
 // Pure logic for the find-in-page bar (⌘F). Kept out of the component so the
 // match-counter projection and the in-bar key routing can be unit-tested
 // without jsdom, a BrowserWindow, or the preload bridge.
@@ -52,6 +54,10 @@ export interface FindBarKeyEvent {
   metaKey?: boolean
   ctrlKey?: boolean
   altKey?: boolean
+  /** IME composition state — bare Enter steps must not fire mid-composition. */
+  isComposing?: boolean
+  keyCode?: number
+  nativeEvent?: { isComposing?: boolean; keyCode?: number }
 }
 
 /**
@@ -86,7 +92,10 @@ export function findBarKeyAction(event: FindBarKeyEvent, options: { inInput?: bo
     return event.shiftKey ? 'previous' : 'next'
   }
 
-  if (event.key === 'Enter' && !mod && options.inInput) {
+  // A bare Enter inside the input can also be an IME composition commit
+  // (CJK input); stepping matches on that keystroke jumps the viewport while
+  // the user is still composing their query.
+  if (event.key === 'Enter' && !mod && options.inInput && !isImeComposing(event)) {
     return event.shiftKey ? 'previous' : 'next'
   }
 

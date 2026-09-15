@@ -46,6 +46,12 @@ each naming what was touched. `(no other edits)` closes the list — the diff of
 our changes must be reconstructible from this header alone when the file is
 re-copied from a newer commit. A file copied unchanged says `Edits: none`.
 
+A JSON file cannot carry a comment, so it lands byte-identical and the same
+header block sits in a `<name>.json.provenance` sidecar next to it (written by
+`runtime/vendor-donor.mjs`); `donor-report.mjs` reads the sidecar as the vendored
+entry, and edits to the JSON are listed there. First case: their slash-command
+registry `lib/desktop-slash-registry.json` (v2026.9.14, task 3.B5).
+
 ## Exactly five allowed edits
 
 Anything else is not an edit — it means the file does not belong in this zone.

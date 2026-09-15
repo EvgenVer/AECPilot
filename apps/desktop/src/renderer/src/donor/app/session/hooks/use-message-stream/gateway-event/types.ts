@@ -1,15 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/types.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { GatewayEvent } from '@hermes/shared'
 import type { QueryClient } from '@tanstack/react-query'
 import type { MutableRefObject } from 'react'
 
 import type { GatewayEventPayload } from '@/lib/chat-messages'
-import type { RpcEvent } from '@/types/hermes'
 
 import type { ClientSessionState } from '../../../../types'
 
@@ -59,7 +59,7 @@ export interface GatewayEventDeps {
  *  the routing preamble in index.ts computes it once per event. */
 export interface GatewayEventContext {
   deps: GatewayEventDeps
-  event: RpcEvent
+  event: GatewayEvent
   payload: GatewayEventPayload | undefined
   /** Routed session id (explicit, pinned unscoped stream, or active fallback). */
   sessionId: null | string

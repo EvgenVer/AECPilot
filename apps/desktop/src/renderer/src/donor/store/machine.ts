@@ -1,18 +1,18 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/machine.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-/** Machine facts load before the runbook so a new computer or Spark can lead
- *  with machine setup as the first task. */
+/** Machine facts load before the runbook is built so a new computer or a Spark can lead with machine setup as
+ *  the first task. */
 
 import { atom } from 'nanostores'
 
 import type { DesktopMachineProfile } from '@/global'
 
-/** Allow time to get around to setup without treating a daily-use machine as new. */
+/** 21 days leaves time to finish setup without counting a daily-use machine as new. */
 const NEW_MACHINE_DAYS = 21
 
 export const $machine = atom<DesktopMachineProfile | null>(null)
@@ -29,15 +29,15 @@ export async function loadMachineProfile(): Promise<void> {
   }
 }
 
-/** Unknown counts as not-new: the option is always offered, it just doesn't
- *  lead unless we can see a reason for it to. */
+/** An unknown age counts as not new. Machine setup is still offered; age makes it lead only when the age is
+ *  known and within NEW_MACHINE_DAYS. */
 export function machineLooksNew(): boolean {
   const age = $machine.get()?.ageDays
 
   return age != null && age <= NEW_MACHINE_DAYS
 }
 
-/** Login names that are not a name. 'akp' suggests fine; 'user' does not. */
+/** Generic login names that are not a person's name. A short handle such as 'akp' is still usable. */
 const NON_NAME_USERNAMES = new Set([
   'admin',
   'administrator',
@@ -62,8 +62,8 @@ export function machineUserName(): string | null {
   return NON_NAME_USERNAMES.has(raw.toLowerCase()) ? null : raw
 }
 
-/** Name the OS language for the model, independent of the UI's bundled locales.
- *  English, missing or invalid tags need no language instruction. */
+/** Names the OS language for the model, independent of the UI's bundled locales. Returns null for English and
+ *  for a missing or invalid tag, which need no language instruction. */
 export function machineLanguageName(): string | null {
   const tag = ($machine.get()?.locale ?? '').trim()
 
@@ -95,13 +95,11 @@ export function machineIsSpark(): boolean {
   return rtx || dgx
 }
 
-/** True when setting the machine up should be the only thing on offer, with
- *  everything else folded away behind one more tap. */
+/** True when machine setup should be the only first task shown, with the other options behind one more tap. */
 export function machineSetupLeads(): boolean {
   return machineIsSpark() || machineLooksNew()
 }
 
-/** What the user calls the thing in front of them. */
 export function machineKind(): string {
   if (machineIsSpark()) {
     return 'Spark'
@@ -119,8 +117,8 @@ export function machineKind(): string {
   }
 }
 
-/** Age leads the setup brief because a new machine needs work that a
- *  daily-use machine may already have done. */
+/** The age comes first in the description because a new machine needs setup work that a daily-use machine may
+ *  already have done. */
 export function machineDescription(): string {
   const profile = $machine.get()
 

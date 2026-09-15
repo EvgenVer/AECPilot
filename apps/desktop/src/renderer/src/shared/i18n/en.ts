@@ -42,7 +42,11 @@ const OVERRIDES: Record<string, string> = {
   'settings.gateway.remoteUrlDesc':
     'Base URL of the remote backend. Path prefixes are supported, for example /agent.',
   'install.remoteUrlPlaceholder': 'https://gateway.example.com/agent',
-  'messaging.fieldCopy.MATRIX_USER_ID.placeholder': '@bot:example.org'
+  'messaging.fieldCopy.MATRIX_USER_ID.placeholder': '@bot:example.org',
+
+  // Их подсказка поиска тем обещает VS Code Marketplace — эта половина поля
+  // снята правкой [3] в `appearance-settings.tsx` (HX14).
+  'settings.appearance.themeSearchPlaceholder': 'Search your themes…'
 }
 
 export const en = debrandTranslations(donorEn, OVERRIDES)

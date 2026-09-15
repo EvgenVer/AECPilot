@@ -68,13 +68,17 @@ export const VERDICTS = {
   // `tour` → `gui_tour`. Вердикты те же — переехали за именами.
   cronjob_manage: { status: "ours", where: "UR18, наш тик — aec/cron-runner/**, поверхность их плагина — cron.tsx" },
   session_search: { status: "ours", where: "инструмент ядра поверх сессий, которые у нас уже есть" },
-  clarify: { status: "ours", where: "donor/app/session/hooks/use-message-stream/gateway-event/input-requests.ts" },
+  // С 0.21.3 (задача 3.B5в) вопросы ядра окну — ЗАПРОСЫ сервера к клиенту
+  // (`tui_gateway/server_requests.py`), не события: обработчики лежат в их
+  // `gateway-event/server-requests.ts`, ответ едет кадром с id вопроса.
+  // Живьём: `runtime/server-requests-probe.mjs`.
+  clarify: { status: "ours", where: "запрос `clarify` в donor/app/session/hooks/use-message-stream/gateway-event/server-requests.ts (0.21.3)" },
   todo_list: { status: "ours", where: "инструмент ядра, клиента не требует; в §Non-Goals не значится → взят по UR13" },
   show_tip: { status: "ours", where: "взят решением владельца 2026-09-01 (SPEC HX16, граница); ветка tip.show в donor/.../desktop-bridge.ts" },
   focus_pane: { status: "ours", where: "ветка pane.reveal в donor/.../desktop-bridge.ts" },
   react_to_message: { status: "ours", where: "ветка message.reaction в donor/.../desktop-bridge.ts" },
-  setup_mcp: { status: "ours", where: "ветка mcp.setup.request в donor/.../input-requests.ts" },
-  desktop_preview: { status: "ours", where: "ветка preview.read.request в donor/.../desktop-bridge.ts; сама область предпросмотра — задача 3.4" },
+  setup_mcp: { status: "ours", where: "запрос `mcp.setup` в donor/.../gateway-event/server-requests.ts (0.21.3); карточка согласия — их `mcp-setup-tool.tsx`" },
+  desktop_preview: { status: "ours", where: "запрос `preview.read` в donor/.../gateway-event/server-requests.ts (0.21.3); рамка R22 ставится в main на ответ; сама область предпросмотра — задача 3.4" },
 
   // ── задачи (решение принято, работа впереди) ────────────────────────────
   web_search: { status: "ours", where: "UR32 — задача 3E.2, провайдер `ddgs` записан нами (main/index.ts::applyWebBackend), живой прогон — runtime/web-search-probe.mjs" },
@@ -107,8 +111,8 @@ export const VERDICTS = {
   computer_use: { status: "ours", where: "UR30 — набор включён, наша сторона ничего не закрывает; двоичный `cua-driver` ставит ЧЕЛОВЕК кнопкой их панели (её установщик просит повышения прав), задача 3E.8" },
   terminal: { status: "ours", where: "UR30 — инструмент ядра доступен модели, поверхность оболочки дана 3E.8 (node-pty), граница — 3E.7" },
   process_manage: { status: "ours", where: "UR30 — см. terminal" },
-  read_terminal: { status: "ours", where: "их же ветка `terminal.read.request` в зоне сериализует буфер xterm; недостающей половиной была ОБОЛОЧКА, её дала 3E.8" },
-  close_terminal: { status: "ours", where: "см. read_terminal — та же ветка в зоне, та же недостающая половина" },
+  read_terminal: { status: "ours", where: "их же обработчик запроса `terminal.read` (0.21.3) сериализует буфер xterm; недостающей половиной была ОБОЛОЧКА, её дала 3E.8" },
+  close_terminal: { status: "ours", where: "см. read_terminal — тот же обработчик в зоне, та же недостающая половина" },
   read_window_below: { status: "ours", where: "UR30, HX12 отменён 05.09 — задача 3E.8: `main/os-windows.ts` через `get-windows`, только метаданные" },
   delegate_task: { status: "ours", where: "UR38 — задача 3E.13; проверено живым прогоном (`node runtime/delegate-probe.mjs`): агент делегировал, подагент прочитал файл и назвал строку 7, поток `subagent.*` пришёл в ленту" },
   // Вердикт переставлен с 5.0 на 5.1а задачей 3E.17: проверка «ссылка в никуда»
@@ -125,8 +129,8 @@ export const VERDICTS = {
     status: "ours",
     where: "UR10 — управление памятью двух слоёв; окно 5.4, список фактов проекта 5.16, маршрутизация 5.5, фильтр 5.3",
   },
-  gui_tour: { status: "ours", where: "UR36 — задача 3E.12: ветка `tour.request` вернулась повторным переносом, driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
-  drive_preview: { status: "ours", where: "UR36 — задача 3E.12: `preview.act.request` вернулась там же; e2e доказан эхом самой страницы (агент напечатал и нажал)" },
+  gui_tour: { status: "ours", where: "UR36 — задача 3E.12: обработчик вернулся повторным переносом (с 0.21.3 — запрос `tour`), driver.js 1.8.0; e2e ведёт экскурсию по ЧУЖОЙ странице в панели" },
+  drive_preview: { status: "ours", where: "UR36 — задача 3E.12: обработчик вернулся там же (с 0.21.3 — запрос `preview.act`); e2e доказан эхом самой страницы (агент напечатал и нажал)" },
   annotate_preview: { status: "ours", where: "UR36 — тот же канал `preview.act` (kind pin/unpin/hold), что и drive_preview; живьём в 3E.12 прогнаны elements/type/click, пометки — нет" },
 
   // ── исключено ──────────────────────────────────────────────────────────

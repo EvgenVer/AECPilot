@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/retint.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,7 +41,7 @@ import {
   normalizeHex,
   type Oklch,
   oklchToHex,
-  readableOn
+  readableInk
 } from './color'
 import type { DesktopTheme, DesktopThemeColors } from './types'
 
@@ -124,8 +124,8 @@ function retintColors(colors: DesktopThemeColors, seed: string, isDark: boolean)
 
   // Foregrounds that sit ON the accent have to be re-picked: a new seed can
   // cross the light/dark readability boundary.
-  next.primaryForeground = readableOn(seed)
-  next.midgroundForeground = readableOn(seed)
+  next.primaryForeground = readableInk(seed)
+  next.midgroundForeground = readableInk(seed)
 
   return next
 }

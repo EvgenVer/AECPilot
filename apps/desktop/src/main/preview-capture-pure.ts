@@ -89,7 +89,11 @@ export function cropCapture(image: CaptureImage, rect: unknown, viewport: unknow
   const size = image.getSize()
   const view = viewport as Partial<CaptureSize> | null
   const viewSize: CaptureSize =
-    view && typeof view.width === 'number' && typeof view.height === 'number' && view.width > 0 && view.height > 0
+    view &&
+    typeof view.width === 'number' &&
+    typeof view.height === 'number' &&
+    view.width > 0 &&
+    view.height > 0
       ? { height: view.height, width: view.width }
       : size
 

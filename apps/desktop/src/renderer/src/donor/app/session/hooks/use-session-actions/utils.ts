@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-actions/utils.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,6 +41,7 @@ import {
   setMessagingSessions,
   setSessionOwnerHint,
   setSessions,
+  setUnlistedSessionOwnerRows,
   setWorkspaceCwdOwner,
   setYoloActive
 } from '@/store/session'
@@ -52,7 +53,7 @@ import { sessionTileOwnerRoute } from '@/store/session-states'
 export { sessionMatchesStoredId }
 import { sessionOwnerRouteFromRow, type SessionOwnerScope } from '@/store/session-request-router'
 import { reportBackendContract, reportInstallMethodWarning } from '@/store/updates'
-import type { SessionCreateResponse, SessionInfo, SessionResumeResponse, SessionRuntimeInfo } from '@/types/hermes'
+import type { SessionCreateResponse, SessionInfo, SessionResumeResult, SessionRuntimeInfo } from '@/types/hermes'
 
 import type { ClientSessionState } from '../../../types'
 
@@ -753,11 +754,11 @@ export function preserveLocalPendingTurnMessages(
  */
 const safelyPersistedInflightUser = Symbol('safelyPersistedInflightUser')
 
-type LiveSessionProjection = Pick<SessionResumeResponse, 'inflight' | 'queued' | 'session_id'> & {
+type LiveSessionProjection = Pick<SessionResumeResult, 'inflight' | 'queued' | 'session_id'> & {
   [safelyPersistedInflightUser]?: true
 }
 
-type ReconciledSessionResumeResponse = SessionResumeResponse & {
+type ReconciledSessionResumeResponse = SessionResumeResult & {
   [safelyPersistedInflightUser]?: true
 }
 
@@ -1011,7 +1012,7 @@ function transcriptAnchorMatches(a: ChatMessage, b: ChatMessage): boolean {
 export function dedupeInflightUserAgainstTranscript(
   persistedMessages: ChatMessage[],
   runtimeMessages: ChatMessage[],
-  projection: SessionResumeResponse
+  projection: SessionResumeResult
 ): ReconciledSessionResumeResponse {
   const inflightUser = projection.inflight?.user?.replace(/\s+/g, ' ').trim() ?? ''
 
@@ -1060,7 +1061,7 @@ export function dedupeInflightUserAgainstTranscript(
  */
 export function removeRepresentedLocalLiveProjection(
   previousMessages: ChatMessage[],
-  projection: Pick<SessionResumeResponse, 'inflight' | 'queued'>
+  projection: Pick<SessionResumeResult, 'inflight' | 'queued'>
 ): ChatMessage[] {
   const inflightUser = projection.inflight?.user?.replace(/\s+/g, ' ').trim() ?? ''
   const inflightAssistant = projection.inflight?.assistant?.replace(/\s+/g, ' ').trim() ?? ''
@@ -1282,6 +1283,53 @@ export function upsertOptimisticSession(
   lastActive?: number,
   owner?: null | SessionProfileRoute
 ) {
+  const session = buildOptimisticSession(created, id, title, preview, parentSessionId, lastActive, owner)
+
+  if (owner) {
+    setSessionOwnerHint(id, owner)
+  }
+
+  // A real row supersedes any unlisted-draft stub for the same id (first send
+  // on a ⌘T tab lists it); drop the stub so the atom stays bounded. The
+  // lookup shadow-filter covers any path that lists without passing here.
+  setUnlistedSessionOwnerRows(prev => (prev.some(s => s.id === id) ? prev.filter(s => s.id !== id) : prev))
+
+  setSessions(prev => [session, ...prev.filter(s => s.id !== id)])
+}
+
+/**
+ * Record the owner of an UNLISTED draft tile without touching the visible
+ * sidebar list (see `openNewSessionTile` with `listed: false`, #102792). The
+ * stub carries the same stamps an optimistic row would — ambient profile for
+ * an unrouted create, exact connection tag for a routed one — and rides only
+ * the owner-lookup path, never the sidebar render path. A later real row for
+ * the same id shadows it; the first send replaces it outright.
+ */
+export function upsertUnlistedSessionOwner(
+  created: SessionCreateResponse,
+  id: string,
+  owner?: null | SessionProfileRoute
+) {
+  const stub = buildOptimisticSession(created, id, null, null, null, undefined, owner)
+  setSessionOwnerHintForStub(id, owner)
+  setUnlistedSessionOwnerRows(prev => [stub, ...prev.filter(s => s.id !== id)])
+}
+
+function setSessionOwnerHintForStub(id: string, owner?: null | SessionProfileRoute): void {
+  if (owner) {
+    setSessionOwnerHint(id, owner)
+  }
+}
+
+function buildOptimisticSession(
+  created: SessionCreateResponse,
+  id: string,
+  title: string | null = null,
+  preview: string | null = null,
+  parentSessionId: string | null = null,
+  lastActive?: number,
+  owner?: null | SessionProfileRoute
+): SessionInfo {
   const now = lastActive ?? Date.now() / 1000
   // Stamp the profile the session was just created on so the scoped sidebar
   // shows the new row immediately instead of filtering it out as "default"
@@ -1320,11 +1368,7 @@ export function upsertOptimisticSession(
     ...(connectionId ? { connection_id: connectionId } : {})
   }
 
-  if (owner) {
-    setSessionOwnerHint(id, owner)
-  }
-
-  setSessions(prev => [session, ...prev.filter(s => s.id !== id)])
+  return session
 }
 
 export function patchSessionWorkspace(sessionId: string, cwd: string | undefined) {
@@ -1372,6 +1416,7 @@ export function dropListedSession(storedSessionId: string): void {
   setSessions(prev => prev.filter(keep))
   setMessagingSessions(prev => prev.filter(keep))
   setCronSessions(prev => prev.filter(keep))
+  setUnlistedSessionOwnerRows(prev => prev.filter(keep))
 }
 
 export function restoreListedSession(session: SessionInfo, slice?: ListedSessionSlice): void {

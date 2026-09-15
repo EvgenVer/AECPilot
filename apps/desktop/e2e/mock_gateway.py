@@ -9,8 +9,11 @@ of the wire protocol to drive the chat panel through one full turn:
   rollback.list / rollback.diff -> two snapshots and one file's difference
     (task 3.3: the change-history pane is what Ctrl+G opens)
   prompt "artifact" -> a turn whose answer carries an HTML artifact fence
-  prompt "readpreview" -> a preview.read.request event; the app's
-    preview.read.respond is printed on stdout for the test to read
+  the agent's questions to the window (read_preview, drive_preview, the
+    tour, setup_mcp) are SERVER->CLIENT REQUESTS, the hermes 0.21.3 shape
+    (task 3.B5в, `tui_gateway/server_requests.py`): a frame with a string
+    id and a method, answered by a response frame carrying that id. The
+    window's answers are printed on stdout for the test to read
     (task 3.4: read_preview must be ANSWERED for an artifact tab)
 
 The sidebar's session list does NOT travel this socket — it is REST. That
@@ -31,6 +34,72 @@ SESSION_ID = "e2e-1"
 BT = "```"
 NL = "\n"
 
+# Server->client requests in flight: id -> method. The answer frame carries
+# only the id, so the label the test greps for is looked up here.
+OPEN_SERVER_REQUESTS: dict[str, str] = {}
+_next_request = 0
+
+ANSWER_LABELS = {
+    "preview.read": "PREVIEW_READ_RESPOND",
+    "preview.act": "PREVIEW_ACT_RESPOND",
+    "tour": "TOUR_RESPOND",
+    "mcp.setup": "MCP_SETUP_RESPOND",
+}
+
+
+async def ask(connection: ServerConnection, method: str, params: dict) -> str:
+    """Send one server->client request the way the real core does
+    (`server_requests.send`): string id so it can never collide with the
+    window's integer ids, `session_id` inside params. Returns the id."""
+    global _next_request
+    _next_request += 1
+    request_id = f"srq-{_next_request:012x}"
+    OPEN_SERVER_REQUESTS[request_id] = method
+    await connection.send(
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": {"session_id": SESSION_ID, **params},
+            }
+        )
+    )
+    return request_id
+
+
+async def take_answer(connection: ServerConnection, frame: dict) -> None:
+    """A response frame from the window: the answer to one of our requests.
+    Printed under the request's label so the test can prove the round trip;
+    the `value` is the JSON string their handler serializes (`_ask` in the
+    core reads exactly that field)."""
+    request_id = frame.get("id")
+    method = OPEN_SERVER_REQUESTS.pop(request_id, None)
+    label = ANSWER_LABELS.get(method or "", "SERVER_REQUEST_RESPOND")
+    if "error" in frame:
+        print(f"{label} ERROR " + json.dumps(frame["error"]), flush=True)
+        return
+    result = frame.get("result") or {}
+    if method == "mcp.setup":
+        # The consent card's answer (task 3.8, SPEC UR23). Printed with the id
+        # so the test can prove the app sent NOTHING until the person answered.
+        print(f"{label} " + json.dumps({"id": request_id, "result": result}), flush=True)
+        await connection.send(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "event",
+                    "params": {
+                        "type": "message.complete",
+                        "session_id": SESSION_ID,
+                        "payload": {"text": "", "status": "complete"},
+                    },
+                }
+            )
+        )
+        return
+    print(f"{label} " + json.dumps(result.get("value") or ""), flush=True)
+
 
 async def handle(connection: ServerConnection) -> None:
     await connection.send(
@@ -42,6 +111,9 @@ async def handle(connection: ServerConnection) -> None:
 
     async for raw in connection:
         request = json.loads(raw)
+        if "method" not in request:
+            await take_answer(connection, request)
+            continue
         request_id = request["id"]
         method = request["method"]
 
@@ -118,28 +190,6 @@ async def handle(connection: ServerConnection) -> None:
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
             )
-        elif method == "preview.read.respond":
-            # The app's answer to read_preview. Printed so the test can read it
-            # from stdout: proving the round trip is the point of task 3.4.
-            answer = (request.get("params") or {}).get("text") or ""
-            print("PREVIEW_READ_RESPOND " + json.dumps(answer), flush=True)
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
-            )
-        elif method == "preview.act.respond":
-            # The app's answer to drive_preview / annotate_preview (task 3E.12).
-            answer = (request.get("params") or {}).get("text") or ""
-            print("PREVIEW_ACT_RESPOND " + json.dumps(answer), flush=True)
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
-            )
-        elif method == "tour.respond":
-            # The app's answer to the tour tool (task 3E.12, UR36).
-            answer = (request.get("params") or {}).get("text") or ""
-            print("TOUR_RESPOND " + json.dumps(answer), flush=True)
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"ok": True}})
-            )
         elif method == "session.list":
             # The app asks this after the machine wakes up, to find out whether
             # the socket is still alive (task 3.28). A real gateway answers it,
@@ -164,26 +214,6 @@ async def handle(connection: ServerConnection) -> None:
                                     "source": "desktop",
                                 }
                             ]
-                        },
-                    }
-                )
-            )
-        elif method == "mcp.setup.respond":
-            # The consent card's answer (task 3.8, SPEC UR23). Printed so the
-            # test can prove the app sent NOTHING until the person answered.
-            print("MCP_SETUP_RESPOND " + json.dumps(request.get("params") or {}), flush=True)
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "ok"}})
-            )
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "event",
-                        "params": {
-                            "type": "message.complete",
-                            "session_id": SESSION_ID,
-                            "payload": {"text": "", "status": "complete"},
                         },
                     }
                 )
@@ -256,9 +286,9 @@ async def stream_pong(connection: ServerConnection) -> None:
 async def stream_mcp_setup(connection: ServerConnection) -> None:
     """The `setup_mcp` tool's blocking request (task 3.8, SPEC UR23).
 
-    The real core blocks inside the tool until `mcp.setup.respond` arrives, so
-    the turn deliberately stays open here: the test's whole point is that the
-    app installs nothing while it waits for a person.
+    The real core blocks inside the tool until the window answers the
+    `mcp.setup` request, so the turn deliberately stays open here: the test's
+    whole point is that the app installs nothing while it waits for a person.
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
@@ -269,14 +299,10 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
         await asyncio.sleep(0.03)
 
     await push("message.start")
-    await push(
-        "mcp.setup.request",
-        {
-            "request_id": "mcp-req-1",
-            "server": "filesystem",
-            "action": "install",
-            "reason": "нужен доступ к файлам сметы",
-        },
+    await ask(
+        connection,
+        "mcp.setup",
+        {"server": "filesystem", "action": "install", "reason": "нужен доступ к файлам сметы"},
     )
 
 
@@ -429,16 +455,8 @@ async def stream_drive_turn(connection: ServerConnection) -> None:
     half that proves driver.js really got injected into someone else's page.
     """
 
-    async def push(event_type: str, payload: dict, pause: float = 1.5) -> None:
-        await connection.send(
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "event",
-                    "params": {"type": event_type, "session_id": SESSION_ID, "payload": payload},
-                }
-            )
-        )
+    async def push(method: str, params: dict, pause: float = 1.5) -> None:
+        await ask(connection, method, params)
         # Each request blocks the real core until the window answers; here the
         # pause just keeps the steps in order and lets the page settle.
         await asyncio.sleep(pause)
@@ -453,38 +471,32 @@ async def stream_drive_turn(connection: ServerConnection) -> None:
     # Rounds, not one shot: the test after the drive one changes the window zoom
     # and waits for the hand to hit the same button again (task 3E.24), so the
     # loop has to outlive both tests.
-    for round_index in range(16):
+    for _ in range(16):
         await asyncio.sleep(3)
         try:
             await push(
-                "preview.act.request",
-                {"request_id": f"act-{round_index}-1", "action": "elements"},
+                "preview.act",
+                {"action": "elements"},
             )
             await push(
-                "preview.act.request",
+                "preview.act",
                 {
-                    "request_id": f"act-{round_index}-2",
                     "action": "type",
                     "selector": "#obj",
                     "text": "AR-12",
                 },
             )
+            await push("preview.act", {"action": "click", "selector": "#go"})
             await push(
-                "preview.act.request",
-                {"request_id": f"act-{round_index}-3", "action": "click", "selector": "#go"},
-            )
-            await push(
-                "tour.request",
+                "tour",
                 {
-                    "request_id": f"tour-{round_index}-1",
                     "action": "targets",
                     "surface": "preview",
                 },
             )
             await push(
-                "tour.request",
+                "tour",
                 {
-                    "request_id": f"tour-{round_index}-2",
                     "action": "show",
                     "surface": "preview",
                     "selector": "#go",
@@ -504,22 +516,10 @@ async def poll_preview_reads(connection: ServerConnection) -> None:
     opening it is several UI steps away. Early answers are empty and simply not
     the line the test waits for.
     """
-    for index in range(20):
+    for _ in range(20):
         await asyncio.sleep(3)
         try:
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "event",
-                        "params": {
-                            "type": "preview.read.request",
-                            "session_id": SESSION_ID,
-                            "payload": {"request_id": f"preview-read-{index}"},
-                        },
-                    }
-                )
-            )
+            await ask(connection, "preview.read", {})
         except Exception:
             return
 

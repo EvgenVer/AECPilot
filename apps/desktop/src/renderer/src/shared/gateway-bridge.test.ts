@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GatewayBridge, JsonRpcGatewayError, toDonorState } from './gateway-bridge'
 import type { AecpilotApi } from '../../../shared/ipc'
-import type { GatewayConnectionState, GatewayEvent } from '../../../shared/gateway/types'
+import type {
+  GatewayConnectionState,
+  GatewayEvent,
+  GatewayServerRequest
+} from '../../../shared/gateway/types'
 
 /** A stand-in for the preload bridge: records RPC/REST calls and lets a test
  * push events and state the way main does. */
 function stubApi(state: GatewayConnectionState = 'ready') {
   const rpc = vi.fn(async () => ({ ok: true, value: { ok: true } }))
   const rest = vi.fn(async () => ({ ok: true }))
+  const respond = vi.fn(async () => true)
   let emitEvent: ((event: GatewayEvent) => void) | undefined
   let emitState: ((state: GatewayConnectionState) => void) | undefined
+  let emitRequest: ((request: GatewayServerRequest) => void) | undefined
   const unsubscribed: string[] = []
 
   const api = {
@@ -23,21 +29,35 @@ function stubApi(state: GatewayConnectionState = 'ready') {
     onGatewayState: (cb: (state: GatewayConnectionState) => void) => {
       emitState = cb
       return () => unsubscribed.push('state')
-    }
+    },
+    onGatewayServerRequest: (cb: (request: GatewayServerRequest) => void) => {
+      emitRequest = cb
+      return () => unsubscribed.push('requests')
+    },
+    respondGatewayServerRequest: respond
   } as unknown as AecpilotApi
 
   return {
     api,
     rpc,
     rest,
+    respond,
     unsubscribed,
     emitEvent: (event: GatewayEvent) => emitEvent?.(event),
-    emitState: (next: GatewayConnectionState) => emitState?.(next)
+    emitState: (next: GatewayConnectionState) => emitState?.(next),
+    emitRequest: (request: GatewayServerRequest) => emitRequest?.(request)
   }
 }
 
 const event = (type: string): GatewayEvent =>
   ({ type, payload: { n: 1 } }) as unknown as GatewayEvent
+
+const serverRequest = (method = 'clarify'): GatewayServerRequest => ({
+  id: 'srq-0000000000a1',
+  method,
+  params: { session_id: 's1', question: 'Which file?' },
+  replayed: false
+})
 
 describe('GatewayBridge', () => {
   let stub: ReturnType<typeof stubApi>
@@ -133,7 +153,81 @@ describe('GatewayBridge', () => {
 
   it('drops its IPC subscriptions on dispose', () => {
     bridge.dispose()
-    expect(stub.unsubscribed.sort()).toEqual(['events', 'state'])
+    expect(stub.unsubscribed.sort()).toEqual(['events', 'requests', 'state'])
+  })
+
+  // Вопросы ядра окну (0.21.3, задача 3.B5в): их `onRequest` — тот же контракт,
+  // что у их `JsonRpcRequestChannel`, кроме одного: без обработчика — молчание.
+  it('hands a server request to the handler with respond/fail bound to its id', () => {
+    const seen = vi.fn()
+    bridge.onRequest((request) => {
+      seen(request.id, request.method, request.params, request.replayed)
+      request.respond({ answer: 'the second one' })
+    })
+
+    stub.emitRequest(serverRequest())
+
+    expect(seen).toHaveBeenCalledWith(
+      'srq-0000000000a1',
+      'clarify',
+      { session_id: 's1', question: 'Which file?' },
+      false
+    )
+    expect(stub.respond).toHaveBeenCalledWith('srq-0000000000a1', {
+      result: { answer: 'the second one' }
+    })
+  })
+
+  it('fail sends a JSON-RPC error under the same id', () => {
+    bridge.onRequest((request) => {
+      request.fail(-32601, 'cannot answer that')
+    })
+
+    stub.emitRequest(serverRequest('vault.code'))
+
+    expect(stub.respond).toHaveBeenCalledWith('srq-0000000000a1', {
+      error: { code: -32601, message: 'cannot answer that' }
+    })
+  })
+
+  it('first answer wins — a card that answers twice sends once', () => {
+    bridge.onRequest((request) => {
+      request.respond({ answer: 'a' })
+      request.respond({ answer: 'b' })
+      request.fail(1, 'late')
+    })
+
+    stub.emitRequest(serverRequest())
+
+    expect(stub.respond).toHaveBeenCalledTimes(1)
+    expect(stub.respond).toHaveBeenCalledWith('srq-0000000000a1', { result: { answer: 'a' } })
+  })
+
+  it('a handler that returns false declines, and the next one is tried', () => {
+    const first = vi.fn(() => false)
+    const second = vi.fn()
+    bridge.onRequest(first)
+    bridge.onRequest(second)
+
+    stub.emitRequest(serverRequest())
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays silent with no handler — another window may be the one to answer', () => {
+    stub.emitRequest(serverRequest())
+    expect(stub.respond).not.toHaveBeenCalled()
+  })
+
+  it('an unsubscribed request handler is not called again', () => {
+    const handler = vi.fn()
+    const off = bridge.onRequest(handler)
+    off()
+
+    stub.emitRequest(serverRequest())
+
+    expect(handler).not.toHaveBeenCalled()
   })
 
   it('treats connect and close as no-ops — the connection is main’s', async () => {

@@ -1,25 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/reasoning-effort.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { DEFAULT_REASONING_EFFORT, isReasoningEffort } from '@hermes/shared'
+
 import { normalize } from '@/lib/text'
-
-/** Hermes' reasoning levels, in ascending order — mirrors the backend's
- *  VALID_REASONING_EFFORTS (hermes_constants.py). `none` is not a level: it's
- *  thinking disabled, owned by the Thinking toggle rather than the scale. */
-export const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
-
-export type ReasoningEffort = (typeof REASONING_EFFORTS)[number]
-
-/** The scale plus the off state — the full set a config value may hold. */
-export const REASONING_EFFORT_VALUES = ['none', ...REASONING_EFFORTS] as const
-
-/** Hermes' built-in level when neither the surface nor the profile config
- *  specifies one (mirrors the backend's own fallback). */
-export const DEFAULT_REASONING_EFFORT: ReasoningEffort = 'medium'
 
 /** Compact labels for chrome where space is tight (pill, picker rows). Menus
  *  and settings use the translated `shell.modelOptions` strings instead. */
@@ -39,9 +27,6 @@ export function reasoningEffortLabel(effort: string): string {
 
   return key ? (SHORT_LABELS[key] ?? effort) : ''
 }
-
-export const isReasoningEffort = (value: string): value is ReasoningEffort =>
-  REASONING_EFFORTS.includes(normalize(value) as ReasoningEffort)
 
 /** Thinking is on unless a level explicitly says otherwise; an empty value
  *  means "inherit", so it resolves through `fallback` first. */

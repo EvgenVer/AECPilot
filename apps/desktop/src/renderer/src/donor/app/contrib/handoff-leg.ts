@@ -1,18 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/handoff-leg.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-/** Failed/uncertain submits retain the original session;
- * they must never close it or start a second build. */
+/** Starts the first build in its own session. A submit that fails or is unconfirmed keeps that session:
+ * it must not close the session or start a second build. */
 import { JsonRpcGatewayError } from '@hermes/shared'
 
 import type { ClientSessionState } from '@/app/types'
 import type { HandoffPlan } from '@/components/onboarding-chat/setup-profile'
 import type { SessionMessage } from '@/types/hermes'
 
+import { markFirstBuildSession } from './handoff-receipt'
 import type { AmbientGatewayRequest } from './session-rpc-dispatcher'
 
 export const BUILD_PROFILE = 'default'
@@ -26,8 +27,8 @@ export interface HandoffTask {
 export interface HandoffReceipt extends HandoffTask {
   runtimeId: string
   storedId: string
-  /** `connectionId: null` is the ambient route for the profile (a local-only
-   *  install, or a legacy primary with no registry id), never a missing owner. */
+  /** `connectionId: null` is the ambient route for the profile: a local-only install, or a legacy primary
+   *  with no registry id. It does not mean the owner is unknown. */
   owner: { connectionId: null | string; profile: typeof BUILD_PROFILE }
   status: 'created' | 'submitting' | 'accepted'
 }
@@ -54,8 +55,8 @@ export interface HandoffDeps {
   bind: (receipt: HandoffReceipt, running: boolean, snapshot?: HandoffSnapshot) => void
 }
 
-/** Only preflight refusals in methods_prompt authorize another submit. A
- * generic server error, like a lost ACK, may follow a side effect. */
+/** Only these preflight refusal codes from methods_prompt allow a second submit. A generic server error,
+ * such as a lost ACK, can arrive after the prompt already started. */
 const PREFLIGHT_REJECTIONS = new Set([4001, 4004, 4009, 4018, 4090, 4091, 4120, 4121, 5070, 5071, 5072, 5122])
 
 interface HydratedHandoffSnapshot extends HandoffSnapshot {
@@ -83,6 +84,7 @@ export async function startHandoff(deps: HandoffDeps, task: HandoffTask, recover
     const identity = await deps.create()
     receipt = { ...task, ...identity, status: 'created' }
     deps.save(receipt)
+    markFirstBuildSession(receipt.storedId)
   } else {
     const snapshot = await deps.request<HandoffSnapshot>(receipt.owner, 'session.resume', {
       session_id: receipt.storedId,
@@ -93,9 +95,9 @@ export async function startHandoff(deps: HandoffDeps, task: HandoffTask, recover
 
     receipt = { ...receipt, runtimeId: snapshot.session_id }
 
-    // A visible user turn in this dedicated session is durable acceptance,
-    // even when the build has finished or its context has been compressed.
-    // A confirmed refusal (created) cannot be overturned by a stale busy flag.
+    // A visible user turn in this session records that the brief was accepted, even after the build finished
+    // or its context was compressed. Status 'created' records a confirmed refusal, so a stale running flag
+    // must not mark it accepted.
     if (
       (receipt.status === 'submitting' && snapshot.running) ||
       snapshot.messages.some(message => message.role === 'user' && message.display_kind !== 'hidden')

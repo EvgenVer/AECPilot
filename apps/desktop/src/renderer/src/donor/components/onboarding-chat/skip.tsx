@@ -1,17 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/skip.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 /**
- * The guided setup's escape hatch. Rides the composer's floating strip — the
- * same band the action badges and suggestion pills use — so it shares the
- * composer's edges instead of floating at an arbitrary offset. Skip assembles
- * the default layout, marks onboarding done, and drops the user in the full
- * app; the guided chat stays in the transcript. Visible from guide kickoff
- * until the layout pick assembles ($chatOnboardingSolo).
+ * Skips the guided setup. Rendered in the composer's floating strip, the same row as the action badges and the
+ * suggestion pills, so it aligns with the composer's edges. Skipping assembles the basic layout, sets the onboarding
+ * phase to skipped, and leaves the user in the full app; the guided chat stays in the transcript. Shown from guide
+ * kickoff until the layout pick assembles the app ($chatOnboardingSolo).
  */
 
 import { useStore } from '@nanostores/react'

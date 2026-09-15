@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/notifications.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -236,19 +236,35 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
           <p className="m-0 wrap-break-word">{renderMessage(notification.message, accent)}</p>
           {notification.meta && <p className="m-0 text-xs text-muted-foreground tabular-nums">{notification.meta}</p>}
           {hasDetail && <NotificationDetail detail={notification.detail || ''} />}
-          {notification.action && (
-            <Button
-              className="mt-1.5"
-              onClick={() => {
-                notification.action?.onClick()
-                dismissNotification(notification.id)
-              }}
-              size="sm"
-              type="button"
-              variant="default"
-            >
-              {notification.action.label}
-            </Button>
+          {(notification.action || notification.secondaryAction) && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {notification.action && (
+                <Button
+                  onClick={() => {
+                    notification.action?.onClick()
+                    dismissNotification(notification.id)
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="default"
+                >
+                  {notification.action.label}
+                </Button>
+              )}
+              {notification.secondaryAction && (
+                <Button
+                  onClick={() => {
+                    notification.secondaryAction?.onClick()
+                    dismissNotification(notification.id)
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {notification.secondaryAction.label}
+                </Button>
+              )}
+            </div>
           )}
         </AlertDescription>
       </div>

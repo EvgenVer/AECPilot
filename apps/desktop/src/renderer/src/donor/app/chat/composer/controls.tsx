@@ -1,13 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the wake-word fallback → ours (SPEC C12)
  *   [3] dropped the voice-conversation pill, the "start voice chat" primary button
  *       and the auto-speak toggle — SPEC HX19 (owner decision 2026-09-08); the
- *       per-answer "read aloud" button lives on the message, not here
+ *       per-answer "read aloud" button lives on the message, not here. At
+ *       v2026.9.14 the button became `./start-voice-button` (live voice, OpenAI
+ *       Realtime) — same surface, same [3]: not imported, not rendered (2026-09-15)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -24,6 +26,7 @@ import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-classes'
 import { ModelPill } from './model-pill'
+import { ReasoningPill } from './reasoning-pill'
 import type { ChatBarState, VoiceStatus } from './types'
 import { VoiceMenu } from './voice-menu'
 
@@ -98,7 +101,12 @@ export function ComposerControls({
     <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
       {minimal ? null : (
         <>
-          {hideModelPill ? null : <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />}
+          {hideModelPill ? null : (
+            <>
+              <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
+              {compactModelPill ? null : <ReasoningPill disabled={disabled} model={state.model} />}
+            </>
+          )}
           {voiceControls}
         </>
       )}

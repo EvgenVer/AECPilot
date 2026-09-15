@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile-actions.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,12 +16,12 @@
  */
 
 import type { AppendMessage, ThreadMessage } from '@assistant-ui/react'
+import { SLASH_COMMAND_RE } from '@hermes/shared'
 import { useCallback, useMemo, useRef } from 'react'
 
 import type { ClientSessionState } from '@/app/types'
 import { useI18n } from '@/i18n'
 import { textPart } from '@/lib/chat-messages'
-import { SLASH_COMMAND_RE } from '@/lib/chat-runtime'
 import { triggerHaptic } from '@/lib/haptics'
 import { clearClarifyRequest } from '@/store/clarify'
 import type { ComposerAttachment } from '@/store/composer'
@@ -370,6 +370,37 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
     }
   }, [bindRecoveredRuntime, copy.stopFailed, requestSessionGateway, update])
 
+  // A hidden note mid-turn rides session.steer into the model's next tool
+  // result: no optimistic bubble, no user turn. The main composer has the same
+  // primitive in use-prompt-actions.
+  const injectHiddenPrompt = useCallback(
+    async (rawText: string): Promise<boolean> => {
+      const text = rawText.trim()
+      const sessionId = runtimeIdRef.current
+
+      if (!text || !sessionId) {
+        return false
+      }
+
+      try {
+        const { result } = await withSessionNotFoundResume(
+          sessionId,
+          storedIdRef.current,
+          liveId => requestSessionGateway<{ status?: string }>('session.steer', { session_id: liveId, text }),
+          {
+            requestGateway: requestSessionGateway,
+            onRecovered: bindRecoveredRuntime
+          }
+        )
+
+        return result?.status === 'queued'
+      } catch {
+        return false
+      }
+    },
+    [bindRecoveredRuntime, requestSessionGateway]
+  )
+
   const steerPrompt = useCallback(
     async (rawText: string): Promise<boolean> => {
       const text = rawText.trim()
@@ -659,6 +690,7 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
       dismissError,
       editMessage,
       handleThreadMessagesChange,
+      injectHiddenPrompt,
       reloadFromMessage,
       restoreToMessage,
       steerPrompt,
@@ -669,6 +701,7 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
       dismissError,
       editMessage,
       handleThreadMessagesChange,
+      injectHiddenPrompt,
       reloadFromMessage,
       restoreToMessage,
       steerPrompt,

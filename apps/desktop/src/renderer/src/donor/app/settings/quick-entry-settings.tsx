@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/quick-entry-settings.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { useI18n } from '@/i18n'
+import { isSubmitEnter } from '@/lib/ime'
 import {
   $quickEntry,
   canUseQuickEntry,
@@ -80,7 +81,7 @@ export function QuickEntrySettings() {
             onBlur={commit}
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
-              if (event.key === 'Enter') {
+              if (isSubmitEnter(event)) {
                 event.preventDefault()
                 commit()
               }

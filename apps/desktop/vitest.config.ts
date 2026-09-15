@@ -38,6 +38,14 @@ const exclude = [...configDefaults.exclude, 'e2e/**']
 // Измерено при переносе: без jsdom падало 25 тестов из 563, без `globals` — ещё 5.
 const DONOR_ZONE = 'src/renderer/src/donor/**/*.test.{ts,tsx}'
 
+// ИХ ОБЩИЙ ПАКЕТ (`apps/shared`, у нас `donor/hermes-shared/`) — ОТДЕЛЬНО И ПОД
+// NODE (пин 0.21.3, задача 3.B5в). Его тесты приехали вместе с модулями и
+// писаны под пакет без DOM: у `apps/shared` в зависимостях один typescript, и
+// `i18n.test.ts` прямо утверждает `typeof document === 'undefined'` — под jsdom
+// проекта донора это ложь. Тот же довод, что у проекта донора выше: не править
+// их файлы под нашу конфигурацию, а повторить ту, под которую они написаны.
+const DONOR_SHARED = 'src/renderer/src/donor/hermes-shared/**/*.test.ts'
+
 // ВСЕ перенесённые тесты снова в прогоне (задача 3E.16, 2026-09-09). Запись
 // оставлена провенансом: ровно этот файл год держался снятым, и причина была
 // измерена, а не предположена.
@@ -166,7 +174,7 @@ export default defineConfig({
           name: 'donor',
           environment: 'jsdom',
           include: [DONOR_ZONE],
-          exclude,
+          exclude: [...exclude, DONOR_SHARED],
           globals: true,
           setupFiles: ['./src/renderer/src/donor/vitest.setup.ts'],
           // Их же потолок и их же довод: первый тест в файле платит за поднятие
@@ -180,6 +188,18 @@ export default defineConfig({
           // друга ровно на этом. Два: медленнее по стене, но проходит.
           maxWorkers: 2,
           sequence: { groupOrder: 2 }
+        }
+      },
+      {
+        // Их общий пакет под Node (см. DONOR_SHARED выше): чистые модули, ни
+        // React, ни DOM — идёт в быстрой узловой группе.
+        resolve: { alias: donorAliases },
+        test: {
+          name: 'donor-shared',
+          environment: 'node',
+          include: [DONOR_SHARED],
+          exclude,
+          sequence: { groupOrder: 0 }
         }
       },
       {

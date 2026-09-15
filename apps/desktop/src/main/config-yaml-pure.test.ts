@@ -103,9 +103,27 @@ describe('дописать поле в их конфиг', () => {
     expect(fresh.changed).toBe(true)
     expect(fresh.text).toBe('agent:\n  model: x\nsessions:\n  auto_prune: false\n')
 
-    const chosen = ensureSectionScalar('sessions:\n  auto_prune: true\n', 'sessions', 'auto_prune', false)
+    const chosen = ensureSectionScalar(
+      'sessions:\n  auto_prune: true\n',
+      'sessions',
+      'auto_prune',
+      false
+    )
     expect(chosen.changed).toBe(false)
     expect(chosen.text).toBe('sessions:\n  auto_prune: true\n')
+  })
+
+  // Решение владельца 2026-09-15 (замечание D-88, SPEC R10, задача 3.B5д):
+  // проверка обновлений ядра на `api.github.com` при каждом старте шлюза
+  // выключается тем же правилом — умолчанием, которое не трогает выбранное.
+  it('проверка обновлений ядра выключается, а включённая человеком остаётся', () => {
+    const fresh = ensureSectionScalar('sessions:\n  auto_prune: false\n', 'updates', 'check', false)
+    expect(fresh.changed).toBe(true)
+    expect(fresh.text).toBe('sessions:\n  auto_prune: false\nupdates:\n  check: false\n')
+
+    const chosen = ensureSectionScalar('updates:\n  check: true\n', 'updates', 'check', false)
+    expect(chosen.changed).toBe(false)
+    expect(chosen.text).toBe('updates:\n  check: true\n')
   })
 
   // Замечание D-40, решение владельца 2026-08-24. `/loop` приходит в композер из

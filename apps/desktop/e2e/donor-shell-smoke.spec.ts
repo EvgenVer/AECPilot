@@ -1435,16 +1435,19 @@ test('a renderer crash outlives the window, and the log carries no token', async
 test('the MCP consent request reaches the window and the answer reaches the gateway', async () => {
   const page = await mainWindow()
 
-  // Половина первая: событие ядра доходит до окна нетронутым. Главный процесс
-  // фильтрует события по сессии, и запрос, потерянный этим фильтром, оставил бы
-  // агента ждать ответа, которого никто не даст.
+  // Половина первая: запрос ядра доходит до окна нетронутым. С ядра 0.21.3 это
+  // не событие, а ЗАПРОС шлюза к окну (`tui_gateway/server_requests.py`,
+  // задача 3.B5в): кадр с собственным строковым id, на который окно отвечает
+  // кадром-ответом с тем же id. Главный процесс раздаёт такие запросы всем
+  // окнам, и запрос, потерянный по дороге, оставил бы агента ждать ответа,
+  // которого никто не даст.
   const received = page.evaluate(
     () =>
       new Promise<Record<string, unknown>>((resolve) => {
-        const stop = window.aecpilot.onChatEvent((event) => {
-          if (event.type === 'mcp.setup.request') {
+        const stop = window.aecpilot.onGatewayServerRequest((request) => {
+          if (request.method === 'mcp.setup') {
             stop()
-            resolve(event as unknown as Record<string, unknown>)
+            resolve(request as unknown as Record<string, unknown>)
           }
         })
       })
@@ -1454,25 +1457,27 @@ test('the MCP consent request reaches the window and the answer reaches the gate
     window.aecpilot.gatewayRpc('prompt.submit', { text: 'mcp', session_id: 'e2e-1' })
   )
 
-  const event = (await received) as { payload?: { server?: string; reason?: string } }
-  expect(event.payload?.server).toBe('filesystem')
-  expect(event.payload?.reason, 'why the agent wants it must survive the trip').toBe(
+  const request = (await received) as { id: string; params?: { server?: string; reason?: string } }
+  expect(request.id, "the id is the gateway's own, the answer travels under it").toMatch(/^srq-/)
+  expect(request.params?.server).toBe('filesystem')
+  expect(request.params?.reason, 'why the agent wants it must survive the trip').toBe(
     'нужен доступ к файлам сметы'
   )
 
-  // Половина вторая: ответ человека доходит до шлюза. Наш проход RPC работает
-  // по списку ЗАПРЕЩЁННЫХ методов, и `mcp.setup.respond` в него не входит —
-  // иначе отказ бы не дошёл и ядро висело бы на инструменте до таймаута.
-  await page.evaluate(() =>
-    window.aecpilot.gatewayRpc('mcp.setup.respond', {
-      request_id: 'mcp-req-1',
-      status: 'declined',
-      server: 'filesystem'
-    })
+  // Половина вторая: ответ человека доходит до шлюза — кадром-ответом на тот же
+  // id, той формой, которой отвечает их карточка согласия (`{value: JSON}`).
+  // Иначе отказ бы не дошёл и ядро висело бы на инструменте до таймаута.
+  const delivered = await page.evaluate(
+    (id) =>
+      window.aecpilot.respondGatewayServerRequest(id, {
+        result: { value: JSON.stringify({ server: 'filesystem', status: 'declined' }) }
+      }),
+    request.id
   )
+  expect(delivered, 'the first answer per id must reach the gateway').toBe(true)
 
   const answered = await waitForMockLine(/MCP_SETUP_RESPOND/)
-  expect(answered).toContain('mcp-req-1')
+  expect(answered).toContain(request.id)
   expect(answered, 'the answer must be the refusal, not an install').toContain('declined')
 
   await assertRendererAlive(page, 'end of test 8')

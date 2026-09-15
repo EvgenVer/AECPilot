@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/events.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,9 +13,9 @@
  * listens.
  */
 
-import type { RpcEvent } from '@/types/hermes'
+import type { GatewayEvent } from '@hermes/shared'
 
-export type GatewayEventListener = (event: RpcEvent) => void
+export type GatewayEventListener = (event: GatewayEvent) => void
 
 const listeners = new Map<string, Set<GatewayEventListener>>()
 
@@ -35,7 +35,7 @@ export function onGatewayEvent(type: string, listener: GatewayEventListener): ()
 }
 
 /** Fan an event to subscribers (wiring-side; call before app dispatch). */
-export function emitGatewayEvent(event: RpcEvent): void {
+export function emitGatewayEvent(event: GatewayEvent): void {
   if (listeners.size === 0) {
     return
   }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/profile-remote-override-dialog.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useI18n } from '@/i18n'
+import { isSubmitEnter } from '@/lib/ime'
 import { notify, notifyError } from '@/store/notifications'
 import {
   $remoteOverrideDialogProfile,
@@ -249,7 +250,7 @@ export function ProfileRemoteOverrideDialog({ profileNames }: { profileNames: st
                 <Input
                   autoCorrect="off"
                   onChange={event => setUrl(event.target.value)}
-                  onKeyDown={event => event.key === 'Enter' && submit()}
+                  onKeyDown={event => isSubmitEnter(event) && submit()}
                   placeholder={p.urlPlaceholder}
                   ref={urlRef}
                   spellCheck={false}
@@ -264,7 +265,7 @@ export function ProfileRemoteOverrideDialog({ profileNames }: { profileNames: st
                 <Input
                   autoComplete="off"
                   onChange={event => setToken(event.target.value)}
-                  onKeyDown={event => event.key === 'Enter' && submit()}
+                  onKeyDown={event => isSubmitEnter(event) && submit()}
                   placeholder={p.tokenPlaceholder}
                   type="password"
                   value={token}

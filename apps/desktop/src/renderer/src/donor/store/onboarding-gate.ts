@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding-gate.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,7 +35,13 @@ function loadGate(): OnboardingGateState {
 
   const phase = isOnboardingEnabled() && isOnboardingPhase(saved) ? saved : 'idle'
 
-  return { phase, guideQueued: phase === 'cinematic' && hasSeenIntroReveal() }
+  // Two phases owe a kickoff at boot. `cinematic` with the film already seen
+  // is the film-to-guide seam. `guided` is a relaunch mid-guide: without a
+  // kickoff the normal app boots around the persisted solo layout (the
+  // connected splash, the stock composer and model picker, a small window
+  // whose sidebars cannot open) while the gate still says the guide is on.
+  // The kickoff adopts the existing guide chat by title, so nothing is lost.
+  return { phase, guideQueued: (phase === 'cinematic' && hasSeenIntroReveal()) || phase === 'guided' }
 }
 
 export const $onboardingGate = atom<OnboardingGateState>(loadGate())
@@ -45,6 +51,16 @@ let guideKickoff: GuideKickoff = { status: 'idle' }
 function setPhase(phase: OnboardingPhase): void {
   writeKey(PHASE_KEY, phase === 'idle' ? null : phase)
   $onboardingGate.set({ phase, guideQueued: false })
+}
+
+/** The guided first launch is on screen or mid-handoff. Ambient chrome that
+ *  would send the user elsewhere (the provider picker, the free-tier chip)
+ *  yields to it: the free tier IS the provider for those phases, and the
+ *  guide's ready screen is where sign-in is offered. */
+export function guidedOnboardingActive(): boolean {
+  const { phase } = $onboardingGate.get()
+
+  return isOnboardingEnabled() && (phase === 'cinematic' || phase === 'guided' || phase === 'handoff')
 }
 
 export function beginOnboardingFlow(): void {

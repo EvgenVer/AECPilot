@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/chip.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,20 +9,15 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
-/**
- * THE selection style — one vocabulary for every pickable thing in the shell
- * (chips, connector cards, layout cards): primary outline + tint when on, a
- * quiet neutral fill when off. No font-weight changes, no fills that shout.
- */
+/** One selection style for every pickable element in the shell: chips, connector cards, and layout cards. */
 export const selectableClass = (on: boolean) =>
   cn(
     'border text-foreground transition-colors',
     on ? 'border-primary bg-primary/15' : 'border-transparent bg-muted hover:bg-accent/60'
   )
 
-/** Toggleable chip — every pickable row/tag in the guided cards. Two shapes:
- *  `card` (connector rows, roomier, fits an icon) and `pill` (compact
- *  tag-cloud toggles). */
+/** Toggleable chip for the guided cards. ConnectorsCard uses the default `card` variant for its connector rows;
+ *  FirstBuildCard uses the compact `pill` variant. */
 export function Chip({
   className,
   icon,

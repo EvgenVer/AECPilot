@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -195,7 +195,10 @@ export const ar = defineLocale({
       errorTitle: 'تعذر الوصول إلى خادم MCP',
       errorMessage: name => `فشل فحص سلامة ${name} MCP.`,
       signIn: 'تسجيل الدخول',
-      view: 'عرض'
+      view: 'عرض',
+      disable: 'تعطيل',
+      disabledMessage: name => `تم تعطيل ${name} MCP. يمكنك إعادة تفعيله في أي وقت من الإمكانات → MCP.`,
+      disableFailed: name => `تعذّر تعطيل ${name} MCP.`
     },
     errors: {
       elevenLabsNeedsKey: 'يتطلب ElevenLabs STT المفتاح ELEVENLABS_API_KEY.',
@@ -588,10 +591,11 @@ export const ar = defineLocale({
       reactionsDesc: 'تفاعلات إيموجي بأسلوب iMessage — تفاعل مع الرسائل، ويمكن لـ Hermes التفاعل مع رسائلك.',
       tipsTitle: 'نصائح داخل التطبيق',
       tipsDesc:
-        'فقاعة صغيرة تشير إلى جزء من التطبيق، تظهر أحيانًا أثناء الخمول ومن Hermes عند الحاجة. تظهر كل نصيحة مرة واحدة.',
+        'نصائح تظهر أحيانًا من التطبيق وHermes. تظهر كل نصيحة مرة واحدة. تُعطّل تلقائيًا بعد أول 30 يومًا من الاستخدام، ويمكنك تفعيلها مجددًا.',
       tipsReset: count => `إظهار ${count} نصيحة مرة أخرى`,
       toursTitle: 'جولات إرشادية',
-      toursDesc: 'دع Hermes يرشدك في التطبيق، مع تعتيم الشاشة وإبراز كل خطوة.',
+      toursDesc:
+        'دع Hermes يرشدك في التطبيق مع إبراز كل خطوة. تُعطّل الجولات تلقائيًا بعد أول 30 يومًا من الاستخدام، ويمكنك تفعيلها مجددًا.',
       composerPopoutTitle: 'محرر عائم',
       composerPopoutDesc: 'السماح بسحب محرر الرسائل خارج موضعه. عطّل هذا الخيار لإبقائه مثبتًا في الأسفل.',
       vibeHeartsTitle: 'قلوب المزاج',
@@ -998,6 +1002,7 @@ export const ar = defineLocale({
       setToMain: 'ضبط على الرئيسي',
       change: 'تغيير',
       autoUseMain: 'تلقائي · استخدام النموذج الرئيسي',
+      inheritMainEffort: 'وراثة · جهد النموذج الرئيسي',
       providerDefault: '(افتراضي المزوّد)',
       tasks: {
         vision: {
@@ -1027,6 +1032,18 @@ export const ar = defineLocale({
         review: {
           label: 'المراجعة',
           hint: 'وكيل المراجعة الفرعي /review'
+        },
+        triage_specifier: {
+          label: 'محدد الفرز',
+          hint: 'توضيح مواصفات كانبان'
+        },
+        kanban_decomposer: {
+          label: 'مفكك كانبان',
+          hint: 'تفكيك المهام'
+        },
+        profile_describer: {
+          label: 'واصف الملف الشخصي',
+          hint: 'أوصاف ملفات شخصية تلقائية'
         },
         curator: {
           label: 'المنسّق',
@@ -1325,6 +1342,10 @@ export const ar = defineLocale({
     restartGateway: 'إعادة تشغيل البوابة',
     openBrowser: 'فتح المتصفح',
     gatewayRestartFailed: 'فشل إعادة تشغيل البوابة.',
+    sharedGatewayRestartTitle: 'إعادة تشغيل البوابة المشتركة؟',
+    sharedGatewayRestartDescription: bots => `تتم إعادة اتصال جميع البوتات على هذا الجهاز: ${bots}`,
+    sharedGatewayRestartConfirm: 'إعادة تشغيل الكل',
+    sharedGatewayRestarted: count => `تمت إعادة تشغيل البوابة المشتركة (${count} بوت)`,
     updateHermes: 'تحديث Hermes',
     reloadWindow: 'إعادة تحميل النافذة',
     actionRunning: 'الإجراء قيد التشغيل',
@@ -1370,6 +1391,7 @@ export const ar = defineLocale({
     },
     unknown: 'غير معروف',
     hintPendingRestart: 'تحتاج إعادة تشغيل لتطبيق التغييرات.',
+    sharedListenerUrl: 'يُخدم عبر مستمع البوابة المشتركة على',
     hintGatewayStopped: 'البوابة متوقفة.',
     restartNeeded: 'تم الحفظ. أعد تشغيل بوابة المراسلة لتطبيق الإعدادات الجديدة.',
     restartNow: 'إعادة التشغيل الآن',
@@ -1428,6 +1450,8 @@ export const ar = defineLocale({
     restartToApply: 'أعد التشغيل لتطبيق التغييرات.',
     setupSaved: name => `تم حفظ إعداد ${name}`,
     restartToReconnect: 'أعد التشغيل لإعادة الاتصال.',
+    appliedLive: 'تم التطبيق على البوابة قيد التشغيل.',
+    connectingLive: 'البوابة قيد التشغيل تتصل باستخدام بيانات الاعتماد الجديدة.',
     keyCleared: key => `تم مسح ${key}`,
     setupUpdated: name => `تم تحديث إعداد ${name}`,
     failedUpdate: name => `فشل تحديث ${name}`,
@@ -2884,6 +2908,19 @@ export const ar = defineLocale({
       copyQuery: 'نسخ الاستعلام',
       copyFile: 'نسخ الملف',
       copyPath: 'نسخ المسار',
+      failedCalls: (count: number) => `عدد استدعاءات الأدوات الفاشلة: ${count}`,
+      skillActivity: {
+        loading: 'جارٍ تحميل المهارة',
+        loaded: 'تم تحميل المهارة',
+        loadFailed: 'تعذر تحميل المهارة',
+        readingResource: 'جارٍ قراءة مورد المهارة',
+        readResource: 'تمت قراءة مورد المهارة',
+        resourceFailed: 'تعذرت قراءة مورد المهارة',
+        listing: 'جارٍ عرض المهارات',
+        listed: 'تم عرض المهارات',
+        listFailed: 'تعذر عرض المهارات',
+        unavailable: 'نتيجة المهارة غير متاحة'
+      },
       outputAlt: 'إخراج الأداة',
       rawResponse: 'الرد الخام',
       copyActivity: 'نسخ النشاط',
@@ -2895,6 +2932,7 @@ export const ar = defineLocale({
       statusError: 'خطأ',
       statusRecovered: 'تم الاسترداد',
       statusDone: 'تم',
+      resultUnavailable: 'النتيجة غير متاحة',
       memoryWriteNoted: 'تم تسجيل كتابة الذاكرة',
       actions: {
         read: 'قراءة',
@@ -3142,6 +3180,8 @@ export const ar = defineLocale({
     imageAttach: 'إرفاق الصورة',
     imageWriteFailed: 'فشل كتابة الصورة',
     imageAttachFailed: 'فشل إرفاق الصورة',
+    pastedContent: 'محتوى ملصق',
+    pasteAttachFailed: 'تعذر إرفاق النص الملصق',
     attachImages: 'إرفاق الصور',
     clipboard: 'الحافظة',
     noClipboardImage: 'لا توجد صورة في الحافظة',

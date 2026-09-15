@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/connector-flow.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,9 @@ export interface ConnectorFlowState {
 export interface ConnectorFlowDeps {
   request: <T>(method: string, params: { session_id: string; connectors?: string[]; reconnect?: boolean }) => Promise<T>
   open: (url: string) => Promise<void>
+  /** The browser has the sign-in and the card is now waiting on the user.
+   *  Also fired when the user asks to keep waiting after a timeout. */
+  onWaiting?: (slug: string) => void
   delay?: () => Promise<void>
   now?: () => number
 }
@@ -214,6 +217,7 @@ export function createConnectorFlow(sessionId: string, seeds: ConnectorRow[], de
       }
 
       update(slug, { phase: 'waiting' })
+      deps.onWaiting?.(slug)
       await wait(slug, token)
     } catch {
       if (valid(slug, token)) {
@@ -242,6 +246,8 @@ export function createConnectorFlow(sessionId: string, seeds: ConnectorRow[], de
       const token = (attempts.get(slug) ?? 0) + 1
       attempts.set(slug, token)
       update(slug, { phase: 'waiting', error: undefined })
+      // The agent's own wait timed out alongside ours; send it back in.
+      deps.onWaiting?.(slug)
       await wait(slug, token)
     },
     skip: (slug: string) => {

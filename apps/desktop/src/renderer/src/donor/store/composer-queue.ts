@@ -1,13 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/composer-queue.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { SLASH_COMMAND_RE } from '@hermes/shared'
 import { atom } from 'nanostores'
-
-import { SLASH_COMMAND_RE } from '@/lib/chat-runtime'
 
 import type { ComposerAttachment } from './composer'
 
@@ -18,6 +17,9 @@ export interface QueuedPromptEntry {
    *  text the agent receives. A queued `/skill` invocation carries the whole
    *  expanded skill body as `text` — the UI shows the invocation instead. */
   displayText?: string
+  /** A hidden note (a setup line for the model) parked while the turn ran. The panel
+   *  shows a neutral label and the drain submits it hidden again. */
+  displayKind?: 'hidden'
   attachments: ComposerAttachment[]
   queuedAt: number
 }
@@ -132,7 +134,7 @@ export const getQueuedPrompts = (key: string | null | undefined): QueuedPromptEn
 
 export const enqueueQueuedPrompt = (
   key: string | null | undefined,
-  payload: { text: string; attachments: ComposerAttachment[]; displayText?: string }
+  payload: { text: string; attachments: ComposerAttachment[]; displayText?: string; displayKind?: 'hidden' }
 ): null | QueuedPromptEntry => {
   const sid = sidOf(key)
 
@@ -144,6 +146,7 @@ export const enqueueQueuedPrompt = (
     id: nextId(),
     text: payload.text,
     ...(payload.displayText ? { displayText: payload.displayText } : {}),
+    ...(payload.displayKind ? { displayKind: payload.displayKind } : {}),
     attachments: cloneAttachments(payload.attachments),
     queuedAt: Date.now()
   }

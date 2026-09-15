@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [1] onboarding provider key → our safeStorage bridge (R2)
  * (no other edits)
  */
+import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import {
@@ -27,7 +28,8 @@ import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/run
 import { setMainModelAssignment } from '@/store/cron-model-impact'
 import { ackFreeTierNotice, freeTierReadyPending, refreshFreeTierStatus, setFreeTierRoute } from '@/store/free-tier'
 import { notify, notifyError } from '@/store/notifications'
-import type { ModelOptionProvider, OAuthProvider, OAuthStartResponse } from '@/types/hermes'
+import { guidedOnboardingActive } from '@/store/onboarding-gate'
+import type { OAuthProvider, OAuthStartResponse } from '@/types/hermes'
 
 type PkceStart = Extract<OAuthStartResponse, { flow: 'pkce' }>
 type DeviceStart = Extract<OAuthStartResponse, { flow: 'device_code' }>
@@ -494,6 +496,15 @@ async function refreshProviders() {
 }
 
 export function requestDesktopOnboarding(reason = DEFAULT_ONBOARDING_REASON) {
+  // Not during the guided first launch. The free tier carries inference
+  // there, and a credential probe that fires anyway (a free-tier token mid
+  // refresh, a setup-profile session before its runtime settles) would drop
+  // the provider picker over the guide the user is in the middle of. Sign-in
+  // is offered where the guide chooses to, on its own ready screen.
+  if (guidedOnboardingActive()) {
+    return
+  }
+
   patch({ reason: reason.trim() || DEFAULT_ONBOARDING_REASON, requested: true })
 }
 
@@ -511,7 +522,7 @@ let pendingCredentialWarning: null | string = null
 export function requestDesktopOnboardingForCredentialWarning(reason: null | string | undefined) {
   const warning = reason?.trim()
 
-  if (!warning || !isProviderSetupErrorMessage(warning)) {
+  if (!warning || !isProviderSetupErrorMessage(warning) || guidedOnboardingActive()) {
     pendingCredentialWarning = null
 
     return
@@ -730,6 +741,15 @@ export async function refreshOnboarding(ctx: OnboardingContext) {
 async function applyFreeTierIntro(ctx: OnboardingContext, runtime: RuntimeReadinessResult) {
   setFreeTierRoute(runtime.freeTier)
   const status = await refreshFreeTierStatus(ctx.requestGateway)
+
+  // The guided first launch IS the introduction. Raising the ready screen on
+  // top of it (a readiness round fires when the layout pick assembles the
+  // window) covered the guide mid-conversation, and dismissing it remounted
+  // the card the user had just answered. The guide acks the notice itself
+  // when it hands off.
+  if (guidedOnboardingActive()) {
+    return
+  }
 
   if (freeTierReadyPending(status, runtime.freeTier ?? null)) {
     patch({ freeTierReady: true })

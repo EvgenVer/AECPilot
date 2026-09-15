@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/model-picker.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -72,7 +72,7 @@ interface ModelProviderOption {
   name?: string
   slug: string
 }
-interface ModelOptionsResponse {
+interface ModelOptionsResult {
   providers?: ModelProviderOption[]
 }
 
@@ -83,7 +83,7 @@ function useModelOptions(bot: null | RosterRow = null) {
   const route = resolved?.status === 'resolved' ? resolved.route : null
   const orphaned = resolved?.status === 'owner_removed'
 
-  return useQuery<ModelOptionsResponse>({
+  return useQuery<ModelOptionsResult>({
     queryKey: [ID, 'model-options', route ? botRouteKey(route) : 'active'],
     // No forced `refresh`: forcing a network read on EVERY mount bypassed the
     // staleTime cache, so each Bots view remount (tab re-front, dialog reopen,
@@ -95,7 +95,7 @@ function useModelOptions(bot: null | RosterRow = null) {
         requestForBot(bot, 'model.options', {
           include_unconfigured: true,
           explicit_only: false
-        }) as Promise<ModelOptionsResponse>
+        }) as Promise<ModelOptionsResult>
       ),
     enabled: !orphaned,
     staleTime: 120000,

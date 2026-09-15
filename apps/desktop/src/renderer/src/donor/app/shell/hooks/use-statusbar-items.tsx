@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/hooks/use-statusbar-items.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,6 +44,7 @@ import { copyFilePath, revealFile } from '@/store/file-actions'
 import { $freeTierStatus, FREE_TIER_MODEL } from '@/store/free-tier'
 import { openFreeTierSignIn } from '@/store/free-tier-sign-in'
 import { revealFileInTree } from '@/store/layout'
+import { $onboardingGate, guidedOnboardingActive } from '@/store/onboarding-gate'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
 import {
@@ -146,6 +147,12 @@ export function useStatusbarItems({
   // Backend truth for the free-tier chip. Refreshed on the ambient status
   // cadence (use-status-snapshot), never polled from here.
   const freeTier = useStore($freeTierStatus)
+  // The chip is a standing invitation to sign in. During the guided first
+  // launch that invitation lives on the guide's own ready screen; a second
+  // one in the statusbar is a distraction from the chat they are in. The
+  // subscription is what makes the check reactive.
+  useStore($onboardingGate)
+  const guideOwnsSignIn = guidedOnboardingActive()
   const updateStatus = useStore($updateStatus)
   const updateApply = useStore($updateApply)
   const backendUpdateStatus = useStore($backendUpdateStatus)
@@ -485,7 +492,7 @@ export function useStatusbarItems({
         // Shown while a free-tier identity exists and the tier is on: it names the
         // identity that carries the connectors (and inference when nothing else
         // does), and it is the persistent way in to the sign-in.
-        hidden: !freeTier?.available,
+        hidden: !freeTier?.available || guideOwnsSignIn,
         icon: <Codicon name="account" size="0.75rem" />,
         id: 'free-tier',
         label: freeTierCopy.providerName,
@@ -583,6 +590,7 @@ export function useStatusbarItems({
       fileMenu.revealInSidebar,
       freeTier?.available,
       freeTier?.model,
+      guideOwnsSignIn,
       gatewayMenuContent,
       gatewayClassName,
       gatewayDetail,

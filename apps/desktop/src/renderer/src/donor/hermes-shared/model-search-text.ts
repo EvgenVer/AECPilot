@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
- * Source:  apps/desktop/src/lib/model-search-text.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Source:  apps/shared/src/model-search-text.ts
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,8 +12,7 @@
  * (Kimi Coding's flagship is literally `k3`) that users still search for by
  * the familiar `kimi-…` naming of sibling models.
  *
- * Keep in sync with ui-tui/src/lib/model-search-text.ts,
- * web/src/lib/model-search-text.ts, and hermes_cli/model_search.py.
+ * Keep in sync with the Python twin, hermes_cli/model_search.py.
  */
 const MODEL_SEARCH_ALIASES: Record<string, readonly string[]> = {
   k3: ['kimi-k3', 'kimi'],

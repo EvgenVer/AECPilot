@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,6 +31,7 @@ import { useModelControls } from '@/app/session/hooks/use-model-controls'
 import { blobToDataUrl } from '@/app/session/hooks/use-prompt-actions/utils'
 import { resolveStoredSession } from '@/app/session/hooks/use-session-actions/utils'
 import { ModelMenuPanel } from '@/app/shell/model-menu-panel'
+import { ReasoningMenuPanel } from '@/app/shell/reasoning-menu-panel'
 import { formatRefValue } from '@/components/assistant-ui/directive-text'
 import { CenteredThreadSpinner } from '@/components/assistant-ui/thread/status'
 import { findGroupOfPane } from '@/components/pane-shell/tree/model'
@@ -302,6 +303,27 @@ function TileChat({
     ]
   )
 
+  const reasoningMenuContent = useMemo(
+    () =>
+      gatewayOpen ? (
+        <ReasoningMenuPanel
+          onSelectModel={selectModel}
+          ownerConnectionId={ownerRoute?.connectionId || undefined}
+          profile={ownerRoute?.targetProfile || ownerRoute?.profile || activeGatewayProfile}
+          requestGateway={requestTileGateway}
+        />
+      ) : null,
+    [
+      activeGatewayProfile,
+      gatewayOpen,
+      ownerRoute?.connectionId,
+      ownerRoute?.profile,
+      ownerRoute?.targetProfile,
+      requestTileGateway,
+      selectModel
+    ]
+  )
+
   return (
     <SessionViewProvider value={view}>
       <ComposerScopeProvider value={scope}>
@@ -314,6 +336,7 @@ function TileChat({
           onAddUrl={onAddUrl}
           onAttachDroppedItems={composer.attachDroppedItems}
           onAttachImageBlob={composer.attachImageBlob}
+          onAttachPastedText={composer.attachPastedText}
           onAttachPrCommentUrl={composer.attachPrCommentUrl}
           onCancel={actions.cancelRun}
           onDeleteSelectedSession={noop}
@@ -328,10 +351,12 @@ function TileChat({
           onRestoreToMessage={actions.restoreToMessage}
           onRetryResume={onRetryResume}
           onSteer={actions.steerPrompt}
+          onSteerHidden={actions.injectHiddenPrompt}
           onSubmit={actions.submitText}
           onThreadMessagesChange={actions.handleThreadMessagesChange}
           onToggleSelectedPin={noop}
           onTranscribeAudio={tileTranscribeAudio}
+          reasoningMenuContent={reasoningMenuContent}
           requestModelOptionsForOwner={requestTileGateway}
         />
       </ComposerScopeProvider>

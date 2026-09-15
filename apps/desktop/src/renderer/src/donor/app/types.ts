@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/types.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -128,46 +128,6 @@ export interface HandoffFailResponse {
   failed?: boolean
   state?: string
 }
-
-export interface ExecCommandDispatchResponse {
-  type: 'exec' | 'plugin'
-  output?: string
-}
-
-export interface AliasCommandDispatchResponse {
-  type: 'alias'
-  target: string
-}
-
-export interface SkillCommandDispatchResponse {
-  type: 'skill'
-  name: string
-  message?: string
-  /** The invocation the UI renders (`/work fix the leak`). `message` is the
-   *  expanded skill body — model-facing scaffolding no surface may show. */
-  display?: string
-}
-
-export interface SendCommandDispatchResponse {
-  type: 'send'
-  message: string
-  notice?: string
-  /** Set for a skill-bundle send: see SkillCommandDispatchResponse.display. */
-  display?: string
-}
-
-export interface PrefillCommandDispatchResponse {
-  type: 'prefill'
-  message: string
-  notice?: string
-}
-
-export type CommandDispatchResponse =
-  | ExecCommandDispatchResponse
-  | AliasCommandDispatchResponse
-  | SkillCommandDispatchResponse
-  | SendCommandDispatchResponse
-  | PrefillCommandDispatchResponse
 
 export type SidebarNavId = 'artifacts' | 'command-center' | 'cron' | 'messaging' | 'new-session' | 'settings' | 'skills'
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/global.d.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [4] dropped the pop-out pet overlay IPC block and its types (HX1)
@@ -329,6 +329,7 @@ declare global {
         viewport?: { height: number; width: number }
         webContentsId: number
       }) => Promise<string>
+      savePastedText: (text: string) => Promise<string>
       saveClipboardImage: () => Promise<string>
       getPathForFile: (file: File) => string
       normalizePreviewTarget: (target: string, baseDir?: string) => Promise<HermesPreviewTarget | null>
@@ -352,6 +353,9 @@ declare global {
        *  (HERMES_GUEST_ONBOARDING=1 or --guest-onboarding). Read-only fact the
        *  main process also stamps onto every backend it spawns. */
       guestOnboardingEnabled?: boolean
+      /** Launch flag: skip the first-run film (HERMES_SKIP_INTRO=1 or
+       *  --skip-intro) so a fresh HERMES_HOME lands on the guided chat. */
+      skipIntro?: boolean
       setTranslucency?: (payload: TranslucencyState) => void
       setKeepAwake?: (on: boolean) => void
       setDisableF12?: (blocked: boolean) => void

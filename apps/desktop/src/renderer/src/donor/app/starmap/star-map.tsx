@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/starmap/star-map.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import { computePalette, memoryInkFor, resolveRgb, rgba } from './color'
 import { RING_OUTER, TILT, ZOOM_MAX, ZOOM_MIN } from './constants'
 import { clamp, distToSegmentSq, fitScale, fitViewport, nodeRadius } from './geometry'
 import { NodeContextMenu, type NodeMenuTarget } from './node-context-menu'
+import { shouldIgnorePlaybackHotkey } from './playback-hotkey'
 import { drawScene, drawScramble } from './render'
 import { decodeShareCode, encodeShareCode, ShareCodeError } from './share-code'
 import { ShareControls } from './share-controls'
@@ -452,17 +453,11 @@ export function StarMap({
   )
 
   // Spacebar toggles playback (unless typing, or the play button itself is
-  // focused — that already handles Space natively, so skip to avoid a double).
+  // focused — that already handles Space natively, so skip to avoid a double;
+  // same for focused context-menu items, which Radix renders as divs).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' && e.key !== ' ') {
-        return
-      }
-
-      const el = document.activeElement
-      const tag = el?.tagName
-
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || (el as HTMLElement | null)?.isContentEditable) {
+      if (shouldIgnorePlaybackHotkey(e, document.activeElement)) {
         return
       }
 

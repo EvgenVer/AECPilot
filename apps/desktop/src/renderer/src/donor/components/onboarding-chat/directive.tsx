@@ -1,20 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/directive.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 /**
- * In-chat onboarding cards — the `::onboarding{step="…"}` transcript
- * directive. Hermes walks the user through setup in the transcript, and each
- * step's paragraph renders as an interactive picker with a shared option
- * catalog and persistence.
- *
- * This module is only the dispatcher. Two tables say what a step means — one
- * writes an answer, the other renders a card — and a step in neither renders
- * nothing, which is the right answer for the model's invisible acks. The cards
- * themselves live in ./cards.
+ * Dispatcher for the `::onboarding{step="…"}` transcript directive, which turns a setup step into an interactive
+ * picker in the transcript. Two tables decide what a step does: one writes an answer to the store, the other renders
+ * a card. A step in neither table renders nothing. The cards live in ./cards.
  */
 
 import { useEffect } from 'react'
@@ -24,9 +18,8 @@ import type { CardProps } from '@/components/onboarding-chat/cards/frame'
 import { ConnectorsCard, LayoutCard, LookCard } from '@/components/onboarding-chat/cards/setup'
 import { $onboardingAnswers, setOnboardingAnswers } from '@/store/onboarding-answers'
 
-/** Steps that only carry data — the model handing the renderer what the user
- *  said. Each maps to the answer field it writes ('working' is the guided
- *  flow's name for the context answer: same storage, same consumers). */
+/** Steps that only carry data, mapped to the answer field each one writes. The runbook names the context step
+ *  'working' (store/onboarding-script.ts), so the step name and the field name differ. */
 type AnswerField = 'name' | 'context'
 
 const DATA_STEPS = new Map<string, AnswerField>([
@@ -44,9 +37,8 @@ const STEP_CARDS = new Map<string, (props: CardProps) => React.ReactNode>([
   ['progress', ProgressCard]
 ])
 
-/** Writing an answer is an EFFECT, not a render fact. Doing it inline in the
- *  directive's render triggered React's cross-component setState warning and
- *  re-entrant renders (live desktop.log). */
+/** Writes the answer from an effect. Writing it during the directive's render triggered React's cross-component
+ *  setState warning and re-entrant renders. */
 function DataDirective({ field, value }: { field: AnswerField; value: string }) {
   useEffect(() => {
     if (!value || $onboardingAnswers.get()[field] === value) {
@@ -70,8 +62,7 @@ export function OnboardingChatDirective({ attrs, streaming }: { attrs: Record<st
 
   const Card = STEP_CARDS.get(step)
 
-  // Mount as soon as the directive is parsed — returning null until settle
-  // grows the transcript by a card when the turn finishes. Keep it inert
-  // mid-stream so the growing paragraph can't be clicked through.
+  // Mount as soon as the directive is parsed. Returning null until the turn settles would grow the transcript by a
+  // card when the turn finishes. The card stays inert while streaming so the growing paragraph cannot be clicked.
   return Card ? <Card attrs={attrs} locked={streaming} /> : null
 }

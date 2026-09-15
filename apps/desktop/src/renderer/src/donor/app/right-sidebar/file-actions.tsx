@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/file-actions.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/context-menu'
 import { translateNow, useI18n } from '@/i18n'
 import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
+import { isSubmitEnter } from '@/lib/ime'
 import { IS_MAC } from '@/lib/keybinds/combo'
 import { cn } from '@/lib/utils'
 import {
@@ -204,7 +205,7 @@ export function InlineRenameInput({ className, name, path }: InlineRenameInputPr
       onKeyDown={event => {
         event.stopPropagation()
 
-        if (event.key === 'Enter') {
+        if (isSubmitEnter(event)) {
           event.preventDefault()
           void finish(true)
         } else if (event.key === 'Escape') {

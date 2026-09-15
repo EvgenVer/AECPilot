@@ -79,11 +79,36 @@ describe('снятые поверхности лежат в зоне, но не 
       [AGGREGATOR]
     ],
     // Вершина цепочки: у неё вызывающего нет вовсе.
-    [AGGREGATOR, 'useComposerVoice', []]
+    [AGGREGATOR, 'useComposerVoice', []],
+    // Их «живой голосовой разговор» 0.21.3 (OpenAI Realtime) — та же
+    // поверхность, то же решение (HX19 подтверждён 2026-09-15). Пять файлов
+    // лежат дословно; входы сняты из `controls.tsx`, `voice-menu.tsx`,
+    // `use-hermes-config.ts` правкой [3]. Зовёт их только мёртвый сводный хук
+    // и они друг друга.
+    [
+      'donor/app/chat/composer/hooks/use-voice-live-conversation.ts',
+      'useVoiceLiveConversation',
+      [AGGREGATOR]
+    ],
+    ['donor/app/chat/composer/start-voice-button.tsx', 'StartVoiceButton', []],
+    [
+      'donor/app/chat/composer/voice-engine-rows.tsx',
+      'VoiceEngineRows',
+      ['donor/app/chat/composer/start-voice-button.tsx']
+    ],
+    [
+      'donor/store/voice-live.ts',
+      'setVoiceChatMode',
+      ['donor/app/chat/composer/voice-engine-rows.tsx']
+    ]
   ])('%s перенесён дословно и без вызывающего', (relative, exported, alsoMentionedIn) => {
     // Файл на месте: при следующем переносе донора его перекопируют по
     // `DONOR_SHA`, а не будут восстанавливать по памяти.
-    expect(read(relative)).toContain(`export function ${exported}(`)
+    const source = read(relative)
+    expect(
+      source.includes(`export function ${exported}(`) ||
+        source.includes(`export async function ${exported}(`)
+    ).toBe(true)
 
     expect(callers(exported)).toEqual([relative, ...alsoMentionedIn].sort())
   })
@@ -102,6 +127,13 @@ describe('снятые поверхности лежат в зоне, но не 
   it("'composer.voice' снято и из таблицы действий, и из набора «безопасных при наборе»", () => {
     expect(code(read('donor/lib/keybinds/actions.ts'))).not.toContain("id: 'composer.voice'")
     expect(code(read('donor/lib/keybinds/combo.ts'))).not.toContain("'composer.voice'")
+  })
+
+  it('маршруты живого голоса не зовутся, поверхность voice-live не отправляется', () => {
+    // `lib/voice-live.ts` — единственный, кто знает адрес; его самого никто
+    // не импортирует, кроме мёртвых файлов этой же поверхности.
+    expect(callers('/api/audio/voice-live')).toEqual(['donor/lib/voice-live.ts'])
+    expect(callers("surface: 'voice-live'")).toEqual([AGGREGATOR])
   })
 
   it('табличка слова-активатора не поднимается тем, кто не умеет её опустить', () => {

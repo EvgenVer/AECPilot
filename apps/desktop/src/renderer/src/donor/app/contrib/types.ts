@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/types.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -39,6 +39,7 @@ export type ChatActions = Pick<
   | 'onAttachDroppedItems'
   | 'onAttachImageBlob'
   | 'onAttachPrCommentUrl'
+  | 'onAttachPastedText'
   | 'onBranchInNewChat'
   | 'onCancel'
   | 'onDeleteSelectedSession'
@@ -53,6 +54,7 @@ export type ChatActions = Pick<
   | 'onRestoreToMessage'
   | 'onRetryResume'
   | 'onSteer'
+  | 'onSteerHidden'
   | 'onSubmit'
   | 'onThreadMessagesChange'
   | 'onToggleSelectedPin'

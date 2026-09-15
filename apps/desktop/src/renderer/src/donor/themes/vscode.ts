@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/vscode.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,9 @@
  * background luminance, so surface-bound UI matches what's on screen.
  */
 
-import { ensureContrast, luminance, mix, normalizeHex, readableOn } from './color'
+import { ensureContrast, mix } from '@hermes/shared/color'
+
+import { luminance, normalizeHex, readableInk } from './color'
 import type { DesktopTerminalPalette, DesktopTheme, DesktopThemeColors } from './types'
 
 // Section headers / sidebar labels render in --theme-primary directly on the
@@ -334,7 +336,7 @@ export function convertVscodeColorTheme(raw: VscodeColorTheme, opts: ConvertOpti
     popover: elevated,
     popoverForeground: foreground,
     primary: accent,
-    primaryForeground: readableOn(accent),
+    primaryForeground: readableInk(accent),
     secondary,
     secondaryForeground: foreground,
     accent: accentSoft,
@@ -343,10 +345,10 @@ export function convertVscodeColorTheme(raw: VscodeColorTheme, opts: ConvertOpti
     input,
     ring: accent,
     midground: accent,
-    midgroundForeground: readableOn(accent),
+    midgroundForeground: readableInk(accent),
     composerRing: accent,
     destructive,
-    destructiveForeground: readableOn(destructive),
+    destructiveForeground: readableInk(destructive),
     sidebarBackground: sidebar,
     sidebarBorder: border,
     userBubble: mix(card, accent, dark ? 0.18 : 0.12),

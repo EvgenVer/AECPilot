@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/billing-types.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,14 +27,7 @@
  * the managed route with in-app billing (desktop Settings → Billing, TUI
  * `/topup`), while third-party providers deep-link to `billing_url`.
  */
-export interface BillingBlock {
-  provider: string
-  provider_label: string
-  model: string
-  billing_url: string | null
-  is_nous: boolean
-  message: string
-}
+export type { BillingBlock } from './gateway-contract.generated.js'
 
 // ── Remote Spending (Phase 2b) ───────────────────────────────────────
 

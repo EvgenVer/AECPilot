@@ -1,12 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/route-session-state.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { sessionMatchesStoredId } from '@/store/session'
 import type { SessionInfo } from '@/types/hermes'
+
+interface ActiveTranscriptState {
+  activeRuntimeId: null | string
+  contextSwitching: boolean
+  messagesEmpty: boolean
+  transcriptStoredSessionId: null | string
+}
 
 /**
  * Whether the route points at a different conversation than the selected view.
@@ -21,17 +28,37 @@ import type { SessionInfo } from '@/types/hermes'
 export function isRouteSessionMismatch(
   routedSessionId: null | string,
   selectedSessionId: null | string,
-  sessions: readonly Pick<SessionInfo, '_lineage_root_id' | 'id'>[]
+  sessions: readonly Pick<SessionInfo, '_lineage_root_id' | 'id'>[],
+  activeTranscript?: ActiveTranscriptState
 ): boolean {
-  if (!routedSessionId || routedSessionId === selectedSessionId) {
+  if (!routedSessionId) {
     return false
   }
 
-  if (!selectedSessionId) {
+  const matchesRoute = (storedSessionId: null | string) =>
+    storedSessionId === routedSessionId ||
+    Boolean(
+      storedSessionId &&
+      sessions.some(
+        session => sessionMatchesStoredId(session, routedSessionId) && sessionMatchesStoredId(session, storedSessionId)
+      )
+    )
+
+  // The selected view already owns the routed conversation: a profile or
+  // connection switch must not blank it to the splash.
+  if (matchesRoute(selectedSessionId)) {
+    return false
+  }
+
+  // Only the transcript-retention fallback below must be denied while a
+  // context switch is in flight; the prior context must not be retained.
+  if (activeTranscript?.contextSwitching) {
     return true
   }
 
-  return !sessions.some(
-    session => sessionMatchesStoredId(session, routedSessionId) && sessionMatchesStoredId(session, selectedSessionId)
+  return !(
+    activeTranscript?.activeRuntimeId &&
+    !activeTranscript.messagesEmpty &&
+    matchesRoute(activeTranscript.transcriptStoredSessionId)
   )
 }

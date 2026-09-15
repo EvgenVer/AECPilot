@@ -1,12 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped applyAutoSpeakFromConfig — auto-speak of replies is SPEC HX19
  *       (owner decision 2026-09-08), and `voice.auto_tts` would turn it on
  *       with no click in the window at all
+ *   [3] dropped refreshVoiceLiveStatus() — the live voice conversation is the
+ *       same surface (SPEC HX19, confirmed 2026-09-15); its status route
+ *       `/api/audio/voice-live/status` is never called
  * (no other edits)
  */
 import { type MutableRefObject, useCallback, useRef, useState } from 'react'
@@ -158,6 +161,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         // ответов БЕЗ единого нажатия в окне — SPEC HX19 (owner decision 2026-09-08).
         applyVoiceStopPhraseFromConfig(config)
         applyThinkingSoundFromConfig(config)
+        // EDIT [3]: their `refreshVoiceLiveStatus()` (live voice, HX19) stood here.
       } catch {
         // Config is nice-to-have; chat still works without it.
       }

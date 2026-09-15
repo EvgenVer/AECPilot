@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/types.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,9 +9,11 @@ import type { ThreadMessageLike } from '@assistant-ui/react'
 import { type BillingBlock } from '@hermes/shared'
 
 import type { ErrorSurface } from '@/lib/error-surface'
+import type { ToolResultMetadata } from '@/lib/tool-result-metadata'
 import type { MessageReaction, SessionMessage, UsageStats } from '@/types/hermes'
 
 export interface TimelinePartMetadata {
+  toolResultMetadata?: ToolResultMetadata
   /** Unix seconds when this visible activity segment began. Fractional values
    * preserve the millisecond precision available on live gateway events. */
   timestamp?: number
@@ -185,6 +187,8 @@ export type GatewayEventPayload = {
   // message.complete — signals the final text was already previewed via
   // interim_assistant_callback, so the UI can settle instead of duplicating.
   response_previewed?: boolean
+  // message.complete — history-commit note the gateway surfaced instead of dropping.
+  warning?: string
   // message.complete with status "error" — `text` is streamed partial output
   // (keep it visible), not the error string.
   partial?: boolean

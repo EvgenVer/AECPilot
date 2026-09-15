@@ -14,6 +14,86 @@
 // will say so by name.
 
 export type { BillingBlock } from '../../donor/hermes-shared/billing-types'
+export { hasAnsi, sanitizeAnsiForRender, stripAnsi } from '../../donor/hermes-shared/ansi'
+export {
+  contrastRatio,
+  darken,
+  ensureContrast,
+  lighten,
+  mix,
+  parseColor,
+  readableOn,
+  relativeLuminance,
+  type Rgb,
+  toHex
+} from '../../donor/hermes-shared/color'
+export { compactNumber } from '../../donor/hermes-shared/format'
+export {
+  type FuzzyMatch,
+  fuzzyRank,
+  fuzzyScore,
+  fuzzyScoreMulti,
+  type RankedItem
+} from '../../donor/hermes-shared/fuzzy'
+export * from '../../donor/hermes-shared/gateway-events'
+export {
+  applyDocumentLocale,
+  type EndonymLocale,
+  isRecord,
+  LOCALE_ENDONYMS,
+  mergeTranslations,
+  RTL_LOCALES,
+  type TranslationOverride
+} from '../../donor/hermes-shared/i18n'
+// Kind 3 (0.21.3, task 3.B5в): the request/response channel their socket
+// client is built on. Vendored for its TYPES and pure helpers — the class is
+// not instantiated here, the bridge above plays its part over IPC.
+export {
+  DEFAULT_HEARTBEAT_DEADLINE_MS,
+  DEFAULT_HEARTBEAT_INTERVAL_MS,
+  type GatewayRequestId,
+  JSON_RPC_METHOD_NOT_FOUND,
+  jsonRpcErrorFromFrame,
+  type JsonRpcErrorPayload,
+  type JsonRpcFrame,
+  JsonRpcRequestChannel,
+  type JsonRpcRequestChannelOptions,
+  type JsonRpcTransport,
+  type ServerRequestParams,
+  wireFrameText
+} from '../../donor/hermes-shared/json-rpc-channel'
+export { modelSearchText } from '../../donor/hermes-shared/model-search-text'
+export {
+  DEFAULT_REASONING_EFFORT,
+  isReasoningEffort,
+  REASONING_EFFORT_VALUES,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
+  type ReasoningEffortValue
+} from '../../donor/hermes-shared/reasoning-effort'
+export {
+  reconnectBackoffDelayMs,
+  type ReconnectBackoffOptions
+} from '../../donor/hermes-shared/reconnect-backoff'
+export {
+  type AliasCommandDispatchResponse,
+  type CommandDispatchResponse,
+  type ExecCommandDispatchResponse,
+  looksLikeSlashCommand,
+  parseCommandDispatch,
+  type ParsedSlashCommand,
+  parseSlashCommand,
+  type PrefillCommandDispatchResponse,
+  type SendCommandDispatchResponse,
+  type SkillCommandDispatchResponse,
+  SLASH_COMMAND_RE
+} from '../../donor/hermes-shared/slash'
+export {
+  THEME_PRESET_PALETTES,
+  type ThemePresetColors,
+  type ThemePresetName,
+  type ThemePresetPalette
+} from '../../donor/hermes-shared/theme-presets'
 export {
   clampDataUrlReadMaxMb,
   DATA_URL_READ_DEFAULT_MAX_MB,
@@ -57,12 +137,14 @@ export {
 
 export {
   GatewayBridge as JsonRpcGatewayClient,
+  type DonorServerRequest as ServerRequest,
+  type DonorServerRequestHandler as ServerRequestHandler,
   type DonorConnectionState as ConnectionState,
-  type DonorGatewayEvent as GatewayEvent,
   type GatewayClientOptions
 } from '../gateway-bridge'
 
-export type GatewayEventName = string
+// `GatewayEvent` / `GatewayEventName` are theirs now — generated from the
+// core's contract, re-exported above with `gateway-events` (0.21.3).
 
 // Kind 3 (see the header): a class that lived only inside their un-vendored
 // `json-rpc-gateway.ts`. Their code narrows on it — `use-prompt-actions`

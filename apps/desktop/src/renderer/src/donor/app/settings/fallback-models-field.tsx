@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/fallback-models-field.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,14 +17,19 @@ import { cn } from '@/lib/utils'
 
 import { CONTROL_TEXT } from './constants'
 
-interface FallbackEntry {
+// An entry is `{provider, model}` plus whatever routing the user hand-wrote
+// (`base_url`, `api_key`, `key_env`, `api_mode`, ...). The editor only edits
+// the two selects; every other key rides along untouched, or an autosave
+// would rewrite a local-gateway chain as bare provider/model pairs and route
+// fallbacks to the public provider (#89184).
+interface FallbackEntry extends Record<string, unknown> {
   provider: string
   model: string
 }
 
 // Normalize the raw config value (`fallback_providers`: a list of
-// `{provider, model}` dicts) into editor rows. Defensive against legacy string
-// entries ("provider/model") so the editor never crashes on odd data.
+// `{provider, model, ...}` dicts) into editor rows. Defensive against legacy
+// string entries ("provider/model") so the editor never crashes on odd data.
 function normalizeEntries(value: unknown): FallbackEntry[] {
   if (!Array.isArray(value)) {
     return []
@@ -34,7 +39,7 @@ function normalizeEntries(value: unknown): FallbackEntry[] {
     if (item && typeof item === 'object') {
       const record = item as Record<string, unknown>
 
-      return { provider: String(record.provider ?? ''), model: String(record.model ?? '') }
+      return { ...record, provider: String(record.provider ?? ''), model: String(record.model ?? '') }
     }
 
     if (typeof item === 'string') {
@@ -54,10 +59,7 @@ function completeEntries(rows: FallbackEntry[]): FallbackEntry[] {
 }
 
 function entriesEqual(a: FallbackEntry[], b: FallbackEntry[]): boolean {
-  return (
-    a.length === b.length &&
-    a.every((entry, index) => entry.provider === b[index]?.provider && entry.model === b[index]?.model)
-  )
+  return a.length === b.length && a.every((entry, index) => JSON.stringify(entry) === JSON.stringify(b[index]))
 }
 
 /**

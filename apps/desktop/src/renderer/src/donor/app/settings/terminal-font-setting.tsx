@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/terminal-font-setting.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -95,7 +95,9 @@ export function TerminalFontSetting() {
     const timeout = window.setTimeout(() => {
       const next = setNested(loadedConfig, 'terminal.font_family', value)
 
-      void saveHermesConfig(next)
+      // Sparse patch: PUT /api/config deep-merges, and echoing the cached
+      // snapshot would overwrite keys other surfaces changed since it loaded.
+      void saveHermesConfig(setNested({}, 'terminal.font_family', value))
         .then(result => {
           if (!result.ok) {
             throw new Error(t.settings.config.autosaveFailed)

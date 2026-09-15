@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/utils.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -726,6 +726,13 @@ export interface SubmitTextOptions {
    *  renders anywhere — the off-screen path for widget intents. The agent
    *  still receives the text as a normal user turn. */
   displayKind?: 'hidden'
+  /** Per-turn client surface the gateway turns into a model-bound note. The
+   *  HUD sets `hud` from its own store; a GPT-Live delegation passes
+   *  `voice-live` (spoken transcript in, speakable prose out). */
+  surface?: 'voice-live'
+  /** With `surface: 'voice-live'`: the recent spoken exchange, appended to the
+   *  model-bound note by the gateway (never persisted, never rendered). */
+  voiceContext?: string
   fromQueue?: boolean
   /** Runtime session id to submit into. Queue drains pass this so a
    *  backgrounded/source session cannot be replaced by the current foreground

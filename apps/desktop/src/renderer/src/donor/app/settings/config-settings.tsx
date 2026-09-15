@@ -1,9 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/config-settings.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the pool-limits row (`<PoolLimitsSetting />`) — SPEC HX27, owner
+ *       decision 2026-09-15 (finding D-84): the product runs ONE core process for
+ *       every profile, so there is no backend pool for the row to bound
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
@@ -16,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { getElevenLabsVoices, getHermesConfigSchema, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
+import { isSubmitEnter } from '@/lib/ime'
 import { confirm } from '@/store/confirm'
 import {
   $dataUrlReadMaxMb,
@@ -52,7 +57,6 @@ import {
 import { MemoryConnect } from './memory/connect'
 import { ProviderConfigPanel } from './memory/provider-config-panel'
 import { ModelSettings, ModelSettingsSkeleton } from './model-settings'
-import { PoolLimitsSetting } from './pool-limits-setting'
 import { EmptyState, ListRow, SettingsContent, SettingsSkeleton, ToggleRow } from './primitives'
 import { SettingsProfileScope } from './profile-scope'
 import { QuickEntrySettings } from './quick-entry-settings'
@@ -413,7 +417,7 @@ function ConfigSettingsInner({
             label={c.disableF12Title}
             onChange={setDisableF12}
           />
-          <PoolLimitsSetting />
+          {/* EDIT [3]: their <PoolLimitsSetting /> stood here — SPEC HX27. */}
           <QuickEntrySettings />
         </>
       )}
@@ -518,7 +522,7 @@ function AttachmentSizeSetting() {
             onBlur={commit}
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
-              if (event.key === 'Enter') {
+              if (isSubmitEnter(event)) {
                 event.currentTarget.blur()
               }
             }}

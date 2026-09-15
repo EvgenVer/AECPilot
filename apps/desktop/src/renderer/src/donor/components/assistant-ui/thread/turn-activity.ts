@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/turn-activity.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,11 +18,15 @@ import { isSilentTool } from '@/lib/tool-render-class'
 export const TURN_QUIET_S = 2
 
 export interface ActivityPart {
+  completedAt?: number
   result?: unknown
   text?: unknown
   toolName?: string
   type: string
 }
+
+// A sealed call carries a completion marker and no result.
+const settled = (part: ActivityPart): boolean => part.result !== undefined || part.completedAt !== undefined
 
 /**
  * What the tail message has produced so far, as a value that changes exactly
@@ -43,7 +47,7 @@ export function activitySignature(content: readonly ActivityPart[]): string {
       textLength += part.text.length
     }
 
-    if (part.type === 'tool-call' && part.result !== undefined) {
+    if (part.type === 'tool-call' && settled(part)) {
       settledTools += 1
     }
   }
@@ -61,7 +65,5 @@ export function activitySignature(content: readonly ActivityPart[]): string {
  * of those is as unnarrated as a wait on nothing at all.
  */
 export function toolNarratesWait(content: readonly ActivityPart[]): boolean {
-  return content.some(
-    part => part.type === 'tool-call' && part.result === undefined && !isSilentTool(part.toolName ?? '')
-  )
+  return content.some(part => part.type === 'tool-call' && !settled(part) && !isSilentTool(part.toolName ?? ''))
 }

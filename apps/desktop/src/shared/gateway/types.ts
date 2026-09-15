@@ -58,8 +58,51 @@ export interface GatewayEventFrame<T extends string = string, P = unknown> {
   }
 }
 
+/** A request the GATEWAY sends to this client (hermes 0.21.3,
+ * `tui_gateway/server_requests.py`, task 3.B5в): the agent is blocked on a
+ * question — clarify, approval, secret, sudo, a terminal or preview read, an
+ * MCP-setup consent, a tour step. The id is a STRING (`srq-<12 hex>`) so it
+ * can never collide with the integer ids this client mints; the answer is a
+ * response frame carrying that same id (`GatewayServerResponseFrame`). The
+ * old `<kind>.request` event + `<kind>.respond` method pairs are gone. */
+export interface GatewayServerRequestFrame<M extends string = string> {
+  jsonrpc?: '2.0'
+  id: string
+  method: M
+  params: GatewayServerRequestParams
+}
+
+/** Parameters of a server→client request. `session_id` names the session
+ * blocked on the answer; everything else is method-specific and reaches the
+ * renderer untouched. */
+export interface GatewayServerRequestParams extends Record<string, unknown> {
+  session_id?: string
+}
+
+/** One server→client request as this client hands it to a listener. Answered
+ * with `GatewayClient.respondToServerRequest`. `replayed` marks a request that
+ * came back through `open_requests` after a reconnect rather than live. */
+export interface GatewayServerRequest {
+  id: string
+  method: string
+  params: GatewayServerRequestParams
+  replayed: boolean
+}
+
+/** What a window answers a server→client request with — the frame minus
+ * the id, which the transport adds. */
+export type GatewayServerResponse =
+  { result: Record<string, unknown> } | { error: { code: number; message: string } }
+
+/** The answer to a server→client request. Exactly one of `result` / `error`;
+ * the gateway drops an answer whose id is no longer open. */
+export type GatewayServerResponseFrame =
+  | { jsonrpc: '2.0'; id: string; result: Record<string, unknown> }
+  | { jsonrpc: '2.0'; id: string; error: { code: number; message: string } }
+
 /** Any frame the gateway can send over the WebSocket. */
-export type GatewayIncomingFrame = GatewayResultFrame | GatewayErrorFrame | GatewayEventFrame
+export type GatewayIncomingFrame =
+  GatewayResultFrame | GatewayErrorFrame | GatewayEventFrame | GatewayServerRequestFrame
 
 // ---------------------------------------------------------------------------
 // RPC methods: params / result pairs
@@ -280,9 +323,6 @@ export interface GatewayMethodMap {
   'prompt.submit': { params: PromptSubmitParams; result: PromptSubmitResult }
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
   'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
-  'clarify.respond': { params: ClarifyRespondParams; result: InteractiveRespondResult }
-  'secret.respond': { params: SecretRespondParams; result: InteractiveRespondResult }
-  'sudo.respond': { params: SudoDeclineParams; result: InteractiveRespondResult }
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
@@ -325,7 +365,6 @@ export interface GatewayMethodMap {
   'session.undo': { params: SessionScopedParams; result: SessionUndoResult }
   'session.steer': { params: SessionSteerParams; result: SessionSteerResult }
   'commands.catalog': { params: CommandsCatalogParams; result: CommandsCatalogResult }
-  'terminal.read.respond': { params: TerminalReadRespondParams; result: InteractiveRespondResult }
   // Роестр специалистов (задача 3C.1, SPEC UR27, контракт — specs/agent-roster.md).
   // Формы намеренно широкие: ряд профиля несёт свободный блок `ui_meta`, куда
   // каждый клиент кладёт своё, и описывать чужие поля типом мы не вправе.
@@ -1250,33 +1289,9 @@ export interface RollbackRestoreResult {
   history_removed?: number
 }
 
-/** Answer to a `clarify.request` (task 1.5.D1). `request_id` must echo the
- * one from the event — the gateway keys its pending map by it and replies
- * with error 4009 when it no longer matches anything. */
-export interface ClarifyRespondParams {
-  request_id: string
-  answer: string
-}
-
-/** Answer to a `terminal.read.request` (task 1.6.B6.16, `methods_prompt.py`, `@method("terminal.read.respond")`).
- *
- * `text` is a JSON **string**, not an object: their handler forwards it
- * verbatim to the blocked tool, which parses it itself. Serialize
- * `TerminalReadPayload` into it — the donor's field names
- * (`apps/desktop/.../terminal/buffer.ts`) are the contract with the tool.
- *
- * An empty string is the documented "nothing to read" answer and must still be
- * sent: their bridge blocks the agent's turn for 30 s waiting for it.
- *
- * Errors: 4009 — no pending request under this id (it already timed out, or
- * something else answered it). Not a failure to report loudly: there is
- * nothing left to answer. */
-export interface TerminalReadRespondParams {
-  request_id: string
-  text: string
-}
-
-/** What gets serialized into `TerminalReadRespondParams.text`. Field names are
+/** What the answer to the agent's `terminal.read` request carries under
+ * `value` (as a JSON STRING — their handler forwards it to the tool, which
+ * parses it itself). Field names are
  * the donor's, kept pofamilno so their `read_terminal` tool can page with
  * `start`/`count` against `total_lines`.
  *
@@ -1290,29 +1305,6 @@ export interface TerminalReadPayload {
   viewport_rows: number
   cursor_row: number
   text: string
-}
-
-/** Answer to a `secret.request` (task 1.5.D1). `value` is the secret itself —
- * it exists only in transit: never logged, never stored in chat state, never
- * written to the transcript (specs/agent-chat.md §Security). An empty string
- * is the documented "skip" answer. */
-export interface SecretRespondParams {
-  request_id: string
-  value: string
-}
-
-/** Answer to a `sudo.request` (task 1.5.D1). `password` is ALWAYS the empty
- * string here: the product decision is that this app never collects an OS
- * password — it declines the elevation and lets the agent proceed. The field
- * exists only because the gateway's `_respond` reads that key. */
-export interface SudoDeclineParams {
-  request_id: string
-  password: ''
-}
-
-/** Shared shape of the gateway's `*.respond` acknowledgements. */
-export interface InteractiveRespondResult {
-  status: string
 }
 
 export type GatewayMethod = keyof GatewayMethodMap
@@ -1467,65 +1459,20 @@ export interface ToolCompleteEvent {
   }
 }
 
-/** The agent is requesting permission for a gated action (e.g. a shell
- * command). `command` is already redacted for display by the gateway.
- * Approvals form a FIFO queue per session — there is no request id; a
- * response resolves the oldest pending one (or all, with `all: true`).
- * `allow_permanent` gates whether the UI may offer the 'always' choice. */
-export interface ApprovalRequestEvent {
-  type: 'approval.request'
-  session_id?: string
-  payload: {
-    command: string
-    description: string
-    pattern_keys: string[]
-    allow_permanent: boolean
-  }
-}
+// --- Server→client requests (hermes 0.21.3, task 3.B5в) --------------------
+// The blocking questions (clarify, approval, secret, sudo, GUI reads, MCP
+// setup, tour) no longer arrive as `<kind>.request` EVENTS answered by
+// `<kind>.respond` METHODS: the gateway sends a JSON-RPC request of its own
+// (`GatewayServerRequestFrame`) and waits for the response frame. The one
+// event left in the family is the withdrawal below.
 
-// --- Blocking interactive requests (task 1.5.D1) ---------------------------
-// The gateway raises these through `_block(...)`: the agent core STOPS until
-// answered or until the timeout expires (clarify/secret 300 s, sudo 120 s —
-// server.py `_block`). Leaving one unhandled is not cosmetic; it stalls the
-// agent and reads as a freeze. Each carries a `request_id` that the matching
-// `*.respond` must echo back.
-
-/** The agent needs the user to disambiguate before it can continue. */
-export interface ClarifyRequestEvent {
-  type: 'clarify.request'
+/** A server→client request is withdrawn: the turn was interrupted, the
+ * session closed, the deadline passed. The card for `id` must go — an answer
+ * sent after this is dropped by the gateway. */
+export interface RequestCancelEvent {
+  type: 'request.cancel'
   session_id?: string
-  payload: { request_id: string; question?: string; choices?: string[] }
-}
-
-/** A tool needs a secret (API token) it could not find. `prompt` explains
- * what is being asked for, `env_var` names where hermes will store it.
- * Answering with an empty value is a legitimate "skip" (server.py
- * `secret_cb`). The VALUE itself is never modelled here — see
- * specs/agent-chat.md §Security. */
-export interface SecretRequestEvent {
-  type: 'secret.request'
-  session_id?: string
-  payload: { request_id: string; prompt?: string; env_var?: string; metadata?: unknown }
-}
-
-/** A tool needs an elevation password. Unlikely on Windows, but an
- * unhandled request still stalls the agent for 120 s. */
-export interface SudoRequestEvent {
-  type: 'sudo.request'
-  session_id?: string
-  payload: { request_id: string }
-}
-
-/** A blocking request's window closed before it was answered (hermes 0.19.0).
- *
- * Until this existed, an expired card stayed on screen and still accepted
- * input — which then failed with 4009, because the gateway had already
- * discarded the pending entry. The event names the id, so the matching card
- * (and only that one) can go. */
-export interface InteractiveExpireEvent {
-  type: 'secret.expire' | 'sudo.expire'
-  session_id?: string
-  payload: { request_id: string }
+  payload: { id: string; method: string; reason?: string }
 }
 
 // ---------------------------------------------------------------------------
@@ -1565,19 +1512,6 @@ export interface TerminalCloseEvent {
   type: 'terminal.close'
   session_id?: string
   payload: { process_id: string }
-}
-
-/** The agent's `read_terminal` tool wants the visible terminal buffer
- * (registered in `server.py::_agent_cbs`). This one BLOCKS the agent's turn:
- * it rides their `_block` bridge with `timeout=30` (`server.py::_block`), so silence costs half
- * a minute of a stalled turn — an answer must always be sent, empty included.
- *
- * `start`/`count` are absolute line indices into the buffer, both optional
- * (their lambda only forwards the ones the tool supplied). */
-export interface TerminalReadRequestEvent {
-  type: 'terminal.read.request'
-  session_id?: string
-  payload: { request_id: string; start?: number; count?: number }
 }
 
 /** An out-of-band notice from the core (`server.py::_agent_cbs`) — the fields are
@@ -1737,17 +1671,12 @@ export type GatewayEvent =
   | ToolStartedEvent
   | ToolGeneratingEvent
   | ToolCompleteEvent
-  | ApprovalRequestEvent
-  | ClarifyRequestEvent
-  | SecretRequestEvent
-  | SudoRequestEvent
-  | InteractiveExpireEvent
+  | RequestCancelEvent
   | SubagentEvent
   | MoaReferenceEvent
   | MoaAggregatingEvent
   | AgentTerminalOutputEvent
   | TerminalCloseEvent
-  | TerminalReadRequestEvent
   | NotificationShowEvent
   | NotificationClearEvent
   | BrowserProgressEvent

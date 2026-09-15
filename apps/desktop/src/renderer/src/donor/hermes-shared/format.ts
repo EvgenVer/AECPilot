@@ -1,13 +1,16 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
- * Source:  apps/desktop/src/lib/format.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Source:  apps/shared/src/format.ts
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 // THE compact-number formatter — every user-facing count/token figure goes
 // through here. 999 → "999", 1000 → "1k", 1230 → "1.2k", 10000 → "10k",
-// 1_500_000 → "1.5M". Do not hand-roll `/ 1000` display math elsewhere.
+// 1_500_000 → "1.5M". `M` is the top rung by design: token and cost figures
+// this renders stay well under a billion, so 1e9 reads "1000M" rather than
+// growing a `B` rung that no surface needs (and that would collide with the
+// "bytes" reading in size labels). Do not hand-roll `/ 1000` display math elsewhere.
 export function compactNumber(value: null | number | undefined): string {
   const num = Number(value ?? 0)
 

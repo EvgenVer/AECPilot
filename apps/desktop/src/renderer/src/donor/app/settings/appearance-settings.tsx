@@ -1,13 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/appearance-settings.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet settings section (HX1)
  *   [3] dropped the window-translucency row and the VS Code Marketplace theme
  *       search/import (both HX14) — with their imports, derived state and the
- *       search box's second job
+ *       search box's second job. Since v2026.9.14 the search placeholder is an
+ *       i18n key; its Marketplace half is dropped by our catalogs' OVERRIDES
+ *       (`shared/i18n/en.ts`, `ru.ts`), not here
  * (no other edits)
  */
 
@@ -86,7 +88,9 @@ function ResumeLastSessionSetting() {
 
     const next = setNested(config, 'display.resume_last_session', on)
     setHermesConfigCache(next)
-    void saveHermesConfig(next)
+    // Sparse patch: PUT /api/config deep-merges, and echoing the cached
+    // snapshot would overwrite keys other surfaces changed since it loaded.
+    void saveHermesConfig(setNested({}, 'display.resume_last_session', on))
       .then(result => {
         if (!result.ok) {
           throw new Error(t.settings.config.autosaveFailed)
@@ -338,7 +342,7 @@ export function AppearanceSettings() {
                   <input
                     className="w-full rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) px-3 py-1.5 text-[length:var(--conversation-caption-font-size)] outline-none placeholder:text-(--ui-text-tertiary) focus:border-(--ui-stroke-secondary)"
                     onChange={event => setQuery(event.target.value)}
-                    placeholder="Search your themes…"
+                    placeholder={a.themeSearchPlaceholder}
                     spellCheck={false}
                     value={query}
                   />

@@ -1,16 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/assembly.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 /**
- * The guided chat starts alone in a small window. Picking a layout assembles
- * the app around the conversation.
+ * The guided chat runs alone in a small window. Picking a layout assembles the app around the conversation.
  *
- * The window grows outward by the minimum the new panes need, with a viewport
- * floor so the sidebar stays docked. Native window bounds own the animation.
+ * The window grows by the minimum the new panes need, with a viewport floor that keeps the sidebar docked. The main
+ * process animates the growth with setBounds (electron/chat-onboarding-window.ts), so no CSS transition is involved.
  */
 
 import { useStore } from '@nanostores/react'
@@ -37,18 +36,18 @@ import { skipGuide } from '@/store/onboarding-gate'
 import { setOnboardingSurfaceActive } from '@/store/onboarding-presence'
 import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
 
-/** True from guide kickoff until the layout pick assembles the app. */
+/** True from guide kickoff until assembly places the picked layout. Skip and a failed kickoff also clear it. */
 export const $chatOnboardingSolo = atom(false)
 
-// Presence mirror — see onboarding-presence.ts (update toast stands down).
+// Mirrors solo mode into the presence set, which hides ambient UI such as the update toast (onboarding-presence.ts).
 $chatOnboardingSolo.subscribe(solo => setOnboardingSurfaceActive('solo-chat', solo))
 
 /** The thread list keys by stored id; the composer keys by runtime id. Both
  *  identify the conversation that gets onboarding transcript treatment. */
 export const $chatOnboardingThreadIds = atom<readonly string[]>([])
 
-/** Bank the localized opener before inference: cold first turns took 10 s.
- *  The typed reveal and seed rows share it so the model sees what the user saw. */
+/** Holds the localized opener so it is ready before inference: cold first turns took 10 s. The typed reveal and the
+ *  seed rows read this same string, so the model receives the text the user saw. */
 export const $onboardingGreeting = atom('')
 
 /** First-write-wins keeps the opener stable through profile and backend boot. */
@@ -72,6 +71,22 @@ export const $chatLayoutPicked = atom(false)
 
 let previousLayout: { id: string; tree: LayoutNode | null } | null = null
 
+/** The guide's shape, all at once: the solo layout and the small centred
+ *  window. Called on the tick the guide is owed (film ended, or a boot that
+ *  finds the guide queued) so no full-size frame paints in between. */
+export function takeGuideShape(): void {
+  if ($chatOnboardingSolo.get()) {
+    return
+  }
+
+  startChatOnboardingSolo()
+
+  // startChatOnboardingSolo declines when the guide is off; shrink only when it took.
+  if ($chatOnboardingSolo.get()) {
+    window.hermesDesktop?.chatOnboarding?.soloBoot?.()
+  }
+}
+
 export function startChatOnboardingSolo(): void {
   if (!isOnboardingEnabled() || $chatOnboardingSolo.get()) {
     return
@@ -92,7 +107,7 @@ export function startChatOnboardingSolo(): void {
   applyLayoutPreset('chat-solo', group(['workspace'], { tabStrip: 'never' }))
 }
 
-/** A failed kickoff releases the screen so classic onboarding can resume. */
+/** Called when the guide kickoff fails, so classic onboarding can resume. */
 export function endChatOnboardingSolo(): void {
   $chatOnboardingSolo.set(false)
   $onboardingGreeting.set('')
@@ -110,7 +125,8 @@ export function endChatOnboardingSolo(): void {
   }
 }
 
-/** Grow by what the new panes need, not by a projection that keeps the chat's size (that balloons the window). */
+/** Per-preset growth in pixels, sized to what the new panes need. Deriving the growth from the chat's own size made
+ *  the window much too large. */
 interface LayoutGrowth {
   bottom?: number
   left?: number
@@ -150,18 +166,18 @@ function reconcileLayout(id: string, tree: LayoutNode): void {
   // A persisted closed sidebar would hide the column this pick just requested.
   setSidebarOpen(true)
 
-  // Solo boot consumed dock enforcement before a sidebar existed. Reset its
-  // ledger so adoption can dock against the newly placed Sessions column.
+  // Solo boot consumed dock enforcement before a sidebar existed. Reset that record so adoption can dock against the
+  // newly placed Sessions column.
   resetEnforcedDocks()
   adoptContributedPanes()
 
-  // Visibility can register more plugin panes synchronously. Sweep last to
-  // include those arrivals (Basic otherwise gained an empty Cronjobs column).
+  // Showing the sidebar can register more plugin panes synchronously. Dismiss last so those panes are dismissed as
+  // well; Basic otherwise gained an empty Cronjobs column.
   dismissUndeclared()
 }
 
-/** Grow only when leaving solo mode: repeating a delta would ratchet the window
- *  larger on every re-pick. Reconcile panes on every pick. */
+/** Grow only when leaving solo mode: repeating the delta would make the window larger on every re-pick.
+ *  Reconcile panes on every pick. */
 export function assembleChatOnboarding(id: string, tree: LayoutNode): void {
   const firstPick = $chatOnboardingSolo.get()
 

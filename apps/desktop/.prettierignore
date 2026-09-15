@@ -13,3 +13,6 @@ src/renderer/src/donor/**/*.jsonl
 # files in that tree — donor/README.md, donor/fonts/README.md — are formatted
 # normally; they are ours.
 src/renderer/src/donor/*/README.md
+# Their JSON (slash registry, the OpenRPC contract) is copied byte-identical with a
+# `<name>.json.provenance` sidecar (task 3.B5): reformatting would break the copy.
+src/renderer/src/donor/**/*.json

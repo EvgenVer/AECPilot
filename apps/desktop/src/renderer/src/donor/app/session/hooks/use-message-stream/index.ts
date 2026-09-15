@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/index.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -34,6 +34,7 @@ import {
   stripGeneratedImageEchoes
 } from '@/lib/generated-images'
 import { isTodoToolName, nextTodosFromToolEvent, parseTodoRevision } from '@/lib/todos'
+import type { ScopedServerRequest } from '@/store/gateway'
 import { dispatchNativeNotification } from '@/store/native-notifications'
 import { isDiskFullErrorMessage, notifyError } from '@/store/notifications'
 import { broadcastSessionsChanged } from '@/store/session-sync'
@@ -43,6 +44,7 @@ import { $todosBySession, setSessionTodos } from '@/store/todos'
 import type { ClientSessionState } from '../../../types'
 
 import { useGatewayEventHandler } from './gateway-event'
+import { handleServerRequest as dispatchServerRequest } from './gateway-event/server-requests'
 import { completionErrorText, delegateTaskPayloads, MAX_STREAM_FLUSH_GAP_MS, STREAM_DELTA_FLUSH_MS } from './utils'
 
 interface MessageStreamOptions {
@@ -890,11 +892,25 @@ export function useMessageStream({
     upsertToolCall
   })
 
+  // Server→client requests (clarify, approval, sudo, …) from every socket the
+  // registry owns. The request answers itself over the socket it arrived on,
+  // so no owner routing is involved here — only which card to show.
+  const handleServerRequest = useCallback(
+    (request: ScopedServerRequest): boolean =>
+      dispatchServerRequest(
+        request,
+        { activeSessionIdRef, sessionInterrupted, updateSessionState, upsertToolCall },
+        activeSessionIdRef.current
+      ),
+    [activeSessionIdRef, sessionInterrupted, updateSessionState, upsertToolCall]
+  )
+
   return {
     appendAssistantDelta,
     appendReasoningDelta,
     completeAssistantMessage,
     handleGatewayEvent,
+    handleServerRequest,
     finalizeInterimAssistantMessage,
     upsertToolCall
   }

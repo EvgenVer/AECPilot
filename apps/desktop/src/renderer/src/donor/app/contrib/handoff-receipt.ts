@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/handoff-receipt.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,11 +9,26 @@ import { readKey, writeJson, writeKey } from '@/lib/storage'
 
 import type { HandoffReceipt } from './handoff-leg'
 
-// A failed disk write still remembers the original identity for this window.
-// Nothing is submitted until the next save verifies durable persistence.
+// Holds the receipt in memory when the disk write fails, so this window still has the session identity.
+// saveHandoffReceipt throws when the write does not read back, so nothing is submitted without a saved receipt.
 const unsavedReceipts = new Map<string, HandoffReceipt>()
 
-/** A navigation/submit receipt, never a copy of either profile's memory. */
+export function markFirstBuildSession(storedId: string): void {
+  writeKey('hermes.onboarding.first-build.v1', storedId)
+}
+
+export function endFirstBuildConnect(storedId: string): void {
+  writeKey('hermes.onboarding.first-build.done.v1', storedId)
+}
+
+export function isFirstBuildSession(storedId: string | null | undefined): boolean {
+  return (
+    !!storedId &&
+    readKey('hermes.onboarding.first-build.v1') === storedId &&
+    readKey('hermes.onboarding.first-build.done.v1') !== storedId
+  )
+}
+
 export function handoffReceiptKey(connection: null | string, guideStoredId: string): string {
   return `hermes.onboarding.handoff.v1.connection.${encodeURIComponent(connection ?? 'ambient')}.profile.default.guide.${encodeURIComponent(guideStoredId)}`
 }
@@ -41,8 +56,8 @@ export function readHandoffReceipt(key: string): HandoffReceipt | null {
     )
   }
 
-  // JSON cannot encode a constructor function: only primitive strings have
-  // String as their constructor here. Validate without coercing corrupt ids.
+  // JSON cannot encode a constructor, so only a primitive string has String as its constructor here.
+  // Comparing constructors rejects a corrupt id instead of coercing it to text.
   const hasTextFields = [value?.storedId, value?.runtimeId, value?.task, value?.brief].every(
     field => field?.constructor === String
   )

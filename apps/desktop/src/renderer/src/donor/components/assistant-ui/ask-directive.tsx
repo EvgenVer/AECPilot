@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/ask-directive.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,6 +32,7 @@ import { useState } from 'react'
 
 import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import { useSessionView } from '@/app/chat/session-view'
+import { answeredAfter } from '@/lib/chat-messages/parts'
 import { cn } from '@/lib/utils'
 
 // Picked questions, module-scoped: transcript virtualization remounts
@@ -57,12 +58,20 @@ export function AskDirective({ attrs, streaming }: { attrs: Record<string, strin
   const wantsInput = attrs.input === 'true' || attrs.input === 'yes'
   const [picked, setPicked] = useState<null | string>(() => (settled.has(identity) ? '' : null))
 
+  // A typed reply answers the question too. The card only knew about its own
+  // buttons, so someone who answered in the composer came back to six live
+  // chips under a question they had already dealt with. Any user message
+  // after this one closes the ask.
+  const answeredInComposer = answeredAfter(useStore(view.$messages), messageId)
+
+  const closed = picked !== null || answeredInComposer
+
   if (!question || (options.length === 0 && !wantsInput)) {
     return null
   }
 
   const submit = (value: string) => {
-    if (picked !== null || streaming || !value.trim()) {
+    if (closed || streaming || !value.trim()) {
       return
     }
 
@@ -86,11 +95,11 @@ export function AskDirective({ attrs, streaming }: { attrs: Record<string, strin
                 'max-w-full shrink-0 rounded-full border px-3 py-1.5 text-left text-[12px] whitespace-normal wrap-anywhere transition-colors',
                 picked === option
                   ? 'border-primary bg-primary text-primary-foreground'
-                  : picked !== null
+                  : closed
                     ? 'border-border/60 text-muted-foreground/50'
                     : 'border-border bg-card hover:border-primary/50 hover:bg-primary/10'
               )}
-              disabled={picked !== null || streaming}
+              disabled={closed || streaming}
               key={option}
               onClick={() => submit(option)}
               type="button"

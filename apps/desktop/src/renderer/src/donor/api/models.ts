@@ -1,18 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/models.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { ModelOptionsResult } from '@hermes/shared'
+
 import type {
   AnalyticsResponse,
   AuxiliaryModelsResponse,
   MoaConfigResponse,
   ModelAssignmentRequest,
   ModelAssignmentResponse,
-  ModelInfoResponse,
-  ModelOptionsResponse
+  ModelInfoResponse
 } from '@/types/hermes'
 
 import { capabilityScoped, hermesApi, type ProfileScope, profileScoped, STARTUP_REQUEST_TIMEOUT_MS } from './client'
@@ -39,7 +40,7 @@ export function getGlobalModelOptions(
     explicitOnly?: boolean
   },
   profile?: null | string
-): Promise<ModelOptionsResponse> {
+): Promise<ModelOptionsResult> {
   const params = new URLSearchParams()
 
   if (opts?.refresh) {
@@ -54,7 +55,7 @@ export function getGlobalModelOptions(
     params.set('explicit_only', '1')
   }
 
-  return hermesApi<ModelOptionsResponse>({
+  return hermesApi<ModelOptionsResult>({
     ...profileScoped(profile),
     path: params.size > 0 ? `/api/model/options?${params.toString()}` : '/api/model/options',
     timeoutMs: STARTUP_REQUEST_TIMEOUT_MS

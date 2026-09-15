@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding-answers.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,11 @@ import { readJson, writeJson } from '@/lib/storage'
 
 export interface OnboardingAnswers {
   accent: null | string
+  /** Cards the user has already pressed Continue on. The card's own React
+   *  state dies on every transcript reconcile (the hidden submit and the
+   *  turn-end hydrate both rebuild the message list), so a Done button that
+   *  lived there came back live and let the step be answered twice. */
+  committed: string[]
   connectors: string[]
   context: string
   name: string
@@ -22,6 +27,7 @@ export const ANSWERS_KEY = 'hermes-onboarding-wizard-answers-v1'
 
 export const DEFAULT_ANSWERS: OnboardingAnswers = {
   accent: null,
+  committed: [],
   connectors: [],
   context: '',
   name: '',
@@ -35,6 +41,7 @@ export function loadAnswers(): OnboardingAnswers {
   // to personalization or written back on the next answer.
   return {
     accent: raw?.accent ?? DEFAULT_ANSWERS.accent,
+    committed: raw?.committed ?? [...DEFAULT_ANSWERS.committed],
     connectors: raw?.connectors ?? [...DEFAULT_ANSWERS.connectors],
     context: raw?.context ?? DEFAULT_ANSWERS.context,
     name: raw?.name ?? DEFAULT_ANSWERS.name,
@@ -49,4 +56,12 @@ export function setOnboardingAnswers(patch: Partial<OnboardingAnswers>): void {
 
   $onboardingAnswers.set(next)
   writeJson(ANSWERS_KEY, next)
+}
+
+export function markStepCommitted(step: string): void {
+  const { committed } = $onboardingAnswers.get()
+
+  if (!committed.includes(step)) {
+    setOnboardingAnswers({ committed: [...committed, step] })
+  }
 }

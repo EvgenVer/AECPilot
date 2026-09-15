@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/message-parts.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -39,6 +39,11 @@ import { $reasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
 
 type TimelineToolCallProps = ToolCallMessagePartProps & { completedAt?: number; timestamp?: number }
 
+// A call sealed without a result (turn stopped, completion event lost) is
+// neither pending nor successful; only the generic row can say so.
+const settledWithoutResult = ({ completedAt, result }: TimelineToolCallProps): boolean =>
+  result === undefined && completedAt !== undefined
+
 const ImageGenerateTool: FC<TimelineToolCallProps> = props => {
   const { args, completedAt, result, timestamp } = props
   const aspectRatio = typeof args?.aspect_ratio === 'string' ? args.aspect_ratio : undefined
@@ -46,7 +51,7 @@ const ImageGenerateTool: FC<TimelineToolCallProps> = props => {
   // The image card owns successful generations. Failed or malformed results
   // still need the normal tool row: it extracts the error text and gives the
   // user an honest, expandable failure rather than silently dropping the call.
-  if (result !== undefined && !generatedImageFromResult(result)) {
+  if (settledWithoutResult(props) || (result !== undefined && !generatedImageFromResult(result))) {
     return <ToolFallback {...props} />
   }
 
@@ -61,7 +66,7 @@ const ImageGenerateTool: FC<TimelineToolCallProps> = props => {
 const DelegateToolPart: FC<TimelineToolCallProps> = props => {
   // A call that failed outright dispatched nothing — there are no children to
   // list, only an error. The generic row extracts and expands it properly.
-  if (props.isError) {
+  if (props.isError || settledWithoutResult(props)) {
     return <ToolFallback {...props} />
   }
 
@@ -83,7 +88,7 @@ const ChainToolFallback: FC<TimelineToolCallProps> = props => {
   // compact "Messaged X" / "Message from X" notices, not a transcript row
   // (Grok-bots parity; the receiving side already renders notices via
   // AGENT_MESSAGE_RE). Non-delivery terminal calls fall through unchanged.
-  if (props.toolName === 'terminal' && !props.isError) {
+  if (props.toolName === 'terminal' && !props.isError && !settledWithoutResult(props)) {
     const command = typeof props.args?.command === 'string' ? props.args.command : ''
 
     if (deliveryTargetFromCommand(command)) {

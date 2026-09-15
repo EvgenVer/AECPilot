@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/index.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { ModelOptionProvider } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -16,6 +17,7 @@ import { Progress } from '@/components/ui/progress'
 import { getGlobalModelOptions } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Check, ChevronDown, ChevronLeft, KeyRound, Loader2 } from '@/lib/icons'
+import { isSubmitEnter } from '@/lib/ime'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
@@ -42,7 +44,7 @@ import {
   startProviderOAuth
 } from '@/store/onboarding'
 import { $onboardingSurfaces, onboardingSurfaceActive } from '@/store/onboarding-presence'
-import type { ModelOptionProvider, OAuthProvider } from '@/types/hermes'
+import type { OAuthProvider } from '@/types/hermes'
 
 import { DocsLink, FlowPanel, Status } from './flow'
 import { DecodedLabel } from './glyph'
@@ -819,7 +821,7 @@ export function ApiKeyForm({
           autoFocus
           className="font-mono"
           onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && void submit()}
+          onKeyDown={e => isSubmitEnter(e) && void submit()}
           placeholder={
             currentRedacted ??
             (alreadySet ? t.onboarding.replaceCurrent : option.placeholder || t.onboarding.pasteApiKey)
@@ -832,7 +834,7 @@ export function ApiKeyForm({
             autoComplete="off"
             className="font-mono"
             onChange={e => setLocalKey(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && void submit()}
+            onKeyDown={e => isSubmitEnter(e) && void submit()}
             placeholder={t.onboarding.localApiKeyPlaceholder}
             type="password"
             value={localKey}

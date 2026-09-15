@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/latest-actions.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,6 +41,8 @@ export function latestChatActions(actions: ChatActions): ChatActions {
     onAddUrl: (...args) => actions.onAddUrl(...args),
     onAttachDroppedItems: (...args) => actions.onAttachDroppedItems(...args),
     onAttachImageBlob: (...args) => actions.onAttachImageBlob(...args),
+    onAttachPastedText: latestOptional(() => actions.onAttachPastedText),
+    onAttachPrCommentUrl: latestOptional(() => actions.onAttachPrCommentUrl),
     onBranchInNewChat: latestOptional(() => actions.onBranchInNewChat),
     onCancel: (...args) => actions.onCancel(...args),
     onDeleteSelectedSession: (...args) => actions.onDeleteSelectedSession(...args),
@@ -55,6 +57,7 @@ export function latestChatActions(actions: ChatActions): ChatActions {
     onRestoreToMessage: latestOptional(() => actions.onRestoreToMessage),
     onRetryResume: (...args) => actions.onRetryResume(...args),
     onSteer: (...args) => actions.onSteer(...args),
+    onSteerHidden: latestOptional(() => actions.onSteerHidden),
     onSubmit: (...args) => actions.onSubmit(...args),
     onThreadMessagesChange: (...args) => actions.onThreadMessagesChange(...args),
     onToggleSelectedPin: (...args) => actions.onToggleSelectedPin(...args),

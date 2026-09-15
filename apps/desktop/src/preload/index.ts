@@ -15,11 +15,6 @@ const api: AecpilotApi = {
       body: options?.body,
       timeoutMs: options?.timeoutMs
     }),
-  respondApproval: (choice, all) => ipcRenderer.invoke('chat:respond-approval', choice, all),
-  respondClarify: (requestId, answer) =>
-    ipcRenderer.invoke('chat:respond-clarify', requestId, answer),
-  respondSecret: (requestId, value) => ipcRenderer.invoke('chat:respond-secret', requestId, value),
-  declineSudo: (requestId) => ipcRenderer.invoke('chat:decline-sudo', requestId),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
   getZoom: () => ipcRenderer.invoke('zoom:get'),
@@ -215,6 +210,7 @@ const api: AecpilotApi = {
     ipcRenderer.invoke('attachments:save-image', { bytes, extension }),
   readAttachmentDataUrl: (path) => ipcRenderer.invoke('attachments:read-data-url', { path }),
   saveClipboardImage: () => ipcRenderer.invoke('attachments:save-clipboard'),
+  savePastedText: (text) => ipcRenderer.invoke('attachments:save-paste', { text }),
   selectSavePath: (options) => ipcRenderer.invoke('dialog:select-save-path', options),
   saveImageOut: (source) => ipcRenderer.invoke('save:image', { source }),
   saveFileOut: (payload) => ipcRenderer.invoke('save:file', payload),
@@ -274,8 +270,6 @@ const api: AecpilotApi = {
   togglePlugin: (payload) => ipcRenderer.invoke('plugins:toggle', payload),
   listProcesses: () => ipcRenderer.invoke('processes:list'),
   killProcess: (payload) => ipcRenderer.invoke('processes:kill', payload),
-  respondTerminalRead: (requestId, text) =>
-    ipcRenderer.invoke('terminal:read-respond', { requestId, text }),
   checkRuntime: () => ipcRenderer.invoke('setup:runtime-check'),
   listSkills: () => ipcRenderer.invoke('skills:list'),
   reloadSkills: () => ipcRenderer.invoke('skills:reload'),
@@ -350,7 +344,15 @@ const api: AecpilotApi = {
       cb(payload)
     ipcRenderer.on('gateway:state', listener)
     return () => ipcRenderer.removeListener('gateway:state', listener)
-  }
+  },
+  onGatewayServerRequest: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
+      cb(payload)
+    ipcRenderer.on('gateway:server-request', listener)
+    return () => ipcRenderer.removeListener('gateway:server-request', listener)
+  },
+  respondGatewayServerRequest: (id, answer) =>
+    ipcRenderer.invoke('gateway:server-respond', { id, answer })
 }
 
 contextBridge.exposeInMainWorld('aecpilot', api)

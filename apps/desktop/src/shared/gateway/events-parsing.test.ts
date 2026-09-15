@@ -7,7 +7,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GatewayClient } from './client'
-import { isGatewayEventOfType, type GatewayEvent, type GatewayMethodMap } from './types'
+import {
+  isGatewayEventOfType,
+  type GatewayEvent,
+  type GatewayMethodMap,
+  type GatewayServerRequest
+} from './types'
 
 type Listener = (event: { data: string }) => void
 
@@ -515,26 +520,6 @@ describe('batch 6 events: terminal, processes, notifications', () => {
     }
   })
 
-  it('dispatches terminal.read.request with request_id and optional window', () => {
-    const { client, socket } = makeReady()
-    const events = collect(client)
-    socket.emit(frame('terminal.read.request', { request_id: 'r1', start: 10, count: 5 }))
-    // Their lambda only forwards the parameters the tool supplied, so a bare
-    // request is the normal case, not a malformed one.
-    socket.emit(frame('terminal.read.request', { request_id: 'r2' }))
-
-    const [first, second] = events.filter((e) => e.type === 'terminal.read.request')
-    if (isGatewayEventOfType(first, 'terminal.read.request')) {
-      expect(first.payload.request_id).toBe('r1')
-      expect(first.payload.start).toBe(10)
-      expect(first.payload.count).toBe(5)
-    }
-    if (isGatewayEventOfType(second, 'terminal.read.request')) {
-      expect(second.payload.start).toBeUndefined()
-      expect(second.payload.count).toBeUndefined()
-    }
-  })
-
   it('dispatches notification.show with the AgentNotice fields', () => {
     const { client, socket } = makeReady()
     const events = collect(client)
@@ -593,6 +578,150 @@ describe('batch 6 events: terminal, processes, notifications', () => {
   it('keeps process.stop out of the method map (decision R8)', () => {
     type StopIsAbsent = 'process.stop' extends keyof GatewayMethodMap ? never : true
     const absent: StopIsAbsent = true
+    expect(absent).toBe(true)
+  })
+})
+
+// Hermes 0.21.3 replaced the `<kind>.request` event + `<kind>.respond` method
+// pairs with requests the GATEWAY makes of the client (task 3.B5в,
+// `tui_gateway/server_requests.py`): a frame with a STRING id and a method,
+// answered by a response frame with that id. The main-process client is where
+// such a frame first lands, so this is where "it is not garbage" is pinned.
+describe('server→client requests (hermes 0.21.3)', () => {
+  const originalWebSocket = globalThis.WebSocket
+
+  afterEach(() => {
+    globalThis.WebSocket = originalWebSocket
+    FakeWebSocket.instances = []
+  })
+
+  function makeReady(): { client: GatewayClient; socket: FakeWebSocket } {
+    // @ts-expect-error — fake transport is intentionally not a full WebSocket
+    globalThis.WebSocket = FakeWebSocket
+    const client = new GatewayClient({ url: 'ws://fixture' })
+    void client.connect()
+    const socket = FakeWebSocket.instances[0]
+    socket.emit(frame('gateway.ready'))
+    return { client, socket }
+  }
+
+  function serverRequest(id: string, method: string, params: unknown): string {
+    return JSON.stringify({ jsonrpc: '2.0', id, method, params })
+  }
+
+  it('dispatches a request frame with its string id, method and params — not as garbage', () => {
+    const { client, socket } = makeReady()
+    const requests: GatewayServerRequest[] = []
+    const events: GatewayEvent[] = []
+    client.onServerRequest((r) => requests.push(r))
+    client.onEvent((e) => events.push(e))
+
+    socket.emit(
+      serverRequest('srq-0a1b2c3d4e5f', 'clarify', { session_id: 's1', question: 'Which?' })
+    )
+
+    expect(requests).toEqual([
+      {
+        id: 'srq-0a1b2c3d4e5f',
+        method: 'clarify',
+        params: { session_id: 's1', question: 'Which?' },
+        replayed: false
+      }
+    ])
+    // A request is not an event: the event listeners (subscribed after
+    // gateway.ready) saw nothing.
+    expect(events).toEqual([])
+  })
+
+  it('tolerates a request frame without params', () => {
+    const { client, socket } = makeReady()
+    const requests: GatewayServerRequest[] = []
+    client.onServerRequest((r) => requests.push(r))
+
+    socket.emit(JSON.stringify({ jsonrpc: '2.0', id: 'srq-1', method: 'window.read' }))
+
+    expect(requests[0]?.params).toEqual({})
+  })
+
+  it('answers with a response frame carrying the same id — and only once per id', () => {
+    const { client, socket } = makeReady()
+    socket.emit(serverRequest('srq-2', 'terminal.read', {}))
+
+    expect(client.respondToServerRequest('srq-2', { result: { value: '' } })).toBe(true)
+    expect(client.respondToServerRequest('srq-2', { result: { value: 'again' } })).toBe(false)
+
+    const answers = socket.sent.map((raw) => JSON.parse(raw) as { id: unknown })
+    expect(answers.filter((a) => a.id === 'srq-2')).toHaveLength(1)
+    expect(JSON.parse(socket.sent[socket.sent.length - 1])).toEqual({
+      jsonrpc: '2.0',
+      id: 'srq-2',
+      result: { value: '' }
+    })
+  })
+
+  it('answers with an error frame when asked to fail', () => {
+    const { client, socket } = makeReady()
+    socket.emit(serverRequest('srq-3', 'tour', {}))
+
+    client.respondToServerRequest('srq-3', { error: { code: -32601, message: 'no handler' } })
+
+    expect(JSON.parse(socket.sent[socket.sent.length - 1])).toEqual({
+      jsonrpc: '2.0',
+      id: 'srq-3',
+      error: { code: -32601, message: 'no handler' }
+    })
+  })
+
+  it('re-delivers open_requests from a resume result as replayed, before the result resolves', async () => {
+    const { client, socket } = makeReady()
+    const seen: string[] = []
+    client.onServerRequest((r) => seen.push(`${r.method}:${r.id}:${r.replayed}`))
+
+    const pending = client.request('session.resume', { session_id: 's1' })
+    const id = lastSentId(socket)
+    socket.emit(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        result: {
+          session_id: 's1',
+          open_requests: [
+            { id: 'srq-4', method: 'approval', params: { session_id: 's1', command: 'rm -rf x' } },
+            { id: 'not-a-request' },
+            'garbage'
+          ]
+        }
+      })
+    )
+
+    await pending
+    expect(seen).toEqual(['approval:srq-4:true'])
+    // The replayed id is open again on the gateway, so it can be answered even
+    // if an earlier generation of the same id had been.
+    expect(client.respondToServerRequest('srq-4', { result: { choice: 'deny' } })).toBe(true)
+  })
+
+  it('dispatches request.cancel as an ordinary event naming the id', () => {
+    const { client, socket } = makeReady()
+    const events: GatewayEvent[] = []
+    client.onEvent((e) => events.push(e))
+
+    socket.emit(
+      frame('request.cancel', { id: 'srq-5', method: 'clarify', reason: 'interrupted' }, 's1')
+    )
+
+    const cancel = events.find((e) => e.type === 'request.cancel')
+    expect(cancel).toBeDefined()
+    if (isGatewayEventOfType(cancel, 'request.cancel')) {
+      expect(cancel.payload.id).toBe('srq-5')
+      expect(cancel.payload.method).toBe('clarify')
+    }
+  })
+
+  it('keeps the four retired *.respond methods out of the method map', () => {
+    type Retired = 'clarify.respond' | 'secret.respond' | 'sudo.respond' | 'terminal.read.respond'
+    type Absent = Retired extends keyof GatewayMethodMap ? never : true
+    const absent: Absent = true
     expect(absent).toBe(true)
   })
 })

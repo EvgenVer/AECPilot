@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-events.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,7 +47,6 @@ export const UNSCOPED_STREAM_EVENT_TYPES = new Set([
   'thinking.delta',
   'tool.complete',
   'tool.generating',
-  'tool.progress',
   'tool.start',
   'vault.code.expire',
   'vault.code.request',

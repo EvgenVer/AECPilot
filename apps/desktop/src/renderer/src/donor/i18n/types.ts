@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/types.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: added 'ru' (SPEC C7 — our UI is en+ru)
@@ -69,6 +69,12 @@ export interface Translations {
     retry: string
     grant: string
     connected: string
+    checking: string
+    waitingSignIn: string
+    notConnected: string
+    notAvailable: string
+    startWith: (count: number) => string
+    startWithout: string
     skipped: string
     disabled: string
     failed: string
@@ -84,10 +90,9 @@ export interface Translations {
     ownerMissing: string
     search: string
     empty: string
-    continue: string
-    continueBusy: string
-    continueFailed: string
     disclaimer: string
+    connectTitle: (app: string) => string
+    describe: (app: string) => string
     execution: string
   }
   sessionImport: {
@@ -263,6 +268,9 @@ export interface Translations {
       errorMessage: (name: string) => string
       signIn: string
       view: string
+      disable: string
+      disabledMessage: (name: string) => string
+      disableFailed: (name: string) => string
     }
     errors: {
       elevenLabsNeedsKey: string
@@ -295,6 +303,10 @@ export interface Translations {
       transcriptionUnavailable: string
       tryRecordingAgain: string
       unavailable: string
+      liveEnded: string
+      liveError: string
+      liveDelegationFailed: string
+      liveUnavailable: (reason: string) => string
     }
     // Native OS notification copy (titles + generic fallback bodies). Dynamic
     // bodies (the agent's reply, a command, an error) are passed through raw.
@@ -657,6 +669,7 @@ export interface Translations {
       technicalDesc: string
       themeTitle: string
       themeDesc: string
+      themeSearchPlaceholder: string
       themeProfileNote: (profile: string) => string
       installTitle: string
       installDesc: string
@@ -707,6 +720,30 @@ export interface Translations {
     }
     fieldLabels: Record<string, string>
     fieldDescriptions: Record<string, string>
+    uninstallSection: {
+      dangerZone: string
+      confirmUninstall: string
+      uninstallHermes: string
+    }
+    poolLimits: {
+      warmBotBackendsAria: string
+      warmBotBackendsTitle: string
+      backendIdleTimeoutAria: string
+      backendIdleTimeoutTitle: string
+    }
+    customEndpoints: {
+      title: string
+      deleteEndpoint: string
+      emptyDescription: string
+      emptyTitle: string
+      namePlaceholder: string
+      contextPlaceholder: string
+    }
+    computerUse: {
+      accessibility: string
+      screenRecording: string
+      driverHealth: string
+    }
     about: {
       heading: string
       version: (value: string) => string
@@ -766,6 +803,7 @@ export interface Translations {
       attachmentSizeDesc: string
       attachmentSizeUnit: string
       attachmentSizeLabel: string
+      showOptions: string
     }
     quickEntry: {
       enabledTitle: string
@@ -1122,10 +1160,14 @@ export interface Translations {
       setToMain: string
       change: string
       autoUseMain: string
+      inheritMainEffort: string
       providerDefault: string
       fallbackAdd: string
       fallbackEmpty: string
       notInCatalog: string
+      moaTitle: string
+      moaPreset: string
+      moaAggregator: string
       tasks: Record<string, AuxTaskCopy>
     }
     localModels: {
@@ -1695,6 +1737,10 @@ export interface Translations {
     restartGateway: string
     openBrowser: string
     gatewayRestartFailed: string
+    sharedGatewayRestartTitle: string
+    sharedGatewayRestartDescription: (bots: string) => string
+    sharedGatewayRestartConfirm: string
+    sharedGatewayRestarted: (count: number) => string
     updateHermes: string
     reloadWindow: string
     actionRunning: string
@@ -1778,6 +1824,7 @@ export interface Translations {
     states: Record<string, string>
     unknown: string
     hintPendingRestart: string
+    sharedListenerUrl: string
     hintGatewayStopped: string
     credentialsSet: string
     needsSetup: string
@@ -1804,6 +1851,8 @@ export interface Translations {
     restartToApply: string
     setupSaved: (name: string) => string
     restartToReconnect: string
+    appliedLive: string
+    connectingLive: string
     keyCleared: (key: string) => string
     setupUpdated: (name: string) => string
     failedUpdate: (name: string) => string
@@ -2409,6 +2458,13 @@ export interface Translations {
     stopDictation: string
     transcribingDictation: string
     voiceControls: string
+    voiceEngine: string
+    voiceEngineChained: string
+    voiceEngineLive: string
+    voiceEngineLiveNeedsKey: string
+    voiceEngineChangeFailed: string
+    voiceEngineChainedShort: string
+    voiceEngineLiveShort: string
     voiceDictation: string
     speakReplies: string
     stopSpeakingReplies: string
@@ -2433,6 +2489,7 @@ export interface Translations {
     queuedPaused: (count: number) => string
     attachmentOnly: string
     emptyTurn: string
+    hiddenQueued: string
     attachments: (count: number) => string
     editingInComposer: string
     editingQueuedInComposer: string
@@ -2730,6 +2787,14 @@ export interface Translations {
    *  model is told to speak the user's language from its first real turn, and
    *  an English opener above a Japanese reply reads as two different agents.
    *  `nameSuggestion` offers the OS account name as a default. */
+  handoffTour: {
+    profileTitle: string
+    profileText: string
+    sessionsTitle: string
+    sessionsText: string
+    stayTitle: string
+    stayText: string
+  }
   guidedGreeting: {
     line: string
     nameSuggestion: (name: string) => string
@@ -3435,6 +3500,19 @@ export interface Translations {
       copyQuery: string
       copyFile: string
       copyPath: string
+      failedCalls: (count: number) => string
+      skillActivity: {
+        loading: string
+        loaded: string
+        loadFailed: string
+        readingResource: string
+        readResource: string
+        resourceFailed: string
+        listing: string
+        listed: string
+        listFailed: string
+        unavailable: string
+      }
       outputAlt: string
       rawResponse: string
       copyActivity: string
@@ -3447,6 +3525,7 @@ export interface Translations {
       statusRecovered: string
       statusDone: string
       /** Over-budget / rejected memory write title — not "Saved to memory". */
+      resultUnavailable: string
       memoryWriteNoted: string
       actions: {
         read: string
@@ -3574,6 +3653,8 @@ export interface Translations {
     imageAttach: string
     imageWriteFailed: string
     imageAttachFailed: string
+    pastedContent: string
+    pasteAttachFailed: string
     attachImages: string
     clipboard: string
     noClipboardImage: string

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/tips/use-tip-rotation.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -37,6 +37,7 @@ import { TIP_CATALOG } from '@/lib/tips/catalog'
 import { nextTip } from '@/lib/tips/rotation'
 import { $awaitingResponse, $busy } from '@/store/session'
 import { $activeTip, $lastTipId, $nextTipAt, $retiredTips, $tipsEnabled, $tipShownAt, showTip } from '@/store/tips'
+import { checkTutorialLifetime } from '@/store/tutorial-lifetime'
 
 import { offerLocalSetupTip } from './local-setup-offer'
 
@@ -75,6 +76,8 @@ export function useTipRotation(copy: Translations['tips']) {
   const navigate = useNavigate()
 
   useEffect(() => {
+    checkTutorialLifetime()
+
     let lastTypedAt = 0
     let settledAt = Date.now() + SETTLE_MIN_MS + Math.random() * SETTLE_SPREAD_MS
 
@@ -89,6 +92,8 @@ export function useTipRotation(copy: Translations['tips']) {
     }
 
     const offer = () => {
+      checkTutorialLifetime()
+
       if (!$tipsEnabled.get() || $activeTip.get()) {
         return
       }

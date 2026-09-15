@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-session-tile-delegate.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,7 @@ import {
   sessionTileOwnerRoute,
   setSessionTileDelegate
 } from '@/store/session-states'
-import type { SessionResumeResponse } from '@/types/hermes'
+import type { SessionResumeResult } from '@/types/hermes'
 
 import type { usePromptActions } from '../../session/hooks/use-prompt-actions'
 import { singleFlightSessionResume } from '../../session/hooks/use-prompt-actions/single-flight-resume'
@@ -48,7 +48,7 @@ type SessionStateCache = ReturnType<typeof useSessionStateCache>
 
 function mergeTileTranscript(
   previous: ChatMessage[],
-  prefetchMessages: SessionResumeResponse['messages'] | undefined,
+  prefetchMessages: SessionResumeResult['messages'] | undefined,
   streamId?: null | string
 ): ChatMessage[] {
   const prefetched = toChatMessages(prefetchMessages ?? [])
@@ -346,7 +346,7 @@ export function useSessionTileDelegate({
             assertSessionOwnerResolved(owner, { method: 'session.resume', sessionId: storedSessionId })
 
             return singleFlightSessionResume(storedSessionId, () =>
-              requestForSessionProfile<SessionResumeResponse>(owner, requestGateway, 'session.resume', {
+              requestForSessionProfile<SessionResumeResult>(owner, requestGateway, 'session.resume', {
                 session_id: storedSessionId,
                 cols: 96,
                 omit_messages: true,
