@@ -23,7 +23,6 @@ import path from 'node:path'
 import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-secret-9f8e7d6c'
-const A2A_DIR = path.join(HERMES_SRC_DIR, 'plugins', 'platforms', 'a2a')
 
 /** Ответ агента нарочно по-русски: настоящее уведомление нашего продукта
  * выглядит именно так, и если договорённость ломается на кириллице — она
@@ -59,8 +58,10 @@ function startReceiver() {
 async function sendFromCore(callbackUrl) {
   const script = [
     'import json, sys, types',
-    `sys.path.insert(0, ${JSON.stringify(A2A_DIR)})`,
-    'import security, protocol',
+    // 0.21.2 (задача 3.B4): `security.py` плагина теперь импортирует `gateway.*`,
+    // а тот — `tools.*` ядра. Каталог плагина в `sys.path[0]` подменял бы `tools`
+    // его же `tools.py` (циклический импорт) — поэтому импорт пакетом, как у ядра.
+    'from plugins.platforms.a2a import security, protocol',
     '',
     '# Отправка берётся у адаптера как есть. Импортировать весь adapter.py',
     '# дорого (он тянет ядро), поэтому вызывается его же последовательность',
@@ -86,6 +87,7 @@ async function sendFromCore(callbackUrl) {
   ].join('\n')
 
   const child = spawn(PYTHON_BIN, ['-c', script, callbackUrl, 'task-42', REPLY], {
+    cwd: HERMES_SRC_DIR,
     // Без этого Windows отдаёт stdout в кодировке консоли, и кириллица в
     // отчёте превращается в мусор — а сравнивать надо ровно те же байты.
     // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).

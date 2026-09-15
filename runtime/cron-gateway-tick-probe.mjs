@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { memoryEnv } from "./memory-config.mjs";
 import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 
 const JOB_NAME = "aecpilot-gateway-tick-probe";
@@ -109,8 +110,11 @@ async function main() {
     console.log(`задача заведена: ${jobId}\n`);
 
     console.log("поднимаем мессенджер-шлюз БЕЗ настроенных платформ…");
+    // Тот же процесс, что поднимает `cron-runner.ts` приложения, — и то же
+    // окружение памяти (D-85): без него `gateway run` включал телеметрию mem0
+    // и заводил `~/.mem0/migrations_qdrant` (замечено 2026-09-15).
     gateway = spawn(HERMES_BIN, ["gateway", "run"], {
-      env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR },
+      env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR, ...memoryEnv(HERMES_HOME_DIR) },
       stdio: ["ignore", "pipe", "pipe"]
     });
     gateway.stdout.on("data", (chunk) => (gatewayOutput += chunk.toString()));

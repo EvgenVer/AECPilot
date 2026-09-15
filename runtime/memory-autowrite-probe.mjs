@@ -92,7 +92,10 @@ const buildPy = (userText) => [
   "from plugins.memory import load_memory_provider",
   "p = load_memory_provider('mem0', register_skills=False)",
   "p.initialize(session_id='autowrite-probe', platform='tui', hermes_home=os.environ['HERMES_HOME'], agent_context='primary')",
-  "print('FILTER ' + json.dumps(p._read_filters(), ensure_ascii=False))",
+  // 0.21.2 (задача 3.B4): их `_read_filters()` растворён в вызове поиска —
+  // `search(query, filters={"user_id": self._user_id}, …)` (`plugins/memory/mem0/__init__.py`).
+  // Печатаем ровно тот словарь, что уходит в поиск, из того же поля.
+  "print('FILTER ' + json.dumps({'user_id': p._user_id}, ensure_ascii=False))",
   "m = MemoryManager()",
   "m.add_provider(p)",
   `m.sync_all(${JSON.stringify(userText)}, ${JSON.stringify(ASSISTANT_TEXT)})`,

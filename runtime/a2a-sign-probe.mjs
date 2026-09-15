@@ -37,8 +37,10 @@ const PAYLOAD = {
 function fromCore() {
   const script = [
     'import json, os, sys',
-    `sys.path.insert(0, ${JSON.stringify(path.join(HERMES_SRC_DIR, 'plugins', 'platforms', 'a2a'))})`,
-    'import security',
+    // 0.21.2 (задача 3.B4): `security.py` плагина теперь импортирует `gateway.*`,
+    // а тот — `tools.*` ядра. Каталог плагина в `sys.path[0]` подменял бы `tools`
+    // его же `tools.py` (циклический импорт) — поэтому импорт пакетом, как у ядра.
+    'from plugins.platforms.a2a import security',
     'payload = json.loads(sys.argv[1])',
     'print(json.dumps({',
     '  "signature": security.sign_push_payload(payload),',
@@ -50,6 +52,7 @@ function fromCore() {
   ].join('\n')
 
   const run = spawnSync(PYTHON_BIN, ['-c', script, JSON.stringify(PAYLOAD)], {
+    cwd: HERMES_SRC_DIR,
     encoding: 'utf-8',
     // HERMES_HOME — наш профиль, не умолчание ядра (D-86, см. tool-registry.mjs).
     env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR, A2A_PUSH_SECRET: SECRET }
