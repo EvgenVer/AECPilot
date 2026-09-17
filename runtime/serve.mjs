@@ -43,7 +43,9 @@ export { HERMES_HOME_DIR };
 
 // Fixed port, chosen free in the dev environment (default hermes port 9119
 // is left to any other local Hermes instance the user may run).
-export const SERVE_PORT = 18789;
+// `AEC_SERVE_PORT` (task 3F.1): the acceptance run boots a second app next to
+// the developer's own on a free port of its choosing. Unset in normal use.
+export const SERVE_PORT = Number(process.env.AEC_SERVE_PORT) || 18789;
 export const SERVE_HOST = "127.0.0.1";
 export const LOG_PATH = path.join(HERMES_HOME_DIR, "serve.log");
 

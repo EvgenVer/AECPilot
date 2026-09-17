@@ -54,7 +54,13 @@ export const HERMES_SRC_DIR = path.join(RUNTIME_DIR, ".hermes-src");
 
 // Isolated HERMES_HOME: keeps the dev profile out of the user's home
 // directory, so it never touches an existing personal Hermes install/profile.
-export const HERMES_HOME_DIR = path.join(RUNTIME_DIR, "dev-profile");
+// `AEC_HERMES_HOME` (task 3F.1) points the whole stack — the app's main process
+// and `serve.mjs` alike — at another profile: the acceptance run copies
+// dev-profile into a temporary folder and lets the app own its own core there,
+// exactly as it does for a person. Unset in normal use.
+export const HERMES_HOME_DIR = process.env.AEC_HERMES_HOME
+  ? path.resolve(process.env.AEC_HERMES_HOME)
+  : path.join(RUNTIME_DIR, "dev-profile");
 
 // POSIX branch untested in Phase 0 (dev target = Windows)
 const isWindows = process.platform === "win32";

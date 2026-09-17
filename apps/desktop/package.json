@@ -8,9 +8,11 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run",
-    "e2e": "electron-vite build && playwright test",
+    "e2e": "electron-vite build && playwright test --project smoke --project acceptance",
+    "e2e:smoke": "electron-vite build && playwright test --project smoke",
+    "e2e:acceptance": "electron-vite build && playwright test --project acceptance-live",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
