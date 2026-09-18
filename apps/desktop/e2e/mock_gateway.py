@@ -9,6 +9,7 @@ of the wire protocol to drive the chat panel through one full turn:
   rollback.list / rollback.diff -> two snapshots and one file's difference
     (task 3.3: the change-history pane is what Ctrl+G opens)
   prompt "artifact" -> a turn whose answer carries an HTML artifact fence
+  prompt "say: <text>" -> a turn whose answer is <text> verbatim (task 3F.4)
   the agent's questions to the window (read_preview, drive_preview, the
     tour, setup_mcp) are SERVER->CLIENT REQUESTS, the hermes 0.21.3 shape
     (task 3.B5в, `tui_gateway/server_requests.py`): a frame with a string
@@ -151,6 +152,8 @@ async def handle(connection: ServerConnection) -> None:
                 await stream_artifact_turn(connection)
             elif text.startswith("mcp"):
                 await stream_mcp_setup(connection)
+            elif text.startswith("say:"):
+                await stream_say(connection, text[4:].strip())
             else:
                 await stream_pong(connection)
         elif method == "rollback.list":
@@ -281,6 +284,28 @@ async def stream_pong(connection: ServerConnection) -> None:
     await push("message.delta", {"text": "PO"})
     await push("message.delta", {"text": "NG"})
     await push("message.complete", {"text": "PONG", "status": "complete"})
+
+
+async def stream_say(connection: ServerConnection, answer: str) -> None:
+    """Answer with the prompt's own text, verbatim (task 3F.4).
+
+    The acceptance run needs answers that CITE the sample documents —
+    `[src: <source_id>/ведомость.xlsx#Ведомость!C5]` — and the source id is
+    minted by the app when the folder is connected, so no canned answer can
+    carry it. The test composes the answer and sends it as `say: …`; this mock
+    just streams it back through the same three events a real turn uses.
+    """
+
+    async def push(event_type: str, payload: dict | None = None) -> None:
+        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        if payload is not None:
+            params["payload"] = payload
+        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
+        await asyncio.sleep(0.03)
+
+    await push("message.start")
+    await push("message.delta", {"text": answer})
+    await push("message.complete", {"text": answer, "status": "complete"})
 
 
 async def stream_mcp_setup(connection: ServerConnection) -> None:

@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { VaultExplorer } from './VaultExplorer'
@@ -89,6 +89,21 @@ async function clickRowAction(rowName: string, actionLabel: string) {
   })
 }
 
+/** Ответить окну «как назвать?» (`NamePrompt`): имя — ввести и подтвердить,
+ *  `null` — отказаться. Своё окно вместо `window.prompt`, которого в Electron
+ *  нет (дефект D-90). */
+async function answerName(name: string | null) {
+  const dialog = await screen.findByRole('dialog')
+  await act(async () => {
+    if (name === null) {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+      return
+    }
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: name } })
+    fireEvent.submit(dialog)
+  })
+}
+
 describe('VaultExplorer', () => {
   it('lists the vault root and keeps folders closed', async () => {
     renderExplorer()
@@ -114,12 +129,19 @@ describe('VaultExplorer', () => {
   })
 
   it('creates a file inside the folder it was asked from', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('новый.md')
+    // Дефект D-90: в Electron `window.prompt` не реализован и бросает — jsdom
+    // его подменял, и падение видел только человек. Здесь он ведёт себя как
+    // Electron, и проводник обязан спросить имя своим окном.
+    const prompt = vi.spyOn(window, 'prompt').mockImplementation(() => {
+      throw new Error('prompt() is not supported.')
+    })
     renderExplorer()
     await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
 
     await clickRowAction('docs', 'Новый файл')
+    await answerName('новый.md')
 
+    expect(prompt).not.toHaveBeenCalled()
     expect(createVaultFile).toHaveBeenCalledWith('docs', 'новый.md')
     // The tree is re-read rather than patched locally: main owns what the vault
     // contains, including what it refused to create.
@@ -127,12 +149,14 @@ describe('VaultExplorer', () => {
   })
 
   it('does nothing when the name prompt is dismissed', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue(null)
     renderExplorer()
     await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
 
     await clickRowAction('docs', 'Новая папка')
+    await answerName(null)
 
+    expect(createVaultDir).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(createVaultDir).not.toHaveBeenCalled()
   })
 
@@ -242,15 +266,18 @@ describe('VaultExplorer', () => {
   })
 
   it('renames through main, and not when the name is unchanged', async () => {
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('AGENTS.md')
     renderExplorer()
     await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
 
     await clickRowAction('AGENTS.md', 'Переименовать')
+    // Окно подставляет текущее имя — подтверждение без правки ничего не делает.
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('textbox').getAttribute('value')).toBe('AGENTS.md')
+    await answerName('AGENTS.md')
     expect(renameVaultEntry).not.toHaveBeenCalled()
 
-    prompt.mockReturnValue('ПРАВИЛА.md')
     await clickRowAction('AGENTS.md', 'Переименовать')
+    await answerName('ПРАВИЛА.md')
     expect(renameVaultEntry).toHaveBeenCalledWith('AGENTS.md', 'ПРАВИЛА.md')
   })
 })

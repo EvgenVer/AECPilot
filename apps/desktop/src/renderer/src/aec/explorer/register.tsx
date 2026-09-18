@@ -5,6 +5,7 @@
 //
 // Importing this module registers the pane; `main.tsx` does that once.
 
+import { revealTreePane } from '../../donor/components/pane-shell/tree/store'
 import { registry } from '../../donor/contrib/registry'
 import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
@@ -13,6 +14,7 @@ import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { IndexStatus } from '../index-status/IndexStatus'
 import { DocumentViewer } from '../viewers/DocumentViewer'
+import { setAfterOpenDocument } from '../viewers/viewer-store'
 import { ProjectMenu } from '../project/ProjectMenu'
 import { ScanWatcher } from '../scan/ScanWatcher'
 
@@ -99,3 +101,10 @@ registry.register({
   },
   render: () => <DocumentViewer />
 })
+
+// Opening a document is intent to SEE it. The right column starts collapsed,
+// and until task 3F.3 (D-91) a click in the tree or on a citation put the
+// document into a pane nobody could see. Their `revealTreePane` is the same
+// door their own preview tiles and ⌘G use: un-collapse the side, unhide the
+// tab, bring it to the front.
+setAfterOpenDocument(() => revealTreePane('aec-viewer'))

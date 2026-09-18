@@ -54,7 +54,8 @@ export const SAMPLE = {
   pdfSplitPhrase: 'СП 20.13330 нагрузки',
   brokenDir: 'битые',
   wikiPage: 'ТП-1',
-  notes: 'заметки.md'
+  notes: 'заметки.md',
+  sourceMd: 'README.md'
 } as const
 
 async function makeXlsx(folder: string): Promise<void> {
@@ -107,6 +108,9 @@ function makeVaultFiles(vault: string): void {
       '',
       `Питание от [[${SAMPLE.wikiPage}]], резерв — [[трансформаторная|${SAMPLE.wikiPage}]].`,
       '',
+      '- первый пункт',
+      '- второй пункт',
+      '',
       '| Линия | Длина |',
       '|---|---|',
       '| Л-1 | 12 м |',
@@ -147,6 +151,12 @@ export async function makeSampleVault(): Promise<SampleVault> {
   makeBroken(sourceA)
   makeVaultFiles(vault)
   writeFileSync(join(sourceB, 'протокол.txt'), 'Протокол совещания: решений нет.\n', 'utf-8')
+  // .md В ИСТОЧНИКЕ: открывается на чтение, а не в редакторе (блок 20, шаг 7).
+  writeFileSync(
+    join(sourceA, SAMPLE.sourceMd),
+    '# Описание источника\n\nПапка с документами проекта.\n',
+    'utf-8'
+  )
 
   return { root, vault, sourceA, sourceB }
 }

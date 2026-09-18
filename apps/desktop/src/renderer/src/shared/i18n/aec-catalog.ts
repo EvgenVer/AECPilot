@@ -17,6 +17,7 @@ export const aecLocales: PluginLocaleBundles = {
     common: {
       cancel: 'Cancel',
       close: 'Close',
+      ok: 'OK',
       retry: 'Retry',
       save: 'Save',
       loading: 'Loading…',
@@ -541,6 +542,7 @@ export const aecLocales: PluginLocaleBundles = {
     common: {
       cancel: 'Отмена',
       close: 'Закрыть',
+      ok: 'ОК',
       retry: 'Повторить',
       save: 'Сохранить',
       loading: 'Загрузка…',

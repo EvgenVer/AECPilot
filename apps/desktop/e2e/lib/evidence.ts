@@ -76,8 +76,21 @@ export async function record(
   // Из тела теста статус ещё не выставлен — значит проверки до этой строки
   // прошли; из `afterEach` — статус известен.
   const finished = testInfo.status !== undefined
+  // Ожидаемо красный тест (`test.fail()`, известный дефект) для Playwright
+  // «прошёл» — ожидание совпало. Для владельца это всё равно красная позиция:
+  // писать `pass` значило бы спрятать дефект в отчёте (замер 18.09.2026, 1.3.1).
+  const knownDefect = testInfo.expectedStatus === 'failed'
   const verdict: Verdict =
-    extra.verdict ?? (!finished || testInfo.status === testInfo.expectedStatus ? 'pass' : 'fail')
+    extra.verdict ??
+    (knownDefect || (finished && testInfo.status !== testInfo.expectedStatus) ? 'fail' : 'pass')
+  const note =
+    extra.note ??
+    (knownDefect
+      ? `ожидаемое падение: ${
+          testInfo.annotations.find((annotation) => annotation.type === 'fail')?.description ??
+          'известный дефект'
+        }`
+      : undefined)
   const shot = await shoot(page, position)
   appendEvidence({
     position,
@@ -85,7 +98,7 @@ export async function record(
     verdict,
     spec: testInfo.file.replace(/\\/g, '/').split('/e2e/').pop() ?? testInfo.file,
     at: new Date().toISOString(),
-    ...(extra.note ? { note: extra.note } : {}),
+    ...(note ? { note } : {}),
     ...(shot ? { shot } : {}),
     ...(extra.transcript ? { transcript: extra.transcript } : {})
   })

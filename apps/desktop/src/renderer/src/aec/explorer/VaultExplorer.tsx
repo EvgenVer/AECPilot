@@ -27,6 +27,7 @@ import type { VaultTreeNode } from '../../../../shared/ipc'
 import { openDocument } from '../viewers/viewer-store'
 
 import { splitBySearchQuery, subtreeMatchesSearchQuery } from './explorer-search-pure'
+import { NamePrompt } from './NamePrompt'
 import { SourcesPanel } from './SourcesPanel'
 
 /** Folders the user has opened. Collapsed is the default: a vault's top level
@@ -215,6 +216,14 @@ export function VaultExplorer() {
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
   const [actionError, setActionError] = useState<string | undefined>(undefined)
+  // Открытый вопрос «как назвать?» и тот, кто ждёт ответа. Обещание, а не
+  // колбэк в состоянии действия: `runAction` тогда читается как прежний
+  // линейный сценарий — спросил, получил, сделал.
+  const [namePrompt, setNamePrompt] = useState<{
+    message: string
+    initial: string
+    resolve: (name: string | null) => void
+  } | null>(null)
 
   // Задача 3.13b. Хранилище проекта — понятие ЭТОЙ машины: путь, который человек
   // выбрал в местном диалоге. Когда ядро работает на другой машине, агент правит
@@ -262,18 +271,31 @@ export function VaultExplorer() {
     async (action: 'newFile' | 'newDir' | 'rename' | 'delete', node: VaultTreeNode) => {
       setActionError(undefined)
 
-      // window.prompt/confirm are the platform's own modals — deliberate here:
-      // the alternative is a dialog per action, and these three questions carry
-      // no state worth a component. Replaced when the context menu lands.
-      const ask = (message: string, initial = '') => window.prompt(message, initial)?.trim()
+      // Имя спрашивает своё окно (`NamePrompt`): `window.prompt` в Electron не
+      // реализован и бросает исключение — дефект D-90, до него ни создание, ни
+      // переименование из проводника не работали. `window.confirm` Electron
+      // показывает, и удаление осталось на платформенном вопросе.
+      const ask = (message: string, initial = ''): Promise<string | undefined> =>
+        new Promise((resolve) =>
+          setNamePrompt({
+            message,
+            initial,
+            resolve: (answer) => {
+              setNamePrompt(null)
+              resolve(answer?.trim())
+            }
+          })
+        )
 
       let name: string | undefined
       if (action === 'newFile' || action === 'newDir') {
-        name = ask(action === 'newFile' ? t('explorer.newFilePrompt') : t('explorer.newDirPrompt'))
+        name = await ask(
+          action === 'newFile' ? t('explorer.newFilePrompt') : t('explorer.newDirPrompt')
+        )
         if (!name) return
       }
       if (action === 'rename') {
-        name = ask(t('explorer.renamePrompt'), node.name)
+        name = await ask(t('explorer.renamePrompt'), node.name)
         if (!name || name === node.name) return
       }
       if (action === 'delete' && !window.confirm(t('explorer.deleteConfirm'))) return
@@ -392,6 +414,14 @@ export function VaultExplorer() {
           halves of one question — what the agent may write, and what it may
           only read (SPEC N3). */}
       <SourcesPanel />
+
+      {namePrompt && (
+        <NamePrompt
+          initial={namePrompt.initial}
+          message={namePrompt.message}
+          onAnswer={namePrompt.resolve}
+        />
+      )}
     </div>
   )
 }

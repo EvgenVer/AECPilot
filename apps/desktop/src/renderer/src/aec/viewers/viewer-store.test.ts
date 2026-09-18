@@ -10,6 +10,7 @@ import {
   openDocument,
   requestedPage,
   selectDocument,
+  setAfterOpenDocument,
   tabKey
 } from './viewer-store'
 
@@ -18,11 +19,32 @@ import {
 
 beforeEach(() => {
   closeAllDocuments()
+  setAfterOpenDocument(null)
 })
 
 function open(relPath: string, page?: number, sourceId?: string): void {
   openDocument({ locator: page === undefined ? {} : { page }, relPath, sourceId })
 }
+
+describe('показ панели (D-91)', () => {
+  test('каждое открытие дёргает хук — и новая вкладка, и переезд по той же', () => {
+    let shown = 0
+    setAfterOpenDocument(() => {
+      shown += 1
+    })
+
+    open('ТУ.pdf', 3)
+    open('ТУ.pdf', 17)
+
+    expect(shown).toBe(2)
+  })
+
+  test('без хука открытие работает как раньше', () => {
+    open('ТУ.pdf')
+
+    expect($openDocument.get()?.relPath).toBe('ТУ.pdf')
+  })
+})
 
 describe('вкладки', () => {
   test('разные документы открываются рядом, последний — активный', () => {

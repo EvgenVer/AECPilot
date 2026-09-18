@@ -51,6 +51,9 @@ export interface Stand {
   mainOutput(): string
   mockOutput(): string
   waitForMockLine(pattern: RegExp, timeoutMs?: number): Promise<string>
+  /** Перезапуск приложения на тех же папках — для позиций «пережило
+   *  перезапуск». Возвращает новый `ElectronApplication`. */
+  relaunch(): Promise<ElectronApplication>
   close(): Promise<void>
 }
 
@@ -234,19 +237,26 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
   if (process.env.AEC_KEEP_PROFILE && profileDir) {
     console.warn(`[e2e] live профиль: ${profileDir} порт: ${servePort}`)
   }
-  const app = await _electron.launch({
-    args: ['.', `--user-data-dir=${userDataDir}`],
-    cwd: desktopDir,
-    env
-  })
 
-  // Окно рабочего размера: в низком окне нижние строки боковой панели
-  // перехватывает прокручиваемый контейнер (замер smoke, 3D.3).
-  await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1260 })
-  })
-  app.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
-  app.process().stderr?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
+  /** Поднять процесс приложения на тех же папках. Отдельной функцией, потому
+   *  что `relaunch()` делает ровно это второй раз. */
+  async function spawnApp(): Promise<ElectronApplication> {
+    const started = await _electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      cwd: desktopDir,
+      env
+    })
+    // Окно рабочего размера: в низком окне нижние строки боковой панели
+    // перехватывает прокручиваемый контейнер (замер smoke, 3D.3).
+    await started.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1260 })
+    })
+    started.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
+    started.process().stderr?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
+    return started
+  }
+
+  const app = await spawnApp()
 
   const stand: Stand = {
     mode: options.mode,
@@ -271,39 +281,49 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
       }
       throw new Error(`mock never printed ${pattern} — got:\n${stand.mockOutput()}`)
     },
+    /** Закрыть и поднять приложение заново НА ТЕХ ЖЕ папках: `userData` и
+     *  проект переживают перезапуск — именно это проверяют позиции вида
+     *  «выбор пережил перезапуск». Мок и профиль ядра не трогаются. */
+    async relaunch() {
+      await stopApp()
+      stand.app = await spawnApp()
+      return stand.app
+    },
     async close() {
-      const electronPid = app.process()?.pid
+      await stopApp()
       try {
-        await Promise.race([
-          app.close(),
-          new Promise((_resolve, reject) =>
-            setTimeout(() => reject(new Error('app.close() timed out')), closeGraceMs)
-          )
-        ])
-      } catch (error) {
-        console.warn(`[e2e] ${(error as Error).message} — force-killing Electron`)
-      } finally {
-        // Дерево целиком: в живом режиме ядро — дочерний процесс приложения.
-        killProcessTree(electronPid)
-        killProcessTree(mock?.proc.pid)
-        for (const pid of listElectronPids()) {
-          if (!preExisting.has(pid)) killProcessTree(pid)
+        mkdirSync(join(desktopDir, 'test-results'), { recursive: true })
+        writeFileSync(join(desktopDir, 'test-results', `${label}-main-output.log`), mainOutput)
+        if (mock) {
+          writeFileSync(join(desktopDir, 'test-results', `${label}-mock-output.log`), mock.output())
         }
-        try {
-          mkdirSync(join(desktopDir, 'test-results'), { recursive: true })
-          writeFileSync(join(desktopDir, 'test-results', `${label}-main-output.log`), mainOutput)
-          if (mock) {
-            writeFileSync(
-              join(desktopDir, 'test-results', `${label}-mock-output.log`),
-              mock.output()
-            )
-          }
-        } catch {
-          // журнал — не цель прогона
-        }
-        if (ownsProject) rmSync(projectDir, { force: true, recursive: true })
-        rmSync(userDataDir, { force: true, recursive: true })
-        if (ownsProfile && profileDir) removeProfile(profileDir)
+      } catch {
+        // журнал — не цель прогона
+      }
+      killProcessTree(mock?.proc.pid)
+      if (ownsProject) rmSync(projectDir, { force: true, recursive: true })
+      rmSync(userDataDir, { force: true, recursive: true })
+      if (ownsProfile && profileDir) removeProfile(profileDir)
+    }
+  }
+
+  /** Погасить текущий процесс приложения вместе с деревом (в живом режиме ядро
+   *  — его потомок) и добить всё, чего не было до старта стенда. */
+  async function stopApp(): Promise<void> {
+    const electronPid = stand.app.process()?.pid
+    try {
+      await Promise.race([
+        stand.app.close(),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('app.close() timed out')), closeGraceMs)
+        )
+      ])
+    } catch (error) {
+      console.warn(`[e2e] ${(error as Error).message} — force-killing Electron`)
+    } finally {
+      killProcessTree(electronPid)
+      for (const pid of listElectronPids()) {
+        if (!preExisting.has(pid)) killProcessTree(pid)
       }
     }
   }
