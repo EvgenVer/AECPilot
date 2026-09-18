@@ -380,7 +380,7 @@ export async function hideFirstRunSurfaces(page: Page): Promise<void> {
 export async function reviveStrandedSession(page: Page): Promise<Locator> {
   const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
   const stranded = page.getByRole('heading', {
-    name: /Couldn't load this session|Не удалось открыть эту сессию/
+    name: /Couldn't load this session|Не удалось (открыть эту сессию|загрузить этот сеанс)/
   })
   await expect(composer.or(stranded).first()).toBeVisible({ timeout: 60000 })
   if (await stranded.isVisible()) {

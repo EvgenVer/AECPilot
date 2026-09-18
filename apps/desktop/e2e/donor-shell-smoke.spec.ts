@@ -506,7 +506,7 @@ async function mainWindow(): Promise<Page> {
 async function reviveStrandedSession(page: Page): Promise<Locator> {
   const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
   const stranded = page.getByRole('heading', {
-    name: /Couldn't load this session|Не удалось открыть эту сессию/
+    name: /Couldn't load this session|Не удалось (открыть эту сессию|загрузить этот сеанс)/
   })
 
   // Ждать «КОМПОЗЕР ИЛИ ОТКАЗ», а не брать мгновенный снимок. Первая версия

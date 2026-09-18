@@ -28,10 +28,30 @@ import json
 import queue
 import sys
 
-from mock_rest import FORM_PAGE_SERVED, PREVIEW_OPEN_REQUESTS, serve_in_thread
+from mock_rest import FORM_PAGE_SERVED, PREVIEW_OPEN_REQUESTS, remember_message, serve_in_thread
 from websockets.asyncio.server import ServerConnection, serve
 
 SESSION_ID = "e2e-1"
+# What a live core puts into `session.info`: `DESKTOP_BACKEND_CONTRACT = 7`
+# (tui_gateway/server.py at the 0.21.3 pin). An empty `info` made the window
+# post a PERSISTENT «backend older than this build» warning that a real core
+# never shows — and its toast sat on top of the transcript, swallowing clicks
+# (task 3F.4, position 16.1.1).
+SESSION_INFO = {"desktop_contract": 7}
+# `session.create`/`session.resume` answer with BOTH ids the contract names
+# (`SessionCreateResult`): the runtime `session_id` and the durable
+# `stored_session_id`. Without the stored id the window has no route for the
+# chat, keys the composer by the runtime id, and its drift guard reads the
+# second send as "the user switched chats" and drops it on the floor
+# (`[submit-drift-abort] composer:e2e-1->null`, task 3F.4). One id for both —
+# the REST half lists the same `e2e-1` row, so the sidebar and the route agree.
+SESSION_RESULT = {
+    "session_id": SESSION_ID,
+    "stored_session_id": SESSION_ID,
+    "message_count": 0,
+    "messages": [],
+    "info": SESSION_INFO,
+}
 BT = "```"
 NL = "\n"
 
@@ -98,6 +118,7 @@ async def take_answer(connection: ServerConnection, frame: dict) -> None:
                 }
             )
         )
+        await settle_turn(connection, "")
         return
     print(f"{label} " + json.dumps(result.get("value") or ""), flush=True)
 
@@ -117,10 +138,13 @@ async def handle(connection: ServerConnection) -> None:
             continue
         request_id = request["id"]
         method = request["method"]
+        # Every RPC by name, so a failed test's stdout shows what the window
+        # actually asked (the polling `session.active_list` excluded).
+        if method != "session.active_list":
+            print("MOCK_RPC " + method, flush=True)
 
         if method == "session.create":
-            result = {"session_id": SESSION_ID, "messages": [], "info": {}}
-            response = {"jsonrpc": "2.0", "id": request_id, "result": result}
+            response = {"jsonrpc": "2.0", "id": request_id, "result": SESSION_RESULT}
             await connection.send(json.dumps(response))
         elif method == "session.resume":
             # Added 2026-09-08 after a FLAKE, not a theory: with no handler here
@@ -137,7 +161,7 @@ async def handle(connection: ServerConnection) -> None:
                     {
                         "jsonrpc": "2.0",
                         "id": request_id,
-                        "result": {"session_id": SESSION_ID, "messages": [], "info": {}},
+                        "result": SESSION_RESULT,
                     }
                 )
             )
@@ -146,6 +170,7 @@ async def handle(connection: ServerConnection) -> None:
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}})
             )
             text = (request.get("params") or {}).get("text") or ""
+            remember_message("user", text)
             if text.startswith("turn"):
                 await stream_full_turn(connection, text)
             elif text.startswith("artifact"):
@@ -272,6 +297,36 @@ async def handle(connection: ServerConnection) -> None:
             )
 
 
+async def settle_turn(connection: ServerConnection, answer: str) -> None:
+    """What a live core sends AFTER `message.complete`: the end-of-turn
+    `session.info` with `running: false` (`_emit_settled_session_info`,
+    tui_gateway/session_workdir.py at the 0.21.3 pin). The answer is also
+    written into the stored transcript the REST half serves.
+
+    The window releases `busy` on THIS event, not on `message.complete`. A mock
+    that stopped at `message.complete` left the window busy forever, and every
+    later message went down the steer path — accepted by nothing, shown
+    nowhere, the text still sitting in the composer (task 3F.4: no second
+    prompt in one session ever reached the mock).
+    """
+    if answer:
+        remember_message("assistant", answer)
+    await connection.send(
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "event",
+                "params": {
+                    "type": "session.info",
+                    "session_id": SESSION_ID,
+                    "payload": {"running": False, **SESSION_INFO},
+                },
+            }
+        )
+    )
+    await asyncio.sleep(0.03)
+
+
 async def stream_pong(connection: ServerConnection) -> None:
     async def push(event_type: str, payload: dict | None = None) -> None:
         params: dict = {"type": event_type, "session_id": SESSION_ID}
@@ -284,6 +339,7 @@ async def stream_pong(connection: ServerConnection) -> None:
     await push("message.delta", {"text": "PO"})
     await push("message.delta", {"text": "NG"})
     await push("message.complete", {"text": "PONG", "status": "complete"})
+    await settle_turn(connection, "PONG")
 
 
 async def stream_say(connection: ServerConnection, answer: str) -> None:
@@ -306,6 +362,7 @@ async def stream_say(connection: ServerConnection, answer: str) -> None:
     await push("message.start")
     await push("message.delta", {"text": answer})
     await push("message.complete", {"text": answer, "status": "complete"})
+    await settle_turn(connection, answer)
 
 
 async def stream_mcp_setup(connection: ServerConnection) -> None:
@@ -368,6 +425,7 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
         "message.complete",
         {"text": f"Готово: расхождение найдено ({prompt}).", "status": "complete"},
     )
+    await settle_turn(connection, f"Готово: расхождение найдено ({prompt}).")
 
 
 ARTIFACT_HTML = (
@@ -421,6 +479,7 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     await push("message.start")
     await push("message.delta", {"text": ARTIFACT_ANSWER})
     await push("message.complete", {"text": ARTIFACT_ANSWER, "status": "complete"})
+    await settle_turn(connection, ARTIFACT_ANSWER)
     asyncio.create_task(poll_preview_reads(connection))
 
 

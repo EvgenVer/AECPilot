@@ -166,11 +166,20 @@ export function parseCitations(text: string): Citation[] {
 
 /** The single citation a link label carries, or `null` if the label is not one.
  *  Used where the markdown renderer already isolated the label — a label that
- *  holds anything else is left to render as ordinary text. */
+ *  holds anything else is left to render as ordinary text.
+ *
+ *  Two spellings arrive here. A block attribute carries the citation whole,
+ *  `[src: …]`. The markdown renderer hands over the link TEXT of
+ *  `[src: …](#cite)` — and the link syntax has already eaten the brackets, so
+ *  what arrives is `src: …`. Until task 3F.4 (D-92) only the first spelling was
+ *  recognised, and a citation in an answer rendered as a bare link instead of
+ *  a chip. */
 export function parseCitationLabel(label: string): Citation | null {
-  const found = parseCitations(label)
+  const trimmed = label.trim()
+  const whole = trimmed.startsWith('[') ? trimmed : `[${trimmed}]`
+  const found = parseCitations(whole)
   if (found.length !== 1) return null
-  return found[0].raw.trim() === label.trim() ? found[0] : null
+  return found[0].raw === whole ? found[0] : null
 }
 
 /** What the citation says out loud, for the chip and for its tooltip: the file

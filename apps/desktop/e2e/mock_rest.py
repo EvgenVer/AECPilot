@@ -171,6 +171,22 @@ def _initial_sessions() -> list[dict]:
 _LOCK = threading.Lock()
 _SESSIONS: list[dict] = _initial_sessions()
 
+# The live session's stored transcript — what the core's DB holds and
+# `/api/sessions/{id}/messages` serves. The WS half appends a row per prompt
+# and per answer (`remember_message`). The window re-reads this after a turn
+# whose terminal frame carried no text (an `mcp.setup` refusal, an adopted
+# turn): served empty, that re-read wiped the transcript on screen, the
+# composer went with it, and the session pane ended stranded — every later
+# test that needed the composer died (task 3F.4, smoke «Ctrl+F»).
+_TRANSCRIPT: list[dict] = []
+
+
+def remember_message(role: str, text: str) -> None:
+    """One stored row, in the shape `db.get_messages` returns."""
+    with _LOCK:
+        _TRANSCRIPT.append({"role": role, "content": text, "timestamp": time.time()})
+
+
 # The vault the app has open. Their sidebar is PROJECT-SCOPED: with a project
 # open it shows only rows whose `cwd` belongs to it and prints "No sessions yet"
 # for everything else — which is what the first run of this mock produced, rows
@@ -474,8 +490,29 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, _page(_visible(self._archived()), self._limit()))
             return
 
-        if MESSAGES_PATH.match(route):
-            self._send(200, {"messages": []})
+        match = MESSAGES_PATH.match(route)
+
+        if match:
+            # Same envelope as `hermes_cli/web_routers/sessions.py`: rows in
+            # chronological order plus the pagination stamp. Paging itself
+            # is not modelled — the stand never holds more than a page.
+            query = self._query()
+            with _LOCK:
+                rows = [dict(row) for row in _TRANSCRIPT]
+            self._send(
+                200,
+                {
+                    "session_id": match.group(1),
+                    "profile": "default",
+                    "messages": rows,
+                    "pagination": {
+                        "limit": int(query.get("limit", ["500"])[0] or 500),
+                        "offset": 0,
+                        "order": query.get("order", ["latest"])[0],
+                        "returned": len(rows),
+                    },
+                },
+            )
             return
 
         # ОДНА СЕССИЯ ПО ИДЕНТИФИКАТОРУ — НАСТОЯЩАЯ ПРИЧИНА ЗАМЕЧАНИЯ D-82.

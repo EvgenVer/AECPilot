@@ -151,8 +151,19 @@ describe('parseCitationLabel', () => {
     expect(parseCitationLabel('  [src: tasks/задание.pdf#p12]  ')?.relPath).toBe('задание.pdf')
   })
 
+  it('accepts the link text the markdown renderer hands over — brackets eaten (D-92)', () => {
+    // `[src: …](#cite)` is a markdown link; its text is `src: …`. That is what
+    // `MarkdownLink` receives, and it has to become a chip all the same.
+    const citation = parseCitationLabel('src: tasks/задание.pdf#p12')
+    expect(citation?.relPath).toBe('задание.pdf')
+    expect(citation?.sourceId).toBe('tasks')
+    expect(citation?.locator.page).toBe(12)
+    expect(citation?.raw).toBe('[src: tasks/задание.pdf#p12]')
+  })
+
   it('refuses a label that carries anything else', () => {
     expect(parseCitationLabel('см. [src: tasks/задание.pdf#p12]')).toBeNull()
+    expect(parseCitationLabel('см. src: tasks/задание.pdf#p12')).toBeNull()
     expect(parseCitationLabel('[src: tasks/а.pdf] [src: tasks/б.pdf]')).toBeNull()
     expect(parseCitationLabel('обычная ссылка')).toBeNull()
   })

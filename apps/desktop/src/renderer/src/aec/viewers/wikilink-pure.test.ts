@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { findPage, findWikiLinks, linkAt, pageFileName } from './wikilink-pure'
+import { findPage, findWikiLinks, linkAt, pageFileName, unescapeWikiLinks } from './wikilink-pure'
 
 /** Задача 4.6. Ссылка вида `[[…]]` ведёт на страницу вики. Здесь проверяется
  *  разбор и переход; сама подсветка — украшение поверх текста и документ не
@@ -119,5 +119,17 @@ describe('поиск страницы в дереве vault', () => {
 
   test('нет страницы — null (её создадут)', () => {
     expect(findPage(tree, 'Щитовая.md')).toBeNull()
+  })
+})
+
+describe('unescapeWikiLinks (D-95)', () => {
+  test('экранированные сериализатором скобки возвращаются на место', () => {
+    expect(unescapeWikiLinks('см. \\[\\[ТП-1]] и \\[\\[а|б]].')).toBe('см. [[ТП-1]] и [[а|б]].')
+  })
+
+  test('одиночная скобка и обычный текст не трогаются', () => {
+    expect(unescapeWikiLinks('\\[не ссылка] и [[уже ссылка]]')).toBe(
+      '\\[не ссылка] и [[уже ссылка]]'
+    )
   })
 })

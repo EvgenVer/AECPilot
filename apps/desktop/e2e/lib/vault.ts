@@ -69,7 +69,11 @@ async function makeXlsx(folder: string): Promise<void> {
   sheet.addRow(['Итого', { formula: 'B3+B4', result: 32 }, null])
   // C5 — цель ссылки «Ведомость!C5» (блок 19): формула со значением.
   sheet.getCell('C5').value = { formula: 'B4+4', result: SAMPLE.xlsxFormulaValue }
-  sheet.getColumn(3).numFmt = 'yyyy-mm-dd'
+  // Формат даты — только на ячейках с датами. На весь столбец нельзя: C5 с
+  // числом 24 в столбце дат Excel (и просмотрщик вслед за ним) показывает как
+  // 1900-01-24 — и позиция 18.2.2 проверяла бы не формулу, а формат столбца.
+  sheet.getCell('C3').numFmt = 'yyyy-mm-dd'
+  sheet.getCell('C4').numFmt = 'yyyy-mm-dd'
   const second = book.addWorksheet(SAMPLE.xlsxSecondSheet)
   second.addRow(['Позиция', 'Кол-во'])
   second.addRow(['Автомат 16 А', 4])
@@ -114,6 +118,10 @@ function makeVaultFiles(vault: string): void {
       '| Линия | Длина |',
       '|---|---|',
       '| Л-1 | 12 м |',
+      '',
+      // Абзац после таблицы — намеренно: Ctrl+End в редакторе ведёт в конец
+      // документа, и без него «набрать в конце» значило бы набирать в ячейке.
+      'Конец заметок.',
       ''
     ].join('\n'),
     'utf-8'
