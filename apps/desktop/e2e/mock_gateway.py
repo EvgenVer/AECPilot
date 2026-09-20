@@ -10,6 +10,10 @@ of the wire protocol to drive the chat panel through one full turn:
     (task 3.3: the change-history pane is what Ctrl+G opens)
   prompt "artifact" -> a turn whose answer carries an HTML artifact fence
   prompt "say: <text>" -> a turn whose answer is <text> verbatim (task 3F.4)
+  prompt "edit: <relpath>" -> a turn that REALLY rewrites that file under the
+    stamped vault (first line replaced) through a `write_file` tool call, and
+    files a checkpoint for it: rollback.list/diff/restore then work on it,
+    restore writing the old content back (task 3F.6, blocks 8 and 25)
   the agent's questions to the window (read_preview, drive_preview, the
     tour, setup_mcp) are SERVER->CLIENT REQUESTS, the hermes 0.21.3 shape
     (task 3.B5в, `tui_gateway/server_requests.py`): a frame with a string
@@ -27,12 +31,16 @@ import asyncio
 import json
 import queue
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from mock_rest import (
     FORM_PAGE_SERVED,
     PREVIEW_OPEN_REQUESTS,
+    current_cwd,
     register_session,
     remember_message,
+    rollback_mode,
     serve_in_thread,
     transcript_messages,
     visible_sessions,
@@ -253,42 +261,68 @@ async def handle(connection: ServerConnection) -> None:
                 await stream_mcp_setup(connection)
             elif text.startswith("say:"):
                 await stream_say(connection, text[4:].strip())
+            elif text.startswith("edit:"):
+                await stream_edit_turn(connection, text[5:].strip())
             else:
                 await stream_pong(connection)
         elif method == "rollback.list":
-            # Two snapshots, newest first — the shape `list_checkpoints` gives
-            # THROUGH the gateway: hash, timestamp, and an always-empty message
-            # (their handler drops the core's reason/files_changed).
-            result = {
-                "enabled": True,
-                "checkpoints": [
-                    {
-                        "hash": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
-                        "timestamp": "2026-08-06T10:00:00+03:00",
-                        "message": "",
-                    },
-                    {
-                        "hash": "b2c3d4e5f60718293a4b5c6d7e8f90123456789a",
-                        "timestamp": "2026-08-06T09:00:00+03:00",
-                        "message": "",
-                    },
-                ],
-            }
+            # Newest first — the shape `list_checkpoints` gives THROUGH the
+            # gateway: hash, timestamp, and an always-empty message (their
+            # handler drops the core's reason/files_changed). The snapshots an
+            # `edit:` prompt took come before the static pair; the test's
+            # `PUT /api/_mock/rollback` can empty the list or switch it off.
+            mode = rollback_mode()
+            if mode == "disabled":
+                result = {"enabled": False, "checkpoints": []}
+            elif mode == "empty":
+                result = {"enabled": True, "checkpoints": []}
+            else:
+                result = {
+                    "enabled": True,
+                    "checkpoints": [
+                        {"hash": edit["hash"], "timestamp": edit["timestamp"], "message": ""}
+                        for edit in reversed(EDITS)
+                    ]
+                    + STATIC_CHECKPOINTS,
+                }
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
             )
         elif method == "rollback.diff":
-            result = {
-                "stat": " wiki/smeta.md | 2 +-",
-                "diff": (
-                    "diff --git a/wiki/smeta.md b/wiki/smeta.md\n"
-                    "--- a/wiki/smeta.md\n"
-                    "+++ b/wiki/smeta.md\n"
-                    "@@ -1 +1 @@\n"
-                    "-staroe znachenie\n"
-                    "+novoe znachenie\n"
-                ),
-            }
+            wanted = (request.get("params") or {}).get("hash")
+            edit = next((item for item in EDITS if item["hash"] == wanted), None)
+            if edit is None:
+                result = {"stat": STATIC_STAT, "diff": STATIC_DIFF}
+            else:
+                result = {"stat": edit["stat"], "diff": edit["diff"]}
+            await connection.send(
+                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+            )
+        elif method == "rollback.restore":
+            # The way back (positions 8.4.1, 25.4.2): the snapshot's content
+            # goes back on disk — for the whole snapshot or for the one file
+            # `file_path` names. The manager's own verdict travels as
+            # `success`, a refusal as `success: false` with `error`, exactly as
+            # the contract has it (specs/checkpoints-rollback.md).
+            params = request.get("params") or {}
+            wanted = params.get("hash")
+            file_path = params.get("file_path")
+            edit = next((item for item in EDITS if item["hash"] == wanted), None)
+            if edit is None and any(item["hash"] == wanted for item in STATIC_CHECKPOINTS):
+                result = {"success": True, "restored_to": str(wanted)[:8], "reason": ""}
+            elif edit is None:
+                result = {"success": False, "error": f"Checkpoint '{wanted}' not found"}
+            elif file_path is not None and file_path.replace("\\", "/") != edit["path"]:
+                result = {"success": False, "error": f"File '{file_path}' not in checkpoint"}
+            else:
+                Path(edit["abs_path"]).write_text(edit["before"], encoding="utf-8", newline="\n")
+                result = {
+                    "success": True,
+                    "restored_to": edit["hash"][:8],
+                    "reason": "",
+                    **({} if file_path is None else {"file": file_path}),
+                }
+            print(f"MOCK_RESTORE {json.dumps(result, ensure_ascii=False)}", flush=True)
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
             )
@@ -489,6 +523,120 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
         {"text": f"Готово: расхождение найдено ({prompt}).", "status": "complete"},
     )
     await settle_turn(connection, f"Готово: расхождение найдено ({prompt}).")
+
+
+# The two snapshots every earlier test knows (smoke «Ctrl+G», block 7): the
+# fixed dates make the list independent of the clock.
+STATIC_CHECKPOINTS = [
+    {
+        "hash": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+        "timestamp": "2026-08-06T10:00:00+03:00",
+        "message": "",
+    },
+    {
+        "hash": "b2c3d4e5f60718293a4b5c6d7e8f90123456789a",
+        "timestamp": "2026-08-06T09:00:00+03:00",
+        "message": "",
+    },
+]
+STATIC_STAT = " wiki/smeta.md | 2 +-"
+STATIC_DIFF = (
+    "diff --git a/wiki/smeta.md b/wiki/smeta.md\n"
+    "--- a/wiki/smeta.md\n"
+    "+++ b/wiki/smeta.md\n"
+    "@@ -1 +1 @@\n"
+    "-staroe znachenie\n"
+    "+novoe znachenie\n"
+)
+
+# Snapshots the `edit:` prompt took, oldest first: what `rollback.list` shows
+# on top of the static pair and what `rollback.restore` writes back.
+EDITS: list[dict] = []
+
+# What the agent writes in place of the file's first line.
+EDITED_LINE = "строка после правки агента"
+
+
+def _edit_diff(path: str, before: str, after: str) -> str:
+    """A unified diff of ONE replaced line — the shape git prints, which is
+    what the pane's parser reads (`parseDiffFiles`/`parseDiffLines`)."""
+    old_line = before.split("\n", 1)[0]
+    new_line = after.split("\n", 1)[0]
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        f"--- a/{path}\n"
+        f"+++ b/{path}\n"
+        "@@ -1 +1 @@\n"
+        f"-{old_line}\n"
+        f"+{new_line}\n"
+    )
+
+
+async def stream_edit_turn(connection: ServerConnection, relpath: str) -> None:
+    """A turn that REALLY edits a vault file (task 3F.6, blocks 8 and 25).
+
+    The core snapshots the directory BEFORE a file-edit tool runs and then
+    writes; the window learns of the edit from the tool events — `write_file`
+    with `args.path` and a result carrying `inline_diff` is what their
+    transcript folds into the «N файлов изменено» card (`changed-files.ts`,
+    `FILE_EDIT_TOOL_NAMES`). Both halves happen here: the file on disk changes
+    (first line replaced), and a checkpoint with the old content is filed so
+    `rollback.*` can show and undo exactly this edit.
+    """
+
+    async def push(event_type: str, payload: dict | None = None) -> None:
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
+        if payload is not None:
+            params["payload"] = payload
+        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
+        await asyncio.sleep(0.03)
+
+    cwd = current_cwd()
+    path = relpath.replace("\\", "/")
+    if not cwd or not path or path.startswith("/") or ".." in path.split("/"):
+        await stream_say(connection, f"Не могу править {relpath!r}: нет открытого проекта.")
+        return
+
+    target = Path(cwd) / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    before = target.read_text(encoding="utf-8") if target.exists() else ""
+    rest = before.split("\n", 1)
+    after = EDITED_LINE + ("\n" + rest[1] if len(rest) > 1 else "\n")
+    diff = _edit_diff(path, before, after)
+    stamp = datetime.now().astimezone().replace(microsecond=0).isoformat()
+    number = len(EDITS) + 1
+    edit = {
+        "hash": f"{number:08x}" + "e" * 32,
+        "timestamp": stamp,
+        "path": path,
+        "abs_path": str(target),
+        "before": before,
+        "after": after,
+        "diff": diff,
+        "stat": f" {path} | 2 +-",
+    }
+    EDITS.append(edit)
+
+    tool_id = f"call_edit_{number}"
+    await push("tool.start", {"tool_id": tool_id, "name": "write_file", "context": path})
+    # `newline`: the bytes the test wrote, not Windows line endings.
+    target.write_text(after, encoding="utf-8", newline="\n")
+    await push(
+        "tool.complete",
+        {
+            "tool_id": tool_id,
+            "name": "write_file",
+            "args": {"path": path, "content": after},
+            "duration_s": 0.11,
+            "result": json.dumps(
+                {"success": True, "path": path, "inline_diff": diff}, ensure_ascii=False
+            ),
+        },
+    )
+    answer = f"Готово: файл {path} изменён."
+    await push("message.delta", {"text": answer})
+    await push("message.complete", {"text": answer, "status": "complete"})
+    await settle_turn(connection, answer)
 
 
 ARTIFACT_HTML = (

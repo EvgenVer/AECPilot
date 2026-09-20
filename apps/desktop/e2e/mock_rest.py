@@ -19,9 +19,11 @@ Usage: imported by mock_gateway.py, which starts it on its own port and prints
 `MOCK_REST_READY <port>`.
 """
 
+import io
 import json
 import queue
 import re
+import tarfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -228,6 +230,24 @@ def transcript_messages(session_id: str) -> list[dict]:
 # this route.
 _CWD: str | None = None
 
+# Task 3F.6. What `rollback.list` over the socket answers: `normal` — the
+# static pair plus every snapshot an `edit:` prompt took; `empty` — checkpoints
+# on, none recorded (position 8.5.1: the screen must explain WHY the list is
+# empty, not show a blank); `disabled` — checkpoints off. Flipped by the test
+# over `PUT /api/_mock/rollback`, read by the socket half.
+_ROLLBACK_MODE = "normal"
+
+
+def current_cwd() -> str | None:
+    """The vault the fixture stamped — where an `edit:` prompt writes."""
+    with _LOCK:
+        return _CWD
+
+
+def rollback_mode() -> str:
+    with _LOCK:
+        return _ROLLBACK_MODE
+
 
 def _env_row(description: str, provider: str, label: str, redacted: str | None = None) -> dict:
     return {
@@ -245,6 +265,7 @@ def _env_row(description: str, provider: str, label: str, redacted: str | None =
 
 
 SESSION_PATH = re.compile(r"^/api/sessions/([^/]+)$")
+EXPORT_PATH = re.compile(r"^/api/profiles/([^/]+)/export$")
 MESSAGES_PATH = re.compile(r"^/api/sessions/([^/]+)/messages$")
 
 
@@ -655,11 +676,22 @@ class Handler(BaseHTTPRequestHandler):
         `_mock` segment so it can never be mistaken for a route we are pretending
         the core has.
         """
-        global _CWD
+        global _CWD, _ROLLBACK_MODE
 
         body = self._body()
+        route = urlparse(self.path).path
 
-        if urlparse(self.path).path != "/api/_mock/cwd":
+        if route == "/api/_mock/rollback":
+            mode = body.get("mode")
+            if mode not in ("normal", "empty", "disabled"):
+                self._send(400, {"detail": f"unknown rollback mode: {mode!r}"})
+                return
+            with _LOCK:
+                _ROLLBACK_MODE = mode
+            self._send(200, {"ok": True, "mode": mode})
+            return
+
+        if route != "/api/_mock/cwd":
             self._send(404, {"detail": "No such API endpoint"})
             return
         with _LOCK:
@@ -713,6 +745,30 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/profiles/active":
             self._send(200, {"ok": True, "active": "default"})
+            return
+
+        # Task 3F.6, position 26.6.3. `POST /api/profiles/{name}/export`: the
+        # core packs the profile into a `.tar.gz` AT THE PATH THE WINDOW NAMED
+        # (`output` — what the native save dialog returned) and answers with
+        # that path; the window then shows it in a notification. The archive
+        # here is real (a tar.gz the test can open), just tiny: one marker
+        # member plus the desktop overlay the window sends along.
+        match = EXPORT_PATH.match(route)
+
+        if match:
+            output = body.get("output") or ""
+            if not output:
+                self._send(400, {"detail": "output path required"})
+                return
+            with tarfile.open(output, "w:gz") as archive:
+                members = {"profile.txt": f"profile {match.group(1)}\n"}
+                members.update(body.get("extra_files") or {})
+                for name, text in members.items():
+                    data = str(text).encode("utf-8")
+                    info = tarfile.TarInfo(name=name)
+                    info.size = len(data)
+                    archive.addfile(info, io.BytesIO(data))
+            self._send(200, {"ok": True, "archive": output})
             return
 
         self._send(404, {"detail": f"No such API endpoint: {route}"})
