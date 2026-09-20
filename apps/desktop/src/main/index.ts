@@ -635,19 +635,22 @@ async function connectGateway(url: string): Promise<void> {
     // означал бы просьбу переслать то, что уже приходило (задача 3.B2г).
     replayWatermark = noteEvent(replayWatermark, event as GatewayEventFrame['params'])
 
-    // Only forward events for the active session, plus session-less
-    // events (e.g. `gateway.ready`, which carries no session_id).
     if (event.type === 'request.cancel') {
-      // Отзыв вопроса едет всем окнам, как и сам вопрос: карточку снимает
-      // то окно, которое её показало, а фильтр по сессии его бы не пропустил.
+      // Отзыв вопроса: карточку снимает то окно, которое её показало.
       const cancelled = event.payload as { id?: unknown } | undefined
       if (typeof cancelled?.id === 'string') serverRequestMethods.delete(cancelled.id)
-      broadcastToWindows('chat:event', event)
-      return
     }
-    if (event.session_id && event.session_id !== sessionId) return
+    // Все кадры, всем окнам (D-97, задача 3F.5). До 20.09.2026 здесь стоял
+    // фильтр «только сессия, которую завёл главный процесс» — наследие панели
+    // чата фазы 0. Их рендерер заводит сессии САМ, через `gateway:rpc`, и
+    // главный процесс их не знает: стоило `model:options` (карточка «С чего
+    // начать») завести свою сессию, как ответы в их чате переставали доезжать
+    // — ход висел на «загружает ответ» вечно. Мок прятал это, отвечая одним
+    // id на каждый `session.create`; вскрылось на моке с разными id. В их
+    // приложении сокет был у рендерера, и он видел все кадры — маршрутизация
+    // по сессии у них своя (плитки, фоновые сессии).
     rememberMcpStatus(event)
-    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+    broadcastToWindows('chat:event', event)
   })
   // Вопросы ядра окну (0.21.3, задача 3.B5в): уточнение, подтверждение команды,
   // секрет, sudo, чтение терминала/предпросмотра, согласие на MCP, шаг тура.

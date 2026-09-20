@@ -171,20 +171,53 @@ def _initial_sessions() -> list[dict]:
 _LOCK = threading.Lock()
 _SESSIONS: list[dict] = _initial_sessions()
 
-# The live session's stored transcript — what the core's DB holds and
+# Stored transcripts by session — what the core's DB holds and
 # `/api/sessions/{id}/messages` serves. The WS half appends a row per prompt
 # and per answer (`remember_message`). The window re-reads this after a turn
 # whose terminal frame carried no text (an `mcp.setup` refusal, an adopted
 # turn): served empty, that re-read wiped the transcript on screen, the
 # composer went with it, and the session pane ended stranded — every later
-# test that needed the composer died (task 3F.4, smoke «Ctrl+F»).
-_TRANSCRIPT: list[dict] = []
+# test that needed the composer died (task 3F.4, smoke «Ctrl+F»). It is also
+# what a session switch shows: the window resumes with `omit_messages` and
+# reads the transcript from here (task 3F.5, position 10.3.1).
+_TRANSCRIPTS: dict[str, list[dict]] = {}
 
 
-def remember_message(role: str, text: str) -> None:
-    """One stored row, in the shape `db.get_messages` returns."""
+def register_session(session_id: str) -> None:
+    """A row for a session the WS half just created, so the sidebar lists it
+    the way the core's DB would. Titled the way the core titles a fresh chat
+    until the first prompt names it (`remember_message`)."""
     with _LOCK:
-        _TRANSCRIPT.append({"role": role, "content": text, "timestamp": time.time()})
+        if any(row["id"] == session_id for row in _SESSIONS):
+            return
+        _SESSIONS.append(_session(session_id, "Новый сеанс", 0, messages=0))
+
+
+def remember_message(session_id: str, role: str, text: str) -> None:
+    """One stored row, in the shape `db.get_messages` returns. The session's
+    own row moves to the top of the list, as it does in the core."""
+    with _LOCK:
+        rows = _TRANSCRIPTS.setdefault(session_id, [])
+        rows.append({"role": role, "content": text, "timestamp": time.time()})
+        for row in _SESSIONS:
+            if row["id"] != session_id:
+                continue
+            row["last_active"] = time.time()
+            row["message_count"] = len(rows)
+            row["preview"] = text[:80]
+            if role == "user" and row["title"] == "Новый сеанс":
+                row["title"] = text[:60]
+
+
+def transcript_messages(session_id: str) -> list[dict]:
+    """The stored rows as `TranscriptMessage` (gateway contract): what a live
+    core hands back from `session.activate`/`session.resume` — the window
+    paints the history from this, not from the REST transcript."""
+    with _LOCK:
+        return [
+            {"role": row["role"], "text": row["content"], "timestamp": row["timestamp"]}
+            for row in _TRANSCRIPTS.get(session_id, [])
+        ]
 
 
 # The vault the app has open. Their sidebar is PROJECT-SCOPED: with a project
@@ -194,6 +227,22 @@ def remember_message(role: str, text: str) -> None:
 # creates the project, over plain HTTP; the app is not involved and never calls
 # this route.
 _CWD: str | None = None
+
+
+def _env_row(description: str, provider: str, label: str, redacted: str | None = None) -> dict:
+    return {
+        "advanced": False,
+        "category": "provider",
+        "description": description,
+        "is_password": True,
+        "is_set": redacted is not None,
+        "provider": provider,
+        "provider_label": label,
+        "redacted_value": redacted,
+        "tools": [],
+        "url": None,
+    }
+
 
 SESSION_PATH = re.compile(r"^/api/sessions/([^/]+)$")
 MESSAGES_PATH = re.compile(r"^/api/sessions/([^/]+)/messages$")
@@ -217,6 +266,21 @@ def _visible(archived_filter: str) -> list[dict]:
 
 def _page(rows: list[dict], limit: int) -> dict:
     return {"limit": limit, "offset": 0, "sessions": rows[:limit], "total": len(rows)}
+
+
+def visible_sessions() -> list[dict]:
+    """`session.list` over the socket: the same rows, in its own shape."""
+    return [
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "preview": row["preview"],
+            "started_at": row["started_at"],
+            "message_count": row["message_count"],
+            "source": "desktop",
+        }
+        for row in _visible("exclude")
+    ]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -469,6 +533,47 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, _CONFIG)
             return
 
+        # Задача 3F.5. Страницы настроек донора (Модель, Чат, Внешний вид,
+        # Дополнительно…) держатся на ДВУХ запросах: записи конфига и её схеме.
+        # Без схемы страница живёт ~7 секунд (пока их клиент повторяет
+        # запрос) и затем показывает «Не удалось загрузить настройки» — в
+        # зонде это выглядело как исправная страница. Схема пустая: поля из
+        # неё ни один тест не читает, а локальные выключатели (F12, не давать
+        # уснуть) от неё не зависят.
+        if route == "/api/config/schema":
+            self._send(200, {"category_order": [], "fields": {}})
+            return
+
+        # Задача 3F.5 (блок 7). Экраны «API-ключи» и «Инструменты и ключи»
+        # донора перечисляют переменные из `GET /api/env` — без ответа они
+        # показывают уведомление «Не удалось загрузить API-ключи» и пустой
+        # список. Форма строк — `EnvVarInfo` (`types/hermes.ts`), значения не
+        # заданы, кроме двух: ключи у нас лежат в safeStorage, а ядро читает
+        # только `.env`.
+        # Запись (`PUT`/`DELETE /api/env`) до мока не доезжает — её перехватывает
+        # главный процесс (`classifyEnvWrite`).
+        if route == "/api/env":
+            self._send(
+                200,
+                {
+                    # Один ключ ЗАДАН (в `.env` ядра): позиция 7.1.2 проверяет,
+                    # что и у заданного ключа нет «показать значение».
+                    "OPENAI_API_KEY": _env_row("OpenAI API key", "openai", "OpenAI", "sk-...cd12"),
+                    "ANTHROPIC_API_KEY": _env_row("Anthropic API key", "anthropic", "Anthropic"),
+                    "FIRECRAWL_API_KEY": {
+                        "advanced": False,
+                        "category": "tool",
+                        "description": "Firecrawl web extraction",
+                        "is_password": True,
+                        "is_set": True,
+                        "redacted_value": "fc-...9f1e",
+                        "tools": ["web_extract"],
+                        "url": "https://firecrawl.dev",
+                    },
+                },
+            )
+            return
+
         if route == "/api/config":
             # Their route strips the internal `_`-prefixed keys before answering.
             self._send(200, {k: v for k, v in _CONFIG.items() if not k.startswith("_")})
@@ -498,7 +603,7 @@ class Handler(BaseHTTPRequestHandler):
             # is not modelled — the stand never holds more than a page.
             query = self._query()
             with _LOCK:
-                rows = [dict(row) for row in _TRANSCRIPT]
+                rows = [dict(row) for row in _TRANSCRIPTS.get(match.group(1), [])]
             self._send(
                 200,
                 {

@@ -28,10 +28,48 @@ import json
 import queue
 import sys
 
-from mock_rest import FORM_PAGE_SERVED, PREVIEW_OPEN_REQUESTS, remember_message, serve_in_thread
+from mock_rest import (
+    FORM_PAGE_SERVED,
+    PREVIEW_OPEN_REQUESTS,
+    register_session,
+    remember_message,
+    serve_in_thread,
+    transcript_messages,
+    visible_sessions,
+)
 from websockets.asyncio.server import ServerConnection, serve
 
+# The first session — the one the REST half lists as «e2e» from the start.
+# Every `session.create` after it mints the next id (`e2e-2`, …), so a test can
+# hold two chats and switch between them (position 10.3.1). Events carry the
+# session the window last created, resumed or prompted in.
 SESSION_ID = "e2e-1"
+ACTIVE_SESSION = SESSION_ID
+_session_count = 0
+
+
+def new_session_id() -> str:
+    global _session_count, ACTIVE_SESSION
+    _session_count += 1
+    ACTIVE_SESSION = f"e2e-{_session_count}"
+    register_session(ACTIVE_SESSION)
+    return ACTIVE_SESSION
+
+
+def session_result(session_id: str) -> dict:
+    """`SessionCreateResult`: both ids the contract names, the contract stamp,
+    and the stored history — a session that already has turns comes back with
+    them, as it does from a live core (task 3F.5, position 10.3.1)."""
+    messages = transcript_messages(session_id)
+    return {
+        **SESSION_RESULT,
+        "session_id": session_id,
+        "stored_session_id": session_id,
+        "message_count": len(messages),
+        "messages": messages,
+    }
+
+
 # What a live core puts into `session.info`: `DESKTOP_BACKEND_CONTRACT = 7`
 # (tui_gateway/server.py at the 0.21.3 pin). An empty `info` made the window
 # post a PERSISTENT «backend older than this build» warning that a real core
@@ -82,7 +120,7 @@ async def ask(connection: ServerConnection, method: str, params: dict) -> str:
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "method": method,
-                "params": {"session_id": SESSION_ID, **params},
+                "params": {"session_id": ACTIVE_SESSION, **params},
             }
         )
     )
@@ -112,7 +150,7 @@ async def take_answer(connection: ServerConnection, frame: dict) -> None:
                     "method": "event",
                     "params": {
                         "type": "message.complete",
-                        "session_id": SESSION_ID,
+                        "session_id": ACTIVE_SESSION,
                         "payload": {"text": "", "status": "complete"},
                     },
                 }
@@ -124,6 +162,7 @@ async def take_answer(connection: ServerConnection, frame: dict) -> None:
 
 
 async def handle(connection: ServerConnection) -> None:
+    global ACTIVE_SESSION
     await connection.send(
         json.dumps({"jsonrpc": "2.0", "method": "event", "params": {"type": "gateway.ready"}})
     )
@@ -139,12 +178,25 @@ async def handle(connection: ServerConnection) -> None:
         request_id = request["id"]
         method = request["method"]
         # Every RPC by name, so a failed test's stdout shows what the window
-        # actually asked (the polling `session.active_list` excluded).
+        # actually asked (the polling `session.active_list` excluded). With the
+        # session it names and the command/text it carries: several sessions
+        # live in this mock at once (task 3F.5), and a turn that lands nowhere
+        # is unreadable without the id.
         if method != "session.active_list":
-            print("MOCK_RPC " + method, flush=True)
+            params = request.get("params") or {}
+            detail = " ".join(
+                f"{key}={str(params[key])[:40]!r}"
+                for key in ("session_id", "command", "text")
+                if isinstance(params.get(key), str)
+            )
+            print(f"MOCK_RPC {method} {detail}".rstrip(), flush=True)
 
         if method == "session.create":
-            response = {"jsonrpc": "2.0", "id": request_id, "result": SESSION_RESULT}
+            response = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": session_result(new_session_id()),
+            }
             await connection.send(json.dumps(response))
         elif method == "session.resume":
             # Added 2026-09-08 after a FLAKE, not a theory: with no handler here
@@ -156,12 +208,31 @@ async def handle(connection: ServerConnection) -> None:
             # so a mock without it makes the suite flaky by construction. A real
             # gateway rebinds the stored session; nothing to rebuild here — the
             # transcript lives in the window.
+            wanted = (request.get("params") or {}).get("session_id")
+            if isinstance(wanted, str) and wanted:
+                ACTIVE_SESSION = wanted
             await connection.send(
                 json.dumps(
                     {
                         "jsonrpc": "2.0",
                         "id": request_id,
-                        "result": SESSION_RESULT,
+                        "result": session_result(ACTIVE_SESSION),
+                    }
+                )
+            )
+        elif method == "session.activate":
+            # Switching to a session that is still LIVE in the gateway (their
+            # sidebar asks this, not `session.resume`, for a row it knows is
+            # running or was just left). Same answer: the ids and the history.
+            wanted = (request.get("params") or {}).get("session_id")
+            if isinstance(wanted, str) and wanted:
+                ACTIVE_SESSION = wanted
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": session_result(ACTIVE_SESSION),
                     }
                 )
             )
@@ -170,7 +241,10 @@ async def handle(connection: ServerConnection) -> None:
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}})
             )
             text = (request.get("params") or {}).get("text") or ""
-            remember_message("user", text)
+            target = (request.get("params") or {}).get("session_id")
+            if isinstance(target, str) and target:
+                ACTIVE_SESSION = target
+            remember_message(ACTIVE_SESSION, "user", text)
             if text.startswith("turn"):
                 await stream_full_turn(connection, text)
             elif text.startswith("artifact"):
@@ -231,18 +305,7 @@ async def handle(connection: ServerConnection) -> None:
                     {
                         "jsonrpc": "2.0",
                         "id": request_id,
-                        "result": {
-                            "sessions": [
-                                {
-                                    "id": SESSION_ID,
-                                    "title": "e2e",
-                                    "preview": "",
-                                    "started_at": 0,
-                                    "message_count": 0,
-                                    "source": "desktop",
-                                }
-                            ]
-                        },
+                        "result": {"sessions": visible_sessions()},
                     }
                 )
             )
@@ -310,7 +373,7 @@ async def settle_turn(connection: ServerConnection, answer: str) -> None:
     prompt in one session ever reached the mock).
     """
     if answer:
-        remember_message("assistant", answer)
+        remember_message(ACTIVE_SESSION, "assistant", answer)
     await connection.send(
         json.dumps(
             {
@@ -318,7 +381,7 @@ async def settle_turn(connection: ServerConnection, answer: str) -> None:
                 "method": "event",
                 "params": {
                     "type": "session.info",
-                    "session_id": SESSION_ID,
+                    "session_id": ACTIVE_SESSION,
                     "payload": {"running": False, **SESSION_INFO},
                 },
             }
@@ -329,7 +392,7 @@ async def settle_turn(connection: ServerConnection, answer: str) -> None:
 
 async def stream_pong(connection: ServerConnection) -> None:
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
         if payload is not None:
             params["payload"] = payload
         await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
@@ -353,7 +416,7 @@ async def stream_say(connection: ServerConnection, answer: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
         if payload is not None:
             params["payload"] = payload
         await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
@@ -374,7 +437,7 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
         if payload is not None:
             params["payload"] = payload
         await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
@@ -400,7 +463,7 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
         if payload is not None:
             params["payload"] = payload
         await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
@@ -470,7 +533,7 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     into an artifact card, and the card into a sandboxed preview tab (UR22)."""
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": SESSION_ID}
+        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
         if payload is not None:
             params["payload"] = payload
         await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
@@ -511,7 +574,7 @@ async def push_preview_open(connection: ServerConnection) -> None:
                         "method": "event",
                         "params": {
                             "type": "preview.open",
-                            "session_id": SESSION_ID,
+                            "session_id": ACTIVE_SESSION,
                             "payload": {"url": url},
                         },
                     }

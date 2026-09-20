@@ -48,6 +48,10 @@ import { registerQuoteCheck } from './aec/citations/register-quote-check'
 import { registerChangesPane } from './aec/rollback/register-changes-pane'
 import { registerTranscriptBlocks } from './aec/transcript-blocks/register-blocks'
 import { installVisibleTurns } from './aec/transcript-blocks/visible-turns'
+import {
+  enableComposerSpellcheck,
+  installContextMenuHitTestGuard
+} from './aec/context-menu/hit-test-guard'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerMemoryScreen } from './aec/memory/register'
@@ -91,6 +95,13 @@ registerTranscriptBlocks()
 // Ставится до первого рендера — их обработчик подписывается позже, когда
 // монтируется композер, и наш перехват обязан быть в очереди первым.
 installVisibleTurns()
+
+// Задача 3F.5 (D-96, UR37): факты правого клика — слово с ошибкой, картинка —
+// доезжают до их меню. Тоже до первого рендера и по той же причине: их
+// слушатель `contextmenu` открывает меню под курсором синхронно, и наш обязан
+// стоять перед ним.
+installContextMenuHitTestGuard()
+enableComposerSpellcheck()
 
 // Their provider stack, in their order (main.tsx at DONOR_SHA), with two
 // substitutions: our i18n provider stands in for theirs (same component

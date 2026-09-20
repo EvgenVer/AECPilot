@@ -4,7 +4,8 @@
  * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] removed the reveal action — plaintext credential read-back (R2)
+ *   [3] removed the reveal action — plaintext credential read-back (R2); the
+ *       actions menu no longer offers it either (`showReveal: false`, 3F.5)
  * (no other edits)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -184,7 +185,10 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarField
     onClear: () => void handleClear(),
     onEdit: () => setEditing(true),
     onManageKeys: openInKeys,
-    onReveal: () => void handleReveal()
+    onReveal: () => void handleReveal(),
+    // EDIT [3]: the menu row itself. Without this a SET var still listed
+    // "Reveal value" — a verb whose handler above can only hide.
+    showReveal: false
   }
 
   return (
