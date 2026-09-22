@@ -273,7 +273,10 @@ interface ServeModule {
     extraEnv?: Record<string, string>
   }) => Promise<ServeHandle>
   waitHealthy: (handle: ServeHandle, timeoutMs?: number) => Promise<unknown>
-  stopServe: (handle: ServeHandle, opts?: { gracefulTimeoutMs?: number }) => Promise<void>
+  stopServe: (
+    handle: ServeHandle,
+    opts?: { gracefulTimeoutMs?: number; portTimeoutMs?: number }
+  ) => Promise<void>
   HERMES_HOME_DIR: string
 }
 

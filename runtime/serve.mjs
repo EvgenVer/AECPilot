@@ -271,45 +271,77 @@ export function waitHealthy(serveHandle, timeoutMs = HEALTH_TIMEOUT_MS) {
   });
 }
 
+/** Ждёт, пока порт действительно освободится. */
+async function waitPortFree(port, host, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await isPortFree(port, host)) {
+      return true;
+    }
+    if (Date.now() >= deadline) {
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
 /**
- * Stops a hermes serve process started by startServe(). Tries a graceful
- * kill first, then falls back to `taskkill /PID <pid> /T /F` on Windows to
- * make sure child processes (hermes.exe spawns a python.exe that actually
- * listens on the port) don't linger.
+ * Stops a hermes serve process started by startServe().
+ *
+ * ПОЧЕМУ НА WINDOWS СРАЗУ ДЕРЕВО (находка D-106, задача 3F.8). `hermes.exe` —
+ * это запускатель: порт слушает его потомок `python.exe`. `proc.kill()` убивает
+ * только запускатель, тот выходит за миллисекунды, ожидание «процесс вышел»
+ * считается выполненным — а питон живёт дальше и держит порт. Следующий
+ * `startServe` упирался в «port … is already in use» и отказывался стартовать;
+ * человек это видел как «не удалось сохранить ключ» с английской строкой ядра.
+ * Прежний `taskkill /T` стоял только в ветке ТАЙМАУТА, то есть срабатывал ровно
+ * тогда, когда уже не мог помочь: после выхода родителя его потомки
+ * переподчиняются, и дерева по этому pid больше нет.
+ *
+ * Поэтому на Windows дерево гасится ПЕРВЫМ делом, пока родитель ещё жив и
+ * связь «родитель → потомок» цела. И в любом случае ждём, пока порт отпустят:
+ * «процесс вышел» и «порт свободен» — разные события, а стартует следующий по
+ * второму.
  */
-export async function stopServe(serveHandle, { gracefulTimeoutMs = 5000 } = {}) {
-  const { proc } = serveHandle;
+export async function stopServe(serveHandle, { gracefulTimeoutMs = 5000, portTimeoutMs = 15000 } = {}) {
+  const { proc, port = SERVE_PORT, host = SERVE_HOST } = serveHandle;
   if (!proc.pid) {
     return; // spawn never produced a live process — nothing to stop
   }
-  if (proc.exitCode !== null || proc.signalCode !== null) {
-    return; // already exited
+  if (proc.exitCode === null && proc.signalCode === null) {
+    // Race all three: 'exit' is the normal case, but a process that never
+    // truly started (spawn error after the pid was assigned) may only emit
+    // 'error', and 'close' is the more definitive "stdio streams are done"
+    // signal — whichever fires first means the process is no longer live.
+    const exited = new Promise((resolve) => {
+      proc.once("exit", resolve);
+      proc.once("close", resolve);
+      proc.once("error", resolve);
+    });
+
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      proc.kill();
+    }
+
+    const timedOut = await Promise.race([
+      exited.then(() => false),
+      new Promise((resolve) => setTimeout(() => resolve(true), gracefulTimeoutMs)),
+    ]);
+
+    if (timedOut && process.platform === "win32") {
+      appendLog(`stop timed out for pid=${proc.pid}, taskkill /T /F once more`);
+      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+      await exited;
+    } else if (timedOut) {
+      proc.kill("SIGKILL");
+      await exited;
+    }
   }
 
-  // Race all three: 'exit' is the normal case, but a process that never
-  // truly started (spawn error after the pid was assigned) may only emit
-  // 'error', and 'close' is the more definitive "stdio streams are done"
-  // signal — whichever fires first means the process is no longer live.
-  const exited = new Promise((resolve) => {
-    proc.once("exit", resolve);
-    proc.once("close", resolve);
-    proc.once("error", resolve);
-  });
-
-  proc.kill();
-
-  const timedOut = await Promise.race([
-    exited.then(() => false),
-    new Promise((resolve) => setTimeout(() => resolve(true), gracefulTimeoutMs)),
-  ]);
-
-  if (timedOut && process.platform === "win32" && proc.pid) {
-    appendLog(`graceful stop timed out for pid=${proc.pid}, falling back to taskkill /T /F`);
-    spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
-    await exited;
-  } else if (timedOut && proc.pid) {
-    proc.kill("SIGKILL");
-    await exited;
+  if (!(await waitPortFree(port, host, portTimeoutMs))) {
+    appendLog(`port ${port} still busy ${portTimeoutMs}ms after stopping pid=${proc.pid}`);
   }
 }
 
