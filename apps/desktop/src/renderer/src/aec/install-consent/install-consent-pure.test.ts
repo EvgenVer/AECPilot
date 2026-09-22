@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { envKeysOf, installBeingRequested, requiredToolsOf } from './install-consent-pure'
+import {
+  envKeysOf,
+  installBeingRequested,
+  mcpPutRequest,
+  mcpServersBeingInstalled,
+  requiredToolsOf
+} from './install-consent-pure'
 
 describe('что считается установкой', () => {
   it('скил из хаба', () => {
@@ -118,5 +124,70 @@ describe('переменные окружения сервера', () => {
   it('мусор — пустой список', () => {
     expect(envKeysOf(null)).toEqual([])
     expect(envKeysOf(['a'])).toEqual([])
+  })
+})
+
+describe('сохранение всей записи MCP — установка руками (D-101)', () => {
+  const known = {
+    'aec-sources': { command: 'aec-sources.exe', args: ['--project', 'p.json'], env: {} }
+  }
+
+  it('новый сервер в записи — установка, и видно, что запустится', () => {
+    const changed = mcpServersBeingInstalled(known, {
+      ...known,
+      filesystem: { command: 'npx', args: ['-y', 'mcp-filesystem'], env: { API_KEY: 'sk-secret' } }
+    })
+
+    expect(changed).toEqual([
+      { name: 'filesystem', command: 'npx -y mcp-filesystem', envKeys: ['API_KEY'] }
+    ])
+    expect(mcpPutRequest(changed)).toEqual({
+      kind: 'mcp-server',
+      label: 'filesystem',
+      command: 'npx -y mcp-filesystem',
+      envKeys: ['API_KEY']
+    })
+  })
+
+  it('та же запись — не установка: сохранение без изменений ничего не спрашивает', () => {
+    expect(mcpServersBeingInstalled(known, { ...known })).toEqual([])
+    expect(mcpPutRequest([])).toBeNull()
+  })
+
+  it('порядок ключей в записи не считается изменением', () => {
+    const reordered = {
+      'aec-sources': { args: ['--project', 'p.json'], command: 'aec-sources.exe', env: {} }
+    }
+    expect(mcpServersBeingInstalled(known, reordered)).toEqual([])
+  })
+
+  it('смена команды у известного сервера — тоже установка', () => {
+    const changed = mcpServersBeingInstalled(known, {
+      'aec-sources': { command: 'other.exe', args: [], env: {} }
+    })
+    expect(changed.map((server) => server.name)).toEqual(['aec-sources'])
+  })
+
+  it('удаление сервера ничего не спрашивает — это меньше прав, а не больше', () => {
+    expect(mcpServersBeingInstalled(known, {})).toEqual([])
+  })
+
+  it('несколько новых серверов — один вопрос, команды по строкам', () => {
+    const changed = mcpServersBeingInstalled(
+      {},
+      { a: { command: 'a.exe' }, b: { url: 'https://b.example/mcp' } }
+    )
+    expect(mcpPutRequest(changed)).toMatchObject({
+      label: 'a, b',
+      command: ['a: a.exe', 'b: https://b.example/mcp'].join('\n')
+    })
+  })
+
+  it('значения переменных в вопрос не попадают — только имена', () => {
+    const changed = mcpServersBeingInstalled(
+      {},
+      { x: { command: 'x.exe', env: { KEY: 'sk-secret' } } }
+    )
+    expect(JSON.stringify(mcpPutRequest(changed))).not.toContain('sk-secret')
   })
 })

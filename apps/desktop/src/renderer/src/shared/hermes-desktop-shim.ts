@@ -35,7 +35,11 @@ import {
 } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
 import { agentInstallInFlight } from '../aec/install-consent/agent-initiated'
-import { installBeingRequested } from '../aec/install-consent/install-consent-pure'
+import {
+  installBeingRequested,
+  mcpPutRequest,
+  mcpServersBeingInstalled
+} from '../aec/install-consent/install-consent-pure'
 import { askInstallConsent } from '../aec/install-consent/store'
 import { cronContinuityEnabled } from '../aec/cron-continuity/store'
 import { withContinuity } from '../aec/cron-continuity/continuity-pure'
@@ -198,6 +202,85 @@ function connectionFailure(message: string | undefined, sshError: string | undef
 
 const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
+/** Путь без запроса и хвостовых косых — чтобы сравнивать с маршрутом. */
+function restPath(path: string): string {
+  return path.split('?')[0].replace(/\/+$/, '')
+}
+
+/** Сохранение всей записи MCP через наш гейт (D-101).
+ *
+ * Прежняя запись читается у ядра тем же мостом: сравнивать надо с тем, что
+ * ДЕЙСТВИТЕЛЬНО стоит, а не с тем, что редактор считает исходным — черновик
+ * мог разойтись с ядром (каталожная установка, правка из другого окна). Если
+ * прочитать не удалось, спрашивается обо всех серверах записи: лучше лишний
+ * вопрос, чем запуск процесса молча. */
+async function askMcpPutConsent<T>(request: {
+  path: string
+  body?: unknown
+  timeoutMs?: number
+}): Promise<T> {
+  const next = (request.body as { servers?: Record<string, Record<string, unknown>> } | undefined)
+    ?.servers
+  let previous: Record<string, Record<string, unknown>> | undefined
+
+  try {
+    const current = await gatewayBridge().rest<{
+      servers?: { name?: string; command?: string; url?: string; args?: string[] }[]
+    }>('/api/mcp/servers')
+    previous = Object.fromEntries(
+      (current.servers ?? [])
+        .filter((server) => typeof server.name === 'string')
+        .map((server) => [server.name as string, serverEntryOf(server, next?.[server.name!])])
+    )
+  } catch {
+    previous = undefined
+  }
+
+  const changed = mcpServersBeingInstalled(previous, next)
+  const question = mcpPutRequest(changed)
+
+  if (!question || agentInstallInFlight()) {
+    return gatewayBridge().rest<T>(request.path, {
+      method: 'PUT',
+      ...(request.body === undefined ? {} : { body: request.body }),
+      ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
+    })
+  }
+
+  if (!(await askInstallConsent(question))) throw new Error(INSTALL_DECLINED)
+
+  return gatewayBridge().rest<T>(request.path, {
+    method: 'PUT',
+    ...(request.body === undefined ? {} : { body: request.body }),
+    ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
+  })
+}
+
+/** Запись сервера, как её видит сравнение, из ответа ядра.
+ *
+ * Значения переменных окружения ядро отдаёт ЗАТЁРТЫМИ (`sk-p...c3sA`), поэтому
+ * сравнивать их с настоящими нельзя — иначе каждое сохранение выглядело бы
+ * сменой ключа. Берутся имена: сервер, которому добавили переменную, — это
+ * изменение; сервер, у которого значение той же переменной поменяли в
+ * редакторе, — нет. Полный разбор в `install-consent-pure.ts`. */
+function serverEntryOf(
+  server: { command?: string; url?: string; args?: string[]; env?: Record<string, unknown> },
+  draft: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const draftEnv =
+    draft && typeof draft.env === 'object' && draft.env !== null
+      ? (draft.env as Record<string, unknown>)
+      : {}
+  const keys = Object.keys(server.env ?? {})
+
+  return {
+    ...(server.command === undefined ? {} : { command: server.command }),
+    ...(server.url === undefined || server.url === null ? {} : { url: server.url }),
+    ...(server.args === undefined ? {} : { args: server.args }),
+    env: Object.fromEntries(keys.map((key) => [key, draftEnv[key] ?? null]))
+  }
+}
+
 /** Shown by their own error toast when someone reads the list and backs out.
  * A sentence, not a code: it is the whole feedback the person gets. */
 export const CHANNEL_ENABLE_DECLINED = 'Канал не включён — вы отменили включение.'
@@ -268,6 +351,16 @@ const IMPLEMENTED: Record<string, unknown> = {
             })
           : Promise.reject(new Error(INSTALL_DECLINED))
       )
+    }
+
+    // D-101 (задача 3F.8). Тот же гейт для установки РУКАМИ. Их экран MCP —
+    // редактор всего `mcp.json`: «Новый сервер» правит текст, «Сохранить» шлёт
+    // PUT со всей записью сразу. Поэтому POST выше ловил только те установки,
+    // которые начинает агент, а человек, добавивший сервер сам, запускал
+    // процесс на своей машине без единого вопроса. Спрашивается о том, что
+    // появилось или изменилось, — прежняя запись берётся у ядра.
+    if (method === 'PUT' && restPath(request.path) === '/api/mcp/servers') {
+      return askMcpPutConsent<T>(request)
     }
 
     // Task 3.6 (O6). The core ticks schedules only inside its messenger

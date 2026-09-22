@@ -23,6 +23,10 @@
 //                                        приезжает заново, значит это тоже
 //                                        установка, а не «обновление галочки»;
 //   • `POST /api/mcp/servers`          — сервер, заданный командой запуска;
+//   • `PUT  /api/mcp/servers`          — ТА ЖЕ установка руками: их экран MCP
+//                                        правит `mcp.json` целиком и сохраняет
+//                                        его одним PUT, а не POST'ом одного
+//                                        сервера (D-101, задача 3F.8);
 //   • `POST /api/mcp/catalog/install`  — сервер из каталога.
 // Удаление, выключение и чтение не гейтятся: они работают в сторону «меньше
 // прав» и без нас.
@@ -85,6 +89,83 @@ export function installBeingRequested(request: {
   }
 
   return null
+}
+
+/** Одна запись сервера в `mcp.json` — как её пишет их редактор. */
+export type McpServerEntry = Record<string, unknown>
+
+/** Что человек узнает о сервере до запуска: имя, команда, ИМЕНА переменных. */
+export interface McpServerFacts {
+  name: string
+  command: string
+  envKeys: string[]
+}
+
+function serverFacts(name: string, entry: McpServerEntry): McpServerFacts {
+  const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+  const args = Array.isArray(entry.args) ? entry.args.filter((a) => typeof a === 'string') : []
+  const command = [text(entry.command) || text(entry.url), ...args].join(' ').trim()
+
+  return { name, command, envKeys: envKeysOf(entry.env) }
+}
+
+/** Сравнимый след записи: всё, что определяет, ЧТО запустится и что оно
+ * получит. Порядок ключей не важен — иначе перестановка строк в редакторе
+ * читалась бы как новая установка. */
+function fingerprint(entry: McpServerEntry): string {
+  const args = Array.isArray(entry.args) ? entry.args : []
+  const env =
+    entry.env && typeof entry.env === 'object' ? (entry.env as Record<string, unknown>) : {}
+
+  return JSON.stringify({
+    command: entry.command ?? '',
+    url: entry.url ?? '',
+    args,
+    env: Object.fromEntries(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)))
+  })
+}
+
+/** Серверы, которых в прежней записи не было или у которых изменилось то, что
+ * запустится: команда, аргументы, переменные окружения.
+ *
+ * Удаление, выключение и переименование в сторону «меньше прав» здесь не
+ * считаются установкой — как и в `installBeingRequested`. */
+export function mcpServersBeingInstalled(
+  previous: Record<string, McpServerEntry> | undefined,
+  next: Record<string, McpServerEntry> | undefined
+): McpServerFacts[] {
+  const before = previous ?? {}
+  const after = next ?? {}
+
+  return Object.keys(after)
+    .filter((name) => {
+      const entry = after[name]
+      if (!entry || typeof entry !== 'object') return false
+      const known = before[name]
+      return !known || fingerprint(known) !== fingerprint(entry)
+    })
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => serverFacts(name, after[name]))
+}
+
+/** Один вопрос на сохранение: их редактор пишет ВСЮ запись сразу, и несколько
+ * новых серверов в одном сохранении — обычное дело (вставили кусок чужого
+ * `mcp.json`). Спрашивать по одному нельзя: хранилище показывает по вопросу за
+ * раз, и второй был бы отклонён молча. */
+export function mcpPutRequest(changed: McpServerFacts[]): InstallRequest | null {
+  if (changed.length === 0) return null
+
+  const commands = changed
+    .filter((server) => server.command !== '')
+    .map((server) => (changed.length === 1 ? server.command : `${server.name}: ${server.command}`))
+  const envKeys = [...new Set(changed.flatMap((server) => server.envKeys))].sort()
+
+  return {
+    kind: 'mcp-server',
+    label: changed.map((server) => server.name).join(', '),
+    ...(commands.length === 0 ? {} : { command: commands.join('\n') }),
+    ...(envKeys.length === 0 ? {} : { envKeys })
+  }
 }
 
 /** Имена переменных окружения сервера — БЕЗ значений.

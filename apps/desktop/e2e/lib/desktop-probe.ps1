@@ -16,6 +16,9 @@
 #   cursor [-X -Y]          где настоящий курсор; с координатами — поставить
 #                           его туда (плавающую ленту главный процесс ведёт
 #                           ЗА НАСТОЯЩИМ курсором, а не за событиями страницы)
+#   children -Pid2 <n>      процессы, порождённые этим (с командной строкой) —
+#                           «второй процесс в диспетчере задач» из чек-листа,
+#                           увиденный без самого диспетчера
 #   desktop                 жив ли рабочий стол: на запертом экране окна
 #                           накрыты «Backstop Window», щелчки и аккорды
 #                           достаются экрану блокировки, а не приложению —
@@ -31,7 +34,8 @@ param(
   [int]$X,
   [int]$Y,
   [string]$Keys,
-  [long]$Hwnd
+  [long]$Hwnd,
+  [int]$Pid2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -100,6 +104,19 @@ switch ($Action) {
       logonUi = $logon.Count -gt 0
       foreground = [int64]$foreground
     } | ConvertTo-Json -Compress
+  }
+  'children' {
+    # Кто порождён этим процессом — «второй процесс в диспетчере задач» из
+    # чек-листа, увиденный без самого диспетчера. Командная строка нужна, чтобы
+    # отличить запускатель расписаний (`gateway run`) от шлюза стенда.
+    $rows = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $Pid2" -ErrorAction SilentlyContinue)
+    @{
+      children = @(
+        $rows | ForEach-Object {
+          @{ pid = [int64]$_.ProcessId; name = $_.Name; commandLine = [string]$_.CommandLine }
+        }
+      )
+    } | ConvertTo-Json -Compress -Depth 4
   }
   'window-style' {
     $h = [IntPtr]$Hwnd
