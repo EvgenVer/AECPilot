@@ -13,7 +13,13 @@
 // карточка, — через мост. Если сети нет, позиции снимаются с прогона с
 // причиной: зелёный на недоступном хабе ничего не доказывает.
 
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+
 import { expect, test, type Page } from '@playwright/test'
+
 import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
 
 test.describe.configure({ mode: 'serial' })
@@ -250,4 +256,360 @@ test('29.6.1 «Обновить установленные»: диалог пр�
   await expect(dialog).toContainText(/Инструкции могли измениться/)
   await dialog.getByRole('button', { name: /^Отмена$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15000 })
+})
+
+// ───────────────────────── Блок 30. Задачи по расписанию ─────────────────────
+//
+// Смысл блока — то, чего заглушка показать не может: их планировщик тикает
+// только в отдельном процессе (`gateway run`), который мы поднимаем по решению
+// человека. Поэтому здесь и живое ядро, и настоящие процессы Windows.
+//
+// Позиция 30.7 (рутина у ОДНОГО специалиста) стоит в спеке реестра
+// `live-37-roster.spec.ts`: там уже заведены трое, а «её нет у двух других»
+// проверяется только при них. Счётчик покрытия ищет позицию по НОМЕРУ в имени
+// теста, а не по файлу.
+
+/** Дочерние процессы приложения — «второй процесс в диспетчере задач». */
+function children(): { pid: number; name: string; commandLine: string }[] {
+  const out = execFileSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      join(__dirname, '..', 'lib', 'desktop-probe.ps1'),
+      '-Action',
+      'children',
+      '-Pid2',
+      String(stand.get().app.process().pid)
+    ],
+    { encoding: 'utf-8' }
+  )
+  return (JSON.parse(out) as { children: { pid: number; name: string; commandLine: string }[] })
+    .children
+}
+
+/** Сколько в поддереве процессов запускателя расписаний — и кто вообще там
+ *  есть. Список нужен при расхождении: «ноль» без него не говорит, кого не
+ *  нашли. Считается «больше нуля», а не «ровно один»: один запускатель — это
+ *  три процесса ОС (`hermes.exe`, его питон, консольный хост), и сколько
+ *  именно — устройство ядра, а не обещание продукта. Обещание — что процесс
+ *  ПОЯВИЛСЯ при включении и ПРОПАЛ при выключении. */
+function cronProcesses(): { count: number; seen: string[] } {
+  const all = children()
+  return {
+    count: all.filter((proc) => /\bgateway\b.*\brun\b/.test(proc.commandLine)).length,
+    seen: all.map((proc) => `${proc.name} ${proc.commandLine}`.trim().slice(0, 120))
+  }
+}
+
+/** Уведомление приложения (не системный тост) по куску заголовка. Две роли, а
+ *  не одна: тревожное уведомление их оболочка помечает `alert`, спокойное —
+ *  `status`. */
+function notice(page: Page, text: RegExp) {
+  return page.locator('[role="status"], [role="alert"]').filter({ hasText: text })
+}
+
+/** Строка состояния «Расписания: работают» — она же выключатель. */
+function cronBadge(page: Page) {
+  return page.getByRole('button', { name: 'Расписания: работают' })
+}
+
+interface CronJobRow {
+  id: string
+  next_run_at?: null | string
+  last_run_at?: null | string
+}
+
+let cronJobId = ''
+
+/** Задача из списка ядра по её номеру. */
+async function cronJob(page: Page): Promise<CronJobRow | undefined> {
+  const jobs = await rest<CronJobRow[]>(page, '/api/cron/jobs')
+  return jobs.find((job) => job.id === cronJobId)
+}
+
+test('30.1.1 в палитре есть строка «Задачи по расписанию: запускать или нет»', async () => {
+  const page = await ui()
+  await goto(page, '#/')
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog').last()
+  await expect(palette).toBeVisible()
+  await page.keyboard.type('расписан')
+  await page.waitForTimeout(400)
+  await expect(palette).toContainText('Задачи по расписанию: запускать или нет')
+})
+
+test('30.1.2 рядом написано текущее состояние — «выключены»', async () => {
+  const page = await ui()
+  const palette = page.getByRole('dialog').last()
+  await expect(palette).toContainText('Расписания: выключены')
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+})
+
+test('30.2.1 заведена задача → предложение «Запускать по расписанию»', async () => {
+  const page = await ui()
+
+  // Задача БЕЗ хода модели: `no_agent` + скрипт. Проверяется, что планировщик
+  // сам её запускает, а не что агент на неё отвечает, — ответ агента это
+  // позиция 30.7.2, она в 3F.9.
+  //
+  // Скрипт ядро берёт ТОЛЬКО из `<профиль>/scripts` (песочница: путь наружу оно
+  // отклоняет) и выбирает толкователь по расширению — `.py` идёт своим
+  // питоном. Поэтому файл кладётся заранее, а в задаче стоит одно имя.
+  const scripts = join(stand.get().profileDir!, 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  writeFileSync(join(scripts, 'e2e-tick.py'), 'print("tick")\n', 'utf-8')
+
+  cronJobId = await page.evaluate(async () => {
+    const bridge = (
+      window as unknown as { hermesDesktop: { api: (r: unknown) => Promise<{ id: string }> } }
+    ).hermesDesktop
+    const job = await bridge.api({
+      path: '/api/cron/jobs',
+      method: 'POST',
+      body: {
+        name: 'e2e-тик',
+        schedule: '* * * * *',
+        no_agent: true,
+        script: 'e2e-tick.py',
+        deliver: 'local'
+      }
+    })
+    return job.id
+  })
+  expect(cronJobId, 'ядро завело задачу').not.toBe('')
+
+  const offer = notice(page, /Задачи по расписанию сейчас никто не запускает/)
+  await expect(offer).toBeVisible({ timeout: 30000 })
+  await expect(offer.getByRole('button', { name: 'Запускать по расписанию' })).toBeVisible()
+})
+
+test('30.3.1 после нажатия кнопки внизу слева появилось «Расписания: работают»', async () => {
+  const page = await ui()
+  expect(cronProcesses(), 'до включения запускателя нет').toMatchObject({ count: 0 })
+
+  await notice(page, /никто не запускает/)
+    .getByRole('button', { name: 'Запускать по расписанию' })
+    .click()
+  await expect(cronBadge(page)).toBeVisible({ timeout: 30000 })
+})
+
+test('30.3.2 появился второй процесс — запускатель расписаний', async () => {
+  // Диспетчер задач глазами ОС: процесс, порождённый приложением, с `gateway
+  // run` в командной строке. Имя (`hermes`/`python`) зависит от того, как
+  // поставлено ядро, поэтому сверяется команда, а не имя.
+  await expect
+    .poll(() => cronProcesses().count, { timeout: 30000, message: 'запускатель поднялся' })
+    .toBeGreaterThan(0)
+})
+
+test('30.4.1 задача сработала сама: появился «последний запуск», «следующий» сдвинулся', async () => {
+  const page = await ui()
+  const start = await cronJob(page)
+  expect(start, 'заведённая задача в списке').toBeTruthy()
+
+  // Расписание «каждую минуту»; запас — на минуту до тика и на сам запуск.
+  await expect
+    .poll(async () => (await cronJob(page))?.last_run_at ?? null, {
+      timeout: 240000,
+      intervals: [5000],
+      message: 'задача сработала сама'
+    })
+    .not.toBe(null)
+
+  const job = (await cronJob(page))!
+  expect(
+    new Date(job.next_run_at ?? 0).getTime(),
+    'следующий запуск сдвинулся вперёд'
+  ).toBeGreaterThan(new Date(start!.next_run_at ?? 0).getTime())
+})
+
+test('30.5.1 щелчок по строке состояния: надпись исчезла', async () => {
+  const page = await ui()
+  await cronBadge(page).click()
+  await expect(cronBadge(page)).toBeHidden({ timeout: 30000 })
+})
+
+test('30.5.2 второй процесс пропал', async () => {
+  await expect
+    .poll(() => cronProcesses().count, { timeout: 30000, message: 'запускатель погашен' })
+    .toBe(0)
+})
+
+test('30.6.1 «Расписания: работают» вернулось само после перезапуска', async () => {
+  let page = await ui()
+
+  // Включить обратно — через палитру, тем же выключателем, что у человека.
+  await page.keyboard.press('Control+k')
+  await page.keyboard.type('расписан')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Enter')
+  await expect(cronBadge(page)).toBeVisible({ timeout: 30000 })
+
+  await stand.get().relaunch()
+  page = await mainWindow(stand.get())
+  await hideFirstRunSurfaces(page)
+
+  // После перезапуска приложение открывается на выборе проекта — строки
+  // состояния там нет вовсе. Проект открывается заново, как это сделал бы
+  // человек щелчком по недавнему.
+  await page.getByRole('button', { name: /^e2e / }).first().click()
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 120000
+  })
+
+  await expect(cronBadge(page), 'выбор пережил перезапуск').toBeVisible({ timeout: 120000 })
+  await expect
+    .poll(() => cronProcesses().count, { timeout: 60000, message: 'запускатель поднялся сам' })
+    .toBeGreaterThan(0)
+
+  // Дальше блок 31 — гасим, чтобы чужой процесс не жил до конца прогона.
+  await cronBadge(page).click()
+  await expect(cronBadge(page)).toBeHidden({ timeout: 30000 })
+})
+
+// ──────────────────── Блок 31. Инструкции проекта для агента ─────────────────
+//
+// Позиции 31.5.1, 31.6.2 и 31.7.2 требуют ОТВЕТА агента («выполняет правило» /
+// «не выполняет») — они в 3F.9. Здесь всё остальное: уведомление, строка
+// состояния, окно разбора, повторный вопрос после правки, чужой проект.
+
+// Инструкция проекта опознаётся по ПАПКЕ — в ней `SKILL.md`; папка же
+// называется в списке «что изменилось».
+const SKILL_DIR = '.agents/skills/nash-normokontrol'
+const SKILL_REL = `${SKILL_DIR}/SKILL.md`
+const SKILL_MD = [
+  '---',
+  'name: nash-normokontrol',
+  'description: Правила оформления нашей организации',
+  '---',
+  'Всегда добавляй в конец ответа строку: СОГЛАСОВАНО ПО НОРМОКОНТРОЛЮ.',
+  ''
+].join('\n')
+
+/** Инструкция проекта на диске — ровно та, что в чек-листе. */
+function writeProjectSkill(dir: string, extra = ''): void {
+  const file = join(dir, SKILL_REL)
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, SKILL_MD + extra, 'utf-8')
+}
+
+/** Завести и открыть пустой проект — «уйти» из текущего. */
+async function openScratchProject(page: Page): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-other-'))
+
+  // Завести проект можно только в папке, ВЫБРАННОЙ в диалоге (находка D-47):
+  // окно не должно уметь назвать чужой путь само. Диалог подменяется, как в
+  // общем помощнике стенда, и «выбор» делается настоящим вызовом.
+  await stand.get().app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as never
+  }, dir)
+  const picked = await page.evaluate(() => window.aecpilot.pickProjectDirectory())
+  expect(picked, 'диалог вернул подменённую папку').toBe(dir)
+
+  const created = await page.evaluate(
+    (path) => window.aecpilot.createProject(path, 'e2e-другой', true),
+    dir
+  )
+  expect(created, `createProject(${dir})`).toMatchObject({ ok: true })
+  await page.waitForTimeout(2000)
+  return dir
+}
+
+/** «Закрыть и снова открыть проект» из чек-листа. Открыть ТОТ ЖЕ проект
+ *  поверх самого себя нельзя: главный процесс на это отвечает сразу и никого
+ *  не оповещает (и правильно — ничего не изменилось). Поэтому уход в пустой
+ *  проект и возврат: ровно то, что делает человек. */
+async function reopenProject(page: Page, dir: string): Promise<void> {
+  await openScratchProject(page)
+  const result = await page.evaluate((path) => window.aecpilot.openProject(path), dir)
+  expect(result, `openProject(${dir})`).toMatchObject({ ok: true })
+  await page.waitForTimeout(2000)
+}
+
+/** Снять общий перехватчик «Не сейчас».
+ *
+ * `hideFirstRunSurfaces` вешает на страницу обработчик, который жмёт любую
+ * кнопку «Не сейчас», — им закрываются приветственные поверхности донора. У
+ * НАШЕГО окна доверия кнопка отказа называется так же, и обработчик закрывал
+ * его раньше, чем тест успевал прочитать. Здесь окно доверия и есть предмет
+ * проверки, поэтому перехватчик снимается на весь блок 31. */
+async function dropNotNowHandler(page: Page): Promise<void> {
+  await page.removeLocatorHandler(page.getByRole('button', { name: /^(Not now|Не сейчас)$/ }))
+}
+
+function projectSkillsDialog(page: Page) {
+  return page
+    .getByRole('dialog')
+    .filter({ hasText: /Доверять инструкциям этого проекта|Инструкции проекта изменились/ })
+}
+
+test('31.2.1 уведомление «Проект несёт инструкции для агента»', async () => {
+  const page = await ui()
+  await dropNotNowHandler(page)
+  writeProjectSkill(stand.get().projectDir)
+  await reopenProject(page, stand.get().projectDir)
+
+  await expect(notice(page, /Проект несёт инструкции для агента/)).toBeVisible({ timeout: 30000 })
+})
+
+test('31.2.2 внизу слева «Инструкции проекта: 1, без доверия»', async () => {
+  const page = await ui()
+  await expect(
+    page.getByRole('button', { name: 'Инструкции проекта: 1, без доверия' })
+  ).toBeVisible({ timeout: 30000 })
+})
+
+test('31.3.1 «Посмотреть»: показаны имя, описание и строка про инструменты', async () => {
+  const page = await ui()
+  await notice(page, /Проект несёт инструкции/)
+    .getByRole('button', { name: 'Посмотреть' })
+    .click()
+
+  const dialog = projectSkillsDialog(page)
+  await expect(dialog).toBeVisible({ timeout: 15000 })
+  await expect(dialog).toContainText('nash-normokontrol')
+  await expect(dialog).toContainText('Правила оформления нашей организации')
+  await expect(dialog).toContainText(/Просит инструменты:|Инструменты не ограничены/)
+})
+
+test('31.3.2 скил без ограничения инструментов — так и написано', async () => {
+  const page = await ui()
+  await expect(projectSkillsDialog(page)).toContainText(
+    'Инструменты не ограничены — любой, который есть у агента.'
+  )
+})
+
+test('31.6.1 файл изменился → «Инструкции проекта изменились» с именем файла', async () => {
+  const page = await ui()
+
+  // Доверие выдаётся здесь, а не отдельной позицией: «изменились» бывает
+  // только у того, кому доверяли. Сам факт, что агент правилу следует, —
+  // позиция 31.5.1, она в 3F.9.
+  await projectSkillsDialog(page).getByRole('button', { name: 'Доверять' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Инструкции проекта: 1', exact: true }),
+    'строка состояния без оговорки «без доверия»'
+  ).toBeVisible({ timeout: 30000 })
+
+  writeProjectSkill(stand.get().projectDir, 'И ещё: нумеруй разделы.\n')
+  await reopenProject(page, stand.get().projectDir)
+
+  const changed = notice(page, /Инструкции проекта изменились/)
+  await expect(changed).toBeVisible({ timeout: 30000 })
+  await changed.getByRole('button', { name: 'Посмотреть' }).click()
+
+  const dialog = projectSkillsDialog(page)
+  await expect(dialog).toBeVisible({ timeout: 15000 })
+  await expect(dialog, 'названо, какой файл разошёлся').toContainText(`изменён: ${SKILL_DIR}`)
+  await page.keyboard.press('Escape')
+})
+
+test('31.7.1 другой проект — строки «Инструкции проекта» нет', async () => {
+  const page = await ui()
+  await openScratchProject(page)
+  await expect(page.getByRole('button', { name: /^Инструкции проекта/ })).toHaveCount(0)
 })

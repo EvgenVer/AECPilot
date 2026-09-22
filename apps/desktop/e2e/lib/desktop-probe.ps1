@@ -16,9 +16,9 @@
 #   cursor [-X -Y]          где настоящий курсор; с координатами — поставить
 #                           его туда (плавающую ленту главный процесс ведёт
 #                           ЗА НАСТОЯЩИМ курсором, а не за событиями страницы)
-#   children -Pid2 <n>      процессы, порождённые этим (с командной строкой) —
-#                           «второй процесс в диспетчере задач» из чек-листа,
-#                           увиденный без самого диспетчера
+#   children -Pid2 <n>      всё поддерево процессов под этим (с командной
+#                           строкой) — «второй процесс в диспетчере задач» из
+#                           чек-листа, увиденный без самого диспетчера
 #   desktop                 жив ли рабочий стол: на запертом экране окна
 #                           накрыты «Backstop Window», щелчки и аккорды
 #                           достаются экрану блокировки, а не приложению —
@@ -109,7 +109,27 @@ switch ($Action) {
     # Кто порождён этим процессом — «второй процесс в диспетчере задач» из
     # чек-листа, увиденный без самого диспетчера. Командная строка нужна, чтобы
     # отличить запускатель расписаний (`gateway run`) от шлюза стенда.
-    $rows = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $Pid2" -ErrorAction SilentlyContinue)
+    # Всё поддерево, а не только прямые дети: Playwright поднимает electron
+    # через СВОЙ процесс-пускатель, и настоящий главный процесс приложения —
+    # уже его ребёнок, а порождённое приложением — внук.
+    $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $byParent = @{}
+    foreach ($proc in $all) {
+      $key = [int64]$proc.ParentProcessId
+      if (-not $byParent.ContainsKey($key)) { $byParent[$key] = @() }
+      $byParent[$key] += $proc
+    }
+    $rows = @()
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue([int64]$Pid2)
+    while ($queue.Count -gt 0) {
+      $parent = $queue.Dequeue()
+      foreach ($proc in @($byParent[$parent])) {
+        if ($null -eq $proc) { continue }
+        $rows += $proc
+        $queue.Enqueue([int64]$proc.ProcessId)
+      }
+    }
     @{
       children = @(
         $rows | ForEach-Object {

@@ -25,7 +25,12 @@ export function registerGraphAccess(): void {
     source: 'core',
     data: {
       id: 'aec.graph.access',
-      label: t('graphAccess.command'),
+      // Свойство, а не значение — та же причина, что у выключателя расписаний
+      // (D-103): регистрация идёт до выбора языка, и посчитанная здесь строка
+      // застыла бы на английском умолчании.
+      get label() {
+        return t('graphAccess.command')
+      },
       keywords: ['microsoft', 'graph', 'teams', 'outlook', 'onedrive', 'доступы', 'граф'],
       run: () => {
         void refreshGraphAccess()
