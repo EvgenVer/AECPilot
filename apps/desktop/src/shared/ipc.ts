@@ -1082,7 +1082,14 @@ export interface AecpilotApi {
   closeHud(): Promise<{ ok: boolean }>
   getHudState(): Promise<{ open: boolean; sessionId: null | string }>
   setHudIgnoreMouse(ignore: boolean): void
-  moveHudBy(delta: { x: number; y: number; width: number; height: number }): void
+  /** Полосу взяли за композер: главный процесс снимает, где курсор
+   * относительно её угла (задача 3.24, D-100). */
+  beginHudMove(): void
+  /** Полосу отпустили. */
+  endHudMove(): void
+  /** Кадр перетаскивания. Несёт только РАЗМЕР — положение главный процесс
+   * считает от настоящего курсора, которого окно не видит. */
+  moveHudBy(size: { width: number; height: number }): void
   setHudBounds(bounds: { x: number; y: number; width: number; height: number }): void
   /** Материал окна macOS. На других системах отвечает `ok:false`, чтобы их
    * стекло не считало, что применилось. */

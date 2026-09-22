@@ -64,19 +64,30 @@ export function clampBounds(bounds: Bounds, work: WorkArea): Bounds {
   }
 }
 
-/** Сдвиг перетаскиванием. Их запрос несёт и размер — они меняют его тем же
- * вызовом, когда лента растёт; неполный запрос не должен обнулять то, чего в
- * нём нет. */
-export function movedBy(current: Bounds, delta: Partial<Bounds>, work: WorkArea): Bounds {
-  return clampBounds(
-    {
-      x: current.x + round(delta.x ?? 0),
-      y: current.y + round(delta.y ?? 0),
-      width: current.width + round(delta.width ?? 0),
-      height: current.height + round(delta.height ?? 0)
-    },
-    work
-  )
+/** Точка экрана — курсор или угол окна. */
+export interface Point {
+  x: number
+  y: number
+}
+
+/** Где курсор относительно угла окна в момент захвата (D-100, задача 3F.7).
+ *
+ * ПОЧЕМУ НЕ СДВИГ. Их окно тянут за композер, и рендерер во время перетаскивания
+ * НЕ присылает, куда сдвинуться: пока окно успевает за курсором, `clientX` у
+ * него каждый кадр один и тот же — сдвиг всегда ноль. Присылает он только
+ * размер, снятый в момент нажатия. Значит положение считает главный процесс: он
+ * один видит настоящий курсор. Разница «курсор минус угол», снятая один раз,
+ * держит окно ровно под той точкой, за которую его взяли, — в том числе на
+ * втором мониторе с другим масштабом, потому что и курсор, и границы окна
+ * Electron меряет в одних единицах (DIP). */
+export function hudGrabOffset(cursor: Point, origin: Point): Point {
+  return { x: round(cursor.x - origin.x), y: round(cursor.y - origin.y) }
+}
+
+/** Куда поставить окно, чтобы точка захвата осталась под курсором. */
+export function hudDragOrigin(cursor: Point, offset: Point | null): Point | null {
+  if (!offset) return null
+  return { x: round(cursor.x - offset.x), y: round(cursor.y - offset.y) }
 }
 
 /** Проверка запроса на точные границы: значения приходят из окна, и объект без

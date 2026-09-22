@@ -32,6 +32,24 @@ describe('кто проигрывает подсказку, когда окон 
     expect(state.has('turn:3')).toBe(true)
   })
 
+  // D-99. Ключ звука — сессия: следующий ход в ней через несколько секунд —
+  // новое событие, и звучать он обязан.
+  it('второй ход в той же сессии через две секунды снова звучит', () => {
+    const state: ClaimState = new Map()
+
+    expect(claimCue(state, 'sound:e2e-7', 0)).toBe(true)
+    expect(claimCue(state, 'sound:e2e-7', 300), 'второе окно, тот же ход').toBe(false)
+    expect(claimCue(state, 'sound:e2e-7', 2000), 'следующий ход').toBe(true)
+  })
+
+  it('чтение вслух держит ключ долго: опоздавшее окно не читает второй раз', () => {
+    const state: ClaimState = new Map()
+
+    expect(claimCue(state, 'speak:msg-1', 0)).toBe(true)
+    expect(claimCue(state, 'speak:msg-1', 30_000)).toBe(false)
+    expect(claimCue(state, 'speak:msg-1', 11 * 60_000)).toBe(true)
+  })
+
   it('мусор вместо ключа не занимает ничего', () => {
     const state: ClaimState = new Map()
 

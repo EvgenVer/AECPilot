@@ -637,8 +637,14 @@ const IMPLEMENTED: Record<string, unknown> = {
     setIgnoreMouse(ignore: boolean): void {
       window.aecpilot.setHudIgnoreMouse(ignore)
     },
-    moveBy(delta: { x: number; y: number; width: number; height: number }): void {
-      window.aecpilot.moveHudBy(delta)
+    beginMove(): void {
+      window.aecpilot.beginHudMove()
+    },
+    endMove(): void {
+      window.aecpilot.endHudMove()
+    },
+    moveBy(size: { width: number; height: number }): void {
+      window.aecpilot.moveHudBy(size)
     },
     setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
       window.aecpilot.setHudBounds(bounds)

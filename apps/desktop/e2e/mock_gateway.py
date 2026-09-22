@@ -253,6 +253,12 @@ async def handle(connection: ServerConnection) -> None:
             if isinstance(target, str) and target:
                 ACTIVE_SESSION = target
             remember_message(ACTIVE_SESSION, "user", text)
+            if text.startswith("slow:"):
+                # The person sends and walks away mid-turn (block 27): the
+                # answer lands three seconds later, in whatever state the
+                # window is in by then.
+                await asyncio.sleep(3)
+                text = text[5:].strip()
             if text.startswith("turn"):
                 await stream_full_turn(connection, text)
             elif text.startswith("artifact"):

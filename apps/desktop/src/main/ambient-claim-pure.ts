@@ -10,27 +10,32 @@
 // человек ждёт ответа: он мог отойти или смотреть в другое. Первый пришедший
 // — правило без исключений, и оно даёт ровно одну подсказку.
 //
-// СРОК ГОДНОСТИ КЛЮЧА нужен по одной причине: без него список занятых растёт
-// всё время работы приложения. Минуты хватает с запасом — подсказка либо
-// прозвучала сразу, либо не нужна.
+// СРОК ГОДНОСТИ КЛЮЧА — это срок, в который одно и то же событие доходит до
+// всех окон, а не «на всякий случай подольше». Ключ звука — номер СЕССИИ, а не
+// хода (их `completion-sound.ts`), поэтому ключ, живущий минуту, делал второй
+// ответ в той же сессии беззвучным во всех окнах (D-99, задача 3F.7). Секунда
+// — как у их `event-dedupe.ts`: окна получают событие ядра в один тик.
+// Исключение — чтение вслух: ключ там — номер сообщения, звучит оно секунды, и
+// окно, придавленное открытой лентой, просит его с опозданием — десять минут,
+// как у них.
 
-export const CLAIM_TTL_MS = 60_000
+export const CUE_TTL_MS = 1000
+export const SPEECH_TTL_MS = 10 * 60_000
+
+function ttlOf(key: string): number {
+  return key.startsWith('speak:') ? SPEECH_TTL_MS : CUE_TTL_MS
+}
 
 /** Занятые ключи: ключ → когда занят. */
 export type ClaimState = Map<string, number>
 
 /** Пробует занять ключ. Возвращает true первому и false остальным. Побочно
  * убирает протухшие записи — отдельной уборки не нужно. */
-export function claimCue(
-  state: ClaimState,
-  key: unknown,
-  nowMs: number,
-  ttlMs: number = CLAIM_TTL_MS
-): boolean {
+export function claimCue(state: ClaimState, key: unknown, nowMs: number): boolean {
   if (typeof key !== 'string' || key === '') return false
 
   for (const [known, at] of state) {
-    if (nowMs - at > ttlMs) state.delete(known)
+    if (nowMs - at > ttlOf(known)) state.delete(known)
   }
 
   if (state.has(key)) return false

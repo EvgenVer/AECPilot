@@ -39,11 +39,14 @@ import {
   wakeIndicatorState
 } from './wake-indicator'
 import { isQuickEntryTarget } from './quick-entry-pure'
+import { sessionToFollow } from './session-follow-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
 import { claimCue, type ClaimState } from './ambient-claim-pure'
 import {
   closeHud,
   hudState,
+  beginHudMove,
+  endHudMove,
   moveHudBy,
   onHudChanged,
   openHud,
@@ -509,6 +512,27 @@ async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
  * operation in this file. */
 function resetActiveSessionForProjectSwitch(): void {
   sessionId = undefined
+  sessionEpoch += 1
+  ensureSessionPromise = undefined
+}
+
+/** D-98 (задача 3F.7). Их рендерер заводит и переключает сессии САМ — через
+ * проход `gateway:rpc`, — а всё «наследие» главного процесса (быстрый ввод,
+ * панель «Изменения», вложения, ветвление) адресует `sessionId`: сессию,
+ * которую главный процесс когда-то завёл сам (`ensureSession` по первому
+ * `model:options`) и больше НИКОГДА не менял. Быстрый ввод «в текущую сессию»
+ * уходил в сессию-сироту, которой на экране нет.
+ *
+ * Здесь главный процесс следует за окном: ответ `session.create`/
+ * `session.activate`/`session.resume` с `session_id` и есть «текущая сессия»
+ * человека — ровно то, что делают `sessions:switch`/`sessions:activate`, только
+ * источник — их собственный вызов. Последняя открытая окном сессия — не
+ * идеал при плитках и фоновых сессиях, но это та, на которую человек смотрел
+ * последней, а не та, которой не видел никогда. */
+function followWindowSession(method: string, value: unknown): void {
+  const id = sessionToFollow(method, value, sessionId)
+  if (id === null) return
+  sessionId = id
   sessionEpoch += 1
   ensureSessionPromise = undefined
 }
@@ -3136,7 +3160,9 @@ ipcMain.handle(
         soulLanguageLine(loadAgentLanguage())
       ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
-      return { ok: true, value: await gateway.request(method as never, params, timeoutMs) }
+      const value = await gateway.request(method as never, params, timeoutMs)
+      followWindowSession(method, value)
+      return { ok: true, value }
     } catch (error: unknown) {
       return { ok: false, error: describeRpcFailure(error) }
     }
@@ -3961,6 +3987,8 @@ ipcMain.handle('hud:open', (_event, request: unknown) =>
 ipcMain.handle('hud:close', () => closeHud())
 ipcMain.handle('hud:vibrancy', (_event, on: unknown) => setHudVibrancy(on))
 ipcMain.on('hud:ignore-mouse', (_event, ignore: unknown) => setHudIgnoreMouse(ignore))
+ipcMain.on('hud:begin-move', () => beginHudMove())
+ipcMain.on('hud:end-move', () => endHudMove())
 ipcMain.on('hud:move-by', (_event, delta: unknown) => moveHudBy(delta))
 ipcMain.on('hud:set-bounds', (_event, bounds: unknown) => setHudBounds(bounds))
 ipcMain.on('hud:set-session', (_event, value: unknown) => setHudSession(value))

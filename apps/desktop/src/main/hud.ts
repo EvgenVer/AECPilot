@@ -26,9 +26,11 @@ import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import {
   clampBounds,
   defaultHudBounds,
-  movedBy,
+  hudDragOrigin,
+  hudGrabOffset,
   readBounds,
   type Bounds,
+  type Point,
   type WorkArea
 } from './hud-pure'
 import { planHudWindow, windowUrl } from './windows-pure'
@@ -151,27 +153,43 @@ export function setHudIgnoreMouse(ignore: unknown): void {
   hud.setIgnoreMouseEvents(ignore === true, { forward: true })
 }
 
+/** Захват полосы мышью: разница «курсор минус угол окна» (D-100). Пока он
+ * null, `move-by` двигать нечего — окно стоит. */
+let grab: Point | null = null
+
+/** Полосу взяли за композер. Снимок делается здесь, потому что настоящий
+ * курсор виден только главному процессу (разбор — `hud-pure.ts`). */
+export function beginHudMove(): void {
+  const bounds = currentBounds()
+  if (!bounds) return
+  grab = hudGrabOffset(screen.getCursorScreenPoint(), bounds)
+}
+
+/** Полосу отпустили. */
+export function endHudMove(): void {
+  grab = null
+}
+
+/** Кадр перетаскивания: поставить окно так, чтобы точка захвата осталась под
+ * курсором. Размер приходит из окна (снимок момента нажатия) и прижимается
+ * вместе с положением — прозрачное окно без рамки на Windows иначе растёт на
+ * пиксель за вызов. Запрос без захвата не двигает ничего: это либо кадр,
+ * опоздавший после отпускания, либо чужой вызов. */
 export function moveHudBy(delta: unknown): void {
   const bounds = currentBounds()
   if (!bounds || !hud || hud.isDestroyed()) return
 
   const requested = (delta ?? {}) as Record<string, unknown>
-  const numeric = (key: string): number =>
-    typeof requested[key] === 'number' && Number.isFinite(requested[key])
+  const size = (key: 'width' | 'height'): number =>
+    typeof requested[key] === 'number' && Number.isFinite(requested[key]) && requested[key] > 0
       ? (requested[key] as number)
-      : 0
+      : bounds[key]
+
+  const origin = hudDragOrigin(screen.getCursorScreenPoint(), grab)
+  if (!origin) return
 
   hud.setBounds(
-    movedBy(
-      bounds,
-      {
-        x: numeric('x'),
-        y: numeric('y'),
-        width: numeric('width'),
-        height: numeric('height')
-      },
-      workArea()
-    )
+    clampBounds({ ...origin, width: size('width'), height: size('height') }, workArea())
   )
 }
 

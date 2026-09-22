@@ -1572,7 +1572,10 @@ interface HudBridge {
   open: (request?: { sessionId?: null | string }) => Promise<{ ok: boolean }>
   close: () => Promise<{ ok: boolean }>
   setIgnoreMouse: (ignore: boolean) => void
-  moveBy: (delta: { x: number; y: number; width: number; height: number }) => void
+  beginMove: () => void
+  endMove: () => void
+  moveBy: (size: { width: number; height: number }) => void
+  setBounds: (bounds: { x: number; y: number; width: number; height: number }) => void
 }
 
 test('the HUD floats above other windows, lets clicks through, and closes', async () => {
@@ -1625,36 +1628,64 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
   )
   await page.waitForTimeout(200)
 
-  // Перетаскивание за композер двигает окно и не уводит его за край экрана.
-  const moved = await app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows().find((candidate) =>
-      candidate.webContents.getURL().includes('win=hud')
-    )
-    return win ? win.getBounds() : null
-  })
+  // Перетаскивание за композер. Положение во время жеста считает ГЛАВНЫЙ
+  // процесс по настоящему курсору: окно шлёт только размер, снятый в момент
+  // нажатия (D-100, задача 3F.7). Сам жест — позиция 33.5.1 блока 33, ей нужен
+  // живой рабочий стол; здесь проверяется контракт, который у неё под ногами.
+  const hudBounds = async (): Promise<{
+    bounds: { x: number; y: number; width: number; height: number }
+    work: { x: number; y: number; width: number; height: number }
+  } | null> =>
+    app.evaluate(({ BrowserWindow, screen }) => {
+      const win = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().includes('win=hud')
+      )
+      if (!win) return null
+      return {
+        bounds: win.getBounds(),
+        work: screen.getDisplayNearestPoint(win.getBounds()).workArea
+      }
+    })
+
+  const before2 = (await hudBounds())!
+  // Кадр без захвата не двигает ничего: это либо опоздавший после отпускания,
+  // либо чужой вызов.
   await page.evaluate(() =>
     (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.moveBy({
-      x: -100000,
-      y: -100000,
-      width: 0,
-      height: 0
+      width: 700,
+      height: 200
     })
   )
   await page.waitForTimeout(200)
-  const after = await app.evaluate(({ BrowserWindow, screen }) => {
-    const win = BrowserWindow.getAllWindows().find((candidate) =>
-      candidate.webContents.getURL().includes('win=hud')
-    )
-    if (!win) return null
-    const work = screen.getDisplayNearestPoint(win.getBounds()).workArea
-    const bounds = win.getBounds()
-    return { bounds, work }
+  expect((await hudBounds())!.bounds, 'без захвата окно стоит').toMatchObject(before2.bounds)
+
+  // С захватом окно встаёт под точкой, за которую его взяли: курсор с момента
+  // захвата не двигался — значит и окно осталось там же, но размер применился.
+  await page.evaluate(() => {
+    const hud = (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud
+    hud.beginMove()
+    hud.moveBy({ width: 700, height: 200 })
+    hud.endMove()
   })
-  expect(after?.bounds.x).toBeGreaterThanOrEqual(after?.work.x ?? 0)
-  expect(after?.bounds.y).toBeGreaterThanOrEqual(after?.work.y ?? 0)
-  expect(after?.bounds.x, 'окно сдвинулось, а не осталось на месте').toBeLessThan(
-    moved?.x ?? Number.POSITIVE_INFINITY
+  await page.waitForTimeout(200)
+  const dragged = (await hudBounds())!
+  expect(dragged.bounds).toMatchObject({ x: before2.bounds.x, y: before2.bounds.y })
+  expect(dragged.bounds.width, 'размер из окна применился').toBe(700)
+
+  // За край экрана лента не уходит: у неё нет заголовка, вернуть её нечем.
+  await page.evaluate(() =>
+    (window as unknown as { hermesDesktop: { hud: HudBridge } }).hermesDesktop.hud.setBounds({
+      x: -100000,
+      y: -100000,
+      width: 700,
+      height: 200
+    })
   )
+  await page.waitForTimeout(200)
+  const after = (await hudBounds())!
+  expect(after.bounds.x).toBeGreaterThanOrEqual(after.work.x)
+  expect(after.bounds.y).toBeGreaterThanOrEqual(after.work.y)
+  expect(after.bounds.x, 'окно сдвинулось, а не осталось на месте').toBeLessThan(before2.bounds.x)
 
   expect(
     await page.evaluate(() =>

@@ -8,7 +8,8 @@ import {
   defaultHudBounds,
   HUD_MIN_HEIGHT,
   HUD_MIN_WIDTH,
-  movedBy,
+  hudDragOrigin,
+  hudGrabOffset,
   readBounds
 } from './hud-pure'
 
@@ -65,23 +66,23 @@ describe('окно не уезжает за край', () => {
   })
 })
 
-describe('перетаскивание', () => {
+describe('перетаскивание за композер (D-100)', () => {
   const start = { x: 100, y: 100, width: 760, height: 260 }
 
-  it('двигает на дельту', () => {
-    expect(movedBy(start, { x: 50, y: -30, width: 0, height: 0 }, WORK)).toMatchObject({
-      x: 150,
-      y: 70
-    })
+  it('окно встаёт так, что точка захвата остаётся под курсором', () => {
+    const offset = hudGrabOffset({ x: 140, y: 120 }, start)
+    expect(offset).toEqual({ x: 40, y: 20 })
+    expect(hudDragOrigin({ x: 600, y: 400 }, offset)).toEqual({ x: 560, y: 380 })
   })
 
-  it('неполный запрос не обнуляет то, чего в нём нет', () => {
-    expect(movedBy(start, { x: 10 }, WORK)).toMatchObject({ width: 760, height: 260, y: 100 })
+  it('без захвата двигать нечего', () => {
+    expect(hudDragOrigin({ x: 600, y: 400 }, null)).toBeNull()
   })
 
-  it('за край не уводит', () => {
-    const bounds = movedBy(start, { x: -9000, y: -9000 }, WORK)
-    expect(bounds).toMatchObject({ x: 0, y: 0 })
+  it('уехавшее за край прижимается рабочей областью', () => {
+    const offset = hudGrabOffset({ x: 140, y: 120 }, start)
+    const origin = hudDragOrigin({ x: -9000, y: -9000 }, offset)!
+    expect(clampBounds({ ...origin, width: 760, height: 260 }, WORK)).toMatchObject({ x: 0, y: 0 })
   })
 })
 
