@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyProjectCwd,
   checkRestCall,
   checkRpcCall,
   classifyEnvWrite,
@@ -379,5 +380,32 @@ describe('markUntrustedPageText (задача 3E.4, риск R22; кадр-от�
   it('ответ уезжает под тем же именем поля, что пришёл: `value`, без `text`', () => {
     const out = markUntrustedPageText('preview.read', page({ text: 'a'.repeat(80) }))
     expect(Object.keys(out)).toEqual(['value'])
+  })
+})
+
+describe('applyProjectCwd', () => {
+  const vault = 'C:/projects/tower'
+
+  it('сеанс из окна при открытом проекте работает в папке проекта, а не там, откуда запущен шлюз', () => {
+    // Замер 23.09.2026: донор шлёт свою «живую» папку — папку запуска шлюза.
+    const out = applyProjectCwd('session.create', { cwd: 'D:/repo/apps/desktop', cols: 96 }, vault)
+    expect(out).toEqual({ cwd: vault, cols: 96 })
+  })
+
+  it('без папки в запросе — тоже папка проекта', () => {
+    expect(applyProjectCwd('session.create', { source: 'desktop' }, vault)).toEqual({
+      source: 'desktop',
+      cwd: vault
+    })
+  })
+
+  it('проект не открыт — запрос уходит как есть', () => {
+    const params = { cwd: 'D:/somewhere' }
+    expect(applyProjectCwd('session.create', params, null)).toBe(params)
+  })
+
+  it('другие вызовы не трогает — явная смена папки человеком (`session.cwd.set`) остаётся его выбором', () => {
+    const params = { session_id: 's', cwd: 'D:/elsewhere' }
+    expect(applyProjectCwd('session.cwd.set', params, vault)).toBe(params)
   })
 })

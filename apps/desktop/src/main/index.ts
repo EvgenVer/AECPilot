@@ -178,6 +178,7 @@ import {
   type ReplayWatermark
 } from './event-replay-pure'
 import {
+  applyProjectCwd,
   checkRestCall,
   checkRpcCall,
   classifyEnvWrite,
@@ -3157,10 +3158,15 @@ ipcMain.handle(
       // Задача 5.14: язык ответов агента дописывается в SOUL создаваемого
       // специалиста здесь — их диалог собирает SOUL сам и про язык не знает, а
       // правка вендорного файла не входит в пять разрешённых (AGENTS §14).
-      const params = applySoulLanguage(
+      // D-121: сеанс, созданный их окном, работает в папке проекта.
+      const params = applyProjectCwd(
         method,
-        sanitizeRpcParams(payload?.params),
-        soulLanguageLine(loadAgentLanguage())
+        applySoulLanguage(
+          method,
+          sanitizeRpcParams(payload?.params),
+          soulLanguageLine(loadAgentLanguage())
+        ),
+        currentProject?.vaultPath ?? null
       ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       const value = await gateway.request(method as never, params, timeoutMs)

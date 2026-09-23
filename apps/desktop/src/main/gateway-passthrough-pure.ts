@@ -228,6 +228,28 @@ function noteUntrusted(fields: Record<string, unknown>): Record<string, unknown>
 }
 
 /**
+ * Рабочая папка сеанса, созданного из окна, — папка открытого проекта
+ * (задача 1.20, specs/workspace-sources.md: «working dir агента = vault»).
+ *
+ * Замер 23.09.2026 (дефект D-121): сеансы создаёт и сам донор, своим путём, и
+ * кладёт в `session.create` свою «живую» папку — ту, откуда запущен шлюз. Агент
+ * работал в папке запуска приложения, а не в проекте: `pwd` отвечал папкой
+ * репозитория. Наш собственный путь (`ensureSession`) папку проекта передавал
+ * всегда — не передавал её только их.
+ *
+ * Трогается ровно `session.create`: `session.cwd.set` — явная смена папки
+ * человеком, это его выбор. Без открытого проекта запрос уходит как есть.
+ */
+export function applyProjectCwd(
+  method: string,
+  params: Record<string, unknown>,
+  vaultPath: string | null
+): Record<string, unknown> {
+  if (method !== 'session.create' || !vaultPath) return params
+  return { ...params, cwd: vaultPath }
+}
+
+/**
  * Пометить текст страницы недоверенным перед отправкой ядру. `method` — имя
  * запроса ядра, `result` — ответ окна на него (поле `value` — строка JSON,
  * которую разбирает инструмент ядра).
