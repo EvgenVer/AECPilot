@@ -4,6 +4,10 @@
 // тёмной системе. Подробности — в самом модуле.
 import './aec/appearance/system-theme-default'
 
+// Мост к главному процессу — тоже до любого их модуля (дефект D-128): их
+// модули читают `window.hermesDesktop` на загрузке. Подробности — в самом модуле.
+import './shared/install-hermes-desktop-bridge'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -58,12 +62,7 @@ import { registerMemoryScreen } from './aec/memory/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { registerGraphAccess } from './aec/settings/register'
 import { AecI18nProvider } from './shared/i18n'
-import { installHermesDesktopBridge } from './shared/hermes-desktop-shim'
 
-// Vendored donor code reaches the backend through `window.hermesDesktop`
-// (tasks 1.8.5/1.8.6). Installed before the first render because their stores
-// read it at module load, not from an effect.
-installHermesDesktopBridge()
 installClipboardShim()
 // Task 3.31b: второй рубеж сверки выдержек. Подписка ставится один раз на окно
 // и до первого рендера — ответ может прийти раньше, чем смонтируется лента.
