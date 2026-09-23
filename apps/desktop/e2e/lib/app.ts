@@ -358,6 +358,21 @@ export async function mainWindow(stand: Stand): Promise<Page> {
 
 const consentHandlerInstalled = new WeakSet<Page>()
 
+/** Открыть панель терминала справа — как человек: пункт «Терминал» в строке
+ *  состояния по умолчанию скрыт и включается правым кликом по ней, а сама
+ *  кнопка — одна иконка с подсказкой, доступного имени у неё нет. */
+export async function openTerminalPane(page: Page): Promise<void> {
+  const bar = page.locator('[data-slot="statusbar"]')
+  await bar.click({ button: 'right' })
+  const toggle = page.getByRole('menuitemcheckbox', { name: 'Терминал' })
+  await expect(toggle).toBeVisible()
+  if ((await toggle.getAttribute('aria-checked')) !== 'true') await toggle.click()
+  await page.keyboard.press('Escape')
+  // Кнопка переключает панель; открытую выдаёт подсветка (`terminalShowing`).
+  const button = bar.locator('button:has(svg.tabler-icon-terminal-2)')
+  if (!((await button.getAttribute('class')) ?? '').includes('bg-accent/55')) await button.click()
+}
+
 /** Убрать поверхности первого запуска: их оверлей загрузки, нашу карточку
  *  «С чего начать» и диалог согласия на настоящий профиль браузера. */
 export async function hideFirstRunSurfaces(page: Page): Promise<void> {
