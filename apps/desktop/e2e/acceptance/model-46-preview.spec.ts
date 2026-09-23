@@ -80,16 +80,17 @@ test('46.1.1 правка файла на диске перерисовывае�
   await expect.poll(() => guestText(app, 'a.html'), { timeout: 60000 }).toContain('STRANICA A ODIN')
   // Метка в обеих страницах: перезагрузка её стирает.
   await guestEval(app, 'window.__mark = 1', 'a.html')
-  const bAlive = (await guestEval(app, 'window.__mark = 1', 'b.html')) === 1
-  console.log('46.1 b guest mounted: ' + bAlive)
+  expect(await guestEval(app, 'window.__mark = 1', 'b.html'), 'b.html открыта рядом').toBe(1)
 
   writeFileSync(join(stand.get().projectDir, 'a.html'), '<h1>STRANICA A DVA</h1>', 'utf8')
   await expect.poll(() => guestText(app, 'a.html'), { timeout: 60000 }).toContain('STRANICA A DVA')
   expect(await guestEval(app, 'window.__mark ?? null', 'a.html'), 'a.html перезагружена').toBeNull()
-  if (bAlive) {
-    expect(await guestEval(app, 'window.__mark', 'b.html'), 'b.html не тронута').toBe(1)
-  }
   await record(test.info(), page)
+})
+
+test('46.1.2 перерисовалась только та панель, где показывали', async () => {
+  const app = stand.get().app
+  expect(await guestEval(app, 'window.__mark', 'b.html'), 'b.html не перезагружалась').toBe(1)
 })
 
 // D-126: у вкладки ФАЙЛА кнопки «в браузер» нет нигде — в строке
