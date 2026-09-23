@@ -245,6 +245,7 @@ import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picke
 import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
 import { decideOpenPreviewExternal } from './preview-external-pure'
 import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
+import { decodePreviewText, PREVIEW_TEXT_MAX_BYTES } from './preview-read-pure'
 import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
 import { cropCapture } from './preview-capture-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
@@ -1774,6 +1775,46 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
     return {
       ok: false,
       error: `Не удалось сохранить: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+})
+
+// Дефект D-127: текст файла для ИХ панели предпросмотра (`preview-file.tsx`
+// зовёт `readFileText`). Правило то же, что у слежения: файл проекта либо
+// выбранный человеком, со сверкой после `realpath`. Разбор байтов — в
+// `preview-read-pure.ts`; здесь диск и отказы. Отказ поднимается в окне
+// ошибкой, и их панель показывает его человеку.
+ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
+  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+
+  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  if (!decided.ok) return { ok: false, error: decided.error }
+
+  try {
+    const realPath = await fs.promises.realpath(decided.absPath)
+    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+      return { ok: false, error: WATCH_OUTSIDE_ERROR }
+    }
+
+    const info = await fs.promises.stat(realPath)
+    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+
+    const handle = await fs.promises.open(realPath, 'r')
+    try {
+      const head = Buffer.alloc(Math.min(info.size, PREVIEW_TEXT_MAX_BYTES))
+      const { bytesRead } = await handle.read(head, 0, head.byteLength, 0)
+      return {
+        ok: true,
+        path: realPath,
+        ...decodePreviewText(head.subarray(0, bytesRead), info.size)
+      }
+    } finally {
+      await handle.close()
+    }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 })

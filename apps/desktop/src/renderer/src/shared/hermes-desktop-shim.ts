@@ -871,6 +871,30 @@ const IMPLEMENTED: Record<string, unknown> = {
     return { path: answer.path }
   },
 
+  // Дефект D-127. Их просмотр файла (`preview-file.tsx`) читает текст этим
+  // членом; непроброшенный, он превращал любой текстовый файл в «Предпросмотр
+  // недоступен». Отдан по правилу слежения — файл проекта либо выбранный
+  // человеком; их загрузчик плагинов (SPEC HX5) по-прежнему получает отказ.
+  async readFileText(filePath: string): Promise<{
+    binary: boolean
+    byteSize: number
+    path: string
+    text: string
+    truncated: boolean
+  }> {
+    const answer = await window.aecpilot.readPreviewText(filePath)
+
+    if (!answer.ok) throw new Error(answer.error)
+
+    return {
+      binary: answer.binary,
+      byteSize: answer.byteSize,
+      path: answer.path,
+      text: answer.text,
+      truncated: answer.truncated
+    }
+  },
+
   // Задача 3.B4 (SPEC UR4, пакет 9.7 донора). Их аннотации на предпросмотре:
   // человек обводит место на странице, панель снимает гостя и кладёт вырез в
   // композер. Приехало с 0.21.2 и взято решением владельца 2026-09-14.

@@ -948,6 +948,20 @@ export interface AecpilotApi {
     path: string,
     content: string
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  /** Текст файла для их панели предпросмотра (дефект D-127): правило то же, что
+   * у слежения — файл проекта либо выбранный человеком. Не больше 512 КиБ
+   * начала; `truncated` — файл длиннее, `binary` — в нём нулевые байты. */
+  readPreviewText(path: string): Promise<
+    | {
+        ok: true
+        path: string
+        text: string
+        byteSize: number
+        binary: boolean
+        truncated: boolean
+      }
+    | { ok: false; error: string }
+  >
   /** Снимок гостя предпросмотра PNG как data-URL (задача 3.B4, SPEC UR4:
    * их аннотации на предпросмотре). `rect` — CSS-пиксели viewport'а гостя,
    * `viewport` — его размер в тех же единицах; без `rect` — видимая область
