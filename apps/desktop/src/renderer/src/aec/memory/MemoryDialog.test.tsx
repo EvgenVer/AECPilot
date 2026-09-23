@@ -232,6 +232,36 @@ describe('список фактов памяти проекта', () => {
     expect(screen.getByText(/читается только при остановленном агенте/)).toBeTruthy()
   })
 
+  it('пока агент поднимается, кнопка так и говорит, а открыть список снова нельзя', async () => {
+    // Подъём ядра — секунды. Раздел, сразу вернувшийся к «Показать список»,
+    // врёт, что агент уже работает, и зовёт остановить его ещё раз посреди
+    // подъёма (D-110).
+    let finish: (answer: { ok: true }) => void = () => undefined
+    ;(
+      window as unknown as { aecpilot: { closeMemoryFacts: () => Promise<unknown> } }
+    ).aecpilot.closeMemoryFacts = () => {
+      closes += 1
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    }
+    show()
+    await showList()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть список и поднять агента' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Поднимаю агента…' })).toBeTruthy()
+    )
+    expect(screen.queryByRole('button', { name: 'Показать список (агент остановится)' })).toBeNull()
+
+    finish({ ok: true })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Показать список (агент остановится)' })
+      ).toBeTruthy()
+    )
+  })
+
   it('закрытие ОКНА при открытом списке тоже поднимает агента', async () => {
     // Человек закрывает окно крестиком, а не кнопкой списка — агент обязан
     // вернуться и на этом пути.

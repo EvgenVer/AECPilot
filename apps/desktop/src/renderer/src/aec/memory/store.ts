@@ -118,10 +118,12 @@ export async function deleteMemoryFact(id: string): Promise<string> {
  *  окна — в том числе когда список прочитать не удалось: ядро к этому моменту
  *  уже погашено, и молча оставить его погашенным нельзя. */
 export async function closeMemoryFacts(): Promise<string> {
-  const state = $memoryFacts.get().state
-  $memoryFacts.set(FACTS_IDLE)
-  if (state === 'idle') return ''
+  if ($memoryFacts.get().state === 'idle') return ''
 
+  // Список уходит ПОСЛЕ ответа, а не до: пока ядро поднимается, раздел
+  // показывает «Поднимаю агента…», а не кнопку, которая остановила бы его
+  // снова посреди подъёма (D-110).
   const answer = await window.aecpilot.closeMemoryFacts()
+  $memoryFacts.set(FACTS_IDLE)
   return answer.ok ? '' : answer.error
 }
