@@ -162,3 +162,45 @@ export function ensureSectionList(
 
   return { text: next.join('\n'), changed: true, unexpectedStructure: false }
 }
+
+/**
+ * Дефект D-129. Заменяет список внутри секции, но ТОЛЬКО если он в точности
+ * равен нашему прежнему умолчанию `previous` — тем же видом, каким его пишет
+ * `ensureSectionList`. Так профиль, куда мы однажды записали старое умолчание,
+ * получает новое, а список, который человек поменял сам, не трогается.
+ */
+export function upgradeSectionList(
+  yamlText: string,
+  section: string,
+  key: string,
+  previous: readonly string[],
+  next: readonly string[]
+): ConfigScalarResult {
+  const unchanged = { text: yamlText, changed: false, unexpectedStructure: false }
+  const lines = yamlText.split('\n')
+  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#.*)?$`).test(line))
+  if (start === -1) return unchanged
+
+  let keyIndex = -1
+  for (let index = start + 1; index < lines.length && !TOP_LEVEL_LINE.test(lines[index]); index += 1) {
+    if (new RegExp(`^  ${key}:\\s*$`).test(lines[index])) {
+      keyIndex = index
+      break
+    }
+  }
+  if (keyIndex === -1) return unchanged
+
+  const items: string[] = []
+  let end = keyIndex + 1
+  while (end < lines.length && /^ {4}- \S+\s*$/.test(lines[end])) {
+    items.push(lines[end].trim().slice(2).trim())
+    end += 1
+  }
+  if (items.length !== previous.length || items.some((item, index) => item !== previous[index])) {
+    return unchanged
+  }
+
+  const written = next.map((value) => `    - ${value}`)
+  const text = [...lines.slice(0, keyIndex + 1), ...written, ...lines.slice(end)].join('\n')
+  return { text, changed: true, unexpectedStructure: false }
+}

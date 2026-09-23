@@ -4,7 +4,12 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { ensureSectionList, ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
+import {
+  ensureSectionList,
+  ensureSectionScalar,
+  ensureTopLevelList,
+  upgradeSectionList
+} from './config-yaml-pure'
 
 describe('дописать поле в их конфиг', () => {
   it('секции нет — добавляется целиком', () => {
@@ -227,5 +232,38 @@ describe('список внутри секции', () => {
       changed: false,
       unexpectedStructure: true
     })
+  })
+})
+
+// Дефект D-129: `kanban` добавлен в наше умолчание `platform_toolsets.cli`, и
+// профиль, где лежит прежнее умолчание, должен его получить — а выбор человека нет.
+describe('замена нашего прежнего умолчания', () => {
+  const OLD = ['hermes-cli', 'video']
+  const NEW = ['hermes-cli', 'video', 'kanban']
+
+  it('список равен прежнему умолчанию — заменяется новым, соседи целы', () => {
+    const before = 'platform_toolsets:\n  cli:\n    - hermes-cli\n    - video\n  telegram:\n    - web\nagent:\n  x: 1\n'
+    const result = upgradeSectionList(before, 'platform_toolsets', 'cli', OLD, NEW)
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toBe(
+      'platform_toolsets:\n  cli:\n    - hermes-cli\n    - video\n    - kanban\n  telegram:\n    - web\nagent:\n  x: 1\n'
+    )
+  })
+
+  it('человек поменял список — не трогается', () => {
+    const chosen = 'platform_toolsets:\n  cli:\n    - hermes-cli\n    - video\n    - web\n'
+
+    expect(upgradeSectionList(chosen, 'platform_toolsets', 'cli', OLD, NEW)).toEqual({
+      text: chosen,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('ключа нет — не трогается', () => {
+    const text = 'platform_toolsets:\n  telegram:\n    - web\n'
+
+    expect(upgradeSectionList(text, 'platform_toolsets', 'cli', OLD, NEW).changed).toBe(false)
   })
 })

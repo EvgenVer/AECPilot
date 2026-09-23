@@ -31,7 +31,12 @@ import {
   serializeAutowrite
 } from './memory-notes-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
-import { ensureSectionList, ensureSectionScalar, ensureTopLevelList } from './config-yaml-pure'
+import {
+  ensureSectionList,
+  ensureSectionScalar,
+  ensureTopLevelList,
+  upgradeSectionList
+} from './config-yaml-pure'
 import {
   DEFAULT_WAKE_PHRASE,
   setWakeIndicatorState,
@@ -1176,6 +1181,8 @@ function applyKanbanToolset(homeDir: string): void {
  * (`video_gen`) остаётся выключенной: её исключает SPEC HX11 поимённо, и в
  * список она не попадает.
  */
+const CLI_TOOLSETS = ['hermes-cli', 'video', 'kanban']
+
 function applyVideoToolset(homeDir: string): void {
   const configPath = join(homeDir, 'config.yaml')
 
@@ -1187,7 +1194,15 @@ function applyVideoToolset(homeDir: string): void {
     return
   }
 
-  const merged = ensureSectionList(original, 'platform_toolsets', 'cli', ['hermes-cli', 'video'])
+  // Дефект D-129: на ядре 0.21.3 `kanban` из верхнего `toolsets` (функция выше)
+  // до сессии больше не доходит — `_get_platform_tools` разворачивает `hermes-cli`
+  // в наборы без него, и агент не видел ни одного `kanban_*` (UR38). Набор должен
+  // быть назван здесь. Профиль с нашим прежним умолчанием получает новое; список,
+  // который человек поменял сам, не трогается (`upgradeSectionList`).
+  const ensured = ensureSectionList(original, 'platform_toolsets', 'cli', CLI_TOOLSETS)
+  const merged = ensured.changed || ensured.unexpectedStructure
+    ? ensured
+    : upgradeSectionList(original, 'platform_toolsets', 'cli', ['hermes-cli', 'video'], CLI_TOOLSETS)
   if (merged.unexpectedStructure) {
     console.warn(
       'aecpilot: config.yaml has a platform_toolsets: scalar — leaving the video toolset alone'
