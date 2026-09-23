@@ -1000,21 +1000,6 @@ test('33.3.1 щелчок мимо полосы (по прозрачному) д
   test.skip(desktopLocked(), LOCKED_REASON)
   const info = (await hudInfo())!
   const hud = await pageByUrl('win=hud')
-  // Место, где полоса ничего не рисует: под точкой — только их монтажный узел
-  // (#root), то есть пустота. Оно ищется, а не назначается: углы заняты —
-  // справа висит лента уведомлений, снизу composer.
-  const empty = await hud.evaluate(() => {
-    const root = document.querySelector('#root')
-    for (let y = 8; y < window.innerHeight - 8; y += 6) {
-      for (let x = 8; x < window.innerWidth - 8; x += 12) {
-        const hit = document.elementFromPoint(x, y)
-        if (hit && root && (hit === root || hit.contains(root))) return { x, y }
-      }
-    }
-    return null
-  })
-  expect(empty, 'у полосы есть место, где она ничего не рисует').not.toBeNull()
-
   // Каретка — НЕ в поле полосы: человек печатает в чужой программе. Это условие
   // обязательное, а не декорация. Пока поле ввода полосы держит каретку, их
   // правило (`hud/click-through.ts`) намеренно оставляет окно твёрдым — иначе
@@ -1023,6 +1008,39 @@ test('33.3.1 щелчок мимо полосы (по прозрачному) д
   // страницы вечный фокус (`document.hasFocus()` всегда true), поэтому снимается
   // именно каретка.
   await hud.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  // Лента тает, когда хода нет и каретка не в поле полосы (их `data-hud-recent`:
+  // удержание 1,1 с плюс затухание) — только тогда под ней пусто.
+  await expect
+    .poll(
+      () =>
+        hud.evaluate(() =>
+          document.querySelector('[data-hud-shell]')?.hasAttribute('data-hud-recent')
+        ),
+      {
+        timeout: 10000
+      }
+    )
+    .toBe(false)
+  await hud.waitForTimeout(500)
+  // Место, где полоса ничего не рисует: под точкой — сам корень полосы
+  // (`[data-hud-shell]`) или то, что выше него. Это ровно их правило пустоты
+  // (`hudIgnoresMouse`: `!hit.contains(root)`), а не наше: раньше тест считал
+  // пустым только `#root` и не видел полей самой полосы. Место ищется, а не
+  // назначается: углы заняты — справа лента уведомлений, снизу composer.
+  const empty = await hud.evaluate(() => {
+    const root = document.querySelector('[data-hud-shell]')
+    // От самого края: когда лента полна реплик, пустыми остаются только поля
+    // вокруг её панели — несколько пикселей по краям окна.
+    for (let y = 2; y < window.innerHeight - 2; y += 4) {
+      for (let x = 2; x < window.innerWidth - 2; x += 4) {
+        const hit = document.elementFromPoint(x, y)
+        if (hit && root && hit.contains(root)) return { x, y }
+      }
+    }
+    return null
+  })
+  expect(empty, 'у полосы есть место, где она ничего не рисует').not.toBeNull()
+
   await hud.mouse.move(empty!.x, empty!.y)
   await hud.waitForTimeout(300)
 

@@ -32,7 +32,15 @@ import {
 
 const IDLE_INGEST: IngestState = { error: null, lastReport: null, progress: null, running: false }
 
+/** Мастер — только в главном окне. Корень рендерера общий у всех окон, и без
+ *  этой проверки панель вставала и в полосу быстрого ввода (`?win=hud`), и во
+ *  второе окно, и в окно браузера — там она закрывала собой всё (D-118). */
 export default function FirstRunGuide(): React.JSX.Element | null {
+  if (new URLSearchParams(window.location.search).get('win') !== null) return null
+  return <ProjectGuide />
+}
+
+function ProjectGuide(): React.JSX.Element | null {
   const project = useQuery({
     queryKey: ['aec', 'onboarding', 'project'],
     queryFn: () => window.aecpilot.getCurrentProject()

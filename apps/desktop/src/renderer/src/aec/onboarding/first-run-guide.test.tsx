@@ -82,6 +82,20 @@ function mount(): void {
 }
 
 describe('мастер первого запуска', () => {
+  // D-118: корень рендерера общий у всех окон — в полосе быстрого ввода панель
+  // закрывала собой всё.
+  test('в полосе быстрого ввода (?win=hud) мастера нет — и о проекте он не спрашивает', async () => {
+    window.history.replaceState(null, '', '/?win=hud')
+    try {
+      mount()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(screen.queryByRole('region')).toBeNull()
+      expect(api.getCurrentProject).not.toHaveBeenCalled()
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
   test('без ключа текущий шаг — провайдер, и кнопка открывает их экран', async () => {
     mount()
 
