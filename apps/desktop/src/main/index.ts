@@ -4531,14 +4531,23 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 
   publishIngestState({ error: null, progress: null, running: true })
 
-  void runIngest(
-    vaultPath,
-    (progress) => {
-      if (currentProject?.vaultPath !== vaultPath) return
-      publishIngestState({ progress })
-    },
-    { full }
-  )
+  // D-114. Индексация берёт только просканированные файлы, а подключение папки
+  // скана не запускает — до следующего по расписанию (5 минут) «Проиндексировать»
+  // в мастере отрабатывал вхолостую. Поэтому сначала свежий скан. Файлы на
+  // машине ядра здесь не сканируются вовсе (3.13b) — там и скан не нужен.
+  const scanned = filesAreRemote() ? Promise.resolve() : scanScheduler.scanFresh()
+
+  void scanned
+    .then(() =>
+      runIngest(
+        vaultPath,
+        (progress) => {
+          if (currentProject?.vaultPath !== vaultPath) return
+          publishIngestState({ progress })
+        },
+        { extraEnv: buildExtraEnv(), full }
+      )
+    )
     .then(({ report }) => {
       if (currentProject?.vaultPath !== vaultPath) {
         publishIngestState({ progress: null, running: false })
@@ -4625,10 +4634,16 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
 
   publishGraphState({ error: null, path: request.path, progress: null, running: true })
 
-  void runGraphAdd(vaultPath, request.path, request.kind, (progress) => {
-    if (currentProject?.vaultPath !== vaultPath) return
-    publishGraphState({ progress })
-  })
+  void runGraphAdd(
+    vaultPath,
+    request.path,
+    request.kind,
+    (progress) => {
+      if (currentProject?.vaultPath !== vaultPath) return
+      publishGraphState({ progress })
+    },
+    buildExtraEnv()
+  )
     .then((report) => {
       if (currentProject?.vaultPath !== vaultPath) {
         publishGraphState({ path: null, progress: null, running: false })

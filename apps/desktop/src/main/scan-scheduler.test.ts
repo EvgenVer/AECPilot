@@ -221,4 +221,44 @@ describe('ScanScheduler', () => {
     await vi.advanceTimersByTimeAsync(1000) // the interval schedule is still armed
     expect(runScan).toHaveBeenCalledTimes(2)
   })
+
+  // D-114: «Проиндексировать» сразу после подключения папки. Идущий скан мог
+  // начаться ДО того, как папка попала в project.json, — его мало; нужен скан,
+  // начатый после вызова.
+  it('scanFresh() waits out an in-flight scan, then runs a fresh one', async () => {
+    let resolveFirst: (value: string) => void = () => {}
+    const runScan = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValue('fresh report')
+    const onReport = vi.fn()
+    const scheduler = new ScanScheduler(runScan, { onReport })
+
+    void scheduler.triggerNow()
+    const fresh = scheduler.scanFresh()
+    expect(runScan).toHaveBeenCalledTimes(1)
+
+    resolveFirst('stale report')
+    await fresh
+
+    expect(runScan).toHaveBeenCalledTimes(2)
+    expect(onReport).toHaveBeenLastCalledWith('fresh report')
+    expect(scheduler.isScanning()).toBe(false)
+  })
+
+  it('scanFresh() with nothing in flight scans right away and resolves when it is done', async () => {
+    const runScan = vi.fn().mockResolvedValue('report')
+    const onReport = vi.fn()
+    const scheduler = new ScanScheduler(runScan, { onReport })
+
+    await scheduler.scanFresh()
+
+    expect(runScan).toHaveBeenCalledTimes(1)
+    expect(onReport).toHaveBeenCalledWith('report')
+  })
 })

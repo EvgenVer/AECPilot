@@ -3,8 +3,8 @@
 // онбординга тянет за собой весь их клиент шлюза, и в тесте нашего экрана это
 // была бы минута импорта ради двух функций (урок D-31).
 
+import { requestComposerFocus, requestComposerInsert } from '../../donor/app/chat/composer/focus'
 import { $desktopOnboarding, startManualOnboarding } from '../../donor/store/onboarding'
-import { setComposerDraft } from '../../donor/store/composer'
 
 /** Открывает ИХ оверлей подключения провайдера — тот же, что поднимается сам,
  * когда ядру нечем отвечать. Нужен для случая, когда человек на первом запуске
@@ -28,7 +28,12 @@ export function onProviderConfigured(callback: () => void): () => void {
 
 /** Кладёт подсказанный вопрос в их поле ввода. Отправляет человек сам: сессия
  * принадлежит их экрану, и отправить за него значило бы завести вторую точку,
- * из которой в ту же сессию уходят сообщения. */
+ * из которой в ту же сессию уходят сообщения.
+ *
+ * D-116: через их шину вставки, которую слушает само поле. Раньше здесь был их
+ * атом `$composerDraft` — с пина 0.21 его не читает ни одно поле, и кнопка
+ * молча ничего не делала. */
 export function fillComposer(text: string): void {
-  setComposerDraft(text)
+  requestComposerInsert(text, { target: 'main' })
+  requestComposerFocus('main')
 }

@@ -39,7 +39,7 @@ export type IngestOutcome = {
 export function runIngest(
   vaultPath: string,
   onProgress: (progress: IngestProgress) => void,
-  options: { full?: boolean; timeoutMs?: number } = {}
+  options: { extraEnv?: Record<string, string>; full?: boolean; timeoutMs?: number } = {}
 ): Promise<IngestOutcome> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_INGEST_TIMEOUT_MS
   const args = ['ingest', '--project', vaultPath]
@@ -47,6 +47,10 @@ export function runIngest(
 
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args, {
+      // D-115: эмбеддинги берут ключ провайдера из окружения процесса, а ключ
+      // человека лежит в нашем зашифрованном хранилище — без него каждый файл
+      // падает с «чанки есть, а векторов нет».
+      env: { ...process.env, ...options.extraEnv },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })

@@ -101,10 +101,14 @@ export function runGraphAdd(
   path: string,
   kind: GraphScopeKind,
   onProgress: (progress: IngestProgressEvent) => void,
+  extraEnv: Record<string, string> = {},
   timeoutMs = DEFAULT_GRAPH_TIMEOUT_MS
 ): Promise<GraphRunReport> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args('graph-add', vaultPath, path, kind), {
+      // D-115: граф строится моделью и эмбеддингами провайдера — ключ человека
+      // из нашего хранилища, как у индексации.
+      env: { ...process.env, ...extraEnv },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })

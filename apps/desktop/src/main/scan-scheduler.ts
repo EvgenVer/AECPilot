@@ -32,6 +32,7 @@ export class ScanScheduler<TReport> {
   private intervalMs: number | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
   private scanning = false
+  private inFlight: Promise<void> | undefined
 
   constructor(runScan: ScanRunner<TReport>, callbacks: ScanSchedulerCallbacks<TReport> = {}) {
     this.runScan = runScan
@@ -68,6 +69,16 @@ export class ScanScheduler<TReport> {
     return this.runOnce()
   }
 
+  /** A scan that STARTS after this call and has finished when the promise
+   * resolves (D-114). Unlike `triggerNow`, an in-flight scan is not enough:
+   * it may have begun before a just-connected source was in project.json, so
+   * this waits for it and then runs a fresh one (or joins a fresh one somebody
+   * else started meanwhile). */
+  async scanFresh(): Promise<void> {
+    if (this.inFlight) await this.inFlight
+    await (this.inFlight ?? this.runOnce())
+  }
+
   private armTimer(): void {
     // Fix (review major 2): always clear any timer already standing before
     // arming a new one. Without this, `start()` called while a scan is in
@@ -90,8 +101,16 @@ export class ScanScheduler<TReport> {
     }, this.intervalMs)
   }
 
-  private async runOnce(): Promise<void> {
-    if (this.scanning) return
+  private runOnce(): Promise<void> {
+    if (this.scanning) return Promise.resolve()
+    const run = this.scanOnce().finally(() => {
+      this.inFlight = undefined
+    })
+    this.inFlight = run
+    return run
+  }
+
+  private async scanOnce(): Promise<void> {
     this.scanning = true
     // A scan is starting: kill any still-pending timer so a tick can never
     // land while this run is in progress (only relevant for the
