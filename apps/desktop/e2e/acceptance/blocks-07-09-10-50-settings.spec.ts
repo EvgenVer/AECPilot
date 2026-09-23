@@ -348,6 +348,61 @@ test('9.2.1 поля трёх языков на месте; язык ответ�
   await closeDialog(dialog)
 })
 
+/** Выбрать язык ответов агента в «Настройках проекта» и сохранить — путь
+ *  человека к настройке G7. */
+async function chooseAgentLanguage(page: Page, label: string, stored: string): Promise<void> {
+  await page.getByRole('contentinfo').getByRole('button', { name: 'e2e' }).click()
+  await page.getByRole('menuitem', { name: 'Настройки проекта' }).click()
+  const dialog = page.getByRole('dialog').last()
+  await dialog.locator('#aec-agent-lang').selectOption({ label })
+  await dialog.getByRole('button', { name: 'Сохранить' }).click()
+  await expect
+    .poll(() => page.evaluate(async () => (await window.aecpilot.getAgentLanguage()).language))
+    .toBe(stored)
+  if (await dialog.isVisible()) await closeDialog(dialog)
+}
+
+/** SOUL, который ДОЕХАЛ до ядра: мок печатает полученный `profiles.create`.
+ *  Проверять надо то, что ушло на другую сторону, а не то, что мы собирались
+ *  дописать (тот же довод, что в smoke). */
+function soulReceived(marker: string): string {
+  const line = stand
+    .get()
+    .mockOutput()
+    .split(/\r?\n/)
+    .filter((one) => one.startsWith('MOCK_PROFILE_SOUL '))
+    .map((one) => JSON.parse(one.slice('MOCK_PROFILE_SOUL '.length)) as string)
+    .find((soul) => soul.includes(marker))
+  return line ?? ''
+}
+
+const SOUL_BASE = '# Probe\n\n**Role:** e2e'
+
+// Специалист создаётся тем же вызовом моста, что и их диалог создания: строку
+// про язык дописывает мост, а не диалог, и UI-диалог на моке упирается в
+// приветственный ход модели, которого у мока нет.
+test('9.2.2 «Русский» в языке ответов — в SOUL нового специалиста строка про язык', async () => {
+  const page = await ui()
+  await chooseAgentLanguage(page, 'Русский', 'ru')
+  await page.evaluate(
+    (soul) => window.aecpilot.gatewayRpc('profiles.create', { name: 'aec-e2e-g7-ru', soul }),
+    `${SOUL_BASE} g7-ru`
+  )
+  await expect.poll(() => soulReceived('g7-ru'), { timeout: 15000 }).toMatch(/по-русски/)
+})
+
+test('9.2.3 «Не задан» — в SOUL следующего специалиста строки про язык НЕТ', async () => {
+  const page = await ui()
+  await chooseAgentLanguage(page, 'Не задан', '')
+  await page.evaluate(
+    (soul) => window.aecpilot.gatewayRpc('profiles.create', { name: 'aec-e2e-g7-unset', soul }),
+    `${SOUL_BASE} g7-unset`
+  )
+  await expect
+    .poll(() => soulReceived('g7-unset'), { timeout: 15000 })
+    .toBe(`${SOUL_BASE} g7-unset`)
+})
+
 test('9.2.4 смена языка имён в графе спрашивает второй раз и называет цену; «Отмена» ничего не пишет', async () => {
   const page = await ui()
   const projectJson = join(stand.get().projectDir, '.aecpilot', 'project.json')

@@ -63,6 +63,8 @@ export interface LaunchOptions {
   projectDir?: string
   /** Живой режим: готовый профиль; без него стенд копирует dev-profile сам. */
   profileDir?: string
+  /** Живой режим: копия профиля без `.env` — ядро без ключа провайдера. */
+  withoutProviderKey?: boolean
   /** Дополнительное окружение приложения. */
   env?: Record<string, string>
   /** Имя для файлов журналов в `test-results/` (обычно имя спеки). */
@@ -225,7 +227,8 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
     env.AEC_GATEWAY_URL = `ws://127.0.0.1:${mock.port}/api/ws`
     env.AEC_GATEWAY_REST_URL = `http://127.0.0.1:${mock.restPort}`
   } else {
-    profileDir = options.profileDir ?? prepareProfile()
+    profileDir =
+      options.profileDir ?? prepareProfile({ withoutProviderKey: options.withoutProviderKey })
     ownsProfile = !options.profileDir
     servePort = await getFreePort()
     env.AEC_HERMES_HOME = profileDir

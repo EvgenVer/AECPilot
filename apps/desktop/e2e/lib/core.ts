@@ -21,15 +21,20 @@ function skip(entry: string): boolean {
   return name.startsWith('.bak-') || name === 'serve.log' || name === 'logs'
 }
 
-/** Скопировать dev-profile во временную папку и вернуть её путь. */
-export function prepareProfile(): string {
+/** Скопировать dev-profile во временную папку и вернуть её путь.
+ *
+ * `withoutProviderKey` — копия без файла `.env`: ядро поднимается без ключа
+ * провайдера, как на машине, где его ещё не вводили (ветка «ключа нет» блока
+ * 14). Файл просто не копируется — его содержимое никто не читает. */
+export function prepareProfile(options: { withoutProviderKey?: boolean } = {}): string {
   if (!existsSync(join(devProfileDir, 'config.yaml'))) {
     throw new Error(`dev-profile не найден: ${devProfileDir} — сначала node runtime/setup.mjs`)
   }
   const dir = mkdtempSync(join(tmpdir(), PROFILE_PREFIX))
+  const envFile = join(devProfileDir, '.env')
   cpSync(devProfileDir, dir, {
     recursive: true,
-    filter: (source) => !skip(source)
+    filter: (source) => !skip(source) && !(options.withoutProviderKey && source === envFile)
   })
   return dir
 }
