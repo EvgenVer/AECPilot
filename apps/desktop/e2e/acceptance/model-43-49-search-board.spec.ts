@@ -84,10 +84,11 @@ async function statusOf(page: Page, title: string): Promise<string | undefined> 
   return board.columns.flatMap((column) => column.tasks).find((task) => task.title === title)?.status
 }
 
-// D-112: включённая на ходу доска открывается только после перезагрузки окна.
-// D-129: на ядре 0.21.3 `kanban_*` доходят до агента только через
-// `platform_toolsets.cli`, а в профиле владельца там свой список — ждёт решения.
-test.fixme('49.2.1 агент заводит задачу на доске и передвигает её — видно без перезагрузки', async () => {
+// D-112: включённая на ходу доска открывается только после перезагрузки окна —
+// поэтому окно перезагружается ДО хода; «без перезагрузки» здесь — про карточку.
+// D-129: `kanban_*` доходят до агента через `platform_toolsets.cli`; в профиль
+// владельца (его копирует стенд) `kanban` дописан 24.09.2026 его решением.
+test('49.2.1 агент заводит задачу на доске и передвигает её — видно без перезагрузки', async () => {
   let page = await ui()
   await page.evaluate(() => {
     window.location.hash = '#/skills'
@@ -113,7 +114,7 @@ test.fixme('49.2.1 агент заводит задачу на доске и п�
   await toChat(page)
   const result = await turn(
     page,
-    `Заведи на доске задач (канбан) задачу с заголовком «${title}» без исполнителя — инструментом kanban_create (вызывай его напрямую), assignee не указывай. Затем заблокируй её инструментом kanban_block с причиной «ждём исходные данные». Ответь одним словом «готово».`,
+    `Заведи на доске задач (канбан) задачу с заголовком «${title}» — инструментом kanban_create (вызывай его напрямую), assignee «e2e-nikto» (такого профиля нет — задача не должна запускаться). Затем заблокируй её инструментом kanban_block с причиной «ждём исходные данные». Ответь одним словом «готово».`,
     { expectTool: /kanban_create/ }
   )
   console.log('49.2 ' + result.transcript.slice(0, 1500))
@@ -126,7 +127,10 @@ test.fixme('49.2.1 агент заводит задачу на доске и п�
   await expect(expand.or(collapse).first()).toBeVisible({ timeout: 30000 })
   if (await expand.isVisible()) await expand.click()
   // Карточка в колонке Blocked — окно узнало о ней само, без перезагрузки.
-  await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 30000 })
+  // Доска узнаёт о переменах опросом раз в 60 с: сокет плагина у нас убран
+  // (правка [3] в `plugins/kanban/plugin.tsx`, HX5/C9), и это их же запасной
+  // путь. Замер 24.09.2026: за 30 с карточки не было, после перезагрузки — есть.
+  await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 90000 })
   await record(test.info(), page, { transcript: result.transcript })
 })
 
