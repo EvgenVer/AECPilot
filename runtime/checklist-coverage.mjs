@@ -17,7 +17,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CHECKLIST = path.join(ROOT, "docs", "manual-checklist.md");
@@ -73,7 +73,7 @@ export function parseChecklist(text) {
 
 /** Номера позиций, за которые отвечает хотя бы один тест: имя теста начинается
  *  с номера. */
-function testedPositions() {
+export function testedPositions() {
   const found = new Map();
   if (!fs.existsSync(SPEC_DIR)) return found;
   for (const name of fs.readdirSync(SPEC_DIR)) {
@@ -88,59 +88,68 @@ function testedPositions() {
   return found;
 }
 
-const text = fs.readFileSync(CHECKLIST, "utf-8");
-const positions = parseChecklist(text);
-const tests = testedPositions();
+/** Путь к чек-листу — его читает и сборщик отчёта (3F.11). */
+export { CHECKLIST };
 
-if (process.argv.includes("--dump")) {
+function main() {
+  const text = fs.readFileSync(CHECKLIST, "utf-8");
+  const positions = parseChecklist(text);
+  const tests = testedPositions();
+
+  if (process.argv.includes("--dump")) {
+    for (const position of positions) {
+      console.log(`${position.id}\t${position.label || "—"}\t${position.text}`);
+    }
+  }
+
+  const counts = new Map(LABELS.map((label) => [label, 0]));
+  const unlabelled = [];
+  const untested = [];
+
   for (const position of positions) {
-    console.log(`${position.id}\t${position.label || "—"}\t${position.text}`);
+    if (!position.label) {
+      unlabelled.push(position);
+      continue;
+    }
+    counts.set(position.label, counts.get(position.label) + 1);
+    if (TESTED.has(position.label) && !tests.has(position.id)) untested.push(position);
   }
-}
 
-const counts = new Map(LABELS.map((label) => [label, 0]));
-const unlabelled = [];
-const untested = [];
+  console.log("Покрытие чек-листа (SPEC AC15)");
+  console.log(`  позиций всего: ${positions.length}`);
+  for (const label of LABELS) console.log(`  ${label.padEnd(14)} ${counts.get(label)}`);
+  console.log(`  тестов с номером позиции: ${tests.size}`);
 
-for (const position of positions) {
-  if (!position.label) {
-    unlabelled.push(position);
-    continue;
+  if (unlabelled.length > 0) {
+    console.log(`\nБЕЗ МЕТКИ (${unlabelled.length}):`);
+    for (const position of unlabelled.slice(0, 40)) {
+      console.log(`  строка ${position.line}\t${position.id}\t${position.text}`);
+    }
+    if (unlabelled.length > 40) console.log(`  … и ещё ${unlabelled.length - 40}`);
   }
-  counts.set(position.label, counts.get(position.label) + 1);
-  if (TESTED.has(position.label) && !tests.has(position.id)) untested.push(position);
-}
 
-console.log("Покрытие чек-листа (SPEC AC15)");
-console.log(`  позиций всего: ${positions.length}`);
-for (const label of LABELS) console.log(`  ${label.padEnd(14)} ${counts.get(label)}`);
-console.log(`  тестов с номером позиции: ${tests.size}`);
-
-if (unlabelled.length > 0) {
-  console.log(`\nБЕЗ МЕТКИ (${unlabelled.length}):`);
-  for (const position of unlabelled.slice(0, 40)) {
-    console.log(`  строка ${position.line}\t${position.id}\t${position.text}`);
+  if (untested.length > 0) {
+    console.log(`\nМЕТКА ЕСТЬ, ТЕСТА НЕТ (${untested.length}):`);
+    for (const position of untested.slice(0, 40)) {
+      console.log(`  строка ${position.line}\t${position.id}\t${position.label}\t${position.text}`);
+    }
+    if (untested.length > 40) console.log(`  … и ещё ${untested.length - 40}`);
   }
-  if (unlabelled.length > 40) console.log(`  … и ещё ${unlabelled.length - 40}`);
-}
 
-if (untested.length > 0) {
-  console.log(`\nМЕТКА ЕСТЬ, ТЕСТА НЕТ (${untested.length}):`);
-  for (const position of untested.slice(0, 40)) {
-    console.log(`  строка ${position.line}\t${position.id}\t${position.label}\t${position.text}`);
+  // Тест, которому не соответствует ни одна позиция, — тоже расхождение: либо
+  // номер опечатан, либо позицию из чек-листа убрали, а тест остался.
+  const known = new Set(positions.map((position) => position.id));
+  const orphans = [...tests.keys()].filter((id) => !known.has(id) && !id.startsWith("0."));
+  if (orphans.length > 0) {
+    console.log(`\nТЕСТ ЕСТЬ, ПОЗИЦИИ НЕТ (${orphans.length}):`);
+    for (const id of orphans) console.log(`  ${id}\t${tests.get(id).join(", ")}`);
   }
-  if (untested.length > 40) console.log(`  … и ещё ${untested.length - 40}`);
+
+  const failed = unlabelled.length + untested.length + orphans.length;
+  console.log(failed === 0 ? "\nСошлось." : `\nНЕ СОШЛОСЬ: ${failed}`);
+  process.exitCode = failed === 0 ? 0 : 1;
 }
 
-// Тест, которому не соответствует ни одна позиция, — тоже расхождение: либо
-// номер опечатан, либо позицию из чек-листа убрали, а тест остался.
-const known = new Set(positions.map((position) => position.id));
-const orphans = [...tests.keys()].filter((id) => !known.has(id) && !id.startsWith("0."));
-if (orphans.length > 0) {
-  console.log(`\nТЕСТ ЕСТЬ, ПОЗИЦИИ НЕТ (${orphans.length}):`);
-  for (const id of orphans) console.log(`  ${id}\t${tests.get(id).join(", ")}`);
-}
-
-const failed = unlabelled.length + untested.length + orphans.length;
-console.log(failed === 0 ? "\nСошлось." : `\nНЕ СОШЛОСЬ: ${failed}`);
-process.exitCode = failed === 0 ? 0 : 1;
+// Модуль импортирует сборщик отчёта (3F.11) ради `parseChecklist`; сводка
+// печатается только при прямом запуске.
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();

@@ -7,9 +7,13 @@
 // ответила словами, ход повторяется ОДИН раз (решение 3F.9: «повторов хода ≤1»).
 // Второй промах — честное падение позиции, а не третья попытка.
 
-import { expect, type Locator, type Page } from '@playwright/test'
+import { appendFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { send } from './app'
+import { evidenceDir } from './evidence'
 
 export interface ChatEvent {
   type: string
@@ -195,5 +199,18 @@ export async function turn(
     events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve, options.clarify, options.declineForeign)
     result = summarize(question, events, true)
   }
+  recordUsage(result)
   return result
+}
+
+/** Расход хода — в `usage.jsonl` рядом со свидетельствами: отчёт 3F.11
+ *  складывает его в «ходов модели и токенов». Сбой записи ход не роняет. */
+function recordUsage(result: TurnResult): void {
+  try {
+    mkdirSync(evidenceDir, { recursive: true })
+    const title = test.info().title
+    appendFileSync(join(evidenceDir, 'usage.jsonl'), JSON.stringify({ title, retried: result.retried, usage: result.usage ?? null }) + '\n', 'utf-8')
+  } catch {
+    // Вне теста (`test.info()` бросает) или диск недоступен — отчёт без этой строки.
+  }
 }

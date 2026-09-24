@@ -495,7 +495,7 @@ let pagesBeforeLint = new Map<string, string>()
 // «wiki_lint: нет ошибок» — сослался на проверку, которой не было.
 const lintDefects: Record<string, string[]> = { '22.6.1': [], '22.6.2': [], '22.6.3': [] }
 
-test('22.6 (замер) «проверь вики»', async () => {
+test('Замер 22.6: «проверь вики»', async () => {
   const page = await ui()
   writeFileSync(join(wiki(), editedPage), read(editedPage).trimEnd() + `\nСм. также [[${BROKEN}]].\n`, 'utf8')
   pagesBeforeLint = new Map(wikiPages().map((rel) => [rel, read(rel)]))
