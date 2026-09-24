@@ -11,10 +11,15 @@
          то же самое, но ссылкой на объект в памяти страницы. Удалённые адреса
          НЕ разрешены намеренно: это оставило бы окно ходить в сеть за
          содержимым, а такое закрыто решением HX13. С этим согласован и отказ
-         `save-out` скачивать картинку по http(s) — менять надо оба места разом. -->
+         `save-out` скачивать картинку по http(s) — менять надо оба места разом.
+         `'wasm-unsafe-eval'` в `script-src` добавлен 2026-09-24 (решение владельца,
+         D-119): подсветка кода (их shiki) компилирует грамматики через
+         WebAssembly. Директива разрешает ТОЛЬКО компиляцию WebAssembly — `eval`,
+         чужие и встроенные скрипты по-прежнему запрещены, источник скриптов —
+         только `'self'`. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:"
     />
     <title>AECPilot</title>
   </head>

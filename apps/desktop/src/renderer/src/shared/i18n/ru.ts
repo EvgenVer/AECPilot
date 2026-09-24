@@ -110,4 +110,15 @@ const OVERRIDES: Record<string, string> = {
   'settings.appearance.themeSearchPlaceholder': 'Поиск по вашим темам…'
 }
 
-export const ru = debrandTranslations({ ...donorRu, tips: RU_TIPS }, OVERRIDES)
+// Три строки предпросмотра, которых нет в их русском каталоге (он падал на
+// английский «Open in external», «Pop in», «Pop out»; D-126, решение владельца
+// 2026-09-24). Ручные замены выше переписывают только уже существующие ключи,
+// поэтому недостающие дописываются к разделу, как `tips`.
+const RU_PREVIEW: Translations['preview'] = {
+  ...donorRu.preview,
+  openInExternal: 'Открыть во внешнем приложении',
+  popIn: 'Вернуть в панель',
+  popOut: 'Вынести в окно'
+}
+
+export const ru = debrandTranslations({ ...donorRu, preview: RU_PREVIEW, tips: RU_TIPS }, OVERRIDES)

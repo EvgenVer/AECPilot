@@ -71,10 +71,7 @@ async function streamSnapshots(page: Page): Promise<string[]> {
 
 let streamed: string[] = []
 
-let codeColoured = 0
-
-// Без номера в начале названия: позиция 6.1.1 засчитается, только когда
-// подсветка заработает (D-119).
+// Без номера в начале названия: сама подсветка — отдельной позицией 6.1.1.
 test('часть 6.1.1: разметка отрисована; код в блоке с кнопкой копирования', async () => {
   const page = await ui()
   await watchAnswerStream(page)
@@ -97,15 +94,18 @@ test('часть 6.1.1: разметка отрисована; код в бло�
   await expect(code).toBeVisible()
   await expect(code.locator('[data-testid="shiki-container"]')).toBeVisible()
   expect(await outsideThinking('button[aria-label="Копировать код"]')).toBeGreaterThan(0)
-  codeColoured = await code.locator('span[style*="color"]').count()
   await record(test.info(), page, { transcript: result.transcript })
 })
 
-// D-119: их shiki компилирует грамматики через WebAssembly, а наш CSP окна
-// (`script-src 'self'`) это запрещает — код остаётся бесцветным. Правка CSP —
-// решение владельца.
-test.fixme('6.1.1 код подсвечен', async () => {
-  expect(codeColoured, 'код раскрашен').toBeGreaterThan(0)
+// D-119: их shiki компилирует грамматики через WebAssembly — CSP окна это
+// разрешает с 24.09.2026 (`'wasm-unsafe-eval'`). Раскраска приходит после
+// компиляции грамматики, поэтому ждём, а не снимаем мгновенно.
+test('6.1.1 код подсвечен', async () => {
+  const page = await ui()
+  const code = lastAnswer(page).locator('pre.aui-shiki').first()
+  await expect
+    .poll(() => code.locator('span[style*="color"]').count(), { timeout: 30000, message: 'код раскрашен' })
+    .toBeGreaterThan(0)
 })
 
 // Без номера в начале названия: позиция 6.1.2 засчитается, только когда
