@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/avatar.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the blob-face block — the shape itself is dropped in
@@ -117,25 +117,6 @@ describe('blob shape strings round-trip through parse/build', () => {
 // убрана из выбора в `avatar.tsx` (HX1, пакет `blobatar` не установлен).
 // Тест снятой поверхности держать красным нечестно, а чинить нечего:
 // проверять он может только то, чего у нас нет.
-
-describe('catchlight contrast follows the pupil, not the body', () => {
-  const catchlights = (container: HTMLElement) =>
-    ['l', 'r'].map(side => container.querySelector(`[data-hb-hl-${side}]`)?.getAttribute('fill'))
-
-  it('puts a DARK sparkle on the cream pupils of a dark body', async () => {
-    const { BotFace } = await import('./avatar')
-    const { container } = render(<BotFace color="#3b0910" name="oxblood" shape="circle" />)
-
-    expect(catchlights(container)).toEqual(['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.6)'])
-  })
-
-  it('keeps the white sparkle on the dark pupils of a light body', async () => {
-    const { BotFace } = await import('./avatar')
-    const { container } = render(<BotFace color="#f5e6c8" name="cream" shape="circle" />)
-
-    expect(catchlights(container)).toEqual(['rgba(255,255,255,0.85)', 'rgba(255,255,255,0.85)'])
-  })
-})
 
 // Last: re-mocking the SDK re-links the whole avatar graph, so anything after
 // this would be running against the swapped module.

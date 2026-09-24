@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,7 +40,11 @@ interface MicRecorderHandle {
   cancel: () => void
 }
 
-function micError(error: unknown, copy: MicRecorderErrorCopy): Error {
+/** Recorder + live-start mic failures → the same friendly copy: a DOMException
+ *  name is mapped, an unrecognized DOMException falls back to the generic start
+ *  copy, and anything else keeps its own message (non-mic failures must not be
+ *  mislabeled as microphone problems). */
+export function micError(error: unknown, copy: MicRecorderErrorCopy): Error {
   const name = error instanceof DOMException ? error.name : ''
 
   if (name === 'NotAllowedError' || name === 'SecurityError') {
@@ -57,6 +61,10 @@ function micError(error: unknown, copy: MicRecorderErrorCopy): Error {
 
   if (name === 'OverconstrainedError') {
     return new Error(copy.microphoneConstraintsUnsupported)
+  }
+
+  if (error instanceof DOMException) {
+    return new Error(copy.microphoneStartFailed)
   }
 
   if (error instanceof Error) {

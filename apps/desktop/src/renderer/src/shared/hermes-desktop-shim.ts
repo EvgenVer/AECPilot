@@ -34,7 +34,6 @@ import {
   shortlistPlatforms
 } from '../aec/channels-disclosure/disclosure-pure'
 import { askChannelConsent } from '../aec/channels-disclosure/store'
-import { agentInstallInFlight } from '../aec/install-consent/agent-initiated'
 import {
   installBeingRequested,
   mcpPutRequest,
@@ -239,7 +238,7 @@ async function askMcpPutConsent<T>(request: {
   const changed = mcpServersBeingInstalled(previous, next)
   const question = mcpPutRequest(changed)
 
-  if (!question || agentInstallInFlight()) {
+  if (!question) {
     return gatewayBridge().rest<T>(request.path, {
       method: 'PUT',
       ...(request.body === undefined ? {} : { body: request.body }),
@@ -337,11 +336,13 @@ const IMPLEMENTED: Record<string, unknown> = {
     // Перехват в мосте, а не в их экране, по той же причине, что и у согласия
     // на канал: правка вендорного файла умерла бы при следующем переносе, а мост
     // переживёт его и покроет любую их будущую поверхность установки.
-    // Установку, начатую агентом, наш гейт не переспрашивает: человек в этот
-    // момент отвечает на их карточку об этой же установке (решение владельца
-    // 2026-08-21, разбор — `aec/install-consent/agent-initiated.ts`).
+    // Установку, начатую агентом, наш гейт не переспрашивает (решение владельца
+    // 2026-08-21: человек в этот момент отвечает на их карточку об этой же
+    // установке). С ядра 0.21.5 это держится само: их карточка отвечает
+    // `connection.respond`, и сервер ставит ядро, а не REST через этот мост —
+    // поэтому отдельный признак «установка идёт из карточки» снят (3.B6в).
     const install = installBeingRequested(request)
-    if (install && !agentInstallInFlight()) {
+    if (install) {
       return askInstallConsent(install).then((allowed) =>
         allowed
           ? gatewayBridge().rest<T>(request.path, {
@@ -526,10 +527,16 @@ const IMPLEMENTED: Record<string, unknown> = {
   // `getAgentRoster` ниже), а их маршрутизатор с таким маршрутом без этого
   // члена отказывает («cannot dial registry connections»). Чужой connectionId —
   // отказ: реестра подключений у нас нет.
-  getConnectionFor(payload: { connectionId?: null | string; profile?: null | string }): Promise<unknown> {
+  getConnectionFor(payload: {
+    connectionId?: null | string
+    profile?: null | string
+  }): Promise<unknown> {
     const id = String(payload?.connectionId ?? '').trim()
-    if (id && id !== 'local') return Promise.reject(new Error(`Подключение «${id}» не зарегистрировано`))
-    return (IMPLEMENTED.getConnection as (profile: null | string) => Promise<unknown>)(payload?.profile ?? null)
+    if (id && id !== 'local')
+      return Promise.reject(new Error(`Подключение «${id}» не зарегистрировано`))
+    return (IMPLEMENTED.getConnection as (profile: null | string) => Promise<unknown>)(
+      payload?.profile ?? null
+    )
   },
   getGatewayWsUrlFor: undefined,
 
@@ -561,6 +568,21 @@ const IMPLEMENTED: Record<string, unknown> = {
   // отрисовка ждала бы отклонённый промис; главный процесс у нас в чужие
   // сайты за украшением не ходит.
   resolveFavicon: undefined,
+  // Пять членов, приехавших с пином 0.21.5 (задача 3.B6), чей контракт — не
+  // промис, и заглушка на их форме соврала бы «есть». Их главный процесс
+  // отдаёт то, чего у нашего нет:
+  //   `hudModifier`, `windowControls` — клавиша их окна-HUD и кнопки окна под
+  //     WSLg: этих окон у нас нет, их ряды настроек проверяют наличие члена;
+  //   `minimizeToTray` — сворачивание в трей: трея у приложения нет;
+  //   `screenshot` — снимок экрана в композер: захват экрана их главным
+  //     процессом у нас не реализован, кнопка без члена не показывается;
+  //   `setF12ShortcutActive` — `=> void`: промис заглушки стал бы «функцией
+  //     уборки» эффекта (D-42).
+  hudModifier: undefined,
+  minimizeToTray: undefined,
+  screenshot: undefined,
+  setF12ShortcutActive: undefined,
+  windowControls: undefined,
 
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main

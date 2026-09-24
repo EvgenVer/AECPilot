@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/external-link.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { ArrowUpRight } from '@/lib/icons'
 import { IS_MAC } from '@/lib/keybinds/combo'
+import { $alwaysExternalLinks } from '@/store/external-links'
 
 import { resolveBrandIcon } from './brand-icon'
 import { cn } from './utils'
@@ -251,7 +252,8 @@ export function hudForcesNativeLinks(search = typeof window === 'undefined' ? ''
  *
  * Everything that ISN'T a web page — `mailto:`, `file:`, a custom scheme — has
  * no business in the webview and always hands off to the OS. The HUD has no
- * browser pane, so it always takes the OS path.
+ * browser pane, so it always takes the OS path. The "Always open links in
+ * external browser" setting (`$alwaysExternalLinks`) sends every click there.
  */
 export function openLink(href: string, options: { native?: boolean } = {}): void {
   const target = normalizeExternalUrl(href)
@@ -262,6 +264,7 @@ export function openLink(href: string, options: { native?: boolean } = {}): void
 
   if (
     options.native ||
+    $alwaysExternalLinks.get() ||
     isConnectorAuthorizationLink(target) ||
     hudForcesNativeLinks() ||
     !/^https?:$/i.test(parseUrl(target)?.protocol ?? '')
@@ -276,7 +279,7 @@ export function openLink(href: string, options: { native?: boolean } = {}): void
   // link helper drag that whole tree into anything that renders a link. The
   // tab lands a microtask later, which is invisible.
   void import('@/store/preview').then(({ openPreview }) =>
-    openPreview({ kind: 'url', label: hostPathLabel(target), source: target, url: target }, 'explicit-link')
+    openPreview({ kind: 'url', label: hostPathLabel(target), source: target, url: target })
   )
 }
 

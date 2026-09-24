@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/edit-mode.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,12 +13,23 @@
  * This hook only owns Escape-to-exit.
  */
 
-import { atom } from 'nanostores'
+import { atom, computed } from 'nanostores'
 import { useEffect } from 'react'
 
 import { ESCAPE_PRIORITY, isTopEscapeLayer, pushEscapeLayer } from '@/lib/escape-layers'
+import { $showsAdvancedChrome } from '@/store/interface-mode'
 
 export const $layoutEditMode = atom(false)
+
+// Edit mode force-shows toggle-hidden panes (terminal off, review closed) so
+// they can be rearranged. In Simple those panes are resting by policy, not by
+// a toggle, and arranging machinery you cannot see is not the job — edit mode
+// there works on what Simple shows. The renderers read this, never
+// `$layoutEditMode`, for the hidden-pane question.
+export const $layoutEditRevealsHidden = computed(
+  [$layoutEditMode, $showsAdvancedChrome],
+  (editMode, advanced) => editMode && advanced
+)
 
 export function toggleLayoutEditMode() {
   $layoutEditMode.set(!$layoutEditMode.get())

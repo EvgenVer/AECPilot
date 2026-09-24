@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-drag.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,9 +44,17 @@ import {
   type StripSnapshot,
   subZonePosition
 } from '@/components/pane-shell/tree/renderer/drag-session'
-import { $treeDragging, type DropHint, revealTreePane, SESSION_TILE_DRAG } from '@/components/pane-shell/tree/store'
+import {
+  $treeDragging,
+  closeTreePane,
+  type DropHint,
+  revealTreePane,
+  SESSION_TILE_DRAG
+} from '@/components/pane-shell/tree/store'
 import type { EngineZone, ZoneRect } from '@/components/pane-shell/tree/zones-engine'
-import { openSessionTile, type TileDock } from '@/store/session-states'
+import { requestFreshSession } from '@/store/profile'
+import { $selectedStoredSessionId } from '@/store/session'
+import { $sessionTiles, nextSessionTileForWorkspace, openSessionTile, type TileDock } from '@/store/session-states'
 
 import { requestComposerInsertRefs } from './composer/focus'
 import { type SessionDragPayload, sessionInlineRef, sessionLabel } from './composer/inline-refs'
@@ -183,11 +191,29 @@ export function startSessionDrag(
 
     onCommit() {
       if (split) {
+        const fromMain = payload.id === $selectedStoredSessionId.get()
+
         openSessionTile(payload.id, split.pos, split.anchor, split.before)
         // A tile for this session may already exist (openSessionTile is
         // idempotent — e.g. persisted from an earlier run): a drop must never
         // feel dead, so front/unhide/un-dismiss it either way.
         revealTreePane(`session-tile:${payload.id}`)
+
+        // Dragging MAIN's own tab out is a MOVE. A session lives in exactly one
+        // surface (two panes on one runtime would fight over it), so once the
+        // tile exists main lets go the way its Close does: the next stacked
+        // tab shifts in, else a fresh draft. Never promote the tile just
+        // minted — that would pull the chat straight back and read as a dead
+        // drop.
+        if (fromMain && $sessionTiles.get().some(t => t.storedSessionId === payload.id)) {
+          const next = nextSessionTileForWorkspace()
+
+          if (next && next !== payload.id) {
+            closeTreePane('workspace')
+          } else {
+            requestFreshSession()
+          }
+        }
       } else if (link) {
         // The "link to chat" drop: an @session chip in that surface's composer.
         requestComposerInsertRefs([sessionInlineRef(payload)], { target: link })

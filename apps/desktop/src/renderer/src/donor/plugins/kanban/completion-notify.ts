@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/completion-notify.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,7 +16,7 @@
  * (gateway/kanban_watchers.py): 'completed' (kanban_db.complete_task —
  * payload: summary + artifacts), 'blocked' (payload: reason), 'gave_up'
  * (payload: error), 'crashed', 'timed_out', and 'block_loop_detected'
- * (payload: reason — the routed-to-triage human handoff).
+ * (payload: reason — the routed-to-triage orchestration handoff).
  *
  * Two delivery doors, complementary by design:
  *  - `host.notify` — the in-app toast, covers the foreground case;
@@ -123,7 +123,9 @@ function trimmed(value: unknown): string {
 }
 
 /** The human handoff carried in the event payload, per kind (mirrors the
- *  payload contract the gateway watcher reads). */
+ *  payload contract the gateway watcher reads). `gave_up` deliberately has no
+ *  payload body: its `error` is raw worker text, which belongs in the toast
+ *  `detail` (see rawErrorFor), and the body is the plain-words i18n hint. */
 function bodyFor(kind: string, ev: CompletionEvent): string {
   const payload = ev.payload
 
@@ -136,10 +138,15 @@ function bodyFor(kind: string, ev: CompletionEvent): string {
   }
 
   if (kind === 'gave_up') {
-    return trimmed(payload?.error)
+    return t('notify.gaveUpBody')
   }
 
   return ''
+}
+
+/** Raw machine text that must never be the toast body — surfaced muted in `detail`. */
+function rawErrorFor(kind: string, ev: CompletionEvent): string {
+  return kind === 'gave_up' ? trimmed(ev.payload?.error) : ''
 }
 
 function notifyOne(kind: string, spec: { titleKey: string; toast: ToastKind }, ev: CompletionEvent): void {
@@ -160,7 +167,7 @@ function notifyOne(kind: string, spec: { titleKey: string; toast: ToastKind }, e
         ? t('notify.artifacts', artifacts.length)
         : ''
 
-  const detail = [taskId, artifactText].filter(Boolean).join(' · ')
+  const detail = [taskId, artifactText, rawErrorFor(kind, ev)].filter(Boolean).join(' · ')
   const title = t(spec.titleKey)
   const message = body || taskId || title
   host.notify({

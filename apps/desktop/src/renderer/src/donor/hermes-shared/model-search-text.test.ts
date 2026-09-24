@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/model-search-text.test.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,16 +14,6 @@ describe('modelSearchText', () => {
   it('keeps ordinary model ids unchanged', () => {
     expect(modelSearchText('kimi-k2.6')).toBe('kimi-k2.6')
     expect(modelSearchText('glm-5.2')).toBe('glm-5.2')
-  })
-
-  it('adds kimi aliases for the bare Kimi Coding k3 wire id', () => {
-    expect(modelSearchText('k3')).toBe('k3 kimi-k3 kimi')
-    expect(modelSearchText('K3')).toBe('K3 kimi-k3 kimi')
-  })
-
-  it('adds ox-alpha aliases for the Ox Alpha preview wire id', () => {
-    expect(modelSearchText('x-preview-f-free')).toBe('x-preview-f-free ox-alpha ox')
-    expect(modelSearchText('X-Preview-F-Free')).toBe('X-Preview-F-Free ox-alpha ox')
   })
 })
 

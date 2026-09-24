@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/wiring.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet surface (HX1)
@@ -30,7 +30,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type CSSProperties, lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
-import { graftRefreshedTailOntoBackfill } from '@/app/chat/transcript-backfill'
 import { formatRefValue } from '@/components/assistant-ui/directive-text'
 import { BootFailureOverlay } from '@/components/boot-failure-overlay'
 import { ConfirmHost } from '@/components/confirm-host'
@@ -49,16 +48,17 @@ import {
 import { RemoteDisplayBanner } from '@/components/remote-display-banner'
 import { TipHost } from '@/components/tips'
 import { emitGatewayEvent } from '@/contrib/events'
-import { getLatestSessionMessages } from '@/hermes'
-import { type ChatMessage, chatMessageText, preserveLocalAssistantErrors, toChatMessages } from '@/lib/chat-messages'
+import { translateNow } from '@/i18n'
+import { type ChatMessage, chatMessageText } from '@/lib/chat-messages'
 import { isMessagingSource } from '@/lib/session-source'
-import { latestSessionTodos } from '@/lib/todos'
 import { playWakeSound } from '@/lib/wake-sound'
 import { $billingSettingsRequest } from '@/store/billing-block'
 import { $desktopBoot } from '@/store/boot'
 import { $activeConnectionId } from '@/store/connections'
 import { $cronReviewRequest, setCronFocusJobId } from '@/store/cron'
 import { requestGatewayForProfile } from '@/store/gateway'
+import { reconnectGateway } from '@/store/gateway-reconnect'
+import { $interfaceMode, shownInMode } from '@/store/interface-mode'
 import { $pinnedSessionIds, pinSession, restoreWorktree, unpinSession } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { $poolLimitsSettingsRequest } from '@/store/pool-limits'
@@ -74,6 +74,7 @@ import {
   refreshActiveProfile
 } from '@/store/profile'
 import { $newProjectSessionRequest, $startWorkSessionRequest, followActiveSessionCwd } from '@/store/projects'
+import { $backendRestartRequest, $routeRequest } from '@/store/recovery-requests'
 import {
   $activeSessionId,
   $connection,
@@ -97,7 +98,6 @@ import {
   setMessages
 } from '@/store/session'
 import { $titlebarAppActionsSide, titlebarAppActionsClusterCounts } from '@/store/titlebar-app-actions'
-import { clearSessionTodos, setSessionTodos, todosForHydration } from '@/store/todos'
 import { armWakeWord, stopClientCapture } from '@/store/wake-word'
 import { isAuxiliaryWindow, isBrowserWindow, isHudWindow } from '@/store/windows'
 import { useSkinCommand } from '@/themes/use-skin-command'
@@ -114,7 +114,7 @@ import { useKeybinds } from '../hooks/use-keybinds'
 import { useHudHandoff } from '../hud/handoff'
 import { ModelPickerOverlay } from '../model-picker-overlay'
 import { ModelVisibilityOverlay } from '../model-visibility-overlay'
-import { mainChatOccupied, openSession } from '../open-session'
+import { mainChatOccupied, openSession, openSessionFromPicker } from '../open-session'
 import { FileActionDialogs } from '../right-sidebar/file-actions'
 import { RemoteFolderPicker } from '../right-sidebar/files/remote-picker'
 import { resetProjectTreeState } from '../right-sidebar/files/use-project-tree'
@@ -148,16 +148,20 @@ import { PluginInstallModal } from '../settings/plugin-install-modal'
 import { useOverlayRouting } from '../shell/hooks/use-overlay-routing'
 import { useWindowControlsOverlayWidth } from '../shell/hooks/use-window-controls-overlay-width'
 import {
+  TITLEBAR_CHROME_CHANGED_EVENT,
   titlebarControlsPosition,
   titlebarControlsYNudge,
   titlebarToolsRightCss,
   titlebarToolsWidthCss
 } from '../shell/titlebar'
 import { TitlebarControls } from '../shell/titlebar-controls'
+import { WslgWindowControls } from '../shell/wslg-window-controls'
 import { UpdatesOverlay } from '../updates-overlay'
 
 import { ContribWiringContext } from './context'
 import {
+  hydrateStoredSessionTranscript,
+  profileScopeForTranscriptSession,
   reconcileActiveTranscript,
   resolveActiveTranscriptSession,
   useBackgroundSync
@@ -209,6 +213,8 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   // intent counter here; the ref skips the initial mount value.
   const billingSettingsSeenRef = useRef(0)
   const poolLimitsSettingsSeenRef = useRef(0)
+  const routeRequestSeenRef = useRef(0)
+  const backendRestartSeenRef = useRef(0)
   const cronReviewSeenRef = useRef(0)
   const activeTranscriptSignatureRef = useRef(new Map<string, string>())
   const activeTranscriptRequestSequenceRef = useRef(0)
@@ -220,8 +226,47 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   const activeSessionId = useStore($activeSessionId)
   const billingSettingsRequest = useStore($billingSettingsRequest)
   const poolLimitsSettingsRequest = useStore($poolLimitsSettingsRequest)
+  const routeRequest = useStore($routeRequest)
+  const backendRestartRequest = useStore($backendRestartRequest)
   const cronReviewRequest = useStore($cronReviewRequest)
   const currentCwd = useStore($currentCwd)
+
+  // Generic in-app route intents raised by toast recovery buttons (Open Keys,
+  // Open Gateways, Maintenance …) fired from stores with no router context.
+  // eslint-disable-next-line no-restricted-syntax -- one-shot request-seen sentinel, not an atom mirror
+  useEffect(() => {
+    if (!routeRequest || routeRequest.seq === routeRequestSeenRef.current) {
+      return
+    }
+
+    routeRequestSeenRef.current = routeRequest.seq
+    navigate(routeRequest.path)
+  }, [navigate, routeRequest])
+
+  // "Restart Hermes" from a toast: recycle the local backend the user is
+  // looking at (same IPC the Models page uses), then let the boot hook re-dial.
+  // A remote/cloud connection has no local process to recycle — there the
+  // only meaningful "restart" is re-dialing the connection.
+  // eslint-disable-next-line no-restricted-syntax -- one-shot request-seen sentinel, not an atom mirror
+  useEffect(() => {
+    if (backendRestartRequest === backendRestartSeenRef.current) {
+      return
+    }
+
+    backendRestartSeenRef.current = backendRestartRequest
+
+    if (backendRestartRequest > 0) {
+      if ($connection.get()?.mode === 'remote') {
+        void reconnectGateway().catch(err => notifyError(err, translateNow('notifications.errors.restartHermesFailed')))
+
+        return
+      }
+
+      void window.hermesDesktop
+        ?.recycleBackend?.(normalizeProfileKey($activeGatewayProfile.get()))
+        .catch(err => notifyError(err, translateNow('notifications.errors.restartHermesFailed')))
+    }
+  }, [backendRestartRequest])
 
   // eslint-disable-next-line no-restricted-syntax -- one-shot request-seen sentinel, not an atom mirror
   useEffect(() => {
@@ -341,7 +386,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   const { connectionRef, gateway, gatewayRef, requestGateway: ambientRequestGateway } = useGatewayRequest()
 
   // The guide remains selected while handoff creates on another profile.
-  // Without this pin, the owner ladder sends session.create to hermes-setup
+  // Without this pin, the owner ladder sends session.create to the setup profile
   // despite the gateway switch (#89206). Scope it to the create leg so
   // concurrent session traffic keeps its recorded owner.
   const handoffCreateProfileRef = useRef<null | string>(null)
@@ -451,43 +496,17 @@ export function ContribWiring({ children }: { children: ReactNode }) {
         return
       }
 
-      const storedProfile = $sessions.get().find(session => sessionMatchesStoredId(session, storedSessionId))?.profile
+      const storedProfile = profileScopeForTranscriptSession(
+        resolveActiveTranscriptSession(storedSessionId, runtimeSessionId)
+      )
 
-      for (let index = 0; index < Math.max(1, attempts); index += 1) {
-        try {
-          const latest = await getLatestSessionMessages(storedSessionId, storedProfile)
-          const messages = toChatMessages(latest.messages)
-          updateSessionState(
-            runtimeSessionId,
-            state => ({
-              ...state,
-              // Post-turn rehydrate reads only the newest tail page — graft it
-              // onto any backfilled older pages instead of dropping them.
-              messages: preserveLocalAssistantErrors(
-                graftRefreshedTailOntoBackfill(messages, state.messages),
-                state.messages
-              )
-            }),
-            storedSessionId
-          )
-
-          const restored = todosForHydration(latestSessionTodos(messages))
-
-          if (restored) {
-            setSessionTodos(runtimeSessionId, restored)
-          } else {
-            clearSessionTodos(runtimeSessionId)
-          }
-
-          return
-        } catch {
-          // Best-effort fallback when live stream payloads are empty.
-        }
-
-        if (index < attempts - 1) {
-          await new Promise(resolve => window.setTimeout(resolve, 250))
-        }
-      }
+      await hydrateStoredSessionTranscript({
+        attempts,
+        storedSessionId,
+        runtimeSessionId,
+        storedProfile,
+        updateSessionState
+      })
     },
     [activeSessionIdRef, selectedStoredSessionIdRef, updateSessionState]
   )
@@ -1069,7 +1088,6 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     onArchiveSession: sessionId => void archiveSession(sessionId),
     onAttachDroppedItems: composer.attachDroppedItems,
     onAttachImageBlob: composer.attachImageBlob,
-    onAttachPrCommentUrl: composer.attachPrCommentUrl,
     onAttachPastedText: composer.attachPastedText,
     onBranchInNewChat: messageId => void branchInNewChat(messageId),
     onBranchSession: sessionId => void branchStoredSession(sessionId),
@@ -1086,6 +1104,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     onEdit: editMessage,
     onLoadMoreMessaging: loadMoreMessagingForPlatform,
     onLoadMoreSessions: loadMoreSessions,
+    onRetrySessions: () => refreshSessions().catch(() => undefined),
     onManageCronJob: jobId => {
       setCronFocusJobId(jobId)
       navigate(CRON_ROUTE)
@@ -1219,16 +1238,26 @@ export function ContribWiring({ children }: { children: ReactNode }) {
   }
 
   const titlebarToolsRight = titlebarToolsRightCss(nativeOverlayWidth, titlebarChrome)
+  // WSLg: Electron's native overlay drifts its hit-region under RAIL, so the
+  // renderer paints its own min/max/close (main decides via customWindowControls).
+  const customWindowControls = connection?.customWindowControls ?? window.hermesDesktop?.windowControls?.custom ?? false
   const appActionsSide = useStore($titlebarAppActionsSide)
-  const paneToolCount = rightTitlebarTools.filter(tool => !tool.hidden).length
-  const leftExtraCount = leftTitlebarTools.filter(tool => !tool.hidden).length
-  const clusters = titlebarAppActionsClusterCounts(appActionsSide, leftExtraCount, 0)
+  const interfaceMode = useStore($interfaceMode)
+  const shownTool = shownInMode(interfaceMode)
+  const paneToolCount = rightTitlebarTools.filter(tool => !tool.hidden && shownTool(tool)).length
+  const leftExtraCount = leftTitlebarTools.filter(tool => !tool.hidden && shownTool(tool)).length
+  const clusters = titlebarAppActionsClusterCounts(appActionsSide, leftExtraCount, 0, interfaceMode)
   const systemToolsWidth = titlebarToolsWidthCss(clusters.right)
 
   const titlebarToolsWidth =
     paneToolCount > 0 ? `calc(${systemToolsWidth} + ${titlebarToolsWidthCss(paneToolCount)})` : systemToolsWidth
 
   const leftToolsWidth = titlebarToolsWidthCss(clusters.left)
+
+  // Native caption reservations can translate chrome without resizing it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(TITLEBAR_CHROME_CHANGED_EVENT))
+  }, [controlsPos.left, controlsPos.top, titlebarToolsRight])
 
   return (
     <ContribWiringContext.Provider value={api}>
@@ -1254,6 +1283,12 @@ export function ContribWiring({ children }: { children: ReactNode }) {
             leftTools={leftTitlebarTools}
             onOpenSettings={() => navigate(SETTINGS_ROUTE)}
             tools={rightTitlebarTools}
+          />
+        )}
+        {!isHudWindow() && customWindowControls && (
+          <WslgWindowControls
+            isFullscreen={Boolean(connection?.isFullscreen)}
+            isMaximized={Boolean(connection?.isMaximized)}
           />
         )}
         {children}
@@ -1284,7 +1319,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
         profile={activeGatewayProfile}
         requestGateway={requestGateway}
       />
-      <SessionPickerOverlay onResume={sessionId => openSession(sessionId, navigate)} />
+      <SessionPickerOverlay onResume={sessionId => openSessionFromPicker(sessionId, navigate)} />
       <ModelVisibilityOverlay
         gateway={gateway || undefined}
         onOpenProviders={openProviderSettings}

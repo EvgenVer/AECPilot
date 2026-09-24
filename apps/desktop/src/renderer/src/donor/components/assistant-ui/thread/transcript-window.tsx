@@ -1,29 +1,56 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/transcript-window.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, type ReactNode, useContext, useMemo } from 'react'
+
+import type { ChatMessage } from '@/lib/chat-messages'
 
 export interface TranscriptWindowValue {
   /** Store holds older messages the runtime window has not materialized. */
   olderAvailable: boolean
-  /** Pull one more page of older messages out of the session store. */
-  expandWindow: () => void
+  /** Direct row addressing replaces only the display page; null means no jump. */
+  revealRow?: (rowId: number, signal: AbortSignal) => Promise<string | null>
+  /** Cancel any pending jump and reselect the current live tail. */
+  returnToLatest?: () => void
+  isHistorical?: boolean
+  newerAvailable?: boolean
+  /** Exactly the selected bounded source slice, not the full live store. */
+  currentMessages?: readonly ChatMessage[]
+  /** Pull a page, capturing the reader immediately before the prepend commits.
+   * A remote page resolves false on failure; callers can retry without growing
+   * an empty render window or holding the reader still during network I/O. */
+  expandWindow: (beforePrepend?: () => void) => void | Promise<boolean>
 }
 
-const TranscriptWindowContext = createContext<TranscriptWindowValue>({
+const DEFAULT_TRANSCRIPT_WINDOW: Required<TranscriptWindowValue> = {
   olderAvailable: false,
-  expandWindow: () => {}
-})
-
-export function TranscriptWindowProvider({ children, value }: { children: ReactNode; value: TranscriptWindowValue }) {
-  return <TranscriptWindowContext.Provider value={value}>{children}</TranscriptWindowContext.Provider>
+  expandWindow: () => {},
+  revealRow: async () => null,
+  returnToLatest: () => {},
+  isHistorical: false,
+  newerAvailable: false,
+  currentMessages: []
 }
 
-export function useTranscriptWindow(): TranscriptWindowValue {
+const TranscriptWindowContext = createContext<Required<TranscriptWindowValue>>(DEFAULT_TRANSCRIPT_WINDOW)
+
+export function TranscriptWindowProvider({
+  children,
+  value
+}: {
+  children: ReactNode
+  value: Pick<TranscriptWindowValue, 'olderAvailable' | 'expandWindow'> & Partial<TranscriptWindowValue>
+}) {
+  const complete = useMemo(() => ({ ...DEFAULT_TRANSCRIPT_WINDOW, ...value }), [value])
+
+  return <TranscriptWindowContext.Provider value={complete}>{children}</TranscriptWindowContext.Provider>
+}
+
+export function useTranscriptWindow(): Required<TranscriptWindowValue> {
   return useContext(TranscriptWindowContext)
 }
 

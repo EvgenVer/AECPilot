@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/use-messages-below.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,12 +19,20 @@ interface MessagesBelowOptions {
   paneVisible: boolean
   rows: ReactNode
   sessionKey: string | null | undefined
+  sessionId: string | null
 }
 
-/** Only measure inside the viewport's turn; leave skipped off-screen content asleep. */
-export function countMessagesBelow(viewport: HTMLElement, content: HTMLElement): number {
+/**
+ * Only measure inside the viewport's turn; leave skipped off-screen content
+ * asleep. `settled` is false when the turn straddling the fold has no layout
+ * boxes yet: content-visibility relevancy updates a frame after a programmatic
+ * scroll (a rail jump), and until then its messages measure as empty rects —
+ * counting them as "above the fold" undercounts by that turn.
+ */
+export function countMessagesBelow(viewport: HTMLElement, content: HTMLElement): { count: number; settled: boolean } {
   const bottom = viewport.getBoundingClientRect().bottom
   let count = 0
+  let settled = true
 
   for (const group of content.querySelectorAll<HTMLElement>('[data-slot="aui_message-group"]')) {
     const rect = group.getBoundingClientRect()
@@ -44,13 +52,15 @@ export function countMessagesBelow(viewport: HTMLElement, content: HTMLElement):
     for (const message of messages) {
       const messageRect = message.getBoundingClientRect()
 
-      if (messageRect.height > 0 && messageRect.bottom > bottom + 1) {
+      if (messageRect.height === 0 && messageRect.width === 0) {
+        settled = false
+      } else if (messageRect.height > 0 && messageRect.bottom > bottom + 1) {
         count++
       }
     }
   }
 
-  return count
+  return { count, settled }
 }
 
 export function useMessagesBelow({
@@ -59,7 +69,8 @@ export function useMessagesBelow({
   isAtBottom,
   paneVisible,
   rows,
-  sessionKey
+  sessionKey,
+  sessionId
 }: MessagesBelowOptions) {
   useEffect(() => {
     if (!paneVisible) {
@@ -67,7 +78,7 @@ export function useMessagesBelow({
     }
 
     if (isAtBottom) {
-      publishThreadMessagesBelow(0, { paneVisible })
+      publishThreadMessagesBelow(0, { paneVisible, sessionId })
 
       return
     }
@@ -80,10 +91,23 @@ export function useMessagesBelow({
     }
 
     let frame = 0
+    let retried = false
 
     const measure = () => {
       frame = 0
-      publishThreadMessagesBelow(countMessagesBelow(viewport, content), { paneVisible })
+      const { count, settled } = countMessagesBelow(viewport, content)
+
+      // One extra frame lets the skipped turn gain boxes; then publish what is
+      // there so an empty turn can never stall the count.
+      if (!settled && !retried) {
+        retried = true
+        schedule()
+
+        return
+      }
+
+      retried = false
+      publishThreadMessagesBelow(count, { paneVisible, sessionId })
     }
 
     const schedule = () => {
@@ -103,5 +127,5 @@ export function useMessagesBelow({
       viewport.removeEventListener('scroll', schedule)
       observer.disconnect()
     }
-  }, [contentRef, scrollRef, isAtBottom, paneVisible, rows, sessionKey])
+  }, [contentRef, scrollRef, isAtBottom, paneVisible, rows, sessionKey, sessionId])
 }

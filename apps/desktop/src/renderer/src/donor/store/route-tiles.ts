@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/route-tiles.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,7 +17,7 @@ import type { SplitDir } from './session-states'
  * the page analog of session tiles. Persisted by path so they re-open on boot.
  */
 export interface RouteTile {
-  /** The route path this tile renders, e.g. `/skills`. */
+  /** The route path this tile renders, e.g. `/capabilities`. */
   path: string
   /** Edge to dock against main on adoption (default right). */
   dir?: SplitDir

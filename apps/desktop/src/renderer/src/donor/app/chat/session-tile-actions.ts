@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile-actions.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ import { SLASH_COMMAND_RE } from '@hermes/shared'
 import { useCallback, useMemo, useRef } from 'react'
 
 import type { ClientSessionState } from '@/app/types'
+import type { WorkspaceMode } from '@/contrib/types'
 import { useI18n } from '@/i18n'
 import { textPart } from '@/lib/chat-messages'
 import { triggerHaptic } from '@/lib/haptics'
@@ -37,6 +38,7 @@ import {
 } from '@/store/session-request-router'
 import {
   $sessionStates,
+  $sessionTiles,
   isSessionRemote,
   patchSessionTile,
   sessionTileDelegate,
@@ -56,7 +58,7 @@ import {
   applyReloadOptimistic,
   applyRewindOptimistic,
   durableRowIdsForRebind,
-  finalizeInterruptedMessages,
+  finalizeUserInterruptedMessages,
   planEdit,
   planReload,
   planRestore,
@@ -96,7 +98,16 @@ export function listTileSessionRow(deps: {
   runtimeId: string
   sessions: readonly SessionInfo[]
   storedSessionId: string
+  workspaceMode?: WorkspaceMode
 }): boolean {
+  // Bot Mode tabs mirror hidden relationship chats (canonical Bot Chats stay
+  // off the Sessions list by design — the bot row is the only door), so a
+  // first send must not seed a flagless row the refresh keep-list would then
+  // hold forever (#113273).
+  if (deps.workspaceMode === 'bots') {
+    return false
+  }
+
   const preview = deps.preview.trim()
 
   if (!preview || deps.sessions.some(session => sessionMatchesStoredId(session, deps.storedSessionId))) {
@@ -210,7 +221,8 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
       preview,
       runtimeId,
       sessions: $sessions.get(),
-      storedSessionId: storedIdRef.current
+      storedSessionId: storedIdRef.current,
+      workspaceMode: $sessionTiles.get().find(tile => tile.storedSessionId === storedIdRef.current)?.workspaceMode
     })
   }, [])
 
@@ -339,7 +351,7 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
 
     update(state => ({
       ...state,
-      messages: finalizeInterruptedMessages(state.messages, state.streamId),
+      messages: finalizeUserInterruptedMessages(state.messages, state.streamId),
       busy: false,
       awaitingResponse: false,
       streamId: null,

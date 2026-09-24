@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/keybinds.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -69,6 +69,18 @@ function persistBindings(bindings: KeybindBindings): void {
 
     if (!arraysEqual(current, defaults[action.id] ?? [])) {
       diff[action.id] = current
+    }
+  }
+
+  // Actions contributed after boot (plugins register late) are missing
+  // from the registry when the boot-time subscribe fires. Carry their
+  // stored overrides forward so the persist does not wipe them. Re-read
+  // storage rather than the module-init snapshot: an override written after
+  // boot (plugin registered → rebound → unloaded) is otherwise invisible here
+  // and the next persist of any other action drops it.
+  for (const [id, combos] of Object.entries(readStoredOverrides())) {
+    if (!(id in defaults)) {
+      diff[id] = combos
     }
   }
 

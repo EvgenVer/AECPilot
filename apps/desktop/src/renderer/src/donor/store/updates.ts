@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/updates.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -112,7 +112,7 @@ function isUpdateToastSnoozed(): boolean {
 // v7: requires JSON-RPC server->client requests for every blocking prompt
 //     (approval/clarify/sudo/secret/vault/MCP setup); a v6 backend's
 //     `<kind>.request` notifications would never render a card.
-export const REQUIRED_BACKEND_CONTRACT = 7
+export const REQUIRED_BACKEND_CONTRACT = 8
 const SKEW_TOAST_ID = 'backend-contract-skew'
 // The contract check runs on every session.resume (applyRuntimeInfo), so
 // without a snooze the warning re-popped on every thread the user opened, even

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding-gate.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,8 @@ import { atom } from 'nanostores'
 import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 import { readKey, writeKey } from '@/lib/storage'
 
-import { hasSeenIntroReveal } from './intro-reveal'
+import { $gateway } from './gateway'
+import { hasSeenIntroReveal, markIntroRevealSeen } from './intro-reveal'
 import { DEFAULT_ANSWERS, setOnboardingAnswers } from './onboarding-answers'
 
 const PHASE_KEY = 'hermes-onboarding-phase-v1'
@@ -67,6 +68,28 @@ export function beginOnboardingFlow(): void {
   if (isOnboardingEnabled() && $onboardingGate.get().phase === 'idle' && !hasSeenIntroReveal()) {
     setPhase('cinematic')
   }
+}
+
+/** The guided first launch without its intro film (HERMES_SKIP_INTRO). Same
+ * eligibility as the film path minus the film itself: the film is recorded as
+ * watched and the film-to-guide seam fires immediately, instead of waiting
+ * for a completion that never comes. */
+export function beginOnboardingFlowWithoutIntro(firstRunSkipped: boolean): void {
+  if (!isOnboardingEnabled() || firstRunSkipped) {
+    return
+  }
+
+  beginOnboardingFlow()
+
+  // A prior launch quit mid-film and left the phase at cinematic; the guide
+  // is owed directly. Everything else (guided/skipped/handoff/done) already
+  // had its turn and must not re-queue.
+  if ($onboardingGate.get().phase !== 'cinematic') {
+    return
+  }
+
+  markIntroRevealSeen()
+  queueGuideAfterIntro()
 }
 
 export function queueGuideAfterIntro(): void {
@@ -144,14 +167,16 @@ export function skipGuide(): void {
   }
 }
 
-export function devResetOnboardingFlow(): void {
+/** Resets the backend's setup profile in place, then the local flow state. */
+export async function devResetOnboardingFlow(): Promise<void> {
   if (!import.meta.env.DEV) {
     return
   }
 
+  await $gateway.get()?.request('onboarding.reset_setup_profile', {})
   guideKickoff = { status: 'idle' }
   setPhase('idle')
-  setOnboardingAnswers({ ...DEFAULT_ANSWERS, connectors: [...DEFAULT_ANSWERS.connectors] })
+  setOnboardingAnswers({ ...DEFAULT_ANSWERS, connectors: [], plugins: [], pluginOutcomes: {} })
 }
 
 declare global {

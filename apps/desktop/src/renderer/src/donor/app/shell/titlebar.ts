@@ -1,13 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/titlebar.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { HermesConnection } from '@/global'
 
 export const TITLEBAR_HEIGHT = 34
+/** Permanent native drag target beside a top-edge tab strip. */
+export const TITLEBAR_DRAG_HANDLE_WIDTH = 48
 export const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
 /** Titlebar tool hit target (both axes). */
 export const TITLEBAR_CONTROL_SIZE = 24
@@ -114,3 +116,6 @@ export function titlebarControlsPosition(
     top
   }
 }
+
+/** Rebind panel measurements after titlebar nodes or their positions change. */
+export const TITLEBAR_CHROME_CHANGED_EVENT = 'hermes:titlebar-chrome-changed'

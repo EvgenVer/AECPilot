@@ -100,7 +100,11 @@ describe('речь, когда живой поток не играет', () => {
       playSpeechText('Колонна К-1 армируется по узлу 3.', { source: 'read-aloud' })
     ).resolves.toBe(true)
 
-    expect(speakText).toHaveBeenCalledWith('Колонна К-1 армируется по узлу 3.')
+    // С 0.21.5 вторым аргументом едет область владельца (профиль/подключение).
+    expect(speakText).toHaveBeenCalledWith(
+      'Колонна К-1 армируется по узлу 3.',
+      expect.objectContaining({ source: 'read-aloud' })
+    )
   })
 
   test('сервер ответил «потока нет» — реплика читается, через POST', async () => {
@@ -113,7 +117,11 @@ describe('речь, когда живой поток не играет', () => {
     emit(id, { type: 'text', text: '{"type":"fallback"}' })
 
     await expect(spoken).resolves.toBe(true)
-    expect(speakText).toHaveBeenCalledWith('Марка бетона B25.')
+    // С 0.21.5 вторым аргументом едет область владельца (профиль/подключение).
+    expect(speakText).toHaveBeenCalledWith(
+      'Марка бетона B25.',
+      expect.objectContaining({ source: 'read-aloud' })
+    )
   })
 
   test('разговорный цикл получает сессию и её вердикт «нет потока»', async () => {

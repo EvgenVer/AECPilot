@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/entered-content.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,7 @@ import { removeWorktreePath } from '@/store/projects'
 
 import { SidebarRowStack } from '../chrome'
 
-import { useWorkspaceNodeOpen } from './model'
+import { PROJECT_SESSION_PAGE, useRevealedRows, useWorkspaceNodeOpen } from './model'
 import { SidebarWorkspaceGroup } from './workspace-group'
 import {
   mergeRepoWorktreeGroups,
@@ -31,7 +31,7 @@ import {
   type SidebarSessionGroup,
   type SidebarWorkspaceTree
 } from './workspace-groups'
-import { WorkspaceAddButton, WorkspaceHeader } from './workspace-header'
+import { WorkspaceAddButton, WorkspaceHeader, WorkspaceShowMoreRow } from './workspace-header'
 
 // The entered project's body. Main-checkout sessions render directly — no
 // redundant repo/branch header (the breadcrumb already names the project). Only
@@ -59,9 +59,9 @@ export function EnteredProjectContent({
   }
 
   // Home's rows aren't anchored to a folder, so there's no repo or worktree
-  // structure to show — just the chats.
+  // structure to show — just the chats, paged so a huge Home stays cheap.
   if (project.isNoProject) {
-    return <>{renderRows(project.repos.flatMap(repo => repo.groups.flatMap(group => group.sessions)))}</>
+    return <HomeSessions project={project} renderRows={renderRows} />
   }
 
   const single = project.repos.length === 1
@@ -81,6 +81,27 @@ export function EnteredProjectContent({
           showHeader={!single}
         />
       ))}
+    </>
+  )
+}
+
+function HomeSessions({
+  project,
+  renderRows
+}: {
+  project: SidebarProjectTree
+  renderRows: (sessions: SessionInfo[]) => React.ReactNode
+}) {
+  const { t } = useI18n()
+  const sessions = useMemo(() => project.repos.flatMap(repo => repo.groups.flatMap(group => group.sessions)), [project])
+  const home = useRevealedRows(sessions, PROJECT_SESSION_PAGE)
+
+  return (
+    <>
+      {renderRows(home.shown)}
+      {home.more > 0 && (
+        <WorkspaceShowMoreRow label={t.sidebar.showMoreIn(home.more, project.label)} onClick={home.showMore} />
+      )}
     </>
   )
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-list-actions.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,7 @@ import {
   keepFailedProfileMeta,
   mergeSessionPage,
   MESSAGING_SECTION_LIMIT,
+  setCorruptSessionStores,
   setCronSessions,
   setMessagingPlatformTotals,
   setMessagingSessions,
@@ -42,6 +43,7 @@ import {
   setSessionProfilesTruncated,
   setSessionProfilesUsage,
   setSessions,
+  setSessionsLoadError,
   setSessionsLoading
 } from '@/store/session'
 import { $removedSessionIds } from '@/store/session-removal'
@@ -50,12 +52,13 @@ import { $sessionTiles, $workingSessionIds, getRecentlySettledSessionIds } from 
 import { refreshCronJobs as refreshCronJobsStore } from '../../cron/cron-actions'
 
 // The recents list is local-only: cron rows have their own section, kanban
-// dispatcher workers are read on the board, and each messaging platform
+// dispatcher workers are read on the board, finite one-shot runs (`hermes -z`,
+// `chat -q`) are not conversations, and each messaging platform
 // (telegram, discord, …) is fetched separately into its own self-managed
 // sidebar section (refreshMessagingSessions). Excluding them here keeps
 // "Load more" paging through interactive local chats instead of
 // interleaving gateway threads that bury them.
-const SIDEBAR_EXCLUDED_SOURCES = ['cron', 'kanban', 'subagent', 'tool', ...MESSAGING_SESSION_SOURCE_IDS]
+const SIDEBAR_EXCLUDED_SOURCES = ['cron', 'kanban', 'oneshot', 'subagent', 'tool', ...MESSAGING_SESSION_SOURCE_IDS]
 // The messaging slice is the inverse: drop cron + every local source so only
 // external-platform conversations remain, then split per platform in the UI.
 const MESSAGING_EXCLUDED_SOURCES = ['cron', ...LOCAL_SESSION_SOURCE_IDS]
@@ -131,7 +134,6 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
   /** Refresh the active profile's messaging-platform sidebar slice. */
   const refreshMessagingSessions = useCallback(async () => {
     const sessionProfile = sidebarProfileForScope(profileScope)
-    const activationEpoch = gatewayActivationEpoch()
 
     // A callback captured before a profile switch may still be queued by an
     // event subscription. Do not let it start a request against the old scope.
@@ -142,16 +144,27 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
     const requestId = refreshMessagingSessionsRequestRef.current + 1
     refreshMessagingSessionsRequestRef.current = requestId
 
-    try {
-      const result = await listAllProfileSessions(MESSAGING_SECTION_LIMIT, 1, 'exclude', 'recent', sessionProfile, {
+    const owns = () =>
+      refreshMessagingSessionsRequestRef.current === requestId &&
+      sidebarProfileForScope(profileScopeRef.current) === sessionProfile
+
+    const fetchPage = () =>
+      listAllProfileSessions(MESSAGING_SECTION_LIMIT, 1, 'exclude', 'recent', sessionProfile, {
         excludeSources: MESSAGING_EXCLUDED_SOURCES
       })
 
-      if (
-        refreshMessagingSessionsRequestRef.current !== requestId ||
-        sidebarProfileForScope(profileScopeRef.current) !== sessionProfile ||
-        gatewayActivationEpoch() !== activationEpoch
-      ) {
+    try {
+      let activationEpoch = gatewayActivationEpoch()
+      let result = await fetchPage()
+
+      // Same re-read as refreshSessions: a mid-request activation voids this
+      // page, and nothing else asks again when the route atoms did not move.
+      while (owns() && gatewayActivationEpoch() !== activationEpoch) {
+        activationEpoch = gatewayActivationEpoch()
+        result = await fetchPage()
+      }
+
+      if (!owns()) {
         return
       }
 
@@ -172,7 +185,6 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
   const loadMoreMessagingForPlatform = useCallback(
     async (platform: string) => {
       const sessionProfile = sidebarProfileForScope(profileScope)
-      const activationEpoch = gatewayActivationEpoch()
 
       if (sidebarProfileForScope(profileScopeRef.current) !== sessionProfile) {
         return
@@ -188,27 +200,31 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
       const inPlatform = (s: SessionInfo) => normalizeSessionSource(s.source) === platform && inProfile(s)
       const loaded = $messagingSessions.get().filter(inPlatform).length
 
+      const owns = () =>
+        loadMoreMessagingRequestRef.current[requestKey] === requestId &&
+        sidebarProfileForScope(profileScopeRef.current) === sessionProfile
+
+      const fetchPage = () =>
+        listAllProfileSessions(loaded + SIDEBAR_SESSIONS_PAGE_SIZE, 1, 'exclude', 'recent', sessionProfile, {
+          source: platform
+        })
+
       let result
 
       try {
-        result = await listAllProfileSessions(
-          loaded + SIDEBAR_SESSIONS_PAGE_SIZE,
-          1,
-          'exclude',
-          'recent',
-          sessionProfile,
-          { source: platform }
-        )
+        let activationEpoch = gatewayActivationEpoch()
+        result = await fetchPage()
+
+        while (owns() && gatewayActivationEpoch() !== activationEpoch) {
+          activationEpoch = gatewayActivationEpoch()
+          result = await fetchPage()
+        }
       } catch {
         // Non-fatal: leave the platform's loaded rows and total unchanged.
         return
       }
 
-      if (
-        loadMoreMessagingRequestRef.current[requestKey] !== requestId ||
-        sidebarProfileForScope(profileScopeRef.current) !== sessionProfile ||
-        gatewayActivationEpoch() !== activationEpoch
-      ) {
+      if (!owns()) {
         return
       }
 
@@ -249,7 +265,6 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
   const refreshSessions = useCallback(
     async (shouldPublish: () => boolean = () => true) => {
       const sessionProfile = sidebarProfileForScope(profileScope)
-      const activationEpoch = gatewayActivationEpoch()
 
       if (!shouldPublish() || sidebarProfileForScope(profileScopeRef.current) !== sessionProfile) {
         return
@@ -264,8 +279,14 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
       const showLoading = $sessions.get().length === 0
 
       if (showLoading && shouldPublish()) {
+        setSessionsLoadError(false)
         setSessionsLoading(true)
       }
+
+      const owns = () =>
+        shouldPublish() &&
+        refreshSessionsRequestRef.current === requestId &&
+        sidebarProfileForScope(profileScopeRef.current) === sessionProfile
 
       try {
         const limit = $sessionsLimit.get()
@@ -283,22 +304,40 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
         // Batched: one request opens each profile DB once and returns all three
         // source-scoped slices, instead of three separate listAllProfileSessions
         // calls that each reopened + re-counted every profile DB per refresh.
-        const result = await listSidebarSessions({
-          recentsProfile: sessionProfile,
-          recentsLimit: limit,
-          recentsExclude: SIDEBAR_EXCLUDED_SOURCES,
-          cronLimit: CRON_SECTION_LIMIT,
-          messagingLimit: MESSAGING_SECTION_LIMIT,
-          messagingExclude: MESSAGING_EXCLUDED_SOURCES
-        })
+        const fetchPage = () =>
+          listSidebarSessions({
+            recentsProfile: sessionProfile,
+            recentsLimit: limit,
+            recentsExclude: SIDEBAR_EXCLUDED_SOURCES,
+            cronLimit: CRON_SECTION_LIMIT,
+            messagingLimit: MESSAGING_SECTION_LIMIT,
+            messagingExclude: MESSAGING_EXCLUDED_SOURCES
+          })
 
-        if (
-          shouldPublish() &&
-          refreshSessionsRequestRef.current === requestId &&
-          sidebarProfileForScope(profileScopeRef.current) === sessionProfile &&
-          gatewayActivationEpoch() === activationEpoch
-        ) {
+        let activationEpoch = gatewayActivationEpoch()
+        let result = await fetchPage()
+
+        // A gateway activation that landed mid-request voids this page: it may
+        // describe the source the window just left. But every activation bumps
+        // the epoch, including a re-activation of the route already in front
+        // (a resume or profile click through ensureGatewayAgent), and those
+        // move no route atom, so no effect asks for the list again. Dropping
+        // the page there left the sidebar on "No sessions" while the backend
+        // held the rows (#67600). Still the newest refresh for this scope, so
+        // re-read under the current epoch instead.
+        while (owns() && gatewayActivationEpoch() !== activationEpoch) {
+          activationEpoch = gatewayActivationEpoch()
+          result = await fetchPage()
+        }
+
+        if (owns()) {
           const recents = result.recents
+          const recentsErrors = recents.errors ?? result.errors
+
+          setCorruptSessionStores(result.storage)
+          // A damaged store already has its own notice; Retry can't repair it.
+          const retryableErrors = recentsErrors?.filter(e => !result.storage?.[e.profile])
+          setSessionsLoadError(Boolean(showLoading && retryableErrors?.length && recents.sessions.length === 0))
 
           // Drop rows the user just deleted/archived: a refresh can race an
           // in-flight mutation and the backend page still carries the doomed row.
@@ -322,7 +361,6 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
           // top of the rows it already read (the old exact totals ran a COUNT(*)
           // per profile DB on every refresh). Reference-stable when unchanged so
           // the sidebar's group memos don't recompute per refresh.
-          const recentsErrors = recents.errors ?? result.errors
           setSessionProfilesTruncated(prev => {
             const next = keepFailedProfileMeta(prev, recents.profiles_truncated ?? {}, recentsErrors)
             const prevKeys = Object.keys(prev)
@@ -377,6 +415,12 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
             messagingErrors?.length ? prev : result.messaging.sessions.length >= MESSAGING_SECTION_LIMIT
           )
         }
+      } catch (error) {
+        if (owns() && showLoading) {
+          setSessionsLoadError(true)
+        }
+
+        throw error
       } finally {
         // Request identity preserves the zero-argument refresh contract across a
         // failed activation epoch; an explicit owner predicate is stronger and

@@ -81,6 +81,82 @@ export function ensureSectionScalar(
 }
 
 /**
+ * То же правило на глубине три: `section: sub: key: value` (задача 3.B6г —
+ * `vault.bitwarden.enabled`). Ключ есть — файл не трогается; нет подсекции —
+ * она дописывается в начало секции; нет секции — блок целиком в конец файла.
+ *
+ * Отступы — те, какими пишут они сами: два пробела на уровень. Подсекция,
+ * записанная скаляром или потоком (`bitwarden: {enabled: true}`), — чужая
+ * форма, которую строками не починить: файл оставляется как есть.
+ */
+export function ensureNestedScalar(
+  yamlText: string,
+  section: string,
+  sub: string,
+  key: string,
+  value: boolean | number | string
+): ConfigScalarResult {
+  const written = typeof value === 'string' ? JSON.stringify(value) : String(value)
+  const lines = yamlText.split('\n')
+  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
+  const subLine = new RegExp(`^  ${sub}:\\s*(#.*)?$`)
+  const subScalar = new RegExp(`^  ${sub}:\\s*[^#\\s]`)
+  const keyLine = new RegExp(`^    ${key}:`)
+
+  if (lines.some((line) => sectionScalar.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: true }
+  }
+
+  const start = lines.findIndex((line) => sectionLine.test(line))
+  if (start === -1) {
+    const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
+    const block = `${section}:\n  ${sub}:\n    ${key}: ${written}\n`
+    return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
+  }
+
+  let end = lines.length
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (TOP_LEVEL_LINE.test(lines[index])) {
+      end = index
+      break
+    }
+  }
+
+  const body = lines.slice(start + 1, end)
+  if (body.some((line) => subScalar.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: true }
+  }
+
+  const subStart = body.findIndex((line) => subLine.test(line))
+  if (subStart === -1) {
+    const next = [
+      ...lines.slice(0, start + 1),
+      `  ${sub}:`,
+      `    ${key}: ${written}`,
+      ...lines.slice(start + 1)
+    ]
+    return { text: next.join('\n'), changed: true, unexpectedStructure: false }
+  }
+
+  let subEnd = body.length
+  for (let index = subStart + 1; index < body.length; index += 1) {
+    if (/^ {0,2}\S/.test(body[index])) {
+      subEnd = index
+      break
+    }
+  }
+
+  if (body.slice(subStart + 1, subEnd).some((line) => keyLine.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: false }
+  }
+
+  const at = start + 1 + subStart + 1
+  const next = [...lines.slice(0, at), `    ${key}: ${written}`, ...lines.slice(at)]
+  return { text: next.join('\n'), changed: true, unexpectedStructure: false }
+}
+
+/**
  * Дописывает список верхнего уровня `key:`, если такого ключа в файле ещё нет.
  *
  * ЗАЧЕМ ОТДЕЛЬНАЯ ФУНКЦИЯ, А НЕ ПАРАМЕТР К ПРЕДЫДУЩЕЙ. Правило выше пишет
@@ -182,7 +258,11 @@ export function upgradeSectionList(
   if (start === -1) return unchanged
 
   let keyIndex = -1
-  for (let index = start + 1; index < lines.length && !TOP_LEVEL_LINE.test(lines[index]); index += 1) {
+  for (
+    let index = start + 1;
+    index < lines.length && !TOP_LEVEL_LINE.test(lines[index]);
+    index += 1
+  ) {
     if (new RegExp(`^  ${key}:\\s*$`).test(lines[index])) {
       keyIndex = index
       break

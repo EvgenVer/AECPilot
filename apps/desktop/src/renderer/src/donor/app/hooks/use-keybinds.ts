@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hooks/use-keybinds.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the 'composer.voice' handler — the continuous voice
@@ -28,6 +28,7 @@ import { setWorkspaceScope } from '@/components/pane-shell/workspace-scope'
 import { onReleaseTypingFocus } from '@/components/ui/keyboard-first'
 import { findBarClaimsCombo } from '@/lib/find-in-page'
 import { contributedKeybindHandler, PROFILE_SLOT_COUNT, SESSION_SLOT_COUNT } from '@/lib/keybinds/actions'
+import { handleApprovalKey, releaseApprovalKey } from '@/lib/keybinds/approval-keys'
 import { actionAllowedInInput, comboFromEvent, isEditableTarget } from '@/lib/keybinds/combo'
 import { composerFocusKeysAllowed, isComposerFocusSoftCombo, typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
 import { openWorktreeDialog } from '@/store/coding-status'
@@ -39,8 +40,10 @@ import {
   openFindBar
 } from '@/store/find-in-page'
 import { toggleHud } from '@/store/hud'
+import { toggleSimpleMode } from '@/store/interface-mode'
 import { $capture, $comboIndex, endCapture, setBinding } from '@/store/keybinds'
 import {
+  cycleSidebarGrouping,
   requestSessionSearchFocus,
   setFileBrowserOpen,
   toggleFileBrowserOpen,
@@ -56,6 +59,7 @@ import {
   switchToDefaultProfile,
   toggleShowAllProfiles
 } from '@/store/profile'
+import { toggleProfileRailVisible } from '@/store/profile-rail-prefs'
 import { openFolderAsProject } from '@/store/projects'
 import { toggleReview } from '@/store/review'
 import { $selectedStoredSessionId, setModelPickerOpen } from '@/store/session'
@@ -75,7 +79,11 @@ import { toggleStatusbarVisible } from '@/store/statusbar-prefs'
 import { openNewWindow } from '@/store/windows'
 import { useTheme } from '@/themes/context'
 
-import { requestComposerFocus, requestModelMenuToggle } from '../chat/composer/focus'
+import {
+  requestComposerDictation,
+  requestComposerFocus,
+  requestModelMenuToggle
+} from '../chat/composer/focus'
 import { handleComposerFocusChord } from '../chat/composer/focus-chord'
 import { handleWindowPaste } from '../chat/composer/paste-to-focus'
 import { openSession } from '../open-session'
@@ -83,14 +91,14 @@ import {
   $workspaceIsPage,
   AGENTS_ROUTE,
   ARTIFACTS_ROUTE,
+  CAPABILITIES_ROUTE,
   CRON_ROUTE,
   MESSAGING_ROUTE,
   navigateToWorkspacePage,
   NEW_CHAT_ROUTE,
   PROFILES_ROUTE,
   sessionRoute,
-  SETTINGS_ROUTE,
-  SKILLS_ROUTE
+  SETTINGS_ROUTE
 } from '../routes'
 
 export interface KeybindRuntimeDeps {
@@ -203,6 +211,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
     },
     // EDIT [3]: 'composer.voice' (Ctrl+B) включал непрерывный разговор — SPEC HX19 (owner decision 2026-09-08).
+    'composer.dictate': requestComposerDictation,
 
     // On the Settings overlay, ⌘K scopes to settings search; the second press
     // (or Esc) still closes as usual via toggle.
@@ -218,7 +227,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'nav.commandCenter': deps.toggleCommandCenter,
     'nav.settings': () => navigate(SETTINGS_ROUTE),
     'nav.profiles': () => navigate(PROFILES_ROUTE),
-    'nav.skills': () => navigateToWorkspacePage(navigate, SKILLS_ROUTE),
+    'nav.capabilities': () => navigateToWorkspacePage(navigate, CAPABILITIES_ROUTE),
     'nav.messaging': () => navigateToWorkspacePage(navigate, MESSAGING_ROUTE),
     'nav.artifacts': () => navigateToWorkspacePage(navigate, ARTIFACTS_ROUTE),
     'nav.cron': () => navigate(CRON_ROUTE),
@@ -252,6 +261,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
     // Narrow-viewport reveal is handled inside the store toggles now.
     'view.toggleSidebar': toggleSidebarOpen,
+    'view.cycleSidebarGrouping': cycleSidebarGrouping,
     // ⌘J toggles the right sidebar — but a layout with no right side (e.g.
     // terminal-on-bottom) would leave it a dead key, so it falls back to the
     // terminal there. The single "secondary panel" toggle.
@@ -259,6 +269,8 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       layoutHasRootSide('right') ? toggleFileBrowserOpen() : togglePaneVisible('terminal'),
     'view.toggleReview': toggleReview,
     'view.toggleStatusbar': toggleStatusbarVisible,
+    'view.toggleProfileRail': toggleProfileRailVisible,
+    'view.toggleSimpleMode': toggleSimpleMode,
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
     'view.showFiles': showFiles,
     'view.showBrowser': openBrowserTab,
@@ -329,6 +341,43 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
   )
 
   useEffect(() => {
+    const updateF12Ownership = () => {
+      const hasF12Binding = [...$comboIndex.get().keys()].some(combo => combo === 'f12' || combo.endsWith('+f12'))
+      window.hermesDesktop?.setF12ShortcutActive?.(hasF12Binding || $capture.get() !== null)
+    }
+
+    const stopBindings = $comboIndex.subscribe(updateF12Ownership)
+    const stopCapture = $capture.subscribe(updateF12Ownership)
+
+    return () => {
+      stopBindings()
+      stopCapture()
+      window.hermesDesktop?.setF12ShortcutActive?.(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const stopF12Shortcut = window.hermesDesktop?.onF12Shortcut?.(input => {
+      const target = document.activeElement ?? document.body ?? document.documentElement
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          altKey: input.alt,
+          bubbles: true,
+          cancelable: true,
+          code: input.code,
+          ctrlKey: input.control,
+          key: input.key,
+          metaKey: input.meta,
+          repeat: input.repeat,
+          shiftKey: input.shift
+        })
+      )
+    })
+
+    return () => stopF12Shortcut?.()
+  }, [])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // An active IME composition owns the keyboard. Windows Chinese IMEs
       // (Microsoft Pinyin, Sogou) use Ctrl+, as their punctuation-mode toggle,
@@ -392,6 +441,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
         return
       }
 
+      if (handleApprovalKey(event)) {
+        return
+      }
+
       const actionId = $comboIndex.get().get(combo)
 
       // Unbound printable → type-to-focus. Bound chords (shift+n, …) win above.
@@ -439,6 +492,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // highlighted session. A window blur (Cmd+Tab away mid-switch) cancels so
     // the overlay never gets stranded waiting for a keyup that never comes.
     const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === 'Escape') {
+        releaseApprovalKey()
+      }
+
       if (event.key === 'Tab') {
         onSwitcherTabUp()
       }
@@ -448,7 +505,13 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
     }
 
-    const onBlur = () => switcherActive() && closeSwitcher()
+    const onBlur = () => {
+      releaseApprovalKey()
+
+      if (switcherActive()) {
+        closeSwitcher()
+      }
+    }
 
     // Swallow trailing contextmenu after Ctrl+click commit (Electron main menu).
     const onContextMenu = (event: MouseEvent) => {

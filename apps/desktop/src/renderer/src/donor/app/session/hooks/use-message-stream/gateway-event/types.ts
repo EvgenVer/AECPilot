@@ -1,15 +1,16 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/types.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import type { GatewayEvent } from '@hermes/shared'
+import type { GatewayEvent, PersistedTurn } from '@hermes/shared'
 import type { QueryClient } from '@tanstack/react-query'
 import type { MutableRefObject } from 'react'
 
 import type { GatewayEventPayload } from '@/lib/chat-messages'
+import type { ErrorSurface } from '@/lib/error-surface'
 
 import type { ClientSessionState } from '../../../../types'
 
@@ -26,10 +27,17 @@ export interface GatewayEventDeps {
     text: string,
     responsePreviewed?: boolean,
     failure?: { error: string; partial: boolean },
-    occurredAt?: number
+    occurredAt?: number,
+    persistedTurn?: PersistedTurn | null
   ) => void
-  failAssistantMessage: (sessionId: string, errorMessage: string, occurredAt?: number) => void
+  failAssistantMessage: (
+    sessionId: string,
+    errorMessage: string,
+    occurredAt?: number,
+    surface?: ErrorSurface | null
+  ) => void
   flushQueuedDeltas: (sessionId?: string) => void
+  dropQueuedDeltas: (sessionId?: string) => void
   finalizeInterimAssistantMessage: (sessionId: string, text: string, occurredAt?: number) => void
   hydrateFromStoredSession: (
     attempts?: number,

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/hooks/use-status-snapshot.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -113,7 +113,11 @@ export function useStatusSnapshot(
         }
 
         if (statusResult.status === 'fulfilled') {
-          setStatusSnapshot(statusResult.value)
+          const next = statusResult.value
+          // Preserve reference identity on a no-op: the 60s tick re-reads a
+          // usually-unchanged snapshot, and a fresh object for the same content
+          // re-renders every consumer for nothing.
+          setStatusSnapshot(previous => (JSON.stringify(previous) === JSON.stringify(next) ? previous : next))
         }
       } finally {
         scheduleRefresh()

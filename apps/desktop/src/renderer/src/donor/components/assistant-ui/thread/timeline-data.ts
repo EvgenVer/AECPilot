@@ -1,27 +1,44 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/timeline-data.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 // Pure timeline helpers — no React/DOM; tested in thread-timeline-data.test.ts.
+import { PROCESS_NOTIFICATION_RE } from './content'
 
 export interface TimelineSourceMessage {
   id: string
+  rowId?: number
   role: string
   text: string
 }
 
 export interface TimelineEntry {
   id: string
+  rowId?: number
   preview: string
 }
 
-// Injected as user messages for alternation; not human prompts (thread.tsx).
-const PROCESS_NOTIFICATION_RE = /^\[IMPORTANT: Background process [\s\S]*\]$/
-
 const PREVIEW_MAX = 120
+
+/** Shared, localized focus curve; the active tick always retains its maximum. */
+export function timelineBarWidth(index: number, activeIndex: number, hoverIndex: number | null): number {
+  const curve = (distance: number) => (Math.abs(distance) > 3 ? 0 : Math.exp(-(distance ** 2) / 1.35))
+
+  return 0.5 + 0.5 * Math.max(curve(index - activeIndex), hoverIndex === null ? 0 : curve(index - hoverIndex))
+}
+
+export const TIMELINE_REVEAL_EVENT = 'hermes:timeline-reveal'
+export const EARLIER_TIMELINE_ID = '__earlier-history__'
+
+export interface TimelineRevealRequest {
+  id: string
+  rowId?: number
+  signal: AbortSignal
+  complete: (revealedId: string | false) => void
+}
 
 export function timelinePreview(text: string, max: number = PREVIEW_MAX): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
@@ -47,7 +64,11 @@ export function deriveTimelineEntries(messages: readonly TimelineSourceMessage[]
       continue
     }
 
-    entries.push({ id: message.id, preview: timelinePreview(text) })
+    entries.push({
+      id: message.id,
+      preview: timelinePreview(text),
+      ...(message.rowId !== undefined ? { rowId: message.rowId } : {})
+    })
   }
 
   return entries

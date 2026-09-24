@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/data.roster.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -578,6 +578,42 @@ describe('connect-on-demand sources', () => {
     )
 
     expect(rows.find(row => row.connectionId === 'gone')).toBeUndefined()
+  })
+})
+
+describe('an aggregate roster failure keeps the last-known remote rows', () => {
+  // Same shape the pane paints: one rich local row + one remote row already
+  // carried into $lastRoster by a previous successful refresh.
+  const previouslyPainted = (connectionId: string) =>
+    [
+      { last_session: { id: 'this-chat', last_active: 1 }, name: 'default' },
+      {
+        connectionId,
+        connectionKind: 'ssh',
+        connectionLabel: 'Spark',
+        handle: 'bob',
+        name: 'bob',
+        remoteSource: true,
+        sourceScoped: true
+      }
+    ] as RosterRow[]
+
+  it('retains previously painted remote rows as unreachable when host.agents() rejects', async () => {
+    // mergedRoster(local, null) rejects host.agents(): the union probe fails
+    // (e.g. a registered WSL backend's localhost forwarding went down) while
+    // the active source's profiles.list still answers (#98844).
+    $lastRoster.set(previouslyPainted('spark'))
+
+    const rows = await mergedRoster(
+      { profiles: [{ last_session: { id: 'this-chat', last_active: 1 }, name: 'default' }] },
+      null
+    )
+
+    expect(rows.find(row => row.name === 'bob' && row.connectionId === 'spark')).toMatchObject({
+      remoteSource: true,
+      sourceReachable: false
+    })
+    expect(rows.filter(row => row.name === 'default')).toHaveLength(1)
   })
 })
 

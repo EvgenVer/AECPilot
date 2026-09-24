@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/presets.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,11 +17,54 @@
 
 import { registry } from '@/contrib/registry'
 import { readJson, writeJson, writeKey } from '@/lib/storage'
+import { asLayoutIntent, type Tiered } from '@/store/interface-mode'
 
-import { isLayoutNode, type LayoutNode } from './model'
-import { $layoutTree, applyTree, markActivePreset } from './store'
+import { allPaneIds, findGroupOfPane, isLayoutNode, type LayoutNode } from './model'
+import { $dismissedPanes, $hiddenTreePanes, $layoutTree, applyTree, markActivePreset } from './store'
 
 export const LAYOUTS_AREA = 'layouts'
+
+/**
+ * A preset is the tree plus what the tree cannot say. `resting` names the
+ * panes it places but leaves CLOSED — every other pane it places opens on
+ * apply, so a preset states what is on screen. `tier` names the one mode
+ * whose shelf carries it. Both stay off `data`, which every consumer reads as
+ * a bare `LayoutNode`.
+ */
+export interface LayoutPresetSpec extends Tiered {
+  id: string
+  order: number
+  resting?: readonly string[]
+  title: string
+  tree: LayoutNode
+}
+
+const specs = new Map<string, Pick<LayoutPresetSpec, 'resting' | 'tier'>>()
+
+export function registerBundledPresets(bundled: readonly LayoutPresetSpec[]) {
+  for (const spec of bundled) {
+    rememberSpec(spec.id, spec)
+  }
+
+  return registry.registerMany(
+    bundled.map(({ id, order, title, tree }) => ({ id, area: LAYOUTS_AREA, title, order, data: tree }))
+  )
+}
+
+function rememberSpec(id: string, { resting, tier }: Pick<LayoutPresetSpec, 'resting' | 'tier'>) {
+  specs.set(id, { resting, tier })
+}
+
+/** User decks have no tier, so every shelf carries them. */
+export const layoutPresetTier = (id: string) => specs.get(id)?.tier
+
+const NO_RESTING: ReadonlySet<string> = new Set()
+
+export const layoutPresetResting = (id: string): ReadonlySet<string> => {
+  const resting = specs.get(id)?.resting
+
+  return resting ? new Set(resting) : NO_RESTING
+}
 
 // v2: v1 presets predate semantic placement (see store.ts) — retire them.
 const USER_KEY = 'hermes.desktop.layoutPresets.v2'
@@ -30,6 +73,7 @@ writeKey('hermes.desktop.layoutPresets.v1', null)
 
 interface StoredPreset {
   name: string
+  resting?: string[]
   tree: LayoutNode
 }
 
@@ -42,6 +86,7 @@ function loadUserPresets(): Record<string, StoredPreset> {
   for (const [id, preset] of Object.entries(parsed)) {
     if (preset && typeof preset.name === 'string' && isLayoutNode(preset.tree)) {
       out[id] = preset
+      rememberSpec(id, preset)
     }
   }
 
@@ -67,8 +112,10 @@ for (const [id, preset] of Object.entries(userPresets)) {
   registerUserPreset(id, preset)
 }
 
-/** Save any tree as a named user preset (and make it active). */
-export function saveLayoutPresetTree(name: string, tree: LayoutNode): string | null {
+/** Save any tree as a named user preset (and make it active). A deck saved
+ *  from the live layout remembers which of its panes were closed, so applying
+ *  it later restores what was on screen, not just where things sat. */
+export function saveLayoutPresetTree(name: string, tree: LayoutNode, resting: readonly string[] = []): string | null {
   const trimmed = name.trim()
 
   if (!tree || !trimmed) {
@@ -82,20 +129,27 @@ export function saveLayoutPresetTree(name: string, tree: LayoutNode): string | n
       .replace(/^-+|-+$/g, '') || Date.now().toString(36)
   }`
 
-  userPresets[id] = { name: trimmed, tree }
+  userPresets[id] = { name: trimmed, tree, resting: [...resting] }
   persistUserPresets(userPresets)
+  rememberSpec(id, userPresets[id])
   registerUserPreset(id, userPresets[id])
   markActivePreset(id)
 
   return id
 }
 
-/** Save the CURRENT tree as a named user preset (and make it active). */
+/** Save the CURRENT tree as a named user preset (and make it active). A pane
+ *  rests when it is closed — hidden, dismissed or folded to its rail — not
+ *  when it merely sits behind a sibling tab. */
 export function saveCurrentLayoutAs(name: string) {
   const tree = $layoutTree.get()
 
   if (tree) {
-    saveLayoutPresetTree(name, tree)
+    const hidden = $hiddenTreePanes.get()
+    const dismissed = $dismissedPanes.get()
+    const rests = (id: string) => hidden.has(id) || dismissed.has(id) || Boolean(findGroupOfPane(tree, id)?.minimized)
+
+    saveLayoutPresetTree(name, tree, allPaneIds(tree).filter(rests))
   }
 }
 
@@ -105,6 +159,7 @@ export function deleteUserPreset(id: string) {
   }
 
   delete userPresets[id]
+  specs.delete(id)
   persistUserPresets(userPresets)
   userDisposers.get(id)?.()
   userDisposers.delete(id)
@@ -112,7 +167,10 @@ export function deleteUserPreset(id: string) {
 
 export const isUserPreset = (id: string) => id in userPresets
 
-/** Apply a preset's tree (deep-cloned so live edits never mutate the preset). */
+/** Apply a preset's tree (deep-cloned so live edits never mutate the preset),
+ *  opening what it places and resting what it says to. In Simple the mode
+ *  already decides what rests, so the open/close side of a layout pick yields
+ *  to it instead of surfacing shadowed panes for the session. */
 export function applyLayoutPreset(id: string, tree: LayoutNode) {
-  applyTree(structuredClone(tree), id)
+  asLayoutIntent(() => applyTree(structuredClone(tree), id, specs.get(id)?.resting))
 }

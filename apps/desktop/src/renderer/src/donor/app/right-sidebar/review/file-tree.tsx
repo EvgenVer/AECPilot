@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/review/file-tree.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -368,7 +368,7 @@ function ReviewFileRow({ node, depth }: { node: ReviewTreeNode; depth: number })
         const preview = await normalizeOrLocalPreviewTarget(dragPath)
 
         if (preview) {
-          openPreview(preview, 'file-browser')
+          openPreview(preview)
         }
       } catch (error) {
         notifyError(error, t.rightSidebar.previewUnavailable)

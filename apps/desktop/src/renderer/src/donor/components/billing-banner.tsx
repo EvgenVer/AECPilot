@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/billing-banner.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,6 @@ import { useStore } from '@nanostores/react'
 import { StatusRow } from '@/components/chat/status-row'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
-import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { $billingBlock, billingCtaLabel, clearBillingBlock, runBillingRecovery } from '@/store/billing-block'
 
@@ -54,18 +53,16 @@ export function BillingBanner({ sessionId }: { sessionId: null | string }) {
           >
             {billingCtaLabel(block, copy)}
           </Button>
-          <Tip label={copy.dismiss}>
-            <Button
-              aria-label={copy.dismiss}
-              className="size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
-              onClick={() => clearBillingBlock(sessionId)}
-              size="icon-xs"
-              type="button"
-              variant="ghost"
-            >
-              <Codicon name="close" size="0.75rem" />
-            </Button>
-          </Tip>
+          <Button
+            aria-label={copy.dismiss}
+            className="size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
+            onClick={() => clearBillingBlock(sessionId)}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+          >
+            <Codicon name="close" size="0.75rem" />
+          </Button>
         </>
       }
       trailingVisible

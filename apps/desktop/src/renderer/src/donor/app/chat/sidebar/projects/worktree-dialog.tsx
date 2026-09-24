@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/worktree-dialog.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandItemCheck,
+  CommandList
+} from '@/components/ui/command'
 import {
   Dialog,
   DialogContent,
@@ -249,10 +257,17 @@ export function WorktreeDialog() {
                 <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="chevron-down" size="0.75rem" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="z-(--z-modal-popover) min-w-(--radix-popover-trigger-width) p-0">
-              <Command filter={(value, search) => (value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}>
+            <PopoverContent
+              align="start"
+              className="z-(--z-modal-popover) min-w-(--radix-popover-trigger-width)"
+              variant="menu"
+            >
+              <Command
+                filter={(value, search) => (value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
+                variant="menu"
+              >
                 <CommandInput autoFocus placeholder={p.worktreeProjectPlaceholder} />
-                <CommandList className="max-h-64">
+                <CommandList>
                   <CommandEmpty>{p.worktreeProjectNone}</CommandEmpty>
                   <CommandGroup>
                     {projectOptions.map(option => (
@@ -270,9 +285,7 @@ export function WorktreeDialog() {
                       >
                         <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="repo" size="0.8rem" />
                         <span className="truncate">{option.label}</span>
-                        {option === activeOption && (
-                          <Codicon className="ml-auto shrink-0 text-(--ui-accent)" name="check" size="0.8rem" />
-                        )}
+                        <CommandItemCheck checked={option === activeOption} />
                       </CommandItem>
                     ))}
                   </CommandGroup>

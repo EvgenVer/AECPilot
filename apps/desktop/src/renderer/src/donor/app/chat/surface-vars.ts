@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/surface-vars.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -37,14 +37,24 @@ export const COMPOSER_SURFACE_HEIGHT_VAR = '--composer-surface-measured-height'
 /**
  * The surface owning `el`, or null when `el` is detached or outside one.
  *
- * Null is the honest answer, not a failure to be papered over. Every publisher
- * lives inside a `[data-chat-surface]` for its whole visible life (a
- * popped-out composer is `position: fixed`, still a descendant), so the only
- * way to miss is a node React already removed — whose measurement is stale by
- * definition.
+ * Floating editors are portaled outside the pane's clipping/filter layer.
+ * Their stable host carries the exact owning surface id; missing owners never
+ * publish measurements to another pane or the document root.
  */
 export function chatSurfaceRoot(el: Element | null): HTMLElement | null {
-  return el?.closest<HTMLElement>('[data-chat-surface]') ?? null
+  const local = el?.closest<HTMLElement>('[data-chat-surface]')
+
+  if (local) {
+    return local
+  }
+
+  const owner = el?.closest<HTMLElement>('[data-composer-owner]')?.dataset.composerOwner
+
+  return owner
+    ? ([...document.querySelectorAll<HTMLElement>('[data-chat-surface]')].find(
+        surface => surface.dataset.composerSurfaceId === owner
+      ) ?? null)
+    : null
 }
 
 /** Publish a measured-height var on the surface owning `el`. No owner, no write. */

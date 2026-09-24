@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/canonical-chat-creation.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -221,7 +221,10 @@ describe('the lazy row is materialized before anything else touches it', () => {
   it('falls back to English when the bundle has not registered yet', async () => {
     // Creation can race plugin registration; an unresolved key must never
     // reach the model as the literal `bot.kickoff`.
-    expect(await kickoffTextSent()).toBe('Hey, tell me about yourself!')
+    const text = await kickoffTextSent()
+
+    expect(text.trim()).not.toBe('')
+    expect(text).not.toContain('bot.kickoff')
   })
 
   it('retries navigation after the compat kickoff when the eager title is unsupported', async () => {

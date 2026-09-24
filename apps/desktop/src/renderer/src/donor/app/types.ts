@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/types.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type * as React from 'react'
 
 import type { ChatMessage } from '@/lib/chat-messages'
+import type { Tiered } from '@/store/interface-mode'
 import type { SessionMessage, UsageStats } from '@/types/hermes'
 
 export interface ContextSuggestion {
@@ -129,9 +130,10 @@ export interface HandoffFailResponse {
   state?: string
 }
 
-export type SidebarNavId = 'artifacts' | 'command-center' | 'cron' | 'messaging' | 'new-session' | 'settings' | 'skills'
+export type SidebarNavId =
+  'artifacts' | 'capabilities' | 'command-center' | 'cron' | 'messaging' | 'new-session' | 'settings'
 
-export interface SidebarNavItem {
+export interface SidebarNavItem extends Tiered {
   /** Built-in view id, or a contributed row's namespaced contribution id. */
   id: SidebarNavId | (string & {})
   label: string
@@ -161,6 +163,13 @@ export interface ClientSessionState {
   model: string
   provider: string
   reasoningEffort: string
+  /** Gateway-reported wire level for `reasoningEffort`; '' until the backend
+   *  has stamped the current pick (so a clamp is never inferred client-side). */
+  reasoningEffortWire?: string
+  /** The runtime has not reported this session's effort yet, so '' above means
+   *  "unknown", not "profile default". A cold resume answers before the agent
+   *  builds, and only the built agent knows the session's own pin (#79807). */
+  reasoningEffortPending?: boolean
   serviceTier: string
   fast: boolean
   yolo: boolean
@@ -179,6 +188,11 @@ export interface ClientSessionState {
   interrupted: boolean
   /** True after message.interim finalized a bubble in the still-running turn. */
   interimBoundaryPending: boolean
+  /** Stream bubble a running=false heartbeat settled before its turn's
+   *  message.complete arrived. The frame can be reordered behind the
+   *  heartbeat (#119569); when it lands it settles onto this bubble instead of
+   *  appending a duplicate. Cleared by the next message.start or complete. */
+  heartbeatSettledStreamId?: null | string
   /** A blocking clarify prompt is waiting on the user for this session. Drives
    *  the sidebar "needs input" indicator; cleared when the turn resumes/ends. */
   needsInput: boolean

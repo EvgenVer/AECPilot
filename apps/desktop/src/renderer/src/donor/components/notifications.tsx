@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/notifications.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { CardStack, type CardStackAction } from '@/components/ui/card-stack'
 import { Codicon } from '@/components/ui/codicon'
 import { CopyButton } from '@/components/ui/copy-button'
 import { useI18n } from '@/i18n'
@@ -86,15 +87,13 @@ export function NotificationStack() {
 
   return (
     <>
-      {defaultStack.length > 0 && (
-        <TopCenterStack
-          copy={copy}
-          expanded={expanded}
-          notifications={defaultStack}
-          onToggleExpanded={() => setExpanded(v => !v)}
-        />
-      )}
-      {bottomRightStack.length > 0 && <BottomRightStack copy={copy} notifications={bottomRightStack} />}
+      <TopCenterStack
+        copy={copy}
+        expanded={expanded}
+        notifications={defaultStack}
+        onToggleExpanded={() => setExpanded(v => !v)}
+      />
+      <BottomRightStack copy={copy} notifications={bottomRightStack} />
     </>
   )
 }
@@ -119,21 +118,21 @@ function TopCenterStack({
   notifications: AppNotification[]
   onToggleExpanded: () => void
 }) {
-  const [latest, ...older] = notifications
+  const older = notifications.slice(1)
 
   return createPortal(
     <div
       aria-label={copy.region}
       className={cn(
         REGION_BASE,
-        'left-1/2 top-[calc(var(--titlebar-height,34px)+0.75rem)] w-[min(40rem,calc(100%-2rem))] -translate-x-1/2 flex-col'
+        'left-1/2 top-[calc(var(--titlebar-height,34px)+0.75rem)] w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 flex-col p-1',
+        expanded && 'max-h-[70vh] overflow-y-auto overscroll-contain'
       )}
       role="region"
     >
-      <NotificationItem notification={latest} />
-      {expanded && older.map(n => <NotificationItem key={n.id} notification={n} />)}
+      <NotificationDeck expanded={expanded} notifications={notifications} />
       {older.length > 0 && (
-        <div className={cn(STACK_SURFACE, 'flex min-h-8 items-center justify-between rounded-lg px-3 text-xs')}>
+        <div className="pointer-events-auto flex min-h-8 items-center justify-between px-3 text-xs">
           <Button className="-ml-2" onClick={onToggleExpanded} size="xs" type="button" variant="text">
             {expanded ? copy.hide : copy.show} {copy.more(older.length)}
           </Button>
@@ -147,8 +146,7 @@ function TopCenterStack({
   )
 }
 
-// Ambient stack: bottom-right, every toast shown at once (routine confirmations
-// rarely queue up), newest on top, no expand/clear-all chrome.
+// Ambient confirmations use the same bounded depth, rising from the corner.
 function BottomRightStack({
   copy,
   notifications
@@ -156,17 +154,65 @@ function BottomRightStack({
   copy: ReturnType<typeof useI18n>['t']['notifications']
   notifications: AppNotification[]
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const older = notifications.slice(1)
+
+  useEffect(() => {
+    if (!older.length) {
+      setExpanded(false)
+    }
+  }, [older.length])
+
   return createPortal(
     <div
       aria-label={copy.region}
-      className={cn(REGION_BASE, 'right-4 bottom-4 w-[min(24rem,calc(100%-2rem))] flex-col-reverse')}
+      className={cn(
+        REGION_BASE,
+        'right-4 bottom-4 w-[min(24rem,calc(100%-2rem))] flex-col-reverse p-1',
+        expanded && 'max-h-[70vh] overflow-y-auto overscroll-contain'
+      )}
       role="region"
     >
-      {notifications.map(n => (
-        <NotificationItem key={n.id} notification={n} />
-      ))}
+      {older.length > 0 && (
+        <div className="pointer-events-auto flex items-center justify-between px-2 text-xs">
+          <Button onClick={() => setExpanded(value => !value)} size="xs" variant="text">
+            {expanded ? copy.hide : copy.show} {copy.more(older.length)}
+          </Button>
+          <Button
+            onClick={() => notifications.forEach(notification => dismissNotification(notification.id))}
+            size="xs"
+            variant="text"
+          >
+            {copy.clearAll}
+          </Button>
+        </div>
+      )}
+      <NotificationDeck expanded={expanded} notifications={notifications} />
     </div>,
     document.body
+  )
+}
+
+export function NotificationDeck({
+  notifications,
+  expanded = false
+}: {
+  notifications: AppNotification[]
+  expanded?: boolean
+}) {
+  return (
+    <CardStack
+      expanded={expanded}
+      getKey={notification => notification.id}
+      items={notifications}
+      onSwipe={(notification, _side, action) => {
+        void action.depart(() => dismissNotification(notification.id))
+      }}
+      surfaceClassName={cn(STACK_SURFACE, 'rounded-lg')}
+      swipeDirections={['left', 'right']}
+    >
+      {(notification, action) => <NotificationItem notification={notification} stack={action} />}
+    </CardStack>
   )
 }
 
@@ -201,7 +247,7 @@ export function toastTitleClassName() {
   return 'col-start-auto line-clamp-none max-h-[4.5em] overflow-y-auto overscroll-contain whitespace-normal wrap-break-word'
 }
 
-function NotificationItem({ notification }: { notification: AppNotification }) {
+function NotificationItem({ notification, stack }: { notification: AppNotification; stack: CardStackAction }) {
   const styles = tone[notification.kind]
   const Icon = styles.icon
   const hasDetail = Boolean(notification.detail && notification.detail !== notification.message)
@@ -216,8 +262,8 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
 
   return (
     <Alert
-      aria-live={notification.kind === 'error' ? 'assertive' : 'polite'}
-      className={cn(STACK_SURFACE, 'grid-cols-[auto_minmax(0,1fr)_auto] pr-2.5')}
+      aria-live={!stack.active ? 'off' : notification.kind === 'error' ? 'assertive' : 'polite'}
+      className="grid-cols-[auto_minmax(0,1fr)_auto] border-0 bg-transparent pr-2.5 shadow-none"
       role={notification.kind === 'error' ? 'alert' : 'status'}
       variant={styles.variant}
     >
@@ -240,9 +286,12 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {notification.action && (
                 <Button
+                  disabled={stack.busy || !stack.active}
                   onClick={() => {
-                    notification.action?.onClick()
-                    dismissNotification(notification.id)
+                    void stack.depart(() => {
+                      notification.action?.onClick()
+                      dismissNotification(notification.id)
+                    })
                   }}
                   size="sm"
                   type="button"
@@ -253,9 +302,12 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
               )}
               {notification.secondaryAction && (
                 <Button
+                  disabled={stack.busy || !stack.active}
                   onClick={() => {
-                    notification.secondaryAction?.onClick()
-                    dismissNotification(notification.id)
+                    void stack.depart(() => {
+                      notification.secondaryAction?.onClick()
+                      dismissNotification(notification.id)
+                    })
                   }}
                   size="sm"
                   type="button"
@@ -271,7 +323,10 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
       <Button
         aria-label={copy.dismiss}
         className="col-start-3 -mr-1 text-muted-foreground"
-        onClick={() => dismissNotification(notification.id)}
+        disabled={stack.busy || !stack.active}
+        onClick={() => {
+          void stack.depart(() => dismissNotification(notification.id))
+        }}
         size="icon-xs"
         type="button"
         variant="ghost"

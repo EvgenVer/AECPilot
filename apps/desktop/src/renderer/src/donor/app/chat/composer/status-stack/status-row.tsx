@@ -1,18 +1,17 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/status-row.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { Fragment, memo, type ReactNode } from 'react'
 
 import { openAgentTerminal } from '@/app/right-sidebar/terminal/terminals'
+import { StatusPendingIcon } from '@/components/chat/status-pending-icon'
 import { StatusRow } from '@/components/chat/status-row'
-import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
-import { Tip } from '@/components/ui/tooltip'
 import { type Translations, useI18n } from '@/i18n'
 import { capitalize } from '@/lib/text'
 import type { TodoStatus } from '@/lib/todos'
@@ -51,12 +50,7 @@ function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']):
   }
 
   if (item.todoStatus === 'pending') {
-    return (
-      <span
-        aria-hidden
-        className="box-border size-[0.7rem] rounded-full border border-dashed border-muted-foreground/60"
-      />
-    )
+    return <StatusPendingIcon />
   }
 
   if (item.todoStatus && item.todoStatus !== 'in_progress') {
@@ -121,34 +115,12 @@ export const StatusItemRow = memo(function StatusItemRow({ item, onDismiss, onOp
   return (
     <Fragment>
       <StatusRow
-        leading={
-          item.depth ? (
-            <span className="flex items-center" style={{ paddingLeft: `${Math.min(item.depth, 4) * 0.8}rem` }}>
-              {leadingGlyph(item, s)}
-            </span>
-          ) : (
-            leadingGlyph(item, s)
-          )
-        }
+        depth={Math.min(item.depth ?? 0, 4)}
+        dismiss={action ? { label: action.label, onDismiss: action.onClick } : undefined}
+        leading={leadingGlyph(item, s)}
         onActivate={onActivate}
         trailing={
-          action ? (
-            <Tip label={action.label}>
-              <Button
-                aria-label={action.label}
-                className="-my-1 size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
-                onClick={event => {
-                  event.stopPropagation()
-                  action.onClick()
-                }}
-                size="icon-xs"
-                type="button"
-                variant="ghost"
-              >
-                <Codicon name="close" size="0.75rem" />
-              </Button>
-            </Tip>
-          ) : canOpen ? (
+          canOpen ? (
             <Codicon aria-hidden className="text-muted-foreground/55" name="link-external" size="0.85rem" />
           ) : undefined
         }

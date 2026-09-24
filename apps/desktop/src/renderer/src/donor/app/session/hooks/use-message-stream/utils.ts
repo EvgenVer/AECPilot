@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/utils.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,17 @@ import type { ClientSessionState } from '../../../types'
 type SessionRuntimeStatePatch = Partial<
   Pick<
     ClientSessionState,
-    'branch' | 'cwd' | 'fast' | 'model' | 'personality' | 'provider' | 'reasoningEffort' | 'serviceTier' | 'yolo'
+    | 'branch'
+    | 'cwd'
+    | 'fast'
+    | 'model'
+    | 'personality'
+    | 'provider'
+    | 'reasoningEffort'
+    | 'reasoningEffortPending'
+    | 'reasoningEffortWire'
+    | 'serviceTier'
+    | 'yolo'
   >
 >
 
@@ -43,6 +53,11 @@ export function sessionInfoStatePatch(payload: GatewayEventPayload | undefined):
 
   if (typeof payload?.reasoning_effort === 'string') {
     patch.reasoningEffort = payload.reasoning_effort
+    patch.reasoningEffortPending = false
+  }
+
+  if (typeof payload?.reasoning_effort_wire === 'string') {
+    patch.reasoningEffortWire = payload.reasoning_effort_wire
   }
 
   if (typeof payload?.service_tier === 'string') {
@@ -79,6 +94,8 @@ export function applySessionInfoStatePatch(
     (patch.personality === undefined || patch.personality === state.personality) &&
     (patch.provider === undefined || patch.provider === state.provider) &&
     (patch.reasoningEffort === undefined || patch.reasoningEffort === state.reasoningEffort) &&
+    (patch.reasoningEffortPending === undefined ||
+      patch.reasoningEffortPending === Boolean(state.reasoningEffortPending)) &&
     (patch.serviceTier === undefined || patch.serviceTier === state.serviceTier) &&
     (patch.yolo === undefined || patch.yolo === state.yolo)
   ) {

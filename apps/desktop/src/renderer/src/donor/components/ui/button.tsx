@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/button.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,6 +33,12 @@ const buttonVariants = cva(
         secondary:
           'bg-(--ui-bg-quaternary) text-(--ui-text-primary) hover:bg-(--chrome-action-hover) hover:text-(--ui-text-primary)',
         ghost: 'text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-(--ui-text-primary)',
+        grip: 'bg-transparent text-(--ui-text-tertiary) transition-colors hover:text-(--ui-text-secondary) focus-visible:text-(--ui-text-primary)',
+        // A control floating free of any surface (fan-menu discs, detached
+        // chips): the menu/popover treatment — opaque popover fill + the
+        // shared `shadow-md` ring-and-drop. Hover only lifts the glyph; a fill
+        // change on a lone disc reads as a toggle flipping.
+        floating: 'bg-popover text-(--ui-text-secondary) shadow-md hover:text-(--ui-text-primary)',
         link: `text-primary underline-offset-4 decoration-current/20 hover:underline ${TEXT_ACTION_ICON}`,
         // Boxless inline-text action (no bg/border). Quiet by default — reads as
         // muted label text, underlines on hover (e.g. "Cancel", "Clear").
@@ -57,6 +63,7 @@ const buttonVariants = cva(
         'icon-xs': "size-6 rounded-[4px] [&_svg:not([class*='size-'])]:size-3",
         'icon-sm': 'size-8 rounded-[4px]',
         'icon-lg': 'size-10 rounded-[4px]',
+        grip: 'h-4 w-12 rounded-full p-0',
         'icon-titlebar':
           'titlebar-icon-button h-(--titlebar-control-height) w-(--titlebar-control-size) rounded-[4px] [&_svg:not([class*="size-"])]:size-(--titlebar-icon-size)'
       }

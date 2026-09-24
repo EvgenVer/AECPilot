@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/suggestion-providers/mcp.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,11 +9,11 @@ import { capabilityScoped } from '@/api/client'
 import { addMcpServer, getMcpCatalog, listMcpServers, removeMcpServer } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { completeMcpDesktopOAuth, McpOAuthCancelled } from '@/lib/mcp-dashboard-oauth'
-import { MCP_DIRECTORY } from '@/lib/mcp-directory'
 import { prettyName } from '@/lib/text'
 import { type ComposerSuggestion, registerDraftProvider } from '@/store/composer-suggestions'
 import { $gateway } from '@/store/gateway'
 import { notifyError } from '@/store/notifications'
+import type { McpCatalogEntry } from '@/types/hermes'
 
 /**
  * The MCP draft provider — the suggestion bus's founding member (PR #85036).
@@ -22,9 +22,7 @@ import { notifyError } from '@/store/notifications'
  * metadata (`GET /api/mcp/catalog` — the same reviewed manifests behind
  * `hermes mcp catalog`), by whole-word keyword and pasted-link host suffix,
  * excluding servers already configured. The catalog is the single source of
- * truth for suggestible servers; the renderer-local `lib/mcp-directory.ts`
- * remains only as a compatibility rung for older backends whose catalog
- * entries carry no `suggest` field. A suggestion's invoke runs the whole
+ * truth for suggestible servers. A suggestion's invoke runs the whole
  * connect: validated config write → browser OAuth → live tool reload, with
  * rollback on cancel/failure so a decline never strands a half-configured
  * server.
@@ -47,8 +45,7 @@ interface SuggestibleServer {
   url: string
 }
 
-// Suggestible servers from the catalog (entries with `suggest` + an http
-// url), or the static directory on backends that predate `suggest`.
+// Suggestible servers from the catalog (entries with `suggest` + an http url).
 let suggestible: SuggestibleServer[] | null = null
 let suggestibleAt = 0
 
@@ -80,9 +77,27 @@ async function loadSuggestible(): Promise<SuggestibleServer[]> {
 
   const { entries } = await getMcpCatalog()
 
-  const fromCatalog: SuggestibleServer[] = entries
+  const fromCatalog = buildMcpSuggestionIndex(entries)
+
+  suggestible = fromCatalog
+  suggestibleAt = Date.now()
+
+  return suggestible
+}
+
+/** This older composer path runs hosted OAuth. Local/setup-dependent tasks use manage_connections instead. */
+export function buildMcpSuggestionIndex(
+  entries: readonly Pick<McpCatalogEntry, 'name' | 'url' | 'suggest' | 'auth_type' | 'transport'>[]
+): SuggestibleServer[] {
+  return entries
     .filter(
-      entry => entry.suggest && entry.url && (entry.suggest.keywords.length > 0 || entry.suggest.hosts.length > 0)
+      entry =>
+        entry.transport === 'http' &&
+        entry.auth_type === 'oauth' &&
+        !entry.suggest?.requires_app &&
+        entry.suggest &&
+        entry.url &&
+        (entry.suggest.keywords.length > 0 || entry.suggest.hosts.length > 0)
     )
     .map(entry => ({
       hosts: entry.suggest!.hosts,
@@ -90,22 +105,6 @@ async function loadSuggestible(): Promise<SuggestibleServer[]> {
       server: entry.name,
       url: entry.url!
     }))
-
-  // Compatibility rung: an older backend serves the catalog without any
-  // `suggest` metadata. Fall back to the static directory rather than
-  // silently losing the feature (remove once the backend contract bumps).
-  suggestible =
-    fromCatalog.length > 0
-      ? fromCatalog
-      : MCP_DIRECTORY.map(entry => ({
-          hosts: entry.hosts,
-          keywords: entry.keywords,
-          server: entry.name,
-          url: entry.url
-        }))
-  suggestibleAt = Date.now()
-
-  return suggestible
 }
 
 interface KeywordEntry {

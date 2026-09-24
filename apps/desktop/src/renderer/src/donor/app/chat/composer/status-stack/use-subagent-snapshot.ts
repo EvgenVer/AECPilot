@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/use-subagent-snapshot.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 
+import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
 import { $gatewayState } from '@/store/session'
 import { knownOwnerForSession, requestForOwnedSession } from '@/store/session-states'
 import { $subagentsBySession, reconcileSubagentSnapshot, type SubagentPayload } from '@/store/subagents'
@@ -16,11 +17,15 @@ export const rejectUnownedSubagentRequest = async <T>(): Promise<T> => {
   throw new Error('Subagent owner unavailable')
 }
 
-/** Hydrate even an empty composer; live events remain authoritative over reads. */
-export function useSubagentSnapshot(sessionId: string | null) {
+/** Hydrate even an empty composer; live events remain authoritative over reads.
+ *  `poll` keeps the 5s safety-net refresh — off when nothing on screen shows
+ *  the answer, the one-shot hydrate still lands. */
+export function useSubagentSnapshot(sessionId: string | null, poll = true) {
   const gatewayState = useStore($gatewayState)
+  const paneVisible = usePaneVisible()
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || !paneVisible) {
+      // Keep-alive tiles stay mounted; only poll while this pane is the visible tab (reveal re-runs the effect).
       return
     }
 
@@ -64,7 +69,18 @@ export function useSubagentSnapshot(sessionId: string | null) {
     }
 
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
+
+    if (!poll) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refresh()
+      }
+    }, 5000)
 
     const retry = () => {
       failures = 0
@@ -78,5 +94,5 @@ export function useSubagentSnapshot(sessionId: string | null) {
       window.clearInterval(timer)
       window.removeEventListener('focus', retry)
     }
-  }, [sessionId, gatewayState])
+  }, [sessionId, gatewayState, paneVisible, poll])
 }

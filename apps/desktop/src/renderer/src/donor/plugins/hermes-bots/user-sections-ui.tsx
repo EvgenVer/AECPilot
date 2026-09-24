@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/user-sections-ui.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  isSubmitEnter,
   useI18n,
   useValue
 } from '@hermes/plugin-sdk'
@@ -96,7 +97,7 @@ export function SectionNameDialog({ initialName, mode, onOpenChange, onSubmit, o
           maxLength={40}
           onChange={event => setValue(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            if (isSubmitEnter(event)) {
               event.preventDefault()
               submit()
             }

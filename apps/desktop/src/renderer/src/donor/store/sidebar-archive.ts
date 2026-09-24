@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/sidebar-archive.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,8 @@ export async function loadArchivedSessions(): Promise<void> {
 
     $archivedSessions.set(result.sessions)
   } catch {
-    $archivedSessions.set([])
+    // A background refresh must not turn a usable Archived view into an empty
+    // one when the backend is temporarily unavailable. Keep the last good set.
   } finally {
     $archivedSessionsLoading.set(false)
   }

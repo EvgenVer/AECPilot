@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-preview-routing.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,7 @@ import {
   completePreviewServerRestart,
   openPreview,
   progressPreviewServerRestart,
+  renderedHtmlTarget,
   requestPreviewReload
 } from '@/store/preview'
 import { $activeSessionId, $currentCwd } from '@/store/session'
@@ -107,7 +108,7 @@ export function usePreviewRouting({ baseHandleGatewayEvent, currentCwd, requestG
               const url = resolved.kind === 'url' ? await reachablePreviewUrl(resolved.url) : resolved.url
               const reached = url === resolved.url ? resolved : { ...resolved, label: resolved.label || target, url }
 
-              openPreview(trimmedLabel ? { ...reached, label: trimmedLabel } : reached, 'tool-result')
+              openPreview(renderedHtmlTarget(trimmedLabel ? { ...reached, label: trimmedLabel } : reached))
             }
           )
         }

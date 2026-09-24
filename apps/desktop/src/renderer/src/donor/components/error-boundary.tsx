@@ -1,9 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/error-boundary.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the Send Diagnostics action — it uploads a debug bundle to
+ *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3 —
+ *       with its store import (same edit as `assistant-message.tsx`)
+ * (no other edits)
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
@@ -158,7 +162,19 @@ function RootErrorFallback({ error, reset }: ErrorBoundaryFallbackProps) {
     >
       <ErrorState
         className="w-full max-w-[28rem]"
-        description={error.message || t.errors.boundaryDesc}
+        description={
+          <>
+            {t.errors.boundaryDesc}
+            {error.message ? (
+              <details className="mt-2 text-left text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none text-center">{t.errors.boundaryDetails}</summary>
+                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem]">
+                  {error.message}
+                </pre>
+              </details>
+            ) : null}
+          </>
+        }
         title={t.errors.boundaryTitle}
       >
         <Button className="font-semibold" onClick={reset} size="lg">
@@ -170,6 +186,7 @@ function RootErrorFallback({ error, reset }: ErrorBoundaryFallbackProps) {
         <Button onClick={() => void window.hermesDesktop?.revealLogs()?.catch(() => undefined)} variant="text">
           {t.errors.openLogs}
         </Button>
+        {/* EDIT [3]: Send Diagnostics uploads to Nous-internal storage — HX3. */}
       </ErrorState>
     </div>
   )

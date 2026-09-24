@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/open-session.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,6 +26,7 @@ import { $activeSessionId, $selectedStoredSessionId, markSessionRead } from '@/s
 import type { SessionProfileRoute } from '@/store/session-request-router'
 import {
   focusedSessionNeedsRoute,
+  focusedSessionWorkspaceScope,
   focusOpenSession,
   openSessionTile,
   reuseBlankDraftTile,
@@ -82,6 +83,23 @@ export function openSessionIntentFromModifiers(
   return base
 }
 
+/** Every door that opens a saved chat from a picker-like surface (the /resume
+ * overlay, ⌘K session search, an artifact's "open chat") preserves the
+ * workspace of the tab the user acted from. `intent` is the caller's unmodified
+ * meaning (`in-place` for the overlay and artifacts, `stack` for ⌘K, or the
+ * ⌘/⇧⌘ modifier result); a Bot-scoped `in-place` becomes `stack` so the chat
+ * lands in the Bot tab instead of the Sessions main. */
+export function openSessionFromPicker(
+  storedSessionId: string,
+  navigate: OpenSessionNavigate,
+  intent: OpenSessionIntent = 'in-place'
+): void {
+  const workspaceScope = focusedSessionWorkspaceScope()
+  const resolved = workspaceScope.workspaceMode === 'bots' && intent === 'in-place' ? 'stack' : intent
+
+  openSession(storedSessionId, navigate, resolved, workspaceScope)
+}
+
 /**
  * @param navigate Required for `in-place` (route into main when not on screen).
  *   `tab` / `window` ignore it — pass a no-op when you don't have a router handle.
@@ -133,7 +151,14 @@ export function openSession(
   let spendBlankDraft = false
 
   if (resolved === 'stack') {
-    spendBlankDraft = mainChatOccupied($activeSessionId.get(), $selectedStoredSessionId.get())
+    // A Bot-scoped picker is already inside a session tab, so its blank draft
+    // is the surface the user expects `/resume` to replace. Main may be empty
+    // or hidden behind the Bots workspace; treating that as an in-place open
+    // routes the saved chat elsewhere while leaving the visible blank tab
+    // active. Force the tab path so it first focuses an existing target, then
+    // spends the scoped blank draft before stacking a new tab.
+    spendBlankDraft =
+      Boolean(botWorkspaceScope) || mainChatOccupied($activeSessionId.get(), $selectedStoredSessionId.get())
     resolved = spendBlankDraft ? 'tab' : 'in-place'
   }
 

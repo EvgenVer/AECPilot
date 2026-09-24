@@ -82,6 +82,21 @@ const DONOR_SHARED = 'src/renderer/src/donor/hermes-shared/**/*.test.ts'
 // он мигает, — не всякий, который кажется тяжёлым.
 const HEAVY_DOM = ['src/renderer/src/aec/viewers/markdown-editor.test.tsx']
 
+// Замечание D-64, их сторона (пин 0.21.5, задача 3.B6). Их барьер SDK теперь
+// реэкспортирует экран возможностей, разметку сообщений и прочее — и тесты
+// плагина специалистов, которые в `beforeAll` поднимают НАСТОЯЩИЙ SDK через
+// `importOriginal`, платят за весь этот граф. Замер на этой машине: импорт
+// `./data` — 87 с, почти всё — прогон исходников через React Compiler; их же
+// потолок хука — 60 с, прописан в их файле, и поднять его нельзя без правки.
+//
+// Компилятор этим файлам не нужен: он держит у нас ровно одно — счёт проходов
+// рендера (см. выше), а здесь проверяется логика хранения, без рендера. Своя
+// группа без компилятора и в один рабочий — то же лекарство, что у `heavy`.
+const HEAVY_DONOR = [
+  'src/renderer/src/donor/plugins/hermes-bots/bot-delete.test.ts',
+  'src/renderer/src/donor/plugins/hermes-bots/hidden-bots.test.ts'
+]
+
 // Two projects instead of one environment (task 1.6.3): component tests need
 // a DOM, the ~450 existing pure/main-process tests do not, and jsdom costs
 // real time per file. The split is by extension — `*.test.tsx` renders React
@@ -174,9 +189,12 @@ export default defineConfig({
           name: 'donor',
           environment: 'jsdom',
           include: [DONOR_ZONE],
-          exclude: [...exclude, DONOR_SHARED],
+          exclude: [...exclude, DONOR_SHARED, ...HEAVY_DONOR],
           globals: true,
-          setupFiles: ['./src/renderer/src/donor/vitest.setup.ts'],
+          setupFiles: [
+            './src/renderer/src/donor/vitest.setup.ts',
+            './src/renderer/src/shared/donor-test-locale.ts'
+          ],
           // Их же потолок и их же довод: первый тест в файле платит за поднятие
           // jsdom и полную трансформацию модулей, и под нагрузкой это выходит за
           // умолчательные 5 с.
@@ -217,6 +235,24 @@ export default defineConfig({
           server: { deps: { external: [/@milkdown/, /prosemirror/] } },
           testTimeout: 30000,
           sequence: { groupOrder: 3 }
+        }
+      },
+      {
+        // Тяжёлые их (см. HEAVY_DONOR выше): их настройки проекта донора, но без
+        // React Compiler и в один рабочий.
+        resolve: { alias: donorAliases },
+        test: {
+          name: 'donor-heavy',
+          environment: 'jsdom',
+          include: HEAVY_DONOR,
+          globals: true,
+          setupFiles: [
+            './src/renderer/src/donor/vitest.setup.ts',
+            './src/renderer/src/shared/donor-test-locale.ts'
+          ],
+          testTimeout: 15000,
+          maxWorkers: 1,
+          sequence: { groupOrder: 4 }
         }
       }
     ]

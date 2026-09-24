@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/events.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,21 @@ import type { GatewayEvent } from '@hermes/shared'
 export type GatewayEventListener = (event: GatewayEvent) => void
 
 const listeners = new Map<string, Set<GatewayEventListener>>()
+let activeDisposerTracker: ((dispose: () => void) => void) | null = null
+
+/** Run a plugin registration while associating its event listeners with its
+ * unload disposer list. Runtime plugins are evaluated afresh on every reload,
+ * so their host subscriptions must leave with the previous module instance. */
+export function trackGatewayEventDisposers<T>(track: (dispose: () => void) => void, register: () => T): T {
+  const previous = activeDisposerTracker
+  activeDisposerTracker = track
+
+  try {
+    return register()
+  } finally {
+    activeDisposerTracker = previous
+  }
+}
 
 /** Subscribe to gateway events by `type` (`'*'` = everything). Returns a disposer. */
 export function onGatewayEvent(type: string, listener: GatewayEventListener): () => void {
@@ -25,13 +40,17 @@ export function onGatewayEvent(type: string, listener: GatewayEventListener): ()
   set.add(listener)
   listeners.set(type, set)
 
-  return () => {
+  const dispose = () => {
     set.delete(listener)
 
     if (set.size === 0) {
       listeners.delete(type)
     }
   }
+
+  activeDisposerTracker?.(dispose)
+
+  return dispose
 }
 
 /** Fan an event to subscribers (wiring-side; call before app dispatch). */

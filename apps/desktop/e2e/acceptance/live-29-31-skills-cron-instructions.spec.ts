@@ -135,7 +135,7 @@ test('29.1.1 список установленных скилов виден', a
   const installed = await rest<{ name: string }[]>(page, '/api/skills')
   expect(installed.length, 'ядро знает установленные скилы').toBeGreaterThan(0)
 
-  await goto(page, '#/skills?tab=skills')
+  await goto(page, '#/capabilities?tab=skills')
   // Их экран показывает число установленных рядом с названием вкладки и сами
   // строки списка — имя любого из них берётся у ядра, а не выдумывается.
   await expect
@@ -206,17 +206,23 @@ test('29.3.2 сообщение говорит, что установка не �
 
 test('29.4.1 сервер MCP вручную: диалог с командой запуска, без значений переменных', async () => {
   const page = await ui()
-  await goto(page, '#/skills?tab=mcp')
+  await goto(page, '#/capabilities?tab=connectors')
 
-  // Их экран MCP — редактор всего `mcp.json`: «Новый сервер» вписывает
-  // заготовку, «Сохранить» отправляет запись целиком (D-101).
+  // С пина 0.21.5 (3.B6) отдельной вкладки MCP нет: свой сервер добавляется с
+  // вкладки «Коннекторы» диалогом «Add your own» — вставленная команда разбирается
+  // в поля, «Сохранить» дописывает ОДНУ запись в `mcp.json` (тот же PUT, что и
+  // раньше, D-101). Их русский каталог этот экран ещё не переводит.
   await page
-    .getByRole('button', { name: /^Новый сервер$/ })
+    .getByRole('button', { name: /^(Add your own|Добавить свой)$/ })
     .first()
     .click()
-  await page.waitForTimeout(500)
-  await page
-    .getByRole('button', { name: /^Сохранить$/ })
+  const form = page.getByRole('dialog').last()
+  await form
+    .getByPlaceholder(/server-filesystem/)
+    .fill('npx -y @modelcontextprotocol/server-filesystem C:/aec-e2e')
+  await form.getByLabel(/^(Name|Имя)$/).fill('e2e-filesystem')
+  await form
+    .getByRole('button', { name: /^(Save|Сохранить)$/ })
     .first()
     .click()
 
@@ -243,7 +249,7 @@ test('29.4.1 сервер MCP вручную: диалог с командой �
 
 test('29.6.1 «Обновить установленные»: диалог предупреждает, что код приедет заново', async () => {
   const page = await ui()
-  await goto(page, '#/skills?tab=skills')
+  await goto(page, '#/capabilities?tab=skills')
   await page
     .getByRole('button', { name: /^Обновить установленные$/ })
     .first()

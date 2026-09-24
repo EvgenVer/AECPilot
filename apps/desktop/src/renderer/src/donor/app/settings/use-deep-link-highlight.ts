@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/use-deep-link-highlight.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,7 +18,7 @@ interface DeepLinkHighlightOptions {
 
 // react-router's useSearchParams throws with no router context. Inside Settings
 // (every original caller) there always is one, so behavior is unchanged; when a
-// consumer is embedded OUTSIDE the router (e.g. McpTab in a plugin dialog) there
+// consumer is embedded OUTSIDE the router (a plugin dialog) there
 // is none, and this degrades to an inert [empty params, no-op setter] instead of
 // crashing. Router presence is stable for a mounted instance's lifetime, so the
 // try/catch never changes the hook count between renders (rules-of-hooks safe).

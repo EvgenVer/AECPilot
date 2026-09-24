@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-pane-dialogs.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the delete confirmation -> ours (SPEC C12)
@@ -17,7 +17,7 @@ import { disbandGroupChat, openGroupChat } from './group-chat-view'
 import type { useBots } from './i18n'
 import { deleteBot } from './profile-ops'
 import type { GroupMember, RosterRow } from './types'
-import { createBotSection, renameBotSection } from './user-sections'
+import { createBotSection, moveGroupChatsToSection, renameBotSection, type SectionDialogState } from './user-sections'
 import { SectionNameDialog } from './user-sections-ui'
 
 interface renderRosterDialogsProps {
@@ -35,10 +35,8 @@ interface renderRosterDialogsProps {
   setDeletingGroup: (value: { members: GroupMember[]; name: string } | null) => void
   grouping: RosterRow | null
   setGrouping: (value: RosterRow | null) => void
-  sectionDialog: null | { bot?: RosterRow; mode: 'create' } | { id: string; mode: 'rename'; name: string }
-  setSectionDialog: (
-    value: null | { bot?: RosterRow; mode: 'create' } | { id: string; mode: 'rename'; name: string }
-  ) => void
+  sectionDialog: SectionDialogState
+  setSectionDialog: (value: SectionDialogState) => void
   roster: RosterRow[]
   activeSourceRoster: RosterRow[]
   refetch: ReturnType<typeof useRoster>['refetch']
@@ -92,9 +90,13 @@ export function renderRosterDialogs({
         }}
         onSubmit={name => {
           if (sectionDialog?.mode === 'rename') {
-            renameBotSection(sectionDialog.id, name)
+            renameBotSection(sectionDialog.id, name, roster)
           } else {
-            createBotSection(name, sectionDialog?.bot ? [sectionDialog.bot] : [])
+            const section = createBotSection(name, sectionDialog?.bot ? [sectionDialog.bot] : [])
+
+            if (section && sectionDialog?.group) {
+              moveGroupChatsToSection([sectionDialog.group], section.id)
+            }
           }
         }}
         open={Boolean(sectionDialog)}

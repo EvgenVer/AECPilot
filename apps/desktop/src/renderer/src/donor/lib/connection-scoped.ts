@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/connection-scoped.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -179,8 +179,7 @@ export function connectionScopedAtom<T>(
  *
  * Called whenever the window's connection descriptor is published. A null
  * descriptor is an ordinary disconnect/reconnect state — not evidence the
- * user selected another backend — so it keeps the current scope (the same
- * contract as syncCronModelImpactConnection).
+ * user selected another backend — so it keeps the current scope.
  */
 export function rescopeConnectionScopedStores(connection: ConnectionScopeDescriptor | null | undefined): void {
   if (!connection) {

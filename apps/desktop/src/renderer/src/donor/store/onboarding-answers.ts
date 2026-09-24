@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/onboarding-answers.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,8 +18,21 @@ export interface OnboardingAnswers {
   committed: string[]
   connectors: string[]
   context: string
+  /** Catalog plugin names picked on the connectors card. A pick is a wish, not an install. */
+  plugins: string[]
+  /** The settled install card's result per plugin, written when the guide's manage_catalog card settles. A
+   *  picked plugin with no entry was not offered for install (the chosen task did not need it). */
+  pluginOutcomes: Record<string, PluginOutcome>
   name: string
   layout: string
+}
+
+export interface PluginOutcome {
+  state: 'failed' | 'installed' | 'skipped'
+  detail: string
+  /** The plugin's qualified skill name (`<plugin key>:<skill>`), the only name skill_view resolves. */
+  skill: string
+  tools: string[]
 }
 
 // Keep existing fork users' answers when they move to upstream.
@@ -31,7 +44,9 @@ export const DEFAULT_ANSWERS: OnboardingAnswers = {
   connectors: [],
   context: '',
   name: '',
-  layout: 'basic'
+  layout: 'basic',
+  plugins: [],
+  pluginOutcomes: {}
 }
 
 export function loadAnswers(): OnboardingAnswers {
@@ -45,7 +60,9 @@ export function loadAnswers(): OnboardingAnswers {
     connectors: raw?.connectors ?? [...DEFAULT_ANSWERS.connectors],
     context: raw?.context ?? DEFAULT_ANSWERS.context,
     name: raw?.name ?? DEFAULT_ANSWERS.name,
-    layout: raw?.layout ?? DEFAULT_ANSWERS.layout
+    layout: raw?.layout ?? DEFAULT_ANSWERS.layout,
+    plugins: raw?.plugins ?? [],
+    pluginOutcomes: raw?.pluginOutcomes ?? {}
   }
 }
 

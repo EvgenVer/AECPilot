@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/managed-updates-section.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
+import { useContext } from 'react'
 
 import { Button } from '@/components/ui/button'
 import type { DesktopRegistryConnection } from '@/global'
@@ -19,7 +20,7 @@ import {
   runManagedUpdate
 } from '@/store/managed-updates'
 
-import { ListRow, Pill, SectionHeading } from './primitives'
+import { ListRow, Pill, SectionHeading, SettingsBreadcrumbContext } from './primitives'
 
 function stateTone(state: ManagedUpdateState | undefined): 'muted' | 'primary' | 'warn' {
   if (!state || state.status === 'idle') {
@@ -46,6 +47,7 @@ function sshTarget(connection: DesktopRegistryConnection): string | null {
  * in-flight state (the engine exposes no streaming progress channel), and the
  * correlated receipt once it lands. */
 export function ManagedUpdatesSection() {
+  const hasBreadcrumb = useContext(SettingsBreadcrumbContext)
   const { t } = useI18n()
   const m = t.settings.managedUpdates
   const registry = useStore($connectionsRegistry)
@@ -99,8 +101,8 @@ export function ManagedUpdatesSection() {
   }
 
   return (
-    <section className="mt-8">
-      <SectionHeading icon={Download} title={m.title} />
+    <section className={hasBreadcrumb ? undefined : 'mt-8'}>
+      <SectionHeading icon={Download} page title={m.title} />
       <p className="mb-1 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
         {m.intro}
       </p>

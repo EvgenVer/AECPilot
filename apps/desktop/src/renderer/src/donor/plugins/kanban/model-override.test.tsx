@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/model-override.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -48,12 +48,6 @@ describe('override label', () => {
   it('reads as inherited until something is pinned', () => {
     expect(isInherited(EMPTY_OVERRIDE)).toBe(true)
     expect(overrideLabel(EMPTY_OVERRIDE, 'Profile default')).toBe('Profile default')
-  })
-
-  it('shows provider: model · Effort', () => {
-    expect(overrideLabel({ effort: 'high', model: 'gemini-3.1-pro', provider: 'google' }, 'x')).toBe(
-      'google: gemini-3.1-pro · High'
-    )
   })
 
   it('a depth-only pin is still an override', () => {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-fs.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -14,6 +14,7 @@ import type {
   HermesReadFileTextResult,
   HermesSelectPathsOptions
 } from '@/global'
+import { translateNow } from '@/i18n'
 import { $connection } from '@/store/session'
 
 export interface DesktopFsRemotePicker {
@@ -116,6 +117,14 @@ export async function writeDesktopFileText(path: string, content: string): Promi
   return { path: result.path || path }
 }
 
+// Create a folder on the connected backend (POST /api/files/mkdir). Remote-only:
+// in local mode the picker is the native dialog, which creates folders itself.
+export async function createRemoteDir(path: string): Promise<string> {
+  const result = await remoteFsApi<{ path?: string }>('/api/files/mkdir', { path })
+
+  return result.path || path
+}
+
 export async function readDesktopFileDataUrl(path: string): Promise<string> {
   if (!isDesktopFsRemoteMode()) {
     return bridge().readFileDataUrl(path)
@@ -168,8 +177,14 @@ export async function desktopDefaultCwd(): Promise<{ branch: string; cwd: string
 }
 
 // Reveal a path in the OS file manager (Finder / Explorer / Files). Local only.
+// The bridge answers `false` when the path is not on this computer (a remote
+// backend's workspace) — surface it instead of a silent no-op.
 export async function revealDesktopPath(path: string): Promise<void> {
-  await bridge().revealPath?.(path)
+  const revealed = await bridge().revealPath?.(path)
+
+  if (revealed === false) {
+    throw new Error(translateNow('fileMenu.revealMissing'))
+  }
 }
 
 // Rename a file/folder in place; returns the new absolute path. Local only.

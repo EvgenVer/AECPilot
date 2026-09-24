@@ -11,13 +11,16 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": ".",
     "paths": {
-      "@hermes/shared": ["src/renderer/src/shared/hermes-shared/index.ts"],
-      "@hermes/shared/*": ["src/renderer/src/shared/hermes-shared/*"],
-      "@hermes/plugin-sdk": ["src/renderer/src/donor/sdk/index.ts"],
-      "@/*": ["src/renderer/src/donor/*"]
+      "@hermes/shared": ["./src/renderer/src/shared/hermes-shared/index.ts"],
+      "@hermes/shared/*": ["./src/renderer/src/shared/hermes-shared/*"],
+      "@hermes/plugin-sdk": ["./src/renderer/src/donor/sdk/index.ts"],
+      "@/*": ["./src/renderer/src/donor/*"]
     }
   },
-  "include": ["src", "electron.vite.config.ts"]
+  "include": ["src", "electron.vite.config.ts"],
+  // Their `vitest.setup.ts` sits at THEIR app root, outside their `include: ["src"]`,
+  // so upstream never type-checks it; ours lives beside the zone and is held to
+  // the same rule (3.B6: its jsdom stubs do not satisfy TS 6 DOM types).
+  "exclude": ["src/renderer/src/donor/vitest.setup.ts"]
 }

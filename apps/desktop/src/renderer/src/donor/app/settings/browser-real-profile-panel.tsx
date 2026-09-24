@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/browser-real-profile-panel.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -49,7 +49,7 @@ export function readUseRealProfile(record: Record<string, unknown> | undefined):
 export function BrowserRealProfilePanel({ profile }: BrowserRealProfilePanelProps) {
   const { t } = useI18n()
   const copy = t.settings.toolsets.browserRealProfile
-  const { data: config } = useHermesConfigRecord(profile)
+  const { data: config, writeScope } = useHermesConfigRecord(profile)
   const setConfig = hermesConfigCacheWriter(profile)
   const [busy, setBusy] = useState(false)
 
@@ -74,7 +74,8 @@ export function BrowserRealProfilePanel({ profile }: BrowserRealProfilePanelProp
       try {
         // Sparse patch: PUT /api/config deep-merges, and echoing the cached
         // snapshot would overwrite keys other surfaces changed since it loaded.
-        await saveHermesConfigRecord({ browser: { use_real_profile: on } }, profile)
+        await saveHermesConfigRecord({ browser: { use_real_profile: on } }, writeScope ?? profile)
+
         notify({
           kind: 'info',
           title: on ? copy.enabledTitle : copy.disabledTitle,
@@ -87,7 +88,7 @@ export function BrowserRealProfilePanel({ profile }: BrowserRealProfilePanelProp
         setBusy(false)
       }
     },
-    [config, copy, profile, setConfig]
+    [config, copy, profile, setConfig, writeScope]
   )
 
   return (

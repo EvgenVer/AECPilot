@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/confirm-dialog.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -155,7 +155,9 @@ export function ConfirmDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description ? <DialogDescription>{description}</DialogDescription> : null}
+          {/* pre-line: a backend-composed description keeps its paragraph
+              breaks instead of collapsing into one run-on line (#112458). */}
+          {description ? <DialogDescription className="whitespace-pre-line">{description}</DialogDescription> : null}
         </DialogHeader>
 
         {error && (

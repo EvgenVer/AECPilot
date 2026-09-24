@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-events.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,11 +30,10 @@ function asRecord(payload: unknown): Record<string, unknown> {
  * the newly focused chat. Exported so the event handler can tell which events
  * are pin-eligible when deciding whether an unpinned straggler is legitimate. */
 export const UNSCOPED_STREAM_EVENT_TYPES = new Set([
-  'approval.request',
   'browser.progress',
   'clarify.request',
+  'connection.request',
   'error',
-  'mcp.setup.request',
   'message.complete',
   'message.delta',
   'message.interim',

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/panes.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -81,7 +81,7 @@ function previewFile(path: string) {
   void normalizeOrLocalPreviewTarget(path, $currentCwd.get() || undefined)
     .then(target => {
       if (target) {
-        openPreview(target, 'file-browser')
+        openPreview(target)
       }
     })
     .catch(() => undefined)
@@ -153,7 +153,7 @@ export function useTitlebarToolContributions(side: 'left' | 'right'): TitlebarTo
 }
 
 /**
- * Bridge a page's `GroupSetter` extension point (SkillsView, MessagingView,
+ * Bridge a page's `GroupSetter` extension point (CapabilitiesView, MessagingView,
  * ChatPreviewRail, …) into the registry: each call replaces the group's items
  * as DATA contributions in `<prefix>.<side>`, so page-owned items flow through
  * the same pipe plugins use. Setting an empty list clears the group.

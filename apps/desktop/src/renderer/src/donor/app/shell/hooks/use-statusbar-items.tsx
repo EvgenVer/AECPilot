@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/hooks/use-statusbar-items.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 
 import { ConnectionSwitcher } from '@/app/chat/sidebar/connection-switcher'
+import { ProfileSwitcher } from '@/app/chat/sidebar/profile-dropdown-switcher'
 import type { CommandCenterSection } from '@/app/command-center'
 import { useApprovalModeStatusbarItem } from '@/app/shell/approval-mode-menu'
 import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
@@ -40,12 +41,13 @@ import { cacheHitLabel, contextBarLabel, LiveDuration, tokensPerSecondLabel, usa
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
-import { copyFilePath, revealFile } from '@/store/file-actions'
+import { copyFilePath, revealFile, shouldOfferLocalReveal } from '@/store/file-actions'
 import { $freeTierStatus, FREE_TIER_MODEL } from '@/store/free-tier'
 import { openFreeTierSignIn } from '@/store/free-tier-sign-in'
 import { revealFileInTree } from '@/store/layout'
 import { $onboardingGate, guidedOnboardingActive } from '@/store/onboarding-gate'
 import { $activeGatewayProfile } from '@/store/profile'
+import { $profileRailVisible } from '@/store/profile-rail-prefs'
 import { $projectTree, projectNameForCwd } from '@/store/projects'
 import {
   $activeSessionId,
@@ -60,7 +62,13 @@ import {
   idsShareLineage,
   sessionMatchesStoredId
 } from '@/store/session'
-import { $focusedRuntimeId, $focusedSessionState, $focusedStoredSessionId } from '@/store/session-states'
+import {
+  $focusedRuntimeId,
+  $focusedSessionState,
+  $focusedStoredSessionId,
+  $sessionTiles,
+  isSessionRemote
+} from '@/store/session-states'
 import { $statusbarHiddenIds } from '@/store/statusbar-prefs'
 import { $subagentsBySession, activeSubagentCount, failedSubagentCount } from '@/store/subagents'
 import { $gatewayRestarting } from '@/store/system-actions'
@@ -120,6 +128,7 @@ export function useStatusbarItems({
   // minimized zone, which lit the button for a pane the user couldn't see.
   const terminalShowing = useStore($paneVisible('terminal'))
   const sessionsShowing = useStore($paneVisible('sessions'))
+  const profileRailVisible = useStore($profileRailVisible)
   const botsShowing = useStore($paneVisible('hermes-bots:pane'))
   const primaryBusy = useStore($busy)
   // Draft / primary composer atom — used only while the focused surface is the
@@ -166,6 +175,11 @@ export function useStatusbarItems({
   // clicking into a tile makes the statusbar describe THAT session.
   const focusedStoredSessionId = useStore($focusedStoredSessionId)
   const focusedRuntimeId = useStore($focusedRuntimeId)
+  // Whether the FOCUSED session's workspace lives on another machine: a
+  // Connections-tagged tile on a remote gateway inside a local-primary window
+  // (and vice versa) is decided by the tile's owner route, falling back to the
+  // ambient connection only when no owner is known (#115167).
+  const focusedWorkspaceRemote = useStoreSelector($sessionTiles, () => isSessionRemote(focusedStoredSessionId))
   // `$focusedSessionState` is a projection of `$sessionStates`, which is
   // republished on EVERY message delta — tens of times a second during a turn.
   // Only the fields read here are selected, so an unchanged readout bails out
@@ -216,6 +230,17 @@ export function useStatusbarItems({
 
     return row?.cwd?.trim() || ''
   })
+
+  // Which backend the focused row runs on: a Connections-tagged row names its
+  // gateway; an untagged one is the window's primary. Decides whether the OS
+  // file manager on this computer can show its workspace at all.
+  const focusedRowConnectionId = useStoreSelector($sessions, sessions =>
+    focusedStoredSessionId
+      ? sessions.find(s => sessionMatchesStoredId(s, focusedStoredSessionId))?.connection_id?.trim() || ''
+      : ''
+  )
+
+  const offerLocalReveal = shouldOfferLocalReveal(focusedRowConnectionId, connection?.mode === 'remote')
 
   // Live runtime cwd is authoritative once it belongs to the focused chat
   // (agent can relocate mid-turn). Until then — cold tabs, mid-switch lag —
@@ -454,6 +479,14 @@ export function useStatusbarItems({
         render: () => <StatusbarGatewaySwitcher />
       },
       {
+        // The rail's stand-in: the profile picker moves down here while the
+        // colored strip is hidden, so switching profiles always has a door.
+        hidden: !sessionsShowing || profileRailVisible,
+        id: 'profile-switcher',
+        lockedVisible: true,
+        render: () => <ProfileSwitcher compact />
+      },
+      {
         className: gatewayRestarting ? undefined : gatewayClassName,
         detail: gatewayRestarting ? copy.gatewayRestarting : gatewayDetail,
         hidden: botsShowing,
@@ -517,12 +550,20 @@ export function useStatusbarItems({
                 onSelect: () => void copyFilePath(currentCwd),
                 title: displayPath(currentCwd)
               },
-              {
-                id: 'reveal-workspace-finder',
-                label: fileMenu.revealFileManager,
-                onSelect: () => void revealFile(currentCwd),
-                title: displayPath(currentCwd)
-              },
+              // The OS file manager needs the local filesystem; a remote
+              // backend's workspace is not on this computer (the sidebar
+              // trees already hide reveal the same way), and a row tagged
+              // with another gateway is never local either.
+              ...(focusedWorkspaceRemote || !offerLocalReveal
+                ? []
+                : [
+                    {
+                      id: 'reveal-workspace-finder',
+                      label: fileMenu.revealFileManager,
+                      onSelect: () => void revealFile(currentCwd),
+                      title: displayPath(currentCwd)
+                    }
+                  ]),
               {
                 id: 'reveal-workspace-sidebar',
                 label: fileMenu.revealInSidebar,
@@ -584,10 +625,12 @@ export function useStatusbarItems({
       commandCenterOpen,
       copy,
       currentCwd,
+      focusedWorkspaceRemote,
       freeTierCopy,
       fileMenu.copyPath,
       fileMenu.revealFileManager,
       fileMenu.revealInSidebar,
+      offerLocalReveal,
       freeTier?.available,
       freeTier?.model,
       guideOwnsSignIn,
@@ -598,6 +641,7 @@ export function useStatusbarItems({
       inferenceReady,
       inferenceStatus?.reason,
       openAgents,
+      profileRailVisible,
       projectName,
       sessionsShowing,
       subagentsFailed,

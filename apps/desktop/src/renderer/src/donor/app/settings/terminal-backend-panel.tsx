@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/terminal-backend-panel.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,7 @@ import { getTerminalBackends, selectTerminalBackend } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { AlertTriangle, Check, Loader2, RefreshCw } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type { TerminalBackendInfo, TerminalBackendsResponse } from '@/types/hermes'
 
@@ -49,8 +50,10 @@ function StatusPill({ backend }: { backend: TerminalBackendInfo }) {
  * `terminal.backend` config enum. Each backend row carries a live health probe
  * (Docker daemon reachable, SSH host configured, Modal/Daytona credentials
  * present) so users see Ready / Needs-setup guidance instead of a bare
- * dropdown. Selecting a needs-setup backend is allowed — the row shows what's
- * missing rather than blocking, matching the CLI configurator.
+ * dropdown. Selecting a needs-setup backend is still allowed (matching the CLI
+ * configurator) but goes through a confirm step first: the write persists
+ * immediately and every later session inherits a backend with no terminal or
+ * file tools, so one ambient click must not do that silently.
  */
 export function TerminalBackendPanel({ onConfiguredChange }: TerminalBackendPanelProps) {
   const { t } = useI18n()
@@ -83,6 +86,20 @@ export function TerminalBackendPanel({ onConfiguredChange }: TerminalBackendPane
     setSelecting(backend.name)
 
     try {
+      if (backend.status === 'needs_setup') {
+        const proceed = await confirm({
+          title: copy.needsSetupConfirmTitle(backend.label),
+          description: backend.detail
+            ? copy.needsSetupConfirmDescription(backend.detail)
+            : copy.needsSetupConfirmDescriptionGeneric,
+          confirmLabel: copy.needsSetupConfirmAction
+        })
+
+        if (!proceed) {
+          return
+        }
+      }
+
       await selectTerminalBackend(backend.name)
       // Mirror the backend write locally so the active highlight tracks the
       // new selection without a refetch (probes are unchanged by a select).

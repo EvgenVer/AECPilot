@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/plugin-i18n.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,7 +23,7 @@ import { atom } from 'nanostores'
 import { useCallback } from 'react'
 
 import { useI18n } from './context'
-import { getRuntimeI18nLocale, translateFrom } from './runtime'
+import { getRuntimeI18nLocale, subscribeRuntimeI18nLocale, translateFrom } from './runtime'
 import type { Locale } from './types'
 
 /** A leaf message: a literal or an interpolator (`n => `${n} left``). */
@@ -50,6 +50,9 @@ export interface PluginI18n {
   /** Module-level translator against the app's active locale (mirrors
    *  `translateNow`). Non-reactive — in React prefer `usePluginI18n`. */
   t: PluginTranslate
+  /** Observe locale changes (not initial registration) to rebuild static labels.
+   *  Returns an unsubscribe function; also disposed on plugin unload. */
+  onLocaleChange: (listener: () => void) => () => void
 }
 
 const registry = new Map<string, Map<Locale, PluginMessages>>()
@@ -103,6 +106,7 @@ export function translatePlugin(pluginId: string, locale: Locale, key: string, a
 export function createPluginI18n(pluginId: string, track: (dispose: () => void) => () => void): PluginI18n {
   return {
     register: bundles => track(registerPluginLocales(pluginId, bundles)),
+    onLocaleChange: listener => track(subscribeRuntimeI18nLocale(listener)),
     t: (key, ...args) => translatePlugin(pluginId, getRuntimeI18nLocale(), key, args)
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the wake-word fallback → ours (SPEC C12)
@@ -28,6 +28,7 @@ import { ACTIVE_ICON_BTN, GHOST_ICON_BTN, PRIMARY_ICON_BTN } from './control-cla
 import { ModelPill } from './model-pill'
 import { ReasoningPill } from './reasoning-pill'
 import type { ChatBarState, VoiceStatus } from './types'
+import { VoiceFan } from './voice-fan'
 import { VoiceMenu } from './voice-menu'
 
 // Re-exported: `context-menu.tsx` and other row neighbours have always reached
@@ -91,14 +92,12 @@ export function ComposerControls({
       voiceStatus={voiceStatus}
     />
   ) : (
-    <>
-      <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
-      <WakeWordButton disabled={disabled} />
-    </>
+    // One mic in the row; hovering it fans the other voice toggles out of it.
+    <VoiceFan disabled={disabled} onDictate={onDictate} state={state} voiceStatus={voiceStatus} />
   )
 
   return (
-    <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
+    <div className="flex min-w-0 shrink items-center gap-(--composer-control-gap)">
       {minimal ? null : (
         <>
           {hideModelPill ? null : (
@@ -111,7 +110,7 @@ export function ComposerControls({
         </>
       )}
       {showQueueButton ? (
-        <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
+        <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />} placement="control">
           <Button
             aria-label={c.queueMessage}
             className={GHOST_ICON_BTN}
@@ -133,6 +132,7 @@ export function ComposerControls({
             <TipKeybindLabel actionId="composer.send" text={c.send} />
           )
         }
+        placement="control"
       >
         <Button
           aria-label={showStop ? c.stop : c.send}
@@ -164,7 +164,7 @@ function HudWindowButtons() {
 
   return (
     <>
-      <Tip label={t.titlebar.resetHudLayout}>
+      <Tip label={t.titlebar.resetHudLayout} placement="toolbar">
         <Button
           aria-label={t.titlebar.resetHudLayout}
           className={cn(GHOST_ICON_BTN, 'p-0')}
@@ -176,7 +176,7 @@ function HudWindowButtons() {
           <Codicon name="discard" size="0.875rem" />
         </Button>
       </Tip>
-      <Tip label={t.titlebar.exitHud}>
+      <Tip label={t.titlebar.exitHud} placement="toolbar">
         <Button
           aria-label={t.titlebar.exitHud}
           className={cn(GHOST_ICON_BTN, 'p-0')}
@@ -225,7 +225,7 @@ function WakeWordButton({ disabled, pausedForVoice = false }: { disabled: boolea
   const tooltip = !pausedForVoice && wake.notice ? `${label} — ${wake.notice}` : label
 
   return (
-    <Tip label={tooltip}>
+    <Tip label={tooltip} placement="control">
       <Button
         aria-label={label}
         aria-pressed={wake.listening && !pausedForVoice}
@@ -240,58 +240,6 @@ function WakeWordButton({ disabled, pausedForVoice = false }: { disabled: boolea
         variant="ghost"
       >
         {wake.listening && !pausedForVoice ? <Ear className={iconSize.sm} /> : <EarOff className={iconSize.sm} />}
-      </Button>
-    </Tip>
-  )
-}
-
-function DictationButton({
-  disabled,
-  state,
-  status,
-  onToggle
-}: {
-  disabled: boolean
-  state: ChatBarState['voice']
-  status: VoiceStatus
-  onToggle: () => void
-}) {
-  const { t } = useI18n()
-  const c = t.composer
-  const active = state.active || status !== 'idle'
-
-  const aria =
-    status === 'recording' ? c.stopDictation : status === 'transcribing' ? c.transcribingDictation : c.voiceDictation
-
-  return (
-    <Tip label={aria}>
-      <Button
-        aria-label={aria}
-        aria-pressed={active}
-        className={cn(
-          GHOST_ICON_BTN,
-          'p-0',
-          'data-[active=true]:bg-accent data-[active=true]:text-foreground',
-          status === 'recording' && ACTIVE_ICON_BTN,
-          status === 'transcribing' && 'bg-primary/10 text-primary'
-        )}
-        data-active={active}
-        disabled={disabled || !state.enabled || status === 'transcribing'}
-        onClick={() => {
-          triggerHaptic(active ? 'close' : 'open')
-          onToggle()
-        }}
-        size="icon"
-        type="button"
-        variant="ghost"
-      >
-        {status === 'recording' ? (
-          <Square className={cn('fill-current', iconSize.xs)} />
-        ) : status === 'transcribing' ? (
-          <Loader2 className={cn('animate-spin', iconSize.sm)} />
-        ) : (
-          <Codicon name="mic" size="0.875rem" />
-        )}
       </Button>
     </Tip>
   )

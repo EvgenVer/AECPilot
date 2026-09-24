@@ -94,6 +94,18 @@ export interface GatewayClientOptions {
   notConnectedErrorMessage?: string
   requestIdPrefix?: string
   requestTimeoutMs?: number
+  /** A request handler threw. Theirs answers -32603 and reports here; so does ours. */
+  onRequestHandlerError?: (
+    error: Error,
+    request: { id: string; method: string; params: Record<string, unknown> }
+  ) => void
+  /** Accepted and NOT called: their channel answers an unhandled request with
+   * -32601 and then reports here, ours stays silent on purpose (see `onRequest`). */
+  onUnhandledRequest?: (request: {
+    id: string
+    method: string
+    params: Record<string, unknown>
+  }) => void
 }
 
 export interface RestOptions {
@@ -145,6 +157,7 @@ export class GatewayBridge {
   private readonly requestHandlers: DonorServerRequestHandler[] = []
   private readonly disposers: (() => void)[] = []
   private readonly api: Window['aecpilot']
+  private readonly onRequestHandlerError: GatewayClientOptions['onRequestHandlerError']
 
   constructor(optionsOrApi?: GatewayClientOptions | Window['aecpilot']) {
     // Their subclass passes options; our tests pass a stub API. Telling them
@@ -153,6 +166,10 @@ export class GatewayBridge {
       optionsOrApi && 'gatewayRpc' in optionsOrApi
         ? (optionsOrApi as Window['aecpilot'])
         : window.aecpilot
+    this.onRequestHandlerError =
+      optionsOrApi && !('gatewayRpc' in optionsOrApi)
+        ? optionsOrApi.onRequestHandlerError
+        : undefined
 
     this.disposers.push(
       this.api.onChatEvent((event: GatewayEvent) => {
@@ -278,6 +295,20 @@ export class GatewayBridge {
     return this.api.gatewayRest<T>(path, options)
   }
 
+  /** Their reconnect replay (hermes 0.21.5) keeps per-session seq watermarks
+   * on the renderer's socket. Ours has no socket: main owns the connection and
+   * catches a session up itself (`session.events.since`, 3.B5в). So there is
+   * nothing to report — the answer their client gives with replay disabled. */
+  getSeqWatermarks(): Record<string, number> {
+    return {}
+  }
+
+  /** No replay runs in this window, so no read has to wait for one —
+   * `undefined` is their "no barrier" answer. */
+  sessionReplayBarrier(_sessionId: string): Promise<boolean> | undefined {
+    return undefined
+  }
+
   /** Drops every IPC subscription this bridge holds. */
   dispose(): void {
     for (const dispose of this.disposers.splice(0)) dispose()
@@ -308,7 +339,20 @@ export class GatewayBridge {
       fail: (code, message) => send({ error: { code, message } })
     }
     for (const handler of [...this.requestHandlers]) {
-      if (handler(request) !== false) return
+      let accepted: boolean | void
+      try {
+        accepted = handler(request)
+      } catch (error) {
+        // Their channel's contract (0.21.5): a crashed handler answers -32603
+        // rather than leaving the agent waiting out the gateway's deadline.
+        request.fail(-32603, 'server request handler failed')
+        this.onRequestHandlerError?.(
+          error instanceof Error ? error : new Error(String(error)),
+          incoming
+        )
+        return
+      }
+      if (accepted !== false) return
     }
   }
 

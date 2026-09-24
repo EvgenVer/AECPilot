@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/intro-reveal.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -38,8 +38,22 @@ export function hasSeenIntroReveal(): boolean {
   return readKey(SEEN_KEY) === '1'
 }
 
+/** The film will never play for this identity (HERMES_SKIP_INTRO). Record it
+ * as seen so a later launch without the flag cannot replay it over the
+ * guided flow that ran in its place. */
+export function markIntroRevealSeen(): void {
+  writeKey(SEEN_KEY, '1')
+}
+
 export function isIntroRevealEnabled(): boolean {
   return isOnboardingEnabled() && window.hermesDesktop?.skipIntro !== true
+}
+
+/** The guided flow is on but its intro film was turned off at launch
+ * (HERMES_SKIP_INTRO). Distinct from isIntroRevealEnabled(): false there also
+ * covers onboarding being off entirely, where nothing may queue. */
+export function isIntroRevealSkipped(): boolean {
+  return isOnboardingEnabled() && window.hermesDesktop?.skipIntro === true
 }
 
 export function shouldPlayFirstRunIntro(firstRunSkipped: boolean): boolean {

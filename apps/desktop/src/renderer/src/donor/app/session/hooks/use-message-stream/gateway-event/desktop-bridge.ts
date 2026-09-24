@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,7 @@ import { closeAgentTerminalByProc } from '@/app/right-sidebar/terminal/terminals
 import { applyDesktopLayoutPreset, revealDesktopPane } from '@/store/pane-focus'
 import { recordAgentReaction } from '@/store/reactions-local'
 import { setMessages } from '@/store/session'
-import { $tipsEnabled, type ActiveTip, showTip } from '@/store/tips'
+import { $tipsEnabled, type ActiveTip, agentTipId, showTip } from '@/store/tips'
 
 import type { GatewayEventContext } from './types'
 
@@ -54,6 +54,7 @@ export function handleDesktopBridgeEvent(ctx: GatewayEventContext): boolean {
         side: (payload?.side as ActiveTip['side']) ?? 'top',
         targets: [selector],
         text,
+        tipId: agentTipId(selector, text),
         title: typeof payload?.title === 'string' ? payload.title : undefined
       })
     }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-auto-speak-replies.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -50,9 +50,9 @@ export function useAutoSpeakReplies({
   const enabled = useStore($autoSpeakReplies)
   // Wake on THIS composer's transcript: a tile subscribed to the primary's
   // would never fire on its own replies (and would fire on someone else's).
-  const { $messages } = useComposerScope()
-  const latest = useRef({ conversationActive, failureLabel, markSpoken, pendingReply })
-  latest.current = { conversationActive, failureLabel, markSpoken, pendingReply }
+  const { $messages, connectionId, profile } = useComposerScope()
+  const latest = useRef({ connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile })
+  latest.current = { connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile }
 
   useEffect(() => {
     if (!enabled) {
@@ -64,7 +64,7 @@ export function useAutoSpeakReplies({
     latest.current.markSpoken()
 
     const speakLatest = () => {
-      const { conversationActive, failureLabel, markSpoken, pendingReply } = latest.current
+      const { connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile } = latest.current
 
       if (conversationActive || $voicePlayback.get().status !== 'idle') {
         return
@@ -82,8 +82,8 @@ export function useAutoSpeakReplies({
       // ran in every window, so peers just stay quiet.
       void ownsAmbientCue(`speak:${reply.id}`).then(owns => {
         if (owns) {
-          void playSpeechText(reply.text, { messageId: reply.id, source: 'read-aloud' }).catch(error =>
-            notifyError(error, failureLabel)
+          void playSpeechText(reply.text, { connectionId, messageId: reply.id, profile, source: 'read-aloud' }).catch(
+            error => notifyError(error, failureLabel)
           )
         }
       })

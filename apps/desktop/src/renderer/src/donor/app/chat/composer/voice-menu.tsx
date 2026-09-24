@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/voice-menu.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the "start voice chat" item and the "speak replies" checkbox —
@@ -80,7 +80,7 @@ export function VoiceMenu({ disabled, state, voiceStatus, onDictate }: VoiceMenu
 
   return (
     <DropdownMenu>
-      <Tip label={wake.notice && !dictating ? `${triggerLabel} — ${wake.notice}` : triggerLabel}>
+      <Tip label={wake.notice && !dictating ? `${triggerLabel} — ${wake.notice}` : triggerLabel} placement="control">
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={triggerLabel}

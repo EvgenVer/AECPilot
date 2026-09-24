@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/files/ipc.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,8 @@ import type { HermesReadDirEntry, HermesReadDirResult } from '@/global'
 import { desktopFsCacheKey, desktopGitRoot, readDesktopDir, readDesktopFileDataUrl } from '@/lib/desktop-fs'
 import { ALWAYS_EXCLUDED } from '@/lib/excluded-paths'
 import { cleanPath, comparisonPath } from '@/lib/path-compare'
+
+import { showsIgnoredFiles } from './prefs'
 
 export type ProjectTreeEntry = HermesReadDirEntry
 
@@ -124,6 +126,13 @@ function ignoredBy(rules: GitignoreRule[], entry: HermesReadDirEntry) {
 }
 
 async function filterIgnored(entries: HermesReadDirEntry[], rootPath: string, dirPath: string) {
+  // Opting a project into its ignored files skips the gitignore pass entirely —
+  // no git-root probe, no .gitignore reads. ALWAYS_EXCLUDED still applies: `.git`
+  // internals and dependency/build dirs are never worth browsing, in any repo.
+  if (showsIgnoredFiles(rootPath)) {
+    return entries
+  }
+
   const root = await gitRootFor(rootPath)
 
   if (!root) {

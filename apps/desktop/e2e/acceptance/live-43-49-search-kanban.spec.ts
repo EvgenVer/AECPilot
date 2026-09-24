@@ -35,7 +35,7 @@ async function rest<T>(page: Page, path: string): Promise<T> {
 /** Экран «Навыки» → вкладка по имени (кнопка со счётчиком рядом). */
 async function openSkillsTab(page: Page, name: RegExp): Promise<void> {
   await page.evaluate(() => {
-    window.location.hash = '#/skills'
+    window.location.hash = '#/capabilities'
   })
   const tab = page.getByRole('button', { name }).first()
   await expect(tab).toBeVisible({ timeout: 30000 })

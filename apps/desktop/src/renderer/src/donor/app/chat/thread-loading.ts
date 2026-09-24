@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/thread-loading.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,38 @@ export function threadLoadingState(
   }
 
   return undefined
+}
+
+/** Whether the chat bar stays mounted for this render.
+ *
+ *  The loader can flip on for a session the user is already looking at: a
+ *  periodic sidebar / live-status refresh briefly drops the routed row from the
+ *  session list, or a hydrate swaps the transcript through an empty frame. Both
+ *  read as `loadingSession` for one render and used to unmount the composer,
+ *  so the input (draft, attachments, caret, focus) vanished and reappeared
+ *  every ~30s (#117375). Once a routed session has rendered with its composer
+ *  once, a later transient loader for the SAME route keeps it mounted; only a
+ *  route change (or the exhausted / watch-window states) hides it again. */
+export function composerStaysMounted({
+  hideComposer,
+  loadingSession,
+  routedSessionId,
+  settledRoutedSessionId
+}: {
+  hideComposer: boolean
+  loadingSession: boolean
+  routedSessionId: null | string
+  settledRoutedSessionId: null | string
+}): boolean {
+  if (hideComposer) {
+    return false
+  }
+
+  if (!loadingSession) {
+    return true
+  }
+
+  return Boolean(routedSessionId) && routedSessionId === settledRoutedSessionId
 }
 
 export function routedSessionIsLoading({

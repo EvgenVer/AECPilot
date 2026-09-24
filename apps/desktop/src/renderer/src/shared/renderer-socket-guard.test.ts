@@ -23,11 +23,28 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
+// A file whose socket is UNREACHABLE, with the line that makes it so. The
+// exemption holds only while that line is there: a re-copy that drops the edit
+// puts the file back among the offenders.
+//
+// `screen-pane.tsx` (0.21.5, Bot Desktop): it loads noVNC BEFORE dialing
+// `/api/display/ws`, and our edit [4] makes that load refuse (the package is
+// not installed — SPEC C3, owner question D-145), so `new WebSocket` is never
+// reached. If D-145 takes the screen, the socket must move to main first.
+const UNREACHABLE_SOCKETS: Record<string, string> = {
+  [path.join('donor', 'plugins', 'hermes-bots', 'screen-pane.tsx')]:
+    "throw new Error('The bot screen viewer (noVNC) is not installed in this build')"
+}
+
 describe('renderer socket guard (SPEC C9)', () => {
   it('opens no WebSocket anywhere in the renderer', () => {
     const offenders = [...walk(RENDERER_DIR)]
       .filter((file) => file !== fileURLToPath(import.meta.url))
-      .filter((file) => /new\s+WebSocket\s*\(/.test(readFileSync(file, 'utf8')))
+      .filter((file) => {
+        const text = readFileSync(file, 'utf8')
+        const unreachableBy = UNREACHABLE_SOCKETS[path.relative(RENDERER_DIR, file)]
+        return /new\s+WebSocket\s*\(/.test(text) && !(unreachableBy && text.includes(unreachableBy))
+      })
       .map((file) => path.relative(RENDERER_DIR, file))
 
     expect(offenders).toEqual([])

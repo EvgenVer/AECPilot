@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/directive-text.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ZoomableImage } from '@/components/chat/zoomable-image'
 import type { I18nContextValue } from '@/i18n'
 import { extractEmbeddedImages } from '@/lib/embedded-images'
-import { openLink } from '@/lib/external-link'
+import { ExternalLink, openLink } from '@/lib/external-link'
 import { triggerHaptic } from '@/lib/haptics'
 import { gatewayMediaDataUrl, isRemoteGateway } from '@/lib/media'
 import { useSessionLinkTitle } from '@/lib/session-link-title'
@@ -481,9 +481,15 @@ export function openSessionRef(value: string) {
  *  table. `icon`/`label` are for the pill; the transcript chip carries its own
  *  glyph and only reads `run`. */
 export interface DirectiveAction {
+  /** The web target of a reference kind that IS a link. A kind with an `href`
+   *  renders as a real anchor so it inherits the one link surface's gestures:
+   *  plain click opens the in-app pane, ⌘/Ctrl-click (or middle-click) escapes
+   *  to the system browser, and the context-menu coordinator resolves the link
+   *  verbs. A button has neither. */
+  href?: (value: string) => string
   icon: string
   label: (t: I18nContextValue['t']) => string
-  run: (value: string) => void
+  run: (value: string, options?: { native?: boolean }) => void
 }
 
 export const DIRECTIVE_ACTIONS: Record<string, DirectiveAction> = {
@@ -493,6 +499,7 @@ export const DIRECTIVE_ACTIONS: Record<string, DirectiveAction> = {
     run: openSessionRef
   },
   url: {
+    href: value => value,
     icon: 'link-external',
     label: t => t.composer.openDirective,
     run: openLink
@@ -546,17 +553,22 @@ const SlashChip: FC<{ kind: SlashChipKind; label: string; value: string }> = ({ 
   </span>
 )
 
-/** A directive reference in a sent message. A kind with a `DIRECTIVE_ACTIONS`
- *  entry (a url, …) renders as a real button that runs it on click; everything
- *  else is inert text. `onClick` overrides for chips that resolve their target
- *  themselves (session, which needs the async navigator). */
+/** A directive reference in a sent message. A kind whose action declares an
+ *  `href` (url) renders as a real anchor — every transcript link's gestures
+ *  come from `ExternalLink` and the context-menu coordinator. An action
+ *  without an `href` (a session, or an `onClick` override) stays a button;
+ *  a kind with no action is an inert span. */
 const DirectiveChip: FC<{
   type: string
   label: string
   id: string
   onClick?: () => void
 }> = ({ type, label, id, onClick }) => {
-  const activate = onClick ?? (DIRECTIVE_ACTIONS[type] ? () => DIRECTIVE_ACTIONS[type]!.run(id) : undefined)
+  // An `onClick` override is a bespoke activation, not the kind's link action —
+  // an override must not turn its carrier into a link.
+  const action = onClick ? undefined : DIRECTIVE_ACTIONS[type]
+  const activate = onClick ?? (action ? () => action.run(id) : undefined)
+  const href = action?.href?.(id)
 
   const body = (
     <>
@@ -570,6 +582,16 @@ const DirectiveChip: FC<{
     'data-directive-id': id,
     'data-slot': 'aui_directive-chip',
     title: id
+  }
+
+  if (href) {
+    return (
+      // The explicit className must come after the spread so it wins over the
+      // refAttrs className — `ExternalLink` prepends its own `ref` class.
+      <ExternalLink {...props} className="wrap-anywhere cursor-pointer" href={href}>
+        {body}
+      </ExternalLink>
+    )
   }
 
   return activate ? (

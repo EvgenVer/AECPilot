@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/chat-swap-overlay.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,7 +28,7 @@ export function ChatSwapOverlay({ profile }: { profile: string | null }) {
 
   // The first run swaps profiles twice — into the setup profile, then into the
   // task profile — and neither is a thing the user asked for or has a name for.
-  // "Waking up hermes-setup…" over a greeting that is already on screen reads
+  // "Waking up <setup profile>…" over a greeting that is already on screen reads
   // as a stall in the one moment that has to feel instant. The flow narrates
   // its own handoff (the handoff card) and the greeting is banked, so there
   // is nothing here to cover.

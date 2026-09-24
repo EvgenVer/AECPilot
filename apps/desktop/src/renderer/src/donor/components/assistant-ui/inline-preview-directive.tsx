@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/inline-preview-directive.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -266,7 +266,7 @@ export function InlinePreviewDirective({
   // which fetches over the authenticated /api/fs bridge in remote mode, so a
   // URL connection — including a same-machine `hermes serve` — renders live.)
   if (!file || !HTML_FILE_RE.test(file)) {
-    return file ? <PreviewAttachment source="explicit-link" target={file} /> : null
+    return file ? <PreviewAttachment target={file} /> : null
   }
 
   return <InlineHtmlFrame file={file} initialHeight={directiveFrameHeight(attrs.height)} streaming={streaming} />
@@ -389,7 +389,7 @@ function InlineHtmlFrame({
   }, [doc, token])
 
   if (!path || failed) {
-    return <PreviewAttachment source="explicit-link" target={file} />
+    return <PreviewAttachment target={file} />
   }
 
   const height = measured ?? initialHeight ?? DEFAULT_HEIGHT

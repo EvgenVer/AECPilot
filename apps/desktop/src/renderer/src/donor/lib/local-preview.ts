@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/local-preview.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import DOMPurify from 'dompurify'
 
 import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
+import { isWindowsAbsolutePath } from '@/lib/path-compare'
 import type { PreviewTarget } from '@/store/preview'
 
 const HTML_EXTENSIONS = new Set(['.htm', '.html'])
@@ -85,6 +86,30 @@ function pathToFileUrl(path: string) {
   }
 
   return `file://${encoded.startsWith('/') ? encoded : `/${encoded}`}`
+}
+
+/** Loopback hosts — "this machine". The one address family an agent's dev
+ *  server lives on, and the one whose meaning changes with WHICH machine loads
+ *  it (a remote gateway's `localhost` is not ours). */
+const LOOPBACK_HOST_RE = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|::1)$/
+
+export function isLoopbackPreviewUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false
+    }
+
+    return LOOPBACK_HOST_RE.test(
+      url.hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/g, '')
+        .replace(/\.$/, '')
+    )
+  } catch {
+    return false
+  }
 }
 
 export function validatedRemoteHtmlDataUrl(value: string): string | null {
@@ -204,7 +229,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     } catch {
       path = raw.replace(/^file:\/\//i, '')
     }
-  } else if (!raw.startsWith('/') && cwd) {
+  } else if (!raw.startsWith('/') && !isWindowsAbsolutePath(raw) && cwd) {
     path = joinPath(cwd, raw)
   }
 

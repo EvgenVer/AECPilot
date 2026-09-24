@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/fuzzy.test.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,12 +47,6 @@ describe('fuzzyScore', () => {
     const scattered = fuzzyScore('a-g-p-t', 'gpt')!.score
 
     expect(prefix).toBeGreaterThan(scattered)
-  })
-
-  it('rewards word-boundary matches', () => {
-    // `s4` matching the `s` of sonnet and the `4` after a dash
-    const boundary = fuzzyScore('claude-sonnet-4', 'cs4')
-    expect(boundary).not.toBeNull()
   })
 })
 

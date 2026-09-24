@@ -228,7 +228,7 @@ node runtime/donor-report.mjs <старый SHA> <новый SHA>
 | `app/chat/**`, `components/chat/**` | 6, 24 |
 | `app/chat/right-rail/preview-*`, `lib/preview-*` | 44, 46 |
 | `components/assistant-ui/**` (лента, `transcript-directive`) | 6, 15, 19, 49 |
-| `app/skills/**` | 29, 43 |
+| `app/capabilities/**` (до 0.21.5 — `app/skills/**`) | 29, 43 |
 | `store/onboarding.ts`, `components/onboarding/**` | 14 |
 | `plugins/hermes-bots/**` | 37, **38** |
 | `store/gateway.ts`, `app/gateway/**` | 35 и полоса состояния в любом блоке |

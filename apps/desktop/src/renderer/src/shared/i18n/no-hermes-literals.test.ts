@@ -39,6 +39,17 @@ const SKIP_FILES = new Set([
   'ja.ts',
   'zh.ts',
   'zh-hant.ts',
+  // 0.21.5 (3.B6): ещё три их языка и их заставки первого запуска (HX26) на
+  // тех же языках — не предлагаются (C7), как и три выше.
+  'fr.ts',
+  'de.ts',
+  'es.ts',
+  'intro-de.ts',
+  'intro-es.ts',
+  'intro-fr.ts',
+  'intro-ja.ts',
+  'intro-zh.ts',
+  'intro-zh-hant.ts',
   'voice-stop-word.ts'
 ])
 
@@ -56,7 +67,10 @@ const SKIP_FILES = new Set([
 const DEAD_SURFACE_FILES = new Set([
   join('components', 'onboarding-chat', 'setup-profile.ts'),
   join('store', 'onboarding-script.ts'),
-  join('app', 'chat', 'composer', 'hooks', 'use-voice-live-conversation.ts')
+  join('app', 'chat', 'composer', 'hooks', 'use-voice-live-conversation.ts'),
+  // Выбор раскладки их онбординг-чата (пин 0.21.5): его зовут только файлы
+  // того же чата — `cards/setup.tsx` и `setup-profile.ts` выше.
+  join('components', 'onboarding-chat', 'options.tsx')
 ])
 
 const TECHNICAL = new RegExp(
@@ -144,7 +158,11 @@ const TECHNICAL = new RegExp(
     'hermes\\.onboarding\\.',
     'hermes-intro-reveal-seen',
     'hermes\\.updates\\.',
-    "^'hermes-setup'$" // имя ПРОФИЛЯ их онбординг-гида — ключ реестра профилей
+    "^'hermes-setup'$", // имя ПРОФИЛЯ их онбординг-гида — ключ реестра профилей
+    // Пополнение при подъёме донора на 0.21.5 (задача 3.B6) — все технические:
+    'hermes\\.connectors\\.', // ключи их локального хранилища коннекторов
+    '\\.restartHermes', // ключ каталога, как `notifications.updateHermes`
+    'hermes_tool_labels' // имя аргумента строки инструмента, которое модель не видит
   ].join('|')
 )
 

@@ -30,7 +30,10 @@ function listFor(callPrefix: string): string[] {
 
 describe('наборы, открытые модели', () => {
   it('видео включается через platform_toolsets, и их составной набор остаётся рядом', () => {
-    const args = listFor("ensureSectionList\\(original, 'platform_toolsets', 'cli'")
+    // Список вынесен в константу (D-129: к нему добавилась доска), и вызов
+    // пишет именно её — иначе проверка константы ничего бы не значила.
+    expect(MAIN).toContain("ensureSectionList(original, 'platform_toolsets', 'cli', CLI_TOOLSETS)")
+    const args = listFor('const CLI_TOOLSETS = \\[')
 
     expect(args).toContain('video')
     // Вот эта строка и есть защита от D-66.

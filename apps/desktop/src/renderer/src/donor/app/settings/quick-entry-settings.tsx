@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/quick-entry-settings.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ import {
 } from '@/store/quick-entry'
 
 import { ListRow, ToggleRow } from './primitives'
+import { SETTING_IDS, settingElementId } from './settings-manifest'
 
 /**
  * Quick Entry — the global-hotkey mini composer's settings rows.
@@ -70,6 +71,7 @@ export function QuickEntrySettings() {
       <ToggleRow
         checked={state.enabled}
         description={q.enabledDesc}
+        id={settingElementId(SETTING_IDS.advanced.quickEntry)}
         label={q.enabledTitle}
         onChange={enabled => void saveQuickEntrySettings({ enabled })}
       />
@@ -104,6 +106,7 @@ export function QuickEntrySettings() {
           )
         }
         description={q.shortcutDesc}
+        id={settingElementId(SETTING_IDS.advanced.quickEntryShortcut)}
         title={q.shortcutTitle}
       />
     </>

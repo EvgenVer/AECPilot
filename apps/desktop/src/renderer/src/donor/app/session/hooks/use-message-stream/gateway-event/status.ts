@@ -1,16 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/status.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  * (no other edits)
  */
-
-import { translateNow } from '@/i18n'
+import { isSessionNotOwnedError } from '@/app/session/hooks/use-prompt-actions/utils'
+import { translateNow, TRANSLATIONS } from '@/i18n'
+import { getRuntimeI18nLocale } from '@/i18n/runtime'
 import { textPart } from '@/lib/chat-messages'
 import { coerceGatewayText } from '@/lib/chat-runtime'
+import type { ErrorSurface } from '@/lib/error-surface'
+import { errorCardText } from '@/lib/error-surface-copy'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { type AgentNoticePayload, clearAgentNotice, nativeNoticeInput, showAgentNotice } from '@/store/agent-notices'
 import { clearClarifyRequest } from '@/store/clarify'
@@ -43,10 +46,15 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
   } = deps
 
   if (event.type === 'status.update') {
-    if (sessionId && payload?.kind === 'compacting') {
+    // `compacting`/`compacted` is auto-compaction's pair. Manual /compress
+    // pins `compressing` and always clears it with `ready` (the `finally` in
+    // methods_session._compress_live). Both spellings drive the same phase —
+    // the TUI has matched the pair since createGatewayEventHandler.ts:904;
+    // without `compressing` the desktop showed no progress for /compress.
+    if (sessionId && (payload?.kind === 'compacting' || payload?.kind === 'compressing')) {
       setSessionCompacting(sessionId, true)
       compactedTurnRef.current.add(sessionId)
-    } else if (sessionId && payload?.kind === 'compacted') {
+    } else if (sessionId && (payload?.kind === 'compacted' || payload?.kind === 'ready')) {
       reconcileSessionCompacting(sessionId, 'terminal')
       compactedTurnRef.current.delete(sessionId)
 
@@ -180,6 +188,27 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
     const errorMessage = payload?.message || 'AECPilot reported an error'
     const looksLikeProviderSetup = isProviderSetupErrorMessage(errorMessage)
 
+    // The gateway's `error` event carries no error_surface (prompt_turn.py
+    // emits it for pre-turn refusals). Recover the two codes it CAN mean from
+    // the text so the card and toast get the same plain copy + button gating
+    // as a classified turn: a live-owner refusal (SESSION_NOT_OWNED, #106217)
+    // is deterministic — Retry hits the same wall, only a new chat helps —
+    // and disk-full is a machine problem, not a provider one.
+    const surface: ErrorSurface | null = isSessionNotOwnedError(new Error(errorMessage))
+      ? { code: 'SESSION_NOT_OWNED', layer: 'gateway', retryable: false }
+      : isDiskFullErrorMessage(errorMessage)
+        ? { code: 'disk_full', layer: 'disk', retryable: false }
+        : null
+
+    // When a code was recovered, the glossed card sentence explains it better
+    // than the raw refusal. When none was, the server's own text IS the plain
+    // copy (tui_gateway/user_messages.py writes actionable sentences for
+    // pre-turn failures — agent init, resume, cancelled-before-ready), and
+    // burying it under a generic "couldn't finish" gloss would hide the one
+    // instruction the user needs.
+    const card = surface ? errorCardText(TRANSLATIONS[getRuntimeI18nLocale()].assistant.thread, surface) : null
+    const toastMessage = card ? `${card.title}. ${card.body}` : errorMessage
+
     // A turn that errors out has also ended — drop any open blocking prompt
     // for this session so an approval/sudo/secret overlay can't linger past
     // the failed turn (same intent as the message.complete clear).
@@ -197,7 +226,7 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
     }
 
     dispatchNativeNotification({
-      body: errorMessage,
+      body: toastMessage,
       kind: 'turnError',
       sessionId,
       title: translateNow('notifications.native.turnErrorTitle')
@@ -205,24 +234,30 @@ export function handleStatusEvent(ctx: GatewayEventContext): boolean {
 
     if (looksLikeProviderSetup) {
       requestDesktopOnboarding(errorMessage)
-    } else if (isDiskFullErrorMessage(errorMessage)) {
+    } else if (surface?.code === 'disk_full') {
       notifyError(new Error(errorMessage), translateNow('notifications.errors.diskFull'))
     } else {
       // Toast globally, not just when the failing thread is focused: a
       // turn-ending error (e.g. out of funds) blocks every thread, so the
       // inline error alone is too easy to miss. The stable id collapses the
-      // same error from multiple blocked threads into one toast.
+      // same error from multiple blocked threads into one toast. For a
+      // recovered code the message is the card's glossed sentence with the raw
+      // gateway text as the dimmed detail; otherwise the server copy is the
+      // message and there is no separate detail to repeat.
+      // No Retry action: assistant-ui's reload is per-thread, and for the
+      // codes recovered above a retry would fail identically anyway.
       notify({
+        detail: surface ? errorMessage : undefined,
         id: `gateway-error:${errorMessage}`,
         kind: 'error',
-        title: 'AECPilot error',
-        message: errorMessage
+        message: toastMessage,
+        title: translateNow('assistant.thread.errorToastTitle')
       })
     }
 
     if (sessionId) {
       flushQueuedDeltas(sessionId)
-      failAssistantMessage(sessionId, errorMessage, occurredAt)
+      failAssistantMessage(sessionId, errorMessage, occurredAt, surface)
     }
 
     if (isActiveEvent) {

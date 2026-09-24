@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/start-voice-button.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,7 +40,7 @@ export function StartVoiceButton({
 
   return (
     <span className="flex items-center">
-      <Tip label={engine ? `${label} — ${engine}` : label}>
+      <Tip label={engine ? `${label} — ${engine}` : label} placement="control">
         <Button
           aria-label={label}
           className={cn(PRIMARY_ICON_BTN, engine && 'rounded-r-none')}
@@ -57,7 +57,7 @@ export function StartVoiceButton({
       </Tip>
       {engine ? (
         <DropdownMenu>
-          <Tip label={t.composer.voiceEngine}>
+          <Tip label={t.composer.voiceEngine} placement="control">
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label={t.composer.voiceEngine}

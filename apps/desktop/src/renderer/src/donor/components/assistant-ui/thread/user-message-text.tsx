@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/user-message-text.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { Fragment, useMemo } from 'react'
 import { DirectiveContent } from '@/components/assistant-ui/directive-text'
 import { referenceRe } from '@/components/assistant-ui/reference-kinds'
 import { cn } from '@/lib/utils'
+import { useForcedTextDirection } from '@/store/text-direction'
 
 // User messages should render the bare-minimum of markdown: backtick `code`
 // spans and ``` fenced blocks. We deliberately don't pull in the full
@@ -155,11 +156,13 @@ export const UserMessageText: FC<UserMessageTextProps> = ({ className, text }) =
 
 const InlineSegmentView: FC<{ text: string }> = ({ text }) => {
   const nodes = useMemo(() => splitInlineCode(text), [text])
+  const textDirection = useForcedTextDirection()
 
   return (
     // styles.css bidi hook (#44150); whitespace-pre-line makes each line its own
-    // UAX#9 paragraph so it resolves direction independently.
-    <span className="wrap-anywhere block whitespace-pre-line" data-slot="aui_user-inline-text">
+    // UAX#9 paragraph so it resolves direction independently — unless the
+    // reader picked an explicit Text direction, which every line then follows.
+    <span className="wrap-anywhere block whitespace-pre-line" data-slot="aui_user-inline-text" dir={textDirection}>
       {nodes.map((node, nodeIndex) =>
         node.kind === 'inline-code' ? (
           <code

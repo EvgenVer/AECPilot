@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/use-model-menu-controller.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -65,6 +65,8 @@ export function useModelMenuController({
   const currentModel = useStore(view.$model)
   const currentProvider = useStore(view.$provider)
   const currentReasoningEffort = useStore(view.$reasoningEffort)
+  const currentReasoningEffortWire = useStore(view.$reasoningEffortWire)
+  const currentReasoningEffortPending = useStore(view.$reasoningEffortPending)
   const modelPresets = useStore($modelPresets)
   const defaultEffort = useStore($defaultReasoningEffort) || DEFAULT_REASONING_EFFORT
   const touchesPrimary = view.kind === 'primary'
@@ -91,7 +93,13 @@ export function useModelMenuController({
       markComposerSelectionManual()
       setCurrentReasoningEffort(next)
     } else if (activeSessionId) {
-      sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, reasoningEffort: next }))
+      // The wire level belonged to the previous pick; the gateway re-stamps it.
+      sessionTileDelegate()?.updateSession(activeSessionId, state => ({
+        ...state,
+        reasoningEffort: next,
+        reasoningEffortPending: false,
+        reasoningEffortWire: ''
+      }))
     }
 
     // Preset-only without a session: the gateway's `config.set` falls back to
@@ -107,7 +115,11 @@ export function useModelMenuController({
       if (touchesPrimary) {
         setCurrentReasoningEffort(previous)
       } else {
-        sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, reasoningEffort: previous }))
+        sessionTileDelegate()?.updateSession(activeSessionId, state => ({
+          ...state,
+          reasoningEffort: previous,
+          reasoningEffortWire: ''
+        }))
       }
 
       setModelPreset(provider, model, { effort: previous })
@@ -161,6 +173,8 @@ export function useModelMenuController({
 
     current: {
       effort: currentReasoningEffort,
+      effortPending: currentReasoningEffortPending,
+      effortWire: currentReasoningEffortWire,
       fast: currentFastMode,
       model: optionsModel,
       provider: optionsProvider

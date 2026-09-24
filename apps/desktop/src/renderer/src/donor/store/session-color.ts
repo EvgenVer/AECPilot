@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-color.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,7 @@ import { computed } from 'nanostores'
 
 import { sessionProjectColor } from '@/app/chat/sidebar/projects/workspace-groups'
 import { Codecs, persistentAtom } from '@/lib/persisted'
-import { $projects } from '@/store/projects'
+import { $projectOwnerBySessionId, $projects } from '@/store/projects'
 import { $sessions, sessionPinId } from '@/store/session'
 import type { ProjectInfo, SessionInfo } from '@/types/hermes'
 
@@ -49,18 +49,19 @@ export function setSessionColorOverride(durableId: string, color: null | string)
 function resolveSessionColor(
   session: SessionInfo,
   projects: ProjectInfo[],
-  overrides: Record<string, string>
+  overrides: Record<string, string>,
+  owners: ReadonlyMap<string, string>
 ): string | undefined {
-  return overrides[sessionPinId(session)] ?? sessionProjectColor(session, projects) ?? undefined
+  return overrides[sessionPinId(session)] ?? sessionProjectColor(session, projects, owners) ?? undefined
 }
 
 export const $sessionColorById = computed(
-  [$sessions, $projects, $sessionColorOverrides],
-  (sessions, projects, overrides) => {
+  [$sessions, $projects, $sessionColorOverrides, $projectOwnerBySessionId],
+  (sessions, projects, overrides, owners) => {
     const map: Record<string, string> = {}
 
     for (const session of sessions) {
-      const color = resolveSessionColor(session, projects, overrides)
+      const color = resolveSessionColor(session, projects, overrides, owners)
 
       if (color) {
         map[session.id] = color
@@ -82,6 +83,7 @@ export function sessionColorFor(session: null | SessionInfo | undefined): string
   }
 
   return (
-    $sessionColorById.get()[session.id] ?? resolveSessionColor(session, $projects.get(), $sessionColorOverrides.get())
+    $sessionColorById.get()[session.id] ??
+    resolveSessionColor(session, $projects.get(), $sessionColorOverrides.get(), $projectOwnerBySessionId.get())
   )
 }

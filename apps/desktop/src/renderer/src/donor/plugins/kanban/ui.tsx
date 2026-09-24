@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/ui.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,7 +24,7 @@ import {
 } from '@hermes/plugin-sdk'
 import { type ReactNode, useEffect, useState } from 'react'
 
-import { fetchOrchestration, ORCHESTRATION_KEY } from './api'
+import { fetchOrchestration, orchestrationKey, useKanbanScope } from './api'
 import { columnLabel, useKanban } from './i18n'
 import { columnMeta, type KanbanTask } from './types'
 
@@ -41,7 +41,9 @@ export const $newTaskLane = atom<null | string>(null)
 
 /** Orchestration knobs (cached app-wide; the settings panel invalidates). */
 export function useOrchestration() {
-  return useQuery({ queryKey: ORCHESTRATION_KEY, queryFn: fetchOrchestration, staleTime: 60_000 }).data
+  const scope = useKanbanScope()
+
+  return useQuery({ queryKey: orchestrationKey(scope), queryFn: fetchOrchestration, staleTime: 60_000 }).data
 }
 
 /** The dispatcher's configured fallback for unassigned ready cards
@@ -231,6 +233,21 @@ export function StatusMenu({
           ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Priority as the board card shows it: an amber up-arrow + number when
+ *  raised, a muted bare number at 0. Shared by the card and the task modal. */
+export function PriorityGlyph({ priority }: { priority: number }) {
+  if (priority <= 0) {
+    return <span className="text-(--ui-text-quaternary)">{priority}</span>
+  }
+
+  return (
+    <span className="inline-flex items-center gap-0.5 text-amber-500">
+      <Codicon name="arrow-up" size="0.7rem" />
+      {priority}
+    </span>
   )
 }
 

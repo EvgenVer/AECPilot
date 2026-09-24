@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/env-credentials.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2)
@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { deleteEnvVar, getEnvVars, setEnvVar } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { type IconComponent } from '@/lib/icons'
+import { queryClient } from '@/lib/query-client'
 import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type { EnvVarInfo } from '@/types/hermes'
@@ -77,7 +78,14 @@ export function useEnvCredentials(profile?: string): UseEnvCredentials {
   useEffect(() => {
     let cancelled = false
 
+    // Everything keyed by var name is dropped together with the reload: the
+    // cached `vars`, plus any in-flight edit or revealed value. Those maps are
+    // keyed by name alone, so leaving a draft behind after the target profile
+    // changed left its Save button live — writing the value into the profile
+    // now being targeted instead of the one it was typed for.
     setVars(null)
+    setEdits({})
+    setRevealed({})
 
     void (async () => {
       try {
@@ -117,6 +125,7 @@ export function useEnvCredentials(profile?: string): UseEnvCredentials {
       await setEnvVar(key, value, profile)
       patchVar(key, { is_set: true, redacted_value: redactedValue(value) })
       clearLocalState(key)
+      void queryClient.invalidateQueries({ queryKey: ['model-options'] })
       notify({ kind: 'success', title: toolsets.savedTitle, message: toolsets.savedMessage(key) })
     } catch (err) {
       notifyError(err, toolsets.failedSave(key))
@@ -141,6 +150,7 @@ export function useEnvCredentials(profile?: string): UseEnvCredentials {
       await setEnvVar(key, trimmed, profile)
       patchVar(key, { is_set: true, redacted_value: redactedValue(trimmed) })
       clearLocalState(key)
+      void queryClient.invalidateQueries({ queryKey: ['model-options'] })
       notify({ kind: 'success', message: toolsets.savedMessage(key), title: toolsets.savedTitle })
 
       return { ok: true }
@@ -164,6 +174,7 @@ export function useEnvCredentials(profile?: string): UseEnvCredentials {
       await deleteEnvVar(key, profile)
       patchVar(key, { is_set: false, redacted_value: null })
       clearLocalState(key)
+      void queryClient.invalidateQueries({ queryKey: ['model-options'] })
       notify({ kind: 'success', title: toolsets.removedTitle, message: toolsets.removedMessage(key) })
     } catch (err) {
       notifyError(err, toolsets.failedRemove(key))

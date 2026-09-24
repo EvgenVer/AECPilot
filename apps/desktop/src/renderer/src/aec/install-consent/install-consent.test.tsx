@@ -4,8 +4,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { createHermesDesktopBridge, INSTALL_DECLINED } from '../../shared/hermes-desktop-shim'
 import { AecI18nProvider } from '../../shared/i18n'
 
-import { $mcpSetupRequests } from '../../donor/store/mcp-setup'
-
 import InstallConsentDialog from './InstallConsentDialog'
 import { $installConsent } from './store'
 
@@ -46,7 +44,6 @@ beforeEach(() => {
     fileCount: 4
   })
   $installConsent.set(null)
-  $mcpSetupRequests.set({})
 })
 
 afterEach(() => {
@@ -164,31 +161,6 @@ describe('гейт доверия на установку', () => {
     expect(screen.getByText('node server.js')).toBeTruthy()
     expect(screen.getByText(/API_KEY/)).toBeTruthy()
     expect(screen.queryByText(/sk-secret/)).toBeNull()
-  })
-
-  test('установку, начатую агентом, наш гейт не переспрашивает', async () => {
-    // Их карточка держит запрос открытым до тех пор, пока не ответит ядру, а
-    // отвечает она ПОСЛЕ установки — значит непустое хранилище и означает
-    // «человек прямо сейчас отвечает на вопрос об этой установке».
-    $mcpSetupRequests.set({
-      'sess-1': {
-        requestId: 'r1',
-        server: 'filesystem',
-        action: 'install',
-        reason: 'нужен доступ к файлам',
-        sessionId: 'sess-1'
-      }
-    })
-
-    const bridge = createHermesDesktopBridge()
-    await bridge.api({
-      path: '/api/mcp/servers',
-      method: 'POST',
-      body: { name: 'filesystem', command: 'node', args: ['fs.js'] }
-    })
-
-    expect($installConsent.get(), 'второго вопроса быть не должно').toBeNull()
-    expect(rest).toHaveBeenCalledTimes(1)
   })
 
   test('удаление скила вопросов не задаёт', async () => {

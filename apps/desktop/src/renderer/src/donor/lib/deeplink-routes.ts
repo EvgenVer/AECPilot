@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/deeplink-routes.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,11 @@ export interface DeepLinkPayload {
 
 export type DeepLinkAction =
   | { type: 'plugin-install'; repo: string; enable: boolean; force: boolean; legacyHint: PluginInstallLegacyHint }
+  /** `hermes://plugin/install?catalog=<name>` — resolved against the curated
+   *  catalog by the caller; the raw name is never treated as a git identifier. */
+  | { type: 'plugin-catalog-install'; name: string }
   | { type: 'composer-blueprint'; name: string; params: Record<string, string> }
+  | { type: 'connection-done'; op: string; status: string }
   | { type: 'ignore' }
 
 function truthyParam(value: string | undefined, defaultValue = false): boolean {
@@ -35,6 +39,22 @@ export function resolveDeepLinkAction(payload: DeepLinkPayload | null | undefine
 
   if (payload.kind === 'blueprint' && payload.name) {
     return { type: 'composer-blueprint', name: payload.name, params: payload.params || {} }
+  }
+
+  // The browser leg of a connection came back (hermes://connections/done?op=…&status=…). The op id
+  // names the operation to show; the status is carried but never moves a row, because the link is
+  // whatever the user's browser was pointed at.
+  if (payload.kind === 'connections' && payload.name === 'done') {
+    const op = (payload.params?.op || '').trim()
+
+    return op ? { type: 'connection-done', op, status: (payload.params?.status || '').trim() } : { type: 'ignore' }
+  }
+
+  // A `catalog` param claims the link outright: even when a `repo` rides along
+  // (or the name is empty/bogus) the outcome is the catalog lookup's verdict,
+  // never a git-path install of whatever else the link carried.
+  if (payload.kind === 'plugin' && payload.name === 'install' && payload.params?.catalog !== undefined) {
+    return { type: 'plugin-catalog-install', name: payload.params.catalog.trim() }
   }
 
   const repo = (payload.params?.repo || payload.params?.identifier || payload.name || '').trim()

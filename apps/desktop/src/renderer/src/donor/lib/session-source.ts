@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-source.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ const SOURCE_LABELS: Record<string, string> = {
   local: 'Local',
   matrix: 'Matrix',
   mattermost: 'Mattermost',
+  oneshot: 'One-shot',
   photon: 'Photon',
   qqbot: 'QQ',
   signal: 'Signal',
@@ -50,7 +51,7 @@ const SOURCE_ALIASES: Record<string, string[]> = {
 // platform. A handoff *from* one of these isn't a platform origin worth a badge.
 // Exported so the recents fetch can keep these in the main list while the
 // messaging fetch excludes them.
-export const LOCAL_SESSION_SOURCE_IDS = ['cli', 'codex', 'desktop', 'gateway', 'kanban', 'local', 'tui']
+export const LOCAL_SESSION_SOURCE_IDS = ['cli', 'codex', 'desktop', 'gateway', 'kanban', 'local', 'oneshot', 'tui']
 const LOCAL_SOURCE_IDS = new Set(LOCAL_SESSION_SOURCE_IDS)
 
 // External messaging platforms that each get their own self-managed sidebar

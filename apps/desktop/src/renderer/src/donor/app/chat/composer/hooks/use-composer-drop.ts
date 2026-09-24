@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-drop.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,7 @@ interface UseComposerDropArgs {
   cwd: ChatBarProps['cwd']
   insertInlineRefs: (refs: InlineRefInput[]) => boolean
   onAttachDroppedItems: ChatBarProps['onAttachDroppedItems']
+  recordUndoPoint: () => void
   requestMainFocus: () => void
 }
 
@@ -31,6 +32,7 @@ export function useComposerDrop({
   cwd,
   insertInlineRefs,
   onAttachDroppedItems,
+  recordUndoPoint,
   requestMainFocus
 }: UseComposerDropArgs) {
   const [dragActive, setDragActive] = useState(false)
@@ -123,6 +125,11 @@ export function useComposerDrop({
 
   const handleInputDrop = (event: ReactDragEvent<HTMLDivElement>) => {
     if (!dragHasAttachments(event.dataTransfer, HERMES_PATHS_MIME)) {
+      // A plain text drag within the editor mutates the DOM without a
+      // React-visible beforeinput (insertFromDrop), so the undo snapshot has
+      // to be banked here — before Chromium applies the move.
+      recordUndoPoint()
+
       return
     }
 

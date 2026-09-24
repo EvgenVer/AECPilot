@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/profiles.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,8 +15,9 @@ import type {
 
 import { capabilityScoped, hermesApi, type ProfileScope, STARTUP_REQUEST_TIMEOUT_MS } from './client'
 
-export function getProfiles(): Promise<ProfilesResponse> {
+export function getProfiles(scope?: ProfileScope): Promise<ProfilesResponse> {
   return hermesApi<ProfilesResponse>({
+    ...(scope === undefined ? {} : capabilityScoped(scope)),
     path: '/api/profiles',
     timeoutMs: STARTUP_REQUEST_TIMEOUT_MS
   })

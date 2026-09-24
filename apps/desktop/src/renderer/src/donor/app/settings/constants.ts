@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/constants.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -372,7 +372,15 @@ export const ENUM_OPTIONS: Record<string, string[]> = {
   'stt.openai.model': ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe', 'gpt-transcribe'],
   'stt.mistral.model': ['voxtral-mini-latest', 'voxtral-mini-2602'],
   'tts.openai.model': ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'],
-  'tts.elevenlabs.model_id': ['eleven_multilingual_v2', 'eleven_turbo_v2_5', 'eleven_flash_v2_5'],
+  'tts.elevenlabs.model_id': [
+    'eleven_v3',
+    'eleven_ttv_v3',
+    'eleven_multilingual_v2',
+    'eleven_turbo_v2',
+    'eleven_turbo_v2_5',
+    'eleven_flash_v2',
+    'eleven_flash_v2_5'
+  ],
   // NeuTTS local inference device.
   'tts.neutts.device': ['cpu', 'cuda', 'mps'],
   'updates.non_interactive_local_changes': ['stash', 'discard']
@@ -389,6 +397,8 @@ export const FREE_INPUT_KEYS = new Set([
   'tts.openai.model',
   'tts.openai.voice',
   'tts.elevenlabs.voice_id',
+  'tts.elevenlabs.model_id',
+  'stt.openai.model',
   'tts.gemini.model',
   'tts.gemini.voice',
   'tts.xai.voice_id',
@@ -406,7 +416,7 @@ export const FREE_INPUT_KEYS = new Set([
 
 export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
   model: 'Default Model',
-  modelContextLength: 'Context Window',
+  modelContextLength: 'Main model context window (override)',
   fallbackProviders: 'Fallback Models',
   toolsets: 'Enabled Toolsets',
   timezone: 'Timezone',
@@ -466,7 +476,6 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
     maxSnapshots: 'Checkpoint Limit'
   },
   voice: {
-    recordKey: 'Voice Shortcut',
     maxRecordingSeconds: 'Max Recording Length',
     autoTts: 'Read Responses Aloud',
     voiceChatMode: 'Voice Chat Mode',
@@ -562,8 +571,14 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
   compression: {
     enabled: 'Auto-Compression',
     threshold: 'Compression Threshold',
+    codexGpt55Autoraise: 'Codex Compression Auto-Raise',
     targetRatio: 'Compression Target',
     protectLastN: 'Protected Recent Messages'
+  },
+  auxiliary: {
+    compression: {
+      timeout: 'Compression model timeout (s)'
+    }
   },
   delegation: {
     model: 'Subagent Model',
@@ -580,7 +595,8 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
 
 export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   model: 'Used for new chats unless you pick a different model in the composer.',
-  modelContextLength: "Leave at 0 to use the selected model's detected context window.",
+  modelContextLength:
+    "Overrides the detected context window of the MAIN chat model only (tokens). Leave at 0 to use the selected model's detected value. Does not affect auxiliary/MoA models.",
   fallbackProviders: 'Backup provider:model entries to try if the default model fails.',
   display: {
     personality: 'Default assistant style for new sessions.',
@@ -631,7 +647,14 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
     engine: 'Strategy for managing long conversations near the context limit.'
   },
   compression: {
-    enabled: 'Summarize older context when conversations get large.'
+    enabled: 'Summarize older context when conversations get large.',
+    codexGpt55Autoraise: 'Raise compression to 85% for supported ChatGPT Codex OAuth models.'
+  },
+  auxiliary: {
+    compression: {
+      timeout:
+        'Seconds to wait for the auxiliary compression model per call (default 120). Raise for slow local models.'
+    }
   },
   voice: {
     autoTts: 'Automatically speak assistant responses.',
@@ -738,8 +761,10 @@ export const SECTIONS: DesktopConfigSection[] = [
       'context.engine',
       'compression.enabled',
       'compression.threshold',
+      'compression.codex_gpt55_autoraise',
       'compression.target_ratio',
-      'compression.protect_last_n'
+      'compression.protect_last_n',
+      'auxiliary.compression.timeout'
     ]
   },
   {
@@ -789,7 +814,6 @@ export const SECTIONS: DesktopConfigSection[] = [
       'stt.elevenlabs.language_code',
       'stt.elevenlabs.tag_audio_events',
       'stt.elevenlabs.diarize',
-      'voice.record_key',
       'voice.max_recording_seconds',
       'voice.client_direct'
     ]

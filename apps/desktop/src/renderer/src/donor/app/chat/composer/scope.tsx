@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/scope.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,6 +34,13 @@ export interface ComposerScope {
    *  keep streaming out of the composer's renders; subscribe only off-render
    *  (auto-speak) where the reply edge is the whole point. */
   $messages: ReadableAtom<ChatMessage[]>
+  /** Owner connection of this scope's session — a profile belongs to ONE
+   *  gateway, so voice playback mints against it (cross-connection Bots).
+   *  undefined → the active connection. */
+  connectionId?: null | string
+  /** Owner profile of this scope's session (a Bot tile runs on the Bot's own
+   *  profile). Voice playback synthesizes with it; undefined → active profile. */
+  profile?: null | string
   /** Focus-bus routing key (`'main'` | `'tile:<id>'`). */
   target: ComposerTarget
 }

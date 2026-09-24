@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tour/engine.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -248,15 +248,16 @@ describe('runTourEngine', () => {
     expect(runTourEngine(factory, holder, { kind: 'stop' }, collectTourTargets, document).success).toBe(true)
   })
 
-  it('is self-contained source (injectable into a guest page)', () => {
-    // The preview surface stringifies these functions into a webview. Any
-    // captured import/closure reference would throw there — the source must
-    // reference nothing but its own parameters and page globals.
-    for (const source of [runTourEngine.toString(), collectTourTargets.toString()]) {
-      expect(source).not.toContain('__vite')
-      expect(source).not.toContain('import(')
-      expect(source).not.toContain('require(')
-    }
+  it('runs after being stringified and eval’d with no module scope', () => {
+    // The preview surface injects these functions' source into a webview, where
+    // module scope does not exist: one free identifier is a ReferenceError there.
+    seedDom()
+    const engine = new Function('return (' + runTourEngine.toString() + ')')() as typeof runTourEngine
+    const collect = new Function('return (' + collectTourTargets.toString() + ')')() as typeof collectTourTargets
+    const result = engine(makeFactory([]), {}, { kind: 'targets' }, collect, document)
+
+    expect(result.success).toBe(true)
+    expect(result.targets?.length).toBeGreaterThan(0)
   })
 })
 

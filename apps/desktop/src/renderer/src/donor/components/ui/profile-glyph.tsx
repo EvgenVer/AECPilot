@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/profile-glyph.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { profileColorSoft } from '@/lib/profile-color'
+import { profileShortLabel } from '@/lib/profile-short-label'
 import { cn } from '@/lib/utils'
 
 import { Codicon } from './codicon'
@@ -33,7 +34,7 @@ export function ProfileGlyph({
     )
   }
 
-  const initial = name.replace(/[^a-z0-9]/gi, '').charAt(0) || '?'
+  const initial = profileShortLabel(name)
 
   return (
     <span

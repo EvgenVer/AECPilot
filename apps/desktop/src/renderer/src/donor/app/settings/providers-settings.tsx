@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/providers-settings.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { RowButton } from '@/components/ui/row-button'
 import { SearchField } from '@/components/ui/search-field'
+import { Tip } from '@/components/ui/tooltip'
 import { disconnectOAuthProvider, listOAuthProviders } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Check, ChevronDown, ChevronRight, KeyRound, Loader2, Terminal, Trash2 } from '@/lib/icons'
@@ -289,7 +290,6 @@ function ConnectedProviderRow({
             disabled={disconnecting}
             onClick={() => onDisconnect(provider)}
             size="icon-xs"
-            title={`${t.common.remove} ${title}`}
             type="button"
             variant="ghost"
           >
@@ -297,16 +297,17 @@ function ConnectedProviderRow({
           </Button>
         )}
         {terminalDisconnect && (
-          <Button
-            aria-label={`${copy.disconnect} ${title}`}
-            onClick={() => onTerminalDisconnect(provider)}
-            size="icon-xs"
-            title={copy.disconnectInTerminal}
-            type="button"
-            variant="ghost"
-          >
-            <Trash2 className="size-3" />
-          </Button>
+          <Tip label={copy.disconnectInTerminal}>
+            <Button
+              aria-label={`${copy.disconnect} ${title}`}
+              onClick={() => onTerminalDisconnect(provider)}
+              size="icon-xs"
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          </Tip>
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped applyAutoSpeakFromConfig — auto-speak of replies is SPEC HX19
@@ -19,6 +19,7 @@ import { getHermesConfig, getHermesConfigDefaults } from '@/hermes'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '@/lib/chat-runtime'
 import { normalize } from '@/lib/text'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
+import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
 import {
   getComposerSelectionGeneration,
   getCurrentModelSource,
@@ -31,9 +32,11 @@ import {
   setIntroPersonality
 } from '@/store/session'
 import {
+  applyBargeInThresholdFromConfig,
   applyThinkingSoundFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
+import { setChatFontFamilyFromConfig } from '@/themes/chat-font'
 
 const DEFAULT_VOICE_SECONDS = 120
 const FAST_TIERS = new Set(['fast', 'priority', 'on'])
@@ -151,7 +154,9 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         }
 
         setDisplayTimestampsFromConfig(config.display?.timestamps)
+        setShowReasoningFromConfig(config.display?.show_reasoning)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
+        setChatFontFamilyFromConfig(config.desktop?.font_family)
 
         if (!canPublish()) {
           return
@@ -159,7 +164,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
         // EDIT [3]: `voice.auto_tts` из их конфига включал авточтение всех
         // ответов БЕЗ единого нажатия в окне — SPEC HX19 (owner decision 2026-09-08).
-        applyVoiceStopPhraseFromConfig(config)
+        applyVoiceStopPhraseFromConfig(config, defaults)
+        applyBargeInThresholdFromConfig(config)
         applyThinkingSoundFromConfig(config)
         // EDIT [3]: their `refreshVoiceLiveStatus()` (live voice, HX19) stood here.
       } catch {

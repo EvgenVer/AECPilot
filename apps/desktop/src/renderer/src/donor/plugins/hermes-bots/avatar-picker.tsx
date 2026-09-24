@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/avatar-picker.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the Pet tab (HX1) — its segmented-control option, its tab body
@@ -175,7 +175,7 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
                         width: 44,
                         height: 44
                       }}
-                      title={k || 'Auto — the name decides'}
+                      title={k || b.editor.autoHint}
                     >
                       {k ? (
                         <BotFace
@@ -185,7 +185,7 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
                           size={32}
                         />
                       ) : (
-                        <span className="text-[0.6rem] text-(--ui-text-tertiary)">Auto</span>
+                        <span className="text-[0.6rem] text-(--ui-text-tertiary)">{b.editor.auto}</span>
                       )}
                     </RowButton>
                   ))}
@@ -206,16 +206,15 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
                   <Button
                     onClick={() => onShape(blobShapeString(locked ? '' : pickerName, kind))}
                     size="sm"
-                    title={locked ? b.avatar.unlockFollowsName : 'Keep this exact face even if the name changes'}
                     type="button"
                     variant="ghost"
                   >
                     <Codicon className="mr-1 text-[0.8rem]" name={locked ? 'unlock' : 'lock'} />
-                    {locked ? 'Unlock' : 'Lock face'}
+                    {locked ? b.editor.unlock : b.editor.lockFace}
                   </Button>
                 </div>
                 <div className="text-center text-[0.65rem] text-(--ui-text-quaternary)">
-                  {locked ? 'Face locked — renaming won\u2019t change it.' : 'Face follows the name.'}
+                  {locked ? b.editor.lockedHint : b.editor.unlockedHint}
                 </div>
                 <Button
                   className="text-(--ui-text-tertiary)"
@@ -283,7 +282,7 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
               ) : (
                 <Codicon className="mr-1 text-[0.8rem]" name="sparkle" />
               )}
-              {genBusy ? 'Generating…' : 'Generate'}
+              {genBusy ? b.avatar.generating : b.avatar.generate}
             </Button>
             {describe.trim() ? null : (
               <div className="text-center text-[0.65rem] text-(--ui-text-quaternary)">{b.bot.descriptionHint}</div>
@@ -291,16 +290,14 @@ export function AvatarPicker({ shape, color, image, onShape, onColor, onImage, g
           </div>
         ) : (
           <div className="px-2 py-3 text-center text-xs leading-5 text-(--ui-text-tertiary)">
-            {imagen === false
-              ? 'No image model available. If you just enabled one (or updated AECPilot), restart the gateway: Ctrl+K → "Restart gateway".'
-              : 'Checking image backend…'}
+            {imagen === false ? b.editor.noImageModel : b.editor.checkingImage}
           </div>
         )
       ) : null}
       {tab === 'upload' ? (
         <Button className="w-full justify-center" onClick={upload} type="button" variant="secondary">
           <Codicon className="mr-1 text-[0.8rem]" name="device-camera" />
-          Choose an image…
+          {b.editor.chooseImage}
         </Button>
       ) : null}
     </div>

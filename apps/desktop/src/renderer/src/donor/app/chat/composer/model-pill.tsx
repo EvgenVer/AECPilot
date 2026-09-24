@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/model-pill.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,10 +19,11 @@ import { releaseTypingFocus } from '@/components/ui/keyboard-first'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { ChevronDown } from '@/lib/icons'
-import { formatModelPillLabel } from '@/lib/model-status-label'
+import { formatModelPillLabel, providerDisplayName } from '@/lib/model-status-label'
 import { cn } from '@/lib/utils'
 import { $currentModelSource, setModelPickerOpen } from '@/store/session'
 
+import { useComposerModelPillLabel } from './contrib'
 import { onComposerModelMenuRequest } from './focus'
 import { RICH_INPUT_SLOT } from './rich-editor'
 import { useComposerScope } from './scope'
@@ -64,6 +65,7 @@ export function ModelPill({
   const currentModel = model.model || viewModel
   const currentProvider = model.provider || viewProvider
   const fastMode = useStore(view.$fast)
+  const reasoningEffort = useStore(view.$reasoningEffort)
   const modelSource = useStore($currentModelSource)
   const runtimeId = useStore(view.$runtimeId)
   const [open, setOpen] = useState(false)
@@ -131,12 +133,18 @@ export function ModelPill({
   // The model resolves a beat after the gateway/session comes up. Rather than
   // flash a literal "No model", show a quiet loader (inherits the pill text
   // color at half opacity) until a model lands.
+  //
+  // A `composer.modelPill` provider may override the LABEL (compact reasoning
+  // label, custom naming) — the pill keeps its chrome, pin dot, and menu; only
+  // the text changes, and a provider that declines leaves the core label.
+  const pillLabel = useComposerModelPillLabel({ compact, model: currentModel, reasoningEffort: reasoningEffort || '' })
+
   const label = compact ? (
     <ChevronDown className="size-3.5 shrink-0 opacity-70" />
   ) : (
     <>
       {currentModel.trim() ? (
-        <span className="truncate">{formatModelPillLabel(currentModel, { fastMode })}</span>
+        <span className="truncate">{pillLabel ?? formatModelPillLabel(currentModel, { fastMode })}</span>
       ) : (
         <GlyphSpinner className="opacity-50" spinner="braille" />
       )}
@@ -162,7 +170,7 @@ export function ModelPill({
     : PILL
 
   const baseTitle = currentProvider
-    ? copy.modelTitle(currentProvider, currentModel || copy.modelNone)
+    ? copy.modelTitle(providerDisplayName(currentProvider), currentModel || copy.modelNone)
     : copy.switchModel
 
   const title = pinnedOverride ? `${baseTitle} — ${copy.modelPinned}` : baseTitle

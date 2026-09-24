@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/index.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import { ThreadMessageList } from '@/components/assistant-ui/thread/list'
 import { BackgroundResumeNotice, CenteredThreadSpinner } from '@/components/assistant-ui/thread/status'
 import { SystemMessage } from '@/components/assistant-ui/thread/system-message'
 import { ThreadTimeline } from '@/components/assistant-ui/thread/timeline'
+import { useTranscriptWindow } from '@/components/assistant-ui/thread/transcript-window'
 import { type RestoreMessageTarget } from '@/components/assistant-ui/thread/types'
 import { UserEditComposer } from '@/components/assistant-ui/thread/user-edit-composer'
 import { UserMessage } from '@/components/assistant-ui/thread/user-message'
@@ -52,6 +53,7 @@ interface ThreadProps {
   onRestoreToMessage?: (messageId: string, target?: RestoreMessageTarget) => Promise<void> | void
   sessionId?: string | null
   sessionKey?: string | null
+  scrollProfile?: string
 }
 
 // memo'd on purpose, and load-bearing for session-switch cost. ChatView
@@ -72,10 +74,19 @@ export const Thread = memo(function Thread({
   onDismissError,
   onRestoreToMessage,
   sessionId = null,
+  scrollProfile,
   sessionKey
 }: ThreadProps) {
   const { t } = useI18n()
   const copy = t.assistant.thread
+  const { isHistorical } = useTranscriptWindow()
+
+  if (isHistorical) {
+    onBranchInNewChat = undefined
+    onCancel = undefined
+    onDismissError = undefined
+    onRestoreToMessage = undefined
+  }
 
   const [restoreConfirmTarget, setRestoreConfirmTarget] = useState<
     (RestoreMessageTarget & { messageId: string }) | null
@@ -182,6 +193,7 @@ export const Thread = memo(function Thread({
           components={messageComponents}
           emptyPlaceholder={emptyPlaceholder}
           loadingIndicator={loadingIndicator}
+          scrollProfile={scrollProfile}
           sessionId={sessionId}
           sessionKey={sessionKey}
         />

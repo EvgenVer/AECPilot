@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/soul.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -83,21 +83,6 @@ describe('appending the protocol to an existing SOUL', () => {
 
     expect(twice).toBe(once.trim())
     expect(sectionCount(twice)).toBe(1)
-  })
-
-  it('points at the real CLI verb, not the plural that does not exist', async () => {
-    const { ensureMessagingProtocol } = await loadSoul()
-    const soul = ensureMessagingProtocol('', 'default', roster)
-
-    expect(soul).toMatch(/run `hermes profile list` for the LIVE/)
-    expect(soul).not.toMatch(/hermes profiles list/)
-  })
-
-  it('seeds an empty SOUL with the section alone', async () => {
-    const { ensureMessagingProtocol } = await loadSoul()
-
-    expect(ensureMessagingProtocol('', 'ops', [])).toMatch(/^## Messaging other agents/)
-    expect(ensureMessagingProtocol('', 'ops', [])).toMatch(/- \(none yet\)/)
   })
 })
 

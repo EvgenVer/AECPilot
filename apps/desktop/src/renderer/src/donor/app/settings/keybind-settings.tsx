@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/keybind-settings.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
-import { useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
@@ -37,16 +37,48 @@ import {
   resetBinding
 } from '@/store/keybinds'
 
-import { SettingsContent } from './primitives'
+import { HudModifierSettings } from './hud-modifier-settings'
+import { SettingsBreadcrumbContext, SettingsContent } from './primitives'
+import { ScreenshotSettings } from './screenshot-settings'
+import { useSettingDeepLink } from './use-setting-deep-link'
 
-export function KeybindSettings() {
+interface KeybindSettingsProps {
+  subpage?: string
+}
+
+export function KeybindSettings({ subpage }: KeybindSettingsProps = {}) {
+  useSettingDeepLink('keybinds', page => subpage === undefined || page === subpage)
+
+  if (subpage === 'hud-gesture') {
+    return (
+      <SettingsContent>
+        <HudModifierSettings />
+      </SettingsContent>
+    )
+  }
+
+  if (subpage === 'screen-capture') {
+    return (
+      <SettingsContent>
+        <ScreenshotSettings />
+      </SettingsContent>
+    )
+  }
+
+  return <ShortcutSettings includeScreenshot={subpage === undefined} />
+}
+
+function ShortcutSettings({ includeScreenshot }: { includeScreenshot: boolean }) {
   const { t } = useI18n()
+  const hasBreadcrumb = useContext(SettingsBreadcrumbContext)
   const bindings = useStore($bindings)
   const k = t.keybinds
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  // Subscribe so contributed actions appear/disappear live in the map.
-  useContributions(KEYBINDS_AREA)
-  const actionList = allKeybindActions()
+  // Subscribe so contributed actions appear/disappear live in the map. The
+  // snapshot feeds the list: under React Compiler an independently called
+  // allKeybindActions() stays memoized across that registration.
+  const contributions = useContributions(KEYBINDS_AREA)
+  const actionList = allKeybindActions(contributions)
   const [query, setQuery] = useState('')
 
   const openCombo = bindings[KEYBIND_PANEL_ACTION]?.[0]
@@ -104,7 +136,7 @@ export function KeybindSettings() {
     <SettingsContent>
       <div className="flex items-center justify-between gap-3 pb-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">{k.title}</h2>
+          {!hasBreadcrumb && <h2 className="text-sm font-semibold text-foreground">{k.title}</h2>}
           <p className="mt-0.5 text-[0.72rem] text-muted-foreground">
             {k.subtitle(openCombo ? formatCombo(openCombo) : '')}
           </p>
@@ -118,6 +150,11 @@ export function KeybindSettings() {
           {k.resetAll}
         </button>
       </div>
+
+      {includeScreenshot &&
+        (!isSearching || t.settings.screenshot.enabledTitle.toLowerCase().includes(query.toLowerCase())) && (
+          <ScreenshotSettings />
+        )}
 
       <div className="pb-3">
         <SearchField

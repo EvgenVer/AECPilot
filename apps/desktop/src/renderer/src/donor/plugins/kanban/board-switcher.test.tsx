@@ -1,17 +1,22 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/board-switcher.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Test harness supplies the host's locale registration, as plugin loading does.
+// eslint-disable-next-line no-restricted-imports
+import { registerPluginLocales } from '@/i18n/plugin-i18n'
 
 import type * as KanbanApi from './api'
 import { $boardSlug } from './api'
 import { BoardSwitcher } from './board-switcher'
+import { KANBAN_LOCALES } from './i18n'
 
 vi.mock('./api', async importOriginal => ({
   ...(await importOriginal<typeof KanbanApi>()),
@@ -21,8 +26,15 @@ vi.mock('./api', async importOriginal => ({
   }))
 }))
 
+let disposeLocales: () => void = () => undefined
+
+beforeEach(() => {
+  disposeLocales = registerPluginLocales('kanban', KANBAN_LOCALES)
+})
+
 afterEach(() => {
   cleanup()
+  disposeLocales()
   $boardSlug.set('')
 })
 

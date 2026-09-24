@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/toolset-config-panel.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2); the
@@ -43,6 +43,7 @@ import type {
 } from '@/types/hermes'
 
 import { EnvVarActionsMenu, EnvVarActionsTrigger, EnvVarContextMenu } from './env-var-actions-menu'
+import { prettyName } from './helpers'
 import { Pill } from './primitives'
 import { VoiceProviderFields } from './voice-provider-fields'
 
@@ -333,7 +334,16 @@ function PostSetupRunner({ toolset, postSetupKey, installed = false, onComplete,
                 title: copy.postSetupCompleteTitle,
                 message: copy.postSetupCompleteMessage(postSetupKey)
               }
-            : { kind: 'error', title: copy.postSetupErrorTitle, message: copy.postSetupErrorMessage(postSetupKey) }
+            : {
+                kind: 'error',
+                title: copy.postSetupErrorTitle,
+                message: copy.postSetupErrorMessage(prettyName(postSetupKey)),
+                action: {
+                  label: copy.postSetupOpenLogs,
+                  onClick: () => void window.hermesDesktop?.revealLogs?.().catch(() => undefined)
+                },
+                secondaryAction: { label: copy.postSetupRunAgain, onClick: () => void run() }
+              }
         )
         onComplete?.()
       }
@@ -650,7 +660,7 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
       const start = await startOAuthLogin('nous', profile)
 
       if (start.flow !== 'device_code') {
-        notifyError(new Error(`unexpected flow: ${start.flow}`), copy.nousAuthFailed)
+        notifyNousAuthFailed(`unexpected flow: ${start.flow}`)
 
         return
       }
@@ -686,16 +696,28 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
         }
 
         if (polled.status !== 'pending') {
-          notifyError(new Error(polled.error_message || `Sign-in ${polled.status}`), copy.nousAuthFailed)
+          notifyNousAuthFailed(polled.error_message || `Sign-in ${polled.status}`)
 
           return
         }
       }
     } catch (err) {
       if (mountedRef.current) {
-        notifyError(err, copy.nousAuthFailed)
+        notifyNousAuthFailed(err instanceof Error ? err.message : String(err))
       }
     }
+  }
+
+  // Plain failure copy with the raw poll status under Details and a one-click
+  // retry of the same sign-in flow (desktop-26).
+  function notifyNousAuthFailed(detail: string) {
+    notify({
+      kind: 'error',
+      title: copy.nousAuthFailed,
+      message: copy.nousAuthFailedMessage,
+      detail,
+      action: { label: copy.nousAuthTryAgain, onClick: () => void signInToNousPortal() }
+    })
   }
 
   function patchEnv(key: string, isSet: boolean) {
@@ -893,8 +915,11 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
                 {toolset === 'tts' && provider.tts_provider && (
                   // Voice/model settings for this backend (tts.<key>.*) —
                   // the same fields Settings → Voice renders, inline so the
-                  // Capabilities panel is a complete setup surface.
-                  <VoiceProviderFields providerKey={provider.tts_provider} section="tts" />
+                  // Capabilities panel is a complete setup surface. Profile
+                  // threaded like every other fetch in this panel: unscoped,
+                  // these fields read AND autosaved the ACTIVE profile's
+                  // config while the panel claimed to configure another.
+                  <VoiceProviderFields profile={profile} providerKey={provider.tts_provider} section="tts" />
                 )}
                 {MODEL_CATALOG_TOOLSETS.has(toolset) && (
                   <ModelCatalogPicker

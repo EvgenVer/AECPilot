@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-popout-drag.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -43,8 +43,6 @@ interface PressState {
 
 interface ComposerPopoutGesturesOptions {
   composerRef: RefObject<HTMLFormElement | null>
-  /** Layout zone this composer belongs to — the scope its float is stored under. */
-  groupId: string
   onDock: () => void
   onPopOut: () => void
   poppedOut: boolean
@@ -135,7 +133,6 @@ function popoutPositionUnderPointer(
  */
 export function useComposerPopoutGestures({
   composerRef,
-  groupId,
   onDock,
   onPopOut,
   poppedOut,
@@ -170,10 +167,7 @@ export function useComposerPopoutGestures({
     (state: PressState, clientX: number, clientY: number, next: PopoutPosition, size?: PopoutSize) => {
       clearTimer()
 
-      const clamped = setComposerPopoutPosition(groupId, next, {
-        area: readPopoutBounds(composerRef.current),
-        size
-      })
+      const clamped = setComposerPopoutPosition(next, { size })
 
       liveRef.current = clamped
 
@@ -186,7 +180,7 @@ export function useComposerPopoutGestures({
 
       setDragging(true)
     },
-    [clearTimer, composerRef, groupId]
+    [clearTimer]
   )
 
   const peelOffFromDock = useCallback(
@@ -294,12 +288,11 @@ export function useComposerPopoutGestures({
       const area = readPopoutBounds(composer)
 
       liveRef.current = setComposerPopoutPosition(
-        groupId,
         {
           bottom: state.startBottom - (pending.y - state.startY),
           right: state.startRight - (pending.x - state.startX)
         },
-        { area, size }
+        { size }
       )
 
       if (composer) {
@@ -362,7 +355,7 @@ export function useComposerPopoutGestures({
         } else {
           // Persist the resting position once, on release — never per move.
           const size = composer ? { height: composer.offsetHeight, width: composer.offsetWidth } : undefined
-          setComposerPopoutPosition(groupId, liveRef.current, { area, persist: true, size })
+          setComposerPopoutPosition(liveRef.current, { persist: true, size })
         }
       }
 
@@ -379,7 +372,7 @@ export function useComposerPopoutGestures({
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleUp)
     }
-  }, [composerRef, groupId, onDock, peelOffFromDock, resetGesture])
+  }, [composerRef, onDock, peelOffFromDock, resetGesture])
 
   useEffect(() => clearTimer, [clearTimer])
 

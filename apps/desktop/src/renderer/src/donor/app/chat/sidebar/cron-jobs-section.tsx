@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/cron-jobs-section.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,7 +27,7 @@ import { notify, notifyError } from '@/store/notifications'
 import { $selectedStoredSessionId } from '@/store/session'
 import type { CronJob } from '@/types/hermes'
 
-import { jobState, jobTitle, STATE_DOT } from '../../cron/job-state'
+import { jobState, jobTitle, nextRunOverdueMs, STATE_DOT } from '../../cron/job-state'
 import { SidebarPanelLabel } from '../../shell/sidebar-label'
 
 import { SidebarRowBody, SidebarRowLabel, SidebarRowLead, SidebarRowShell } from './chrome'
@@ -251,7 +251,13 @@ function CronJobSidebarRow({
   const label = jobTitle(job)
   const isPaused = state === 'paused'
 
-  const meta = INACTIVE_STATES.has(state) ? (c.states[state] ?? state) : next !== null ? relativeTime(next, nowMs) : '—'
+  const overdue = nextRunOverdueMs(job, nowMs) !== null
+
+  const meta = INACTIVE_STATES.has(state)
+    ? (c.states[state] ?? state)
+    : next !== null
+      ? `${overdue ? `${c.overdueSince.replace(/:$/, '')} ` : ''}${relativeTime(next, nowMs)}`
+      : '—'
 
   // Pause/resume and delete aren't threaded through the sidebar's prop chain, so
   // drive them against the shared $cronJobs atom directly (same path the cron

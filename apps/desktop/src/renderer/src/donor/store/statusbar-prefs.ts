@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/statusbar-prefs.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { Codecs, persistentAtom } from '@/lib/persisted'
 import { readKey } from '@/lib/storage'
+import { modeBound } from '@/store/interface-mode'
 
 // v1 (`hermes.desktop.statusbarHidden`) was seeded with the approval pill
 // hidden, so every existing store carries an `approval-mode` the user never
@@ -23,7 +24,12 @@ const STATUSBAR_VISIBLE_STORAGE_KEY = 'hermes.desktop.statusbarVisible.v2'
 // Whole-bar visibility, VS Code's `workbench.statusBar.visible`. On by default.
 // Hiding it unmounts the bar (its 15s status poll goes with it), so the way back
 // is the `view.toggleStatusbar` keybind or the ⌘K row, never the bar itself.
-export const $statusbarVisible = persistentAtom(STATUSBAR_VISIBLE_STORAGE_KEY, true, Codecs.bool)
+// Simple mode rests the bar hidden without touching this preference.
+const $statusbarVisiblePref = persistentAtom(STATUSBAR_VISIBLE_STORAGE_KEY, true, Codecs.bool)
+
+export const $statusbarVisible = modeBound('statusbarVisible', $statusbarVisiblePref, value =>
+  $statusbarVisiblePref.set(value)
+)
 
 export function toggleStatusbarVisible() {
   $statusbarVisible.set(!$statusbarVisible.get())

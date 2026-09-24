@@ -32,7 +32,11 @@ async function ui(): Promise<Page> {
     const root = stand.get().projectDir
     for (const section of SECTIONS) {
       mkdirSync(join(root, section.dir), { recursive: true })
-      writeFileSync(join(root, section.dir, 'zamechaniya.txt'), `Единственное замечание раздела: ${section.mark}\n`, 'utf8')
+      writeFileSync(
+        join(root, section.dir, 'zamechaniya.txt'),
+        `Единственное замечание раздела: ${section.mark}\n`,
+        'utf8'
+      )
     }
     writeFileSync(join(root, 'versiya.txt'), 'VERSIYA-1\n', 'utf8')
     await openProject(stand.get(), page)
@@ -44,8 +48,13 @@ async function ui(): Promise<Page> {
 
 /** В чат: новый сеанс из боковой панели — с экрана доски или навыков. */
 async function toChat(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^(Новый сеанс|New session)/ }).first().click()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^(Новый сеанс|New session)/ })
+    .first()
+    .click()
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 30000
+  })
 }
 
 async function rest<T>(page: Page, path: string): Promise<T> {
@@ -57,10 +66,14 @@ async function rest<T>(page: Page, path: string): Promise<T> {
 test('43.2.1 агент ищет в интернете, и ответ опирается на найденное', async () => {
   const page = await ui()
   const mark = await eventCount(page)
-  const result = await turn(page, 'Какая сейчас погода в Екатеринбурге? Найди в интернете и ответь коротко, назвав источник.', {
-    approve: /web_search|web_extract|ddgs|weather|погод/i,
-    expectTool: /web_search|web_extract/
-  })
+  const result = await turn(
+    page,
+    'Какая сейчас погода в Екатеринбурге? Найди в интернете и ответь коротко, назвав источник.',
+    {
+      approve: /web_search|web_extract|ddgs|weather|погод/i,
+      expectTool: /web_search|web_extract/
+    }
+  )
   console.log('43.2 ' + result.transcript.slice(0, 1500))
   const calls = (await eventsSince(page, mark)).filter((e) => e.type === 'tool.start')
   expect(JSON.stringify(calls), 'в ленте есть вызов поиска').toMatch(/web_search|web_extract/)
@@ -69,7 +82,9 @@ test('43.2.1 агент ищет в интернете, и ответ опира
   await expect(last.locator('[data-slot="tool-block"]').first()).toBeVisible()
   expect(result.text).not.toMatch(/нет доступа к интернету|не могу (искать|выйти)/i)
   expect(result.text).toMatch(/Екатеринбург/i)
-  expect(result.text, 'ответ несёт погоду, а не общие слова').toMatch(/°|градус|температур|осадк|облачн|ветер|дожд|снег|ясн/i)
+  expect(result.text, 'ответ несёт погоду, а не общие слова').toMatch(
+    /°|градус|температур|осадк|облачн|ветер|дожд|снег|ясн/i
+  )
   await record(test.info(), page, { transcript: result.transcript })
 })
 
@@ -81,7 +96,8 @@ interface KanbanBoard {
 
 async function statusOf(page: Page, title: string): Promise<string | undefined> {
   const board = await rest<KanbanBoard>(page, '/api/plugins/kanban/board')
-  return board.columns.flatMap((column) => column.tasks).find((task) => task.title === title)?.status
+  return board.columns.flatMap((column) => column.tasks).find((task) => task.title === title)
+    ?.status
 }
 
 // D-112: включённая на ходу доска открывается только после перезагрузки окна —
@@ -91,7 +107,7 @@ async function statusOf(page: Page, title: string): Promise<string | undefined> 
 test('49.2.1 агент заводит задачу на доске и передвигает её — видно без перезагрузки', async () => {
   let page = await ui()
   await page.evaluate(() => {
-    window.location.hash = '#/skills'
+    window.location.hash = '#/capabilities'
   })
   const plugins = page.getByRole('button', { name: /^(Plugins|Плагины)( \d+)?$/ }).first()
   await expect(plugins).toBeVisible({ timeout: 30000 })
@@ -103,8 +119,13 @@ test('49.2.1 агент заводит задачу на доске и пере�
   await page.reload()
   page = await ui()
 
-  await page.getByRole('button', { name: /^Kanban$/ }).first().click()
-  await expect(page.getByRole('heading', { name: 'Kanban', level: 1 })).toBeVisible({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^Kanban$/ })
+    .first()
+    .click()
+  await expect(page.getByRole('heading', { name: 'Kanban', level: 1 })).toBeVisible({
+    timeout: 30000
+  })
   const gotIt = page.getByRole('button', { name: 'Got it' })
   if (await gotIt.isVisible()) await gotIt.click()
 
@@ -120,8 +141,13 @@ test('49.2.1 агент заводит задачу на доске и пере�
   console.log('49.2 ' + result.transcript.slice(0, 1500))
   await expect.poll(() => statusOf(page, title), { timeout: 60000 }).toBe('blocked')
 
-  await page.getByRole('button', { name: /^Kanban$/ }).first().click()
-  await expect(page.getByRole('heading', { name: 'Kanban', level: 1 })).toBeVisible({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^Kanban$/ })
+    .first()
+    .click()
+  await expect(page.getByRole('heading', { name: 'Kanban', level: 1 })).toBeVisible({
+    timeout: 30000
+  })
   const collapse = page.getByRole('button', { name: 'Collapse Blocked' })
   const expand = page.getByRole('button', { name: 'Expand Blocked' })
   await expect(expand.or(collapse).first()).toBeVisible({ timeout: 30000 })
@@ -170,11 +196,17 @@ test('49.3.1 над композером появляется группа по�
 
   // Подагенты могут закончить позже самого хода — ждём их завершения.
   await expect
-    .poll(async () => (await eventsSince(page, mark)).filter((e) => e.type === 'subagent.complete').length, {
-      timeout: 240000
-    })
+    .poll(
+      async () =>
+        (await eventsSince(page, mark)).filter((e) => e.type === 'subagent.complete').length,
+      {
+        timeout: 240000
+      }
+    )
     .toBeGreaterThanOrEqual(3)
-  subagentThreadText = (await page.locator('[data-slot="aui_assistant-message-root"]').allInnerTexts()).join('\n')
+  subagentThreadText = (
+    await page.locator('[data-slot="aui_assistant-message-root"]').allInnerTexts()
+  ).join('\n')
   console.log('49.3 ' + result.transcript.slice(0, 1500).replace(/\n/g, ' ⏎ '))
   const completes = (await eventsSince(page, mark)).filter((e) => e.type === 'subagent.complete')
   console.log('49.3 COMPLETES ' + JSON.stringify(completes).slice(0, 2000))
@@ -183,13 +215,17 @@ test('49.3.1 над композером появляется группа по�
 
 test('49.3.2 результат каждого подагента вернулся в ленту', async () => {
   const page = await ui()
-  const feed = async () => (await page.locator('[data-slot="aui_assistant-message-root"]').allInnerTexts()).join('\n')
+  const feed = async () =>
+    (await page.locator('[data-slot="aui_assistant-message-root"]').allInnerTexts()).join('\n')
   try {
     await expect
-      .poll(async () => {
-        const text = await feed()
-        return SECTIONS.filter((s) => text.includes(s.mark)).map((s) => s.mark)
-      }, { timeout: 180000 })
+      .poll(
+        async () => {
+          const text = await feed()
+          return SECTIONS.filter((s) => text.includes(s.mark)).map((s) => s.mark)
+        },
+        { timeout: 180000 }
+      )
       .toEqual(SECTIONS.map((s) => s.mark))
   } catch (error) {
     console.log('49.3.2 FEED ' + (await feed()).slice(-2500).replace(/\n/g, ' ⏎ '))

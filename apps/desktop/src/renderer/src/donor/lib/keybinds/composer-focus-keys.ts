@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/keybinds/composer-focus-keys.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,7 +18,7 @@ import { queryAllVisible } from '@/components/pane-shell/pane-visibility'
 import { $activeTreeGroup, $hoveredTreeGroup } from '@/components/pane-shell/tree/store'
 import { switcherActive } from '@/store/session-switcher'
 
-import { isEditableTarget, isFocusWithin } from './combo'
+import { isEditableTarget, isFocusWithin, OVERLAY_SURFACE } from './combo'
 
 /** `composer.focus` defaults that need the surface/target gate. */
 export const isComposerFocusSoftCombo = (combo: string) => combo === '/' || combo === 'enter'
@@ -45,11 +45,6 @@ const ENTER_ACTIVATES = [
   '[role="tab"]',
   '[role="treeitem"]'
 ].join(',')
-
-// Overlays that cover the whole window (portaled to the body, or the overlay
-// shell itself) — one anywhere means the composer is behind it.
-const BLOCKING_OVERLAY =
-  '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper],[data-overlay-surface]'
 
 // Blockers that live INSIDE a chat surface. Inactive tabs stay mounted, so this
 // one has to be visible-scoped: a clarify card waiting in a background thread
@@ -163,7 +158,7 @@ export function composerFocusBlockedBySurface(): boolean {
     switcherActive() ||
     $workspaceIsPage.get() ||
     isFocusWithin('[data-terminal]') ||
-    Boolean(document.querySelector(BLOCKING_OVERLAY))
+    Boolean(document.querySelector(OVERLAY_SURFACE))
   )
 }
 
@@ -196,5 +191,6 @@ export function composerFocusKeysAllowed(event: KeyboardEvent, combo: string): b
     return false
   }
 
-  return !(combo === 'enter' && isActivateOnEnterTarget(event.target))
+  // Space activates focused buttons too; it must not become a composer draft.
+  return !((combo === 'enter' || event.key === ' ') && isActivateOnEnterTarget(event.target))
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/rail.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -76,7 +76,7 @@ export function TerminalRail() {
         <li className="flex w-full justify-center">
           <Tip
             label={<TipHintLabel hint={newHint && formatCombo(newHint)} text={t.rightSidebar.terminalNew} />}
-            side="left"
+            placement="right-rail"
           >
             <button
               aria-label={t.rightSidebar.terminalNew}
@@ -91,7 +91,7 @@ export function TerminalRail() {
       </ul>
 
       <div className="flex shrink-0 flex-col items-center pb-1.5">
-        <Tip label={t.rightSidebar.terminalHide} side="left">
+        <Tip label={t.rightSidebar.terminalHide} placement="right-rail">
           <button
             aria-label={t.rightSidebar.terminalHide}
             className={cn(RAIL_ACTION, 'opacity-0 transition-opacity group-hover/rail:opacity-100')}
@@ -128,7 +128,10 @@ function TerminalRailItem({ active, canCloseOthers, index, term, toggleHint }: T
               className="absolute inset-y-0.5 right-0 w-0.5 rounded-l-sm bg-(--ui-stroke-primary)"
             />
           )}
-          <Tip label={<TipHintLabel hint={toggleHint && formatCombo(toggleHint)} text={label} />} side="left">
+          <Tip
+            label={<TipHintLabel hint={toggleHint && formatCombo(toggleHint)} text={label} />}
+            placement="right-rail"
+          >
             <button
               aria-label={label}
               aria-selected={active}

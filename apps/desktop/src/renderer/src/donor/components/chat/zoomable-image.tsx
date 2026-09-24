@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/zoomable-image.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -39,10 +39,10 @@ export function ZoomableImage({ className, containerClassName, src, alt, slot, .
         data-slot={slot ?? 'aui_zoomable-image'}
       >
         <button
+          aria-label={canOpen ? copy.openImage : undefined}
           className="contents"
           disabled={!canOpen}
           onClick={() => canOpen && setLightboxOpen(true)}
-          title={canOpen ? copy.openImage : undefined}
           type="button"
         >
           <img alt={alt ?? ''} className={className} src={src} {...props} />
@@ -132,7 +132,6 @@ export function ImageActionButton({
         event.stopPropagation()
         void onClick()
       }}
-      title={saving ? copy.savingImage : copy.downloadImage}
       type="button"
     >
       <Download className={cn('size-4', saving && 'animate-pulse')} />

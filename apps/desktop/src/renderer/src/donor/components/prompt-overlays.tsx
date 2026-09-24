@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/prompt-overlays.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,6 @@
 import { useStore } from '@nanostores/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 
-import { PendingApprovalFallback } from '@/components/assistant-ui/tool/approval'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,11 +21,13 @@ import {
 } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { LogView } from '@/components/ui/log-view'
 import { useI18n } from '@/i18n'
 import { isMissingPendingPromptRequest } from '@/lib/gateway-rpc'
 import { triggerHaptic } from '@/lib/haptics'
 import { KeyRound, Loader2, Lock, ShieldLock } from '@/lib/icons'
 import { $gateway } from '@/store/gateway'
+import { reconnectAction } from '@/store/gateway-reconnect'
 import { notifyError } from '@/store/notifications'
 import {
   clearSecretRequest,
@@ -76,7 +77,7 @@ function SudoDialog({ sessionId }: { sessionId: string | null }) {
       }
 
       if (!gateway) {
-        notifyError(new Error(copy.gatewayDisconnected), copy.sudoSendFailed)
+        notifyError(new Error(copy.gatewayDisconnected), copy.sudoSendFailed, { action: reconnectAction() })
 
         return
       }
@@ -126,11 +127,28 @@ function SudoDialog({ sessionId }: { sessionId: string | null }) {
 
   return (
     <Dialog onOpenChange={onOpenChange} open>
-      <DialogContent showCloseButton={false}>
+      <DialogContent blurBackdrop={false} showCloseButton={false}>
         <DialogHeader>
           <DialogTitle icon={Lock}>{copy.sudoTitle}</DialogTitle>
-          <DialogDescription>{copy.sudoDesc}</DialogDescription>
+          <DialogDescription>{request.description ?? copy.sudoDesc}</DialogDescription>
         </DialogHeader>
+
+        {request.command?.trim() ? (
+          <Field label={t.assistant.approval.command}>
+            <LogView
+              aria-label={t.assistant.approval.command}
+              className="max-h-48 text-xs text-foreground"
+              role="region"
+              tabIndex={0}
+            >
+              {request.command}
+            </LogView>
+          </Field>
+        ) : (
+          <p className="text-xs text-(--ui-text-secondary)" role="status">
+            {copy.sudoCommandUnavailable}
+          </p>
+        )}
 
         <form className="grid gap-3" onSubmit={onSubmit}>
           <Input
@@ -176,7 +194,7 @@ function SecretDialog({ sessionId }: { sessionId: string | null }) {
       }
 
       if (!gateway) {
-        notifyError(new Error(copy.gatewayDisconnected), copy.secretSendFailed)
+        notifyError(new Error(copy.gatewayDisconnected), copy.secretSendFailed, { action: reconnectAction() })
 
         return
       }
@@ -277,7 +295,7 @@ function VaultUnlockDialog({ sessionId }: { sessionId: string | null }) {
       }
 
       if (!gateway) {
-        notifyError(new Error(copy.gatewayDisconnected), copy.vaultUnlockSendFailed)
+        notifyError(new Error(copy.gatewayDisconnected), copy.vaultUnlockSendFailed, { action: reconnectAction() })
 
         return
       }
@@ -374,7 +392,7 @@ function VaultSaveLoginDialog({ sessionId }: { sessionId: string | null }) {
       }
 
       if (!gateway) {
-        notifyError(new Error(copy.gatewayDisconnected), copy.vaultSaveSendFailed)
+        notifyError(new Error(copy.gatewayDisconnected), copy.vaultSaveSendFailed, { action: reconnectAction() })
 
         return
       }
@@ -486,7 +504,7 @@ function VaultCodeDialog({ sessionId }: { sessionId: string | null }) {
       }
 
       if (!gateway) {
-        notifyError(new Error(copy.gatewayDisconnected), copy.vaultCodeSendFailed)
+        notifyError(new Error(copy.gatewayDisconnected), copy.vaultCodeSendFailed, { action: reconnectAction() })
 
         return
       }
@@ -570,7 +588,6 @@ function VaultCodeDialog({ sessionId }: { sessionId: string | null }) {
 export function PromptOverlays({ sessionId }: { sessionId: string | null }) {
   return (
     <>
-      <PendingApprovalFallback />
       <SudoDialog sessionId={sessionId} />
       <SecretDialog sessionId={sessionId} />
       <VaultUnlockDialog sessionId={sessionId} />

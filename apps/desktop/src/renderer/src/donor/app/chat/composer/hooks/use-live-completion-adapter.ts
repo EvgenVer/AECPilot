@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-live-completion-adapter.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -43,7 +43,7 @@ export function useLiveCompletionAdapter(options: {
   /** Bump to declare the held answer stale. Without it a popover left open on
    *  an unchanged query would keep serving what it fetched before the source
    *  changed, because the adapter de-dupes on the query alone. */
-  epoch?: number
+  epoch?: number | string
   toItem: (entry: CompletionEntry, index: number) => Unstable_TriggerItem
 }): { adapter: Unstable_TriggerAdapter; loading: boolean } {
   const { enabled, debounceMs = 60, epoch = 0, fetcher, isCached, toItem } = options

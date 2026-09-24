@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-actions.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -151,6 +151,38 @@ describe('new activity after the seed', () => {
     trackInboundActivity([chatting('researcher', 6000)])
 
     expect(markUnreadMock).not.toHaveBeenCalled()
+  })
+
+  it('does not re-toast an unchanged preview when last_active keeps advancing', async () => {
+    const { $activityToasts, trackInboundActivity } = await loadActions()
+
+    $activityToasts.set(true)
+    trackInboundActivity([chatting('researcher', 5000)])
+    trackInboundActivity([chatting('researcher', 6000, 'same message')])
+    // A busy bridge (Feishu) re-pings the same message; last_active moved on
+    // but the preview is identical — must not produce a second toast.
+    trackInboundActivity([chatting('researcher', 7000, 'same message')])
+
+    const toasts = hostMock.notify.mock.calls.filter(
+      c => c[0].title.includes('has new activity') || c[0].title.includes('New message for')
+    )
+
+    expect(toasts.length).toBe(1)
+  })
+
+  it('toasts again once the preview actually changes', async () => {
+    const { $activityToasts, trackInboundActivity } = await loadActions()
+
+    $activityToasts.set(true)
+    trackInboundActivity([chatting('researcher', 5000)])
+    trackInboundActivity([chatting('researcher', 6000, 'first message')])
+    trackInboundActivity([chatting('researcher', 7000, 'second message')])
+
+    const toasts = hostMock.notify.mock.calls.filter(
+      c => c[0].title.includes('has new activity') || c[0].title.includes('New message for')
+    )
+
+    expect(toasts.length).toBe(2)
   })
 
   it('keeps marking a roster-hidden bot but never toasts it', async () => {

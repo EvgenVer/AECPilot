@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/cards/build.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,22 +21,24 @@ import { quarantineHandoffReceipt } from '@/app/contrib/handoff-receipt'
 import { resolveSessionOwner } from '@/app/session/hooks/use-session-actions/utils'
 import type { CardProps } from '@/components/onboarding-chat/cards/frame'
 import { Chip } from '@/components/onboarding-chat/chip'
+import { readPersistedHandoff } from '@/components/onboarding-chat/persisted-handoff'
 import {
   $handoffError,
   $setupHandoff,
+  $setupSession,
   firstTaskTitle,
   guideHandoffReceiptKey,
   parseHandoffPlan,
   readGuideHandoffReceipt,
   requestSetupHandoff,
-  retrySetupHandoff,
-  SETUP_PROFILE
+  retrySetupHandoff
 } from '@/components/onboarding-chat/setup-profile'
 import { Button } from '@/components/ui/button'
 import { answeredAfter } from '@/lib/chat-messages/parts'
 import { segmentTranscriptDirectives } from '@/lib/transcript-directives'
 import { cn } from '@/lib/utils'
 import { $onboardingAnswers, markStepCommitted } from '@/store/onboarding-answers'
+import { $activeGatewayProfile } from '@/store/profile'
 import { assertSessionOwnerResolved } from '@/store/session-owner-resolution'
 import { isSessionOwnerRoute } from '@/store/session-request-router'
 
@@ -47,7 +49,7 @@ const FALLBACK_OPTION = "Let's figure it out together"
 /**
  * The last question card before the handoff. The model asks what the user wants to build first, then places this card
  * with options it wrote from the conversation so far:
- * `::onboarding{step="first" options="A Discord bot|A habit tracker|…"}`.
+ * `::onboarding{step="first" options="Find emails I need to reply to|Plan my day around meetings|…"}`.
  */
 export function FirstBuildCard({ attrs, locked }: CardProps) {
   const view = useSessionView()
@@ -129,6 +131,8 @@ export function HandoffCard({ attrs, locked }: CardProps) {
   const brief = (attrs.brief ?? '').trim().slice(0, 240)
   const plan = parseHandoffPlan(attrs.plan)
   const state = useStore($setupHandoff)
+  // `locked` follows this text part; a later part (a tool call, reasoning) settles it while the reply still runs.
+  const replyRunning = useAuiState(s => s.message.status?.type === 'running')
 
   const receipt = useMemo(() => {
     try {
@@ -145,22 +149,33 @@ export function HandoffCard({ attrs, locked }: CardProps) {
   const completed = receipt.completed
 
   useEffect(() => {
-    if (!task || !brief || locked || !storedId || !runtimeId || $setupHandoff.get() || completed) {
+    if (!task || !brief || locked || replyRunning || !storedId || !runtimeId || $setupHandoff.get() || completed) {
       return
     }
 
     let cancelled = false
     void resolveSessionOwner(storedId)
-      .then(owner => {
+      .then(async owner => {
         assertSessionOwnerResolved(owner, { method: 'onboarding.handoff', sessionId: storedId })
 
+        const connectionId = isSessionOwnerRoute(owner) ? owner.connectionId : null
+
+        const profile = isSessionOwnerRoute(owner)
+          ? owner.profile
+          : owner || $setupSession.get()?.profile || $activeGatewayProfile.get()
+
+        // An unreachable history keeps the rendered attrs: today's behaviour, never a stalled handoff.
+        const persisted = await readPersistedHandoff(connectionId, profile, runtimeId).catch(() => null)
+        const persistedTask = (persisted?.task ?? '').trim().slice(0, 60)
+        const persistedBrief = (persisted?.brief ?? '').trim().slice(0, 240)
+
         if (!cancelled) {
-          requestSetupHandoff(task, brief, plan, {
-            storedId,
-            runtimeId,
-            connectionId: isSessionOwnerRoute(owner) ? owner.connectionId : null,
-            profile: isSessionOwnerRoute(owner) ? owner.profile : owner || SETUP_PROFILE
-          })
+          requestSetupHandoff(
+            persistedTask || task,
+            persistedBrief || brief,
+            persisted ? parseHandoffPlan(persisted.plan) : plan,
+            { storedId, runtimeId, connectionId, profile }
+          )
         }
       })
       .catch(error => {
@@ -173,7 +188,7 @@ export function HandoffCard({ attrs, locked }: CardProps) {
     return () => {
       cancelled = true
     }
-  }, [brief, locked, plan, task, storedId, runtimeId, completed])
+  }, [brief, locked, plan, replyRunning, task, storedId, runtimeId, completed])
 
   if (!task || !brief) {
     return null
@@ -202,7 +217,9 @@ export function HandoffCard({ attrs, locked }: CardProps) {
             storedId,
             runtimeId,
             connectionId: isSessionOwnerRoute(owner) ? owner.connectionId : null,
-            profile: isSessionOwnerRoute(owner) ? owner.profile : owner || SETUP_PROFILE
+            profile: isSessionOwnerRoute(owner)
+              ? owner.profile
+              : owner || $setupSession.get()?.profile || $activeGatewayProfile.get()
           }
         })
       }

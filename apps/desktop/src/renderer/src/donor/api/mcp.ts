@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/mcp.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -121,10 +121,11 @@ export function setMcpServerEnabled(name: string, enabled: boolean): Promise<{ o
   })
 }
 
-export function getMcpCatalog(profile?: ProfileScope): Promise<McpCatalogResponse> {
+export function getMcpCatalog(profile?: ProfileScope, detectApps = false): Promise<McpCatalogResponse> {
   return window.hermesDesktop.api<McpCatalogResponse>({
     ...capabilityScoped(profile),
-    path: '/api/mcp/catalog'
+    path: `/api/mcp/catalog${detectApps ? '?detect_apps=true' : ''}`,
+    ...(detectApps ? { timeoutMs: 5000 } : {})
   })
 }
 

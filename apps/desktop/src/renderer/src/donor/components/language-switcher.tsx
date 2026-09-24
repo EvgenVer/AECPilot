@@ -1,20 +1,27 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/language-switcher.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandItemCheck,
+  CommandList
+} from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { type Locale, LOCALE_META, useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { Check, ChevronDown, Globe } from '@/lib/icons'
+import { ChevronDown, Globe } from '@/lib/icons'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { notifyError } from '@/store/notifications'
@@ -33,6 +40,8 @@ interface LanguageCommandProps {
   noResults: string
   onSelect: (code: Locale) => void
   searchPlaceholder: string
+  /** `menu` inside the desktop popover; the mobile sheet keeps the palette rows. */
+  variant?: 'default' | 'menu'
 }
 
 export function LanguageSwitcher({ className, collapsed = false, dropUp = false }: LanguageSwitcherProps) {
@@ -109,7 +118,7 @@ export function LanguageSwitcher({ className, collapsed = false, dropUp = false 
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="end" className="w-56 p-0" side={dropUp ? 'top' : 'bottom'}>
+      <PopoverContent align="end" className="w-56" side={dropUp ? 'top' : 'bottom'} variant="menu">
         <LanguageCommand
           allLocales={allLocales}
           autoFocus
@@ -118,6 +127,7 @@ export function LanguageSwitcher({ className, collapsed = false, dropUp = false 
           noResults={t.language.noResults}
           onSelect={code => void selectLocale(code)}
           searchPlaceholder={t.language.searchPlaceholder}
+          variant="menu"
         />
       </PopoverContent>
     </Popover>
@@ -131,7 +141,8 @@ function LanguageCommand({
   locale,
   noResults,
   onSelect,
-  searchPlaceholder
+  searchPlaceholder,
+  variant = 'default'
 }: LanguageCommandProps) {
   const [search, setSearch] = useState('')
 
@@ -152,30 +163,27 @@ function LanguageCommand({
   )
 
   return (
-    <Command className="bg-transparent" shouldFilter={false}>
+    <Command className="bg-transparent" shouldFilter={false} variant={variant}>
       <CommandInput autoFocus={autoFocus} onValueChange={setSearch} placeholder={searchPlaceholder} value={search} />
-      <CommandList className="max-h-80 p-1">
-        {filtered.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">{noResults}</div>
-        ) : (
-          filtered.map(([code, meta]) => {
-            const selected = code === locale
+      <CommandList className={variant === 'menu' ? undefined : 'max-h-80 p-1'}>
+        <CommandEmpty>{noResults}</CommandEmpty>
+        {filtered.map(([code, meta]) => {
+          const selected = code === locale
 
-            return (
-              <CommandItem
-                className={cn(selected ? 'font-medium text-foreground' : 'text-muted-foreground')}
-                disabled={disabled}
-                key={code}
-                onSelect={() => onSelect(code)}
-                value={code}
-              >
-                <Check className={cn('size-3.5 shrink-0 text-primary', !selected && 'invisible')} />
-                <span className="min-w-0 flex-1 truncate">{meta.name}</span>
-                <span className="font-mono text-[0.65rem] uppercase text-(--ui-text-tertiary)">{code}</span>
-              </CommandItem>
-            )
-          })
-        )}
+          return (
+            <CommandItem
+              className={cn(selected && 'font-medium')}
+              disabled={disabled}
+              key={code}
+              onSelect={() => onSelect(code)}
+              value={code}
+            >
+              <span className="min-w-0 flex-1 truncate">{meta.name}</span>
+              <span className="font-mono text-[0.65rem] uppercase text-(--ui-text-tertiary)">{code}</span>
+              <CommandItemCheck checked={selected} />
+            </CommandItem>
+          )
+        })}
       </CommandList>
     </Command>
   )

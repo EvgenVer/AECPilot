@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/gateway-events.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,6 +41,12 @@ export type GatewayEventName = keyof GatewayEventMap
 
 /** One `event` notification's `params`. */
 export interface GatewayEvent<K extends GatewayEventName = GatewayEventName> {
+  /** Client-local: recovered/held during reconnect, not fresh user-facing work. */
+  replayed?: boolean
+  /** Client-local: the backend process's `replay_epoch` the delivering socket had adopted
+   * (from `gateway.ready`) when it dispatched this event. Two sockets to one process share
+   * it, so a renderer can recognise the same frame arriving on both. */
+  replayEpoch?: string
   /** Registry connection whose socket delivered the event (renderer-side tag;
    * absent for the local/legacy primary path). */
   connectionId?: string

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-pane-lifecycle.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,6 +56,12 @@ export function usePublishRosterSnapshot({ data, live, roster, allMeta, activeSo
     backfillMessagingProtocol(activeSourceRoster)
     // React Query owns the stable server snapshot; derived arrays intentionally
     // follow that snapshot rather than retriggering on their own atom writes.
+    // Key on the `profiles`/`sources` subtrees, not the envelope: every 5 s
+    // poll stamps a fresh `fetchedAt`, so the envelope is a new object each
+    // tick while structural sharing keeps unchanged subtrees reference-stable.
+    // Keying on the envelope republished an identical roster every poll —
+    // every $lastRoster subscriber re-rendered and the avatar/meta/activity
+    // side effects re-ran with nothing changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
+  }, [live, data?.sources])
 }

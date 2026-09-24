@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/routing.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] the test-side half of the same edit: these expectations PIN a
@@ -33,6 +33,7 @@ import {
   beginAliasRouteIndex,
   botConnectionRoute,
   botRosterMeta,
+  groupTranscriptSpeakerMeta,
   indexAliasRoutes,
   requestForBot,
   resolveBotConnectionRoute
@@ -267,10 +268,13 @@ describe('requestForBot rides the bot’s own source', () => {
       soul: '# hi'
     })
 
-    expect(hostMock.requestProfile).toHaveBeenCalledWith(MOXIE_ROUTE, 'profiles.configure', {
-      name: 'default',
-      soul: '# hi'
-    })
+    expect(hostMock.requestProfile).toHaveBeenCalledWith(
+      MOXIE_ROUTE,
+      'profiles.configure',
+      { name: 'default', soul: '# hi' },
+      undefined,
+      { spawnPriority: 'foreground' }
+    )
   })
 
   it('fails closed rather than falling back to the ambient request', async () => {
@@ -296,5 +300,49 @@ describe('requestForBot rides the bot’s own source', () => {
     expect(error).toBeInstanceOf(Error)
     expect(typeof (error as Error).name).toBe('string')
     expect((error as Error).message).toBe('profile busy')
+  })
+})
+
+describe('group transcript speaker meta (#96432)', () => {
+  const localDefault = { name: 'default' } as RosterRow
+
+  const remoteDefault = {
+    name: 'default',
+    connectionId: 'spark',
+    connectionLabel: 'spark',
+    remoteSource: true,
+    sourceScoped: true
+  } as RosterRow
+
+  const allMeta = {
+    default: { title: 'Local Default', image: 'local.png' },
+    'spark::default': { title: 'Remote Default', image: 'remote.png' }
+  }
+
+  it('gives user lines no bot meta', () => {
+    expect(
+      groupTranscriptSpeakerMeta({ from: { kind: 'user', name: 'You' } }, [localDefault, remoteDefault], allMeta)
+    ).toBeNull()
+  })
+
+  it('keeps local meta for a local same-name speaker', () => {
+    const meta = groupTranscriptSpeakerMeta(
+      { from: { kind: 'member', name: 'default' } },
+      [localDefault, remoteDefault],
+      allMeta
+    )
+
+    expect(meta?.image).toBe('local.png')
+  })
+
+  it('keeps owner meta for a remote same-name speaker instead of null or the local twin', () => {
+    const meta = groupTranscriptSpeakerMeta(
+      { from: { kind: 'member', name: 'default', source: 'spark' } },
+      [localDefault, remoteDefault],
+      allMeta
+    )
+
+    expect(meta?.image).toBe('remote.png')
+    expect(meta?.title).toBe('Remote Default')
   })
 })

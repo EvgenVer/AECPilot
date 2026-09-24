@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/artifacts/index.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -45,7 +45,7 @@ import { notify, notifyError } from '@/store/notifications'
 
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
-import { openSession } from '../open-session'
+import { openSessionFromPicker } from '../open-session'
 import { PageSearchShell } from '../page-search-shell'
 import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 
@@ -319,7 +319,7 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
   // every artifact cell re-render whenever the page did — and a link cell's
   // async title fetch re-rendered the page repeatedly. openArtifact is already
   // a useCallback; navigate is stable, so onOpenChat can be too.
-  const openChat = useCallback((sessionId: string) => openSession(sessionId, navigate), [navigate])
+  const openChat = useCallback((sessionId: string) => openSessionFromPicker(sessionId, navigate), [navigate])
   const cellCtx: CellCtx = useMemo(() => ({ onOpen: openArtifact, onOpenChat: openChat }), [openArtifact, openChat])
 
   return (
@@ -384,7 +384,7 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
                       failedImage={failedImageIds.has(artifact.id)}
                       key={artifact.id}
                       onImageError={markImageFailed}
-                      onOpenChat={sessionId => openSession(sessionId, navigate)}
+                      onOpenChat={sessionId => openSessionFromPicker(sessionId, navigate)}
                     />
                   ))}
                 </div>

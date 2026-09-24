@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ensureNestedScalar,
   ensureSectionList,
   ensureSectionScalar,
   ensureTopLevelList,
@@ -242,7 +243,8 @@ describe('замена нашего прежнего умолчания', () => 
   const NEW = ['hermes-cli', 'video', 'kanban']
 
   it('список равен прежнему умолчанию — заменяется новым, соседи целы', () => {
-    const before = 'platform_toolsets:\n  cli:\n    - hermes-cli\n    - video\n  telegram:\n    - web\nagent:\n  x: 1\n'
+    const before =
+      'platform_toolsets:\n  cli:\n    - hermes-cli\n    - video\n  telegram:\n    - web\nagent:\n  x: 1\n'
     const result = upgradeSectionList(before, 'platform_toolsets', 'cli', OLD, NEW)
 
     expect(result.changed).toBe(true)
@@ -265,5 +267,55 @@ describe('замена нашего прежнего умолчания', () => 
     const text = 'platform_toolsets:\n  telegram:\n    - web\n'
 
     expect(upgradeSectionList(text, 'platform_toolsets', 'cli', OLD, NEW).changed).toBe(false)
+  })
+})
+
+describe('поле на глубине три (vault.bitwarden.enabled, задача 3.B6г)', () => {
+  it('нет секции — дописывает блок целиком', () => {
+    const out = ensureNestedScalar('model:\n  default: x\n', 'vault', 'bitwarden', 'enabled', false)
+
+    expect(out).toEqual({
+      text: 'model:\n  default: x\nvault:\n  bitwarden:\n    enabled: false\n',
+      changed: true,
+      unexpectedStructure: false
+    })
+  })
+
+  it('секция есть, подсекции нет — подсекция в начало секции, соседи целы', () => {
+    const text = 'vault:\n  onepassword:\n    enabled: false\nother: 1\n'
+    const out = ensureNestedScalar(text, 'vault', 'bitwarden', 'enabled', false)
+
+    expect(out.text).toBe(
+      'vault:\n  bitwarden:\n    enabled: false\n  onepassword:\n    enabled: false\nother: 1\n'
+    )
+  })
+
+  it('подсекция без ключа — ключ дописывается в неё, а не в соседнюю', () => {
+    const text = 'vault:\n  bitwarden:\n    binary_path: ""\n  onepassword:\n    account: ""\n'
+    const out = ensureNestedScalar(text, 'vault', 'bitwarden', 'enabled', false)
+
+    expect(out.text).toBe(
+      'vault:\n  bitwarden:\n    enabled: false\n    binary_path: ""\n  onepassword:\n    account: ""\n'
+    )
+  })
+
+  it('выбор человека не трогается, каким бы он ни был', () => {
+    const text = 'vault:\n  bitwarden:\n    enabled: true\n'
+
+    expect(ensureNestedScalar(text, 'vault', 'bitwarden', 'enabled', false)).toEqual({
+      text,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('подсекция потоком — чужая форма, файл как есть', () => {
+    const text = 'vault:\n  bitwarden: {enabled: true}\n'
+
+    expect(ensureNestedScalar(text, 'vault', 'bitwarden', 'enabled', false)).toEqual({
+      text,
+      changed: false,
+      unexpectedStructure: true
+    })
   })
 })

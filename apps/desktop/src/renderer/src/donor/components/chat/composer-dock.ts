@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/composer-dock.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,11 +14,22 @@ import { cn } from '@/lib/utils'
  */
 export const composerFill = 'bg-(--composer-fill)'
 
-/** Backdrop treatment for the composer input surface. Harmless when the fill
+const composerFillTransition = 'transition-[background-color] duration-150 ease-out'
+
+/** Paint for the frequently repainting editable surface. Keep backdrop filters
+ *  off this hot path so typing does not re-blur the transcript each frame. */
+export const composerInputSurface = cn(composerFill, composerFillTransition)
+// The `-z-10` paint layer behind the editable surface; hydrated and fallback composers share it.
+export const composerInputBacking = cn(
+  'pointer-events-none absolute inset-0 -z-10 rounded-[inherit]',
+  composerInputSurface
+)
+
+/** Backdrop treatment for non-input composer chrome. Harmless when the fill
  *  goes opaque (drawer open) — nothing shows through to blur. */
 export const composerSurfaceGlass = cn(
   'backdrop-blur-[0.75rem] backdrop-saturate-[1.12] [-webkit-backdrop-filter:blur(0.75rem)_saturate(1.12)]',
-  'transition-[background-color] duration-150 ease-out'
+  composerFillTransition
 )
 
 const composerDockEdge = (edge: 'bottom' | 'top') =>

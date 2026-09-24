@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/plugin.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] the plugin `socket` capability is gone from our plugin context
@@ -41,7 +41,7 @@ import {
   useValue
 } from '@hermes/plugin-sdk'
 
-import { $boardSlug, bindApi, boardKey, fetchBoard } from './api'
+import { $boardSlug, bindApi, boardKey, fetchBoard, useKanbanScope } from './api'
 import { KanbanBoardPage } from './board'
 import { KANBAN_LOCALES } from './i18n'
 import { $newTaskLane, useKanban } from './ui'
@@ -51,12 +51,13 @@ import { $newTaskLane, useKanban } from './ui'
 // the page); hidden when nothing is in flight (or unloaded).
 function KanbanCount() {
   const k = useKanban()
+  const scope = useKanbanScope()
   const slug = useValue($boardSlug)
 
   // Socket-invalidated like the page (same cache); slow socketless heartbeat.
   const { data: board } = useQuery({
     queryFn: () => fetchBoard(false),
-    queryKey: boardKey(slug, false),
+    queryKey: boardKey(scope, slug, false),
     refetchInterval: 60_000
   })
 
@@ -129,50 +130,60 @@ const plugin: HermesPlugin = {
         render: () => <KanbanBoardPage />
       },
       {
-        id: 'nav',
-        area: SIDEBAR_NAV_AREA,
-        order: 50,
-        data: { codicon: 'project', label: 'Kanban', path: '/kanban' } satisfies SidebarNavContribution
-      },
-      {
         id: 'count',
         area: STATUSBAR_AREAS.right,
         order: 80,
         render: () => <KanbanCount />
-      },
-      {
-        id: 'open',
-        area: PALETTE_AREA,
-        data: {
-          id: 'kanban.open',
-          label: 'Kanban: Open board',
-          keywords: ['kanban', 'board', 'tasks', 'agents'],
-          run: () => host.navigate('/kanban')
-        } satisfies PaletteContribution
-      },
-      {
-        id: 'new-task',
-        area: PALETTE_AREA,
-        data: {
-          id: 'kanban.newTask',
-          action: 'kanban.newTask',
-          label: ctx.i18n.t('newTaskCommand'),
-          keywords: ['kanban', 'task', 'new', 'create', 'triage'],
-          run: newTask
-        } satisfies PaletteContribution
-      },
-      {
-        id: 'new-task',
-        area: KEYBINDS_AREA,
-        data: {
-          id: 'kanban.newTask',
-          category: 'view',
-          defaults: ['mod+alt+n'],
-          label: ctx.i18n.t('newTaskCommand'),
-          run: newTask
-        } satisfies KeybindContribution
       }
     ])
+
+    const registerLabels = () =>
+      ctx.registerMany([
+        {
+          id: 'nav',
+          area: SIDEBAR_NAV_AREA,
+          order: 50,
+          data: { codicon: 'project', label: ctx.i18n.t('nav'), path: '/kanban' } satisfies SidebarNavContribution
+        },
+        {
+          id: 'open',
+          area: PALETTE_AREA,
+          data: {
+            id: 'kanban.open',
+            label: ctx.i18n.t('openBoard'),
+            keywords: ['kanban', 'board', 'tasks', 'agents'],
+            run: () => host.navigate('/kanban')
+          } satisfies PaletteContribution
+        },
+        {
+          id: 'new-task',
+          area: PALETTE_AREA,
+          data: {
+            id: 'kanban.newTask',
+            action: 'kanban.newTask',
+            label: ctx.i18n.t('newTaskCommand'),
+            keywords: ['kanban', 'task', 'new', 'create', 'triage'],
+            run: newTask
+          } satisfies PaletteContribution
+        },
+        {
+          id: 'new-task',
+          area: KEYBINDS_AREA,
+          data: {
+            id: 'kanban.newTask',
+            category: 'view',
+            defaults: ['mod+alt+n'],
+            label: ctx.i18n.t('newTaskCommand'),
+            run: newTask
+          } satisfies KeybindContribution
+        }
+      ])
+
+    let disposeLabels = registerLabels()
+    ctx.i18n.onLocaleChange(() => {
+      disposeLabels()
+      disposeLabels = registerLabels()
+    })
   }
 }
 

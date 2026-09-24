@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/bot-state.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,12 +25,18 @@ import type { RosterRow } from './types'
 // fresh mount doesn't mark ancient history unread.
 export const rosterWatermarks = new Map<string, number>()
 
+// Last preview text we actually surfaced (toasted) per bot, used to suppress
+// duplicate activity toasts when last_active keeps advancing (a busy bridge
+// re-pinging the same message) but the visible content is unchanged. Seeded on
+// the first poll alongside rosterWatermarks.
+export const lastToastedPreview = new Map<string, string>()
+
 // Bot Mode sessions are ALWAYS hidden from the global Sessions sidebar:
 // canonical Bot Chats are plugin-owned forever-chats and group-chat member
 // sessions are room plumbing — neither is a scratch conversation, and a
 // 6-member room would otherwise dump six identical "Group: ..." rows into
 // recents. Backed by the core generic `hidden` session flag (session.create
-// hidden:true / session.set_hidden). Older gateways ignore the flag and the
+// hidden:true / REST PATCH /api/sessions/{id}). Older gateways ignore the flag and the
 // sessions simply stay visible there.
 
 /** Bot the Routines tile is scoped to. Follows the live gateway profile

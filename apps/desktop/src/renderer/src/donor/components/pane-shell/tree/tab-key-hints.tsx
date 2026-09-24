@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/tab-key-hints.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,9 +19,9 @@ export function TabKeyHint({ children, groupId, slot }: { children: ReactNode; g
   const held = useStore($heldTabModifier)
 
   return (
-    <span className="relative flex shrink-0 items-center [&:has([data-tab-key-hint])>span:first-child]:invisible">
-      <span className="flex items-center">{children}</span>
+    <span className="relative flex shrink-0 items-center">
       {held && <HeldTabKeyHint groupId={groupId} slot={slot} />}
+      <span className="tab-key-hint-icon flex items-center">{children}</span>
     </span>
   )
 }

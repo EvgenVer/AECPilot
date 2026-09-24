@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/models.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -39,7 +39,7 @@ export function getGlobalModelOptions(
     includeUnconfigured?: boolean
     explicitOnly?: boolean
   },
-  profile?: null | string
+  profile?: ProfileScope
 ): Promise<ModelOptionsResult> {
   const params = new URLSearchParams()
 
@@ -55,8 +55,8 @@ export function getGlobalModelOptions(
     params.set('explicit_only', '1')
   }
 
-  return hermesApi<ModelOptionsResult>({
-    ...profileScoped(profile),
+  return window.hermesDesktop.api<ModelOptionsResult>({
+    ...capabilityScoped(profile),
     path: params.size > 0 ? `/api/model/options?${params.toString()}` : '/api/model/options',
     timeoutMs: STARTUP_REQUEST_TIMEOUT_MS
   })
@@ -72,12 +72,9 @@ export interface RecommendedDefaultModel {
 // Recommended default model for a freshly-authenticated provider. Mirrors the
 // curation `hermes model` does — for Nous it honors the free/paid tier so a
 // free user gets a free model instead of a paid default.
-export function getRecommendedDefaultModel(
-  provider: string,
-  profile?: null | string
-): Promise<RecommendedDefaultModel> {
-  return hermesApi<RecommendedDefaultModel>({
-    ...profileScoped(profile),
+export function getRecommendedDefaultModel(provider: string, profile?: ProfileScope): Promise<RecommendedDefaultModel> {
+  return window.hermesDesktop.api<RecommendedDefaultModel>({
+    ...capabilityScoped(profile),
     path: `/api/model/recommended-default?provider=${encodeURIComponent(provider)}`
   })
 }
@@ -126,10 +123,10 @@ export function saveMoaModels(
 
 export function setModelAssignment(
   body: ModelAssignmentRequest,
-  profile?: null | string
+  profile?: ProfileScope
 ): Promise<ModelAssignmentResponse> {
-  return hermesApi<ModelAssignmentResponse>({
-    ...profileScoped(profile),
+  return window.hermesDesktop.api<ModelAssignmentResponse>({
+    ...capabilityScoped(profile),
     path: '/api/model/set',
     method: 'POST',
     body

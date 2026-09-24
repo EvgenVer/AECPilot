@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/profile-config.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -38,11 +38,12 @@ type AdvancedConfigState = ReturnType<typeof emptyAdvancedState>
 interface ModelSwitchConfirmArgs {
   confirmMessage: string
   finish: () => void
+  model: string
   requestConfirmed: () => Promise<{ applied?: Record<string, boolean> } | undefined>
 }
 
 const { confirmMock, hostMock, invalidateMock } = vi.hoisted(() => ({
-  confirmMock: vi.fn((_args: ModelSwitchConfirmArgs) => 'notification-1'),
+  confirmMock: vi.fn(async (_args: ModelSwitchConfirmArgs) => true),
   hostMock: {
     getGateway: () => 'ambient-gateway',
     request: vi.fn(),
@@ -62,7 +63,7 @@ vi.mock('@hermes/plugin-sdk', async () => {
     GlyphSpinner: () => null,
     host: hostMock,
     Input: () => null,
-    McpTab: undefined,
+    ConnectorsTab: undefined,
     queryClient: { invalidateQueries: invalidateMock },
     ScrollArea: () => null,
     Select: () => null,
@@ -70,7 +71,7 @@ vi.mock('@hermes/plugin-sdk', async () => {
     SelectItem: () => null,
     SelectTrigger: () => null,
     SelectValue: () => null,
-    SkillsView: undefined,
+    CapabilitiesView: undefined,
     surfaceModelSwitchConfirm: confirmMock,
     Textarea: () => null,
     ToolsetConfigPanel: undefined,

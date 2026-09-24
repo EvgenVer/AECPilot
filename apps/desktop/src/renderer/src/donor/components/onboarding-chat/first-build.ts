@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/first-build.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,7 +34,7 @@ const CHECK_IN_NOTE =
 
 interface FirstBuild {
   /** Profile of the build session. The note must be routed to this profile explicitly: the user can return to
-   *  Setup's chat while the build runs, which makes hermes-setup the active gateway. */
+   *  Setup's chat while the build runs, which makes the setup profile the active gateway. */
   profile: string
   sessionId: string
   tools: number

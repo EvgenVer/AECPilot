@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/cron-create-dialog.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -97,17 +97,6 @@ describe('the dialog names the bot, never its object', () => {
 })
 
 describe('where the run\u2019s output lands', () => {
-  it('offers run history and the bot\u2019s own chat', () => {
-    render(<CreateRoutineDialog bot={{ name: 'ops' }} onClose={() => undefined} open />)
-
-    fireEvent.click(controlUnder('Send results to'))
-
-    const options = screen.getAllByRole('option').map(option => option.textContent)
-
-    expect(options).toContain('Run history only')
-    expect(options.some(option => option?.includes('chat (bot responds)'))).toBe(true)
-  })
-
   it('sends no deliver param by default \u2014 history only', async () => {
     render(<CreateRoutineDialog bot={{ name: 'ops' }} onClose={() => undefined} open />)
     fillRequiredFields()

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/gateway-switch.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,8 @@ import {
   $unreadFinishedSessionIds,
   setActiveSessionId,
   setCronSessions,
+  setCurrentBranch,
+  setCurrentCwdTransient,
   setFreshDraftReady,
   setMessages,
   setMessagingPlatformTotals,
@@ -28,6 +30,7 @@ import {
   setSessionProfilesTruncated,
   setSessionProfilesUsage,
   setSessions,
+  setSessionsLoadError,
   setSessionsLoading
 } from '@/store/session'
 import { clearAllSessionControl } from '@/store/session-control'
@@ -222,12 +225,22 @@ export function wipeSessionListsForGatewaySwitch(): void {
   resetLiveSync()
   $unreadFinishedSessionIds.set([])
   setSessionsLoading(true)
+  setSessionsLoadError(false)
   resetSessionsLimit()
 
   setActiveSessionId(null)
   setSelectedStoredSessionId(null)
   setMessages([])
   setFreshDraftReady(true)
+
+  // The draft workspace belongs to the outgoing backend. Nothing downstream
+  // clears it: ensureDefaultWorkspaceCwd only seeds a NON-empty remembered
+  // path and seedDefaultCwd only applies the new gateway's default when the
+  // cwd is EMPTY, so a gateway with nothing remembered kept painting (and
+  // sending on session.create) the previous gateway's folder (#114306).
+  // Transient on purpose: the per-backend memory of the old gateway stays.
+  setCurrentCwdTransient('')
+  setCurrentBranch('')
 
   // Artifacts are keyed by sessions on the previous backend, so both the
   // registry and any rail tab pointing into it go with them.

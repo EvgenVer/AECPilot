@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/latest-actions.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -42,7 +42,6 @@ export function latestChatActions(actions: ChatActions): ChatActions {
     onAttachDroppedItems: (...args) => actions.onAttachDroppedItems(...args),
     onAttachImageBlob: (...args) => actions.onAttachImageBlob(...args),
     onAttachPastedText: latestOptional(() => actions.onAttachPastedText),
-    onAttachPrCommentUrl: latestOptional(() => actions.onAttachPrCommentUrl),
     onBranchInNewChat: latestOptional(() => actions.onBranchInNewChat),
     onCancel: (...args) => actions.onCancel(...args),
     onDeleteSelectedSession: (...args) => actions.onDeleteSelectedSession(...args),
@@ -72,6 +71,7 @@ export function latestSidebarActions(actions: SidebarActions): SidebarActions {
     onDeleteSession: (...args) => actions.onDeleteSession(...args),
     onLoadMoreMessaging: latestOptional(() => actions.onLoadMoreMessaging),
     onLoadMoreSessions: (...args) => actions.onLoadMoreSessions(...args),
+    onRetrySessions: (...args) => actions.onRetrySessions(...args),
     onManageCronJob: (...args) => actions.onManageCronJob(...args),
     onNavigate: (...args) => actions.onNavigate(...args),
     onNewSessionInWorkspace: (...args) => actions.onNewSessionInWorkspace(...args),

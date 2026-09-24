@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/handoff-leg.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,7 +13,6 @@ import type { ClientSessionState } from '@/app/types'
 import type { HandoffPlan } from '@/components/onboarding-chat/setup-profile'
 import type { SessionMessage } from '@/types/hermes'
 
-import { markFirstBuildSession } from './handoff-receipt'
 import type { AmbientGatewayRequest } from './session-rpc-dispatcher'
 
 export const BUILD_PROFILE = 'default'
@@ -84,7 +83,6 @@ export async function startHandoff(deps: HandoffDeps, task: HandoffTask, recover
     const identity = await deps.create()
     receipt = { ...task, ...identity, status: 'created' }
     deps.save(receipt)
-    markFirstBuildSession(receipt.storedId)
   } else {
     const snapshot = await deps.request<HandoffSnapshot>(receipt.owner, 'session.resume', {
       session_id: receipt.storedId,

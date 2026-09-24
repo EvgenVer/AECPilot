@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/helpers.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -181,7 +181,12 @@ export function voiceFieldVisible(key: string, config: HermesConfigRecord): bool
     return false
   }
 
-  return provider === String(getNested(config, `${domain}.provider`) ?? '')
+  const selected = String(getNested(config, `${domain}.provider`) ?? '')
+  // Backend defaults when the key is unset: TTS → edge, STT → local.
+  // An empty string used to hide every nested model field.
+  const fallback = domain === 'tts' ? 'edge' : 'local'
+
+  return provider === (selected || fallback)
 }
 
 export function inferFieldSchema(value: unknown): ConfigFieldSchema {

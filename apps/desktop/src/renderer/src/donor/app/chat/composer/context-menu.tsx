@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/context-menu.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -54,7 +54,7 @@ export function ContextMenu({
   return (
     <>
       <DropdownMenu>
-        <Tip label={state.tools.label} side="top">
+        <Tip label={state.tools.label} placement="control">
           <DropdownMenuTrigger asChild>
             <Button
               aria-label={state.tools.label}

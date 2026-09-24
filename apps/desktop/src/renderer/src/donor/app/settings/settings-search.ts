@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/settings-search.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,24 +13,13 @@ import { FIELD_LABELS, SECTIONS } from './constants'
 import { credentialRowLabel } from './credential-key-ui'
 import { fieldCopyForSchemaKey } from './field-copy'
 import { prettyName, sectionFieldEntries, voiceFieldVisible } from './helpers'
+import { settingsSubpageForTarget } from './subpages'
 import type { DesktopConfigSection, SettingsView } from './types'
 
 export type CredentialSettingsView = 'settings' | 'tools'
 
-export const APPEARANCE_SETTING_IDS = {
-  appActions: 'appearance.app-actions',
-  backdrop: 'appearance.backdrop',
-  embeds: 'appearance.embeds',
-  introSplash: 'appearance.intro-splash',
-  language: 'appearance.language',
-  theme: 'appearance.theme',
-  toolView: 'appearance.tool-view',
-  translucency: 'appearance.translucency',
-  uiScale: 'appearance.ui-scale',
-  userBubble: 'appearance.user-bubble'
-} as const
-
 export interface SettingsSearchTarget {
+  subpage?: string
   field?: string
   key?: string
   keysView?: CredentialSettingsView
@@ -207,6 +196,11 @@ export function filterSettingsSearchEntries(entries: SettingsSearchEntry[], quer
 export function settingsSearchTargetQuery(target: SettingsSearchTarget): string {
   const params = new URLSearchParams()
   params.set('tab', target.view)
+  const subpage = target.subpage ?? settingsSubpageForTarget(target.view, target.field, target.setting)
+
+  if (subpage) {
+    params.set('page', subpage)
+  }
 
   if (target.providerView) {
     params.set('pview', target.providerView)

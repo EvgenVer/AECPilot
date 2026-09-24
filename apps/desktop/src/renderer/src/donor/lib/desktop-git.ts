@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-git.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -105,10 +105,6 @@ const remoteGit: GitBridge = {
 
     prList: (repoPath, branches, numbers) =>
       gitPost<HermesRepoPullRequests>('review/pr-list', { branches, numbers: numbers ?? [], path: repoPath }),
-
-    // Remote gateways have no PR-comment route yet; resolve to null so the
-    // paste degrades to a plain URL instead of throwing mid-paste.
-    fetchPrComment: async () => null,
 
     createPr: repoPath => gitPost('review/create-pr', { path: repoPath })
   },

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/index.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,7 @@ export {
   completeOpenTimelineParts,
   dedupeRepeatedTextInParts,
   mergeFinalAssistantText,
+  normalizeWs,
   reasoningPart,
   renderMediaTags,
   textPart
@@ -22,10 +23,12 @@ export {
 export type { UnspokenTurnSpeech } from './parts'
 export { branchGroupForUser, preserveLocalAssistantErrors } from './reconciliation'
 export {
+  restorePendingBlockingToolCall,
   restorePendingClarifyToolCall,
   sealOpenToolParts,
   settlePendingClarifyToolCall,
   stripPendingClarifyProjectionForCache,
+  toolCallOwnerMessageId,
   upsertToolPart,
   withUniqueToolCallIdsWithinMessage
 } from './tool-parts'

@@ -1,32 +1,17 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/skill-activity.test.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { describe, expect, it } from 'vitest'
 
-import { buildToolView } from './fallback-model'
 import { summarizeToolRun } from './run-summary'
 
 const skill = { type: 'tool-call' as const, toolName: 'skill_view', args: { name: 'research-notes' } }
 
 describe('skill activity identity', () => {
-  it('names instruction loads, resource reads, failures and unobserved outcomes without claiming task completion', () => {
-    expect(buildToolView(skill, '').title).toBe('Loading skill: research-notes')
-    expect(buildToolView({ ...skill, result: { success: true } }, '').title).toBe('Loaded skill: research-notes')
-    const resource = { ...skill, args: { ...skill.args, file_path: 'references/example.md' } }
-    expect(buildToolView(resource, '').title).toBe('Reading skill resource: research-notes → references/example.md')
-    expect(buildToolView({ ...resource, result: 'resource body' }, '').title).toBe(
-      'Read skill resource: research-notes → references/example.md'
-    )
-    expect(buildToolView({ ...skill, isError: true, result: 'missing' }, '').title).toBe(
-      'Failed to load skill: research-notes'
-    )
-    expect(summarizeToolRun([skill], false)).toBe('Skill result unavailable: research-notes')
-  })
-
   it('keeps each skill identity and failed outcome in mixed collapsed summaries', () => {
     const summary = summarizeToolRun(
       [

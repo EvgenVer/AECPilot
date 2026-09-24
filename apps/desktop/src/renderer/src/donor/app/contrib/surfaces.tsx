@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,7 +44,7 @@ import type { SidebarActions, WiringActions } from './types'
 // (agents/settings/…) are the controller's and stay in wiring.tsx.
 const ArtifactsView = lazy(async () => ({ default: (await import('../artifacts')).ArtifactsView }))
 const MessagingView = lazy(async () => ({ default: (await import('../messaging')).MessagingView }))
-const SkillsView = lazy(async () => ({ default: (await import('../skills')).SkillsView }))
+const CapabilitiesView = lazy(async () => ({ default: (await import('../capabilities')).CapabilitiesView }))
 
 export function LegacySessionRedirect() {
   const { sessionId } = useParams()
@@ -129,8 +129,8 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
   const activeGatewayProfile = useStore($activeGatewayProfile)
   const gateway = useStore($gateway)
   const gatewayState = useStore($gatewayState)
-  useContributions(ROUTES_AREA)
-  const routeContributions = contributedRoutes()
+  const routeSnapshot = useContributions(ROUTES_AREA)
+  const routeContributions = contributedRoutes(routeSnapshot)
 
   const modelMenuContent = useMemo(
     () =>
@@ -190,7 +190,7 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
     <Routes>
       <Route element={chatView} index />
       <Route element={chatView} path=":sessionId" />
-      <Route element={page(<SkillsView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="skills" />
+      <Route element={page(<CapabilitiesView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="capabilities" />
       <Route element={page(<MessagingView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="messaging" />
       <Route element={page(<ArtifactsView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="artifacts" />
       <Route element={null} path="agents" />

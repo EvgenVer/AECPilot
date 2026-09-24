@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/wiring-routing.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,7 +12,7 @@
  * React/Electron controller module.
  */
 
-import type { SessionOwnerRoute } from '@/store/session-request-router'
+import type { SessionOwnerRoute, SessionOwnerScope } from '@/store/session-request-router'
 
 import { SETTINGS_ROUTE } from '../routes'
 
@@ -68,6 +68,11 @@ export function resolveRoutingSessionId(args: {
  *  "active"). The type-only import keeps this module runtime-import-free. */
 export type SessionRpcOwnerRoute = SessionOwnerRoute
 
+/** A connection-bearing owner. Checked structurally so this module stays
+ *  runtime-import-free (the type guard lives in store/session-request-router). */
+const isRouteOwner = (owner: unknown): owner is SessionRpcOwnerRoute =>
+  Boolean(owner && typeof owner === 'object' && 'connectionId' in owner)
+
 /**
  * The SYNC owner a session-scoped RPC routes to, resolved in this order:
  *
@@ -80,8 +85,20 @@ export type SessionRpcOwnerRoute = SessionOwnerRoute
  *      list splice, or a tag carried across a refresh), else its bare
  *      profile (the cross-profile aggregator tags rows, but a bare profile
  *      loses the connection and can lag the create);
- *   4. undefined → the caller runs the cross-profile probe, and fails closed
+ *   4. `eventOwner`, an exact route an inbound runtime event already proved
+ *      for this session (store/session-states sessionOwnerByRuntimeId). It is
+ *      consulted whenever every rung above named nothing better than a bare
+ *      profile name, because a bare profile has NO connection: the profile
+ *      door (requestGatewayForProfile → gatewayForProfile) resolves a bare
+ *      name equal to the primary profile against the PRIMARY socket, so an
+ *      ordinary session that runs on a non-primary connection — two
+ *      connections both exposing `default` is enough — has its RPCs answered
+ *      by another machine ("4001 session not found" from the 2nd prompt on);
+ *   5. undefined → the caller runs the cross-profile probe, and fails closed
  *      if that misses too.
+ *
+ * An EXACT durable route (1–3 tagged, or 4) always outranks a bare profile
+ * name; only a genuinely unknown owner falls through.
  *
  * The hint outranks the row because the row is presentation state that can
  * be stamped from the AMBIENT profile (an optimistic row minted while
@@ -97,18 +114,22 @@ export function resolveSessionRpcOwner(args: {
   tileOwnerRoute: (storedSessionId: string) => SessionRpcOwnerRoute | undefined
   sessionOwnerHint: (storedSessionId: string) => SessionRpcOwnerRoute | undefined
   sessionRowOwner: (storedSessionId: string) => null | SessionRpcOwnerRoute | string | undefined
+  eventOwner?: (storedSessionId: string) => SessionOwnerScope | undefined
 }): SessionRpcOwnerRoute | string | undefined {
-  const { routingSessionId, sessionOwnerHint, sessionRowOwner, tileOwnerRoute } = args
+  const { eventOwner, routingSessionId, sessionOwnerHint, sessionRowOwner, tileOwnerRoute } = args
 
   if (!routingSessionId) {
     return undefined
   }
 
   const fromRow = sessionRowOwner(routingSessionId)
+  const rowOwner = typeof fromRow === 'string' ? fromRow.trim() || undefined : (fromRow ?? undefined)
 
-  return (
-    tileOwnerRoute(routingSessionId) ??
-    sessionOwnerHint(routingSessionId) ??
-    (typeof fromRow === 'string' ? fromRow.trim() || undefined : (fromRow ?? undefined))
-  )
+  const durable = tileOwnerRoute(routingSessionId) ?? sessionOwnerHint(routingSessionId) ?? rowOwner
+
+  if (isRouteOwner(durable)) {
+    return durable
+  }
+
+  return eventOwner?.(routingSessionId) ?? durable
 }

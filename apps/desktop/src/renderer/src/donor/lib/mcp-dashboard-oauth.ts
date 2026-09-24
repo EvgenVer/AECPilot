@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/mcp-dashboard-oauth.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -144,7 +144,9 @@ export async function completeMcpDesktopOAuth({
             throw new Error(callback.error || 'OAuth callback did not include state')
           }
 
-          await request('callback', { session_id: flowId, ...callback })
+          // Omit a null iss: a backend that predates the RFC 9207 relay rejects unknown params (4000).
+          const { iss, ...rest } = callback
+          await request('callback', { session_id: flowId, ...rest, ...(iss ? { iss } : {}) })
         })
         .catch(error => {
           relayError = error

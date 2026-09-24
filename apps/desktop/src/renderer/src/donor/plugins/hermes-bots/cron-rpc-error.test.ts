@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/cron-rpc-error.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -92,22 +92,6 @@ describe('a rejection always reaches React with a string name', () => {
     expect(error).not.toBe(weird)
     expect(typeof error.name).toBe('string')
     expect(() => react19Format(error)).not.toThrow()
-  })
-
-  it('copies a sealed Error even where assignment would have worked', async () => {
-    const weird = new Error('sealed')
-
-    Object.defineProperty(weird, 'name', { configurable: true, value: 32000, writable: true })
-    Object.seal(weird)
-
-    const error = await rejectionFrom(weird)
-
-    expect(error).not.toBe(weird)
-    expect(typeof error.name).toBe('string')
-    expect(error.message).toMatch(/sealed/)
-    // Assignment would have succeeded on a sealed writable property; we still
-    // copy so React 19 never sees a numeric name even if mutation is possible.
-    expect(weird.name).toBe(32000)
   })
 
   it('passes an ordinary Error through untouched', async () => {

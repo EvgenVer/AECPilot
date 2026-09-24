@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/composer-utils.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,7 @@ import type { SlashChipKind } from '@/components/assistant-ui/directive-text'
 import type { ComposerAttachment } from '@/store/composer'
 import { setSessionPickerOpen } from '@/store/session'
 
+import { composerPlainText } from './rich-editor'
 import type { TriggerState } from './text-utils'
 
 export const COMPOSER_STACK_BREAKPOINT_PX = 320
@@ -223,4 +224,16 @@ export function isPendingDraftPersistCurrent(
   expected: PendingDraftPersist | null
 ): boolean {
   return pending !== null && expected !== null && pending.scope === expected.scope && pending.text === expected.text
+}
+
+/**
+ * The composer text a keystroke should decide from.
+ *
+ * `mirror` (the composer's draftRef) is refreshed by a coalesced per-frame
+ * flush, so within a frame of a keystroke or paste it still holds the previous
+ * text. A decision that can act on the draft — the sent-message recall guard
+ * replaces the composer — has to read the live editor instead.
+ */
+export function liveComposerDraft(editor: HTMLElement | null | undefined, mirror: string): string {
+  return editor ? composerPlainText(editor) : mirror
 }

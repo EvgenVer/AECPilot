@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/vitest.setup.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,12 @@
    же тестах (Node 26 и localStorage, act-окружение React 19, потолок ожидания),
    и переписывать его своими словами значило бы взять на себя чужой опыт. */
 import { configure } from '@testing-library/react'
+
+import { stubResizeObserver } from './src/test/jsdom'
+
+// Shared tooltips now measure their arrow through Radix's useSize hook.
+// Geometry assertions still belong in a real browser, not this inert observer.
+stubResizeObserver()
 
 // Node 26 defines its own `localStorage` accessor on the global object, which
 // returns `undefined` unless the process was started with --localstorage-file

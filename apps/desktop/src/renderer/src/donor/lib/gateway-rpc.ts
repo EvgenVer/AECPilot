@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/gateway-rpc.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,6 +21,10 @@ export function isMissingRpcMethod(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
 
   return /method not found|-32601|unknown method|no such method/i.test(message)
+}
+
+export function isOutOfSyncRpcParams(error: Error | string): boolean {
+  return /out of sync \(different versions\)/i.test(error.toString())
 }
 
 /** REST twin of isMissingRpcMethod: the route does not exist on this backend.

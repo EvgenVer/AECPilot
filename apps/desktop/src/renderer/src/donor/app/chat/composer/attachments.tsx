@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/attachments.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@ import { Tip } from '@/components/ui/tooltip'
 import { useImageDownload } from '@/hooks/use-image-download'
 import { useI18n } from '@/i18n'
 import { readDesktopFileDataUrlLocalFirst } from '@/lib/desktop-fs'
-import { AlertCircle, FileText, FolderOpen, ImageIcon, Link, Loader2, MessageCode, Terminal } from '@/lib/icons'
+import { AlertCircle, FileText, FolderOpen, ImageIcon, Link, Loader2, Terminal } from '@/lib/icons'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import type { ComposerAttachment } from '@/store/composer'
@@ -50,7 +50,6 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
     file: FileText,
     folder: FolderOpen,
     image: ImageIcon,
-    review: MessageCode,
     terminal: Terminal,
     url: Link
   }[attachment.kind]
@@ -61,15 +60,9 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
   const isUploading = attachment.uploadState === 'uploading'
   const hasUploadError = attachment.uploadState === 'error'
 
-  // A review card's detail is its resolved-comment JSON, not a previewable
-  // path — clicking it should do nothing rather than toast a bogus failure.
-  const canPreview =
-    attachment.kind !== 'folder' && attachment.kind !== 'terminal' && attachment.kind !== 'review' && !isUploading
+  const canPreview = attachment.kind !== 'folder' && attachment.kind !== 'terminal' && !isUploading
 
-  const detail =
-    attachment.kind !== 'review' && attachment.detail && attachment.detail !== attachment.label
-      ? attachment.detail
-      : undefined
+  const detail = attachment.detail && attachment.detail !== attachment.label ? attachment.detail : undefined
 
   // Keep full image bytes out of composer state. New chips read their path only
   // when clicked; previewUrl remains a compatibility fallback for older drafts.
@@ -147,7 +140,7 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
         throw new Error(c.couldNotPreview(attachment.label))
       }
 
-      openPreview(preview, 'manual')
+      openPreview(preview)
     } catch (error) {
       notifyError(error, c.previewUnavailable)
     }

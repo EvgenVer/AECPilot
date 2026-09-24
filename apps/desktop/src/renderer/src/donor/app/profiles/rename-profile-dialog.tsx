@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/profiles/rename-profile-dialog.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,6 +25,7 @@ import { useI18n } from '@/i18n'
 import { AlertTriangle } from '@/lib/icons'
 import { slug } from '@/lib/sanitize'
 import { retireLocalProfileGateways } from '@/store/gateway'
+import { migrateTilesForProfile } from '@/store/session-states'
 
 import { isValidProfileName } from './create-profile-dialog'
 
@@ -102,6 +103,14 @@ export function RenameProfileDialog({
       }
 
       await (scope == null ? renameProfile(currentName, trimmed) : renameProfile(currentName, trimmed, scope))
+
+      // The sessions moved with the directory; the tabs, cached tails and
+      // remembered ids keyed by the old name must follow, or every open
+      // dials a backend that no longer exists (#111868).
+      if (!isDefault && scope == null) {
+        migrateTilesForProfile(currentName, trimmed)
+      }
+
       await onRenamed?.(trimmed)
       setStatus('done')
       window.setTimeout(onClose, 800)

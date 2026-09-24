@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/preview-tile.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -273,6 +273,11 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   // a kind and leaves the strip's "+" to whatever else the zone holds.
   newTab: tabId => (targetFor(tabId)?.kind === 'url' ? newBrowserTab : undefined),
   tabMenuPrefix: browserTabMenuPrefix,
+  lifecycleKeepAlive: tabId => {
+    const target = targetFor(tabId)
+
+    return target?.kind === 'url' || target?.previewKind === 'html'
+  },
   render: tabId => <PreviewTilePane tabId={tabId} />,
   close: tabId => {
     forgetBrowserPage(tabId)

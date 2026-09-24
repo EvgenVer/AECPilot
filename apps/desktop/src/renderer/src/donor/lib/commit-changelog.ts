@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/commit-changelog.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -42,6 +42,11 @@ interface BuildOptions {
   maxGroups?: number
   maxPerGroup?: number
   maxTotal?: number
+  /** Per-group display labels (e.g. localized). A group without an entry
+   *  keeps its English default. */
+  labels?: Partial<Record<CommitGroupId, string>>
+  /** Label + item for the empty-state fallback group. */
+  fallback?: { label: string; item: string }
 }
 
 const GROUP_META: Record<CommitGroupId, { label: string; order: number }> = {
@@ -176,10 +181,18 @@ export function buildCommitChangelog(
     .map(([id, items]) => ({ id, items, label: GROUP_META[id].label, order: GROUP_META[id].order }))
     .sort((a, b) => a.order - b.order)
     .slice(0, maxGroups)
-    .map(({ id, items, label }): CommitGroup => ({ id, items, label }))
+    .map(({ id, items, label }): CommitGroup => ({ id, items, label: options.labels?.[id] ?? label }))
 
   if (result.length === 0) {
-    return [FALLBACK_GROUP]
+    const fallback = options.fallback
+
+    return [
+      {
+        ...FALLBACK_GROUP,
+        label: fallback?.label ?? FALLBACK_GROUP.label,
+        items: [fallback?.item ?? FALLBACK_GROUP.items[0]]
+      }
+    ]
   }
 
   return result

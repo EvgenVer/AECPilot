@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-project-label.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { liveSessionProjectId } from '@/app/chat/sidebar/projects/workspace-groups'
 import { pathLeaf } from '@/lib/display-path'
+import { $projectOwnerBySessionId } from '@/store/projects'
 import type { ProjectInfo, SessionInfo } from '@/types/hermes'
 
 /**
@@ -33,7 +34,7 @@ import type { ProjectInfo, SessionInfo } from '@/types/hermes'
  * unplaced.
  */
 export function sessionProjectLabel(session: SessionInfo, projects: ProjectInfo[]): null | string {
-  const projectId = liveSessionProjectId(session, projects)
+  const projectId = liveSessionProjectId(session, projects, $projectOwnerBySessionId.get())
 
   if (projectId) {
     const explicit = projects.find(project => project.id === projectId)

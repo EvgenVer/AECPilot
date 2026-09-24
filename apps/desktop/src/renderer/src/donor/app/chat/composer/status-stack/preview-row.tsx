@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/preview-row.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,6 @@ import { useStore } from '@nanostores/react'
 import { memo, useState } from 'react'
 
 import { StatusRow } from '@/components/chat/status-row'
-import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
@@ -17,7 +16,7 @@ import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { normalizeOrLocalPreviewTarget, openPreviewTargetInBrowser } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import { notifyError } from '@/store/notifications'
-import { $previewTabSources, closePreviewForSource, openPreview } from '@/store/preview'
+import { $previewTabSources, closePreviewForSource, openPreview, renderedHtmlTarget } from '@/store/preview'
 import { type PreviewArtifact } from '@/store/preview-status'
 
 interface PreviewStatusRowProps {
@@ -57,7 +56,7 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
     setOpening(true)
 
     try {
-      openPreview(await resolveTarget(), 'tool-result')
+      openPreview(renderedHtmlTarget(await resolveTarget()))
     } catch (error) {
       notifyError(error, t.preview.unavailable)
     } finally {
@@ -76,7 +75,7 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
       // (Remote HTML stays on openPreviewTargetInBrowser, which stages a
       // sanitized local copy before opening it.)
       if (target.kind === 'file' && target.previewKind !== 'html' && isDesktopFsRemoteMode()) {
-        openPreview(target, 'tool-result')
+        openPreview(target)
 
         return
       }
@@ -89,6 +88,7 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
 
   return (
     <StatusRow
+      dismiss={{ label: t.statusStack.dismiss, onDismiss: () => onDismiss(item.id) }}
       leading={
         <Codicon
           aria-hidden
@@ -107,36 +107,16 @@ export const PreviewStatusRow = memo(function PreviewStatusRow({ item, onDismiss
           void openDefaultTarget()
         }
       }}
-      trailing={
-        <Tip label={t.statusStack.dismiss}>
-          <Button
-            aria-label={t.statusStack.dismiss}
-            className="-my-1 size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
-            onClick={event => {
-              event.stopPropagation()
-              onDismiss(item.id)
-            }}
-            size="icon-xs"
-            type="button"
-            variant="ghost"
-          >
-            <Codicon name="close" size="0.75rem" />
-          </Button>
-        </Tip>
-      }
-      trailingVisible
     >
       <Tip
         label={
-          // Inline flow with a hard break, not a flex column: Tip's background
-          // only wraps inline content, so a flex box would light the first
-          // line and leave the rest dark-on-dark.
           <>
             {item.target}
             <br />
             <span className="opacity-70">{t.preview.linkHint}</span>
           </>
         }
+        placement="row"
       >
         <span className="min-w-0 truncate text-[0.73rem] leading-4 text-foreground/92">{item.label}</span>
       </Tip>

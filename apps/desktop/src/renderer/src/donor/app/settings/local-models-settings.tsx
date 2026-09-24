@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/local-models-settings.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router'
 
 import { NEW_CHAT_ROUTE } from '@/app/routes'
 import { Button } from '@/components/ui/button'
+import { SearchField } from '@/components/ui/search-field'
 import { Tip } from '@/components/ui/tooltip'
 import {
   activateLocalModel,
@@ -23,7 +24,6 @@ import {
   getLocalModelsStatus,
   type HFFileGroup,
   type HFSearchHit,
-  installLocalRuntime,
   listHFRepoFiles,
   quickstartLocalModels,
   searchHFModels,
@@ -48,15 +48,18 @@ import {
 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
+  $localRuntimeInstallStarting,
   $localRuntimeJobs,
   runningDownloadFor,
   runningRuntimeInstall,
+  startLocalRuntimeInstall,
   watchLocalRuntimeJobs
 } from '@/store/local-runtime-jobs'
 import { notify, notifyError } from '@/store/notifications'
 import type { LocalCatalogModel, LocalHardware, LocalModelsStatus } from '@/types/hermes'
 
 import { ListRow, Pill, SettingsContent, SettingsSection, SettingsSkeleton } from './primitives'
+import { ActiveProfileNote } from './profile-scope'
 
 function ProgressBar({ percent }: { percent: number | undefined }) {
   return (
@@ -95,6 +98,7 @@ function fitRank(model: LocalCatalogModel): number {
 export function LocalModelsSettings() {
   const { t } = useI18n()
   const copy = t.settings.localModels
+  const installStarting = useStore($localRuntimeInstallStarting)
   const [status, setStatus] = useState<LocalModelsStatus | null>(null)
   const [hardware, setHardware] = useState<LocalHardware | null>(null)
   const [catalog, setCatalog] = useState<LocalCatalogModel[] | null>(null)
@@ -102,7 +106,7 @@ export function LocalModelsSettings() {
   const [serverBusy, setServerBusy] = useState(false)
   // Quickstart escape hatch: true once the user asks for the full pane
   // (model list, HF browser) instead of the one-button setup card.
-  const [configure, setConfigure] = useState(false)
+  const [configure, setConfigure] = useState(() => $localRuntimeInstallStarting.get())
   // Jobs live in the app-level store (they must survive this pane
   // unmounting); the pane just renders the slice it cares about.
   const jobs = useStore($localRuntimeJobs)
@@ -169,15 +173,6 @@ export function LocalModelsSettings() {
   useEffect(() => {
     refresh()
   }, [refresh, runningCount])
-
-  async function handleInstallRuntime() {
-    try {
-      await installLocalRuntime()
-      watchLocalRuntimeJobs()
-    } catch (err) {
-      notifyError(err, copy.installFailed)
-    }
-  }
 
   async function handleQuickstart() {
     try {
@@ -316,7 +311,9 @@ export function LocalModelsSettings() {
   const heroModel = catalog.find(c => c.recommended && c.fits) ?? null
   const hasRecommendation = catalog.some(c => c.recommended)
 
-  if (qJob || (needsSetup && !configure && heroModel)) {
+  const failedInstall = jobs.some(job => job.kind === 'runtime-install' && job.status === 'error')
+
+  if (qJob || (needsSetup && !configure && heroModel && !installStarting && !rJob && !failedInstall)) {
     // Stage rail derived from the job phase: engine -> model -> finish.
     const phase = qJob?.phase ?? ''
 
@@ -417,6 +414,7 @@ export function LocalModelsSettings() {
 
   return (
     <SettingsContent>
+      <ActiveProfileNote className="mb-5" />
       {/* ── Runtime ── */}
       <SettingsSection
         aside={
@@ -478,7 +476,7 @@ export function LocalModelsSettings() {
         ) : (
           <ListRow
             action={
-              <Button onClick={() => void handleInstallRuntime()} size="sm">
+              <Button disabled={installStarting} onClick={() => void startLocalRuntimeInstall()} size="sm">
                 <Download />
                 {copy.installAction}
               </Button>
@@ -491,7 +489,7 @@ export function LocalModelsSettings() {
         {status.update_available && !rJob && (
           <ListRow
             action={
-              <Button onClick={() => void handleInstallRuntime()} size="sm">
+              <Button disabled={installStarting} onClick={() => void startLocalRuntimeInstall()} size="sm">
                 <Download />
                 {copy.updateAction}
               </Button>
@@ -1013,15 +1011,13 @@ function BrowseSection({ onChanged }: { onChanged: () => void }) {
       <div id="local-model-browse">
         <p className="text-[0.75rem] text-muted-foreground">{copy.browseHint}</p>
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="w-full rounded-md border border-(--ui-border) bg-transparent py-1.5 pl-8 pr-3 text-[0.8rem] outline-none placeholder:text-muted-foreground focus:border-primary"
-            onChange={e => setQuery(e.target.value)}
-            placeholder={copy.browsePlaceholder}
-            value={query}
-          />
-        </div>
+        <SearchField
+          containerClassName="w-full"
+          inputClassName="flex-1"
+          onChange={setQuery}
+          placeholder={copy.browsePlaceholder}
+          value={query}
+        />
 
         {searching && (
           <p className="flex items-center gap-2 text-[0.75rem] text-muted-foreground">

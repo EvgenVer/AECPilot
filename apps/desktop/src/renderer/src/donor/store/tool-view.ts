@@ -1,34 +1,48 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/tool-view.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom, computed, type ReadableAtom } from 'nanostores'
 
 import { persistBoolean, storedBoolean } from '@/lib/storage'
+import { modeBound } from '@/store/interface-mode'
 
 export type ToolViewMode = 'product' | 'technical'
 
 type ToolDisclosureStates = Record<string, boolean>
 
 const TOOL_VIEW_TECHNICAL_STORAGE_KEY = 'hermes.desktop.toolView.technical'
+const HIDE_CODE_DIFFS_STORAGE_KEY = 'hermes.desktop.toolView.hideCodeDiffs'
 const TOOL_DISCLOSURE_STORAGE_KEY = 'hermes.desktop.toolDisclosure.v1'
 const MAX_DISCLOSURE_STATES = 240
 
-export const $toolViewMode = atom<ToolViewMode>(
+// Simple mode rests on product summaries, diffs folded, without touching either
+// preference.
+const $toolViewModePref = atom<ToolViewMode>(
   storedBoolean(TOOL_VIEW_TECHNICAL_STORAGE_KEY, false) ? 'technical' : 'product'
 )
+
+const $hideCodeDiffsPref = atom(storedBoolean(HIDE_CODE_DIFFS_STORAGE_KEY, false))
+
+export const $toolViewMode = modeBound('toolViewMode', $toolViewModePref, mode => $toolViewModePref.set(mode))
+export const $hideCodeDiffs = modeBound('hideCodeDiffs', $hideCodeDiffsPref, hidden => $hideCodeDiffsPref.set(hidden))
 export const $toolDisclosureStates = atom<ToolDisclosureStates>(loadToolDisclosureStates())
 const disclosureOpenCache = new Map<string, ReadableAtom<boolean | undefined>>()
 const anyDisclosureOpenCache = new Map<string, ReadableAtom<boolean>>()
 
-$toolViewMode.subscribe(mode => persistBoolean(TOOL_VIEW_TECHNICAL_STORAGE_KEY, mode === 'technical'))
+$toolViewModePref.subscribe(mode => persistBoolean(TOOL_VIEW_TECHNICAL_STORAGE_KEY, mode === 'technical'))
+$hideCodeDiffsPref.subscribe(hidden => persistBoolean(HIDE_CODE_DIFFS_STORAGE_KEY, hidden))
 $toolDisclosureStates.subscribe(persistToolDisclosureStates)
 
 export function setToolViewMode(mode: ToolViewMode) {
   $toolViewMode.set(mode)
+}
+
+export function setHideCodeDiffs(hidden: boolean) {
+  $hideCodeDiffs.set(hidden)
 }
 
 export function $toolDisclosureOpen(id: string): ReadableAtom<boolean | undefined> {

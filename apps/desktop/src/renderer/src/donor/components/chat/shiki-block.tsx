@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/shiki-block.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,6 +32,8 @@ import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 
 import { SHIKI_HIGHLIGHT_SCOPE, SHIKI_THEME } from '@/components/chat/shiki-config'
 import { highlightCache, highlightCacheKey } from '@/components/chat/shiki-highlight-cache'
+
+import { PlainShiki } from './shiki-plain'
 
 /** Same debounce react-shiki's `delay` used to throttle highlight work with. */
 const HIGHLIGHT_DELAY_MS = 120
@@ -171,9 +173,10 @@ export default function CachedShikiBlock({ language, code, theme, colorReplaceme
   }, [cacheKey, code, language, replacements, themeConfig])
 
   if (html === null) {
-    // Nothing to paint yet (miss, debounce pending). Matches react-shiki's
-    // own empty render while the highlight is in flight.
-    return null
+    // Keep the same pre/code geometry during the debounce. An empty render
+    // collapses every cold code card, then shifts the transcript when color
+    // arrives. React escapes the payload; only highlighting uses cached HTML.
+    return <PlainShiki code={code} />
   }
 
   return <div className="rs-root not-prose" dangerouslySetInnerHTML={{ __html: html }} data-testid="shiki-container" />

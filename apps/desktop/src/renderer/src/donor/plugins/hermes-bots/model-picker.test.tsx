@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/model-picker.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,11 +25,13 @@
  * dispatch at all for a row whose connection is gone.
  */
 
+import type * as HermesSdk from '@hermes/plugin-sdk'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { translateBots } from './i18n-test-helper'
 import { ModelPicker } from './model-picker'
 import type { RosterRow } from './types'
 
@@ -43,6 +45,7 @@ const { hostMock } = vi.hoisted(() => ({
 
 vi.mock('@hermes/plugin-sdk', async () => {
   const { useQuery } = await import('@tanstack/react-query')
+  const { useI18n } = await vi.importActual<typeof HermesSdk>('@hermes/plugin-sdk')
 
   return {
     Button: (props: React.ComponentProps<'button'>) => <button {...props} />,
@@ -54,6 +57,8 @@ vi.mock('@hermes/plugin-sdk', async () => {
     SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     SelectValue: () => null,
+    useI18n,
+    usePluginI18n: () => translateBots,
     useQuery
   }
 })

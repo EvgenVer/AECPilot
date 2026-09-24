@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/icons.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import {
   IconWaveSine as AudioLines,
   IconChartBar as BarChart3,
   IconBell as Bell,
+  IconBook as Book,
   IconBookmark as Bookmark,
   IconBookmarkFilled as BookmarkFilled,
   IconBox as Box,
@@ -102,6 +103,7 @@ import {
   IconPencil as PencilLine,
   IconPin as Pin,
   IconPlayerPlay as Play,
+  IconPlug as Plug,
   IconPlus as Plus,
   IconPower as Power,
   IconQrcode as QrCode,
@@ -151,6 +153,7 @@ export {
   AudioLines,
   BarChart3,
   Bell,
+  Book,
   Bookmark,
   BookmarkFilled,
   Box,
@@ -235,6 +238,7 @@ export {
   PencilLine,
   Pin,
   Play,
+  Plug,
   Plus,
   Power,
   QrCode,

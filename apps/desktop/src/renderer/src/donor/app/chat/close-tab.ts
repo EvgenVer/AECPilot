@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/close-tab.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -74,6 +74,12 @@ export function closeWorkspaceTab(loadSessionIntoWorkspace?: (storedSessionId: s
  * with its own tab strip closes ITS tab instead of main's.
  */
 export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: string) => void): boolean {
+  // A remote bot screen borrows the terminal's keyboard ownership marker so bare keys reach it; ⌘W
+  // there belongs to the remote desktop, never to a local terminal tab or the session tab behind it.
+  if (isFocusWithin('[data-remote-screen]')) {
+    return true
+  }
+
   if (isFocusWithin('[data-terminal]')) {
     closeActiveTerminal()
 

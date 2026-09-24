@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/workspace-header.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,11 +12,19 @@ import { Codicon } from '@/components/ui/codicon'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { cn } from '@/lib/utils'
 import { openWorktreeDialog } from '@/store/coding-status'
 import { copyPath, revealPath } from '@/store/projects'
 
-import { SidebarRowLead } from '../chrome'
+import {
+  SIDEBAR_LEAD_ICON_SIZE,
+  SidebarRowBody,
+  SidebarRowLabel,
+  SidebarRowLead,
+  SidebarRowLeadGlyph,
+  SidebarRowShell
+} from '../chrome'
 
 // Branch/worktree labels routinely share a long prefix (`bb/coding-context-…`),
 // so plain end-truncation (`truncate`) hides exactly the suffix that tells two
@@ -66,6 +74,38 @@ export function WorkspaceAddButton({
   )
 }
 
+// Row-shaped "show more" — the ellipsis lead + a labeled link, the same shape
+// as the Back row — for project lists that can run long (expanded overview
+// rows, entered lanes, entered Home). A labeled row, not the icon-only glyph
+// below, because it's the only way to reach the rest of a project's sessions
+// and a hover-only tooltip read as "there are only five" (#83157, #93878).
+export function WorkspaceShowMoreRow({
+  disabled,
+  label,
+  onClick
+}: {
+  disabled?: boolean
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <SidebarRowShell>
+      <SidebarRowBody
+        className="group/more w-full text-(--ui-text-tertiary) hover:text-foreground"
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <SidebarRowLead>
+          <SidebarRowLeadGlyph>
+            <Codicon name="ellipsis" size={SIDEBAR_LEAD_ICON_SIZE} />
+          </SidebarRowLeadGlyph>
+        </SidebarRowLead>
+        <SidebarRowLabel className="text-xs underline-offset-4 group-hover/more:underline">{label}</SidebarRowLabel>
+      </SidebarRowBody>
+    </SidebarRowShell>
+  )
+}
+
 // Reveals the next page of already-loaded rows within a workspace/worktree.
 // Hangs off the lane instead of sitting in a row, so it repeats the row's
 // trailing inset (SidebarRowShell's `pr-2`) to stay on the edge the rows stop at.
@@ -103,15 +143,20 @@ function useWorkspaceItems({ path, onRemove }: { path: null | string; onRemove: 
   const { t } = useI18n()
   const p = t.sidebar.projects
 
+  // The OS file manager needs the local filesystem; a remote backend's
+  // worktree is not on this computer (the file trees hide reveal the same way).
+  const localFs = !isDesktopFsRemoteMode()
+
   return (kit: MenuKit) => (
     <>
-      {renderActionItem(kit, {
-        disabled: !path,
-        icon: 'folder-opened',
-        key: 'reveal',
-        label: p.reveal,
-        onSelect: () => void revealPath(path)
-      })}
+      {localFs &&
+        renderActionItem(kit, {
+          disabled: !path,
+          icon: 'folder-opened',
+          key: 'reveal',
+          label: p.reveal,
+          onSelect: () => void revealPath(path)
+        })}
       {renderActionItem(kit, {
         disabled: !path,
         icon: 'copy',

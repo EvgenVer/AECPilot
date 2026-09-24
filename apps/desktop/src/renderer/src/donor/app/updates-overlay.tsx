@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/updates-overlay.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,9 +24,11 @@ import { Progress } from '@/components/ui/progress'
 import type { DesktopUpdateBlocker, DesktopUpdateCommit, DesktopUpdateStage, DesktopUpdateStatus } from '@/global'
 import { useI18n } from '@/i18n'
 import { buildCommitChangelog, type CommitGroup } from '@/lib/commit-changelog'
+import { openExternalLink } from '@/lib/external-link'
 import { AlertCircle, Check, Copy, Terminal } from '@/lib/icons'
 import { resolveUpdateCopy, type UpdateTarget } from '@/lib/update-copy'
 import { cn } from '@/lib/utils'
+import { requestRoute } from '@/store/recovery-requests'
 import {
   $backendUpdateApply,
   $backendUpdateChecking,
@@ -44,6 +46,26 @@ import {
   setUpdateOverlayOpen,
   type UpdateApplyState
 } from '@/store/updates'
+
+import { SETTINGS_ROUTE } from './routes'
+
+/** Same installer page Settings → About links to. */
+const INSTALLER_URL = 'https://hermes-agent.nousresearch.com/'
+
+/** Main puts the raw cause after "Details:" — show it as the dimmed line. */
+function splitDetails(text: string): [string, string | null] {
+  const marker = text.search(/\s*Details:\s*/)
+
+  return marker < 0
+    ? [text, null]
+    : [
+        text.slice(0, marker).trim(),
+        text
+          .slice(marker)
+          .replace(/^\s*Details:\s*/, '')
+          .trim()
+      ]
+}
 
 function totalItems(groups: readonly CommitGroup[]) {
   return groups.reduce((sum, g) => sum + g.items.length, 0)
@@ -204,9 +226,21 @@ function IdleView({
   }
 
   if (!status.supported) {
+    // A copy without version-control metadata can't self-update; the website
+    // carries the current installer (same URL as Settings → About).
+    const [lead, detail] = splitDetails(status.message ?? u.unsupportedMessage)
+
     return (
       <CenteredStatus
-        body={status.message ?? u.unsupportedMessage}
+        action={
+          status.reason === 'not-a-git-checkout' ? (
+            <Button onClick={() => openExternalLink(INSTALLER_URL)} size="sm">
+              {u.openDownloadPage}
+            </Button>
+          ) : undefined
+        }
+        body={lead}
+        detail={detail ?? undefined}
         icon={<AlertCircle className="size-6 text-muted-foreground" />}
         title={u.notAvailableTitle}
       />
@@ -217,11 +251,18 @@ function IdleView({
     return (
       <CenteredStatus
         action={
-          <Button disabled={checking} onClick={onRetryCheck} size="sm">
-            {u.tryAgain}
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button disabled={checking} onClick={onRetryCheck} size="sm">
+              {u.tryAgain}
+            </Button>
+            {target === 'backend' && (
+              <Button onClick={() => requestRoute(`${SETTINGS_ROUTE}?tab=gateway`)} size="sm" variant="outline">
+                {u.connectionSettings}
+              </Button>
+            )}
+          </div>
         }
-        body={u.connectionRetry}
+        body={status.error === 'git-unusable' ? u.gitUnusable : u.connectionRetry}
         detail={status.message}
         icon={<ErrorIcon />}
         title={u.checkFailedTitle}
@@ -239,7 +280,17 @@ function IdleView({
     )
   }
 
-  const groups = buildCommitChangelog(commits)
+  const groups = buildCommitChangelog(commits, {
+    labels: {
+      new: u.changeLogNew,
+      fixed: u.changeLogFixed,
+      faster: u.changeLogFaster,
+      improved: u.changeLogImproved,
+      other: u.changeLogOther
+    },
+    fallback: { label: u.changeLogFallbackLabel, item: u.changeLogFallbackItem }
+  })
+
   const shownItems = totalItems(groups)
   const remaining = Math.max(0, behind - shownItems)
 
@@ -261,7 +312,7 @@ function IdleView({
       <div className="grid gap-3">
         {groups.map(group => (
           <div key={group.id}>
-            <p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
+            <p className="text-[0.625rem] font-semibold text-muted-foreground">{group.label}</p>
             <ul className="mt-1.5 grid gap-1.5 text-xs text-foreground">
               {group.items.map(item => (
                 <li className="flex items-start gap-2" key={item}>

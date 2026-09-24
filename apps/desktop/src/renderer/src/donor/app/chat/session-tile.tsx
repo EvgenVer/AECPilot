@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -80,7 +80,7 @@ import { startSessionDrag } from './session-drag'
 import { SessionStatusDot } from './session-status-dot'
 import { useSessionTileActions } from './session-tile-actions'
 import { tileOwnerRoute } from './session-tile-owner'
-import { type SessionView, SessionViewProvider } from './session-view'
+import { reasoningEffortPending, type SessionView, SessionViewProvider } from './session-view'
 import { SessionContextMenu } from './sidebar/session-actions-menu'
 import { lastVisibleMessageIsUser } from './thread-loading'
 
@@ -156,6 +156,9 @@ function buildTileView(storedSessionId: string): SessionView {
     $model: computed($state, state => state?.model ?? ''),
     $provider: computed($state, state => state?.provider ?? ''),
     $reasoningEffort: computed($state, state => state?.reasoningEffort ?? ''),
+    // No slice yet means the tile's resume is still in flight.
+    $reasoningEffortPending: computed($state, state => (state ? reasoningEffortPending(state) : true)),
+    $reasoningEffortWire: computed($state, state => state?.reasoningEffortWire ?? ''),
     $runtimeId,
     // Constant for the tile's lifetime — a plain atom, not a computed.
     $storedId: atom(storedSessionId),
@@ -232,9 +235,19 @@ function TileChat({
       $awaitingInput: sessionAwaitingInput(runtimeId),
       $messages: view.$messages,
       attachments,
+      connectionId: ownerRoute?.connectionId || undefined,
+      profile: ownerRoute?.targetProfile || ownerRoute?.profile || undefined,
       target: `tile:${storedSessionId}`
     }),
-    [attachments, runtimeId, storedSessionId, view.$messages]
+    [
+      attachments,
+      ownerRoute?.connectionId,
+      ownerRoute?.profile,
+      ownerRoute?.targetProfile,
+      runtimeId,
+      storedSessionId,
+      view.$messages
+    ]
   )
 
   // Tile actions must keep the persisted owner route. The ambient gateway hook
@@ -337,7 +350,6 @@ function TileChat({
           onAttachDroppedItems={composer.attachDroppedItems}
           onAttachImageBlob={composer.attachImageBlob}
           onAttachPastedText={composer.attachPastedText}
-          onAttachPrCommentUrl={composer.attachPrCommentUrl}
           onCancel={actions.cancelRun}
           onDeleteSelectedSession={noop}
           onDismissError={actions.dismissError}

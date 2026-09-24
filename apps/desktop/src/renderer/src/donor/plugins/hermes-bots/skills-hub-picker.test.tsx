@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/skills-hub-picker.test.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,15 +17,18 @@
  */
 
 import type * as HermesSdk from '@hermes/plugin-sdk'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { translateBots } from './i18n-test-helper'
 
 const HUB_ORIGIN = 'https://hermes-agent.nousresearch.com'
 
 const mocks = vi.hoisted(() => ({
   notify: vi.fn(),
   notifyError: vi.fn(),
-  request: vi.fn(async (_method: string, _params: Record<string, unknown>) => ({}))
+  request: vi.fn(async (_method: string, _params: Record<string, unknown>) => ({})),
+  requestProfile: vi.fn(async (_route: unknown, _method: string, _params: Record<string, unknown>) => ({}))
 }))
 
 vi.mock('@hermes/plugin-sdk', async importOriginal => {
@@ -33,7 +36,14 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
 
   return {
     ...original,
-    host: { ...original.host, notify: mocks.notify, notifyError: mocks.notifyError, request: mocks.request }
+    usePluginI18n: () => translateBots,
+    host: {
+      ...original.host,
+      notify: mocks.notify,
+      notifyError: mocks.notifyError,
+      request: mocks.request,
+      requestProfile: mocks.requestProfile
+    }
   }
 })
 
@@ -47,9 +57,9 @@ interface PickMessage {
 
 /** Mount the section with the hub browser open and hand back its frame. */
 function openHubBrowser() {
-  const { container } = render(<HubSkillsSection forProfile={null} />)
+  const { container } = render(<HubSkillsSection />)
 
-  fireEvent.click(screen.getByRole('button', { name: /browse the full hub/ }))
+  fireEvent.click(screen.getByRole('button', { name: /browse the full hub/i }))
 
   const frame = container.querySelector('iframe')
 
@@ -72,6 +82,10 @@ function installCalls() {
   return mocks.request.mock.calls.filter(([, params]) => params.action === 'install')
 }
 
+function routedInstallCalls() {
+  return mocks.requestProfile.mock.calls.filter(([, , params]) => params.action === 'install')
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -92,6 +106,51 @@ describe('hub pick messages', () => {
     )
 
     expect(installCalls()).toEqual([['skills.manage', { action: 'install', query: 'nous/web-research' }]])
+  })
+
+  it('routes an existing source-scoped bot install through its owner connection', async () => {
+    const { container } = render(
+      <HubSkillsSection
+        bot={{
+          name: 'worker',
+          remoteSource: true,
+          route: {
+            connectionId: 'remote-a',
+            mode: 'remote',
+            profile: 'worker',
+            targetProfile: 'backend-worker'
+          },
+          sourceScoped: true
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /browse the full hub/i }))
+    const frame = container.querySelector('iframe') as HTMLIFrameElement
+
+    postPick(
+      { identifier: 'nous/web-research', name: 'Web Research', type: 'hermes-skill-pick' },
+      { source: frame.contentWindow }
+    )
+
+    await waitFor(() => expect(routedInstallCalls()).toHaveLength(1))
+    expect(routedInstallCalls()).toEqual([
+      [
+        expect.objectContaining({
+          connectionId: 'remote-a',
+          mode: 'remote',
+          profile: 'worker',
+          targetProfile: 'backend-worker'
+        }),
+        'skills.manage',
+        {
+          action: 'install',
+          profile: 'backend-worker',
+          query: 'nous/web-research'
+        }
+      ]
+    ])
+    expect(installCalls()).toEqual([])
   })
 
   it('regression: ignores a same-origin window that is NOT the picker frame', () => {
@@ -146,7 +205,7 @@ describe('hub pick messages', () => {
   it('stops listening once the hub browser is closed', () => {
     const frame = openHubBrowser()
 
-    fireEvent.click(screen.getByRole('button', { name: /hide the hub browser/ }))
+    fireEvent.click(screen.getByRole('button', { name: /hide the hub browser/i }))
     postPick(
       { identifier: 'nous/web-research', name: 'Web Research', type: 'hermes-skill-pick' },
       {

@@ -1,18 +1,19 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/voice-playback.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [1] the speech WebSocket is main's, not the renderer's (SPEC C9):
  *       `resolveSpeakStreamUrl` answers a marker instead of minting a gateway
  *       credential, and the socket constructor returns our IPC-backed
- *       stand-in. The two imports the resolution was the only user of
- *       (`resolveGatewayWsUrl`, `getApiRequestProfile`) are dropped with it.
+ *       stand-in. The imports the resolution was the only user of
+ *       (`resolveGatewayWsUrl`, `getApiRequestProfile`, `getApiRequestConnection`)
+ *       are dropped with it; its `owner` parameter is kept, unused, for callers
  * (no other edits)
  */
+import type { OwnerScope } from '@/api/client'
 import { speakText } from '@/hermes'
-
 import {
   cutSentences,
   directTtsConfig,
@@ -83,7 +84,10 @@ function currentState(
   }
 }
 
-export interface VoicePlaybackOptions {
+/** The speaking session's owner: a Bot chat synthesizes with its own
+ *  profile's TTS voice, minted against the Bot's own connection. Omitted
+ *  halves → the active (connection, profile). */
+export interface VoicePlaybackOptions extends OwnerScope {
   messageId?: string | null
   source: VoicePlaybackSource
 }
@@ -115,7 +119,9 @@ export function stopVoicePlayback() {
 // instead of after full synthesis + base64 transfer.
 // ---------------------------------------------------------------------------
 
-async function resolveSpeakStreamUrl(): Promise<null | string> {
+/** Exported for tests: the (connection, profile) routing contract below is
+ *  exactly what broke in the desktop-remote voice report — keep it pinned. */
+export async function resolveSpeakStreamUrl(_owner?: OwnerScope): Promise<null | string> {
   // EDIT [1]: theirs minted a gateway credential and rewrote the endpoint to
   // /api/audio/speak-stream. Ours cannot: in the mode we run, the core
   // authenticates a WebSocket with the session token — the same token that
@@ -135,6 +141,8 @@ async function resolveSpeakStreamUrl(): Promise<null | string> {
 export interface SpeechStreamSession {
   /** Feed more reply text as it streams in. Safe after `finish` (no-op). */
   append: (text: string) => void
+  /** Release a sealed bubble's tail without ending the turn (client-direct). */
+  flush?: () => void
   /** No more text coming — resolves `done` once the audio drains. */
   finish: () => void
   /**
@@ -255,7 +263,7 @@ function openClientDirectSpeechSession(tts: DirectTtsConfig, options: VoicePlayb
   }
 
   const ingest = (flush: boolean) => {
-    const cut = cutSentences(buffer, flush)
+    const cut = cutSentences(buffer, flush, tts.min_len)
     buffer = cut.rest
 
     if (cut.sentences.length > 0) {
@@ -280,6 +288,11 @@ function openClientDirectSpeechSession(tts: DirectTtsConfig, options: VoicePlayb
       if (text && !finished && !settled) {
         buffer += text
         ingest(false)
+      }
+    },
+    flush: () => {
+      if (!finished && !settled) {
+        ingest(true)
       }
     },
     finish: () => {
@@ -483,7 +496,7 @@ function openSpeechStream(wsUrl: string, options: VoicePlaybackOptions): SpeechS
  * `playSpeechText`).
  */
 export async function startSpeechStream(options: VoicePlaybackOptions): Promise<null | SpeechStreamSession> {
-  const direct = await directTtsConfig().catch(() => null)
+  const direct = await directTtsConfig(options).catch(() => null)
 
   if (direct) {
     stopVoicePlayback()
@@ -500,7 +513,7 @@ export async function startSpeechStream(options: VoicePlaybackOptions): Promise<
     return session
   }
 
-  const wsUrl = await resolveSpeakStreamUrl()
+  const wsUrl = await resolveSpeakStreamUrl(options)
 
   if (!wsUrl) {
     return null
@@ -534,7 +547,7 @@ async function playSpeechDataUrl(
   options: VoicePlaybackOptions,
   isCurrent: () => boolean
 ): Promise<boolean> {
-  const response = await speakText(speakableText)
+  const response = await speakText(speakableText, options)
 
   if (!isCurrent()) {
     return false
@@ -630,7 +643,7 @@ export async function playSpeechText(text: string, options: VoicePlaybackOptions
   try {
     // Ladder: client-direct synthesis (profile's own TTS, no gateway audio
     // hop) → streaming WS relay → POST data-URL fallback.
-    const direct = await directTtsConfig().catch(() => null)
+    const direct = await directTtsConfig(options).catch(() => null)
 
     if (direct && isCurrent()) {
       const session = openClientDirectSpeechSession(direct, options)
@@ -654,7 +667,7 @@ export async function playSpeechText(text: string, options: VoicePlaybackOptions
       return false
     }
 
-    const streamUrl = await resolveSpeakStreamUrl()
+    const streamUrl = await resolveSpeakStreamUrl(options)
 
     if (streamUrl && isCurrent()) {
       const outcome = await playSpeechStream(streamUrl, speakableText, options)

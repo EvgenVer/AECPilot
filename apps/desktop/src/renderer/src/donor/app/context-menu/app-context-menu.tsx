@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/context-menu/app-context-menu.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,6 +30,7 @@ import { isRemoteGateway } from '@/lib/media'
 import { reachablePreviewUrl } from '@/lib/preview-reach'
 import { openCommandPalette } from '@/store/command-palette'
 import { openPreview } from '@/store/preview'
+import { toggleProfileRailVisible } from '@/store/profile-rail-prefs'
 import { toggleStatusbarVisible } from '@/store/statusbar-prefs'
 import { requestActiveUpdate } from '@/store/updates'
 import { canOpenNewWindow, openNewWindow } from '@/store/windows'
@@ -207,12 +208,7 @@ function domSections(open: Extract<OpenContextMenu, { kind: 'dom' }>, t: Transla
             icon="globe"
             key="link-open-app"
             label={copy.link.openInApp}
-            onSelect={() =>
-              openPreview(
-                { kind: 'url', label: hostPathLabel(linkUrl), source: linkUrl, url: linkUrl },
-                'explicit-link'
-              )
-            }
+            onSelect={() => openPreview({ kind: 'url', label: hostPathLabel(linkUrl), source: linkUrl, url: linkUrl })}
           />
         ) : null,
         <Item
@@ -248,10 +244,12 @@ function domSections(open: Extract<OpenContextMenu, { kind: 'dom' }>, t: Transla
             key="image-open-app"
             label={copy.link.openInApp}
             onSelect={() =>
-              openPreview(
-                { kind: 'url', label: hostPathLabel(target.imageUrl), source: target.imageUrl, url: target.imageUrl },
-                'explicit-link'
-              )
+              openPreview({
+                kind: 'url',
+                label: hostPathLabel(target.imageUrl),
+                source: target.imageUrl,
+                url: target.imageUrl
+              })
             }
           />
         ) : null,
@@ -407,12 +405,7 @@ function guestSections(open: Extract<OpenContextMenu, { kind: 'guest' }>, t: Tra
             icon="globe"
             key="guest-link-open-app"
             label={copy.link.openInApp}
-            onSelect={() =>
-              openPreview(
-                { kind: 'url', label: hostPathLabel(linkUrl), source: linkUrl, url: linkUrl },
-                'explicit-link'
-              )
-            }
+            onSelect={() => openPreview({ kind: 'url', label: hostPathLabel(linkUrl), source: linkUrl, url: linkUrl })}
           />
         ) : null,
         <Item
@@ -579,6 +572,12 @@ function shellSections({ navigate, t }: ShellVerbs): ReactNode[][] {
         key="shell-statusbar"
         label={t.keybinds.actions['view.toggleStatusbar']}
         onSelect={toggleStatusbarVisible}
+      />,
+      <Item
+        icon="organization"
+        key="shell-profile-rail"
+        label={t.keybinds.actions['view.toggleProfileRail']}
+        onSelect={toggleProfileRailVisible}
       />,
       // The pointer-only way back to a hidden tab strip: right-clicking the
       // shell reaches this menu from anywhere, including a zone that has no

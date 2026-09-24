@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding-chat/cards/frame.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,6 +21,8 @@ import { $onboardingAnswers, markStepCommitted } from '@/store/onboarding-answer
 export interface CardProps {
   /** The directive's raw attrs, written by the model. */
   attrs: Record<string, string>
+  /** Stable transcript identity for one-time application of model-supplied choices. */
+  messageId?: string
   /** True while the surrounding turn is still streaming; the card renders but does not accept clicks. */
   locked: boolean
 }

@@ -34,6 +34,9 @@ const ENV_WRITE_ALLOWED: Record<string, string> = {
   // the value lands.
   'app/settings/env-credentials.tsx': 'writes go through main’s credential capture (3E.2)',
   'app/settings/toolset-config-panel.tsx': 'writes go through main’s credential capture (3E.2)',
+  // 0.21.5 (3.B6): the capabilities screen's plugin settings save a plugin's
+  // declared secrets the same way — same boundary, same capture.
+  'app/capabilities/plugins/plugins-tab.tsx': 'writes go through main’s credential capture (3E.2)',
   'store/onboarding.ts': 'import kept for the non-provider branches; the key branch uses our bridge'
 }
 

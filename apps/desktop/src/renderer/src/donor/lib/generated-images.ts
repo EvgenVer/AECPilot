@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/generated-images.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { MediaImageDimensions } from '@/lib/media'
+
 type ToolLike = {
   result?: unknown
   toolName?: unknown
@@ -71,6 +73,21 @@ export function generatedImageFromResult(result: unknown): string | null {
   }
 
   return stringFields(record, DISPLAY_KEYS)[0] ?? null
+}
+
+/** Image backends can report decoded PNG geometry (`pixel_size`) separately from the requested `size`.
+ * Never use requested_size/size or aspect_ratio as intrinsic metadata. */
+export function generatedImageDimensionsFromResult(result: unknown): MediaImageDimensions | undefined {
+  const record = recordFromUnknown(result)
+  const match = typeof record?.pixel_size === 'string' ? /^(\d+)x(\d+)$/.exec(record.pixel_size) : null
+
+  return match &&
+    Number.isSafeInteger(Number(match[1])) &&
+    Number.isSafeInteger(Number(match[2])) &&
+    Number(match[1]) > 0 &&
+    Number(match[2]) > 0
+    ? { width: Number(match[1]), height: Number(match[2]) }
+    : undefined
 }
 
 /** Every path/URL a generated image might appear as in prose, for de-duping. */

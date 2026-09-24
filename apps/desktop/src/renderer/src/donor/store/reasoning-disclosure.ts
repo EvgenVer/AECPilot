@@ -1,21 +1,38 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/reasoning-disclosure.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
 
 import { persistBoolean, storedBoolean } from '@/lib/storage'
+import { modeBound } from '@/store/interface-mode'
 
 const REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY = 'hermes.desktop.reasoning.collapsedByDefault'
 
-/** Desktop-local presentation preference; shared backend config must not be changed by a single window. */
-export const $reasoningCollapsedByDefault = atom(storedBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, false))
+/** Desktop-local presentation preference; shared backend config must not be changed by a single window.
+ *  Simple mode rests reasoning collapsed without touching this preference. */
+const $reasoningCollapsedByDefaultPref = atom(storedBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, false))
 
-$reasoningCollapsedByDefault.subscribe(value => persistBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, value))
+$reasoningCollapsedByDefaultPref.subscribe(value => persistBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, value))
+
+export const $reasoningCollapsedByDefault = modeBound(
+  'reasoningCollapsedByDefault',
+  $reasoningCollapsedByDefaultPref,
+  value => $reasoningCollapsedByDefaultPref.set(value)
+)
 
 export function setReasoningCollapsedByDefault(value: boolean) {
   $reasoningCollapsedByDefault.set(value)
+}
+
+// Mirrors `display.show_reasoning` (Settings → Chat → Reasoning Blocks). On
+// by default like DEFAULT_CONFIG; a quoted "false" in config.yaml still
+// means off (sibling: display-timestamps.ts).
+export const $showReasoning = atom(true)
+
+export function setShowReasoningFromConfig(value: unknown): void {
+  $showReasoning.set(!(value === false || value === 'false' || value === 0))
 }

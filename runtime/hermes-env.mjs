@@ -7,7 +7,7 @@ import path from "node:path";
 export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // Pins — must match PLAN.md § Stack & package managers.
-export const HERMES_VERSION = "0.21.3";
+export const HERMES_VERSION = "0.21.5";
 export const PYTHON_VERSION = "3.12.13";
 
 // The core is installed from git, not from PyPI: the author stopped publishing
@@ -37,8 +37,8 @@ export const PYTHON_VERSION = "3.12.13";
 //   v2026.8.31 = 0.21.0, commit 29112bef099274229cadff79cdff7bf7b99c4b77 (task 3.B3)
 //   v2026.9.11 = 0.21.2, commit 939e45c91d751fadd94dcd1b873ac3cb44846213 (task 3.B4)
 export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
-export const HERMES_TAG = "v2026.9.14";
-export const HERMES_SHA = "345cd2b057a452236de401d3534b8502a7465e8d";
+export const HERMES_TAG = "v2026.9.24";
+export const HERMES_SHA = "f97608f178d1ffeca59860195ab7da295f7c8e5f";
 
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.

@@ -32,6 +32,8 @@ import {
 } from './memory-notes-pure'
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import {
+  type ConfigScalarResult,
+  ensureNestedScalar,
   ensureSectionList,
   ensureSectionScalar,
   ensureTopLevelList,
@@ -932,6 +934,17 @@ function applyConfigDefault(
   value: boolean | number | string,
   what: string
 ): void {
+  applyConfigMerge(homeDir, section, what, (text) => ensureSectionScalar(text, section, key, value))
+}
+
+/** Общая половина правил выше: прочитать `config.yaml`, применить чистое
+ * слияние, записать, только если оно что-то поменяло. */
+function applyConfigMerge(
+  homeDir: string,
+  section: string,
+  what: string,
+  merge: (text: string) => ConfigScalarResult
+): void {
   const configPath = join(homeDir, 'config.yaml')
 
   let original: string
@@ -942,7 +955,7 @@ function applyConfigDefault(
     return
   }
 
-  const merged = ensureSectionScalar(original, section, key, value)
+  const merged = merge(original)
   if (merged.unexpectedStructure) {
     console.warn(`aecpilot: config.yaml has a ${section}: scalar — leaving ${what} untouched`)
     return
@@ -989,6 +1002,16 @@ function applyCoreOptOuts(homeDir: string): void {
   applyConfigDefault(homeDir, 'sessions', 'auto_prune', false, 'the session auto-prune opt-out')
   applyConfigDefault(homeDir, 'nous', 'guest', false, 'the Nous free-tier opt-out')
   applyConfigDefault(homeDir, 'updates', 'check', false, 'the core update-check opt-out')
+  // Задача 3.B6г. С ядра 0.21.5 найденный на PATH `bw` или `op` САМ становится
+  // источником логинов для их сейфа автозаполнения — отказ только явным
+  // `enabled: false` (`agent/vault_backends/base.py::is_enabled`). Сейф — HX24,
+  // поэтому оба менеджера закрываются тем же их ключом. Секреты в окружение
+  // (`secrets.*`) это не затрагивает: там нужен явный `enabled: true`.
+  for (const manager of ['bitwarden', 'onepassword']) {
+    applyConfigMerge(homeDir, 'vault', `the ${manager} vault opt-out`, (text) =>
+      ensureNestedScalar(text, 'vault', manager, 'enabled', false)
+    )
+  }
 }
 
 /** Задача 3E.2 — ВЫБОР ПРОВАЙДЕРА ВЕБ-ПОИСКА, а не его включение.
@@ -1200,9 +1223,16 @@ function applyVideoToolset(homeDir: string): void {
   // быть назван здесь. Профиль с нашим прежним умолчанием получает новое; список,
   // который человек поменял сам, не трогается (`upgradeSectionList`).
   const ensured = ensureSectionList(original, 'platform_toolsets', 'cli', CLI_TOOLSETS)
-  const merged = ensured.changed || ensured.unexpectedStructure
-    ? ensured
-    : upgradeSectionList(original, 'platform_toolsets', 'cli', ['hermes-cli', 'video'], CLI_TOOLSETS)
+  const merged =
+    ensured.changed || ensured.unexpectedStructure
+      ? ensured
+      : upgradeSectionList(
+          original,
+          'platform_toolsets',
+          'cli',
+          ['hermes-cli', 'video'],
+          CLI_TOOLSETS
+        )
   if (merged.unexpectedStructure) {
     console.warn(
       'aecpilot: config.yaml has a platform_toolsets: scalar — leaving the video toolset alone'

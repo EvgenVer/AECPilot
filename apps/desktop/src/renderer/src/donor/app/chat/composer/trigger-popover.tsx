@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/trigger-popover.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -207,13 +207,7 @@ export function ComposerTriggerPopover({
           return (
             <Fragment key={item.id}>
               {showHeader && <div className={cn(GROUP_HEADER_CLASS, isFirstHeader ? 'pt-0.5' : 'pt-2')}>{group}</div>}
-              <Tip
-                className="max-w-[calc(100vw-2rem)] wrap-anywhere"
-                collisionPadding={16}
-                delayDuration={400}
-                label={kind === '/' ? description : undefined}
-                sideOffset={4}
-              >
+              <Tip delayDuration={400} label={kind === '/' ? description : undefined} placement="row" sideOffset={4}>
                 <button
                   className={ROW_CLASS}
                   data-highlighted={active ? '' : undefined}

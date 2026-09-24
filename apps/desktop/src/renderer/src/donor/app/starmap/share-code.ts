@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/starmap/share-code.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -29,7 +29,7 @@ const trim = (s: string): string => (s.length > MAX_LABEL ? s.slice(0, MAX_LABEL
 const KINDS = ['skill', 'memory'] as const
 const STATES = ['active', 'archived', 'disabled', 'draft'] as const
 const MEM_SOURCES = ['none', 'memory', 'profile'] as const
-const CREATED_BY = ['none', 'agent', 'user'] as const
+const CREATED_BY = ['none', 'agent', 'user', 'learn'] as const
 
 const REC_BITS = 12 // time position resolution: 1/4096 of the span — sub-pixel here.
 const REC_MAX = (1 << REC_BITS) - 1

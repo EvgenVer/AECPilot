@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/orchestration.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,10 +32,11 @@ import {
   autoDescribeProfile,
   fetchOrchestration,
   fetchProfiles,
-  ORCHESTRATION_KEY,
-  PROFILES_KEY,
+  orchestrationKey,
+  profilesKey,
   saveOrchestration,
-  saveProfileDescription
+  saveProfileDescription,
+  useKanbanScope
 } from './api'
 import type { KanbanProfile } from './types'
 import { errText, FIELD_LABEL, useKanban } from './ui'
@@ -78,8 +79,9 @@ function ProfilePicker({
 function ProfileDescriptionRow({ profile }: { profile: KanbanProfile }) {
   const k = useKanban()
   const qc = useQueryClient()
+  const scope = useKanbanScope()
   const [draft, setDraft] = useState(profile.description)
-  const invalidate = () => void qc.invalidateQueries({ queryKey: PROFILES_KEY })
+  const invalidate = () => void qc.invalidateQueries({ queryKey: profilesKey(scope) })
 
   const save = useMutation({
     mutationFn: () => saveProfileDescription(profile.name, draft.trim()),
@@ -139,13 +141,14 @@ function ProfileDescriptionRow({ profile }: { profile: KanbanProfile }) {
 export function OrchestrationPanel() {
   const k = useKanban()
   const qc = useQueryClient()
-  const { data: settings } = useQuery({ queryKey: ORCHESTRATION_KEY, queryFn: fetchOrchestration })
-  const { data: roster } = useQuery({ queryKey: PROFILES_KEY, queryFn: fetchProfiles, staleTime: 60_000 })
+  const scope = useKanbanScope()
+  const { data: settings } = useQuery({ queryKey: orchestrationKey(scope), queryFn: fetchOrchestration })
+  const { data: roster } = useQuery({ queryKey: profilesKey(scope), queryFn: fetchProfiles, staleTime: 60_000 })
 
   const save = useMutation({
     mutationFn: (patch: Record<string, unknown>) => saveOrchestration(patch),
     onError: err => host.notify({ kind: 'error', message: errText(err) }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ORCHESTRATION_KEY })
+    onSuccess: () => void qc.invalidateQueries({ queryKey: orchestrationKey(scope) })
   })
 
   if (!settings || !roster) {

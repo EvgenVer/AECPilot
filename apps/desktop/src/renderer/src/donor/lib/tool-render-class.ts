@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tool-render-class.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,8 +14,6 @@
  * what the grouping actually renders, so the classification lives on its own
  * rather than inside either one.
  */
-
-import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 
 const FILE_EDIT_TOOL_NAMES = new Set(['edit_file', 'patch', 'write_file'])
 
@@ -33,18 +31,21 @@ export function isFileEditTool(toolName: string): boolean {
 //   - `clarify`, `image_generate` and `delegate_task` bypass ToolEntry to
 //     render their own markup: a question the user has to answer, an image
 //     they asked for, the several agents a fan-out is running.
-//   - `setup_mcp` and `manage_connections` are inline consent cards the user has to
-//     act on. Folding it into a "Using 2 tools" summary hides the buttons.
+//   - `manage_connections` and `manage_catalog` are consent cards; their controls must stay visible.
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
 // what a run summarizes and what the live ticker cycles through.
-const CARD_TOOL_NAMES = new Set(['clarify', 'delegate_task', 'image_generate', 'setup_mcp'])
+const CARD_TOOL_NAMES = new Set(['clarify', 'delegate_task', 'image_generate', 'manage_catalog'])
+
+// Name the run splitter uses for a manage_connections part it has classified as a card.
+export const CONNECTION_CARD_KEY = 'manage_connections:card'
 
 export function isCardTool(toolName: string): boolean {
   return (
     CARD_TOOL_NAMES.has(toolName) ||
+    toolName === CONNECTION_CARD_KEY ||
     isFileEditTool(toolName) ||
-    (toolName === 'manage_connections' && isOnboardingEnabled())
+    toolName === 'manage_connections'
   )
 }
 

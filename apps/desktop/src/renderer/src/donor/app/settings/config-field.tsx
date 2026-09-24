@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/config-field.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,6 @@ import type { ReactNode } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useI18n } from '@/i18n'
 import { prettyName } from '@/lib/text'
@@ -20,7 +19,7 @@ import { ComboboxInput } from './combobox-input'
 import { CONTROL_TEXT, EMPTY_SELECT_VALUE, FIELD_DESCRIPTIONS, FIELD_LABELS, FREE_INPUT_KEYS } from './constants'
 import { FallbackModelsField } from './fallback-models-field'
 import { fieldCopyForSchemaKey } from './field-copy'
-import { ListRow } from './primitives'
+import { ListRow, ToggleRow } from './primitives'
 import { SearchableSelect } from './searchable-select'
 
 /**
@@ -56,7 +55,11 @@ export function ConfigField({
     fieldCopyForSchemaKey(FIELD_LABELS, schemaKey) ??
     prettyName(schemaKey.split('.').pop() ?? schemaKey)
 
-  const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  const normalize = (v: string) =>
+    v
+      .toLowerCase()
+      .normalize('NFC')
+      .replace(/[^\p{L}\p{M}\p{N}]+/gu, '')
 
   const rawDescription = (
     fieldCopyForSchemaKey(t.settings.fieldDescriptions, schemaKey) ??
@@ -84,22 +87,40 @@ export function ConfigField({
   // Every config row is addressable by its canonical schema key, so a tour can
   // point at one setting (`[data-tour="field-model"]`) without hunting through
   // the section for an nth-child path. See lib/tour.
-  const row = (action: ReactNode, wide = false) => (
-    <ListRow action={action} data-tour={`field-${schemaKey}`} description={descriptionNode} title={label} wide={wide} />
+  const dataTour = `field-${schemaKey}`
+
+  const row = (action: ReactNode) => (
+    <ListRow action={action} data-tour={dataTour} description={descriptionNode} title={label} />
+  )
+
+  // Editors too big for the control column (textareas, structured lists) take
+  // the full width under the description.
+  const wideRow = (editor: ReactNode) => (
+    <ListRow
+      below={<div className="mt-3">{editor}</div>}
+      data-tour={dataTour}
+      description={descriptionNode}
+      title={label}
+      wide
+    />
   )
 
   // `fallback_providers` is a list of {provider, model} objects; the generic
   // `list` branch below would stringify them to "[object Object]". Render the
   // dedicated structured editor instead.
   if (schemaKey === 'fallback_providers') {
-    return row(<FallbackModelsField onChange={onChange} value={value} />, true)
+    return wideRow(<FallbackModelsField onChange={onChange} value={value} />)
   }
 
   if (schema.type === 'boolean') {
-    return row(
-      <div className="flex items-center justify-end">
-        <Switch checked={Boolean(value)} onCheckedChange={onChange} />
-      </div>
+    return (
+      <ToggleRow
+        checked={Boolean(value)}
+        data-tour={dataTour}
+        description={descriptionNode}
+        label={label}
+        onChange={onChange}
+      />
     )
   }
 
@@ -204,7 +225,7 @@ export function ConfigField({
   }
 
   if (typeof value === 'object' && value !== null) {
-    return row(
+    return wideRow(
       <Textarea
         className={cn('min-h-28 resize-y bg-background font-mono', CONTROL_TEXT)}
         onChange={e => {
@@ -217,29 +238,27 @@ export function ConfigField({
         placeholder={c.notSet}
         spellCheck={false}
         value={JSON.stringify(value, null, 2)}
-      />,
-      true
+      />
     )
   }
 
   const isLong = schema.type === 'text' || String(value ?? '').length > 100
 
-  return row(
-    isLong ? (
-      <Textarea
-        className={cn('min-h-24 resize-y bg-background', CONTROL_TEXT)}
-        onChange={e => onChange(e.target.value)}
-        placeholder={c.notSet}
-        value={String(value ?? '')}
-      />
-    ) : (
-      <Input
-        className={CONTROL_TEXT}
-        onChange={e => onChange(e.target.value)}
-        placeholder={c.notSet}
-        value={String(value ?? '')}
-      />
-    ),
-    isLong
-  )
+  return isLong
+    ? wideRow(
+        <Textarea
+          className={cn('min-h-24 resize-y bg-background', CONTROL_TEXT)}
+          onChange={e => onChange(e.target.value)}
+          placeholder={c.notSet}
+          value={String(value ?? '')}
+        />
+      )
+    : row(
+        <Input
+          className={CONTROL_TEXT}
+          onChange={e => onChange(e.target.value)}
+          placeholder={c.notSet}
+          value={String(value ?? '')}
+        />
+      )
 }

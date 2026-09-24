@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-submit.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ import { hasClarifyRequest, skipClarifyRequest } from '@/store/clarify'
 import { clearSessionDraft, type ComposerAttachment } from '@/store/composer'
 import { resetBrowseState } from '@/store/composer-input-history'
 import { enqueueQueuedPrompt, type QueuedPromptEntry } from '@/store/composer-queue'
-import { hasMcpSetupRequest, skipMcpSetupRequest } from '@/store/mcp-setup'
+import { hasConnectionRequest, skipConnectionRequest } from '@/store/connection-request'
 import { hasBlockingPromptRequest } from '@/store/prompts'
 
 import { cloneAttachments, type QueueEditState } from '../composer-utils'
@@ -241,10 +241,9 @@ export function useComposerSubmit({
       void skipClarifyRequest(sessionId)
     }
 
-    // Same deal for a pending MCP setup card: the agent is blocked on
-    // mcp.setup.respond, so a typed message declines the card and rides on.
-    if (payloadPresent && !queueEdit && hasMcpSetupRequest(sessionId)) {
-      void skipMcpSetupRequest(sessionId)
+    // Same for a pending connection card: typing declines every target.
+    if (payloadPresent && !queueEdit && hasConnectionRequest(sessionId)) {
+      void skipConnectionRequest(sessionId)
     }
 
     // Approval / sudo / secret prompts also park the turn inside a tool batch,
@@ -316,11 +315,24 @@ export function useComposerSubmit({
     triggerHaptic('submit')
     clearDraft()
 
-    void Promise.resolve(onSteer(text)).then(accepted => {
-      if (!accepted && activeQueueSessionKey) {
+    // The draft is already cleared, so a refused or failed redirect must keep
+    // the only copy: queue it for the next turn, or restore it when there is no
+    // queue yet (a new chat is busy before its first session exists).
+    const keep = () => {
+      if (activeQueueSessionKey) {
         enqueueQueuedPrompt(activeQueueSessionKey, { text, attachments: [] })
+      } else {
+        loadIntoComposer(text, [])
       }
-    })
+    }
+
+    void Promise.resolve(onSteer(text))
+      .then(accepted => {
+        if (!accepted) {
+          keep()
+        }
+      })
+      .catch(keep)
   }
 
   const queueDraft = () => {

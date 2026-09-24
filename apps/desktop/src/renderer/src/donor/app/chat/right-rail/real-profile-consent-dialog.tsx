@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/real-profile-consent-dialog.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -57,7 +57,7 @@ export function RealProfileConsentDialog({ tabId }: RealProfileConsentDialogProp
   const dismissed = useStore($realProfilePromptDismissed)
   const muted = useStore($realProfilePromptMuted)
   const claim = useStore($realProfilePromptClaim)
-  const { data: config } = useHermesConfigRecord()
+  const { data: config, writeScope } = useHermesConfigRecord()
   const setConfig = hermesConfigCacheWriter()
   const [busy, setBusy] = useState(false)
 
@@ -87,7 +87,8 @@ export function RealProfileConsentDialog({ tabId }: RealProfileConsentDialogProp
     try {
       // Sparse patch: PUT /api/config deep-merges, and echoing the cached
       // snapshot would overwrite keys other surfaces changed since it loaded.
-      await saveHermesConfigRecord({ browser: { use_real_profile: true } })
+      await saveHermesConfigRecord({ browser: { use_real_profile: true } }, writeScope)
+
       notify({ kind: 'info', title: copy.enabledTitle, message: copy.enabledMessage })
     } catch (err) {
       setConfig(config)
@@ -95,7 +96,7 @@ export function RealProfileConsentDialog({ tabId }: RealProfileConsentDialogProp
     } finally {
       setBusy(false)
     }
-  }, [busy, config, copy, setConfig])
+  }, [busy, config, copy, setConfig, writeScope])
 
   // Config not loaded yet, feature already on, opted out, or another pane
   // owns the prompt — render nothing. `enabled` flipping true after a

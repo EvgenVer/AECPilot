@@ -72,6 +72,8 @@ export {
   type ReasoningEffortValue
 } from '../../donor/hermes-shared/reasoning-effort'
 export {
+  isStableOpen,
+  RECONNECT_STABLE_OPEN_MS,
   reconnectBackoffDelayMs,
   type ReconnectBackoffOptions
 } from '../../donor/hermes-shared/reconnect-backoff'

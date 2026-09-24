@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/inline-refs.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -45,11 +45,15 @@ export function dragHasAttachments(transfer: DataTransfer | null, pathsMime: str
     return false
   }
 
-  if (Array.from(transfer.types || []).includes(pathsMime)) {
+  const types = Array.from(transfer.types || [])
+
+  // A browser link drag carries `text/uri-list` (on Windows also a virtual
+  // shortcut File); accept it so the link lands as an `@url:` chip.
+  if (types.includes(pathsMime) || types.includes('text/uri-list')) {
     return true
   }
 
-  if (Array.from(transfer.types || []).includes('Files')) {
+  if (types.includes('Files')) {
     return true
   }
 
@@ -57,6 +61,10 @@ export function dragHasAttachments(transfer: DataTransfer | null, pathsMime: str
 }
 
 export function droppedFileInlineRef(candidate: DroppedFile, cwd: string | null | undefined) {
+  if (candidate.url) {
+    return `@url:${formatRefValue(candidate.url)}`
+  }
+
   if (!candidate.path) {
     return null
   }

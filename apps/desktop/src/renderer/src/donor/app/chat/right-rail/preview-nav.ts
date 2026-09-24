@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-nav.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@
  * sitting in Hermes' own DOM, where `activeElement` is authoritative.
  */
 
+import { isElementInHiddenPane } from '@/components/pane-shell/pane-visibility'
 import { $rightRailActiveTabId } from '@/store/layout'
 import { $previewTabs } from '@/store/preview'
 
@@ -54,7 +55,9 @@ export function activePreviewNav(): PreviewNavHandle | null {
  *  elsewhere in the app, so the caller falls back to the app-level meaning. */
 export function commandFocusedPreview(command: keyof PreviewNavHandle): boolean {
   const host = document.activeElement?.closest(`[${PREVIEW_BROWSER_ATTR}]`)
-  const nav = host ? handles.get(host.getAttribute(PREVIEW_BROWSER_ATTR) || '') : undefined
+
+  const nav =
+    host && !isElementInHiddenPane(host) ? handles.get(host.getAttribute(PREVIEW_BROWSER_ATTR) || '') : undefined
 
   nav?.[command]()
 

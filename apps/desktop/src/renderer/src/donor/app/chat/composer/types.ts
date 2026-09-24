@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/types.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,11 +56,8 @@ export interface ChatBarProps {
   onCancel: () => Promise<void> | void
   onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onAddUrl?: (url: string) => void
-  onAttachImageBlob?: (blob: Blob) => Promise<boolean | void> | boolean | void
+  onAttachImageBlob?: (blob: Blob, isCurrent?: () => boolean) => Promise<boolean | void> | boolean | void
   onAttachDroppedItems?: (candidates: DroppedFile[]) => Promise<boolean | void> | boolean | void
-  /** Pasted GitHub PR-comment deep link → structured review attachment.
-   *  Returns true when the paste was consumed as an attachment. */
-  onAttachPrCommentUrl?: (url: string) => boolean
   onAttachPastedText?: (text: string) => Promise<boolean> | boolean
   onPasteClipboardImage?: (opts?: { silent?: boolean }) => Promise<boolean> | void
   onPickFiles?: () => void

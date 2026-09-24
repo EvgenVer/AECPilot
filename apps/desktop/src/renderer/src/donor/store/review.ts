@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/review.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import { desktopGit } from '@/lib/desktop-git'
 import { isExcludedPath } from '@/lib/excluded-paths'
 import { requestOneShot } from '@/lib/oneshot'
 import { Codecs, persistentAtom } from '@/lib/persisted'
+import { modeBound } from '@/store/interface-mode'
 
 import { refreshRepoStatus, repoStatusForCwd } from './coding-status'
 import { stampSessionPrBranch } from './pull-requests'
@@ -43,7 +44,11 @@ const REVIEW_REFRESH_DEBOUNCE_MS = 100
 const SHIP_INFO_STALE_MS = 30_000
 
 // Persisted so the pane stays open across reloads (like the other rail panes).
-export const $reviewOpen = persistentAtom(OPEN_KEY, false, Codecs.bool)
+// Simple mode rests it closed without touching the preference; ⌘G still opens
+// it for the session.
+const $reviewOpenPref = persistentAtom(OPEN_KEY, false, Codecs.bool)
+
+export const $reviewOpen = modeBound('reviewOpen', $reviewOpenPref, open => $reviewOpenPref.set(open))
 
 // The split-button's remembered default action ('commit' | 'commitPush').
 export type CommitAction = 'commit' | 'commitPush'
