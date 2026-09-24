@@ -340,3 +340,47 @@ describe('hermes-desktop shim: openPreviewInBrowser (задача 3E.26)', () =>
     expect($notifications.get()).toEqual([])
   })
 })
+
+// D-133. Строки специалистов несут маршрут `local` — его выдаёт getAgentRoster, а
+// по нему их маршрутизатор зовёт getConnectionFor. Оба отвечают про ОДНО наше
+// подключение; чужой connectionId — отказ, реестра у нас нет.
+describe('hermes-desktop shim: getAgentRoster и getConnectionFor (D-133)', () => {
+  afterEach(withoutWindow)
+
+  it('local — тот же ответ, что getConnection(profile)', async () => {
+    withConnectionView({ mode: 'local' })
+    const bridge = createHermesDesktopBridge()
+    const conn = (await bridge.getConnectionFor!({ connectionId: 'local', profile: 'smeta' })) as unknown as Record<string, unknown>
+    expect(conn).toMatchObject({ connectionId: 'local', mode: 'local', profile: 'smeta' })
+  })
+
+  it('чужой connectionId — отказ', async () => {
+    withConnectionView({ mode: 'local' })
+    const bridge = createHermesDesktopBridge()
+    await expect(bridge.getConnectionFor!({ connectionId: 'url:http://x', profile: 'smeta' })).rejects.toThrow()
+  })
+
+  it('местное ядро: каждый профиль — строка источника local', async () => {
+    const globals = globalThis as unknown as { window?: unknown }
+    globals.window = {
+      aecpilot: {
+        getConnection: () => Promise.resolve({ mode: 'local' }),
+        listProfiles: () => Promise.resolve({ profiles: [{ name: 'default' }, { name: 'smeta' }] })
+      }
+    }
+    const roster = (await createHermesDesktopBridge().getAgentRoster!()) as {
+      agents: Array<{ connectionId: string; profile: string }>
+      sources: Array<{ connectionId: string; reachable: boolean }>
+    }
+    expect(roster.agents.map((row) => `${row.connectionId}:${row.profile}`)).toEqual(['local:default', 'local:smeta'])
+    expect(roster.sources).toEqual([expect.objectContaining({ connectionId: 'local', reachable: true })])
+  })
+
+  it('удалённое ядро: список пуст — строки остаются прежними', async () => {
+    const globals = globalThis as unknown as { window?: unknown }
+    const listProfiles = vi.fn()
+    globals.window = { aecpilot: { getConnection: () => Promise.resolve({ mode: 'remote', remoteUrl: 'http://h:1' }), listProfiles } }
+    expect(await createHermesDesktopBridge().getAgentRoster!()).toEqual({ agents: [], sources: [] })
+    expect(listProfiles).not.toHaveBeenCalled()
+  })
+})

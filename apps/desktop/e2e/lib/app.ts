@@ -273,9 +273,20 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
     })
     // Окно рабочего размера: в низком окне нижние строки боковой панели
     // перехватывает прокручиваемый контейнер (замер smoke, 3D.3).
-    await started.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1260 })
-    })
+    // Изредка (замер 24.09.2026, 2 из ~10 запусков) вызов попадает в момент
+    // перезагрузки контекста и падает «Execution context was destroyed» —
+    // стенд тогда не поднимается вовсе. Повтор через секунду.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await started.evaluate(({ BrowserWindow }) => {
+          BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1500, height: 1260 })
+        })
+        break
+      } catch (error) {
+        if (attempt >= 3 || !/Execution context was destroyed/.test(String(error))) throw error
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+    }
     started.process().stdout?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
     started.process().stderr?.on('data', (chunk: Buffer) => (mainOutput += chunk.toString()))
     return started
@@ -409,12 +420,19 @@ export async function openTerminalPane(page: Page): Promise<void> {
 /** Убрать поверхности первого запуска: их оверлей загрузки, нашу карточку
  *  «С чего начать» и диалог согласия на настоящий профиль браузера. */
 export async function hideFirstRunSurfaces(page: Page): Promise<void> {
-  await page.addStyleTag({
+  const style = {
     content: `
       .z-\\(--z-onboarding\\) { display: none !important }
       [role='region'][aria-label='Getting started'],
       [role='region'][aria-label='С чего начать'] { display: none !important }
     `
+  }
+  // Сразу после перезагрузки окна вызов изредка ловит чужое сообщение —
+  // отчёт CSP о заблокированной рамке их каталога плагинов (блокировка верная,
+  // замер 24.09.2026) — и падает. Повтор через секунду.
+  await page.addStyleTag(style).catch(async () => {
+    await page.waitForTimeout(1000)
+    await page.addStyleTag(style)
   })
   if (!consentHandlerInstalled.has(page)) {
     consentHandlerInstalled.add(page)
@@ -567,4 +585,26 @@ export function standFixture(options: LaunchOptions): { get(): Stand } {
       return stand
     }
   }
+}
+
+/** Подключить папку источником так, как это делает человек: главный процесс
+ *  пускает только папку, выбранную в диалоге (D-47), поэтому диалог подменяется
+ *  ответом `dir`, и выбор идёт настоящим `project:pick-directory`. */
+export async function addSourceAsUser(stand: Stand, page: Page, dir: string): Promise<unknown> {
+  await stand.app.evaluate(({ dialog }, target) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as never
+  }, dir)
+  expect(await page.evaluate(() => window.aecpilot.pickProjectDirectory())).toBe(dir)
+  return page.evaluate((root) => window.aecpilot.addSource(root, true), dir)
+}
+
+/** После перезапуска приложение открывает экран выбора проекта, а не проект
+ *  (D-89, решает владелец). Человек щёлкает проект в «недавних» — так и здесь. */
+export async function reopenRecentProject(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /^e2e\s/ }).first().click({ timeout: 120000 })
+  const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+  await expect(composer).toBeVisible({ timeout: 120000 })
+  await expect(composer).not.toHaveAttribute('data-placeholder', /Starting|Reconnecting|Запуск/, {
+    timeout: 120000
+  })
 }

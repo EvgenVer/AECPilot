@@ -5,7 +5,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import { hideFirstRunSurfaces, mainWindow, openProject, reopenRecentProject, standFixture } from '../lib/app'
 import { record } from '../lib/evidence'
 import { recordChatEvents, turn } from '../lib/turn'
 
@@ -120,11 +120,20 @@ test('37.9.2 клон отвечает — доступы скопировали
 
 // ───────────────────────────── 37.4 Постоянный чат ────────────────────────────
 
-// D-133: повторно чат специалиста не открывается — щелчок по строке любого,
-// кроме последнего заведённого и агента по умолчанию, оставляет «Пробуждаем
-// <профиль>…» навсегда (сессия найдена, `session.resume` не уходит). Позиции,
-// которым нужно вернуться в его чат, ждут починки.
-test.fixme('37.10.1 щелчок по специалисту открывает ЕГО чат', async () => {})
+const OWN_WORD = 'LOTOK-238'
+
+// D-133 (починено): вернуться щелчком в чат специалиста, пока открыт чат
+// ДРУГОГО, — именно то, что зависало на «Пробуждаем…».
+test('37.10.1 щелчок по специалисту открывает ЕГО чат', async () => {
+  const page = await roster(await ui())
+  await openChat(page, 'Смета')
+  const result = await turn(page, `Запомни слово ${OWN_WORD}. Ответь одним словом «ок».`)
+  console.log('37.10.1 ' + result.transcript.replace(/\n/g, ' ⏎ '))
+  await expect(page.getByText(OWN_WORD).first(), 'переписка этого специалиста').toBeVisible({ timeout: 30000 })
+  const own = await profileSessions(page, 'smeta', true)
+  expect(own.some((row) => row.title === 'Bot Chat'), 'чат принадлежит ему').toBe(true)
+  await record(test.info(), page, { transcript: result.transcript })
+})
 
 test('37.10.2 в общем списке сессий этого чата нет — он скрытый', async () => {
   const page = await ui()
@@ -135,12 +144,17 @@ test('37.10.2 в общем списке сессий этого чата нет
   expect(visible.filter((row) => row.title === 'Bot Chat'), 'в обычном списке его нет').toEqual([])
 })
 
-test.fixme('37.11.1 после ухода к другому и возврата переписка та же', async () => {})
+test('37.11.1 после ухода к другому и возврата переписка та же', async () => {
+  const page = await roster(await ui())
+  await openChat(page, 'Смета копия')
+  await expect(page.getByText(OWN_WORD), 'у другого чужой переписки нет').toHaveCount(0)
+  await openChat(page, 'Смета')
+  await expect(page.getByText(OWN_WORD).first(), 'переписка та же').toBeVisible({ timeout: 60000 })
+})
 
 const WORD = 'KARNIZ-517'
 
-// Дальше — в чате клона: он открыт сразу после создания (37.9.2), а вернуться
-// в чат щелчком нельзя (D-133).
+// Дальше — в чате клона.
 test('37.12.1 /new в его чате — объяснение, что этот чат не начинается заново', async () => {
   const page = await roster(await ui())
   await openChat(page, 'Смета копия')
@@ -161,7 +175,15 @@ test('37.12.2 новая сессия не создалась — перепис
   expect(await profileSessions(page, 'smeta-kopiya', false), 'отдельной видимой сессии не появилось').toEqual([])
 })
 
-test.fixme('37.13.1 после перезапуска щелчок открывает ту же переписку', async () => {})
+test('37.13.1 после перезапуска щелчок открывает ту же переписку', async () => {
+  await stand.get().relaunch()
+  // После перезапуска — экран выбора проекта (D-89): проект — из «недавних».
+  await reopenRecentProject(await mainWindow(stand.get()))
+  const page = await roster(await ui())
+  await openChat(page, 'Смета копия')
+  await expect(page.getByText(WORD).first(), 'та же переписка').toBeVisible({ timeout: 60000 })
+  await record(test.info(), page)
+})
 
 // ───────────────────────────── 37.5 Рутины ────────────────────────────────────
 
@@ -181,7 +203,7 @@ async function smetaJob(page: Page): Promise<CronJobRow | undefined> {
 }
 
 test('37.15.1 «Запустить сейчас»: рутина отработала', async () => {
-  // Чат клона открыт с 37.12 — вернуться в него щелчком нельзя (D-133).
+  // Чат клона открыт с 37.13.
   const page = await ui()
   const tab = page.getByText('Запланированные задачи', { exact: true }).last()
   await expect(tab).toBeVisible({ timeout: 60000 })
@@ -212,7 +234,15 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   // в общем списке задач (`triggerCronJob`), от имени профиля клона.
   await expect.poll(async () => Boolean(await smetaJob(page)), { timeout: 30000 }).toBe(true)
   const job = await smetaJob(page)
-  await api(page, { path: `/api/cron/jobs/${job!.id}/trigger`, method: 'POST', profile: 'smeta-kopiya' })
+  // Ответ на «запустить» ядро иногда держит дольше 15 с нашего моста (замер
+  // 24.09.2026, сразу после включения расписаний) — запуск при этом уходит.
+  // Судим по факту запуска ниже, а не по ответу.
+  await api(page, { path: `/api/cron/jobs/${job!.id}/trigger`, method: 'POST', profile: 'smeta-kopiya' }).catch(
+    (error: unknown) => {
+      if (!/не ответило за/.test(String(error))) throw error
+      console.log('37.15.1 ответ на запуск не дождались: ' + String(error))
+    }
+  )
   await expect
     .poll(async () => (await smetaJob(page))?.last_run_at ?? null, { timeout: 240000, intervals: [5000] })
     .not.toBe(null)

@@ -519,7 +519,18 @@ const IMPLEMENTED: Record<string, unknown> = {
   // член только после проверки наличия, иначе уходя на `getConnection`.
   // Подключение у нас одно за раз (решение владельца 2026-08-23), так что
   // старый путь отвечает на тот же вопрос.
-  getConnectionFor: undefined,
+  //
+  // D-133: `getConnectionFor` теперь отдан — но только для `local`, и ровно так,
+  // как велит их контракт («empty/local connectionId delegates to the legacy
+  // getConnection path»). Строки специалистов несут маршрут `local` (член
+  // `getAgentRoster` ниже), а их маршрутизатор с таким маршрутом без этого
+  // члена отказывает («cannot dial registry connections»). Чужой connectionId —
+  // отказ: реестра подключений у нас нет.
+  getConnectionFor(payload: { connectionId?: null | string; profile?: null | string }): Promise<unknown> {
+    const id = String(payload?.connectionId ?? '').trim()
+    if (id && id !== 'local') return Promise.reject(new Error(`Подключение «${id}» не зарегистрировано`))
+    return (IMPLEMENTED.getConnection as (profile: null | string) => Promise<unknown>)(payload?.profile ?? null)
+  },
   getGatewayWsUrlFor: undefined,
 
   // ── Приехало с пином 0.21.2 (задача 3.B4, решения владельца 2026-09-14) ──
@@ -573,6 +584,29 @@ const IMPLEMENTED: Record<string, unknown> = {
   // app is. Resolving true is the truthful answer to "is it still there".
   touchBackend(): Promise<{ ok: boolean }> {
     return Promise.resolve({ ok: true })
+  },
+
+  // D-133. Их плагин специалистов берёт «владельца» чата из строки списка, а
+  // строка получает маршрут `{connectionId, profile}` только отсюда. Без него
+  // открытие чата при активном ДРУГОМ специалисте не знало владельца (их
+  // вторичный профиль идёт без connectionId) и возобновление молча не уходило.
+  // Источник у нас один. Для удалённого подключения список пуст — строки
+  // остаются прежними: их путь по чужому connectionId у нас не проверен.
+  async getAgentRoster(): Promise<unknown> {
+    const view = await window.aecpilot.getConnection()
+    if (view && view.mode !== 'local') return { agents: [], sources: [] }
+    const { profiles } = await window.aecpilot.listProfiles()
+    const label = 'Этот компьютер'
+    return {
+      agents: profiles.map((row) => ({
+        connectionId: 'local',
+        connectionKind: 'local',
+        connectionLabel: label,
+        profile: row.name,
+        handle: row.name
+      })),
+      sources: [{ connectionId: 'local', label, kind: 'local', reachable: true }]
+    }
   },
 
   // Task 3.7a. Their recorder asks before opening capture and reads `false` as

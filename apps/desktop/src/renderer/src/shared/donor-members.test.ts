@@ -86,7 +86,6 @@ const UNBRIDGED = [
   'cancelBootstrap',
   'desktopPluginsRoot',
   'fetchLinkTitle',
-  'getAgentRoster',
   'getRemoteDisplayReason',
   'installDesktopPlugin',
   'onClosePreviewRequested',
