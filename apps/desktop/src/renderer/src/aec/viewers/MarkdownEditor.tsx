@@ -21,6 +21,7 @@ import { useAecT } from '../../shared/i18n'
 
 import { gfmTableInputPlugin } from './gfm-table-input'
 import { decodeText } from './text-decode'
+import { citationLinkPlugin } from './citation-link-plugin'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument } from './viewer-store'
 import { openWikiPage } from './wikilink-open'
@@ -120,6 +121,8 @@ export function MarkdownEditor(): React.JSX.Element | null {
         // gfm — ради таблиц: вики и заметки по проекту без них не живут.
         .use(gfm)
         .use(wikilinkPlugin((wanted) => void openWikiPage(wanted)))
+        // Ссылка на источник `[src: …](#cite)` открывает документ, как фишка в чате.
+        .use(citationLinkPlugin())
         // Таблица, набранная разметкой, становится таблицей (D-94).
         .use(gfmTableInputPlugin)
         // История своя у ProseMirror; без неё Ctrl+Z в редакторе не работает.
