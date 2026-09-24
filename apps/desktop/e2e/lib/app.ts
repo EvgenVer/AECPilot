@@ -17,7 +17,7 @@ import {
   type Page
 } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -65,10 +65,32 @@ export interface LaunchOptions {
   profileDir?: string
   /** Живой режим: копия профиля без `.env` — ядро без ключа провайдера. */
   withoutProviderKey?: boolean
+  /** Живой режим, D-117 (решение владельца 24.09.2026): положить ключи
+   *  провайдера из `.env` копии профиля в хранилище приложения — тем же
+   *  `saveProviderKey`, каким их сохраняет человек. Индексацию и граф
+   *  приложение запускает само, с ключом из СВОЕГО хранилища; без этого на
+   *  стенде не индексируется ни один файл. Опция, а не умолчание: сохранение
+   *  перезапускает ядро, остальным спекам эта цена не нужна. */
+  providerKeyInStore?: boolean
   /** Дополнительное окружение приложения. */
   env?: Record<string, string>
   /** Имя для файлов журналов в `test-results/` (обычно имя спеки). */
   label?: string
+}
+
+/** Ключи провайдеров из `.env` профиля: `ИМЯ_API_KEY=значение`. Значения
+ *  не печатаются и никуда, кроме хранилища приложения, не уходят. */
+function profileProviderKeys(profileDir: string): Array<{ envVar: string; key: string }> {
+  const file = join(profileDir, '.env')
+  if (!existsSync(file)) return []
+  const keys: Array<{ envVar: string; key: string }> = []
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z][A-Z0-9_]*_API_KEY)\s*=\s*(.*?)\s*$/)
+    if (!match) continue
+    const key = match[2].replace(/^(['"])(.*)\1$/, '$2')
+    if (key) keys.push({ envVar: match[1], key })
+  }
+  return keys
 }
 
 function listElectronPids(): Set<number> {
@@ -328,6 +350,17 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
       for (const pid of listElectronPids()) {
         if (!preExisting.has(pid)) killProcessTree(pid)
       }
+    }
+  }
+
+  if (options.providerKeyInStore && profileDir) {
+    const keys = profileProviderKeys(profileDir)
+    if (keys.length === 0) throw new Error('providerKeyInStore: в .env профиля нет ключей провайдера')
+    const first = await mainWindow(stand)
+    await first.waitForFunction(() => Boolean(window.aecpilot?.saveProviderKey), undefined, { timeout: 60000 })
+    for (const entry of keys) {
+      const saved = (await first.evaluate((e) => window.aecpilot.saveProviderKey(e), entry)) as { ok?: boolean }
+      if (saved?.ok === false) throw new Error(`providerKeyInStore: ${entry.envVar} не сохранён`)
     }
   }
 
