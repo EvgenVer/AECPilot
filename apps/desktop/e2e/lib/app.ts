@@ -313,7 +313,7 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
   /** Погасить текущий процесс приложения вместе с деревом (в живом режиме ядро
    *  — его потомок) и добить всё, чего не было до старта стенда. */
   async function stopApp(): Promise<void> {
-    const electronPid = stand.app.process()?.pid
+    const electronPid = appProcess(stand.app)?.pid
     try {
       await Promise.race([
         stand.app.close(),
@@ -473,6 +473,17 @@ function tail(text: string, count: number): string {
 
 /** Один стенд на файл спеки: `beforeAll` поднимает, `afterAll` гасит,
  *  `afterEach` печатает состояние стенда при падении (разбор D-82). */
+/** Процесс приложения, или undefined, если приложение уже вышло само: у
+ *  вышедшего `ElectronApplication.process()` бросает, а не возвращает пустое.
+ *  Позиция 38.20.2 закрывает приложение внутри теста. */
+function appProcess(app: ElectronApplication): ReturnType<ElectronApplication['process']> | undefined {
+  try {
+    return app.process()
+  } catch {
+    return undefined
+  }
+}
+
 export function standFixture(options: LaunchOptions): { get(): Stand } {
   let stand: Stand | undefined
 
@@ -491,7 +502,7 @@ export function standFixture(options: LaunchOptions): { get(): Stand } {
     if (!stand) return
     // Свидетельство по каждому тесту с номером позиции — снимок главного окна
     // и вердикт; тест без номера (подготовка) в отчёт не попадает.
-    if (stand.app.process()?.exitCode === null && /^\d/.test(testInfo.title)) {
+    if (appProcess(stand.app)?.exitCode === null && /^\d/.test(testInfo.title)) {
       const main = appWindows(stand).find((candidate) => !candidate.url().includes('win='))
       await record(testInfo, main)
     }
@@ -505,7 +516,7 @@ export function standFixture(options: LaunchOptions): { get(): Stand } {
         `[e2e] ПАДЕНИЕ «${testInfo.title}» — состояние стенда на этот момент:`,
         `      режим: ${stand.mode}; профиль прогона: ${stand.userDataDir}`,
         `      ЧУЖИЕ e2e-электроны: ${listE2eLeftovers(stand.userDataDir).join(', ') || 'нет'}`,
-        `      своё приложение живо: ${stand.app.process()?.exitCode === null ? 'да' : 'нет'}`,
+        `      своё приложение живо: ${appProcess(stand.app)?.exitCode === null ? 'да' : 'нет'}`,
         `      окон у приложения: ${windows.length}`,
         ...windows.map((line) => `        - ${line}`),
         `      --- последнее от главного процесса ---`,
