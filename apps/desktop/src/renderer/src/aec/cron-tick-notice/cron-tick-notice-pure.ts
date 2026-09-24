@@ -44,3 +44,13 @@ export function cronWriteKind(request: CronWriteRequest): CronWriteKind | null {
 
   return null
 }
+
+/** То же для RPC ядра. Их карточка специалиста заводит рутины не через REST, а
+ * вызовом `cron.manage {action: 'add'}` (D-135): без этой ветки человек, заведя
+ * первую рутину специалисту, не узнавал, что расписания никто не запускает. */
+export function cronRpcWriteKind(method: string, params: Record<string, unknown>): CronWriteKind | null {
+  if (method !== 'cron.manage') return null
+  if (params.action === 'add') return 'create'
+  if (params.action === 'resume') return 'resume'
+  return null
+}
