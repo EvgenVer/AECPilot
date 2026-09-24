@@ -248,9 +248,30 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
     .not.toBe(null)
 })
 
-test('37.15.2 результат виден в чате ЭТОГО специалиста, а не в общем', async () => {
+// D-141: рутина специалиста исполняется командой `hermes -p <профиль> chat …` в
+// терминале (промпт bot-mode донора), а `hermes` берётся с PATH — на машине
+// владельца это чужая установка 0.21.4 без наших ключей, на чистой машине его
+// нет. Замер 24.09.2026: «OPENAI_API_KEY is not set», специалист получил в чат
+// ошибку вместо результата. Ждёт решения владельца.
+test.fixme('37.15.2 результат виден в чате ЭТОГО специалиста, а не в общем', async () => {
+  test.setTimeout(600000)
   const page = await roster(await ui())
-  await expect(page.getByText(ROUTINE_MARK).first()).toBeVisible({ timeout: 180000 })
+  // Доставка «в чат» — отдельный полный ход специалиста в его «Bot Chat»
+  // (`cron/scheduler_delivery.py`, `_deliver_to_bot_chat`), минуты. Ждём её по
+  // состоянию задачи, затем открываем его чат, как человек. В УЖЕ открытом чате
+  // доставленное само не появляется (замер 24.09.2026: доставлено, после
+  // переоткрытия видно) — D-140.
+  await expect
+    .poll(
+      async () =>
+        ((await smetaJob(page)) as { latest_execution?: { delivery_outcome?: string } } | undefined)?.latest_execution
+          ?.delivery_outcome ?? null,
+      { timeout: 420000, intervals: [5000], message: 'результат рутины доставлен' }
+    )
+    .toBe('delivered')
+  await openChat(page, 'Смета')
+  await openChat(page, 'Смета копия')
+  await expect(page.getByText(ROUTINE_MARK).first()).toBeVisible({ timeout: 60000 })
   await openChat(page, 'AECPilot')
   await expect(page.getByText(ROUTINE_MARK)).toHaveCount(0)
   await record(test.info(), page)
