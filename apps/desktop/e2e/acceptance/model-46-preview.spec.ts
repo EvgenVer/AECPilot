@@ -93,11 +93,16 @@ test('46.1.2 перерисовалась только та панель, где
   expect(await guestEval(app, 'window.__mark', 'b.html'), 'b.html не перезагружалась').toBe(1)
 })
 
-// D-126: у вкладки ФАЙЛА кнопки «в браузер» нет нигде — в строке
-// предпросмотра её место занимает «Вынести в окно», а пункт меню вкладки
-// «Open in external» положен только вкладкам с адресом. Путь 3E.26 проверен на
-// карточке артефакта (`donor-shell-smoke.spec.ts`). Решение — владельцу.
-test.fixme('46.2.1 «Открыть в браузере» отдаёт ОС файл из нашей папки', async () => {
+// D-126 (решение владельца 24.09.2026, A+C): у вкладки ФАЙЛА проекта кнопки
+// «в браузер» нет — там «Вынести в окно»; в браузер уходят артефакты и
+// веб-страницы. Поэтому 46.2 — на карточке html-артефакта из ответа агента.
+// БРАУЗЕР ЭТОЙ МАШИНЫ НЕ ОТКРЫВАЕТСЯ: `shell.openExternal` подменён в главном
+// процессе (как в `donor-shell-smoke.spec.ts`, 3E.26) — проверяется то, что мы
+// отдали ОС, а не поведение чужой программы.
+const ARTIFACT_MARK = 'VEDOMOST E2E 46'
+let openedUrl = ''
+
+test('46.2.1 «Открыть в браузере» у html-артефакта отдаёт ОС то же содержимое', async () => {
   const page = await ui()
   const app = stand.get().app
   await app.evaluate(({ shell }) => {
@@ -107,25 +112,35 @@ test.fixme('46.2.1 «Открыть в браузере» отдаёт ОС фа
       bag.openedExternally?.push(url)
     }) as never
   })
-  // В строке предпросмотра этой кнопки у нас нет: её место занимает «Вынести
-  // в окно» (отдельные окна у приложения есть). Во внешний браузер вкладку
-  // отдаёт меню самой вкладки.
-  const tab = page.getByRole('tab', { name: /a\.html|STRANICA A/ }).first()
-  await expect(tab).toBeVisible({ timeout: 20000 })
-  await tab.click({ button: 'right' })
-  await page.getByRole('menuitem', { name: /Open in external|во внешнем/i }).click()
-  const opened = () =>
-    app.evaluate(() => (globalThis as unknown as { openedExternally?: string[] }).openedExternally ?? [])
-  await expect.poll(opened, { timeout: 30000 }).toHaveLength(1)
-  const [url] = await opened()
-  console.log('46.2 url ' + url)
-  expect(url.startsWith('file:///'), 'файлом, а не произвольным адресом').toBe(true)
-  const path = fileURLToPath(url)
-  const ours = [stand.get().projectDir, stand.get().userDataDir].some((root) =>
-    path.toLowerCase().startsWith((root + sep).toLowerCase())
+  const result = await turn(
+    page,
+    `Сделай html-страницу артефактом: ответь ОДНИМ блоком кода \`\`\`html с полной страницей (<!doctype html>, <html>, <body>), в которой заголовок <h1>${ARTIFACT_MARK}</h1> и таблица из двух строк. Инструментов не вызывай, файлов не пиши.`,
+    { timeoutMs: 300000 }
   )
-  expect(ours, `${path} — из папки проекта или приложения`).toBe(true)
-  await record(test.info(), page)
+  console.log('46.2 ' + result.transcript.slice(0, 1500))
+  const card = page.locator('[data-slot="aui_artifact-card"]').last()
+  await expect(card, 'карточка артефакта в ленте').toBeVisible({ timeout: 60000 })
+  await card.click()
+  await page.getByRole('button', { name: /Open in browser|Открыть в браузере/ }).first().click()
+  const opened = async (): Promise<string[]> =>
+    (await app.evaluate(() => (globalThis as unknown as { openedExternally?: string[] }).openedExternally ?? [])) as string[]
+  await expect.poll(opened, { timeout: 30000 }).toHaveLength(1)
+  ;[openedUrl] = await opened()
+  console.log('46.2 url ' + openedUrl)
+  expect(openedUrl.startsWith('file:///'), 'содержимое уходит файлом').toBe(true)
+  expect(readFileSync(fileURLToPath(openedUrl), 'utf8'), 'в файле то самое содержимое').toContain(ARTIFACT_MARK)
+  // Человеку сказано, что страница ушла за песочницу (решение владельца 2026-09-08).
+  await expect(page.getByText(/Страница открыта вне приложения|The page opened outside the app/)).toBeVisible({
+    timeout: 15000
+  })
+  await record(test.info(), page, { transcript: result.transcript })
+})
+
+test('46.2.2 файл ушёл из нашей папки, а не откуда попало', () => {
+  expect(openedUrl, 'в 46.2.1 файл отдан ОС').not.toBe('')
+  const staged = fileURLToPath(openedUrl)
+  const attachments = join(stand.get().userDataDir, 'attachments')
+  expect(staged.toLowerCase().startsWith((attachments + sep).toLowerCase()), `${staged} обязан лежать в ${attachments}`).toBe(true)
 })
 
 test('46.3.1 правка в их редакторе доезжает на диск по показанному пути', async () => {
