@@ -121,7 +121,22 @@ type PreviewQuery = ReturnType<
 function canRun(preview: PreviewQuery, run: GraphAddState): boolean {
   if (run.running || preview.isFetching) return false
   const answer = preview.data
-  return answer?.ok === true && !answer.preview.index_missing && answer.preview.documents > 0
+  return answer?.ok === true && forecastVerdict(answer.preview) === 'ready'
+}
+
+/** Что показать по прогнозу. «Не проиндексировано» — не только когда индекса
+ *  нет вовсе, но и когда из выбранного не проиндексирован НИ ОДИН документ:
+ *  графу читать нечего, и согласие ничего бы не добавило (чек-лист 40.2.2,
+ *  замер 24.09.2026 — окно предлагало «Добавить» на 0 фрагментов). */
+export function forecastVerdict(forecast: {
+  documents: number
+  index_missing?: boolean
+  not_indexed: number
+}): 'index-missing' | 'nothing' | 'ready' {
+  if (forecast.index_missing) return 'index-missing'
+  if (forecast.documents === 0) return 'nothing'
+  if (forecast.not_indexed >= forecast.documents) return 'index-missing'
+  return 'ready'
 }
 
 function Body({
@@ -168,10 +183,11 @@ function Body({
   }
 
   const forecast = preview.data.preview
-  if (forecast.index_missing) {
+  const verdict = forecastVerdict(forecast)
+  if (verdict === 'index-missing') {
     return <p className="text-xs text-(--ui-text-secondary)">{t('graphAdd.indexMissing')}</p>
   }
-  if (forecast.documents === 0) {
+  if (verdict === 'nothing') {
     return <p className="text-xs text-(--ui-text-secondary)">{t('graphAdd.nothing')}</p>
   }
 
