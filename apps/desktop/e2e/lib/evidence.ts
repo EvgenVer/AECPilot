@@ -80,17 +80,23 @@ export async function record(
   // «прошёл» — ожидание совпало. Для владельца это всё равно красная позиция:
   // писать `pass` значило бы спрятать дефект в отчёте (замер 18.09.2026, 1.3.1).
   const knownDefect = testInfo.expectedStatus === 'failed'
+  // Пропущенная позиция не пройдена: для Playwright статус совпал с ожиданием,
+  // но владельцу это вопрос, а не зелёная строка (позиции качества 3F.10 —
+  // «к владельцу: …»).
+  const skipped = finished && testInfo.status === 'skipped'
   const verdict: Verdict =
     extra.verdict ??
-    (knownDefect || (finished && testInfo.status !== testInfo.expectedStatus) ? 'fail' : 'pass')
+    (skipped ? 'note' : knownDefect || (finished && testInfo.status !== testInfo.expectedStatus) ? 'fail' : 'pass')
   const note =
     extra.note ??
-    (knownDefect
-      ? `ожидаемое падение: ${
-          testInfo.annotations.find((annotation) => annotation.type === 'fail')?.description ??
-          'известный дефект'
-        }`
-      : undefined)
+    (skipped
+      ? testInfo.annotations.find((annotation) => annotation.type === 'skip')?.description ?? 'позиция пропущена'
+      : knownDefect
+        ? `ожидаемое падение: ${
+            testInfo.annotations.find((annotation) => annotation.type === 'fail')?.description ??
+            'известный дефект'
+          }`
+        : undefined)
   const shot = await shoot(page, position)
   appendEvidence({
     position,

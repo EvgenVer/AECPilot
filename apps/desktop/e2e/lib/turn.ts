@@ -86,7 +86,9 @@ export async function waitTurnEnd(
   page: Page,
   mark: number,
   timeoutMs = 240000,
-  approve?: RegExp
+  approve?: RegExp,
+  clarify?: RegExp,
+  declineForeign = false
 ): Promise<ChatEvent[]> {
   let events: ChatEvent[] = []
   let foreign = ''
@@ -101,9 +103,32 @@ export async function waitTurnEnd(
     .poll(
       async () => {
         events = await eventsSince(page, mark)
+        // Вопрос агента карточкой `clarify` держит ход до ответа человека.
+        // Позиция, передавшая `clarify`, отвечает вариантом по образцу; без
+        // него ход честно ждёт до таймаута.
+        // Отвеченная карточка остаётся в ленте с `data-clarify-settled` — ищем
+        // только ждущую ответа.
+        const card = page.locator('[data-slot="clarify-inline"]:not([data-clarify-settled])').last()
+        if (clarify && (await card.isVisible())) {
+          const choice = card.getByRole('button', { name: clarify }).first()
+          if (await choice.isVisible()) {
+            console.log(`[e2e] clarify → ${await choice.innerText()}`)
+            await choice.click()
+            await page.getByRole('button', { name: /Подтвердить и продолжить/ }).click()
+            await expect(card).toBeHidden({ timeout: 15000 })
+          }
+        }
         if (await strip.isVisible()) {
           const command = await approvalCommand(page)
           if (!approve?.test(command)) {
+            // Позиция, передавшая `declineForeign`, отвечает на чужую команду
+            // «Отклонить», как осторожный человек, и ждёт ход дальше.
+            if (declineForeign) {
+              console.log(`[e2e] отклонена чужая команда:\n${command}`)
+              await strip.getByRole('button', { name: /^Отклонить/ }).click()
+              await expect(strip).toBeHidden({ timeout: 15000 })
+              return false
+            }
             foreign = command
             return true
           }
@@ -157,17 +182,17 @@ function summarize(question: string, events: ChatEvent[], retried: boolean): Tur
 export async function turn(
   page: Page,
   question: string,
-  options: { approve?: RegExp; expectTool?: RegExp; timeoutMs?: number } = {}
+  options: { approve?: RegExp; clarify?: RegExp; declineForeign?: boolean; expectTool?: RegExp; timeoutMs?: number } = {}
 ): Promise<TurnResult> {
   await recordChatEvents(page)
   let mark = await eventCount(page)
   await send(page, question)
-  let events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve)
+  let events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve, options.clarify, options.declineForeign)
   let result = summarize(question, events, false)
   if (options.expectTool && !result.tools.some((name) => options.expectTool!.test(name))) {
     mark = await eventCount(page)
     await send(page, question)
-    events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve)
+    events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve, options.clarify, options.declineForeign)
     result = summarize(question, events, true)
   }
   return result
