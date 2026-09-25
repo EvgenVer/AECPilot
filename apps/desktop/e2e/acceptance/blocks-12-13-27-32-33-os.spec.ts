@@ -18,7 +18,7 @@
 
 import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   appWindows,
@@ -30,6 +30,7 @@ import {
   send,
   standFixture
 } from '../lib/app'
+import { appendEvidence, shotsDir } from '../lib/evidence'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -88,12 +89,28 @@ function probe(
   return JSON.parse(line) as Record<string, unknown>
 }
 
-/** Снимок всего экрана — в отчёт. */
-function desktopShot(name: string): string {
+/** Снимок всего экрана — в отчёт. С номером позиции снимок встаёт и в её
+ *  строку отчёта рядом со снимком окна (протокол рабочего стола, задача 3F.12,
+ *  `docs/acceptance/desktop-protocol.md`): то, что видит только ОС, владелец
+ *  видит глазами, а не по описанию проверки. */
+function desktopShot(name: string, position?: string): string {
   mkdirSync(SHOTS, { recursive: true })
   const path = join(SHOTS, `${name}.png`)
   probe('shot', { Out: path })
   test.info().attachments.push({ name: `рабочий стол: ${name}`, contentType: 'image/png', path })
+  if (position) {
+    mkdirSync(shotsDir, { recursive: true })
+    const shot = `${position}-desktop.png`
+    copyFileSync(path, join(shotsDir, shot))
+    appendEvidence({
+      position,
+      title: test.info().title,
+      verdict: 'pass',
+      spec: 'acceptance/blocks-12-13-27-32-33-os.spec.ts',
+      at: new Date().toISOString(),
+      shot
+    })
+  }
   return path
 }
 
@@ -310,7 +327,7 @@ test('12.1.1 Ctrl+Shift+Space из другого окна: узкое окно 
     )
     .toBe(true)
   expect(quick.focused, 'окно в фокусе').toBe(true)
-  desktopShot('12-1-1-quick-entry')
+  desktopShot('12-1-1-quick-entry', '12.1.1')
 })
 
 test('12.2.1 фраза и Enter: окно закрылось, главное поднялось, ответ в текущей сессии', async () => {
@@ -392,6 +409,7 @@ test('12.4.1 Esc и щелчок мимо окна: оба раза исчеза
     type: 'note',
     description: `стили окна ввода: ${JSON.stringify(style)} (TOOLWINDOW — без места в панели задач)`
   })
+  desktopShot('12-4-1-quick-entry-gone', '12.4.1')
 })
 
 // ───────────────── Блок 13. Не давать машине уснуть ─────────────────
@@ -586,7 +604,7 @@ test('27.2.1 окно свёрнуто, ход закончился: уведо�
   expect(`${toast.title} ${toast.body}`, 'чужого названия нет').not.toMatch(/hermes/i)
   expect(toast.body).toContain('фоновый ответ')
   await page.waitForTimeout(1500)
-  desktopShot('27-2-1-toast')
+  desktopShot('27-2-1-toast', '27.2.1')
   test.info().annotations.push({ type: 'evidence', description: `тост: ${JSON.stringify(toast)}` })
 })
 
@@ -607,6 +625,7 @@ test('27.3.1 щелчок по уведомлению поднимает окн�
       { timeout: 15000 }
     )
     .toBe(true)
+  desktopShot('27-3-1-main-raised', '27.3.1')
   await dropFocusEmulation()
 })
 
@@ -972,6 +991,7 @@ test('33.2.1 Ctrl+Shift+H: узкая полоса с лентой и полем
   await expect(hud.getByRole('textbox').first()).toBeVisible({ timeout: 30000 })
   const info = (await hudInfo())!
   expect(info.bounds.height, 'полоса, не окно').toBeLessThan(info.bounds.width)
+  desktopShot('33-2-1-hud', '33.2.1')
 })
 
 test('33.2.2 полоса видна ПОВЕРХ чужой программы', async () => {
@@ -992,7 +1012,7 @@ test('33.2.2 полоса видна ПОВЕРХ чужой программы'
   await expect
     .poll(() => windowAt(point).hwnd, { timeout: 10000, message: 'по мнению ОС сверху — полоса' })
     .toBe(info.hwnd)
-  desktopShot('33-2-2-hud-over-desktop')
+  desktopShot('33-2-2-hud-over-desktop', '33.2.2')
 })
 
 test('33.3.1 щелчок мимо полосы (по прозрачному) достаётся чужой программе', async () => {
@@ -1058,6 +1078,7 @@ test('33.3.1 щелчок мимо полосы (по прозрачному) д
     type: 'evidence',
     description: `под прозрачной точкой (${point.X},${point.Y}): ${under.process} «${under.title}»`
   })
+  desktopShot('33-3-1-click-through', '33.3.1')
 })
 
 test('33.4.1 полоса приняла ввод, ответ пришёл в неё', async () => {
@@ -1139,6 +1160,7 @@ test('33.5.1 полоса двигается за курсором и не ух�
   expect(edge!.bounds.y).toBeGreaterThanOrEqual(edge!.work.y)
   expect(edge!.bounds.x + edge!.bounds.width).toBeLessThanOrEqual(edge!.work.x + edge!.work.width)
   expect(edge!.bounds.y + edge!.bounds.height).toBeLessThanOrEqual(edge!.work.y + edge!.work.height)
+  desktopShot('33-5-1-hud-at-edge', '33.5.1')
 })
 
 test('33.6.1 Ctrl+Shift+H ещё раз: полоса исчезла, главное окно работает как раньше', async () => {

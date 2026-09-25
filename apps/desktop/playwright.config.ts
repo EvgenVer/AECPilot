@@ -22,6 +22,9 @@ export default defineConfig({
       name: 'acceptance-live',
       testMatch: /acceptance[\\/](live|model)-.*\.spec\.ts$/,
       timeout: 300000
-    }
+    },
+    // Протокол рабочего стола (задача 3F.12): настоящие окна ОС — проводник,
+    // диалог сохранения — на экране человека, поэтому вне гейта `pnpm e2e`.
+    { name: 'desktop', testMatch: /acceptance[\\/]desktop-.*\.spec\.ts$/ }
   ]
 })
