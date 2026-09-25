@@ -472,9 +472,13 @@ export async function send(page: Page, text: string): Promise<void> {
   await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
 }
 
-/** Убрать тосты — best-effort: снять то, что перекрывает. */
+/** Убрать тосты — best-effort: снять то, что перекрывает. Поиск по CSS, а не
+ *  по роли: пока открыто модальное окно, их область уведомлений помечена
+ *  `aria-hidden`, но лежит ВЫШЕ окна и принимает щелчки (замер 25.09.2026). */
 export async function clearNotifications(page: Page): Promise<void> {
-  const dismiss = page.getByRole('button', { name: /Dismiss notification|Закрыть уведомление/ })
+  const dismiss = page.locator(
+    'button[aria-label="Закрыть уведомление"], button[aria-label="Dismiss notification"]'
+  )
   for (let guard = 0; guard < 10 && (await dismiss.count()) > 0; guard += 1) {
     await dismiss
       .first()

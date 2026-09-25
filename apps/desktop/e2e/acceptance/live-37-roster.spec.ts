@@ -260,11 +260,13 @@ test('37.5.1 форма и цвет из карточки меняют знач�
     const box = await shape.boundingBox()
     const selected = (await shape.getAttribute('class'))?.includes('ring-1') ?? false
     if (box && Math.round(box.width) === 44 && !selected) {
+      await clearNotifications(page)
       await shape.click()
       picked = true
     }
   }
   expect(picked, 'нашлась невыбранная форма').toBe(true)
+  await clearNotifications(page)
   await card.getByRole('button', { name: 'hsl(120 68% 58%)', exact: true }).click()
   await card.getByRole('button', { name: /^Сохранить$/ }).click()
   await expect(card).toBeHidden({ timeout: 30000 })
@@ -301,6 +303,7 @@ test('37.6.1 «Загрузить» → PNG: в списке вместо фиг
   writeFileSync(file, Buffer.from(PNG_RED, 'base64'))
 
   const card = await openCard(page, 'Смета')
+  await clearNotifications(page)
   await card.getByRole('button', { name: 'Загрузить', exact: true }).click()
   const chooser = page.waitForEvent('filechooser')
   await card.getByRole('button', { name: /Choose an image|Выбрать картинку/ }).click()
@@ -424,21 +427,23 @@ test('37.8.1 неприменившийся раздел назван по им�
   // пункт «Enter manually…» списка провайдеров.
   await modelDropdowns(card)
   await card.getByRole('combobox').nth(0).click()
-  await page.getByRole('option', { name: /Enter manually/ }).click()
+  await page.getByRole('option', { name: /Enter manually|Ввести вручную/ }).click()
   const provider = card.getByPlaceholder(/omnirouter/).first()
   await expect(provider).toBeVisible({ timeout: 15000 })
   await provider.fill('')
   const model = card
-    .getByText(/^Model \(Custom\)/)
+    .getByText(/^(Model \(Custom\)|Модель \(своя\))/)
     .locator('xpath=..')
     .locator('input')
   await model.fill('gpt-5-mini')
 
   await card.getByRole('button', { name: /^Сохранить$/ }).click()
-  await expect(page.getByRole('alert').filter({ hasText: /failed: model/ })).toBeVisible({
+  await expect(page.getByRole('alert').filter({ hasText: /(failed|разделы): model/ })).toBeVisible({
     timeout: 30000
   })
-  await expect(page.getByRole('status').filter({ hasText: /updated/ })).toHaveCount(0)
+  await expect(
+    page.getByRole('status').filter({ hasText: /updated|изменения сохранены/ })
+  ).toHaveCount(0)
   expect((await coreProfile(page, 'smeta'))?.provider, 'в ядре ничего не сломалось').toBe(
     providerBefore
   )
