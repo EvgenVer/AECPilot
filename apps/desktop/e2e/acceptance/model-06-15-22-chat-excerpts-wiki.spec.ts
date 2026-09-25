@@ -144,7 +144,10 @@ test('6.2.1 видны карточки вызовов; рассуждения �
   if ((await disclosure.count()) === 0) {
     await turn(
       page,
-      'Не вызывай инструментов, посчитай в уме и подумай, прежде чем отвечать: у трёх этажей нагрузки 420, 395 и 380 кН, запас прочности 1,15. Какую суммарную расчётную нагрузку принять? Ответь одним числом.'
+      'Не вызывай инструментов, посчитай в уме и подумай, прежде чем отвечать: у трёх этажей нагрузки 420, 395 и 380 кН, запас прочности 1,15. Какую суммарную расчётную нагрузку принять? Ответь одним числом.',
+      // Просьбу «без инструментов» модель нарушает и зовёт `execute_code`
+      // (замер 25.09.2026) — на чужую команду отвечаем отказом, как человек.
+      { declineForeign: true }
     )
   }
   await expect(disclosure).toBeVisible()
@@ -224,7 +227,6 @@ test('6.4.1 вывод долгой команды идёт потоком, фо
 
 test('6.4.2 агент спросил ввод — ответ из окна доходит', async () => {
   const page = await ui()
-  const mark = await eventCount(page)
   await send(
     page,
     'Прежде чем ответить, спроси меня через инструмент уточнения (clarify), какой цвет выбрать: красный или синий. Потом назови мой выбор.'
@@ -236,10 +238,14 @@ test('6.4.2 агент спросил ввод — ответ из окна до
     .last()
     .getByRole('button', { name: /синий/i })
   await expect(blue).toBeVisible({ timeout: 180000 })
+  // Ход считается с ответа в окне: с 0.21.5 ядро будит агента, когда фоновый
+  // процесс из 6.4.1 закончился, и его «выполнено» приходит в эти же секунды
+  // (замер 25.09.2026) — это не ответ на уточнение.
+  const afterAsk = await eventCount(page)
   await blue.click()
   const answered = Date.now()
   await page.getByRole('button', { name: /Подтвердить и продолжить/ }).click()
-  const events = await waitTurnEnd(page, mark, 60000)
+  const events = await waitTurnEnd(page, afterAsk, 60000)
   const complete = events.find((event) => event.type === 'message.complete')
   expect(complete?.payload?.text ?? '', 'агент назвал выбор из окна').toMatch(/син/i)
   expect(Date.now() - answered, 'ответ дошёл, а не истёк таймаут уточнения').toBeLessThan(30000)

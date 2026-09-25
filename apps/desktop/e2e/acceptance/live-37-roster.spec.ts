@@ -21,7 +21,13 @@ import { join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import {
+  clearNotifications,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  standFixture
+} from '../lib/app'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -111,6 +117,11 @@ async function rowMenu(page: Page, title: string): Promise<string[]> {
 
 /** Карточка специалиста — «Изменить…» в меню строки. */
 async function openCard(page: Page, title: string): Promise<Locator> {
+  // Уведомление D-111 («Расширенная память выключена») всплывает, когда ядро
+  // строит агента нового специалиста, и ложится поверх карточки, перехватывая
+  // щелчки (замер 25.09.2026, 37.5.1). Оно — известная находка, не предмет
+  // позиции: снимаем его, как снял бы человек.
+  await clearNotifications(page)
   await rosterRow(page, title).click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Изменить/ }).click()
   const card = page.getByRole('dialog', { name: 'Изменить профиль', exact: true })
@@ -292,7 +303,7 @@ test('37.6.1 «Загрузить» → PNG: в списке вместо фиг
   const card = await openCard(page, 'Смета')
   await card.getByRole('button', { name: 'Загрузить', exact: true }).click()
   const chooser = page.waitForEvent('filechooser')
-  await card.getByRole('button', { name: /Choose an image/ }).click()
+  await card.getByRole('button', { name: /Choose an image|Выбрать картинку/ }).click()
   await (await chooser).setFiles(file)
   await expect(card.locator('img').first()).toBeVisible({ timeout: 30000 })
   await card.getByRole('button', { name: /^Сохранить$/ }).click()

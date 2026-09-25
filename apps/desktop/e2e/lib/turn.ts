@@ -72,10 +72,14 @@ export async function eventCount(page: Page): Promise<number> {
 
 /** Карточка подтверждения команды под вызовом, который его попросил. С 0.21.5
  *  это `tool-approval-card`: подпись «Команда», текст команды и кнопки — внутри
- *  неё, а `tool-approval-actions` — только ряд кнопок, без команды. */
+ *  неё, а `tool-approval-actions` — только ряд кнопок, без команды. Карточки
+ *  стоят стопкой («1 / 2», когда модель выпустила две команды разом), и
+ *  отвечать можно только на переднюю — остальные `aria-hidden` и `inert`. */
 export function approvalStrip(page: Page): Locator {
   return page
-    .locator('[data-slot="tool-approval-card"], [data-slot="tool-approval-inline"]')
+    .locator(
+      '[data-slot="tool-approval-card"]:not([aria-hidden="true"]), [data-slot="tool-approval-inline"]'
+    )
     .last()
 }
 

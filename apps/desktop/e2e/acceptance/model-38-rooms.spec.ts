@@ -119,10 +119,26 @@ function speakers(page: Page, title: string): Locator {
   return room(page).getByRole('button', { name: title, exact: true })
 }
 
+/** Отклонить просьбы специалистов выполнить команду. Специалист в комнате
+ *  зовёт `execute_code` сам (замер 25.09.2026: Snip — искать нормы кодом), и
+ *  комната встаёт на «Ждём вашего ответа…», пока человек не ответит. Команды
+ *  позиции не просят — отвечаем отказом, как осторожный человек. */
+async function denyPendingCommands(page: Page): Promise<void> {
+  const deny = room(page).getByRole('button', { name: /^deny$/ })
+  for (let tries = 0; tries < 5 && (await deny.first().isVisible().catch(() => false)); tries++) {
+    console.log('[e2e] комната: отклонена команда специалиста')
+    await deny.first().click()
+    await page.waitForTimeout(1000)
+  }
+}
+
 /** Дождаться, пока комната закончит ход: «Комната работает…» и «… думает…» ушли. */
 async function roundDone(page: Page, timeout = 420000): Promise<void> {
   await expect
-    .poll(async () => /Комната работает…|думает…/.test(await roomText(page)), {
+    .poll(async () => {
+      await denyPendingCommands(page)
+      return /Комната работает…|думает…|Ждём вашего ответа/.test(await roomText(page))
+    }, {
       timeout,
       intervals: [5000],
       message: 'ход комнаты закончился'
@@ -355,6 +371,8 @@ test('38.12.1 подсказка после «@» предлагает учас�
 
 test('38.12.3 ответил только названный — остальные молчат', async () => {
   const page = await ui()
+  await denyPendingCommands(page)
+  await roundDone(page)
   const before = await Promise.all(TEAM.map((member) => speakers(page, member.title).count()))
   await composer(page).fill('')
   await composer(page).pressSequentially('@sme')
@@ -397,7 +415,10 @@ test('38.15.1 вложение в поле показано по имени, а 
   const file = join(stand.get().projectDir, 'нагрузки.txt')
   writeFileSync(file, `${FILE_MARK}.\n`, 'utf8')
   const chooser = page.waitForEvent('filechooser')
-  await page.getByTitle('Приложить файлы — их увидит каждый, кто ответит').last().click()
+  await page
+    .getByRole('button', { name: 'Приложить файлы — их увидит каждый, кто ответит' })
+    .last()
+    .click()
   await (await chooser).setFiles(file)
   await expect(page.getByText('нагрузки.txt').first()).toBeVisible({ timeout: 15000 })
   await expect(page.getByText(stand.get().projectDir, { exact: false })).toHaveCount(0)
@@ -413,7 +434,10 @@ test('38.15.3 ответы ссылаются на содержимое файл
   const page = await ui()
   const file = join(stand.get().projectDir, 'нагрузки.txt')
   const chooser = page.waitForEvent('filechooser')
-  await page.getByTitle('Приложить файлы — их увидит каждый, кто ответит').last().click()
+  await page
+    .getByRole('button', { name: 'Приложить файлы — их увидит каждый, кто ответит' })
+    .last()
+    .click()
   await (await chooser).setFiles(file)
   await expect(page.getByText('нагрузки.txt').first()).toBeVisible({ timeout: 15000 })
   const before = await roomText(page)

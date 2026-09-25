@@ -20,7 +20,13 @@ import { dirname, join } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import {
+  clearNotifications,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  standFixture
+} from '../lib/app'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -368,6 +374,9 @@ test('30.2.1 заведена задача → предложение «Запу
   const scripts = join(stand.get().profileDir!, 'scripts')
   mkdirSync(scripts, { recursive: true })
   writeFileSync(join(scripts, 'e2e-tick.py'), 'print("tick")\n', 'utf-8')
+  // С 0.21.5 стопка держит несколько уведомлений и сворачивает прежние под
+  // верхнее — предложение легло бы под отказ из 29.4 и не было бы видно.
+  await clearNotifications(page)
 
   cronJobId = await page.evaluate(async () => {
     const bridge = (
