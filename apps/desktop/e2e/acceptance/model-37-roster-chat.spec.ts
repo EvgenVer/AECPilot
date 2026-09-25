@@ -5,7 +5,13 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, reopenRecentProject, standFixture } from '../lib/app'
+import {
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  reopenRecentProject,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 import { recordChatEvents, turn } from '../lib/turn'
 
@@ -27,7 +33,7 @@ async function ui(): Promise<Page> {
 }
 
 async function roster(page: Page): Promise<Page> {
-  await page.getByRole('tab', { name: /Bots|Специалисты/i }).click()
+  await page.getByRole('tab', { name: /Bots|Боты|Специалисты/i }).click()
   await page.waitForTimeout(1500)
   return page
 }
@@ -46,9 +52,15 @@ async function rpc(page: Page, method: string, params: Record<string, unknown>):
 }
 
 /** REST ядра от имени профиля — тем же мостом, каким ходит их панель рутин. */
-async function api<T>(page: Page, request: { path: string; method?: string; profile?: string; body?: unknown }): Promise<T> {
+async function api<T>(
+  page: Page,
+  request: { path: string; method?: string; profile?: string; body?: unknown }
+): Promise<T> {
   return page.evaluate(
-    (r) => (window as unknown as { hermesDesktop: { api: (x: unknown) => Promise<unknown> } }).hermesDesktop.api(r),
+    (r) =>
+      (
+        window as unknown as { hermesDesktop: { api: (x: unknown) => Promise<unknown> } }
+      ).hermesDesktop.api(r),
     request
   ) as Promise<T>
 }
@@ -77,7 +89,9 @@ async function createSpecialist(
   // Превью строки сменяется с «Привет! Расскажи о себе.» на его ответ, когда
   // самопредставление закончено.
   await expect(rosterRow(page, fields.title)).toContainText('Привет', { timeout: 180000 })
-  await expect(rosterRow(page, fields.title)).not.toContainText('Расскажи о себе', { timeout: 240000 })
+  await expect(rosterRow(page, fields.title)).not.toContainText('Расскажи о себе', {
+    timeout: 240000
+  })
 }
 
 /** Открыть чат специалиста и дождаться, пока он «проснётся». */
@@ -85,7 +99,9 @@ async function openChat(page: Page, title: string): Promise<void> {
   await rosterRow(page, title).click()
   await expect(page.getByText(/^Пробуждаем/)).toHaveCount(0, { timeout: 180000 })
   const started = Date.now()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ }).last()).toBeVisible({ timeout: 240000 })
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ }).last()).toBeVisible({
+    timeout: 240000
+  })
   console.log(`openChat ${title}: ${Math.round((Date.now() - started) / 1000)} с`)
 }
 
@@ -94,8 +110,16 @@ function thread(page: Page) {
 }
 
 /** Сессии профиля в ядре: обычный список (его рисует «Сеансы») и со скрытыми. */
-async function profileSessions(page: Page, profile: string, includeHidden: boolean): Promise<Array<{ id: string; title?: string }>> {
-  const answer = (await rpc(page, 'session.list', { profile, limit: 200, include_hidden: includeHidden })) as {
+async function profileSessions(
+  page: Page,
+  profile: string,
+  includeHidden: boolean
+): Promise<Array<{ id: string; title?: string }>> {
+  const answer = (await rpc(page, 'session.list', {
+    profile,
+    limit: 200,
+    include_hidden: includeHidden
+  })) as {
     sessions: Array<{ id: string; title?: string }>
   }
   return answer.sessions
@@ -105,8 +129,17 @@ async function profileSessions(page: Page, profile: string, includeHidden: boole
 
 test('37.9.2 клон отвечает — доступы скопировались вместе с ним', async () => {
   const page = await roster(await ui())
-  await createSpecialist(page, { name: 'smeta', title: 'Смета', description: 'сметчик: считает деньги и сроки' })
-  await createSpecialist(page, { name: 'smeta-kopiya', title: 'Смета копия', description: 'второй сметчик', cloneFrom: 'smeta' })
+  await createSpecialist(page, {
+    name: 'smeta',
+    title: 'Смета',
+    description: 'сметчик: считает деньги и сроки'
+  })
+  await createSpecialist(page, {
+    name: 'smeta-kopiya',
+    title: 'Смета копия',
+    description: 'второй сметчик',
+    cloneFrom: 'smeta'
+  })
   await openChat(page, 'Смета копия')
   // Самопредставление при создании — это его первый ответ; ждём конца хода
   // (кнопка остановки уходит), чтобы читать законченный текст.
@@ -129,9 +162,14 @@ test('37.10.1 щелчок по специалисту открывает ЕГО
   await openChat(page, 'Смета')
   const result = await turn(page, `Запомни слово ${OWN_WORD}. Ответь одним словом «ок».`)
   console.log('37.10.1 ' + result.transcript.replace(/\n/g, ' ⏎ '))
-  await expect(page.getByText(OWN_WORD).first(), 'переписка этого специалиста').toBeVisible({ timeout: 30000 })
+  await expect(page.getByText(OWN_WORD).first(), 'переписка этого специалиста').toBeVisible({
+    timeout: 30000
+  })
   const own = await profileSessions(page, 'smeta', true)
-  expect(own.some((row) => row.title === 'Bot Chat'), 'чат принадлежит ему').toBe(true)
+  expect(
+    own.some((row) => row.title === 'Bot Chat'),
+    'чат принадлежит ему'
+  ).toBe(true)
   await record(test.info(), page, { transcript: result.transcript })
 })
 
@@ -140,8 +178,14 @@ test('37.10.2 в общем списке сессий этого чата нет
   const hidden = await profileSessions(page, 'smeta-kopiya', true)
   const visible = await profileSessions(page, 'smeta-kopiya', false)
   console.log('37.10.2 hidden=' + JSON.stringify(hidden) + ' visible=' + JSON.stringify(visible))
-  expect(hidden.some((row) => row.title === 'Bot Chat'), 'постоянный чат есть').toBe(true)
-  expect(visible.filter((row) => row.title === 'Bot Chat'), 'в обычном списке его нет').toEqual([])
+  expect(
+    hidden.some((row) => row.title === 'Bot Chat'),
+    'постоянный чат есть'
+  ).toBe(true)
+  expect(
+    visible.filter((row) => row.title === 'Bot Chat'),
+    'в обычном списке его нет'
+  ).toEqual([])
 })
 
 test('37.11.1 после ухода к другому и возврата переписка та же', async () => {
@@ -164,15 +208,22 @@ test('37.12.1 /new в его чате — объяснение, что этот 
   await composer.click()
   await composer.fill('/new')
   await composer.press('Enter')
-  await expect(page.getByText(/This chat never resets|Этот чат не начинается заново/).first()).toBeVisible({ timeout: 30000 })
+  await expect(
+    page.getByText(/This chat never resets|Этот чат не начинается заново/).first()
+  ).toBeVisible({ timeout: 30000 })
 })
 
 test('37.12.2 новая сессия не создалась — переписка та же, сессий не прибавилось', async () => {
   const page = await ui()
   // Их подмена: `/new` → `/compact` — та же переписка, сжатый контекст.
   await page.waitForTimeout(5000)
-  await expect(page.getByText(WORD).first(), 'переписка не раскололась').toBeVisible({ timeout: 60000 })
-  expect(await profileSessions(page, 'smeta-kopiya', false), 'отдельной видимой сессии не появилось').toEqual([])
+  await expect(page.getByText(WORD).first(), 'переписка не раскололась').toBeVisible({
+    timeout: 60000
+  })
+  expect(
+    await profileSessions(page, 'smeta-kopiya', false),
+    'отдельной видимой сессии не появилось'
+  ).toEqual([])
 })
 
 test('37.13.1 после перезапуска щелчок открывает ту же переписку', async () => {
@@ -197,7 +248,10 @@ interface CronJobRow {
 }
 
 async function smetaJob(page: Page): Promise<CronJobRow | undefined> {
-  const jobs = await api<CronJobRow[]>(page, { path: '/api/cron/jobs?profile=smeta-kopiya', profile: 'smeta-kopiya' })
+  const jobs = await api<CronJobRow[]>(page, {
+    path: '/api/cron/jobs?profile=smeta-kopiya',
+    profile: 'smeta-kopiya'
+  })
   // Их панель помечает задачу владельцем: «[bot:<профиль>] <название>».
   return jobs.find((job) => job.name === `[bot:smeta-kopiya] ${ROUTINE}`)
 }
@@ -213,7 +267,10 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   await create.click()
   const dialog = page.getByRole('dialog').last()
   await dialog.getByRole('textbox').nth(0).fill(ROUTINE)
-  await dialog.getByRole('textbox').nth(1).fill(`Ответь одной строкой: ${ROUTINE_MARK}. Инструментов не вызывай.`)
+  await dialog
+    .getByRole('textbox')
+    .nth(1)
+    .fill(`Ответь одной строкой: ${ROUTINE_MARK}. Инструментов не вызывай.`)
   // Куда результат: по умолчанию — только история запусков; чек-лист ждёт его
   // в чате специалиста.
   await dialog.getByRole('combobox').filter({ hasText: 'Только в историю запусков' }).click()
@@ -224,10 +281,14 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   // Планировщик: первая рутина предлагает его поднять (блок 30) — и рутина
   // специалиста тоже, она заводится через RPC `cron.manage` (D-135). Без него
   // 37.16.2 ждать нечего.
-  const offer = page.locator('[role="status"], [role="alert"]').filter({ hasText: /никто не запускает/ })
+  const offer = page
+    .locator('[role="status"], [role="alert"]')
+    .filter({ hasText: /никто не запускает/ })
   await expect(offer).toBeVisible({ timeout: 30000 })
   await offer.getByRole('button', { name: 'Запускать по расписанию' }).click()
-  await expect(page.getByRole('button', { name: 'Расписания: работают' })).toBeVisible({ timeout: 30000 })
+  await expect(page.getByRole('button', { name: 'Расписания: работают' })).toBeVisible({
+    timeout: 30000
+  })
 
   // D-134: в карточке специалиста кнопки «Выполнить сейчас» нет (их панель
   // рутин — просмотр и удаление); запускаем тем же вызовом ядра, что их кнопка
@@ -237,14 +298,19 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   // Ответ на «запустить» ядро иногда держит дольше 15 с нашего моста (замер
   // 24.09.2026, сразу после включения расписаний) — запуск при этом уходит.
   // Судим по факту запуска ниже, а не по ответу.
-  await api(page, { path: `/api/cron/jobs/${job!.id}/trigger`, method: 'POST', profile: 'smeta-kopiya' }).catch(
-    (error: unknown) => {
-      if (!/не ответило за/.test(String(error))) throw error
-      console.log('37.15.1 ответ на запуск не дождались: ' + String(error))
-    }
-  )
+  await api(page, {
+    path: `/api/cron/jobs/${job!.id}/trigger`,
+    method: 'POST',
+    profile: 'smeta-kopiya'
+  }).catch((error: unknown) => {
+    if (!/не ответило за/.test(String(error))) throw error
+    console.log('37.15.1 ответ на запуск не дождались: ' + String(error))
+  })
   await expect
-    .poll(async () => (await smetaJob(page))?.last_run_at ?? null, { timeout: 240000, intervals: [5000] })
+    .poll(async () => (await smetaJob(page))?.last_run_at ?? null, {
+      timeout: 240000,
+      intervals: [5000]
+    })
     .not.toBe(null)
 })
 
@@ -264,8 +330,8 @@ test.fixme('37.15.2 результат виден в чате ЭТОГО спе�
   await expect
     .poll(
       async () =>
-        ((await smetaJob(page)) as { latest_execution?: { delivery_outcome?: string } } | undefined)?.latest_execution
-          ?.delivery_outcome ?? null,
+        ((await smetaJob(page)) as { latest_execution?: { delivery_outcome?: string } } | undefined)
+          ?.latest_execution?.delivery_outcome ?? null,
       { timeout: 420000, intervals: [5000], message: 'результат рутины доставлен' }
     )
     .toBe('delivered')
@@ -303,7 +369,10 @@ test.fixme('37.16.2 рутины скрытого специалиста про�
   await expect(rosterRow(page, 'Смета копия')).toBeHidden({ timeout: 15000 })
 
   await expect
-    .poll(async () => (await smetaJob(page))?.last_run_at ?? null, { timeout: 240000, intervals: [10000] })
+    .poll(async () => (await smetaJob(page))?.last_run_at ?? null, {
+      timeout: 240000,
+      intervals: [10000]
+    })
     .not.toBe(before)
 })
 

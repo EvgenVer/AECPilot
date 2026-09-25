@@ -171,7 +171,7 @@ async function ourScreensText(page: Page): Promise<string> {
     'xpath=ancestor::*[.//button[@aria-label="Подключить папку" or @aria-label="Connect a folder"]][1]'
   )
   chunks.push(await vaultPane.innerText())
-  await page.getByRole('tab', { name: /sessions/i }).click()
+  await page.getByRole('tab', { name: /sessions|сеансы/i }).click()
 
   // Панель изменений (Ctrl+G): список снимков мока.
   await page.keyboard.press('Control+g')
@@ -424,7 +424,7 @@ test('9.2.4 смена языка имён в графе спрашивает в
 
 test('9.3.1 тема: светлая и тёмная меняют всё окно, включая полосы прокрутки', async () => {
   const page = await ui()
-  await openSettings(page, 'tab=config:appearance')
+  await openSettings(page, 'tab=config:appearance&page=theme')
   // Схема цвета корня — она красит и системные элементы, и полосы прокрутки;
   // фон — первый непрозрачный под серединой окна (у `body` он прозрачный).
   const look = () =>
@@ -703,8 +703,8 @@ test('50.4.1 F12 и Ctrl+Shift+I не открывают инструменты 
   expect(await devtoolsOpen()).toBe(false)
 
   // И с их выключателем «Отключить F12 DevTools» — то же самое.
-  await openSettings(page, 'tab=config:model')
-  await page.getByRole('complementary').getByRole('button', { name: 'Дополнительно' }).click()
+  // С 0.21.5 выключатель живёт на подстранице «Дополнительно → Рабочий стол».
+  await openSettings(page, 'tab=config:advanced&page=desktop')
   const toggle = page.getByRole('switch', { name: /Отключить F12/ })
   await expect(toggle).toBeVisible({ timeout: 15000 })
   if ((await toggle.getAttribute('aria-checked')) !== 'true') await toggle.click()

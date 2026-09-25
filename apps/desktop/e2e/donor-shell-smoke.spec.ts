@@ -242,8 +242,14 @@ function previewTabCount(page: Page): Promise<number> {
   return page.evaluate(() => {
     try {
       const raw = window.localStorage.getItem('hermes.desktop.previewTabs.v2')
+      if (!raw) return 0
+      // С 0.21.5 ключ хранит вкладки ПО ПРОФИЛЯМ (`{профиль: [...]}`); массив —
+      // запись прежних сборок.
+      const stored = JSON.parse(raw) as unknown[] | Record<string, unknown[]>
 
-      return raw ? (JSON.parse(raw) as unknown[]).length : 0
+      return Array.isArray(stored)
+        ? stored.length
+        : Object.values(stored).reduce((sum, tabs) => sum + tabs.length, 0)
     } catch {
       return 0
     }
@@ -1435,19 +1441,18 @@ test('a renderer crash outlives the window, and the log carries no token', async
 test('the MCP consent request reaches the window and the answer reaches the gateway', async () => {
   const page = await mainWindow()
 
-  // Половина первая: запрос ядра доходит до окна нетронутым. С ядра 0.21.3 это
-  // не событие, а ЗАПРОС шлюза к окну (`tui_gateway/server_requests.py`,
-  // задача 3.B5в): кадр с собственным строковым id, на который окно отвечает
-  // кадром-ответом с тем же id. Главный процесс раздаёт такие запросы всем
-  // окнам, и запрос, потерянный по дороге, оставил бы агента ждать ответа,
-  // которого никто не даст.
+  // Половина первая: вопрос ядра доходит до окна нетронутым. С ядра 0.21.5
+  // (задача 3.B6) это ОПЕРАЦИЯ подключения: событие `connection.request` со
+  // строкой на каждую цель, а ответ — метод `connection.respond` по её `op_id`.
+  // Главный процесс раздаёт события всем окнам; потерянное по дороге оставило
+  // бы агента ждать ответа, которого никто не даст.
   const received = page.evaluate(
     () =>
       new Promise<Record<string, unknown>>((resolve) => {
-        const stop = window.aecpilot.onGatewayServerRequest((request) => {
-          if (request.method === 'mcp.setup') {
+        const stop = window.aecpilot.onChatEvent((event) => {
+          if (event.type === 'connection.request') {
             stop()
-            resolve(request as unknown as Record<string, unknown>)
+            resolve((event as unknown as { payload: Record<string, unknown> }).payload)
           }
         })
       })
@@ -1457,28 +1462,31 @@ test('the MCP consent request reaches the window and the answer reaches the gate
     window.aecpilot.gatewayRpc('prompt.submit', { text: 'mcp', session_id: 'e2e-1' })
   )
 
-  const request = (await received) as { id: string; params?: { server?: string; reason?: string } }
-  expect(request.id, "the id is the gateway's own, the answer travels under it").toMatch(/^srq-/)
-  expect(request.params?.server).toBe('filesystem')
-  expect(request.params?.reason, 'why the agent wants it must survive the trip').toBe(
+  const request = (await received) as {
+    op_id: string
+    targets: { name: string; kind: string; detail?: string }[]
+  }
+  expect(request.op_id, 'the answer travels under the operation id').toBe('op-e2e-mcp')
+  expect(request.targets[0]).toMatchObject({ name: 'filesystem', kind: 'mcp' })
+  expect(request.targets[0].detail, 'why the agent wants it must survive the trip').toBe(
     'нужен доступ к файлам сметы'
   )
 
-  // Половина вторая: ответ человека доходит до шлюза — кадром-ответом на тот же
-  // id, той формой, которой отвечает их карточка согласия (`{value: JSON}`).
+  // Половина вторая: ответ человека доходит до шлюза той формой, которой
+  // отвечает их карточка (`{op_id, result: {targets: [{name, status}]}}`).
   // Иначе отказ бы не дошёл и ядро висело бы на инструменте до таймаута.
-  const delivered = await page.evaluate(
-    (id) =>
-      window.aecpilot.respondGatewayServerRequest(id, {
-        result: { value: JSON.stringify({ server: 'filesystem', status: 'declined' }) }
+  await page.evaluate(
+    (opId) =>
+      window.aecpilot.gatewayRpc('connection.respond', {
+        op_id: opId,
+        result: { targets: [{ name: 'filesystem', status: 'skipped' }] }
       }),
-    request.id
+    request.op_id
   )
-  expect(delivered, 'the first answer per id must reach the gateway').toBe(true)
 
-  const answered = await waitForMockLine(/MCP_SETUP_RESPOND/)
-  expect(answered).toContain(request.id)
-  expect(answered, 'the answer must be the refusal, not an install').toContain('declined')
+  const answered = await waitForMockLine(/CONNECTION_RESPOND/)
+  expect(answered).toContain('op-e2e-mcp')
+  expect(answered, 'the answer must be the refusal, not an install').toContain('skipped')
 
   await assertRendererAlive(page, 'end of test 8')
 })
@@ -1909,8 +1917,8 @@ test('the session list separates days, archives over PATCH, and knows what is un
   // Уведомления убираются перед КАЖДЫМ обращением к панели: отправка в архив
   // показывает свой тост, а он ложится поверх и перехватывает нажатие.
   await clearNotifications(page)
-  await page.getByRole('button', { name: /^Filters$/i }).click()
-  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве)$/i }).click()
+  await page.getByRole('button', { name: /^(Filters|Фильтры)$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве|Архивные)$/i }).click()
   await page.keyboard.press('Escape')
   await expect(week, 'при включённом показе архивных строка возвращается').toBeVisible({
     timeout: 30000
@@ -1919,8 +1927,8 @@ test('the session list separates days, archives over PATCH, and knows what is un
   // Вернуть показ архивных как было. Он переживает тест (лежит в постоянном
   // хранилище) и меняет то, что видит следующая проверка.
   await clearNotifications(page)
-  await page.getByRole('button', { name: /^Filters$/i }).click()
-  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве)$/i }).click()
+  await page.getByRole('button', { name: /^(Filters|Фильтры)$/i }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^(Archived|В архиве|Архивные)$/i }).click()
   await page.keyboard.press('Escape')
 
   await assertRendererAlive(page, 'end of session-list test')
@@ -2133,7 +2141,7 @@ test('в окне остался один роестр, и это их пане�
   // Их панель регистрируется под своим заголовком; наша называлась
   // «Специалисты» / «Specialists» — по каталогу `aec-catalog.ts`.
   const ours = page.getByText(/^(Специалисты|Specialists)$/)
-  const theirs = page.getByText(/^Bots$/)
+  const theirs = page.getByText(/^(Bots|Боты)$/)
 
   await expect(
     theirs.first(),

@@ -31,6 +31,7 @@ import asyncio
 import json
 import queue
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -110,7 +111,6 @@ ANSWER_LABELS = {
     "preview.read": "PREVIEW_READ_RESPOND",
     "preview.act": "PREVIEW_ACT_RESPOND",
     "tour": "TOUR_RESPOND",
-    "mcp.setup": "MCP_SETUP_RESPOND",
 }
 
 
@@ -147,25 +147,6 @@ async def take_answer(connection: ServerConnection, frame: dict) -> None:
         print(f"{label} ERROR " + json.dumps(frame["error"]), flush=True)
         return
     result = frame.get("result") or {}
-    if method == "mcp.setup":
-        # The consent card's answer (task 3.8, SPEC UR23). Printed with the id
-        # so the test can prove the app sent NOTHING until the person answered.
-        print(f"{label} " + json.dumps({"id": request_id, "result": result}), flush=True)
-        await connection.send(
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "event",
-                    "params": {
-                        "type": "message.complete",
-                        "session_id": ACTIVE_SESSION,
-                        "payload": {"text": "", "status": "complete"},
-                    },
-                }
-            )
-        )
-        await settle_turn(connection, "")
-        return
     print(f"{label} " + json.dumps(result.get("value") or ""), flush=True)
 
 
@@ -379,6 +360,42 @@ async def handle(connection: ServerConnection) -> None:
                     }
                 )
             )
+        elif method in ("projects.tree", "projects.project_sessions"):
+            # Their project grouping (0.21.5 sidebar): the stand has no core
+            # projects, and says so the way the core does — an empty tree and
+            # no project — instead of -32601, which their drill-in reads as
+            # "the session list failed to load".
+            result = {"projects": []} if method == "projects.tree" else {"project": None}
+            reply = {"jsonrpc": "2.0", "id": request_id, "result": result}
+            await connection.send(json.dumps(reply))
+        elif method == "connection.respond":
+            # The consent card's answer (SPEC UR23), printed so the test can
+            # prove the refusal travelled; then the turn the core held open ends.
+            answer = request.get("params") or {}
+            print("CONNECTION_RESPOND " + json.dumps(answer, ensure_ascii=False), flush=True)
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"status": "ok", "settled": True},
+                    }
+                )
+            )
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "event",
+                        "params": {
+                            "type": "message.complete",
+                            "session_id": ACTIVE_SESSION,
+                            "payload": {"text": "", "status": "complete"},
+                        },
+                    }
+                )
+            )
+            await settle_turn(connection, "")
         elif method == "session.close":
             await connection.send(
                 json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})
@@ -469,11 +486,13 @@ async def stream_say(connection: ServerConnection, answer: str) -> None:
 
 
 async def stream_mcp_setup(connection: ServerConnection) -> None:
-    """The `setup_mcp` tool's blocking request (task 3.8, SPEC UR23).
+    """The agent's MCP install asking for a person (task 3.8, SPEC UR23).
 
-    The real core blocks inside the tool until the window answers the
-    `mcp.setup` request, so the turn deliberately stays open here: the test's
-    whole point is that the app installs nothing while it waits for a person.
+    Since core 0.21.5 (task 3.B6) this is no longer an `mcp.setup` server
+    request: the core opens a connection OPERATION — event `connection.request`
+    with one row per target — and the card answers it with the RPC
+    `connection.respond`. The turn deliberately stays open here: the app
+    installs nothing while it waits for a person.
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
@@ -484,10 +503,23 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
         await asyncio.sleep(0.03)
 
     await push("message.start")
-    await ask(
-        connection,
-        "mcp.setup",
-        {"server": "filesystem", "action": "install", "reason": "нужен доступ к файлам сметы"},
+    await push(
+        "connection.request",
+        {
+            "op_id": "op-e2e-mcp",
+            "seq": 1,
+            "deadline_at": time.time() + 300,
+            "timeout_seconds": 300,
+            "targets": [
+                {
+                    "name": "filesystem",
+                    "kind": "mcp",
+                    "action": "install",
+                    "state": "pending",
+                    "detail": "нужен доступ к файлам сметы",
+                }
+            ],
+        },
     )
 
 

@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/settings/settings-manifest.ts
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] registration table: dropped the pet setting (HX1)
+ * (no other edits)
  */
 import type { Translations } from '@/i18n'
 import { NATIVE_NOTIFICATION_KINDS } from '@/store/native-notifications'
@@ -137,12 +139,8 @@ export const SETTINGS_MANIFEST = {
       ['thinking', 'reasoning', 'collapse', 'expand', 'chain of thought'],
       'reasoningCollapsed'
     ),
-    embeds: appearanceSetting('chat-display', ['external content', 'privacy'], 'embeds'),
-    pet: {
-      subpage: 'pet',
-      keywords: ['pet', 'mascot', 'petdex', 'companion', 'buddy'],
-      copy: t => ({ label: t.settings.appearance.pet.chooseTitle, description: t.settings.appearance.pet.chooseDesc })
-    }
+    embeds: appearanceSetting('chat-display', ['external content', 'privacy'], 'embeds')
+    // EDIT [3]: the pet setting is HX1.
   },
   chat: {
     attachmentSize: {

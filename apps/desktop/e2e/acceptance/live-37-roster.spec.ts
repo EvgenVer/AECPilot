@@ -42,7 +42,7 @@ async function ui(): Promise<Page> {
 /** Панель специалистов слева. Вкладка подписана «BOTS» — их строка без
  *  перевода; русский проход по донорским поверхностям это задача 6.7. */
 async function roster(page: Page): Promise<Page> {
-  await page.getByRole('tab', { name: /Bots|Специалисты/i }).click()
+  await page.getByRole('tab', { name: /Bots|Боты|Специалисты/i }).click()
   await page.waitForTimeout(1500)
   return page
 }

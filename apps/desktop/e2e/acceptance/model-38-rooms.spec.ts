@@ -12,7 +12,13 @@ import { join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, reopenRecentProject, standFixture } from '../lib/app'
+import {
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  reopenRecentProject,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 
 test.describe.configure({ mode: 'serial' })
@@ -21,8 +27,18 @@ const stand = standFixture({ mode: 'live', label: 'model-38' })
 
 const TEAM = [
   { name: 'smeta', title: 'Smeta', role: 'сметчик', soul: 'Ты сметчик. Считай деньги и сроки.' },
-  { name: 'konstruktor', title: 'Konstruktor', role: 'конструктор', soul: 'Ты конструктор. Отвечай за несущую способность.' },
-  { name: 'snip', title: 'Snip', role: 'нормоконтролёр', soul: 'Ты нормоконтролёр. Проверяй по нормам и ссылайся на пункт.' }
+  {
+    name: 'konstruktor',
+    title: 'Konstruktor',
+    role: 'конструктор',
+    soul: 'Ты конструктор. Отвечай за несущую способность.'
+  },
+  {
+    name: 'snip',
+    title: 'Snip',
+    role: 'нормоконтролёр',
+    soul: 'Ты нормоконтролёр. Проверяй по нормам и ссылайся на пункт.'
+  }
 ] as const
 
 const ROOM = 'Совещание по перекрытию'
@@ -40,7 +56,7 @@ async function ui(): Promise<Page> {
 }
 
 async function roster(page: Page): Promise<Page> {
-  await page.getByRole('tab', { name: /Bots|Специалисты/i }).click()
+  await page.getByRole('tab', { name: /Bots|Боты|Специалисты/i }).click()
   await page.waitForTimeout(1500)
   return page
 }
@@ -119,7 +135,11 @@ async function roundDone(page: Page, timeout = 420000): Promise<void> {
 test('38.1.1 все трое в списке, каждый со своей ролью', async () => {
   const page = await roster(await ui())
   for (const member of TEAM) {
-    await rpc(page, 'profiles.create', { name: member.name, description: member.role, clone_from: null })
+    await rpc(page, 'profiles.create', {
+      name: member.name,
+      description: member.role,
+      clone_from: null
+    })
   }
   const profiles = await coreProfiles(page)
   for (const member of TEAM) {
@@ -157,7 +177,10 @@ test('38.3.1 характер сохранился; при повторном о
     await expect(card).toBeHidden({ timeout: 30000 })
     card = await openCard(page, member.title)
     await openCapabilities(card)
-    await expect(soul()).toHaveValue(new RegExp(member.soul.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), { timeout: 60000 })
+    await expect(soul()).toHaveValue(
+      new RegExp(member.soul.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      { timeout: 60000 }
+    )
     await card.getByRole('button', { name: /^Отмена$/ }).click()
     await expect(card).toBeHidden()
   }
@@ -193,17 +216,25 @@ test('38.6.1 комната появилась в списке с именем �
   const boxes = dialog.getByRole('checkbox')
   const labels = await dialog.locator('label').allInnerTexts()
   for (let index = 0; index < labels.length; index += 1) {
-    if (TEAM.some((member) => labels[index].includes(member.title) || labels[index].includes(`@${member.name}`))) {
+    if (
+      TEAM.some(
+        (member) =>
+          labels[index].includes(member.title) || labels[index].includes(`@${member.name}`)
+      )
+    ) {
       await boxes.nth(index).click()
     }
   }
   const name = dialog.getByRole('textbox', { name: 'Имя комнаты' })
   const byMembers = (await name.getAttribute('placeholder')) ?? ''
   console.log('38.6 имя по составу: ' + byMembers)
-  for (const member of TEAM) expect(byMembers).toMatch(new RegExp(`${member.title}|${member.name}`, 'i'))
+  for (const member of TEAM)
+    expect(byMembers).toMatch(new RegExp(`${member.title}|${member.name}`, 'i'))
   await dialog.getByRole('button', { name: /^Create Group \(3\)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 30000 })
-  await expect(page.getByRole('button', { name: byMembers }).first()).toBeVisible({ timeout: 30000 })
+  await expect(page.getByRole('button', { name: byMembers }).first()).toBeVisible({
+    timeout: 30000
+  })
   await record(test.info(), page)
 })
 
@@ -216,13 +247,18 @@ test('38.6.2 открылась пустая лента комнаты и пол
 
 test('38.7.1 имя комнаты меняется в её заголовке — и в списке', async () => {
   const page = await ui()
-  await page.getByRole('button', { name: /^Настройки комнаты / }).first().click()
+  await page
+    .getByRole('button', { name: /^Настройки комнаты / })
+    .first()
+    .click()
   const settings = page.getByRole('dialog', { name: 'Настройки комнаты' })
   await expect(settings).toBeVisible({ timeout: 15000 })
   await settings.getByRole('textbox', { name: 'Имя комнаты' }).fill(ROOM)
   await settings.getByRole('button', { name: /^Сохранить$|^Save$/ }).click()
   await expect(settings).toBeHidden({ timeout: 30000 })
-  await expect(page.getByRole('button', { name: new RegExp(`^${ROOM}`) }).first()).toBeVisible({ timeout: 30000 })
+  await expect(page.getByRole('button', { name: new RegExp(`^${ROOM}`) }).first()).toBeVisible({
+    timeout: 30000
+  })
   await expect(composer(page)).toBeVisible({ timeout: 30000 })
 })
 
@@ -270,7 +306,10 @@ test('38.9.3 ответы приходят по одному, а не все р�
   console.log('38.9.3 снимки числа говоривших: ' + [...seen].join(','))
   console.log('38.10 ' + firstRound.replace(/\n/g, ' ⏎ ').slice(0, 3000))
   const final = Math.max(...seen)
-  expect([...seen].some((count) => count > 0 && count < final), 'был промежуточный снимок').toBe(true)
+  expect(
+    [...seen].some((count) => count > 0 && count < final),
+    'был промежуточный снимок'
+  ).toBe(true)
 })
 
 test('38.10.1 ответили минимум двое', async () => {
@@ -283,7 +322,11 @@ test('38.10.1 ответили минимум двое', async () => {
 test('38.10.2 ответы разные по существу — каждый со своей позиции', async () => {
   // Позиции узнаются по словам своей темы: деньги/сроки, нагрузка/прочность,
   // норма/пункт. Три одинаковых пересказа такой проверки не пройдут.
-  const themes = [/руб|стоимост|срок|дешевл|дорож|смет/i, /нагрузк|несущ|прочн|прогиб|армир/i, /СП |СНиП|ГОСТ|пункт|п\.\s*\d|норм/i]
+  const themes = [
+    /руб|стоимост|срок|дешевл|дорож|смет/i,
+    /нагрузк|несущ|прочн|прогиб|армир/i,
+    /СП |СНиП|ГОСТ|пункт|п\.\s*\d|норм/i
+  ]
   const hit = themes.filter((theme) => theme.test(firstRound)).length
   expect(hit, 'затронуты темы всех трёх ролей').toBe(3)
 })
@@ -291,7 +334,8 @@ test('38.10.2 ответы разные по существу — каждый �
 test('38.10.3 у каждой реплики видно, кто её сказал', async () => {
   const page = await ui()
   for (const member of TEAM) {
-    if ((await speakers(page, member.title).count()) > 0) await expect(speakers(page, member.title).first()).toBeVisible()
+    if ((await speakers(page, member.title).count()) > 0)
+      await expect(speakers(page, member.title).first()).toBeVisible()
   }
 })
 
@@ -302,7 +346,9 @@ test('38.12.1 подсказка после «@» предлагает учас�
   await composer(page).fill('')
   await composer(page).pressSequentially('@')
   for (const member of TEAM) {
-    await expect(page.getByRole('button', { name: new RegExp(`^@${member.name}`) }).first()).toBeVisible({ timeout: 15000 })
+    await expect(
+      page.getByRole('button', { name: new RegExp(`^@${member.name}`) }).first()
+    ).toBeVisible({ timeout: 15000 })
   }
   await composer(page).press('Escape')
 })
@@ -329,7 +375,9 @@ test('38.12.3 ответил только названный — остальн�
 test('38.13.1 вопрос без обращений — отвечают все', async () => {
   const page = await ui()
   const before = await Promise.all(TEAM.map((member) => speakers(page, member.title).count()))
-  await composer(page).fill('@everyone Назовите по одному главному риску этого решения, одной фразой.')
+  await composer(page).fill(
+    '@everyone Назовите по одному главному риску этого решения, одной фразой.'
+  )
   await composer(page).press('Escape')
   await composer(page).press('Enter')
   await expect(page.getByText(/Комната работает…|думает…/).first()).toBeVisible({ timeout: 60000 })
@@ -369,7 +417,9 @@ test('38.15.3 ответы ссылаются на содержимое файл
   await (await chooser).setFiles(file)
   await expect(page.getByText('нагрузки.txt').first()).toBeVisible({ timeout: 15000 })
   const before = await roomText(page)
-  await composer(page).fill('@everyone Какая нагрузка на перекрытие П-1 указана в приложенном файле? Назовите число.')
+  await composer(page).fill(
+    '@everyone Какая нагрузка на перекрытие П-1 указана в приложенном файле? Назовите число.'
+  )
   await composer(page).press('Escape')
   await composer(page).press('Enter')
   await expect(page.getByText(/Комната работает…|думает…/).first()).toBeVisible({ timeout: 60000 })

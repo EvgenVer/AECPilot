@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import {
   appWindows,
   assertRendererAlive,
+  clearNotifications,
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
@@ -111,6 +112,22 @@ async function answerWith(page: Page, rel: string, locator?: string): Promise<Lo
   await send(page, `say: Смотрите здесь: ${raw}.`)
   const chip = page.locator(`button[title="${raw.slice(0, raw.indexOf('](#cite)'))}]"]`).last()
   await expect(chip).toBeVisible({ timeout: 60000 })
+  // С 0.21.5 лента доезжает с анимацией, и кнопка ссылки какое-то время
+  // «плывёт» — Playwright не нажимает нестабильное. Ждём, пока встанет.
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const box = JSON.stringify(await chip.boundingBox())
+        const settled = box === last
+        last = box
+        return settled
+      },
+      { timeout: 30000, intervals: [300] }
+    )
+    .toBe(true)
+  // И тосты их стопки ложатся поверх ленты — нажатие ушло бы в уведомление.
+  await clearNotifications(page)
   return chip
 }
 

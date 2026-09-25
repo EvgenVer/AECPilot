@@ -30,7 +30,7 @@ async function ui(): Promise<Page> {
 }
 
 async function openCard(page: Page, title: string): Promise<Locator> {
-  await page.getByRole('tab', { name: /Bots|Специалисты/i }).click()
+  await page.getByRole('tab', { name: /Bots|Боты|Специалисты/i }).click()
   await page
     .getByRole('button', { name: new RegExp(`^${title}( ·|$)`) })
     .first()
@@ -71,10 +71,16 @@ function listening(pids: number[]): { addr: string; port: number; pid: number }[
     'Where-Object { $ids -contains $_.OwningProcess } | ' +
     'ForEach-Object { [pscustomobject]@{ addr = $_.LocalAddress; port = $_.LocalPort; pid = $_.OwningProcess } } | ' +
     'ConvertTo-Json -Compress'
-  const out = execFileSync('powershell', ['-NoProfile', '-Command', script], { encoding: 'utf-8' }).trim()
+  const out = execFileSync('powershell', ['-NoProfile', '-Command', script], {
+    encoding: 'utf-8'
+  }).trim()
   if (!out) return []
   const parsed = JSON.parse(out) as unknown
-  return (Array.isArray(parsed) ? parsed : [parsed]) as { addr: string; port: number; pid: number }[]
+  return (Array.isArray(parsed) ? parsed : [parsed]) as {
+    addr: string
+    port: number
+    pid: number
+  }[]
 }
 
 test('38.19.1 тест «нет питомца» проходит', () => {
@@ -134,5 +140,7 @@ test('38.20.2 при закрытом приложении список пуст
     .get()
     .app.evaluate(({ app }) => app.quit())
     .catch(() => undefined)
-  await expect.poll(() => listening(listenerPids), { timeout: 60000, intervals: [2000] }).toEqual([])
+  await expect
+    .poll(() => listening(listenerPids), { timeout: 60000, intervals: [2000] })
+    .toEqual([])
 })

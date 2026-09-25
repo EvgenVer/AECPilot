@@ -690,6 +690,10 @@ test('5.1.1 уведомление о скане несёт разбивку: д
   const toast = page
     .locator('[role="status"]')
     .filter({ hasText: /Источники изменились|Sources changed/ })
+    // С 0.21.5 их стопка держит несколько тостов: запоздавший отчёт прежнего
+    // цикла скана («добавлено 12») может лечь рядом. Ждём тот, что про эту правку.
+    .filter({ hasText: /изменено|changed/ })
+    .first()
   await expect(toast).toBeVisible({ timeout: 180000 })
   scanToast = await toast.innerText()
 
