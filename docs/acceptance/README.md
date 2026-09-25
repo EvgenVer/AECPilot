@@ -7,9 +7,11 @@ SPEC AC15). Screenshots are copied next to it into `shots/` and are **not** comm
 ## How to produce a report
 Run from `apps/desktop`:
 
-1. `corepack pnpm e2e:acceptance`: builds the app and runs every `live-*`/`model-*`
-   spec against the live core in one Playwright run. Model turns need
-   `AEC_ACCEPTANCE_LIVE=1`.
+1. `corepack pnpm e2e:acceptance`: builds the app and runs, in ONE Playwright run,
+   the three acceptance projects: `acceptance` (mock gateway), `acceptance-live`
+   (`live-*`/`model-*` specs against the live core, model turns included, so this costs
+   money), and `desktop` (real OS windows, see `desktop-protocol.md`). Keep the screen
+   unlocked.
 2. `corepack pnpm e2e:acceptance:report [--date YYYY-MM-DD]`: writes the report.
 
 Playwright clears `test-results/` on every run, so a report always shows the **last**

@@ -226,7 +226,7 @@ test('26.6.1 экспорт профиля из палитры открывае�
   await expect(option).toBeVisible()
   for (
     let step = 0;
-    step < 15 && (await option.getAttribute('aria-selected')) !== 'true';
+    step < 60 && (await option.getAttribute('aria-selected')) !== 'true';
     step += 1
   ) {
     await page.keyboard.press('ArrowDown')

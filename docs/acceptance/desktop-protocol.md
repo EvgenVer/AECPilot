@@ -41,13 +41,8 @@ half checks that the main window came up from the taskbar.
 The `desktop` Playwright project opens real windows on the person's screen. It is
 therefore **not** part of the `pnpm e2e` gate. It runs in the acceptance run of task
 3F.14, in the **same** Playwright invocation as the other projects, because
-Playwright clears `test-results/` on every run:
-
-```
-corepack pnpm exec playwright test --project acceptance --project acceptance-live --project desktop
-```
-
-After that, run `corepack pnpm e2e:acceptance:report`.
+Playwright clears `test-results/` on every run. `corepack pnpm e2e:acceptance` does
+exactly that. After it, run `corepack pnpm e2e:acceptance:report`.
 
 The screen must be unlocked. On a locked screen every window is covered by the lock
 screen. Every position then **skips with that reason**, and the report shows it as 🟡,
