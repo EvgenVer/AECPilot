@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
+import { Dialog, DialogContent, DialogTitle } from '../../donor/components/ui/dialog'
 import { createHermesDesktopBridge, INSTALL_DECLINED } from '../../shared/hermes-desktop-shim'
 import { AecI18nProvider } from '../../shared/i18n'
 
@@ -185,6 +186,35 @@ describe('гейт доверия на установку', () => {
 
     await expect(second).rejects.toThrow(INSTALL_DECLINED)
     expect($installConsent.get()?.label).toBe('nous/pdf-tools')
+    expect(rest).not.toHaveBeenCalled()
+  })
+
+  test('вопрос поверх их открытого модального окна виден и отвечается', async () => {
+    // Замер 25.09.2026 (29.4.1): «Connect to a custom MCP» ждёт ответа со
+    // спиннером, а вопрос лежал ПОД ним — их слой прячет от доступности и
+    // щелчков всё вне себя. Спрятанный диалог по роли не находится.
+    render(
+      <AecI18nProvider>
+        <Dialog open>
+          <DialogContent>
+            <DialogTitle>Connect to a custom MCP</DialogTitle>
+          </DialogContent>
+        </Dialog>
+        <InstallConsentDialog />
+      </AecI18nProvider>
+    )
+    const bridge = createHermesDesktopBridge()
+    const call = bridge.api({
+      path: '/api/mcp/catalog/install',
+      method: 'POST',
+      body: { name: 'filesystem' }
+    })
+    await vi.waitFor(() => expect($installConsent.get()).not.toBeNull())
+
+    const consent = await screen.findByRole('dialog', { name: /Добавить MCP-сервер/ })
+    fireEvent.click(within(consent).getByRole('button', { name: 'Отмена' }))
+
+    await expect(call).rejects.toThrow(INSTALL_DECLINED)
     expect(rest).not.toHaveBeenCalled()
   })
 })

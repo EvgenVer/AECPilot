@@ -129,8 +129,8 @@ async function openCapabilities(card: Locator): Promise<void> {
  *  не пришёл — провайдер профиля «неизвестен» — открывается ручной ввод), так
  *  что вид задаётся явно. */
 async function modelDropdowns(card: Locator): Promise<void> {
-  const back = card.getByRole('button', { name: /Back to dropdowns/ })
-  await expect(card.getByText(/^Provider/).first()).toBeVisible({ timeout: 60000 })
+  const back = card.getByRole('button', { name: /Back to dropdowns|Вернуться к спискам/ })
+  await expect(card.getByText(/^(Provider|Провайдер)/).first()).toBeVisible({ timeout: 60000 })
   if (await back.isVisible()) await back.click()
   await expect(card.getByRole('combobox').first()).toBeVisible({ timeout: 30000 })
 }
@@ -156,7 +156,7 @@ async function createSpecialist(
     await page.getByRole('option', { name: fields.cloneFrom, exact: true }).click()
     await expect(clone).toContainText(fields.cloneFrom)
   }
-  await dialog.getByRole('button', { name: /^Create Bot$/ }).click()
+  await dialog.getByRole('button', { name: /^(Create Bot|Создать специалиста)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 60000 })
   // Самопредставление: ждём, пока ход кончится, — иначе щелчок по строке
   // прервёт открытие его же чата.
@@ -340,8 +340,8 @@ test('37.7.1 модель выбирается парой «провайдер �
   await openCapabilities(card)
   await modelDropdowns(card)
 
-  await expect(card.getByText('Provider', { exact: true })).toBeVisible()
-  await expect(card.getByText('Model', { exact: true })).toBeVisible()
+  await expect(card.getByText(/^(Provider|Провайдер)$/)).toBeVisible()
+  await expect(card.getByText(/^(Model|Модель)$/)).toBeVisible()
   const smeta = await coreProfile(page, 'smeta')
   await expect(card.getByRole('combobox').nth(0)).toContainText(String(smeta?.provider))
   await expect(card.getByRole('combobox').nth(1)).toContainText(String(smeta?.model))

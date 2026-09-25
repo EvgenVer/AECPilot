@@ -17,6 +17,13 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle
+} from '../../donor/components/ui/dialog'
 import { useAecT } from '../../shared/i18n'
 
 import type { SkillDetails } from './details'
@@ -75,22 +82,25 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
         ? t('install.skillLead')
         : t('install.serverLead')
 
+  // Их `Dialog`, а не своя подложка: вопрос приходит и тогда, когда поверх
+  // уже стоит их модальное окно («Connect to a custom MCP» ждёт ответа со
+  // спиннером). Своя подложка лежала ПОД ним (`z-50` против их `--z-modal`), а
+  // их слой к тому же гасит щелчки вне себя — человек не видел вопроса и не мог
+  // ответить (замер 25.09.2026, позиция 29.4.1). Их диалог встаёт верхним слоем
+  // стопки: он получает щелчки и фокус. Закрытие мимо кнопок — это отказ.
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="presentation"
-      onClick={() => question.answer(false)}
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) question.answer(false)
+      }}
+      open
     >
-      <div
-        aria-label={title}
-        aria-modal="true"
-        className="flex w-full max-w-md flex-col gap-4 rounded-lg bg-(--ui-bg-secondary) p-5 shadow-lg"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <h2 className="text-sm font-semibold text-(--ui-text-primary)">{title}</h2>
+      <DialogContent className="max-w-md" showCloseButton={false}>
+        <DialogTitle className="text-sm font-semibold text-(--ui-text-primary)">
+          {title}
+        </DialogTitle>
 
-        <p className="text-xs text-(--ui-text-secondary)">{lead}</p>
+        <DialogDescription className="text-xs text-(--ui-text-secondary)">{lead}</DialogDescription>
 
         {question.kind === 'skill' && (
           <div className="flex flex-col gap-2 text-xs text-(--ui-text-secondary)">
@@ -125,15 +135,15 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button onClick={() => question.answer(false)} size="sm" variant="ghost">
             {t('common.cancel')}
           </Button>
           <Button onClick={() => question.answer(true)} size="sm">
             {t('install.confirm')}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

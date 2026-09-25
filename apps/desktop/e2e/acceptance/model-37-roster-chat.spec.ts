@@ -84,7 +84,7 @@ async function createSpecialist(
     await page.getByRole('option', { name: fields.cloneFrom, exact: true }).click()
     await expect(clone).toContainText(fields.cloneFrom)
   }
-  await dialog.getByRole('button', { name: /^Create Bot$/ }).click()
+  await dialog.getByRole('button', { name: /^(Create Bot|Создать специалиста)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 60000 })
   // Превью строки сменяется с «Привет! Расскажи о себе.» на его ответ, когда
   // самопредставление закончено.

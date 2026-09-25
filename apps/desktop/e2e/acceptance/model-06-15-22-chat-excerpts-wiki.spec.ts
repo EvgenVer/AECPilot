@@ -211,10 +211,13 @@ test('6.4.1 вывод долгой команды идёт потоком, фо
     chunks.map((event) => event.payload?.chunk ?? '').join(''),
     'строки вывода разделены переводами строк'
   ).toMatch(/шаг 1\n(.*\n)*шаг 2\n/)
-  // Правая панель: вывод фонового процесса — отдельная вкладка терминала.
+  // Правая панель: вывод фонового процесса — отдельная вкладка терминала. С
+  // 0.21.5 вкладки процессов живут в списке «Терминалы» и названы командой.
   await openTerminalPane(page)
   await expect(
-    page.locator('[role="tab"], [role="tablist"] button').filter({ hasText: /^terminal$/ })
+    page
+      .getByRole('tablist', { name: /^(Терминалы|Terminals)$/ })
+      .getByRole('tab', { name: /шаг/ })
   ).toBeVisible()
   await record(test.info(), page, { transcript: result.transcript })
 })

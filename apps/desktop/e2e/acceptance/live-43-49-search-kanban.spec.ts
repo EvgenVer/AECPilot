@@ -79,8 +79,10 @@ test('43.1.1 перечислены все провайдеры поиска я�
     expect(panel, `провайдер ядра ${id} есть в окне`).toContain(id.split('-')[0].toLowerCase())
   }
   for (const text of texts) {
+    // `native` (с 0.21.5, «OpenAI Native Web Search»): поиск встроен в саму
+    // модель провайдера — ни ключа, ни сервера отдельно не нужно.
     expect(text, 'у строки сказано, что ей нужно').toMatch(
-      /free|paid|no key|key optional|self-hosted|subscription/i
+      /free|paid|no key|key optional|self-hosted|subscription|native/i
     )
   }
 })

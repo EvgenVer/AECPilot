@@ -46,7 +46,13 @@ function card(page: Page) {
 
 let before = ''
 
-test('29.5.1 в ленте карточка согласия с названием сервера и причиной', async () => {
+// D-149: с ядра 0.21.5 у агента НЕТ инструмента установки MCP-сервера —
+// `setup_mcp` удалён из реестра, а `manage_catalog` (профиль их первого запуска,
+// HX26) и `manage_connections` (коннекторы Nous, HX3) у нас не регистрируются.
+// Замер 25.09.2026: агент ответил «'setup_mcp' is not a known tool name». Карточке
+// согласия не на чем появиться; позиции ждут решения владельца (переписать под
+// «агент ставить MCP не может» или снять). Тела оставлены целиком.
+test.fixme('29.5.1 в ленте карточка согласия с названием сервера и причиной', async () => {
   const page = await ui()
   before = mcpServersSection()
   expect(before, 'сервера filesystem до хода нет').not.toMatch(/^\s{2}filesystem:/m)
@@ -71,7 +77,7 @@ test('29.5.1 в ленте карточка согласия с название
   await record(test.info(), page)
 })
 
-test('29.5.2 пока человек не ответил, ничего не устанавливается', async () => {
+test.fixme('29.5.2 пока человек не ответил, ничего не устанавливается', async () => {
   const page = await ui()
   await page.waitForTimeout(10000)
   expect(mcpServersSection(), 'конфиг серверов не изменился').toBe(before)

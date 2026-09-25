@@ -70,10 +70,12 @@ export async function eventCount(page: Page): Promise<number> {
   )
 }
 
-/** Полоса подтверждения команды под вызовом, который его попросил. */
+/** Карточка подтверждения команды под вызовом, который его попросил. С 0.21.5
+ *  это `tool-approval-card`: подпись «Команда», текст команды и кнопки — внутри
+ *  неё, а `tool-approval-actions` — только ряд кнопок, без команды. */
 export function approvalStrip(page: Page): Locator {
   return page
-    .locator('[data-slot="tool-approval-inline"], [data-slot="tool-approval-actions"]')
+    .locator('[data-slot="tool-approval-card"], [data-slot="tool-approval-inline"]')
     .last()
 }
 
