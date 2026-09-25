@@ -108,6 +108,17 @@ describe('GatewayClient event parsing (fixture frames, no network)', () => {
     expect(events[0].type).toBe('gateway.ready')
   })
 
+  it('on every gateway.ready tells the core it answers server requests (0.21.5)', () => {
+    // Без этого объявления ядро 0.21.5 не шлёт клиенту clarify/approval/sudo/secret.
+    const { socket } = makeConnectedClient()
+    socket.emit(frame('gateway.ready'))
+
+    const sent = socket.sent.map((raw) => JSON.parse(raw) as { method?: string; params?: unknown })
+    expect(sent).toContainEqual(
+      expect.objectContaining({ method: 'client.capabilities', params: { server_requests: true } })
+    )
+  })
+
   it('dispatches message.delta with typed payload.text', () => {
     const { socket, client } = makeConnectedClient()
     const events: GatewayEvent[] = []

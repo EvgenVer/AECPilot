@@ -351,6 +351,14 @@ export class GatewayClient {
         this.everReady = true
         this.reconnectAttempts = 0
         this.setState('ready')
+        // С ядра 0.21.5 (задача 3.B6) WebSocket-клиент, который не сказал «я
+        // отвечаю на вопросы сервер→клиент», считается сборкой старше этой
+        // половины протокола: ядро НЕ шлёт ему ни уточнений, ни подтверждений
+        // команд (R21), ни sudo, ни секретов — инструмент сразу получает пустой
+        // ответ. Объявление действует на соединение, поэтому шлётся на каждый
+        // `gateway.ready`, в том числе после переподключения. Старое ядро
+        // отвечает -32601 — это не ошибка.
+        this.request('client.capabilities', { server_requests: true }).catch(() => undefined)
         this.connectResolve?.()
         this.connectResolve = undefined
         this.connectReject = undefined

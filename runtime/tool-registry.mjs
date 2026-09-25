@@ -77,7 +77,6 @@ export const VERDICTS = {
   show_tip: { status: "ours", where: "взят решением владельца 2026-09-01 (SPEC HX16, граница); ветка tip.show в donor/.../desktop-bridge.ts" },
   focus_pane: { status: "ours", where: "ветка pane.reveal в donor/.../desktop-bridge.ts" },
   react_to_message: { status: "ours", where: "ветка message.reaction в donor/.../desktop-bridge.ts" },
-  setup_mcp: { status: "ours", where: "запрос `mcp.setup` в donor/.../gateway-event/server-requests.ts (0.21.3); карточка согласия — их `mcp-setup-tool.tsx`" },
   desktop_preview: { status: "ours", where: "запрос `preview.read` в donor/.../gateway-event/server-requests.ts (0.21.3); рамка R22 ставится в main на ответ; сама область предпросмотра — задача 3.4" },
 
   // ── задачи (решение принято, работа впереди) ────────────────────────────

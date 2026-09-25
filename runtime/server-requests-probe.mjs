@@ -300,6 +300,9 @@ try {
   await waitHealthy(handle)
   client = await open(handle.wsUrl)
   await client.waitEvent((event) => event.type === 'gateway.ready', 15000)
+  // С ядра 0.21.5 клиент, не объявивший `server_requests`, вопросов не получает
+  // вовсе — так же, как это делает наш главный процесс (`shared/gateway/client.ts`).
+  await client.request('client.capabilities', { server_requests: true })
 
   const made = await client.request('session.create', { source: 'desktop', hidden: true, cwd: PROBE_CWD })
   sessionId = made?.session_id ?? ''
@@ -467,7 +470,9 @@ try {
     const requestsBefore = client.requests.length
     const asked = await turn(
       'terminal.read',
-      'Вызови инструмент read_terminal без аргументов (именно его — не read_file и не terminal: он читает встроенный терминал приложения) ' +
+      // С ядра 0.21.5 `read_terminal` по умолчанию отложен за `tool_search`
+      // (`tools.tool_search.defer`): модель видит его только после поиска.
+      'Найди через tool_search инструмент read_terminal и вызови его без аргументов (именно его — не read_file и не terminal: он читает встроенный терминал приложения) ' +
         'и процитируй дословно строку, которая там написана. Больше ничего не делай.',
       async () => {
         const request = await client.waitRequest('terminal.read', REQUEST_TIMEOUT_MS, requestsBefore)

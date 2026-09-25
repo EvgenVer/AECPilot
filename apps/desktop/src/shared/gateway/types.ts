@@ -323,6 +323,8 @@ export interface GatewayMethodMap {
   'prompt.submit': { params: PromptSubmitParams; result: PromptSubmitResult }
   'session.close': { params: SessionCloseParams; result: SessionCloseResult }
   'approval.respond': { params: ApprovalRespondParams; result: ApprovalRespondResult }
+  // С ядра 0.21.5: клиент объявляет, что отвечает на вопросы сервер→клиент.
+  'client.capabilities': { params: { server_requests: boolean }; result: unknown }
   'session.list': { params: SessionListParams; result: SessionListResult }
   'session.history': { params: SessionHistoryParams; result: SessionHistoryResult }
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
