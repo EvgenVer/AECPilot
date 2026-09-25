@@ -81,7 +81,9 @@ test('43.2.1 агент ищет в интернете, и ответ опира
   const last = page.locator('[data-slot="aui_assistant-message-root"]').last()
   await expect(last.locator('[data-slot="tool-block"]').first()).toBeVisible()
   expect(result.text).not.toMatch(/нет доступа к интернету|не могу (искать|выйти)/i)
-  expect(result.text).toMatch(/Екатеринбург/i)
+  // Город назван словом или адресом источника (замер 25.09.2026: «Яндекс.Погода
+  // (…/pogoda/ru/yekaterinburg)» — ответ опирается на найденную страницу).
+  expect(result.text).toMatch(/Екатеринбург|yekaterinburg/i)
   expect(result.text, 'ответ несёт погоду, а не общие слова').toMatch(
     /°|градус|температур|осадк|облачн|ветер|дожд|снег|ясн/i
   )

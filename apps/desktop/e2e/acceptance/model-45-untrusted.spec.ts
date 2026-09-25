@@ -96,7 +96,13 @@ test('45.3.1 у чтения страницы сказано, что содер�
     .last()
     .locator('[data-slot="tool-block"]')
     .first()
-  await card.locator('button[aria-expanded]').first().click()
+  // С 0.21.5 вызовы хода сворачиваются в группу «Used N tools»: раскрыть
+  // группу, затем вложенные карточки — пометка лежит в результате вызова.
+  for (let open = 0; open < 5; open += 1) {
+    const closed = card.locator('button[aria-expanded="false"]').first()
+    if ((await closed.count()) === 0) break
+    await closed.click()
+  }
   console.log('45.3 CARD ' + (await card.innerText()).slice(0, 1200))
   await expect(card, 'пометка видна человеку в карточке вызова').toContainText(/untrusted|недовер|извне/i)
   await record(test.info(), page)
