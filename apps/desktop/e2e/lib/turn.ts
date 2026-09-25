@@ -80,8 +80,12 @@ export function approvalStrip(page: Page): Locator {
 /** Текст команды, которую подтверждают, — раскрыть «Команда» и прочитать. */
 export async function approvalCommand(page: Page): Promise<string> {
   const strip = approvalStrip(page)
+  // До 0.21.5 текст прятался под кнопкой «Команда»; с 0.21.5 это подпись, а
+  // команда видна сразу (замер 24.09.2026).
   const toggle = strip.getByRole('button', { name: 'Команда' })
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  if ((await toggle.count()) > 0 && (await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
   return (await strip.locator('pre').innerText()).trim()
 }
 

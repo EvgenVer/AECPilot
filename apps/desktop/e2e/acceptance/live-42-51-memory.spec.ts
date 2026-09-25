@@ -5,8 +5,10 @@
 // 20 %» (пока стоит `fixme` по D-111, ходов ноль). Факт в память проекта кладёт
 // только агент; своей записи в хранилище у
 // приложения нет (`runtime/memory-facts.py` умеет читать и удалять, но не
-// писать), а свежий проект стенда пуст. Позиции, где агент должен ОТВЕТИТЬ
-// (42.2.2, 42.6.2, 42.6.3, 42.7.2), — в 3F.9.
+// писать), а свежий проект стенда пуст. Ещё три коротких хода — позиции, где
+// агент должен просто ОТВЕТИТЬ (42.2.2, 42.6.2, 42.7.2, задача 3F.9): они
+// проверяют, что остановка ядра на время списка не оставляет его лежать.
+// 42.6.3 («удалённого факта нет в ответе») ждёт того же факта, что и шаг 1.
 //
 // 42.9.1 («ядро на другой машине») здесь нет: на живом ядре её можно проверить
 // только настоящим подключением к ядру на другой машине (блок 35).
@@ -18,6 +20,8 @@ import { join } from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { hideFirstRunSurfaces, mainWindow, openProject, send, standFixture } from '../lib/app'
+import { record } from '../lib/evidence'
+import { turn } from '../lib/turn'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -63,6 +67,23 @@ async function closeMemory(page: Page): Promise<void> {
 }
 
 const SHOW = 'Показать список (агент остановится)'
+
+/** Агент отвечает в чате: окно памяти закрыто, короткий ход, ответ по существу. */
+async function agentAnswers(page: Page): Promise<void> {
+  if (await memoryDialog(page).isVisible()) await closeMemory(page)
+  // Вопрос без счёта: арифметику модель норовит проверить `execute_code`, и
+  // ход упирается в подтверждение команды. Чужую команду тест отклоняет.
+  const result = await turn(
+    page,
+    'Какого цвета ясное небо днём? Ответь одним словом, без инструментов.',
+    {
+      declineForeign: true
+    }
+  )
+  expect(result.status, result.transcript).toBe('complete')
+  expect(result.text, result.transcript).toMatch(/голуб|син/i)
+  await record(test.info(), page, { transcript: result.transcript })
+}
 const HIDE = 'Закрыть список и поднять агента'
 
 /** Записывать тексты, которые окно показывало между проверками: «Останавливаю…»
@@ -202,6 +223,12 @@ test('42.2.1 сначала сказано про остановку и обры
   expect(why, 'объяснение ДО кнопки').toBeLessThan(button)
 })
 
+test('42.2.2 пока список не открыт, агент работает — отвечает в чате', async () => {
+  const page = await ui()
+  await agentAnswers(page)
+  await openMemory(page)
+})
+
 test('42.3.1 видно остановку и чтение, затем появляется список', async () => {
   const page = await ui()
   const dialog = memoryDialog(page)
@@ -281,12 +308,20 @@ test('42.6.1 «Закрыть список» — агент поднимаетс
   await expect(memoryDialog(page)).toContainText('читается только при остановленном агенте')
 })
 
+test('42.6.2 после «Закрыть список» агент снова отвечает в чате', async () => {
+  await agentAnswers(await ui())
+})
+
 test('42.7.1 закрытие окна при открытом списке сначала поднимает агента', async () => {
   const page = await ui()
   await openFacts(page)
   await recordTexts(page)
   await closeMemory(page)
   expect(await seenTexts(page)).toContain('Поднимаю агента…')
+})
+
+test('42.7.2 после закрытия окна агент работает — отвечает в чате', async () => {
+  await agentAnswers(await ui())
 })
 
 // Перезапуск стоит после блока 42: он открывает новые сессии ядра, а шаг 1
