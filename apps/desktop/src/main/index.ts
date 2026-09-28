@@ -252,6 +252,7 @@ import {
   refuseProfileDeletion
 } from './profiles-pure'
 import { loadRecents, recordRecent } from './recents'
+import { restoreLastProject } from './restore-project'
 import { runDetach, runScan } from './scan-runner'
 import { ScanScheduler } from './scan-scheduler'
 import { sessionIdsForProject, tagSessionProject, untaggedSessionIds } from './session-projects'
@@ -4394,27 +4395,33 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   if ('needsInit' in result) return result
   if (!result.ok) return result
 
-  currentProject = result.project
+  await activateOpenedProject(result.project)
+  return result
+})
+
+/** Everything `project:open` does once the project has been read — shared with
+ * the restore at start-up (task 3G.20, D-89), so both open a project the same way. */
+async function activateOpenedProject(project: OpenProject): Promise<void> {
+  currentProject = project
   // Задача 3.8а (UR29): в конфиге ядра стоят каталоги скилов РОВНО текущего
   // проекта — и только если он доверен и не менялся. Отсюда и «скилы одного
   // проекта не видны в другом», и «отзыв доверия отключает их немедленно».
-  applyProjectSkills(result.project.vaultPath)
-  startScanSchedulerForProject(result.project.vaultPath)
+  applyProjectSkills(project.vaultPath)
+  startScanSchedulerForProject(project.vaultPath)
   // Task 1.20 — see the matching comment in project:create above.
-  await registerAecSourcesForProject(result.project.vaultPath)
+  await registerAecSourcesForProject(project.vaultPath)
   resetActiveSessionForProjectSwitch()
   try {
-    recordRecent({ ...result.project, openedAt: new Date().toISOString() })
+    recordRecent({ ...project, openedAt: new Date().toISOString() })
   } catch (error: unknown) {
     // Best-effort — a broken recents file must never block opening the
     // project.
     console.error('aecpilot: could not record recent project', error)
   }
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('project:opened', result.project)
+    win.webContents.send('project:opened', project)
   }
-  return result
-})
+}
 
 ipcMain.handle('project:get-current', () => currentProject ?? null)
 
@@ -5300,6 +5307,17 @@ app
     })
 
     installPermissionPolicy()
+
+    // Задача 3G.20 (D-89): последний проект открывается сам, ДО подъёма ядра и
+    // первого окна — регистрация его MCP-серверов ложится в конфиг раньше, чем
+    // ядро его прочтёт, а гейт окна сразу получает проект. Открыть нельзя —
+    // остаётся экран выбора, молча (`restore-project.ts`).
+    try {
+      const outcome = await restoreLastProject(loadRecents(), activateOpenedProject)
+      console.log(`aecpilot: last project ${outcome}`)
+    } catch (error: unknown) {
+      console.error('aecpilot: could not restore the last project', error)
+    }
 
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.
     if (process.env.AEC_SMOKE !== '1') {
