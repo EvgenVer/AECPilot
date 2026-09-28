@@ -59,19 +59,32 @@ class _AuditingMCPServer(MCPServer):
         return await super().call_tool(name, arguments, context)
 
 
-def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = None) -> MCPServer:
+def build_server(
+    roots: list[SourceRoot] | None = None,
+    logs_dir: Path | None = None,
+    config_error: str | None = None,
+) -> MCPServer:
     """Construct the aec-sources MCP server with the 4 read-only tools registered.
 
     ``roots`` are the configured source roots (parsed from project.json).
     ``logs_dir`` is the project's rejected-attempts journal directory (see
     ``aec_sources.audit``); ``None`` (the default, for backward
     compatibility with existing callers/tests) disables journaling.
+    ``config_error`` is set when project.json could not be read at start: the
+    server still runs and every tool answers with it (D-153 — a server that
+    exits at start is parked by the core and takes its siblings down with it).
     """
     server = _AuditingMCPServer(name="aec-sources")
     server.source_roots = list(roots or [])
     server.logs_dir = logs_dir
+    server.config_error = config_error
+
+    def _check_config() -> None:
+        if server.config_error is not None:
+            raise ToolError(f"project is not available: {server.config_error}")
 
     def _find_root(source_id: str) -> SourceRoot:
+        _check_config()
         for root in server.source_roots:
             if root.id == source_id:
                 return root
@@ -107,6 +120,7 @@ def build_server(roots: list[SourceRoot] | None = None, logs_dir: Path | None = 
 
     @server.tool(description="List configured read-only source roots and their availability.")
     def sources_list() -> list[dict]:
+        _check_config()
         return list_roots_status(server.source_roots)
 
     @server.tool(
