@@ -25,7 +25,7 @@ export const PLUGIN_ID = "aec-secret-filter";
 
 /** Что именно составляет плагин. Список явный, а не «всё, что в папке»: рядом
  *  лежат тесты и `__pycache__`, и уехать в профиль они не должны. */
-export const PLUGIN_FILES = ["plugin.yaml", "__init__.py", "secrets.py"];
+export const PLUGIN_FILES = ["plugin.yaml", "__init__.py", "secrets.py", "mem0_shared.py"];
 
 /** Исходник лежит В `plugins/`, А НЕ В `mcp/`, и имя у него через подчёркивание.
  *

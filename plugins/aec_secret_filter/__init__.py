@@ -35,6 +35,7 @@ import json
 import logging
 from typing import Any
 
+from .mem0_shared import install_shared_mem0_client
 from .secrets import find_secrets, redact_secrets, refusal_message
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,8 @@ _PRODUCT_SECTION = (
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     install_sync_guard()
+    # Задача 3F.D2 (D-111): один клиент Mem0 на процесс — см. `mem0_shared.py`.
+    install_shared_mem0_client()
 
     # ПОЧЕМУ ПРАВИЛО ЖИВЁТ ЗДЕСЬ, А НЕ ТОЛЬКО В ПРОЕКТНОМ `AGENTS.md`.
     #
