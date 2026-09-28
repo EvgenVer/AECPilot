@@ -5,7 +5,12 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { CORE_DEFERRED_TOOLS, DEFERRED_TOOLS, KANBAN_TOOLS } from './agent-defaults-pure'
+import {
+  CORE_DEFERRED_TOOLS,
+  DEFERRED_TOOLS,
+  DISABLED_SKILLS,
+  KANBAN_TOOLS
+} from './agent-defaults-pure'
 
 const HERMES_SRC = join(__dirname, '..', '..', '..', '..', 'runtime', '.hermes-src')
 
@@ -21,6 +26,32 @@ describe('DEFERRED_TOOLS', () => {
   it('инструменты работы инженера остаются видимыми', () => {
     for (const name of ['execute_code', 'delegate_task', 'skill_manage', 'terminal', 'read_file']) {
       expect(DEFERRED_TOOLS).not.toContain(name)
+    }
+  })
+})
+
+describe('DISABLED_SKILLS (3G.11)', () => {
+  it('выключает ~70 навыков, в том числе llm-wiki, без повторов', () => {
+    expect(DISABLED_SKILLS.length).toBeGreaterThanOrEqual(65)
+    expect(DISABLED_SKILLS).toContain('llm-wiki')
+    expect(new Set(DISABLED_SKILLS).size).toBe(DISABLED_SKILLS.length)
+  })
+
+  it('инженерные и наши навыки остаются включёнными', () => {
+    for (const name of [
+      'hermes-agent',
+      'docx',
+      'xlsx',
+      'pdf',
+      'ocr-and-documents',
+      'powerpoint',
+      'grounded-citations',
+      'maps',
+      'computer-use',
+      'aec-qa',
+      'aec-wiki'
+    ]) {
+      expect(DISABLED_SKILLS).not.toContain(name)
     }
   })
 })

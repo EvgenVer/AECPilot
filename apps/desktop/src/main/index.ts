@@ -226,7 +226,7 @@ import {
   readProfileProvider,
   resolveProvider
 } from './provider-presets-pure'
-import { DEFERRED_TOOLS } from './agent-defaults-pure'
+import { DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
 import {
   addSourceToProject,
   createProject,
@@ -1045,6 +1045,10 @@ function applyCoreOptOuts(homeDir: string): void {
   // Ключ заменяет их умолчание целиком, поэтому оно внутри списка.
   applyConfigMerge(homeDir, 'tools', 'the deferred tools', (text) =>
     ensureNestedList(text, 'tools', 'tool_search', 'defer', DEFERRED_TOOLS)
+  )
+  // Задача 3G.11 (UR42): навыки ядра не про проектирование выключены умолчанием.
+  applyConfigMerge(homeDir, 'skills', 'the disabled skills', (text) =>
+    ensureSectionList(text, 'skills', 'disabled', DISABLED_SKILLS)
   )
 }
 
