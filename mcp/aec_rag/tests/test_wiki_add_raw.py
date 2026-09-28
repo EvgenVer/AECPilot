@@ -133,3 +133,30 @@ def test_unparseable_file_is_refused(vault: Path, tmp_path_factory) -> None:
 
     with pytest.raises(WikiRefusal, match="dwg"):
         add_raw(vault, "files", "Чертёж", source_path=str(original), parse=refuse)
+
+
+def test_stale_sees_a_changed_original_bypassing_the_index(vault: Path, tmp_path_factory) -> None:
+    """3G.17: оригинал, внесённый в обход индекса, изменился на диске — `changed`."""
+    from aec_rag.db import open_index as open_db
+    from aec_rag.wiki import stale_snapshots
+
+    original = tmp_path_factory.mktemp("elsewhere") / "ТУ.pdf"
+    original.write_bytes("ред. 1".encode())
+    added = add_raw(vault, "files", "ТУ", source_path=str(original), parse=_fake_parse)
+    add_raw(vault, "notes", "Протокол", text="Резерв 10 %.")
+    add_raw(vault, "decisions", "Решение", text="Согласовано.")
+    conn = open_db(tmp_path_factory.mktemp("db") / "index.db")
+
+    assert stale_snapshots(conn, vault).changed == []
+
+    original.write_bytes("ред. 2".encode())
+    report = stale_snapshots(conn, vault)
+
+    assert report.changed == [
+        {"rel_path": str(original), "snapshot": added["path"], "source_id": "user"}
+    ]
+    assert report.gone == []
+
+    original.unlink()
+    assert [entry["source_id"] for entry in stale_snapshots(conn, vault).gone] == ["user"]
+    conn.close()

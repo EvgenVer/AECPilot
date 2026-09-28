@@ -449,7 +449,8 @@ def build_server(project_json: Path) -> MCPServer:
             "sha256 against the index. Three separate lists: 'changed' — the document "
             "was reissued, so pages built from it no longer describe it; 'new' — "
             "indexed but never snapshotted; 'gone' — snapshotted but no longer in the "
-            "index. Call this first when asked to update the wiki."
+            "index. Files added with wiki_add_raw are checked against the original on "
+            "disk (source_id 'user'). Call this first when asked to update the wiki."
         )
     )
     def wiki_stale() -> dict[str, Any]:

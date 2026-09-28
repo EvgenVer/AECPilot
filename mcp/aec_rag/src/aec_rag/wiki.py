@@ -340,6 +340,28 @@ def stale_snapshots(conn: sqlite3.Connection, vault: Path) -> StaleReport:
         if (source, rel_path) not in snapshotted
     ]
 
+    # Задача 3G.17. Сырьё, внесённое в обход индекса (`add_raw`), индекс не
+    # видит — его файл сверяется с оригиналом на диске по `source_sha256`.
+    # Вставленный текст, ссылка и решение оригинала на диске не имеют и не
+    # устаревают.
+    user_files = raw / "user" / "files"
+    for snapshot in sorted(user_files.glob("*.md")) if user_files.is_dir() else []:
+        header = _snapshot_header(snapshot)
+        source_path = header.get("source_path", "")
+        recorded = header.get("source_sha256", "")
+        if not source_path or not recorded:
+            continue
+        entry = {
+            "rel_path": source_path,
+            "snapshot": f"wiki/raw/user/files/{snapshot.name}",
+            "source_id": "user",
+        }
+        original = Path(source_path)
+        if not original.is_file():
+            gone.append(entry)
+        elif hashlib.sha256(original.read_bytes()).hexdigest() != recorded:
+            changed.append(entry)
+
     return StaleReport(changed=changed, new=new, gone=gone)
 
 
