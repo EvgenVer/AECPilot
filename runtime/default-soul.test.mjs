@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AEC_SOUL_MD, ensureOurSoul } from "./default-soul.mjs";
+import { AEC_SOUL_MD, PREVIOUS_AEC_SOUL_MD, ensureOurSoul } from "./default-soul.mjs";
 import { HERMES_SRC_DIR } from "./hermes-env.mjs";
 
 /** Их умолчательный текст ровно так, как его писало ядро ДО 0.21.0
@@ -90,6 +90,38 @@ describe("умолчательный SOUL профиля", () => {
   it("в тексте нет чужого имени продукта — это и есть предмет C12", () => {
     expect(AEC_SOUL_MD).not.toMatch(/hermes|nous research/i);
     expect(AEC_SOUL_MD).toContain("AECPilot");
+  });
+
+  it("лежит НАШ ПРЕЖНИЙ умолчательный — заменяем на месте (UR41)", () => {
+    // Его писали мы, не человек: установки до 2026-09-28 получают агента КР.
+    const home = tempHome();
+    fs.writeFileSync(path.join(home, "SOUL.md"), `${PREVIOUS_AEC_SOUL_MD}\n`, "utf-8");
+
+    expect(ensureOurSoul(home)).toBe("replaced");
+    expect(fs.readFileSync(path.join(home, "SOUL.md"), "utf-8")).toBe(AEC_SOUL_MD);
+  });
+
+  it("человек дописал что-то к нашему прежнему — это уже его текст, НЕ ТРОГАЕМ", () => {
+    const home = tempHome();
+    const edited = `${PREVIOUS_AEC_SOUL_MD}\nОтвечай только списками.`;
+    fs.writeFileSync(path.join(home, "SOUL.md"), edited, "utf-8");
+
+    expect(ensureOurSoul(home)).toBe("kept");
+    expect(fs.readFileSync(path.join(home, "SOUL.md"), "utf-8")).toBe(edited);
+  });
+
+  it("агент по умолчанию — помощник инженера КР, заголовок «AECPilot — …» (UR41)", () => {
+    expect(AEC_SOUL_MD.split("\n")[0]).toBe(
+      "# AECPilot — инженерный помощник по конструктивным решениям",
+    );
+    expect(AEC_SOUL_MD).toContain("раздела КР");
+  });
+
+  it("редакцию нормы проверяет при нормативном выводе или ссылке на пункт, а не перед каждым ответом", () => {
+    expect(AEC_SOUL_MD).toContain(
+      "Когда делаешь нормативный вывод или ссылаешься на пункт, проверяй актуальный статус",
+    );
+    expect(AEC_SOUL_MD).not.toContain("Перед ответом проверяй");
   });
 
   it("их НОВЫЙ умолчательный текст (0.21.0) узнаётся так же", () => {
