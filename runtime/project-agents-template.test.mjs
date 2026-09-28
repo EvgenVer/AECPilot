@@ -21,30 +21,43 @@ import { RUNTIME_DIR } from "./hermes-env.mjs";
 
 const TEMPLATE = fs.readFileSync(path.join(RUNTIME_DIR, "templates", "AGENTS.md"), "utf-8");
 
+// С задачи 3G.12 правило памяти живёт в ОДНОМ месте — разделе системного промпта,
+// который ставит наш плагин ядра (`_MEMORY_ROUTING_SECTION`); в шаблоне оно
+// дублировалось и снято. Проверки ниже смотрят туда, где правило теперь.
+const PLUGIN = fs.readFileSync(
+  path.join(RUNTIME_DIR, "..", "plugins", "aec_secret_filter", "__init__.py"),
+  "utf-8",
+);
+const ROUTING = PLUGIN.slice(PLUGIN.indexOf("_MEMORY_ROUTING_SECTION = ("));
+
 describe("шаблон проектного AGENTS.md", () => {
   it("подставляемое имя проекта на месте", () => {
     expect(TEMPLATE).toContain("{{PROJECT_NAME}}");
   });
 
+  it("правило памяти не продублировано в шаблоне (3G.12)", () => {
+    expect(TEMPLATE).not.toContain("mem0_add");
+  });
+
   it("маршрут факта назван ОБОИМИ инструментами", () => {
-    expect(TEMPLATE).toContain("`mem0_add`");
-    expect(TEMPLATE, "цель `user` — это и есть USER.md профиля").toContain("`memory`, цель `user`");
+    expect(ROUTING).toContain("`mem0_add`");
+    expect(ROUTING, "цель `user` — это и есть USER.md профиля").toContain("`memory`, цель `user`");
   });
 
   it("про секреты сказано, что запись ОТКЛОНЯЕТСЯ", () => {
     // Не «не сохранять» — 5.3 отказывает механически, и агент обязан знать, что
     // перед ним не его решение.
-    expect(TEMPLATE).toMatch(/секрет/i);
-    expect(TEMPLATE).toContain("отклоняется целиком");
+    expect(ROUTING).toMatch(/ключа, пароля или токена/);
+    expect(ROUTING).toContain("отклоняется целиком");
   });
 
   it("изоляция проектов названа механизмом, а не дисциплиной", () => {
-    expect(TEMPLATE).toContain("механизмом, а не дисциплиной");
+    expect(ROUTING).toContain("механизмом, а не дисциплиной");
   });
 
   it("слой 1 не отправляют искать инструментом", () => {
     // Записка профиля уже в системном промпте (их `system_prompt.py` перечитывает
     // её на каждую сборку) — лишний поиск по ней это ход впустую.
-    expect(TEMPLATE).toContain("искать её инструментом не нужно");
+    expect(ROUTING).toContain("искать её инструментом не нужно");
   });
 });
