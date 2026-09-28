@@ -1,0 +1,11 @@
+#!/bin/sh
+# D-141 / task 3G.18. OUR `hermes` for the core's own terminal (bash on Windows too):
+# the bot-mode prompts of the donor run `hermes -p <bot> chat ...` and expect the
+# command on PATH. It points at the pinned core in runtime/.hermes-venv; HERMES_HOME
+# comes from the calling process, keys from that profile's .env (the core reads it).
+here="$(cd "$(dirname "$0")" && pwd)"
+venv="$here/../.hermes-venv"
+if [ -x "$venv/Scripts/hermes.exe" ]; then
+  exec "$venv/Scripts/hermes.exe" "$@"
+fi
+exec "$venv/bin/hermes" "$@"

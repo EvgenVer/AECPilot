@@ -38,6 +38,9 @@ export interface CronRunnerEnv {
   homeDir: string
   /** Куда класть файл выбора. */
   userDataDir: string
+  /** D-141 (задача 3G.18): наш `hermes` первым в PATH — рутины ботов донора зовут
+   * `hermes -p <бот> …` из этого процесса тоже (`runtime/hermes-env.mjs`). */
+  withOurHermesOnPath?: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv
 }
 
 let child: ChildProcess | undefined
@@ -67,7 +70,7 @@ function launch(): void {
   // её файлы — в профиле, а не в `~/.mem0`. Обе переменные читаются при импорте.
   const proc = spawn(env.binary, ['gateway', 'run'], {
     env: {
-      ...process.env,
+      ...(env.withOurHermesOnPath ? env.withOurHermesOnPath(process.env) : process.env),
       HERMES_HOME: env.homeDir,
       MEM0_TELEMETRY: 'false',
       MEM0_DIR: join(env.homeDir, 'mem0')

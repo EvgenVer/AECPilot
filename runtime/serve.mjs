@@ -33,7 +33,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureOurSoul } from "./default-soul.mjs";
-import { HERMES_BIN, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { HERMES_BIN, HERMES_HOME_DIR, withOurHermesOnPath } from "./hermes-env.mjs";
 import { warnIfToolsetsNarrowed } from "./narrowed-toolsets.mjs";
 
 // Re-exported so callers that already dynamically import this module (the
@@ -104,7 +104,8 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
     ["serve", "--port", String(port), "--host", host, "--skip-build"],
     {
       env: {
-        ...process.env,
+        // D-141: our `hermes` first, so the donor's bot routines run our pin.
+        ...withOurHermesOnPath(process.env),
         HERMES_HOME: HERMES_HOME_DIR,
         HERMES_DASHBOARD_SESSION_TOKEN: token,
         // See header comment "Checkpoints" — extraEnv can still override

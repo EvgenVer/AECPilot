@@ -73,6 +73,27 @@ export const PYTHON_BIN = isWindows
   ? path.join(VENV_DIR, "Scripts", "python.exe")
   : path.join(VENV_DIR, "bin", "python");
 
+/** Task 3G.18 (D-141). A folder holding only OUR `hermes` (`hermes` for the core's
+ *  bash terminal, `hermes.cmd` for Windows lookups) — not the venv's Scripts, which
+ *  would also put our `python` ahead of the person's in the agent's terminal. */
+export const AEC_BIN_DIR = path.join(RUNTIME_DIR, "bin");
+
+/**
+ * `env` with {@link AEC_BIN_DIR} first on PATH. The core finds `hermes` for its
+ * child processes by `shutil.which("hermes")` and prepends that folder to the
+ * terminal's PATH (`tools/environments/local.py::_resolve_hermes_bin_dir`); with a
+ * foreign install on PATH (D-141: `%LOCALAPPDATA%\hermes\bin`, another version, no
+ * keys) the donor's `hermes -p <bot> chat …` ran THAT one. Windows keeps the key as
+ * `Path`, so the existing spelling is reused.
+ */
+export function withOurHermesOnPath(env) {
+  const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH";
+  const rest = (env[key] ?? "")
+    .split(path.delimiter)
+    .filter((entry) => entry && path.resolve(entry) !== path.resolve(AEC_BIN_DIR));
+  return { ...env, [key]: [AEC_BIN_DIR, ...rest].join(path.delimiter) };
+}
+
 const isMain =
   process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 

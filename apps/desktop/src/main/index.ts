@@ -5402,13 +5402,17 @@ app
           // Задача 3.6а. Их планировщик живёт в отдельном процессе, и человек
           // решает, поднимать ли его. Поднимается ПОСЛЕ шлюза: задача,
           // стрельнувшая раньше, чем ядро готово, не найдёт, к чему обратиться.
-          const { HERMES_BIN } = (await import(
+          const { HERMES_BIN, withOurHermesOnPath } = (await import(
             /* @vite-ignore */ pathToFileURL(join(__dirname, '../../../../runtime/hermes-env.mjs'))
               .href
-          )) as { HERMES_BIN: string }
+          )) as {
+            HERMES_BIN: string
+            withOurHermesOnPath: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv
+          }
 
           const runner = restoreCronRunner({
             binary: HERMES_BIN,
+            withOurHermesOnPath,
             homeDir: HERMES_HOME_DIR,
             userDataDir: app.getPath('userData')
           })
