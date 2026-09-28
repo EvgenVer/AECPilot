@@ -604,6 +604,9 @@ describe('generateVault — real runtime/templates/AGENTS.md guard', () => {
 
     const content = fs.readFileSync(templatePath, 'utf-8')
     expect(content.trim().length).toBeGreaterThan(0)
+    // Задача 3G.12: правило памяти живёт в разделе промпта плагина
+    // `aec_secret_filter`, а не вторым экземпляром здесь.
+    expect(content).not.toContain('mem0_add')
   })
 })
 

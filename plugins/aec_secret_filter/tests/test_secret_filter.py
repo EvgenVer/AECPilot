@@ -321,3 +321,30 @@ def test_выключенная_автозапись_не_доходит_до_п
     FakeManager().sync_all("заказчик просил резерв 20%", "Записал.")
 
     assert seen == [], "выключенный переключатель обязан останавливать ход до провайдера"
+
+
+class _Ctx:
+    def __init__(self) -> None:
+        self.sections: dict[str, str] = {}
+
+    def register_hook(self, name: str, fn) -> None:  # noqa: ANN001
+        pass
+
+    def register_system_prompt_section(self, section_id: str, text: str) -> None:
+        self.sections[section_id] = text
+
+
+def test_разделы_промпта_продукт_и_память(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 3G.12: имя продукта, навык — по нужде, память — когда вопрос зависит от прежних решений.
+    import aec_secret_filter
+
+    monkeypatch.setattr(aec_secret_filter, "install_sync_guard", lambda: True)
+    ctx = _Ctx()
+    aec_secret_filter.register(ctx)
+
+    product = ctx.sections["aec-product"]
+    assert "AECPilot" in product
+    assert "skill_view" in product
+    assert "earlier project decisions" in product
+    assert len(product) // 4 < 200
+    assert "mem0_add" in ctx.sections["aec-memory-routing"]

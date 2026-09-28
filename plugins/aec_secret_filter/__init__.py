@@ -229,8 +229,34 @@ _MEMORY_ROUTING_SECTION = (
     "проектом, и предпочтение, записанное туда, на другом объекте исчезнет.\n"
     "- Решение, куда записывать, не зависит от того, что вернул поиск по "
     "памяти: найденное относится к проекту, а выбор слоя — к природе факта.\n"
+    "- Уточнённое значение — заменой прежнего факта, а не вторым фактом рядом.\n"
     "- Значение ключа, пароля или токена в память не уедет: такая запись "
     "отклоняется целиком. Перескажите факт без самого значения."
+)
+
+
+# ── ПРОДУКТ ПОВЕРХ НЕСНИМАЕМЫХ ПРАВИЛ ЯДРА (задача 3G.12, SPEC UR42) ───────────────
+# Три правила ядра продукт снять не может без форка (C1): абзац «You run on Hermes
+# Agent…» с их документацией (`agent/prompt_builder.py`, HERMES_AGENT_HELP_GUIDANCE),
+# «загружай навык, если он хоть немного подходит» (там же, указатель навыков) и
+# «mem0_search перед любым ответом» (их плагин mem0). Разделы плагинов ядро ставит
+# ПОСЛЕ указателя навыков и блоков памяти (`agent/system_prompt.py`, якорь
+# `after_memory`), поэтому уточнение стоит ниже того, что уточняет.
+#
+# Английский — как у текста, который он уточняет. Отказ от эвала — решение
+# владельца 2026-09-28 (AGENTS §9, вариант Б: «пока не с чем сравнивать»); вместо
+# него — полный прогон приёмки на новом наборе (3G.27).
+_PRODUCT_SECTION = (
+    "Product context. You are the assistant of AECPilot; call the product AECPilot. "
+    "Do not send the person to Hermes Agent or Nous Research documentation: that runtime is "
+    "not something they operate (you may still read the hermes-agent skill to understand "
+    "your own tools).\n"
+    "- Skills: load a skill with skill_view when the task actually needs its procedure or "
+    "tools, not for questions you can answer directly. This refines the skills guidance "
+    "above.\n"
+    "- Project memory: search it when the question may depend on earlier project decisions, "
+    "client requirements or past discussions; skip the search for self-contained questions. "
+    "This refines the memory guidance above."
 )
 
 
@@ -261,7 +287,11 @@ def register(ctx) -> None:
             "маршрут факта остался только в AGENTS.md"
         )
         return
-    try:
-        register_section("aec-memory-routing", _MEMORY_ROUTING_SECTION)
-    except Exception as error:
-        logger.warning("aec-secret-filter: секция маршрута не встала (%s)", error)
+    for section_id, text in (
+        ("aec-product", _PRODUCT_SECTION),
+        ("aec-memory-routing", _MEMORY_ROUTING_SECTION),
+    ):
+        try:
+            register_section(section_id, text)
+        except Exception as error:
+            logger.warning("aec-secret-filter: секция %s не встала (%s)", section_id, error)
