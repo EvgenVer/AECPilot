@@ -68,7 +68,19 @@ def _texts(args: Any) -> list[str]:
     return out
 
 
+# Задача 3G.10 (SPEC HX24). Сейф паролей браузера ядро 0.21.5 подключает вместе с
+# браузером (`tools/browser_vault_tool.py::_check_vault_available`), и конфигом по
+# одному инструменту он не снимается. Источники логинов закрыты `vault.*.enabled:
+# false` (3.B6г), инструменты убраны за поиск (`tools.tool_search.defer`); вызов,
+# если модель всё же его найдёт, отклоняется здесь.
+_VAULT_PREFIX = "browser_vault_"
+_VAULT_REFUSAL = "Сейф паролей браузера в AECPilot не используется: вход на сайт выполняет человек."
+
+
 def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> dict[str, str] | None:
+    if tool_name.startswith(_VAULT_PREFIX):
+        return {"action": "block", "message": _VAULT_REFUSAL}
+
     if tool_name not in _MEMORY_TOOLS:
         return None
 

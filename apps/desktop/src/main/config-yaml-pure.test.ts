@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ensureNestedList,
   ensureNestedScalar,
   ensureSectionList,
   ensureSectionScalar,
@@ -317,5 +318,41 @@ describe('поле на глубине три (vault.bitwarden.enabled, зада
       changed: false,
       unexpectedStructure: true
     })
+  })
+})
+
+describe('список на глубине три (tools.tool_search.defer, задача 3G.10)', () => {
+  it('нет секции — блок целиком, элементы на своём отступе', () => {
+    const out = ensureNestedList('model:\n  default: x\n', 'tools', 'tool_search', 'defer', [
+      'a',
+      'b'
+    ])
+
+    expect(out.text).toBe(
+      'model:\n  default: x\ntools:\n  tool_search:\n    defer:\n      - a\n      - b\n'
+    )
+    expect(out.changed).toBe(true)
+  })
+
+  it('подсекция есть без ключа — список в неё, соседние ключи целы', () => {
+    const text = 'tools:\n  tool_search:\n    enabled: auto\n  other: 1\n'
+    const out = ensureNestedList(text, 'tools', 'tool_search', 'defer', ['a'])
+
+    expect(out.text).toBe(
+      'tools:\n  tool_search:\n    defer:\n      - a\n    enabled: auto\n  other: 1\n'
+    )
+  })
+
+  it('ключ есть в любой форме — выбор человека, файл не трогается', () => {
+    for (const text of [
+      'tools:\n  tool_search:\n    defer: []\n',
+      'tools:\n  tool_search:\n    defer:\n      - x\n'
+    ]) {
+      expect(ensureNestedList(text, 'tools', 'tool_search', 'defer', ['a'])).toEqual({
+        text,
+        changed: false,
+        unexpectedStructure: false
+      })
+    }
   })
 })

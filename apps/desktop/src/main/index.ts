@@ -33,6 +33,7 @@ import {
 import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import {
   type ConfigScalarResult,
+  ensureNestedList,
   ensureNestedScalar,
   ensureSectionList,
   ensureSectionScalar,
@@ -225,6 +226,7 @@ import {
   readProfileProvider,
   resolveProvider
 } from './provider-presets-pure'
+import { DEFERRED_TOOLS } from './agent-defaults-pure'
 import {
   addSourceToProject,
   createProject,
@@ -1039,6 +1041,11 @@ function applyCoreOptOuts(homeDir: string): void {
       ensureNestedScalar(text, 'vault', manager, 'enabled', false)
     )
   }
+  // Задача 3G.10 (UR42): канбан, браузер и сейф — за поиском инструментов.
+  // Ключ заменяет их умолчание целиком, поэтому оно внутри списка.
+  applyConfigMerge(homeDir, 'tools', 'the deferred tools', (text) =>
+    ensureNestedList(text, 'tools', 'tool_search', 'defer', DEFERRED_TOOLS)
+  )
 }
 
 /** Задача 3E.2 — ВЫБОР ПРОВАЙДЕРА ВЕБ-ПОИСКА, а не его включение.
@@ -1230,8 +1237,18 @@ function applyKanbanToolset(homeDir: string): void {
  * это их механизм для больших каталогов, а не потеря). Генерация видео
  * (`video_gen`) остаётся выключенной: её исключает SPEC HX11 поимённо, и в
  * список она не попадает.
+ *
+ * ВЫКЛЮЧЕН 2026-09-28 (задача 3G.10, SPEC UR42 и уточнение UR33): `video_analyze`
+ * остаётся в объёме, но по умолчанию выключен — включается в настройках наборов.
+ * Профиль с нашими прежними умолчаниями получает новое (`upgradeSectionList`);
+ * их панель сохраняет выбор человека развёрнутым отсортированным списком без
+ * `hermes-cli` (`_save_platform_tools`), поэтому с нашим прежним он не совпадёт.
  */
-const CLI_TOOLSETS = ['hermes-cli', 'video', 'kanban']
+const CLI_TOOLSETS = ['hermes-cli', 'kanban']
+const PREVIOUS_CLI_TOOLSETS = [
+  ['hermes-cli', 'video'],
+  ['hermes-cli', 'video', 'kanban']
+]
 
 function applyVideoToolset(homeDir: string): void {
   const configPath = join(homeDir, 'config.yaml')
@@ -1253,12 +1270,12 @@ function applyVideoToolset(homeDir: string): void {
   const merged =
     ensured.changed || ensured.unexpectedStructure
       ? ensured
-      : upgradeSectionList(
-          original,
-          'platform_toolsets',
-          'cli',
-          ['hermes-cli', 'video'],
-          CLI_TOOLSETS
+      : PREVIOUS_CLI_TOOLSETS.reduce(
+          (result, previous) =>
+            result.changed
+              ? result
+              : upgradeSectionList(original, 'platform_toolsets', 'cli', previous, CLI_TOOLSETS),
+          ensured
         )
   if (merged.unexpectedStructure) {
     console.warn(

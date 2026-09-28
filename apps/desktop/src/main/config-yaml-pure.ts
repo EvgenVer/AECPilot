@@ -97,6 +97,34 @@ export function ensureNestedScalar(
   value: boolean | number | string
 ): ConfigScalarResult {
   const written = typeof value === 'string' ? JSON.stringify(value) : String(value)
+  return ensureNestedKey(yamlText, section, sub, key, [`    ${key}: ${written}`])
+}
+
+/**
+ * Список на глубине три: `section: sub: key: [...]` (задача 3G.10 —
+ * `tools.tool_search.defer`). Правило то же, что у скаляра выше: ключ есть в
+ * любой форме (`defer: []` тоже) — файл не трогается.
+ */
+export function ensureNestedList(
+  yamlText: string,
+  section: string,
+  sub: string,
+  key: string,
+  values: readonly string[]
+): ConfigScalarResult {
+  return ensureNestedKey(yamlText, section, sub, key, [
+    `    ${key}:`,
+    ...values.map((value) => `      - ${value}`)
+  ])
+}
+
+function ensureNestedKey(
+  yamlText: string,
+  section: string,
+  sub: string,
+  key: string,
+  keyLines: readonly string[]
+): ConfigScalarResult {
   const lines = yamlText.split('\n')
   const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
@@ -111,7 +139,7 @@ export function ensureNestedScalar(
   const start = lines.findIndex((line) => sectionLine.test(line))
   if (start === -1) {
     const separator = yamlText === '' || yamlText.endsWith('\n') ? '' : '\n'
-    const block = `${section}:\n  ${sub}:\n    ${key}: ${written}\n`
+    const block = [`${section}:`, `  ${sub}:`, ...keyLines].map((line) => `${line}\n`).join('')
     return { text: `${yamlText}${separator}${block}`, changed: true, unexpectedStructure: false }
   }
 
@@ -130,12 +158,7 @@ export function ensureNestedScalar(
 
   const subStart = body.findIndex((line) => subLine.test(line))
   if (subStart === -1) {
-    const next = [
-      ...lines.slice(0, start + 1),
-      `  ${sub}:`,
-      `    ${key}: ${written}`,
-      ...lines.slice(start + 1)
-    ]
+    const next = [...lines.slice(0, start + 1), `  ${sub}:`, ...keyLines, ...lines.slice(start + 1)]
     return { text: next.join('\n'), changed: true, unexpectedStructure: false }
   }
 
@@ -152,7 +175,7 @@ export function ensureNestedScalar(
   }
 
   const at = start + 1 + subStart + 1
-  const next = [...lines.slice(0, at), `    ${key}: ${written}`, ...lines.slice(at)]
+  const next = [...lines.slice(0, at), ...keyLines, ...lines.slice(at)]
   return { text: next.join('\n'), changed: true, unexpectedStructure: false }
 }
 

@@ -29,13 +29,15 @@ function listFor(callPrefix: string): string[] {
 }
 
 describe('наборы, открытые модели', () => {
-  it('видео включается через platform_toolsets, и их составной набор остаётся рядом', () => {
+  it('platform_toolsets держит доску и их составной набор, видео выключено (UR42)', () => {
     // Список вынесен в константу (D-129: к нему добавилась доска), и вызов
     // пишет именно её — иначе проверка константы ничего бы не значила.
     expect(MAIN).toContain("ensureSectionList(original, 'platform_toolsets', 'cli', CLI_TOOLSETS)")
-    const args = listFor('const CLI_TOOLSETS = \\[')
+    const constant = /const CLI_TOOLSETS = \[([^\]]*)\]/.exec(MAIN)
+    const args = [...(constant?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1])
 
-    expect(args).toContain('video')
+    expect(args).not.toContain('video')
+    expect(args).toContain('kanban')
     // Вот эта строка и есть защита от D-66.
     expect(args).toContain('hermes-cli')
   })

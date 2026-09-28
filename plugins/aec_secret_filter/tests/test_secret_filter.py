@@ -142,6 +142,20 @@ def test_чужой_инструмент_не_трогаем() -> None:
     assert _on_pre_tool_call("write_file", {"content": "пароль: Qwerty12345!"}) is None
 
 
+@pytest.mark.parametrize(
+    "tool", ["browser_vault_fill", "browser_vault_list", "browser_vault_unlock"]
+)
+def test_сейф_паролей_отклоняется(tool: str) -> None:
+    # 3G.10, HX24: инструмент сейфа ядро подключает с браузером, отказ — здесь.
+    verdict = _on_pre_tool_call(tool, {"site": "example.com"})
+    assert verdict is not None
+    assert verdict["action"] == "block"
+
+
+def test_браузер_не_сейф_проходит() -> None:
+    assert _on_pre_tool_call("browser_exec", {"code": "print(1)"}) is None
+
+
 def test_обычная_запись_проходит() -> None:
     assert _on_pre_tool_call("memory", {"action": "add", "content": "резерв 20%"}) is None
 
