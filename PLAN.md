@@ -3282,6 +3282,16 @@ OpenAI-совместимый адрес провайдера и уже стоя
 OpenAI-совместимый адрес Gemini эмбеддинги `gemini-embedding-2` (ширину) и картинки
 `gemini-3.1-flash-image`. Если картинки не отдаёт — 47.2 остаётся 🟡 и вопрос возвращается
 владельцу; другого пути (OpenRouter, свой плагин) без его решения не берём.
+**Снято зондом 3G.1 (2026-09-28, `runtime/gemini-compat-probe.py`):** чат `gemini-3.5-flash-lite`
+через адрес — работает; эмбеддинг `gemini-embedding-2` — работает, **ширина 3072**; Mem0 2.0.10
+принимает адрес полем `openai_base_url` и у `llm` (`OpenAIConfig`), и у `embedder`
+(`BaseEmbedderConfig`). **Картинки — НЕТ, обоими путями:** `images.generate` отвечает 404 (адрес
+ждёт модели Imagen с методом `predict`, а ключу доступны только модели картинок через
+`generateContent`: `gemini-2.5-flash-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`,
+`gemini-3-pro-image`); `/chat/completions` с `modalities: [image, text]` — протокол их плагина
+`openrouter` — отвечает 400 «Unhandled generated data mime type: image/jpeg»: картинку модель
+делает, но совместимый слой Google её не отдаёт. Значит, 3G.5 на Gemini без решения владельца
+не делается — вопрос D-156.
 **Цена, названная заранее:** базовая линия эвала 2.17 снята на `gpt-5.4-mini` (датированный
 снимок ради воспроизводимости); смена модели разбора делает сравнение с ней недействительным
 — это записывается, а не прячется.
