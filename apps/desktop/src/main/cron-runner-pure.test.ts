@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseCronRunnerPref, serializeCronRunnerPref } from './cron-runner-pure'
+import { join } from 'node:path'
+
+import {
+  cronRunnerSpawnEnv,
+  parseCronRunnerPref,
+  serializeCronRunnerPref
+} from './cron-runner-pure'
 
 describe('сохранённый выбор «запускать задачи по расписанию»', () => {
   it('записанное читается обратно', () => {
@@ -21,5 +27,24 @@ describe('сохранённый выбор «запускать задачи п
     expect(parseCronRunnerPref('{"enabled":"yes"}')).toBe(false)
     expect(parseCronRunnerPref('{"enabled":1}')).toBe(false)
     expect(parseCronRunnerPref('{"enabled":true}')).toBe(true)
+  })
+})
+
+describe('cronRunnerSpawnEnv (3F.D1, D-136)', () => {
+  it('ticks every profile — specialists keep their routines in their own profiles', () => {
+    const env = cronRunnerSpawnEnv({ PATH: 'x', OTHER: '1' }, '/home/p')
+
+    expect(env.GATEWAY_MULTIPLEX_PROFILES).toBe('true')
+    expect(env.HERMES_HOME).toBe('/home/p')
+    expect(env.MEM0_TELEMETRY).toBe('false')
+    expect(env.MEM0_DIR).toBe(join('/home/p', 'mem0'))
+    expect(env.PATH).toBe('x')
+    expect(env.OTHER).toBe('1')
+  })
+
+  it('wins over an inherited value', () => {
+    expect(
+      cronRunnerSpawnEnv({ GATEWAY_MULTIPLEX_PROFILES: 'false' }, '/h').GATEWAY_MULTIPLEX_PROFILES
+    ).toBe('true')
   })
 })

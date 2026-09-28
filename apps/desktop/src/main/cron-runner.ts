@@ -21,7 +21,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { parseCronRunnerPref, serializeCronRunnerPref } from './cron-runner-pure'
+import { cronRunnerSpawnEnv, parseCronRunnerPref, serializeCronRunnerPref } from './cron-runner-pure'
 
 export interface CronRunnerState {
   /** Выбор человека. Переживает перезапуск приложения. */
@@ -64,17 +64,11 @@ function launch(): void {
   if (!env || child) return
 
   // `gateway run` — их же способ поднять шлюз в переднем плане. Платформы не
-  // настроены, поэтому наружу он не ходит; в лог он это и пишет.
-  // Память в этом процессе живёт по тем же правилам, что в `hermes serve`
-  // (runtime/memory-config.mjs, задача 5.1а и D-85): телеметрия mem0 выключена,
-  // её файлы — в профиле, а не в `~/.mem0`. Обе переменные читаются при импорте.
+  // настроены, поэтому наружу он не ходит; в лог он это и пишет. Окружение —
+  // `cronRunnerSpawnEnv` (память, мультиплекс профилей — 3F.D1).
+  const base = env.withOurHermesOnPath ? env.withOurHermesOnPath(process.env) : process.env
   const proc = spawn(env.binary, ['gateway', 'run'], {
-    env: {
-      ...(env.withOurHermesOnPath ? env.withOurHermesOnPath(process.env) : process.env),
-      HERMES_HOME: env.homeDir,
-      MEM0_TELEMETRY: 'false',
-      MEM0_DIR: join(env.homeDir, 'mem0')
-    },
+    env: cronRunnerSpawnEnv(base, env.homeDir),
     stdio: ['ignore', 'pipe', 'pipe']
   })
 

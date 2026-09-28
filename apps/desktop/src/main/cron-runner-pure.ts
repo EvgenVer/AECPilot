@@ -18,6 +18,8 @@
 // свою копию агентской машинерии — пытался подключить наш MCP-сервер. Кто
 // расписаниями не пользуется, за второй процесс платить не должен.
 
+import { join } from 'node:path'
+
 /** Разбор сохранённого выбора. Испорченный файл — это «выключено», а не
  * падение и не «включено»: молча поднять фоновый процесс из-за битого JSON
  * было бы худшим из вариантов. */
@@ -33,4 +35,32 @@ export function parseCronRunnerPref(raw: string): boolean {
 
 export function serializeCronRunnerPref(enabled: boolean): string {
   return `${JSON.stringify({ enabled }, null, 2)}\n`
+}
+
+/**
+ * Окружение их `gateway run` (задача 3F.D1, находка D-136).
+ *
+ * Память — по тем же правилам, что в `hermes serve` (runtime/memory-config.mjs,
+ * задача 5.1а и D-85): телеметрия mem0 выключена, её файлы — в профиле, а не в
+ * `~/.mem0`. Обе переменные читаются при импорте.
+ *
+ * `GATEWAY_MULTIPLEX_PROFILES=true` — рутины СПЕЦИАЛИСТОВ живут в хранилищах их
+ * профилей (`<HERMES_HOME>/profiles/<бот>/cron`), и шлюз без мультиплекса тикает
+ * только своё, основного профиля: рутина бота по расписанию не срабатывала
+ * никогда. В режиме мультиплекса один процесс тикает каждый профиль
+ * (`cron/scheduler.py`: «One process multiplexes every profile»). Переменная —
+ * их операторское переопределение (`gateway/config.py`), в конфиг человека мы не
+ * пишем.
+ */
+export function cronRunnerSpawnEnv(
+  base: NodeJS.ProcessEnv,
+  homeDir: string
+): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    HERMES_HOME: homeDir,
+    MEM0_TELEMETRY: 'false',
+    MEM0_DIR: join(homeDir, 'mem0'),
+    GATEWAY_MULTIPLEX_PROFILES: 'true'
+  }
 }
