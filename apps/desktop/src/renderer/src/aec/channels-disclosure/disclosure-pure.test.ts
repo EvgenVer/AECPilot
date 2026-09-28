@@ -114,6 +114,18 @@ describe('A2A говорит о себе отдельно', () => {
     ])
   })
 
+  it('у Signal и WhatsApp — свой мост на машине и своя цена (3G.28)', () => {
+    expect(extraDisclosureItems('signal')).toEqual([
+      'channels.disclosure.signalCli',
+      'channels.disclosure.signalAnyone'
+    ])
+    expect(extraDisclosureItems('whatsapp')).toEqual([
+      'channels.disclosure.whatsappSession',
+      'channels.disclosure.whatsappBan'
+    ])
+    expect(extraDisclosureItems('whatsapp_cloud')).toEqual([])
+  })
+
   it('прочим платформам ничего не добавляется — лишний текст никто не читает', () => {
     expect(extraDisclosureItems('telegram')).toEqual([])
     expect(extraDisclosureItems('')).toEqual([])
@@ -132,6 +144,9 @@ describe('короткий список каналов', () => {
       { id: 'email', enabled: false },
       { id: 'teams', enabled: false },
       { id: 'msgraph_webhook', enabled: false },
+      { id: 'signal', enabled: false },
+      { id: 'whatsapp', enabled: false },
+      { id: 'whatsapp_cloud', enabled: false },
       { id: 'weixin', enabled: false },
       { id: 'qqbot', enabled: false }
     ]

@@ -74,13 +74,13 @@ function disclosure(page: Page) {
   return page.getByRole('dialog').filter({ hasText: /Открыть канал/ })
 }
 
-test('36.1.1 в списке шесть каналов: Telegram, почта, вебхук, A2A, Teams, уведомления Graph', async () => {
+test('36.1.1 в списке восемь каналов: Telegram, почта, вебхук, A2A, Teams, уведомления Graph, Signal, WhatsApp', async () => {
   const page = await ui()
   await goto(page, '#/messaging')
 
   const shown = await shownChannels(page)
   expect(shown.map((row) => row.id).sort()).toEqual(
-    ['a2a', 'email', 'msgraph_webhook', 'teams', 'telegram', 'webhook'].sort()
+    ['a2a', 'email', 'msgraph_webhook', 'signal', 'teams', 'telegram', 'webhook', 'whatsapp'].sort()
   )
   for (const name of [
     'Telegram',
@@ -88,7 +88,9 @@ test('36.1.1 в списке шесть каналов: Telegram, почта, в
     'Webhooks',
     'A2A',
     'Microsoft Teams',
-    'Microsoft Graph Webhook'
+    'Microsoft Graph Webhook',
+    'Signal',
+    'WhatsApp'
   ]) {
     await expect(
       page.getByRole('button', { name, exact: true }).first(),
@@ -189,6 +191,54 @@ test('36.4.1 у A2A в списке два дополнительных пунк
 
   await dialog.getByRole('button', { name: /^Отмена$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15000 })
+})
+
+// Задача 3G.28: карточки Signal и WhatsApp, у каждой свой перечень по коду адаптера.
+test('36.5.1 у Signal два дополнительных пункта: демон signal-cli и «любой, кто напишет»', async () => {
+  const page = await ui()
+  await pickChannel(page, 'Signal')
+  await channelSwitch(page, 'Signal').click()
+
+  const dialog = disclosure(page)
+  await expect(dialog).toBeVisible({ timeout: 15000 })
+  await expect(dialog, 'демон на машине').toContainText('демон signal-cli')
+  await expect(dialog).toContainText('127.0.0.1:8080')
+  await expect(dialog, 'любой в личку').toContainText('доходит ЛЮБОЙ')
+
+  await dialog.getByRole('button', { name: /^Отмена$/ }).click()
+  await expect(dialog).toBeHidden({ timeout: 15000 })
+})
+
+test('36.5.2 у WhatsApp два дополнительных пункта: сессия в профиле и риск для номера', async () => {
+  const page = await ui()
+  await pickChannel(page, 'WhatsApp')
+  await channelSwitch(page, 'WhatsApp').click()
+
+  const dialog = disclosure(page)
+  await expect(dialog).toBeVisible({ timeout: 15000 })
+  await expect(dialog, 'сессия в профиле').toContainText('вошедшую сессию WhatsApp')
+  await expect(dialog).toContainText('npm')
+  await expect(dialog, 'риск для номера').toContainText('рискует ограничением')
+
+  await dialog.getByRole('button', { name: /^Отмена$/ }).click()
+  await expect(dialog).toBeHidden({ timeout: 15000 })
+})
+
+test('36.5.3 отказ у Signal и WhatsApp возвращает тумблер назад, канал не включён', async () => {
+  const page = await ui()
+  for (const name of ['Signal', 'WhatsApp']) {
+    await pickChannel(page, name)
+    await channelSwitch(page, name).click()
+    const dialog = disclosure(page)
+    await expect(dialog).toBeVisible({ timeout: 15000 })
+    await dialog.getByRole('button', { name: /^Отмена$/ }).click()
+    await expect(dialog).toBeHidden({ timeout: 15000 })
+  }
+
+  const shown = await shownChannels(page)
+  for (const id of ['signal', 'whatsapp']) {
+    expect(shown.find((row) => row.id === id)?.enabled, `${id} не включён`).toBe(false)
+  }
 })
 
 // ──────────────────── Блок 41. Доступы Microsoft Graph ───────────────────────

@@ -69,11 +69,26 @@ export type ChannelDisclosureItem = (typeof CHANNEL_DISCLOSURE_ITEMS)[number]
  * `client_state`, если его задали, и список CIDR, если его задали. Доступ
  * приложения к Graph — не «ваша почта»: это права приложения Azure AD на
  * данные ТЕНАНТА в пределах выданных ему разрешений.
+ *
+ * Signal (ядро 0.21.5, `gateway/platforms/signal.py`, задача 3G.28): ядро не
+ * говорит с Signal само — нужен демон `signal-cli` в режиме HTTP на этой машине
+ * (`127.0.0.1:8080`), привязанный к номеру человека; его ставит и держит человек.
+ * Писать агенту в личку может ЛЮБОЙ: `SIGNAL_ALLOWED_USERS` по умолчанию `*`
+ * (группы выключены, пока их список не задан).
+ *
+ * WhatsApp, личный аккаунт (ядро 0.21.5, `plugins/platforms/whatsapp`): мост
+ * Node на Baileys — клиент WhatsApp Web — на `127.0.0.1:3000`; в профиле
+ * хранится ВОШЕДШАЯ сессия WhatsApp Web этого номера, при первом запуске мост
+ * ставит свои пакеты `npm install`. Сторонний мост WhatsApp официально не
+ * поддерживает: их же документация называет риск ограничения номера и советует
+ * отдельный номер. `whatsapp_cloud` (Business Cloud API) карточки не получает.
  */
 const EXTRA_DISCLOSURE: Record<string, readonly string[]> = {
   a2a: ['channels.disclosure.a2aPort', 'channels.disclosure.a2aSession'],
   teams: ['channels.disclosure.teamsApp', 'channels.disclosure.teamsPort'],
-  msgraph_webhook: ['channels.disclosure.graphPort', 'channels.disclosure.graphTenant']
+  msgraph_webhook: ['channels.disclosure.graphPort', 'channels.disclosure.graphTenant'],
+  signal: ['channels.disclosure.signalCli', 'channels.disclosure.signalAnyone'],
+  whatsapp: ['channels.disclosure.whatsappSession', 'channels.disclosure.whatsappBan']
 }
 
 export function extraDisclosureItems(platformId: string): readonly string[] {
@@ -98,6 +113,9 @@ export function extraDisclosureItems(platformId: string): readonly string[] {
  * в объём — и без карточки канал не включить вовсе, то есть требование
  * оставалось бы недостижимым из окна. За оба пункта мы отвечаем: у каждого свой
  * перечень того, что уходит и что приходит, ниже.
+ *
+ * ПОПОЛНЕН 2026-09-28 задачей 3G.28 (решение владельца, UR19): `signal` и
+ * `whatsapp` (личный аккаунт через мост). Перечни — выше, по коду адаптеров.
  */
 export const CHANNEL_SHORTLIST = [
   'telegram',
@@ -105,7 +123,9 @@ export const CHANNEL_SHORTLIST = [
   'webhook',
   'a2a',
   'teams',
-  'msgraph_webhook'
+  'msgraph_webhook',
+  'signal',
+  'whatsapp'
 ] as const
 
 /** Их экран запрашивает список платформ этим GET. */

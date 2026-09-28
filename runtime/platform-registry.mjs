@@ -85,9 +85,7 @@ export const VERDICTS = {
   slack: { status: "ours", where: "UR19 — мессенджер, в HX11 не назван" },
   mattermost: { status: "ours", where: "UR19 — мессенджер, в HX11 не назван" },
   matrix: { status: "ours", where: "UR19 — мессенджер, в HX11 не назван" },
-  whatsapp: { status: "ours", where: "UR19 — мессенджер (личный аккаунт через мост)" },
   whatsapp_cloud: { status: "ours", where: "UR19 — мессенджер (WhatsApp Business Cloud API)" },
-  signal: { status: "ours", where: "UR19 — мессенджер, в HX11 не назван" },
   bluebubbles: { status: "ours", where: "UR19 — iMessage через мост BlueBubbles" },
   sms: { status: "ours", where: "UR19 — SMS через Twilio; ключи провайдера по C10" },
   dingtalk: { status: "ours", where: "UR19 — мессенджер, в HX11 не назван" },
@@ -113,6 +111,16 @@ export const VERDICTS = {
   msgraph_webhook: {
     status: "shown",
     where: "UR34 — уведомления об изменениях Graph; вход ВХОДЯЩИЙ, звонит сам Microsoft",
+  },
+  // Задача 3G.28 (решение владельца 2026-09-28): Signal и личный WhatsApp
+  // получили карточки; `whatsapp_cloud` — нет.
+  signal: {
+    status: "shown",
+    where: "UR19 — мессенджер; карточка по решению владельца, задача 3G.28 (демон signal-cli на машине)",
+  },
+  whatsapp: {
+    status: "shown",
+    where: "UR19 — личный аккаунт через мост Baileys; карточка по задаче 3G.28, риск блокировки номера назван",
   },
 
   // ── исключено номером SPEC ──────────────────────────────────────────────

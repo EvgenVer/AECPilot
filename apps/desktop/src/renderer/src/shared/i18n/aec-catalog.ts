@@ -315,6 +315,19 @@ export const aecLocales: PluginLocaleBundles = {
         graphTenant:
           'app-only access to Microsoft Graph is not «your mailbox»: the Azure AD ' +
           'application reaches your TENANT’s data within the permissions granted to it',
+        signalCli:
+          'Signal needs a signal-cli daemon on this machine (HTTP on 127.0.0.1:8080), ' +
+          'linked to your phone number — you install and run it yourself',
+        signalAnyone:
+          'by default ANYONE who writes to that number in a direct message reaches the ' +
+          'agent (the allowed-users list is «*»); group chats stay off until you list them',
+        whatsappSession:
+          'a local bridge (a WhatsApp Web client on 127.0.0.1:3000) keeps the logged-in ' +
+          'WhatsApp session of that number in the profile, and installs its packages with ' +
+          'npm on first start',
+        whatsappBan:
+          'WhatsApp does not officially allow third-party bridges: the number risks being ' +
+          'restricted — use a separate number, not your personal one',
         reversible:
           'You can turn the channel off at any time, but what has already left the machine stays where it went.',
         confirm: 'Open the channel'
@@ -831,6 +844,19 @@ export const aecLocales: PluginLocaleBundles = {
         graphTenant:
           'доступ приложения к Microsoft Graph — это не «ваша почта»: приложение Azure AD ' +
           'достаёт данные ТЕНАНТА в пределах выданных ему разрешений',
+        signalCli:
+          'для Signal нужен демон signal-cli на этой машине (HTTP на 127.0.0.1:8080), ' +
+          'привязанный к вашему номеру, — его ставите и держите вы сами',
+        signalAnyone:
+          'по умолчанию до агента доходит ЛЮБОЙ, кто напишет на этот номер в личку (список ' +
+          'разрешённых — «*»); групповые чаты выключены, пока вы их не перечислите',
+        whatsappSession:
+          'локальный мост (клиент WhatsApp Web на 127.0.0.1:3000) хранит в профиле ' +
+          'вошедшую сессию WhatsApp этого номера и при первом запуске ставит свои пакеты ' +
+          'через npm',
+        whatsappBan:
+          'сторонние мосты WhatsApp официально не разрешает: номер рискует ограничением — ' +
+          'берите отдельный номер, а не личный',
         reversible:
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
