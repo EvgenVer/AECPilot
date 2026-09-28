@@ -25,6 +25,7 @@ import {
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
+  reopenRecentProject,
   standFixture
 } from '../lib/app'
 
@@ -468,13 +469,8 @@ test('30.6.1 «Расписания: работают» вернулось са�
   page = await mainWindow(stand.get())
   await hideFirstRunSurfaces(page)
 
-  // После перезапуска приложение открывается на выборе проекта — строки
-  // состояния там нет вовсе. Проект открывается заново, как это сделал бы
-  // человек щелчком по недавнему.
-  await page.getByRole('button', { name: /^e2e / }).first().click()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
-    timeout: 120000
-  })
+  // С 3G.20 (D-89) последний проект открывается сам.
+  await reopenRecentProject(page)
 
   await expect(cronBadge(page), 'выбор пережил перезапуск').toBeVisible({ timeout: 120000 })
   await expect

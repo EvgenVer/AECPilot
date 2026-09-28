@@ -1,8 +1,8 @@
 // Блок 38 чек-листа, 38.1–38.15 (задача 3F.9) на ЖИВОМ ядре: три специалиста с
 // разными ролями, комната, вопрос всем, обращение по имени, файл в комнату.
-// Комната — их «group chat» (SPEC UR27). Позиции, текст которых остался от
-// нашей прежней поверхности комнат и у их комнаты не имеет соответствия, здесь
-// не проверяются — они вынесены владельцу (D-137 в TASKS).
+// Комната — их «group chat» (SPEC UR27). Позиции, писавшиеся под нашу прежнюю
+// поверхность комнат, переписаны под их поведение (D-137, решение владельца
+// 2026-09-28, задача 3G.24); часть строк у них — английские литералы окон.
 //
 // Специалисты заводятся ядром, а не окном: заведение через окно проверено в
 // блоке 37, а самопредставление троих стоит ~12 минут и денег.
@@ -126,11 +126,32 @@ function speakers(page: Page, title: string): Locator {
 async function denyPendingCommands(page: Page): Promise<void> {
   const deny = room(page).getByRole('button', { name: /^deny$/ })
   for (let tries = 0; tries < 5 && (await deny.first().isVisible().catch(() => false)); tries++) {
+    if (needsYouSeen === undefined) needsYouSeen = await needsYouBadge(page).isVisible()
     console.log('[e2e] комната: отклонена команда специалиста')
     await deny.first().click()
     await page.waitForTimeout(1000)
   }
 }
+
+/** Значок «ждут вашего ответа» на строке комнаты в списке (`bot-row.tsx`). */
+function needsYouBadge(page: Page): Locator {
+  return page
+    .getByRole('button', { name: new RegExp(`^${ROOM}, `) })
+    .first()
+    .getByLabel('Ждёт вашего ответа')
+}
+
+/** Раскрыть «Что происходит» и вернуть текст ленты событий комнаты. */
+async function activityText(page: Page): Promise<string> {
+  const toggle = room(page).getByRole('button', { name: /^Что происходит/ }).first()
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  const panel = page.locator(`[id="group-activity:${ROOM}"]`)
+  await expect(panel).toBeVisible({ timeout: 15000 })
+  return panel.innerText()
+}
+
+/** Пока специалист ждал человека, стоял ли значок на комнате (38.11.1). */
+let needsYouSeen: boolean | undefined
 
 /** Дождаться, пока комната закончит ход: «Комната работает…» и «… думает…» ушли. */
 async function roundDone(page: Page, timeout = 420000): Promise<void> {
@@ -204,6 +225,17 @@ test('38.3.1 характер сохранился; при повторном о
 
 // ───────────────────────────── 38.2 Комната ───────────────────────────────────
 
+/** Заголовок раздела «Комнаты» в панели — кнопка «Комнаты <число>». */
+function roomsSection(page: Page): Locator {
+  return page.getByRole('button', { name: /^Комнаты\s*\d*$/ })
+}
+
+test('38.4.1 пока комнат нет, раздела «Комнаты» в панели нет', async () => {
+  const page = await roster(await ui())
+  await expect(rosterRow(page, TEAM[0].title)).toBeVisible({ timeout: 60000 })
+  await expect(roomsSection(page)).toHaveCount(0)
+})
+
 async function openNewRoom(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: 'Новый специалист или комната' }).click()
   await page.getByRole('menuitem', { name: 'Новая комната' }).click()
@@ -215,6 +247,15 @@ async function openNewRoom(page: Page): Promise<Locator> {
 function memberBox(dialog: Locator, index: number): Locator {
   return dialog.getByRole('checkbox').nth(index)
 }
+
+test('38.5.1 подсказка о составе — от двух до шести', async () => {
+  const page = await roster(await ui())
+  const dialog = await openNewRoom(page)
+  // Английская строка — литерал их окна `create-dialog.tsx` (D-137).
+  await expect(dialog).toContainText('Pick 2–6 bots')
+  await dialog.getByRole('button', { name: /^Отмена$|^Cancel$/ }).click()
+  await expect(dialog).toBeHidden()
+})
 
 test('38.5.2 кнопка «Создать» не срабатывает, пока выбран один', async () => {
   const page = await roster(await ui())
@@ -251,6 +292,7 @@ test('38.6.1 комната появилась в списке с именем �
   await expect(page.getByRole('button', { name: byMembers }).first()).toBeVisible({
     timeout: 30000
   })
+  await expect(roomsSection(page), 'раздел появился с первой комнатой').toBeVisible()
   await record(test.info(), page)
 })
 
@@ -280,7 +322,7 @@ test('38.7.1 имя комнаты меняется в её заголовке �
 
 test('38.7.2 после перезапуска приложения имя сохранилось', async () => {
   await stand.get().relaunch()
-  // После перезапуска — экран выбора проекта (D-89): проект — из «недавних».
+  // С 3G.20 (D-89) последний проект открывается сам; помощник терпит оба экрана.
   await reopenRecentProject(await mainWindow(stand.get()))
   const page = await roster(await ui())
   const room = page.getByRole('button', { name: new RegExp(`^${ROOM}`) }).first()
@@ -295,6 +337,12 @@ const QUESTION =
   'Перекрытие над подвалом — монолит или сборные плиты? Нужен ответ с учётом сроков, несущей способности и норм. Ответь коротко, со своей позиции.'
 
 let firstRound = ''
+
+test('38.8.1 до отправки видно, что вопрос услышат все трое', async () => {
+  const page = await ui()
+  await expect(page.getByText('Участников: 3').first()).toBeVisible({ timeout: 30000 })
+  await expect(room(page)).toContainText('Напишите — вас слышат все в комнате.')
+})
 
 test('38.9.1 после отправки видно, что комната работает', async () => {
   const page = await ui()
@@ -347,6 +395,35 @@ test('38.10.2 ответы разные по существу — каждый �
   expect(hit, 'затронуты темы всех трёх ролей').toBe(3)
 })
 
+test('38.9.2 «Что происходит» показывает, кто взялся и кто ответил', async () => {
+  const page = await ui()
+  const events = await activityText(page)
+  console.log('38.9.2 ' + events.replace(/\n/g, ' ⏎ ').slice(0, 1500))
+  const named = TEAM.map((member) => `${member.title}|@?${member.name}`).join('|')
+  expect(events).toMatch(new RegExp(`(${named}) replied`, 'i'))
+})
+
+test('38.10.4 ход закончен строкой «turn settled» или пределом кругов', async () => {
+  const page = await ui()
+  expect(await activityText(page)).toMatch(/turn settled|turn stopped at the round\/message cap/)
+})
+
+test('38.11.1 пока специалист ждал человека, на комнате стоял значок', async () => {
+  test.skip(
+    needsYouSeen === undefined,
+    'за прогон никто из специалистов не ждал человека — случая не выпало'
+  )
+  expect(needsYouSeen).toBe(true)
+})
+
+test('38.11.2 когда ждать нечего, значка на комнате нет', async () => {
+  const page = await roster(await ui())
+  await expect(page.getByRole('button', { name: new RegExp(`^${ROOM}, `) }).first()).toBeVisible({
+    timeout: 30000
+  })
+  await expect(needsYouBadge(page)).toHaveCount(0)
+})
+
 test('38.10.3 у каждой реплики видно, кто её сказал', async () => {
   const page = await ui()
   for (const member of TEAM) {
@@ -369,16 +446,25 @@ test('38.12.1 подсказка после «@» предлагает учас�
   await composer(page).press('Escape')
 })
 
-test('38.12.3 ответил только названный — остальные молчат', async () => {
+let beforeMention: number[] = []
+
+test('38.12.2 Enter в подсказке вставляет @smeta и не отправляет', async () => {
   const page = await ui()
   await denyPendingCommands(page)
   await roundDone(page)
-  const before = await Promise.all(TEAM.map((member) => speakers(page, member.title).count()))
+  beforeMention = await Promise.all(TEAM.map((member) => speakers(page, member.title).count()))
   await composer(page).fill('')
   await composer(page).pressSequentially('@sme')
-  // Enter в подсказке выбирает, а не отправляет.
   await composer(page).press('Enter')
   await expect(composer(page)).toHaveValue(/@smeta\s*$/)
+  await page.waitForTimeout(2000)
+  expect(await roomText(page), 'сообщение не ушло').not.toMatch(/Комната работает…|думает…/)
+})
+
+test('38.12.3 ответил только названный — остальные молчат', async () => {
+  const page = await ui()
+  const before = beforeMention
+  expect(before.length, 'шаг 38.12.2 состоялся').toBe(TEAM.length)
   await composer(page).pressSequentially(' сколько это в деньгах? Ответь одной фразой.')
   await composer(page).press('Enter')
   await expect(page.getByText(/Комната работает…|думает…/).first()).toBeVisible({ timeout: 60000 })
@@ -404,6 +490,14 @@ test('38.13.1 вопрос без обращений — отвечают все
   console.log(`38.13 до=${before} после=${after}`)
   const answered = after.filter((count, index) => count > before[index]).length
   expect(answered, 'ответили все или почти все').toBeGreaterThanOrEqual(2)
+})
+
+test('38.14.1 молчание — «passed» в «Что происходит», а не «(pass)» в переписке', async () => {
+  // Ход у них кончается кругом, где все молчат (`settled`), так что любой
+  // прошедший ход уже содержит такие строки.
+  const page = await ui()
+  expect(await activityText(page)).toMatch(/ passed/)
+  expect(await roomText(page)).not.toMatch(/\(pass\)/i)
 })
 
 // ───────────────────────────── 38.5 Файл в комнату ────────────────────────────

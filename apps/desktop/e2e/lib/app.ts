@@ -605,8 +605,13 @@ export async function addSourceAsUser(stand: Stand, page: Page, dir: string): Pr
 /** После перезапуска приложение открывает экран выбора проекта, а не проект
  *  (D-89, решает владелец). Человек щёлкает проект в «недавних» — так и здесь. */
 export async function reopenRecentProject(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^e2e\s/ }).first().click({ timeout: 120000 })
+  // С задачи 3G.20 (D-89) приложение само открывает последний проект; экран
+  // выбора остаётся запасным путём — если он всё же пришёл, проект открывается
+  // щелчком по недавнему, как это сделал бы человек.
+  const recent = page.getByRole('button', { name: /^e2e\s/ }).first()
   const composer = page.getByRole('textbox', { name: /Message|Сообщение/ })
+  await expect(recent.or(composer).first()).toBeVisible({ timeout: 120000 })
+  if (await recent.isVisible()) await recent.click()
   await expect(composer).toBeVisible({ timeout: 120000 })
   await expect(composer).not.toHaveAttribute('data-placeholder', /Starting|Reconnecting|Запуск/, {
     timeout: 120000

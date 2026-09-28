@@ -19,7 +19,14 @@ import { join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, send, standFixture } from '../lib/app'
+import {
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  reopenRecentProject,
+  send,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 import { turn } from '../lib/turn'
 
@@ -348,10 +355,8 @@ test('51.2.1 правка записки руками пережила пере�
   await stand.get().relaunch()
   page = await mainWindow(stand.get())
   await hideFirstRunSurfaces(page)
-  await page.getByRole('button', { name: /^e2e / }).first().click()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
-    timeout: 120000
-  })
+  // С 3G.20 (D-89) последний проект открывается сам.
+  await reopenRecentProject(page)
   dialog = await openMemory(page)
   await expect(dialog.getByRole('textbox', { name: 'Записка о вас' })).toHaveValue(
     new RegExp(USER_EDIT.replace(/[()]/g, '\\$&'))

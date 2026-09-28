@@ -194,15 +194,25 @@ test('14.8.1 перезапуск с тем же проектом — панел
 })
 
 test('14.9.1 второй проект, «Позже» на папке — индексация «отложено», текущий — «Первый вопрос»', async () => {
-  // Новый проект создаётся с экрана выбора проекта — туда приложение приходит
-  // после перезапуска. Создание поверх открытого проекта окно не переключает.
+  // С 3G.20 (D-89) после перезапуска открыт последний проект, и второй человек
+  // заводит из меню проекта — «Создать проект»; меню после создания сбрасывает
+  // запросы окна, поэтому мастер видит уже новый проект.
   await stand.get().relaunch()
   page = await mainWindow(stand.get())
-  await expect(page.getByRole('button', { name: /^e2e / }).first()).toBeVisible({
-    timeout: 60000
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 120000
   })
   const second = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-project2-'))
-  await createProject(stand.get(), page, second, 'e2e-2')
+  await pickNext(stand.get(), second)
+  await page.getByRole('button', { name: /^e2e$/ }).first().click()
+  await page.getByRole('menuitem', { name: 'Создать проект' }).click()
+  const create = page.getByRole('dialog', { name: 'Создать проект' })
+  await expect(create).toBeVisible({ timeout: 15000 })
+  await create.getByRole('textbox', { name: 'Название проекта' }).fill('e2e-2')
+  await create.getByRole('button', { name: 'Выбрать папку' }).click()
+  await expect(create).toContainText(second)
+  await create.getByRole('button', { name: /^Создать$/ }).click()
+  await expect(create).toBeHidden({ timeout: 60000 })
   await expect(guide(page)).toBeVisible({ timeout: 30000 })
   await expect
     .poll(() => stepState(page, 'Папка с документами'), { timeout: 30000 })
