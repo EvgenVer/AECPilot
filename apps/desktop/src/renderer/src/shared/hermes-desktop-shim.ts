@@ -568,20 +568,17 @@ const IMPLEMENTED: Record<string, unknown> = {
   // отрисовка ждала бы отклонённый промис; главный процесс у нас в чужие
   // сайты за украшением не ходит.
   resolveFavicon: undefined,
-  // Пять членов, приехавших с пином 0.21.5 (задача 3.B6), чей контракт — не
-  // промис, и заглушка на их форме соврала бы «есть». Их главный процесс
-  // отдаёт то, чего у нашего нет:
-  //   `hudModifier`, `windowControls` — клавиша их окна-HUD и кнопки окна под
-  //     WSLg: этих окон у нас нет, их ряды настроек проверяют наличие члена;
-  //   `minimizeToTray` — сворачивание в трей: трея у приложения нет;
-  //   `screenshot` — снимок экрана в композер: захват экрана их главным
-  //     процессом у нас не реализован, кнопка без члена не показывается;
-  //   `setF12ShortcutActive` — `=> void`: промис заглушки стал бы «функцией
-  //     уборки» эффекта (D-42).
+  // Члены, приехавшие с пином 0.21.5 (задача 3.B6), чей контракт — не промис,
+  // и заглушка на их форме соврала бы «есть». Их главный процесс отдаёт то,
+  // чего у нашего нет:
+  //   `hudModifier` — жест Ctrl+Alt для их окна-HUD: берём после сборки их
+  //     нативного помощника (D-146), до тех пор ряд настроек не показывается;
+  //   `windowControls` — кнопки окна под WSLg, `screenshot` — снимок окна
+  //     жестом двух Command: только Linux / только macOS (SPEC HX29).
+  // `minimizeToTray` и F12 как назначаемая клавиша подключены задачей 3G.23 —
+  // ниже, рядом с запретом F12.
   hudModifier: undefined,
-  minimizeToTray: undefined,
   screenshot: undefined,
-  setF12ShortcutActive: undefined,
   windowControls: undefined,
 
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
@@ -1096,6 +1093,23 @@ const IMPLEMENTED: Record<string, unknown> = {
   },
   setDisableF12(blocked: boolean): void {
     window.aecpilot.setDisableF12(blocked)
+  },
+  // Задача 3G.23 (D-146): F12 как назначаемая клавиша и трей — те же каналы,
+  // что у их главного процесса. `setF12ShortcutActive` односторонний: промис
+  // здесь стал бы «функцией уборки» их эффекта (D-42).
+  setF12ShortcutActive(active: boolean): void {
+    window.aecpilot.setF12ShortcutActive(active)
+  },
+  onF12Shortcut(
+    cb: Parameters<Window['aecpilot']['onF12Shortcut']>[0]
+  ): () => void {
+    return window.aecpilot.onF12Shortcut(cb)
+  },
+  minimizeToTray: {
+    get: () => window.aecpilot.minimizeToTray.get(),
+    set: (on: boolean) => window.aecpilot.minimizeToTray.set(on),
+    onChanged: (cb: Parameters<Window['aecpilot']['minimizeToTray']['onChanged']>[0]) =>
+      window.aecpilot.minimizeToTray.onChanged(cb)
   },
 
   // SPEC UR35 + C12. Версия НАША: их экран «о программе» показывает то, что

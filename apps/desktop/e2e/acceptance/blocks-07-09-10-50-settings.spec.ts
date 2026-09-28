@@ -732,3 +732,52 @@ test('50.5.1 «О программе»: наше имя и наша версия
   expect(text).not.toMatch(/hermes|nous/i)
   await closeSettings(page)
 })
+
+// Задача 3G.23 (D-146): трей и F12 как назначаемая клавиша — каналы их главного
+// процесса, перенесённые в наш.
+test('50.6.1 «Сворачивать в трей»: ряд есть, включённый прячет свёрнутое окно, выключение возвращает', async () => {
+  const page = await ui()
+  const app = stand.get().app
+  const mainVisible = () =>
+    app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false)
+  await openSettings(page, 'tab=config:appearance&page=window-layout')
+  const toggle = page.getByRole('switch', { name: /Сворачивать в трей/ })
+  await expect(toggle).toBeVisible({ timeout: 15000 })
+  if ((await toggle.getAttribute('aria-checked')) !== 'true') await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  // Переключатель отмечается сразу, а трей главный процесс заводит следом.
+  await expect
+    .poll(() => page.evaluate(() => window.aecpilot.minimizeToTray.get()), { timeout: 15000 })
+    .toEqual({ enabled: true, available: true })
+
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.minimize())
+  await expect.poll(mainVisible, { timeout: 15000 }).toBe(false)
+
+  // Выключение возвращает спрятанные окна — так у них, и так человек не
+  // теряет окно, выключив настройку.
+  await page.evaluate(() => window.aecpilot.minimizeToTray.set(false))
+  await expect.poll(mainVisible, { timeout: 15000 }).toBe(true)
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await closeSettings(page)
+})
+
+test('50.7.1 F12 назначается командой в «Горячих клавишах», даже когда F12 запрещён', async () => {
+  // Запрет F12 включён в 50.4.1: без передачи клавиши окну захват её бы не увидел.
+  const page = await ui()
+  await openSettings(page, 'tab=keybinds')
+  const rebind = page.getByRole('button', { name: 'Переназначить' }).first()
+  await expect(rebind).toBeVisible({ timeout: 15000 })
+  await rebind.click()
+  await page.keyboard.press('F12')
+  await expect(rebind).toContainText('F12', { timeout: 10000 })
+  expect(
+    await stand
+      .get()
+      .app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((win) => win.webContents.isDevToolsOpened())
+      )
+  ).toBe(false)
+  await page.getByRole('button', { name: 'Сбросить по умолчанию' }).first().click()
+  await expect(rebind).not.toContainText('F12')
+  await closeSettings(page)
+})

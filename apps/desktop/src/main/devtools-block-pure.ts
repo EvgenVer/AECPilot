@@ -26,6 +26,32 @@ export function shouldBlockDevtoolsKey(input: KeyPress, blocked: boolean): boole
   return input.key === 'F12' && !input.control && !input.meta && !input.shift && !input.alt
 }
 
+/** Задача 3G.23 (D-146): F12 как назначаемая клавиша — их `f12-shortcut`.
+ * Когда у окна есть привязка на F12 (или окно ловит новое сочетание), нажатие
+ * уходит окну раньше Chromium, и запрет F12 его тогда не касается: человек сам
+ * отдал клавишу команде. */
+export function shouldForwardF12(
+  input: KeyPress & { type?: string },
+  shortcutActive: boolean
+): boolean {
+  return shortcutActive && input.type === 'keyDown' && input.key === 'F12'
+}
+
+/** Нажатие в той форме, которую ждёт их `onF12Shortcut`. */
+export function f12Payload(
+  input: KeyPress & { code?: string; isAutoRepeat?: boolean }
+): Record<string, unknown> {
+  return {
+    alt: Boolean(input.alt),
+    code: input.code,
+    control: Boolean(input.control),
+    key: input.key,
+    meta: Boolean(input.meta),
+    repeat: Boolean(input.isAutoRepeat),
+    shift: Boolean(input.shift)
+  }
+}
+
 /** Настройка с диска. Любая поломка файла — это «не блокировать»: запрет,
  * взявшийся из испорченного JSON, человек не сможет объяснить. */
 export function parseDevtoolsBlocked(text: string): boolean {

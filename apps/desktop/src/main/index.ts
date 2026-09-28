@@ -138,7 +138,8 @@ import {
   type ActiveWork,
   type QuitPrompt
 } from './quit-guard-pure'
-import { shouldBlockDevtoolsKey } from './devtools-block-pure'
+import { f12Payload, shouldBlockDevtoolsKey, shouldForwardF12 } from './devtools-block-pure'
+import { createMinimizeToTray, executableIcon } from './minimize-to-tray'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installPreviewGuestGuard } from './preview-guest'
 import { installBrowserNavGestures } from './preview-nav'
@@ -1463,6 +1464,16 @@ const browserWindows = new Map<string, BrowserWindow>()
  * быть несколько и одну сессию видно из двух сразу. */
 const activeWorkByWindow = new Map<number, ActiveWork>()
 
+// Задача 3G.23 (D-146). Окна, у которых F12 назначен командой: нажатие уходит
+// им, а не Chromium (их `f12ShortcutActiveWindows`).
+const f12ShortcutWindows = new Set<number>()
+
+// Задача 3G.23 (D-146). Трей заводится при старте, до первого окна; главное
+// окно — первое обычное окно приложения, и закрытие прячет в трей только его,
+// как у них.
+let minimizeToTray: ReturnType<typeof createMinimizeToTray> | undefined
+let trayPrimary: BrowserWindow | null = null
+
 function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -1502,14 +1513,27 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   // Задача 3E.11. Запрет F12, если человек его включил. Гасится ровно эта
   // клавиша и ровно здесь — до того, как её увидит Chromium.
   win.webContents.on('before-input-event', (event, input) => {
+    // Задача 3G.23: назначенный F12 окно получает первым.
+    if (shouldForwardF12(input, f12ShortcutWindows.has(win.webContents.id))) {
+      event.preventDefault()
+      win.webContents.send('f12-shortcut', f12Payload(input))
+      return
+    }
     if (shouldBlockDevtoolsKey(input, isDevtoolsBlocked())) event.preventDefault()
   })
+
+  const primary =
+    Object.keys(plan.query).length === 0 && (!trayPrimary || trayPrimary.isDestroyed())
+  if (primary) trayPrimary = win
+  minimizeToTray?.registerWindow(win, { closeToTray: primary })
 
   // Задача 3E.11. Сводка «в каких чатах идёт ход» приходит из окна и живёт до
   // его смерти: сводка мёртвого окна, оставшаяся в карте, спрашивала бы о
   // работе, которой давно нет.
+  const contentsId = win.webContents.id
   win.webContents.once('destroyed', () => {
-    activeWorkByWindow.delete(win.webContents.id)
+    activeWorkByWindow.delete(contentsId)
+    f12ShortcutWindows.delete(contentsId)
     // Задача 3E.8: оболочки этого окна закрываются вместе с ним. Иначе
     // после закрытия остались бы живые `cmd.exe`, о которых никто не знает.
     disposeTerminalsOfWindow(win.webContents.id)
@@ -3217,6 +3241,12 @@ ipcMain.on('active-work:set', (event, payload: unknown) => {
 
 ipcMain.on('devtools:disable-f12', (_event, blocked: unknown) => {
   setDevtoolsBlocked(blocked === true)
+})
+
+// Задача 3G.23 (D-146): окно сообщает, что F12 у него назначен командой.
+ipcMain.on('f12-shortcut:active', (event, active: unknown) => {
+  if (active === true) f12ShortcutWindows.add(event.sender.id)
+  else f12ShortcutWindows.delete(event.sender.id)
 })
 
 // ── Задача 3E.10. Правый клик и проверка орфографии (UR37) ─────────────────
@@ -5463,6 +5493,21 @@ app
     // родившийся раньше подписки, ушёл бы куда угодно без вопроса.
     installPreviewGuestGuard()
 
+    // Задача 3G.23 (D-146): до первого окна — окно регистрируется в трее при
+    // создании, и настройка с диска должна быть уже прочитана.
+    minimizeToTray = createMinimizeToTray({
+      preferencesPath: join(app.getPath('userData'), 'minimize-to-tray.json'),
+      getIcon: executableIcon,
+      restoreMainWindow: () => {
+        const win = trayPrimary && !trayPrimary.isDestroyed() ? trayPrimary : createWindow()
+        if (win.isMinimized()) win.restore()
+        if (!win.isVisible()) win.show()
+        win.focus()
+      },
+      log: (message) => console.warn(message)
+    })
+    void minimizeToTray.start()
+
     createWindow()
     console.log('aecpilot: window created')
 
@@ -5574,6 +5619,9 @@ app.on('before-quit', (event) => {
       return
     }
   }
+
+  // Задача 3G.23: выход принят — закрытие окна больше не прячет его в трей.
+  minimizeToTray?.beginQuit()
 
   // Задача 3E.8: оболочки закрываются раньше ядра и раньше любого возврата
   // ниже. Выход с живым `cmd.exe` за спиной оставил бы процесс без хозяина.

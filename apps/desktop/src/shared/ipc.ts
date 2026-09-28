@@ -1143,6 +1143,27 @@ export interface AecpilotApi {
    * переживает перезапуск; главный процесс — единственная сторона, которая
    * может перехватить клавишу до Chromium. */
   setDisableF12(blocked: boolean): void
+  /** Задача 3G.23 (D-146). F12 назначен командой в этом окне — нажатие уходит
+   * окну раньше Chromium (их `f12-shortcut`). */
+  setF12ShortcutActive(active: boolean): void
+  onF12Shortcut(
+    cb: (input: {
+      alt?: boolean
+      code?: string
+      control?: boolean
+      key: string
+      meta?: boolean
+      repeat?: boolean
+      shift?: boolean
+    }) => void
+  ): () => void
+  /** Задача 3G.23 (D-146). Сворачивание и закрытие главного окна в трей;
+   * настройка на этой машине, по умолчанию выключена. */
+  minimizeToTray: {
+    get(): Promise<{ enabled: boolean; available: boolean }>
+    set(on: boolean): Promise<{ enabled: boolean; available: boolean }>
+    onChanged(cb: (status: { enabled: boolean; available: boolean }) => void): () => void
+  }
   /** Задача 3E.11 (UR35). Версии для экрана «о программе». `appVersion` —
    * НАША (C12), а не донорская. Поля их контракта про рассинхронизацию сборки
    * не заполняются: у нас нет их механизма обновления из исходников. */

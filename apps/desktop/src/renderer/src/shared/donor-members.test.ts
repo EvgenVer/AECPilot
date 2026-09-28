@@ -139,19 +139,19 @@ const UNBRIDGED = [
   'recycleBackend',
   'relaunchApp',
   // ── Приехало с пином 0.21.5 (задача 3.B6). Контракт — промис или подписка,
-  // заглушка отказывает честно; пять членов той же версии с другой формой
-  // объявлены отсутствующими в шиме (`hudModifier`, `minimizeToTray`,
-  // `screenshot`, `setF12ShortcutActive`, `windowControls`).
+  // заглушка отказывает честно; три члена той же версии с другой формой
+  // объявлены отсутствующими в шиме (`hudModifier`, `screenshot`,
+  // `windowControls`); `minimizeToTray` и `setF12ShortcutActive` подключены
+  // задачей 3G.23.
   //
   // (9) Сигнал их главного процесса, что пул снимает бэкенд (`use-gateway-boot`) —
   // пула у нас нет, та же причина, что у группы (6).
   'onPoolBackendRetiring',
   // (10) Удаление ИХ десктопного плагина (`contrib/runtime-loader.ts`) — SPEC
   // HX5, группа (1).
-  'removeDesktopPlugin',
-  // (11) F12 их окна (`use-keybinds.ts`): их главный процесс перехватывает
-  // клавишу и шлёт событие; у нас окно своё, и F12 им не отдаётся.
-  'onF12Shortcut'
+  'removeDesktopPlugin'
+  // `onF12Shortcut` стоял здесь до задачи 3G.23 (D-146): F12 как назначаемая
+  // клавиша подключена, член проброшен в шиме.
 ].sort()
 
 /** Исходник без комментариев.

@@ -3,11 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  parseDevtoolsBlocked,
-  serializeDevtoolsBlocked,
-  shouldBlockDevtoolsKey
-} from './devtools-block-pure'
+import { f12Payload, parseDevtoolsBlocked, serializeDevtoolsBlocked, shouldBlockDevtoolsKey, shouldForwardF12 } from './devtools-block-pure'
 
 describe('shouldBlockDevtoolsKey', () => {
   it('выключенная настройка не гасит ничего', () => {
@@ -44,5 +40,30 @@ describe('файл настройки', () => {
     expect(parseDevtoolsBlocked('{')).toBe(false)
     expect(parseDevtoolsBlocked('')).toBe(false)
     expect(parseDevtoolsBlocked('{"on":"да"}')).toBe(false)
+  })
+})
+
+// Задача 3G.23 (D-146): F12 как назначаемая клавиша.
+describe('shouldForwardF12', () => {
+  it('forwards F12 to the window only while a binding claims it', () => {
+    expect(shouldForwardF12({ key: 'F12', type: 'keyDown' }, true)).toBe(true)
+    expect(shouldForwardF12({ key: 'F12', type: 'keyDown' }, false)).toBe(false)
+  })
+
+  it('ignores key-up and other keys', () => {
+    expect(shouldForwardF12({ key: 'F12', type: 'keyUp' }, true)).toBe(false)
+    expect(shouldForwardF12({ key: 'F11', type: 'keyDown' }, true)).toBe(false)
+  })
+
+  it('hands the press over in their payload shape', () => {
+    expect(f12Payload({ key: 'F12', code: 'F12', shift: true, isAutoRepeat: true })).toEqual({
+      alt: false,
+      code: 'F12',
+      control: false,
+      key: 'F12',
+      meta: false,
+      repeat: true,
+      shift: true
+    })
   })
 })

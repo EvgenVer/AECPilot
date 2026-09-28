@@ -92,6 +92,23 @@ const api: AecpilotApi = {
   },
   setActiveWork: (payload) => ipcRenderer.send('active-work:set', payload),
   setDisableF12: (blocked) => ipcRenderer.send('devtools:disable-f12', blocked),
+  setF12ShortcutActive: (active) => ipcRenderer.send('f12-shortcut:active', active === true),
+  onF12Shortcut: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, input: Parameters<typeof cb>[0]): void =>
+      cb(input)
+    ipcRenderer.on('f12-shortcut', listener)
+    return () => ipcRenderer.removeListener('f12-shortcut', listener)
+  },
+  minimizeToTray: {
+    get: () => ipcRenderer.invoke('minimize-to-tray:get'),
+    set: (on) => ipcRenderer.invoke('minimize-to-tray:set', on),
+    onChanged: (cb) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: Parameters<typeof cb>[0]): void =>
+        cb(status)
+      ipcRenderer.on('minimize-to-tray:changed', listener)
+      return () => ipcRenderer.removeListener('minimize-to-tray:changed', listener)
+    }
+  },
   getVersion: () => ipcRenderer.invoke('version:get'),
   openSessionWindow: (sessionId, watch) =>
     ipcRenderer.invoke('window:open-session', { sessionId, watch }),
