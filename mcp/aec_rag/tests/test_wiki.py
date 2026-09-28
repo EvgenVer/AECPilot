@@ -384,6 +384,11 @@ def test_write_page_cannot_forge_its_own_guard(tmp_path: Path) -> None:
         (".aecpilot/project.json", "wiki/"),
         ("wiki/entities/ТП-1.txt", ".md"),
         ("wiki/raw/источник/файл.md", "raw/"),
+        # D-143: побочные файлы вне раскладки навыка.
+        ("wiki/log/2026-09-24-update.md", "wiki/entities/"),
+        ("wiki/annotations/update.md", "wiki/entities/"),
+        ("wiki/index_add.md", "wiki/entities/"),
+        ("wiki/entities/sub/ТП-1.md", "wiki/entities/"),
     ],
 )
 def test_write_page_writes_only_wiki_pages(tmp_path: Path, rel: str, says: str) -> None:
@@ -396,3 +401,16 @@ def test_write_page_writes_only_wiki_pages(tmp_path: Path, rel: str, says: str) 
         write_page(tmp_path, rel, "текст")
 
     assert not (tmp_path / rel).exists()
+
+
+@pytest.mark.parametrize(
+    "rel", ["wiki/index.md", "wiki/log.md", "wiki/concepts/Заземление.md", "wiki/queries/q.md"]
+)
+def test_write_page_accepts_the_wiki_layout(tmp_path: Path, rel: str) -> None:
+    from aec_rag.wiki import checkpoint_pages, write_page
+
+    init_wiki(tmp_path)
+    # index.md и log.md создаёт wiki_init; до отметки они «не свои» (4.14).
+    checkpoint_pages(tmp_path)
+
+    assert write_page(tmp_path, rel, "текст")["written"] is True

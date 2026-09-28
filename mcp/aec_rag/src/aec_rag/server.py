@@ -268,7 +268,7 @@ def build_server(project_json: Path) -> MCPServer:
         filters: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         if not query.strip():
-            raise ToolError("пустой запрос")
+            return _refused("пустой запрос: передай вопрос словами")
         rag = await _index(state)
         chunks = await search_chunks(state.db(), rag, query, top_k=top_k, filters=filters)
         return {"chunks": chunks}
@@ -378,7 +378,7 @@ def build_server(project_json: Path) -> MCPServer:
     )
     async def rag_overview(query: str, top_k: int = 20) -> dict[str, Any]:
         if not query.strip():
-            raise ToolError("пустой запрос")
+            return _refused("пустой запрос: передай вопрос словами")
         rag = await _index(state)
         return await overview(state.db(), rag, query, top_k=top_k)
 
@@ -476,16 +476,19 @@ def build_server(project_json: Path) -> MCPServer:
             "Write a wiki page. Use this instead of the plain file tools for anything "
             "under wiki/: it REFUSES the write when the new text would drop a paragraph "
             "a human wrote, and tells you which one. Getting that refusal means read "
-            "the page and put the paragraph back — not rephrase it, put it back."
+            "the page and put the paragraph back — not rephrase it, put it back. "
+            "Pages live only in wiki/entities|concepts|comparisons|queries/<page>.md, "
+            "wiki/index.md and wiki/log.md. A refusal comes back as {ok: false, "
+            "refused}: fix what it names, do not repeat the same call."
         )
     )
     def wiki_write_page(rel: str, text: str) -> dict[str, Any]:
-        from aec_rag.wiki import WriteRefused, write_page
+        from aec_rag.wiki import WikiRefusal, write_page
 
         try:
             return write_page(state.vault, rel, text)
-        except WriteRefused as refused:
-            raise ToolError(str(refused)) from refused
+        except WikiRefusal as refused:
+            return _refused(str(refused))
         except (OSError, ValueError) as exc:
             raise ToolError(str(exc)) from exc
 
@@ -523,6 +526,15 @@ def build_server(project_json: Path) -> MCPServer:
         }
 
     return server
+
+
+def _refused(reason: str) -> dict[str, Any]:
+    """Штатный отказ — обычным результатом, а не ошибкой инструмента (D-142).
+
+    Ошибку ядро засчитывает предохранителю сервера как сбой: три подряд — и весь
+    ``aec-rag`` минуту отвечает «server unreachable». Отказ по существу — ответ.
+    """
+    return {"ok": False, "refused": reason}
 
 
 def _roots(state: RagServer) -> dict[str, str]:

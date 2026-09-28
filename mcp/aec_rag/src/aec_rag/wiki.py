@@ -414,8 +414,27 @@ def edited_pages(vault: Path) -> dict[str, list[str]]:
 # ------------------------------------------- запись страницы с защитой (4.14)
 
 
+class WikiRefusal(Exception):
+    """Штатный отказ инструмента вики — ответ по существу, а не сбой (D-142).
+
+    Сервер возвращает его обычным результатом ``{ok: false, refused}``: ошибку
+    инструмента предохранитель ядра считает сбоем сервера, и после трёх подряд
+    весь ``aec-rag`` на минуту становится «недоступен» — поиск по документам тоже.
+    """
+
+
+class PathRefused(WikiRefusal, ValueError):
+    """Путь не из раскладки вики."""
+
+
+#: Раскладка вики (навык ``aec-wiki``, D-143): страницы — в этих папках,
+#: служебные — ``index.md`` и ``log.md`` в корне ``wiki/``.
+PAGE_DIRS = ("entities", "concepts", "comparisons", "queries")
+ROOT_PAGES = ("index.md", "log.md")
+
+
 @dataclass(frozen=True)
-class WriteRefused(Exception):
+class WriteRefused(WikiRefusal):
     """Запись отклонена: она теряет чужой текст."""
 
     lost: list[str]
@@ -464,15 +483,28 @@ def write_page(vault: Path, rel: str, text: str) -> dict[str, object]:
     target = (vault / rel).resolve()
 
     if not target.is_relative_to(wiki):
-        raise ValueError(f"писать можно только внутрь wiki/, а это не она: {rel}")
+        raise PathRefused(f"писать можно только внутрь wiki/, а это не она: {rel}")
     if target.suffix.lower() != ".md":
-        raise ValueError(f"страница вики — это файл .md: {rel}")
+        raise PathRefused(f"страница вики — это файл .md: {rel}")
     # ``raw/`` — снимки источников, их пишет ``write_snapshots``. Страницей они
     # не считаются (см. ``_page_files``), а значит ``edited_pages`` никогда не
     # назовёт их чужими — и правка снимка прошла бы вообще без разбора, подменив
     # ту базу, с которой ``stale_snapshots`` сверяет свежесть.
-    if "raw" in target.relative_to(wiki).parts:
-        raise ValueError(f"wiki/raw/ — снимки источников, их пишет не агент: {rel}")
+    parts = target.relative_to(wiki).parts
+    if "raw" in parts:
+        raise PathRefused(f"wiki/raw/ — снимки источников, их пишет не агент: {rel}")
+    # D-143: получив отказ, агент разбрасывал побочные файлы (`wiki/log/…`,
+    # `wiki/annotations/…`, `wiki/index_add.md`). Раскладка — ровно та, что в навыке.
+    if not (
+        parts in [(name,) for name in ROOT_PAGES] or (len(parts) == 2 and parts[0] in PAGE_DIRS)
+    ):
+        allowed = ", ".join(
+            [f"wiki/{d}/<страница>.md" for d in PAGE_DIRS] + [f"wiki/{n}" for n in ROOT_PAGES]
+        )
+        raise PathRefused(
+            f"такого места в вики нет: {rel}. Страницы пишутся только сюда: {allowed}. "
+            "Не заводи новых папок и файлов-дополнений — правь саму страницу."
+        )
 
     if target.exists():
         state = edited_pages(vault)

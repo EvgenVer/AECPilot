@@ -142,13 +142,64 @@ async def test_an_unknown_mode_is_refused_rather_than_guessed(project, monkeypat
 
 @pytest.mark.anyio
 async def test_an_empty_query_is_refused(project, monkeypatch):
+    """D-142: отказ — обычный ответ, а не ошибка, которую ядро считает сбоем сервера."""
     project_json, _ = project
     server = await stub_server(project_json, monkeypatch)
 
     async with connected_session(server) as client:
-        result = await client.call_tool("rag_query", {"query": "   "})
+        for tool in ("rag_query", "rag_overview"):
+            result = await call(client, tool, {"query": " \t "})
+            assert result["ok"] is False
+            assert "пустой запрос" in result["refused"]
+
+
+@pytest.mark.anyio
+async def test_wiki_write_refusals_are_answers_not_errors(project, monkeypatch):
+    """D-142, D-143: чужой абзац и путь вне раскладки — ответ `{ok: false, refused}`."""
+    from aec_rag.wiki import checkpoint_pages
+
+    project_json, _ = project
+    vault = project_json.parent.parent
+    server = await stub_server(project_json, monkeypatch)
+
+    async with connected_session(server) as client:
+        await call(client, "wiki_init", {})
+        page = "wiki/entities/ТП-1.md"
+        await call(client, "wiki_write_page", {"rel": page, "text": "Мощность 250 кВт."})
+        checkpoint_pages(vault)
+        (vault / page).write_text("Мощность 250 кВт.\n\nАбзац человека.", encoding="utf-8")
+
+        lost = await call(client, "wiki_write_page", {"rel": page, "text": "Мощность 320 кВт."})
+        assert lost["ok"] is False
+        assert "Абзац человека" in lost["refused"]
+
+        stray = await call(
+            client, "wiki_write_page", {"rel": "wiki/annotations/update.md", "text": "x"}
+        )
+        assert stray["ok"] is False
+        assert "wiki/entities/" in stray["refused"]
+        assert not (vault / "wiki" / "annotations").exists()
+
+
+@pytest.mark.anyio
+async def test_a_real_write_failure_stays_an_error(project, monkeypatch):
+    """Настоящая поломка (диск) — по-прежнему ошибка: её скрывать нельзя."""
+    import aec_rag.wiki as wiki_module
+
+    project_json, _ = project
+    server = await stub_server(project_json, monkeypatch)
+
+    def broken(*_args, **_kwargs):
+        raise OSError("диск недоступен")
+
+    monkeypatch.setattr(wiki_module, "write_page", broken)
+    async with connected_session(server) as client:
+        result = await client.call_tool(
+            "wiki_write_page", {"rel": "wiki/entities/ТП-1.md", "text": "x"}
+        )
 
     assert result.is_error
+    assert "диск недоступен" in error_text(result)
 
 
 @pytest.mark.anyio
