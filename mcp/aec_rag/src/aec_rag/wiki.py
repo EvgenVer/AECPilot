@@ -519,3 +519,108 @@ def write_page(vault: Path, rel: str, text: str) -> dict[str, object]:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8", newline="\n")
     return {"path": rel, "written": True}
+
+
+# --------------------------------------- сырьё в обход индекса (3G.15, UR6)
+
+#: Виды сырья, внесённого человеком (specs/wiki.md §Data schemas, вид «б»).
+RAW_KINDS = ("files", "links", "notes", "decisions")
+
+#: Символы, которых нет в имени файла Windows. Имя страницы — заголовок
+#: кириллицей, поэтому вычищаются только они, а не всё «не латинское».
+_FORBIDDEN_NAME = str.maketrans({ch: " " for ch in '<>:"|?*'})
+
+
+def _raw_name(name: str) -> str:
+    if "/" in name or "\\" in name or ".." in name:
+        raise PathRefused(f"имя — это заголовок без пути: {name!r}")
+    clean = " ".join(name.translate(_FORBIDDEN_NAME).split()).strip(" .")
+    if not clean:
+        raise PathRefused("нужно имя — короткий заголовок источника")
+    return clean
+
+
+def _one_line(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _file_text(source: Path, parse) -> str:  # noqa: ANN001
+    """Текст файла тем же разбором, что у индекса; страницы помечены, чтобы
+    ссылка на сырьё могла назвать страницу."""
+    from aec_rag.parse import ParseError
+
+    try:
+        parsed = parse(source)
+    except ParseError as exc:
+        raise WikiRefusal(str(exc)) from exc
+    parts = []
+    for segment in parsed.segments:
+        page = segment.locator.get("page")
+        label = f"<!-- стр. {page} -->\n\n" if page is not None else ""
+        parts.append(label + segment.markdown.strip())
+    return "\n\n".join(parts) if parts else parsed.markdown
+
+
+def add_raw(
+    vault: Path,
+    kind: str,
+    name: str,
+    text: str | None = None,
+    source_path: str | None = None,
+    source_url: str | None = None,
+    *,
+    parse=None,  # noqa: ANN001
+) -> dict[str, object]:
+    """Кладёт сырой источник в ``wiki/raw/user/<kind>/<name>.md``.
+
+    В индекс и поиск по документам он НЕ попадает (UR6): это отдельная явная
+    команда. Файл разбирается тем же Docling, что у индекса, но сам не
+    копируется — в заголовке записан путь к нему и его ``source_sha256``, по
+    которому ``stale_snapshots`` видит, что оригинал на диске изменился.
+    """
+    if kind not in RAW_KINDS:
+        raise WikiRefusal(f"вид сырья — один из {', '.join(RAW_KINDS)}, а не {kind!r}")
+    title = _raw_name(name)
+
+    fields: dict[str, str] = {"origin": "user", "kind": kind, "title": title}
+    if kind == "files":
+        if not source_path or text:
+            raise WikiRefusal("для files нужен source_path — путь к файлу; текст берётся разбором")
+        source = Path(source_path)
+        if not source.is_file():
+            raise WikiRefusal(f"файла нет: {source_path}")
+        if parse is None:
+            from aec_rag.parse import parse_file as parse
+        body = _file_text(source, parse)
+        fields["source_path"] = str(source)
+        fields["source_sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+    else:
+        if not text or not text.strip():
+            raise WikiRefusal(f"для {kind} нужен text — сам текст источника")
+        if kind == "links" and not source_url:
+            raise WikiRefusal("для links нужен source_url — адрес, откуда текст")
+        body = text.strip()
+        if source_path:
+            fields["source_path"] = _one_line(source_path)
+    if source_url:
+        fields["source_url"] = _one_line(source_url)
+
+    wiki = (Path(vault) / "wiki").resolve()
+    folder = wiki / "raw" / "user" / kind
+    target = (folder / f"{title}.md").resolve()
+    if not target.is_relative_to(wiki / "raw" / "user"):
+        raise PathRefused(f"сырьё пишется только в wiki/raw/user/: {name!r}")
+    number = 2
+    while target.exists():
+        target = folder / f"{title} ({number}).md"
+        number += 1
+
+    fields["added_at"] = datetime.now(UTC).isoformat()
+    fields["sha256"] = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    fields["type"] = "raw"
+    header = "---\n" + "".join(f"{key}: {value}\n" for key, value in fields.items()) + "---\n\n"
+
+    folder.mkdir(parents=True, exist_ok=True)
+    target.write_text(header + body + "\n", encoding="utf-8", newline="\n")
+    rel = target.relative_to(wiki.parent).as_posix()
+    return {"ok": True, "path": rel, "title": target.stem}

@@ -334,3 +334,23 @@ async def test_a_failed_job_does_not_wedge_the_lock(project, monkeypatch):
         again = await call(client, "rag_ingest", {})
         assert again["job_id"] != first["job_id"]
         await server.rag_state.jobs[again["job_id"]].task
+
+
+@pytest.mark.anyio
+async def test_wiki_add_raw_through_the_tool(project, monkeypatch):
+    """3G.15: сырьё пишется инструментом, отказ — обычным ответом (D-142)."""
+    project_json, _ = project
+    vault = project_json.parent.parent
+    server = await stub_server(project_json, monkeypatch)
+
+    async with connected_session(server) as client:
+        await call(client, "wiki_init", {})
+        added = await call(
+            client, "wiki_add_raw", {"kind": "notes", "name": "Протокол", "text": "Резерв 10 %."}
+        )
+        refused = await call(client, "wiki_add_raw", {"kind": "notes", "name": "x"})
+
+    assert added["ok"] is True
+    assert (vault / added["path"]).is_file()
+    assert refused == {"ok": False, "refused": refused["refused"]}
+    assert "нужен text" in refused["refused"]

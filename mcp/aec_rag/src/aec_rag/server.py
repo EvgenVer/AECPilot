@@ -494,6 +494,33 @@ def build_server(project_json: Path) -> MCPServer:
 
     @server.tool(
         description=(
+            "Add a raw source to the wiki WITHOUT indexing it: something the person gives "
+            "you that is not in the project's documents. kind: files (source_path — the "
+            "file is parsed like the index does it, page by page, and not copied), links "
+            "(text you fetched + source_url), notes (pasted text, minutes), decisions (a "
+            "decision the person asked to record, dated). name is its title. Returns the "
+            "wiki/raw/user/... path to cite on the pages you then write. It never enters "
+            "document search; that is a separate, explicit request."
+        )
+    )
+    def wiki_add_raw(
+        kind: str,
+        name: str,
+        text: str | None = None,
+        source_path: str | None = None,
+        source_url: str | None = None,
+    ) -> dict[str, Any]:
+        from aec_rag.wiki import WikiRefusal, add_raw
+
+        try:
+            return add_raw(state.vault, kind, name, text, source_path, source_url)
+        except WikiRefusal as refused:
+            return _refused(str(refused))
+        except OSError as exc:
+            raise ToolError(str(exc)) from exc
+
+    @server.tool(
+        description=(
             "Record the wiki as you are leaving it, so a later run can tell your own "
             "text from a human's edits. Call it ONCE at the end of a build or update, "
             "after every page is written."
