@@ -252,9 +252,16 @@ def embedding_func(model: str, dimensions: int, *, live: bool):
     )
 
 
+# The measurement's own OpenAI baseline. These used to live in aec_rag.rag_index; the
+# product no longer names a provider (D-154), but this eval compares against the phase-2
+# baseline, which was taken with exactly these (a dated snapshot, so it stays reproducible).
+EXTRACTION_MODEL = "gpt-5.4-mini-2026-03-17"
+EMBEDDING_DIMENSIONS = {"text-embedding-3-large": 3072, "text-embedding-3-small": 1536}
+
+
 async def measure(args) -> dict:
     from aec_rag.lightrag_bridge import IndexedChunk, insert_document
-    from aec_rag.rag_index import EMBEDDING_DIMENSIONS, EXTRACTION_MODEL, RagSettings, open_index
+    from aec_rag.rag_index import RagSettings, open_index
     from aec_rag.store import chunk_id as make_chunk_id
 
     document = pick_document(args.document)

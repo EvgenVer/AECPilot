@@ -105,3 +105,82 @@ export function resolveProvider(profile: ProfileProvider): ResolvedProvider {
   if (!keyEnvVar) return { ok: false, reason: 'у своего адреса не указана переменная ключа' }
   return { ok: true, id, baseUrl, keyEnvVar, models: preset.models }
 }
+
+// --- Reading the choice out of config.yaml -------------------------------------
+
+function unquote(raw: string): string {
+  let value = raw.trim()
+  if (value.startsWith('"') || value.startsWith("'")) {
+    const end = value.indexOf(value[0], 1)
+    return end === -1 ? value.slice(1) : value.slice(1, end)
+  }
+  const hash = value.indexOf(' #')
+  if (hash !== -1) value = value.slice(0, hash)
+  return value.trim()
+}
+
+/** Lines of a mapping block that starts at `header` (exact line match) and ends
+ *  where indentation falls back to the header's own level. */
+function blockLines(lines: string[], header: RegExp, indent: string): string[] {
+  const start = lines.findIndex((line) => header.test(line))
+  if (start === -1) return []
+  const out: string[] = []
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue
+    if (!line.startsWith(indent + ' ')) break
+    out.push(line)
+  }
+  return out
+}
+
+function scalar(block: string[], indent: string, key: string): string | null {
+  const re = new RegExp(`^${indent}${key}:\\s*(.*)$`)
+  for (const line of block) {
+    const m = re.exec(line)
+    if (m) return unquote(m[1]) || null
+  }
+  return null
+}
+
+/** `model.provider`, `model.base_url` and, for `custom:<name>`, the `key_env` of
+ *  that entry under `providers:` — the core's own keys (`hermes_cli/auth.py`,
+ *  `runtime_provider_custom.py`). Line-based, like every other reader here. */
+export function readProfileProvider(yamlText: string): ProfileProvider {
+  const lines = yamlText.replace(/\r\n/g, '\n').split('\n')
+  const model = blockLines(lines, /^model:\s*(#.*)?$/, '')
+  const provider = scalar(model, '  ', 'provider')
+  const baseUrl = scalar(model, '  ', 'base_url')
+  let keyEnvVar: string | null = null
+  if (provider?.startsWith('custom:')) {
+    const name = provider.slice('custom:'.length).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const providers = blockLines(lines, /^providers:\s*(#.*)?$/, '')
+    const entryStart = providers.findIndex((line) =>
+      new RegExp(`^  ${name}:\\s*(#.*)?$`).test(line)
+    )
+    if (entryStart !== -1) {
+      const entry: string[] = []
+      for (const line of providers.slice(entryStart + 1)) {
+        if (!line.startsWith('    ')) break
+        entry.push(line)
+      }
+      keyEnvVar = scalar(entry, '    ', 'key_env') ?? scalar(entry, '    ', 'api_key_env')
+    }
+  }
+  return { provider, baseUrl, keyEnvVar }
+}
+
+/** Environment for `aec-rag` (task 3G.3): names and addresses only, never a key.
+ *  Empty when there is no usable provider — the server then says so per call. */
+export function ragProviderEnv(resolved: ResolvedProvider): Record<string, string> {
+  if (!resolved.ok) return {}
+  const env: Record<string, string> = {
+    AEC_RAG_BASE_URL: resolved.baseUrl,
+    AEC_RAG_KEY_ENV: resolved.keyEnvVar
+  }
+  if (resolved.models) {
+    env.AEC_RAG_EMBEDDING_MODEL = resolved.models.embedding
+    // Graph extraction runs on the agent's model (owner, 2026-09-28).
+    env.AEC_RAG_EXTRACTION_MODEL = resolved.models.agent
+  }
+  return env
+}

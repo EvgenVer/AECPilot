@@ -219,6 +219,7 @@ import {
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
+import { ragProviderEnv, readProfileProvider, resolveProvider } from './provider-presets-pure'
 import {
   addSourceToProject,
   createProject,
@@ -300,7 +301,27 @@ interface ServeModule {
 // for the bundled layout.
 async function loadServeModule(): Promise<ServeModule> {
   const specifier = pathToFileURL(join(__dirname, '../../../../runtime/serve.mjs')).href
-  return (await import(/* @vite-ignore */ specifier)) as ServeModule
+  const mod = (await import(/* @vite-ignore */ specifier)) as ServeModule
+  knownHermesHome = mod.HERMES_HOME_DIR
+  return mod
+}
+
+/** The profile directory once `serve.mjs` has been loaded — which every spawn
+ *  that needs `buildExtraEnv` does first (task 3G.3). */
+let knownHermesHome: string | null = null
+
+/** `AEC_RAG_*` for the provider the agent uses (task 3G.3, D-154): read from the
+ *  profile's own `model.provider`, resolved through our preset table. Names and
+ *  addresses only; empty when the profile names no usable provider. */
+function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
+  if (!hermesHome) return {}
+  let yamlText = ''
+  try {
+    yamlText = readFileSync(join(hermesHome, 'config.yaml'), 'utf-8')
+  } catch {
+    return {}
+  }
+  return ragProviderEnv(resolveProvider(readProfileProvider(yamlText)))
 }
 
 // TODO(Phase 5 / task 5.1): resolved relative to this file's location on
@@ -320,7 +341,7 @@ interface RegisterAecSourcesModule {
 }
 
 interface RegisterAecRagModule {
-  registerAecRag: (opts: { projectJsonPath: string }) => {
+  registerAecRag: (opts: { projectJsonPath: string; ragEnv?: Record<string, string> }) => {
     projectJsonPath: string
     command: string
     configPath: string
@@ -491,7 +512,8 @@ async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
   // `uv sync`, not a broken project.
   try {
     const { registerAecRag } = await loadRegisterAecRagModule()
-    const rag = registerAecRag({ projectJsonPath })
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const rag = registerAecRag({ projectJsonPath, ragEnv: ragEnvFromProfile(HERMES_HOME_DIR) })
     changed = changed || rag.changed
   } catch (error: unknown) {
     console.error('aecpilot: could not register aec-rag for the opened project', error)
@@ -1354,7 +1376,7 @@ function applyDefaultWakePhrase(homeDir: string): void {
  * enough to be handed to `startServe`'s child_process spawn — never logged,
  * never returned from here to anything but that call. */
 function buildExtraEnv(): Record<string, string> {
-  return buildProviderKeyEnv()
+  return { ...ragEnvFromProfile(knownHermesHome), ...buildProviderKeyEnv() }
 }
 
 /** Lazily creates the initial chat session (task 0.11) and caches its id.

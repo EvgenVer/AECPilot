@@ -114,12 +114,28 @@ export function mergeSkillsDirIntoConfigYaml(yamlText, directory) {
 }
 
 /**
+ * The server's env block (task 3G.3, D-154). `ragEnv` is the chosen provider as
+ * the app resolved it — address, key variable NAME, models (`AEC_RAG_*`, see
+ * `aec_rag/rag_index.py`); the key itself goes in as a `${env:…}` reference to
+ * that variable. Without a provider only the home path is written, and the
+ * server answers every call with «провайдер не задан».
+ */
+export function aecRagEnv(ragEnv, hermesHomeDir) {
+  const keyEnv = ragEnv.AEC_RAG_KEY_ENV;
+  return {
+    ...ragEnv,
+    ...(keyEnv ? { [keyEnv]: `\${env:${keyEnv}}` } : {}),
+    AEC_HERMES_HOME: hermesHomeDir,
+  };
+}
+
+/**
  * Registers `aec-rag` against `projectJsonPath` and points hermes at our skill
  * pack. Returns `{ projectJsonPath, command, configPath, changed }`; `changed`
  * is true if either edit changed anything, which is what tells the caller a
  * `reload.mcp` is worth doing.
  */
-export function registerAecRag({ projectJsonPath } = {}) {
+export function registerAecRag({ projectJsonPath, ragEnv = {} } = {}) {
   if (!fs.existsSync(AEC_RAG_BIN)) {
     throw new Error(`aec-rag binary not found at ${AEC_RAG_BIN} — run 'uv sync' first`);
   }
@@ -142,10 +158,7 @@ export function registerAecRag({ projectJsonPath } = {}) {
     // A path, not a secret, and it goes in as a literal because the same env
     // stripping hides HERMES_HOME too: without it `rag_check_quote` cannot find
     // the `grounded-citations` matcher it borrows (SPEC UR26, task 3.30).
-    env: {
-      OPENAI_API_KEY: "${env:OPENAI_API_KEY}",
-      AEC_HERMES_HOME: HERMES_HOME_DIR,
-    },
+    env: aecRagEnv(ragEnv, HERMES_HOME_DIR),
     enabled: true,
   });
   const skills = fs.existsSync(SKILLS_DIR)

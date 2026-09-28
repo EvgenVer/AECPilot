@@ -16,7 +16,7 @@ import asyncio
 import hashlib
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -26,24 +26,17 @@ from aec_rag.project_config import ProjectConfigError
 if TYPE_CHECKING:
     from lightrag import LightRAG
 
-# Chosen 2026-08-14 against the account's own model list. `-large` rather than
-# `-small`: it is measurably better on Russian, and switching later costs a full
-# re-ingest, so the cheap one is the expensive choice here.
-DEFAULT_EMBEDDING_MODEL = "text-embedding-3-large"
-
-# Dimensions are not discoverable without calling the API, and the number has to
-# be known before the first call — the vector store is created with it.
-EMBEDDING_DIMENSIONS = {
-    "text-embedding-3-large": 3072,
-    "text-embedding-3-small": 1536,
-    "text-embedding-ada-002": 1536,
-}
-
+# The provider is the person's choice, not ours (D-154, SPECIFICATION C5). The
+# desktop app resolves it from the agent's own `model.provider` and passes, in
+# this server's environment: the OpenAI-compatible address, the NAME of the
+# variable holding the key, the embedding model (used when the project does not
+# name one) and the extraction model. Nothing here falls back to a provider.
+BASE_URL_ENV = "AEC_RAG_BASE_URL"
+KEY_ENV_NAME_ENV = "AEC_RAG_KEY_ENV"
+EMBEDDING_MODEL_ENV = "AEC_RAG_EMBEDDING_MODEL"
 # LightRAG calls an LLM per chunk to pull out entities and relations, so this is
-# the model that decides what an ingest costs. A dated snapshot on purpose: the
-# eval baseline (2.17) has to stay reproducible, and a floating alias would move
-# under it.
-EXTRACTION_MODEL = "gpt-5.4-mini-2026-03-17"
+# the model that decides what an ingest costs.
+EXTRACTION_MODEL_ENV = "AEC_RAG_EXTRACTION_MODEL"
 
 # The language entity names are written in (finding D-38).
 #
@@ -69,8 +62,6 @@ EXTRACTION_MODEL = "gpt-5.4-mini-2026-03-17"
 # language" work in our favour instead of against it.
 EXTRACTION_LANGUAGE = "Russian"
 
-API_KEY_ENV_VAR = "OPENAI_API_KEY"
-
 # How patiently an embedding call waits out a rate limit. Seven attempts
 # starting at 5 s and doubling to 120 s spans about eight minutes — long
 # enough for a per-minute quota to refill several times over.
@@ -88,8 +79,11 @@ class RagIndexError(Exception):
 @dataclass(frozen=True)
 class RagSettings:
     embedding_model: str
-    embedding_dim: int
-    extraction_model: str = EXTRACTION_MODEL
+    # `None` until known: taken from the index fingerprint when the same model
+    # built it, otherwise measured with one call when the index is opened. The
+    # vector store is created with this number, so it is never guessed.
+    embedding_dim: int | None = None
+    extraction_model: str = ""
     extraction_language: str = EXTRACTION_LANGUAGE
 
 
@@ -112,11 +106,11 @@ def workspace_of(vault: Path | str) -> str:
 
 
 def load_settings(project_path: Path | str) -> RagSettings:
-    """Read the RAG settings out of a vault's ``project.json``.
+    """Read the RAG settings out of a vault's ``project.json`` and the provider env.
 
-    An empty or missing ``settings.embedding_model`` means "not chosen yet" and
-    resolves to the default. An unknown one is an error rather than a guess:
-    picking a dimension wrongly builds an index that fails on first query.
+    An empty or missing ``settings.embedding_model`` means "not chosen for this
+    project" and resolves to the provider's embedding model. With neither there
+    is nothing to build an index with, and that is said, not guessed.
     """
     path = Path(project_path)
     if path.is_dir():
@@ -131,17 +125,22 @@ def load_settings(project_path: Path | str) -> RagSettings:
 
     settings = data.get("settings") if isinstance(data, dict) else None
     configured = (settings or {}).get("embedding_model") or ""
-    model = configured.strip() or DEFAULT_EMBEDDING_MODEL
-
-    if model not in EMBEDDING_DIMENSIONS:
-        known = ", ".join(sorted(EMBEDDING_DIMENSIONS))
-        raise RagIndexError(f"неизвестная embedding-модель {model!r} в {path}; известные: {known}")
+    model = configured.strip() or os.environ.get(EMBEDDING_MODEL_ENV, "").strip()
+    if not model:
+        raise RagIndexError(
+            "модель эмбеддингов не выбрана: провайдер не задан — выберите его в настройках"
+        )
 
     language = ((settings or {}).get("extraction_language") or "").strip() or EXTRACTION_LANGUAGE
 
+    fingerprint = read_fingerprint(path.parent.parent) or {}
+    known_dim = fingerprint.get("embedding_dim")
+    same_model = fingerprint.get("embedding_model") == model and isinstance(known_dim, int)
+
     return RagSettings(
         embedding_model=model,
-        embedding_dim=EMBEDDING_DIMENSIONS[model],
+        embedding_dim=known_dim if same_model else None,
+        extraction_model=os.environ.get(EXTRACTION_MODEL_ENV, "").strip(),
         extraction_language=language,
     )
 
@@ -218,12 +217,37 @@ def api_key() -> str:
 
     The desktop app keeps it in safeStorage and injects it when it spawns this
     server (PLAN rule R2); it is never read from a file here and never written
-    to one.
+    to one. Which variable holds it is the provider's, passed by name.
     """
-    key = os.environ.get(API_KEY_ENV_VAR, "").strip()
+    name = os.environ.get(KEY_ENV_NAME_ENV, "").strip()
+    if not name:
+        raise RagIndexError("провайдер индекса не задан: не указана переменная ключа")
+    key = os.environ.get(name, "").strip()
     if not key:
-        raise RagIndexError(f"переменная окружения {API_KEY_ENV_VAR} не задана")
+        raise RagIndexError(f"переменная окружения {name} не задана")
     return key
+
+
+def base_url() -> str:
+    """The provider's OpenAI-compatible address (see ``BASE_URL_ENV``)."""
+    url = os.environ.get(BASE_URL_ENV, "").strip()
+    if not url:
+        raise RagIndexError("провайдер индекса не задан: не указан адрес")
+    return url
+
+
+async def measure_embedding_dim(model: str) -> int:
+    """One embedding call, no width requested: the model's own width.
+
+    Done only when a model builds an index for the first time; the number then
+    lives in the fingerprint and is read from there.
+    """
+    from lightrag.llm.openai import openai_embed
+
+    vectors = await openai_embed.func(
+        ["проба ширины вектора"], model=model, api_key=api_key(), base_url=base_url()
+    )
+    return int(len(vectors[0]))
 
 
 def _default_embedding_func(settings: RagSettings):
@@ -246,6 +270,7 @@ def _default_embedding_func(settings: RagSettings):
             texts,
             model=settings.embedding_model,
             api_key=api_key(),
+            base_url=base_url(),
             embedding_dim=settings.embedding_dim,
         )
 
@@ -284,11 +309,14 @@ def _default_llm_func(settings: RagSettings):
 
     async def complete(prompt: str, system_prompt: str | None = None, **kwargs: Any) -> str:
         kwargs.pop("hashing_kv", None)
+        if not settings.extraction_model:
+            raise RagIndexError("модель разбора не выбрана: провайдер не задан")
         return await openai_complete_if_cache(
             settings.extraction_model,
             prompt,
             system_prompt=system_prompt,
             api_key=api_key(),
+            base_url=base_url(),
             **kwargs,
         )
 
@@ -314,6 +342,14 @@ async def open_index(
     from aec_rag.lightrag_bridge import ChunkRegistry
 
     check_compatible(vault, settings)
+
+    if settings.embedding_dim is None:
+        dim = (
+            embedding_func.embedding_dim
+            if embedding_func is not None
+            else await measure_embedding_dim(settings.embedding_model)
+        )
+        settings = replace(settings, embedding_dim=dim)
 
     directory = index_dir(vault)
     directory.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,28 @@
 
 import { describe, expect, it } from "vitest";
 import { mergeMcpServerIntoConfigYaml } from "./register-aec-sources.mjs";
-import { mergeSkillsDirIntoConfigYaml } from "./register-aec-rag.mjs";
+import { aecRagEnv, mergeSkillsDirIntoConfigYaml } from "./register-aec-rag.mjs";
+
+describe("aecRagEnv (task 3G.3, D-154)", () => {
+  it("writes the chosen provider and references its key by name — never OpenAI by default", () => {
+    const env = aecRagEnv(
+      {
+        AEC_RAG_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        AEC_RAG_KEY_ENV: "GEMINI_API_KEY",
+        AEC_RAG_EMBEDDING_MODEL: "gemini-embedding-2",
+      },
+      "C:\\home",
+    );
+    expect(env.GEMINI_API_KEY).toBe("${env:GEMINI_API_KEY}");
+    expect(env.AEC_RAG_KEY_ENV).toBe("GEMINI_API_KEY");
+    expect(env.AEC_HERMES_HOME).toBe("C:\\home");
+    expect(env).not.toHaveProperty("OPENAI_API_KEY");
+  });
+
+  it("without a provider writes only the home path", () => {
+    expect(aecRagEnv({}, "C:\\home")).toEqual({ AEC_HERMES_HOME: "C:\\home" });
+  });
+});
 
 const RAG = {
   command: "C:\\repo\\.venv\\Scripts\\aec-rag.exe",

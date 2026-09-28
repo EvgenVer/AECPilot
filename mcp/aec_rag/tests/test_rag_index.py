@@ -12,8 +12,6 @@ import numpy as np
 import pytest
 from aec_rag.project_config import ProjectConfigError
 from aec_rag.rag_index import (
-    DEFAULT_EMBEDDING_MODEL,
-    EMBEDDING_DIMENSIONS,
     EXTRACTION_LANGUAGE,
     RagIndexError,
     RagSettings,
@@ -22,6 +20,10 @@ from aec_rag.rag_index import (
     open_index,
     read_fingerprint,
 )
+
+from conftest import TEST_EMBEDDING_MODEL
+
+STUB_DIM = 16
 
 
 def make_vault(tmp_path, settings=None):
@@ -40,11 +42,13 @@ def make_vault(tmp_path, settings=None):
 def stub_embedding(settings: RagSettings):
     from lightrag.utils import EmbeddingFunc
 
+    dim = settings.embedding_dim or STUB_DIM
+
     async def embed(texts, **kwargs):
-        return np.zeros((len(texts), settings.embedding_dim), dtype=np.float32)
+        return np.zeros((len(texts), dim), dtype=np.float32)
 
     return EmbeddingFunc(
-        embedding_dim=settings.embedding_dim,
+        embedding_dim=dim,
         max_token_size=8192,
         model_name=settings.embedding_model,
         func=embed,
@@ -55,30 +59,49 @@ async def stub_llm(prompt, system_prompt=None, **kwargs):
     raise AssertionError("тест не должен звать модель")
 
 
-def test_empty_setting_means_not_chosen_yet_and_resolves_to_the_default(tmp_path):
+def test_empty_setting_means_not_chosen_and_resolves_to_the_providers_model(tmp_path):
     settings = load_settings(make_vault(tmp_path, {"embedding_model": ""}))
 
-    assert settings.embedding_model == DEFAULT_EMBEDDING_MODEL
-    assert settings.embedding_dim == EMBEDDING_DIMENSIONS[DEFAULT_EMBEDDING_MODEL]
+    assert settings.embedding_model == TEST_EMBEDDING_MODEL
+    # Unknown until the index is opened: never guessed from a list (D-154).
+    assert settings.embedding_dim is None
 
 
-def test_configured_model_is_used_with_its_own_dimension(tmp_path):
-    settings = load_settings(make_vault(tmp_path, {"embedding_model": "text-embedding-3-small"}))
+def test_configured_model_wins_over_the_providers(tmp_path):
+    settings = load_settings(make_vault(tmp_path, {"embedding_model": "any-other-model"}))
 
-    assert settings.embedding_model == "text-embedding-3-small"
-    assert settings.embedding_dim == 1536
+    assert settings.embedding_model == "any-other-model"
 
 
-def test_unknown_model_is_an_error_not_a_guess(tmp_path):
-    """Guessing the dimension builds an index that only fails on the first
-    query — long after the mistake was made.
-    """
-    vault = make_vault(tmp_path, {"embedding_model": "text-embedding-4-imaginary"})
+def test_no_model_and_no_provider_is_said_not_guessed(tmp_path, monkeypatch):
+    """C5: nothing falls back to a provider we picked."""
+    monkeypatch.delenv("AEC_RAG_EMBEDDING_MODEL")
 
     with pytest.raises(RagIndexError) as excinfo:
-        load_settings(vault)
+        load_settings(make_vault(tmp_path))
 
-    assert "text-embedding-4-imaginary" in str(excinfo.value)
+    assert "провайдер" in str(excinfo.value)
+
+
+@pytest.mark.anyio
+async def test_the_width_is_measured_once_then_read_from_the_fingerprint(tmp_path, monkeypatch):
+    import lightrag.llm.openai as openai_module
+
+    calls: list[dict] = []
+
+    async def fake_embed(texts, **kwargs):
+        calls.append(kwargs)
+        return np.zeros((len(texts), 24), dtype=np.float32)
+
+    monkeypatch.setattr(openai_module.openai_embed, "func", fake_embed)
+    vault = make_vault(tmp_path)
+
+    await open_index(vault, load_settings(vault), llm_func=stub_llm)
+
+    assert len(calls) == 1 and "embedding_dim" not in calls[0]
+    assert calls[0]["base_url"] == "http://127.0.0.1:9/v1"
+    assert read_fingerprint(vault)["embedding_dim"] == 24
+    assert load_settings(vault).embedding_dim == 24
 
 
 def test_missing_project_json_is_reported_as_such(tmp_path):
@@ -109,8 +132,8 @@ async def test_opening_records_which_model_built_the_index(tmp_path):
     await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
 
     fingerprint = read_fingerprint(vault)
-    assert fingerprint["embedding_model"] == DEFAULT_EMBEDDING_MODEL
-    assert fingerprint["embedding_dim"] == EMBEDDING_DIMENSIONS[DEFAULT_EMBEDDING_MODEL]
+    assert fingerprint["embedding_model"] == TEST_EMBEDDING_MODEL
+    assert fingerprint["embedding_dim"] == STUB_DIM
 
 
 @pytest.mark.anyio
@@ -127,7 +150,7 @@ async def test_a_changed_embedding_model_refuses_to_open_and_says_why(tmp_path):
         await open_index(vault, second, embedding_func=stub_embedding(second), llm_func=stub_llm)
 
     message = str(excinfo.value)
-    assert DEFAULT_EMBEDDING_MODEL in message
+    assert TEST_EMBEDDING_MODEL in message
     assert "повторный ingest" in message
 
 
@@ -164,13 +187,13 @@ async def test_the_embedding_call_states_the_width_it_expects(monkeypatch):
 
     wrapper = openai_module.openai_embed
     monkeypatch.setattr(wrapper, "func", fake_embed)
-    monkeypatch.setenv(rag_index.API_KEY_ENV_VAR, "тест")
 
-    settings = RagSettings(embedding_model=DEFAULT_EMBEDDING_MODEL, embedding_dim=3072)
+    settings = RagSettings(embedding_model=TEST_EMBEDDING_MODEL, embedding_dim=3072)
     await rag_index._default_embedding_func(settings).func(["текст"])
 
     assert seen["embedding_dim"] == 3072
-    assert seen["model"] == DEFAULT_EMBEDDING_MODEL
+    assert seen["model"] == TEST_EMBEDDING_MODEL
+    assert seen["api_key"] == "тест" and seen["base_url"] == "http://127.0.0.1:9/v1"
     # And the call goes to the unwrapped implementation, not through their
     # wrapper a second time — that is the double decoration their docstring
     # warns about.

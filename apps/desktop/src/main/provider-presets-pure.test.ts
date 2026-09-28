@@ -1,7 +1,12 @@
 // Task 3G.2 — provider presets for our modules (D-154, SPECIFICATION C5).
 
 import { describe, expect, it } from 'vitest'
-import { PROVIDER_PRESETS, resolveProvider } from './provider-presets-pure'
+import {
+  PROVIDER_PRESETS,
+  ragProviderEnv,
+  readProfileProvider,
+  resolveProvider
+} from './provider-presets-pure'
 
 describe('PROVIDER_PRESETS', () => {
   it('gives Gemini and OpenAI an address, a key variable and every model role', () => {
@@ -67,5 +72,62 @@ describe('resolveProvider', () => {
       expect(result).not.toHaveProperty('baseUrl')
       if (!result.ok) expect(result.reason).toBeTruthy()
     }
+  })
+})
+
+describe('readProfileProvider', () => {
+  it('reads the core model block, quoted or not, with comments around', () => {
+    const yaml = [
+      '# profile',
+      'model:',
+      '  default: gemini-3.8-flash',
+      '  provider: "gemini"  # chosen in the donor screen',
+      'toolsets:',
+      '  - hermes-cli'
+    ].join('\r\n')
+    expect(readProfileProvider(yaml)).toEqual({
+      provider: 'gemini',
+      baseUrl: null,
+      keyEnvVar: null
+    })
+  })
+
+  it('finds the key variable of a named custom endpoint under providers:', () => {
+    const yaml = [
+      'model:',
+      '  provider: custom:lab',
+      '  base_url: http://127.0.0.1:1234/v1',
+      'providers:',
+      '  other:',
+      '    key_env: OTHER_API_KEY',
+      '  lab:',
+      '    base_url: http://127.0.0.1:1234/v1',
+      '    key_env: LAB_API_KEY'
+    ].join('\n')
+    expect(readProfileProvider(yaml)).toEqual({
+      provider: 'custom:lab',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      keyEnvVar: 'LAB_API_KEY'
+    })
+  })
+
+  it('returns nothing when the profile has no model block', () => {
+    expect(readProfileProvider('toolsets: []\n').provider).toBeNull()
+  })
+})
+
+describe('ragProviderEnv', () => {
+  it('passes Gemini names and models to aec-rag, never a key value', () => {
+    const env = ragProviderEnv(resolveProvider({ provider: 'gemini' }))
+    expect(env).toEqual({
+      AEC_RAG_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      AEC_RAG_KEY_ENV: 'GEMINI_API_KEY',
+      AEC_RAG_EMBEDDING_MODEL: 'gemini-embedding-2',
+      AEC_RAG_EXTRACTION_MODEL: 'gemini-3.8-flash'
+    })
+  })
+
+  it('is empty without a usable provider', () => {
+    expect(ragProviderEnv(resolveProvider({ provider: null }))).toEqual({})
   })
 })
