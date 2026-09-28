@@ -63,18 +63,6 @@ async function ui(): Promise<Page> {
     }
   }
   await reviveStrandedSession(page)
-  // ОБХОД ДЕФЕКТА D-147, а не свойство продукта: после перезапуска список
-  // сеансов проекта может встать на «Не удалось загрузить сеансы» и сам не
-  // повторить. Нажимаем «Повторить», как сделал бы человек, и помечаем прогон.
-  const failed = page.getByText(/Не удалось загрузить сеансы|Could not load sessions/)
-  if (await failed.isVisible()) {
-    test.info().annotations.push({ type: 'D-147', description: 'список сеансов после старта' })
-    await page
-      .getByRole('button', { name: /Повторить|Retry/ })
-      .first()
-      .click()
-    await expect(failed).toBeHidden({ timeout: 15000 })
-  }
   return page
 }
 

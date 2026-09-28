@@ -12,9 +12,12 @@
 //   onRequest(handler) — requests the GATEWAY makes of the window (0.21.3)
 //   connect(wsUrl) / close() / connectionState
 //
-// `connect` and `close` are no-ops on purpose: the connection is main's, it is
+// `connect` and `close` do not touch the connection: it is main's, it is
 // already up (or reconnecting) before the window exists, and no renderer is
-// allowed to decide otherwise. One consequence to know about: their
+// allowed to decide otherwise. `connect` still marks the client as DIALED, and
+// a client their code builds reports 'idle' until then, as theirs does (D-147):
+// their boot dials right before it adopts the profile, and a bridge that was
+// 'open' from the first frame let their lists load under the wrong profile. One consequence to know about: their
 // multi-profile socket pool (`donor/store/gateway.ts`) opens one client per
 // profile, and every instance here listens to main's single event stream — so
 // the pool collapses into N aliases of one connection. That is harmless
@@ -158,6 +161,9 @@ export class GatewayBridge {
   private readonly disposers: (() => void)[] = []
   private readonly api: Window['aecpilot']
   private readonly onRequestHandlerError: GatewayClientOptions['onRequestHandlerError']
+  /** Their clients start undialed; ours (the shared bridge, tests) do not. */
+  private dialed: boolean
+  private readonly hydrated: Promise<void>
 
   constructor(optionsOrApi?: GatewayClientOptions | Window['aecpilot']) {
     // Their subclass passes options; our tests pass a stub API. Telling them
@@ -170,6 +176,7 @@ export class GatewayBridge {
       optionsOrApi && !('gatewayRpc' in optionsOrApi)
         ? optionsOrApi.onRequestHandlerError
         : undefined
+    this.dialed = !(optionsOrApi && !('gatewayRpc' in optionsOrApi))
 
     this.disposers.push(
       this.api.onChatEvent((event: GatewayEvent) => {
@@ -184,19 +191,25 @@ export class GatewayBridge {
     )
     // Main can reach 'ready' before this renderer mounts, so the push channel
     // alone would leave every consumer stuck at 'closed'.
-    void this.api.getGatewayState().then((state) => {
+    this.hydrated = this.api.getGatewayState().then((state) => {
       this.setState(state)
     })
   }
 
   get connectionState(): DonorConnectionState {
-    return toDonorState(this.state)
+    return this.dialed ? toDonorState(this.state) : 'idle'
   }
 
-  /** No-op: main owns the connection. Kept async and argument-taking so their
-   * boot and pool code, which awaits `connect(wsUrl)`, runs unedited — the URL
-   * is theirs to compute and ours to ignore. */
-  async connect(_wsUrl?: string): Promise<void> {}
+  /** Marks this client dialed and reports main's state from then on; the
+   * connection itself is main's. Argument-taking so their boot and pool code,
+   * which awaits `connect(wsUrl)`, runs unedited — the URL is theirs to
+   * compute and ours to ignore. */
+  async connect(_wsUrl?: string): Promise<void> {
+    await this.hydrated
+    if (this.dialed) return
+    this.dialed = true
+    this.emitState()
+  }
 
   /** No-op, for the same reason — a renderer closing main's socket would take
    * the connection away from every other window. */
@@ -358,7 +371,11 @@ export class GatewayBridge {
 
   private setState(state: GatewayConnectionState): void {
     this.state = state
-    const mapped = toDonorState(state)
+    if (this.dialed) this.emitState()
+  }
+
+  private emitState(): void {
+    const mapped = this.connectionState
     for (const handler of this.stateHandlers) handler(mapped)
   }
 

@@ -151,6 +151,32 @@ describe('GatewayBridge', () => {
     await vi.waitFor(() => expect(seen).toEqual(['closed', 'open']))
   })
 
+  // D-147 (задача 3G.21): их клиент не «открыт», пока его не набрали
+  // (`connect`), а их загрузка набирает его прямо перед усыновлением профиля.
+  // Мост, открытый с первого кадра, пускал загрузки списков раньше профиля.
+  it('a client built by their code stays idle until connect(), then reports main state', async () => {
+    const donorStub = stubApi('ready')
+    vi.stubGlobal('window', { aecpilot: donorStub.api })
+    try {
+      const donor = new GatewayBridge({ requestTimeoutMs: 1000 })
+      const seen: string[] = []
+      donor.onState((state) => seen.push(state))
+      await Promise.resolve()
+      donorStub.emitState('ready')
+      expect(donor.connectionState).toBe('idle')
+      expect(seen.every((state) => state === 'idle')).toBe(true)
+
+      await donor.connect('ws://ignored')
+      expect(donor.connectionState).toBe('open')
+      expect(seen.at(-1)).toBe('open')
+
+      donorStub.emitState('reconnecting')
+      expect(seen.slice(-1)).toEqual(['connecting'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('drops its IPC subscriptions on dispose', () => {
     bridge.dispose()
     expect(stub.unsubscribed.sort()).toEqual(['events', 'requests', 'state'])
