@@ -169,6 +169,20 @@ export function readProfileProvider(yamlText: string): ProfileProvider {
   return { provider, baseUrl, keyEnvVar }
 }
 
+/** Task 3G.7: the model that would embed now differs from the one that built the
+ *  index — the index refuses to open and must be rebuilt. `null` when there is no
+ *  index yet or nothing changed. The project's own setting wins over the provider's. */
+export function pendingEmbeddingSwitch(input: {
+  builtWith: string | null
+  projectModel: string | null
+  providerModel: string | null
+}): { from: string; to: string } | null {
+  const from = (input.builtWith ?? '').trim()
+  const to = (input.projectModel ?? '').trim() || (input.providerModel ?? '').trim()
+  if (!from || !to || from === to) return null
+  return { from, to }
+}
+
 /** Environment for `aec-rag` (task 3G.3): names and addresses only, never a key.
  *  Empty when there is no usable provider — the server then says so per call. */
 export function ragProviderEnv(resolved: ResolvedProvider): Record<string, string> {

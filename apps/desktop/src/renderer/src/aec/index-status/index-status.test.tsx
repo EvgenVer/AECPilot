@@ -16,6 +16,7 @@ const getIndexStatus = vi.fn()
 const getIngestState = vi.fn()
 const startIngest = vi.fn()
 const getGraphAddState = vi.fn()
+const getEmbeddingSwitch = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
@@ -57,11 +58,13 @@ beforeEach(() => {
   getIngestState.mockResolvedValue(IDLE)
   startIngest.mockResolvedValue({ started: true })
   getGraphAddState.mockResolvedValue(GRAPH_IDLE)
+  getEmbeddingSwitch.mockResolvedValue(null)
   window.aecpilot = {
     getIndexStatus,
     getIngestState,
     startIngest,
     getGraphAddState,
+    getEmbeddingSwitch,
     onIngestState: (cb: (state: IngestState) => void) => {
       emitIngestState = cb
       return () => {}
@@ -123,6 +126,42 @@ describe('IndexStatus', () => {
     })
 
     expect(startIngest).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks before rebuilding for another embedding model, names the price, touches nothing on its own (3G.7)', async () => {
+    getEmbeddingSwitch.mockResolvedValue({
+      from: 'text-embedding-3-large',
+      to: 'gemini-embedding-2'
+    })
+    getIndexStatus.mockResolvedValue({
+      ok: true,
+      status: status({
+        graph: { chunks: 40, covers_whole_project: false, documents: 2, documents_outside: 10 }
+      })
+    })
+    renderIndicator()
+    await openPanel()
+
+    const question = await screen.findByRole('alert')
+    expect(question.textContent).toContain('text-embedding-3-large')
+    expect(question.textContent).toContain('gemini-embedding-2')
+    expect(question.textContent).toContain('480 фрагмент')
+    expect(question.textContent).toContain('2 документ')
+    expect(startIngest).not.toHaveBeenCalled()
+
+    await act(async () => {
+      screen.getByText('Перестроить индекс').click()
+    })
+
+    expect(startIngest).toHaveBeenCalledWith(true, true)
+  })
+
+  it('shows no rebuild question when the model did not change', async () => {
+    renderIndicator()
+    await openPanel()
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('Перестроить индекс')).toBeNull()
   })
 
   it('follows a running ingest by event rather than polling', async () => {

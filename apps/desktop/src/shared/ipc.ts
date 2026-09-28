@@ -1349,7 +1349,11 @@ export interface AecpilotApi {
   /** Starts a tier-1 ingest of everything scanned but not indexed. Returns
    * immediately — progress arrives through `onIngestState`. `full` re-reads
    * every file rather than only the changed ones. */
-  startIngest(full?: boolean): Promise<{ error?: string; started: boolean }>
+  startIngest(full?: boolean, rebuild?: boolean): Promise<{ error?: string; started: boolean }>
+  /** Задача 3G.7: провайдер сменил модель эмбеддингов, а индекс построен прежней
+   *  (`null` — менять нечего). Только чтение: перестраивает `startIngest(true, true)`
+   *  и только после согласия человека. */
+  getEmbeddingSwitch(): Promise<{ from: string; to: string } | null>
   getIngestState(): Promise<IngestState>
   onIngestState(cb: (state: IngestState) => void): () => void
   /** Сколько работы будет, если отметить эту запись в граф (задача 5.15).

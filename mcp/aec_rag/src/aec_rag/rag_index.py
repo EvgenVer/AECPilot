@@ -193,6 +193,34 @@ def check_compatible(vault: Path | str, settings: RagSettings) -> None:
         )
 
 
+def drop_index(vault: Path | str) -> None:
+    """Remove the built index so another embedding model can build it anew (task 3G.7).
+
+    Only derived state goes: the LightRAG directory and the graph's *facts* in
+    ``index.db`` («which documents are in the graph» — it dies with the index,
+    see ``graph_scope``). The person's *choice* of what the graph should cover
+    stays in ``project.json``, so the graph is offered again, priced, after the
+    rebuild. Called only on the person's explicit consent.
+    """
+    import shutil
+    import sqlite3
+
+    if index_dir(vault).exists():
+        shutil.rmtree(index_dir(vault))
+    index_db = Path(vault) / ".aecpilot" / "index.db"
+    if index_db.is_file():
+        conn = sqlite3.connect(index_db)
+        try:
+            with conn:
+                has_table = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'graph_documents'"
+                ).fetchone()
+                if has_table:
+                    conn.execute("DELETE FROM graph_documents")
+        finally:
+            conn.close()
+
+
 def write_fingerprint(vault: Path | str, settings: RagSettings) -> None:
     directory = index_dir(vault)
     directory.mkdir(parents=True, exist_ok=True)

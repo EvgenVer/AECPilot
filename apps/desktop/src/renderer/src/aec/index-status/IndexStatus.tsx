@@ -39,6 +39,13 @@ export function IndexStatus(): React.JSX.Element | null {
     queryKey: ['aec', 'index-status'],
     queryFn: () => window.aecpilot.getIndexStatus()
   })
+  // Задача 3G.7: провайдер сменил модель эмбеддингов. Вопрос задаётся ДО того, как
+  // индекс тронут: перестройка — только по кнопке, с названной ценой.
+  const embeddingSwitch = useQuery({
+    queryKey: ['aec', 'index-status', 'embedding-switch'],
+    queryFn: () => window.aecpilot.getEmbeddingSwitch()
+  })
+  const pendingSwitch = embeddingSwitch.data ?? null
 
   // The state arrives by event, not by polling: an ingest is minutes long and
   // a poll either lags behind it or hammers a python process for nothing.
@@ -46,7 +53,8 @@ export function IndexStatus(): React.JSX.Element | null {
     void window.aecpilot.getIngestState().then(setIngest)
     return window.aecpilot.onIngestState((next) => {
       setIngest(next)
-      // A finished run changes every number in the indicator.
+      // A finished run changes every number in the indicator (and, after a
+      // rebuild, the model the index was built with — same query-key prefix).
       if (!next.running) void queryClient.invalidateQueries({ queryKey: ['aec', 'index-status'] })
     })
   }, [queryClient])
@@ -83,6 +91,9 @@ export function IndexStatus(): React.JSX.Element | null {
           {stale > 0 && !ingest.running ? (
             <span className="text-amber-500">{t('index.stale', stale)}</span>
           ) : null}
+          {pendingSwitch && !ingest.running ? (
+            <span className="codicon codicon-warning text-amber-500" aria-hidden />
+          ) : null}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 space-y-3 text-sm">
@@ -104,6 +115,22 @@ export function IndexStatus(): React.JSX.Element | null {
           )}
         </div>
 
+        {pendingSwitch && !ingest.running ? (
+          <div className="space-y-2 rounded border border-amber-500/50 p-2" role="alert">
+            <div className="text-amber-500">
+              {t(
+                'index.embeddingSwitch',
+                pendingSwitch.from,
+                pendingSwitch.to,
+                data.chunks_total,
+                data.graph.documents
+              )}
+            </div>
+            <Button onClick={() => void window.aecpilot.startIngest(true, true)} size="sm">
+              {t('index.rebuild')}
+            </Button>
+          </div>
+        ) : null}
         {ingest.error ? <div className="text-destructive">{ingest.error}</div> : null}
         {ingest.lastReport && ingest.lastReport.files_failed > 0 ? (
           <div className="text-amber-500">{t('index.failed', ingest.lastReport.files_failed)}</div>

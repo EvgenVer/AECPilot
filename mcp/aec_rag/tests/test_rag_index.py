@@ -15,6 +15,7 @@ from aec_rag.rag_index import (
     EXTRACTION_LANGUAGE,
     RagIndexError,
     RagSettings,
+    drop_index,
     index_dir,
     load_settings,
     open_index,
@@ -294,3 +295,39 @@ async def test_an_index_built_before_this_field_is_not_declared_incompatible(tmp
     path.write_text(json.dumps(old, ensure_ascii=False), encoding="utf-8")
 
     await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
+
+
+# ---------------------------------------------------------------------------
+# Задача 3G.7: перестройка под другую модель эмбеддингов
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_drop_index_lets_another_model_build_it_and_keeps_the_persons_choice(tmp_path):
+    from aec_rag.db import open_index as open_store
+    from aec_rag.graph_scope import documents_in_graph, mark_in_graph
+
+    vault = make_vault(tmp_path, {"graph": [{"path": "src", "kind": "folder"}]})
+    first = load_settings(vault)
+    await open_index(vault, first, embedding_func=stub_embedding(first), llm_func=stub_llm)
+    conn = open_store(vault / ".aecpilot" / "index.db")
+    mark_in_graph(conn, "src", "a.docx", "h", 3)
+    conn.close()
+    project_before = (vault / ".aecpilot" / "project.json").read_text(encoding="utf-8")
+
+    other = RagSettings(embedding_model="another-model", embedding_dim=8)
+    with pytest.raises(RagIndexError):
+        await open_index(vault, other, embedding_func=stub_embedding(other), llm_func=stub_llm)
+
+    drop_index(vault)
+
+    await open_index(vault, other, embedding_func=stub_embedding(other), llm_func=stub_llm)
+    assert read_fingerprint(vault)["embedding_model"] == "another-model"
+    conn = open_store(vault / ".aecpilot" / "index.db")
+    assert documents_in_graph(conn) == []
+    conn.close()
+    assert (vault / ".aecpilot" / "project.json").read_text(encoding="utf-8") == project_before
+
+
+def test_drop_index_on_a_vault_without_an_index_is_a_no_op(tmp_path):
+    drop_index(make_vault(tmp_path))

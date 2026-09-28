@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PROVIDER_PRESETS,
+  pendingEmbeddingSwitch,
   ragProviderEnv,
   readProfileProvider,
   resolveProvider
@@ -113,6 +114,37 @@ describe('readProfileProvider', () => {
 
   it('returns nothing when the profile has no model block', () => {
     expect(readProfileProvider('toolsets: []\n').provider).toBeNull()
+  })
+})
+
+describe('pendingEmbeddingSwitch (3G.7)', () => {
+  it('reports a provider that now embeds with another model', () => {
+    expect(
+      pendingEmbeddingSwitch({
+        builtWith: 'text-embedding-3-large',
+        projectModel: '',
+        providerModel: 'gemini-embedding-2'
+      })
+    ).toEqual({ from: 'text-embedding-3-large', to: 'gemini-embedding-2' })
+  })
+
+  it('lets the project setting win over the provider', () => {
+    expect(
+      pendingEmbeddingSwitch({
+        builtWith: 'm1',
+        projectModel: 'm1',
+        providerModel: 'gemini-embedding-2'
+      })
+    ).toBeNull()
+  })
+
+  it('is silent without an index or without a model to compare', () => {
+    expect(
+      pendingEmbeddingSwitch({ builtWith: null, projectModel: null, providerModel: 'x' })
+    ).toBeNull()
+    expect(
+      pendingEmbeddingSwitch({ builtWith: 'x', projectModel: null, providerModel: null })
+    ).toBeNull()
   })
 })
 

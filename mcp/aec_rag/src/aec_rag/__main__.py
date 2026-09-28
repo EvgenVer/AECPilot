@@ -431,6 +431,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Re-read every file, not only the ones whose content changed",
     )
+    ingest_parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Drop the built index first (another embedding model), then re-read every file",
+    )
 
     status_parser = subparsers.add_parser("status", help="Print what the index holds")
     status_parser.add_argument("--project", required=True, type=Path)
@@ -485,7 +490,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "graph-add":
             report = run_graph_add(args.project, args.paths, args.kind)
         elif args.command == "ingest":
-            report = run_ingest(args.project, mode="full" if args.full else "incremental")
+            if args.rebuild:
+                from aec_rag.rag_index import drop_index
+
+                drop_index(_resolve_project_json(args.project).parent.parent)
+            full = args.full or args.rebuild
+            report = run_ingest(args.project, mode="full" if full else "incremental")
         elif args.command == "serve":
             run_serve(args.project)
             return 0

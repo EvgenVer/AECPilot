@@ -219,7 +219,12 @@ import {
   parseApprovalsMode,
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
-import { ragProviderEnv, readProfileProvider, resolveProvider } from './provider-presets-pure'
+import {
+  pendingEmbeddingSwitch,
+  ragProviderEnv,
+  readProfileProvider,
+  resolveProvider
+} from './provider-presets-pure'
 import {
   addSourceToProject,
   createProject,
@@ -4631,12 +4636,45 @@ ipcMain.handle('quotes:check', async (_event, answer: unknown) => {
 
 ipcMain.handle('index:ingest-state', () => ingestState)
 
+// Задача 3G.7: модель, которой индекс построен, против той, что считала бы сейчас.
+// Сравнение читает два файла проекта и конфиг профиля — без процесса aec-rag и без
+// сети, поэтому его можно спрашивать при каждом открытии индикатора.
+ipcMain.handle('index:embedding-switch', () => {
+  if (!currentProject) return null
+  const aec = join(currentProject.vaultPath, '.aecpilot')
+  const readJson = (path: string): Record<string, unknown> => {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'))
+      return typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+  const fingerprint = readJson(join(aec, 'lightrag', 'aec-index.json'))
+  const settings = readJson(join(aec, 'project.json')).settings as
+    { embedding_model?: unknown } | undefined
+  const asText = (value: unknown): string | null => (typeof value === 'string' ? value : null)
+  return pendingEmbeddingSwitch({
+    builtWith: asText(fingerprint.embedding_model),
+    projectModel: asText(settings?.embedding_model),
+    providerModel: ragEnvFromProfile(knownHermesHome).AEC_RAG_EMBEDDING_MODEL ?? null
+  })
+})
+
 ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
   if (!currentProject) return { started: false, error: 'Нет открытого проекта' }
   if (ingestState.running) return { started: false, error: 'Индексация уже идёт' }
 
   const full =
     typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
+  // Задача 3G.7: перестройка стирает построенный индекс — только по явному флагу,
+  // который ставит кнопка с вопросом о цене.
+  const rebuild =
+    typeof payload === 'object' &&
+    payload !== null &&
+    (payload as { rebuild?: unknown }).rebuild === true
   // Captured at start: the run belongs to the project it began against, and a
   // project switch mid-run must not make its report land on somebody else's
   // indicator (the same rule the scan runner already follows).
@@ -4659,7 +4697,7 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
           if (currentProject?.vaultPath !== vaultPath) return
           publishIngestState({ progress })
         },
-        { extraEnv: buildExtraEnv(), full }
+        { extraEnv: buildExtraEnv(), full, rebuild }
       )
     )
     .then(({ report }) => {

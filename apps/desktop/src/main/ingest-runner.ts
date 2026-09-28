@@ -39,11 +39,18 @@ export type IngestOutcome = {
 export function runIngest(
   vaultPath: string,
   onProgress: (progress: IngestProgress) => void,
-  options: { extraEnv?: Record<string, string>; full?: boolean; timeoutMs?: number } = {}
+  options: {
+    extraEnv?: Record<string, string>
+    full?: boolean
+    /** Task 3G.7: drop the index built by another embedding model first. */
+    rebuild?: boolean
+    timeoutMs?: number
+  } = {}
 ): Promise<IngestOutcome> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_INGEST_TIMEOUT_MS
   const args = ['ingest', '--project', vaultPath]
   if (options.full) args.push('--full')
+  if (options.rebuild) args.push('--rebuild')
 
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args, {

@@ -151,6 +151,13 @@ export const aecLocales: PluginLocaleBundles = {
       runningShort: 'Indexing…',
       run: 'Index',
       runFull: 'Re-read everything',
+      embeddingSwitch: (from: string, to: string, chunks: number, graphDocuments: number) =>
+        `The index was built by ${from}, the chosen provider embeds with ${to}. Vectors of different models cannot be compared: the index has to be rebuilt — ${chunks} fragment(s) embedded again by the new provider` +
+        (graphDocuments > 0
+          ? `, and the knowledge graph (${graphDocuments} document(s)) is built again separately, at a model call per fragment.`
+          : '.') +
+        ' Nothing changes until you confirm.',
+      rebuild: 'Rebuild the index',
       failed: (count: number) => `${count} file(s) could not be read — see the run report.`,
       graphTitle: 'Knowledge graph',
       graphEmpty:
@@ -663,6 +670,13 @@ export const aecLocales: PluginLocaleBundles = {
       runningShort: 'Индексирую…',
       run: 'Проиндексировать',
       runFull: 'Перечитать всё',
+      embeddingSwitch: (from: string, to: string, chunks: number, graphDocuments: number) =>
+        `Индекс построен моделью ${from}, а выбранный провайдер считает эмбеддинги моделью ${to}. Векторы разных моделей несравнимы: индекс нужно перестроить — ${chunks} фрагмент(ов) заново посчитает новый провайдер` +
+        (graphDocuments > 0
+          ? `, а граф знаний (${graphDocuments} документ(ов)) строится заново отдельно, по вызову модели на фрагмент.`
+          : '.') +
+        ' Пока вы не подтвердите, ничего не меняется.',
+      rebuild: 'Перестроить индекс',
       failed: (count: number) => `${count} файл(ов) не прочитались — смотрите отчёт прогона.`,
       graphTitle: 'Граф знаний',
       graphEmpty:
