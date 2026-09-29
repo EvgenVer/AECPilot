@@ -499,7 +499,9 @@ test('36.8.1 включение приёмника: сказано, что шл�
     ).toBeVisible()
     await enable.click()
     const dialog = page.getByRole('dialog', { name: 'Включить приёмник вебхуков?' })
+    await expect(dialog, 'вопрос о перезапуске задан').toBeVisible({ timeout: 15000 })
     await dialog.getByRole('button', { name: 'Включить', exact: true }).click()
+    await expect(dialog).toBeHidden()
   }
 
   // Ядро 0.21.2 перезапускает шлюз САМО, сразу по включению, и говорит об этом.
