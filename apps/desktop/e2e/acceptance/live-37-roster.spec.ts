@@ -420,8 +420,20 @@ test('38.2.2 специалиста с провайдером без ключа 
   const card = page.getByRole('dialog', { name: 'Изменить профиль', exact: true })
   const before = await coreProfile(page, 'smeta')
 
-  await card.getByRole('combobox').nth(0).click()
-  await page.getByRole('option', { name: /— нет ключа/ }).first().click()
+  // Нужен провайдер без ключа, У КОТОРОГО ЕСТЬ МОДЕЛИ: без моделей их выбор
+  // оставляет модель пустой, а пустую модель их код не отправляет вовсе и сам
+  // пишет «не удалось сохранить разделы: model» — до нашего отказа дело не
+  // доходит (замер 29.09.2026). Список моделей есть — второй выпадающий список.
+  let picked = ''
+  for (let i = 0; i < 10 && !picked; i++) {
+    await card.getByRole('combobox').nth(0).click()
+    const option = page.getByRole('option', { name: /— нет ключа/ }).nth(i)
+    const label = (await option.innerText()).trim()
+    await option.click()
+    if ((await card.getByRole('combobox').count()) >= 2) picked = label
+  }
+  expect(picked, 'нашёлся провайдер без ключа со списком моделей').not.toBe('')
+  console.log(`38.2.2: выбран «${picked}», модель «${await card.getByRole('combobox').nth(1).innerText()}»`)
   await card.getByRole('button', { name: /^Сохранить$/ }).click()
 
   await expect(
@@ -431,17 +443,30 @@ test('38.2.2 специалиста с провайдером без ключа 
   const after = await coreProfile(page, 'smeta')
   expect(after?.provider, 'в ядро ничего не записано').toBe(before?.provider)
   expect(after?.model).toBe(before?.model)
+
+  // Несохранённый выбор без ключа сбрасываем: следующая позиция открывает
+  // карточку заново, а не продолжает с полуотказанной формы.
+  if (await card.isVisible()) {
+    await card.getByRole('button', { name: /^Отмена$/ }).click()
+    await expect(card).toBeHidden()
+  }
 })
 
 test('37.7.3 в возможностях есть характер (SOUL), скилы и наборы инструментов', async () => {
   const page = await ui()
   const card = page.getByRole('dialog', { name: 'Изменить профиль', exact: true })
-  // Окно осталось открытым после 37.7.1 (или 37.7.2, когда она включена).
+  // 38.2.2 закрывает карточку — открываем заново. Разделы навыков и наборов
+  // догружаются после SOUL (ответ `profiles.describe`), поэтому ждём их, как и
+  // остальную загрузку карточки, до минуты.
   if (!(await card.isVisible())) await openCapabilities(await openCard(page, 'Смета'))
   await expect(card).toContainText('SOUL.md')
   expect(await card.locator('textarea').last().inputValue()).toContain('Смета')
-  await expect(card.getByRole('button', { name: /^Навыки/ }).first()).toBeVisible()
-  await expect(card.getByRole('button', { name: /^Инструменты/ }).first()).toBeVisible()
+  await expect(card.getByRole('button', { name: /^Навыки/ }).first()).toBeVisible({
+    timeout: 60000
+  })
+  await expect(card.getByRole('button', { name: /^Инструменты/ }).first()).toBeVisible({
+    timeout: 60000
+  })
   await card.getByRole('button', { name: /^Отмена$/ }).click()
   await expect(card).toBeHidden()
 })

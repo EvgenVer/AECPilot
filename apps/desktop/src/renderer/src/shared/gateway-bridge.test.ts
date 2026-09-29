@@ -400,6 +400,20 @@ describe('провайдеры без ключа в выборе модели (D
     expect(stub.rpc).toHaveBeenCalledTimes(2)
   })
 
+  it('ядро не ответило — берётся последний прочитанный каталог', async () => {
+    const stub = stubApi()
+    stub.rest.mockResolvedValueOnce(ENV as never).mockRejectedValue(new Error('timeout'))
+    const bridge = new GatewayBridge(stub.api)
+
+    await expect(
+      bridge.request('profiles.configure', { name: 'a', model: 'm', provider: 'openrouter' })
+    ).rejects.toThrow(/нет ключа/)
+    await expect(
+      bridge.request('profiles.configure', { name: 'a', model: 'm', provider: 'openrouter' })
+    ).rejects.toThrow(/нет ключа/)
+    expect(stub.rpc).not.toHaveBeenCalled()
+  })
+
   it('каталог ключей не прочитался — не помечаем и не мешаем', async () => {
     const stub = stubApi()
     stub.rest.mockRejectedValue(new Error('down'))

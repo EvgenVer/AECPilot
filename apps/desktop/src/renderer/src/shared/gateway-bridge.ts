@@ -279,17 +279,23 @@ export class GatewayBridge {
   }
 
   /** Каталог ядра плюс наше хранилище (только имена переменных). Что-то не
-   * прочиталось — не помечаем и не мешаем: это подсказка, а не замок. */
+   * прочиталось — берём последний прочитанный ответ, а если его ещё не было, не
+   * помечаем и не мешаем: это подсказка, а не замок. Ядро сразу после старта
+   * отвечает на `/api/env` дольше 15 с (замер 29.09.2026), и без памяти о
+   * прошлом ответе пометки пропадали целиком. */
   private providersWithoutKey(): Promise<Set<string>> {
     return Promise.resolve()
       .then(async () => {
         const env = await this.rest<EnvCatalog>('/api/env')
         const { keys } = await this.api.getProviderKeys(Object.keys(env ?? {}))
         const stored = new Set(keys.filter((k) => k.hasKey).map((k) => k.envVar))
-        return providersWithoutKey(env, stored)
+        this.lastWithoutKey = providersWithoutKey(env, stored)
+        return this.lastWithoutKey
       })
-      .catch(() => new Set<string>())
+      .catch(() => this.lastWithoutKey ?? new Set<string>())
   }
+
+  private lastWithoutKey: Set<string> | null = null
 
   /** Subscribes to one event type. Returns an unsubscribe function. Their
    * signature: the name types the payload. */
