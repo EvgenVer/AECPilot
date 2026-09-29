@@ -465,7 +465,7 @@ test('37.8.1 неприменившийся раздел назван по им�
     .getByText(/^(Model \(Custom\)|Модель \(своя\))/)
     .locator('xpath=..')
     .locator('input')
-  await model.fill('gpt-5-mini')
+  await model.fill('gemini-3.8-flash')
 
   await card.getByRole('button', { name: /^Сохранить$/ }).click()
   await expect(page.getByRole('alert').filter({ hasText: /(failed|разделы): model/ })).toBeVisible({
