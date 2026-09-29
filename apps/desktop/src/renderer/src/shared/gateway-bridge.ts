@@ -40,6 +40,13 @@ import type {
   GatewayEventName
 } from '../donor/hermes-shared/gateway-events'
 import { cronRpcWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
+import {
+  markProvidersWithoutKey,
+  noKeyRefusal,
+  providerBeingSaved,
+  providersWithoutKey,
+  type EnvCatalog
+} from '../aec/model-keys/model-keys-pure'
 
 /**
  * Отказ шлюза в ИХ форме. Класс жил только внутри их невендоренного
@@ -233,7 +240,7 @@ export class GatewayBridge {
       void import('../aec/cron-tick-notice/notice').then((m) => m.noticeCronHasNoTick(cronWrite))
     }
 
-    const call = this.api.gatewayRpc<T>(method, params, timeoutMs).then(unwrapRpcOutcome<T>)
+    const call = this.keyAwareCall<T>(method, params, timeoutMs)
     if (!signal) return call
 
     // The IPC call itself cannot be cancelled — main will finish it and drop
@@ -244,6 +251,44 @@ export class GatewayBridge {
       signal.addEventListener('abort', onAbort, { once: true })
       call.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
     })
+  }
+
+  /** D-109 (задача 3F.D3): провайдер без ключа подписан «нет ключа» в
+   * `model.options`, а запись профиля с ним отклоняется до ядра — иначе
+   * специалист сохранится и сломается на первом ходу. */
+  private keyAwareCall<T>(
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs?: number
+  ): Promise<T> {
+    const send = (): Promise<T> =>
+      this.api.gatewayRpc<T>(method, params, timeoutMs).then(unwrapRpcOutcome<T>)
+
+    if (method === 'model.options') {
+      return Promise.all([send(), this.providersWithoutKey()]).then(([options, missing]) =>
+        markProvidersWithoutKey(options, missing)
+      )
+    }
+    const provider = providerBeingSaved(method, params)
+    if (provider) {
+      return this.providersWithoutKey().then((missing) =>
+        missing.has(provider) ? Promise.reject(new Error(noKeyRefusal(provider))) : send()
+      )
+    }
+    return send()
+  }
+
+  /** Каталог ядра плюс наше хранилище (только имена переменных). Что-то не
+   * прочиталось — не помечаем и не мешаем: это подсказка, а не замок. */
+  private providersWithoutKey(): Promise<Set<string>> {
+    return Promise.resolve()
+      .then(async () => {
+        const env = await this.rest<EnvCatalog>('/api/env')
+        const { keys } = await this.api.getProviderKeys(Object.keys(env ?? {}))
+        const stored = new Set(keys.filter((k) => k.hasKey).map((k) => k.envVar))
+        return providersWithoutKey(env, stored)
+      })
+      .catch(() => new Set<string>())
   }
 
   /** Subscribes to one event type. Returns an unsubscribe function. Their

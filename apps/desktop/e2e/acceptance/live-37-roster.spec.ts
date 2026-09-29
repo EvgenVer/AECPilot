@@ -362,18 +362,20 @@ test('37.7.1 модель выбирается парой «провайдер �
   await expect(card.getByRole('combobox').nth(1)).toContainText(String(smeta?.model))
 })
 
-// ИЗВЕСТНОЕ РАСХОЖДЕНИЕ — D-109 в TASKS, решает владелец. Их выбор модели
-// показывает ВСЕ провайдеры каталога (на живом ядре 54, из них 46 без ключа);
-// фильтра по ключам в нём нет. Требование чек-листа осталось от нашего прежнего
-// роестра. Проверка оставлена целиком: включается снятием `fixme`.
-test.fixme('37.7.2 провайдеров, к которым нет ключа, в списке нет', async () => {
+// D-109 (решение владельца — вариант 3, задача 3F.D3): провайдеры без ключа не
+// прячутся, а подписаны «нет ключа» — пометку ставит наш мост в ответе
+// `model.options`; сохранить специалиста с таким провайдером нельзя (38.2.2).
+test('37.7.2 провайдер без ключа подписан «нет ключа»', async () => {
   const page = await ui()
   const card = page.getByRole('dialog', { name: 'Изменить профиль', exact: true })
   await card.getByRole('combobox').nth(0).click()
-  const shown: string[] = []
+  const marked: string[] = []
+  const unmarked: string[] = []
   for (const option of await page.getByRole('option').all()) {
-    const slug = /\(([a-z0-9-]+)\)\s*$/.exec((await option.innerText()).trim())?.[1]
-    if (slug) shown.push(slug)
+    const text = (await option.innerText()).trim()
+    const slug = /\(([a-z0-9:-]+)\)\s*$/.exec(text)?.[1]
+    if (!slug) continue
+    ;(text.includes('— нет ключа') ? marked : unmarked).push(slug)
   }
   await page.keyboard.press('Escape')
 
@@ -385,23 +387,50 @@ test.fixme('37.7.2 провайдеров, к которым нет ключа, 
   const withoutKey = await page.evaluate(async () => {
     const env = (await window.aecpilot.gatewayRest('/api/env')) as Record<
       string,
-      { is_set?: boolean; provider?: string }
+      { is_set?: boolean; is_password?: boolean; provider?: string }
     >
+    // Ключ задан — в `.env` профиля ИЛИ в нашем хранилище (R2): `is_set` ядро
+    // считает только по файлу.
+    const { keys } = await window.aecpilot.getProviderKeys(Object.keys(env))
+    const stored = new Set(keys.filter((k) => k.hasKey).map((k) => k.envVar))
     const keyed = new Set<string>()
     const needKey = new Set<string>()
-    for (const row of Object.values(env)) {
-      if (!row?.provider) continue
+    for (const [envVar, row] of Object.entries(env)) {
+      if (!row?.provider || !row.is_password) continue
       needKey.add(row.provider)
-      if (row.is_set) keyed.add(row.provider)
+      if (row.is_set || stored.has(envVar)) keyed.add(row.provider)
     }
-    return [...needKey].filter((slug) => !keyed.has(slug))
+    const local = ['lmstudio', 'ollama', 'custom']
+    return [...needKey].filter((slug) => !keyed.has(slug) && !local.includes(slug))
   })
-  console.log(`37.7.2: в списке ${shown.length}, без ключа по каталогу ${withoutKey.length}`)
+  console.log(
+    `37.7.2: подписано ${marked.length}, без пометки ${unmarked.length}, без ключа по каталогу ${withoutKey.length}`
+  )
   expect(withoutKey.length, 'проверка не пустая: такие провайдеры есть').toBeGreaterThan(0)
   expect(
-    shown.filter((slug) => withoutKey.includes(slug)),
-    'в списке нет провайдеров без ключа'
+    unmarked.filter((slug) => withoutKey.includes(slug)),
+    'каждый провайдер без ключа подписан'
   ).toEqual([])
+  const smeta = await coreProfile(page, 'smeta')
+  expect(marked, 'провайдер с ключом (стенда) не подписан').not.toContain(String(smeta?.provider))
+})
+
+test('38.2.2 специалиста с провайдером без ключа сохранить нельзя', async () => {
+  const page = await ui()
+  const card = page.getByRole('dialog', { name: 'Изменить профиль', exact: true })
+  const before = await coreProfile(page, 'smeta')
+
+  await card.getByRole('combobox').nth(0).click()
+  await page.getByRole('option', { name: /— нет ключа/ }).first().click()
+  await card.getByRole('button', { name: /^Сохранить$/ }).click()
+
+  await expect(
+    page.getByText(/нет ключа — добавьте его в Настройках → Ключи/).first(),
+    'отказ назван словами'
+  ).toBeVisible({ timeout: 30000 })
+  const after = await coreProfile(page, 'smeta')
+  expect(after?.provider, 'в ядро ничего не записано').toBe(before?.provider)
+  expect(after?.model).toBe(before?.model)
 })
 
 test('37.7.3 в возможностях есть характер (SOUL), скилы и наборы инструментов', async () => {

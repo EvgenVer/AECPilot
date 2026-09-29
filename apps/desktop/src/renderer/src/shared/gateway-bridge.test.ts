@@ -34,7 +34,8 @@ function stubApi(state: GatewayConnectionState = 'ready') {
       emitRequest = cb
       return () => unsubscribed.push('requests')
     },
-    respondGatewayServerRequest: respond
+    respondGatewayServerRequest: respond,
+    getProviderKeys: vi.fn(async () => ({ encryptionAvailable: true, keys: [] }))
   } as unknown as AecpilotApi
 
   return {
@@ -334,5 +335,83 @@ describe('отказ шлюза через границу IPC (находка D-
     const bridge = new GatewayBridge(stub.api)
 
     await expect(bridge.request('session.list')).resolves.toEqual({ sessions: [1, 2] })
+  })
+})
+
+describe('провайдеры без ключа в выборе модели (D-109)', () => {
+  const ENV = {
+    GEMINI_API_KEY: { provider: 'gemini', is_password: true, is_set: true },
+    OPENROUTER_API_KEY: { provider: 'openrouter', is_password: true, is_set: false }
+  }
+
+  it('model.options: у провайдера без ключа в имени «нет ключа»', async () => {
+    const stub = stubApi()
+    stub.rest.mockResolvedValue(ENV as never)
+    stub.rpc.mockResolvedValue({
+      ok: true,
+      value: {
+        providers: [
+          { slug: 'gemini', name: 'Gemini' },
+          { slug: 'openrouter', name: 'OpenRouter' }
+        ]
+      }
+    } as never)
+    const bridge = new GatewayBridge(stub.api)
+
+    const answer = await bridge.request<{ providers: { name: string }[] }>('model.options')
+    expect(answer.providers.map((p) => p.name)).toEqual(['Gemini', 'OpenRouter — нет ключа'])
+    expect(stub.rest).toHaveBeenCalledWith('/api/env', {})
+  })
+
+  it('запись профиля с таким провайдером до ядра не доходит', async () => {
+    const stub = stubApi()
+    stub.rest.mockResolvedValue(ENV as never)
+    const bridge = new GatewayBridge(stub.api)
+
+    await expect(
+      bridge.request('profiles.configure', { name: 'smeta', model: 'm', provider: 'openrouter' })
+    ).rejects.toThrow(/нет ключа/)
+    await expect(
+      bridge.request('profiles.create', { name: 'x', model: 'm', provider: 'openrouter' })
+    ).rejects.toThrow(/нет ключа/)
+    expect(stub.rpc).not.toHaveBeenCalled()
+  })
+
+  it('ключ из нашего хранилища (не из .env) снимает пометку и отказ', async () => {
+    const stub = stubApi()
+    stub.rest.mockResolvedValue(ENV as never)
+    ;(stub.api.getProviderKeys as ReturnType<typeof vi.fn>).mockResolvedValue({
+      encryptionAvailable: true,
+      keys: [{ envVar: 'OPENROUTER_API_KEY', hasKey: true, envOverrides: false }]
+    })
+    const bridge = new GatewayBridge(stub.api)
+
+    await bridge.request('profiles.configure', { name: 'a', model: 'm', provider: 'openrouter' })
+    expect(stub.rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it('с ключом и без провайдера запись проходит', async () => {
+    const stub = stubApi()
+    stub.rest.mockResolvedValue(ENV as never)
+    const bridge = new GatewayBridge(stub.api)
+
+    await bridge.request('profiles.configure', { name: 'smeta', model: 'm', provider: 'gemini' })
+    await bridge.request('profiles.configure', { name: 'smeta', soul: 'x' })
+    expect(stub.rpc).toHaveBeenCalledTimes(2)
+  })
+
+  it('каталог ключей не прочитался — не помечаем и не мешаем', async () => {
+    const stub = stubApi()
+    stub.rest.mockRejectedValue(new Error('down'))
+    stub.rpc.mockResolvedValue({
+      ok: true,
+      value: { providers: [{ slug: 'openrouter', name: 'OpenRouter' }] }
+    } as never)
+    const bridge = new GatewayBridge(stub.api)
+
+    const answer = await bridge.request<{ providers: { name: string }[] }>('model.options')
+    expect(answer.providers[0].name).toBe('OpenRouter')
+    await bridge.request('profiles.configure', { name: 'a', model: 'm', provider: 'openrouter' })
+    expect(stub.rpc).toHaveBeenCalledTimes(2)
   })
 })
