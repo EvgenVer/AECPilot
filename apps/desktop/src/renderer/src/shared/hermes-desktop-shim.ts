@@ -40,6 +40,7 @@ import {
   mcpServersBeingInstalled
 } from '../aec/install-consent/install-consent-pure'
 import { askInstallConsent } from '../aec/install-consent/store'
+import { askWebhookConsent } from '../aec/webhook-consent/store'
 import { cronContinuityEnabled } from '../aec/cron-continuity/store'
 import { withContinuity } from '../aec/cron-continuity/continuity-pure'
 import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
@@ -288,6 +289,10 @@ export const CHANNEL_ENABLE_DECLINED = 'Канал не включён — вы 
  * текст, поэтому отказ обязан читаться как решение человека, а не как сбой. */
 export const INSTALL_DECLINED = 'Не установлено — вы не подтвердили установку.'
 
+/** Задача 3F.D4 (D-105): отказ от включения приёмника вебхуков. Их экран ловит
+ * ошибку и показывает её текст в своём уведомлении. */
+export const WEBHOOKS_ENABLE_DECLINED = 'Приёмник не включён — вы отменили перезапуск ядра.'
+
 /** The members our main process actually serves today. Typed loosely on
  * purpose: their contract is wide and precise (90-odd members), ours is a
  * hand-picked subset, and pretending the subset satisfies the whole interface
@@ -351,6 +356,21 @@ const IMPLEMENTED: Record<string, unknown> = {
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
           : Promise.reject(new Error(INSTALL_DECLINED))
+      )
+    }
+
+    // Задача 3F.D4 (D-105). Включение приёмника вебхуков перезапускает ядро,
+    // и живой разговор обрывается. У донора это одна кнопка без слова о цене;
+    // цена называется до нажатия, а без согласия запрос не уходит.
+    if (method === 'POST' && restPath(request.path).endsWith('/api/webhooks/enable')) {
+      return askWebhookConsent().then((allowed) =>
+        allowed
+          ? gatewayBridge().rest<T>(request.path, {
+              method: 'POST',
+              ...(request.body === undefined ? {} : { body: request.body }),
+              ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
+            })
+          : Promise.reject(new Error(WEBHOOKS_ENABLE_DECLINED))
       )
     }
 

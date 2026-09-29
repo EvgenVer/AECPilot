@@ -333,6 +333,13 @@ export const aecLocales: PluginLocaleBundles = {
         confirm: 'Open the channel'
       }
     },
+    webhookConsent: {
+      title: 'Turn on the webhook receiver?',
+      body:
+        'The core will restart — the agent’s work in progress will be interrupted, ' +
+        'the conversation is kept. Turn on the receiver?',
+      confirm: 'Turn on'
+    },
     graphAccess: {
       command: 'Microsoft Graph access',
       title: 'Microsoft Graph access',
@@ -861,6 +868,13 @@ export const aecLocales: PluginLocaleBundles = {
           'Канал можно выключить в любой момент, но то, что уже ушло с машины, остаётся там, куда ушло.',
         confirm: 'Открыть канал'
       }
+    },
+    webhookConsent: {
+      title: 'Включить приёмник вебхуков?',
+      body:
+        'Ядро перезапустится — идущая работа агента прервётся, разговор сохранится. ' +
+        'Включить приёмник?',
+      confirm: 'Включить'
     },
     graphAccess: {
       command: 'Доступы Microsoft Graph',

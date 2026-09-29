@@ -32,6 +32,7 @@ import './donor/store/active-work'
 import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
 import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
+import WebhookConsentDialog from './aec/webhook-consent/WebhookConsentDialog'
 // Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
 import './aec/cron-runner/register'
 // Задача 3.8а: уведомление и строка состояния для инструкций проекта.
@@ -132,6 +133,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         просит — до подтверждения. Спрашивается из моста, поэтому
                         стоит здесь, а не внутри их экрана скилов. */}
                     <InstallConsentDialog />
+                    {/* Задача 3F.D4 (D-105): цена включения вебхуков —
+                        перезапуск ядра — до нажатия. */}
+                    <WebhookConsentDialog />
                     {/* Задача 3.8а (UR29): что за инструкции несёт папка
                         проекта и доверяем ли мы им. */}
                     <ProjectSkillsDialog />
