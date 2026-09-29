@@ -42,6 +42,47 @@ def storage_key(oss_config: dict) -> str | None:
     return os.path.normcase(os.path.abspath(os.path.expanduser(str(path))))
 
 
+# ── КЛЮЧ ПО ИМЕНИ ПЕРЕМЕННОЙ (задача 3G.4, D-157, решение владельца (в)) ──────────
+# Их LLM для Mem0 (`_openai_llm.DirectOpenAILLM`) берёт ключ из `OPENAI_API_KEY`, а
+# эмбеддер библиотеки — тоже из `OPENAI_API_KEY`; имя переменной не настраивается.
+# Адрес подменить можно (`openai_base_url`), ключ — нет. Поэтому `mem0.json` несёт
+# ИМЯ переменной (`api_key_env`), а ключ подставляется здесь, в памяти процесса,
+# через их область секретов профиля (`agent.secret_scope.get_secret` — так читает и
+# их LLM). Оба их класса ключ из конфига принимают (`self.config.api_key or …`), так
+# что наследники не нужны. Нет ключа — отказ с именем переменной: иначе эмбеддер
+# молча взял бы `OPENAI_API_KEY` и отправил ключ OpenAI на адрес другого провайдера.
+
+
+def _secret(name: str) -> str:
+    try:
+        from agent.secret_scope import get_secret
+    except Exception:  # вне ядра (тесты) — окружение процесса
+        return os.environ.get(name, "")
+    return get_secret(name, "") or ""
+
+
+def with_keys_from_env(oss_config: dict, secret: Callable[[str], str] = _secret) -> dict:
+    """Копия конфига, где `api_key_env` блоков llm/embedder заменён ключом."""
+    if not isinstance(oss_config, dict):
+        return oss_config
+    out = dict(oss_config)
+    for section in ("llm", "embedder"):
+        block = out.get(section)
+        if not isinstance(block, dict) or not isinstance(block.get("config"), dict):
+            continue
+        config = dict(block["config"])
+        name = config.pop("api_key_env", None)
+        if not name:
+            continue
+        if not config.get("api_key"):
+            value = secret(str(name))
+            if not value:
+                raise ValueError(f"нет ключа провайдера памяти: переменная {name} не задана")
+            config["api_key"] = value
+        out[section] = {**block, "config": config}
+    return out
+
+
 class _Lease:
     """Доступ агента к общему клиенту: всё — клиенту, кроме `close`."""
 
@@ -66,6 +107,7 @@ def shared_factory(original: Callable[[dict], Any]) -> Callable[[dict], Any]:
     shared: dict[str, list] = {}  # ключ -> [клиент, число агентов]
 
     def factory(oss_config: dict) -> Any:
+        oss_config = with_keys_from_env(oss_config)
         key = storage_key(oss_config)
         if key is None:
             return original(oss_config)

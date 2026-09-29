@@ -222,10 +222,12 @@ import {
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
 import {
+  memoryProviderSettings,
   pendingEmbeddingSwitch,
   ragProviderEnv,
   readProfileProvider,
-  resolveProvider
+  resolveProvider,
+  type MemoryProviderSettings
 } from './provider-presets-pure'
 import { DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
 import {
@@ -333,6 +335,18 @@ function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
   return ragProviderEnv(resolveProvider(readProfileProvider(yamlText)))
 }
 
+/** Задача 3G.4 (D-157): провайдер второго слоя памяти — тот, что выбран для агента.
+ *  `null` — выбора нет (или это свой адрес без моделей), память остаётся как была. */
+function memoryProviderFromProfile(hermesHome: string): MemoryProviderSettings | null {
+  let yamlText = ''
+  try {
+    yamlText = readFileSync(join(hermesHome, 'config.yaml'), 'utf-8')
+  } catch {
+    return null
+  }
+  return memoryProviderSettings(resolveProvider(readProfileProvider(yamlText)))
+}
+
 // TODO(Phase 5 / task 5.1): resolved relative to this file's location on
 // disk, same as runtime/serve.mjs's own resolution above — revisit once this
 // ships inside app.asar.
@@ -371,7 +385,11 @@ async function loadRegisterAecSourcesModule(): Promise<RegisterAecSourcesModule>
 }
 
 interface MemoryConfigModule {
-  applyMemoryProfile: (opts: { hermesHomeDir: string; vaultPath: string }) => {
+  applyMemoryProfile: (opts: {
+    hermesHomeDir: string
+    vaultPath: string
+    provider: MemoryProviderSettings | null
+  }) => {
     changed: boolean
     key: string
   }
@@ -536,7 +554,11 @@ async function registerAecSourcesForProject(vaultPath: string): Promise<void> {
   try {
     const { applyMemoryProfile } = await loadMemoryConfigModule()
     const { HERMES_HOME_DIR } = await loadServeModule()
-    applyMemoryProfile({ hermesHomeDir: HERMES_HOME_DIR, vaultPath })
+    applyMemoryProfile({
+      hermesHomeDir: HERMES_HOME_DIR,
+      vaultPath,
+      provider: memoryProviderFromProfile(HERMES_HOME_DIR)
+    })
   } catch (error: unknown) {
     console.error('aecpilot: could not apply the memory profile for the opened project', error)
   }

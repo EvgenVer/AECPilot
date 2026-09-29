@@ -22,6 +22,7 @@ import {
   MEMORY_ENV,
   memoryEnv,
   MEMORY_PROVIDER,
+  memoryCollection,
   mergeMemoryProviderIntoConfigYaml,
   projectMemoryKey,
   SYNC_MAX_CHARS,
@@ -155,12 +156,13 @@ describe("D-85: каталог mem0 внутри профиля, а не ~/.mem0
     // Main-процесс этот модуль статически не импортирует, имя продублировано —
     // читается исходник, чтобы дубликаты не разъехались молча.
     const cron = fs.readFileSync(
-      path.join(RUNTIME_DIR, "..", "apps", "desktop", "src", "main", "cron-runner.ts"),
+      path.join(RUNTIME_DIR, "..", "apps", "desktop", "src", "main", "cron-runner-pure.ts"),
       "utf-8",
     );
     const facts = fs.readFileSync(path.join(RUNTIME_DIR, "memory-facts.py"), "utf-8");
 
-    expect(cron).toContain(`MEM0_DIR: join(env.homeDir, '${MEM0_DIR_NAME}')`);
+    // С 3F.D1 окружение запуска собирает `cronRunnerSpawnEnv` в `cron-runner-pure.ts`.
+    expect(cron).toContain(`MEM0_DIR: join(homeDir, '${MEM0_DIR_NAME}')`);
     expect(cron).toContain("MEM0_TELEMETRY: 'false'");
     expect(facts).toContain(`os.environ.setdefault("MEM0_DIR", os.path.join(home, "${MEM0_DIR_NAME}"))`);
   });
@@ -278,5 +280,63 @@ describe("задача 5.2: проектный скоуп", () => {
     });
 
     expect(JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8")).user_id).toBe(key);
+  });
+});
+
+// Задача 3G.4 (D-157): память — от выбранного провайдера.
+describe("провайдер памяти по выбору человека", () => {
+  const home = () => fs.mkdtempSync(path.join(os.tmpdir(), "aec-mem-"));
+  const gemini = {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    keyEnvVar: "GEMINI_API_KEY",
+    llmModel: "gemini-3.5-flash-lite",
+    embeddingModel: "gemini-embedding-2",
+    embeddingDims: 3072,
+  };
+
+  it("пишет адрес, модели и ИМЯ переменной ключа, но не ключ", () => {
+    const written = buildMem0Json({}, { baseUrl: "ignored", vectorPath: "/q", provider: gemini });
+    expect(written.oss.llm).toEqual({
+      provider: "openai",
+      config: {
+        model: "gemini-3.5-flash-lite",
+        openai_base_url: gemini.baseUrl,
+        api_key_env: "GEMINI_API_KEY",
+      },
+    });
+    expect(written.oss.embedder.config).toEqual({
+      model: "gemini-embedding-2",
+      embedding_dims: 3072,
+      openai_base_url: gemini.baseUrl,
+      api_key_env: "GEMINI_API_KEY",
+    });
+    expect(JSON.stringify(written)).not.toMatch(/"api_key"\s*:/);
+  });
+
+  it("смена модели эмбеддингов уводит в свою коллекцию — чужие факты не стираются", () => {
+    const written = buildMem0Json({}, { baseUrl: "x", vectorPath: "/q", provider: gemini });
+    expect(written.oss.vector_store.config).toEqual({
+      path: "/q",
+      collection_name: "mem0-gemini-embedding-2",
+    });
+    expect(memoryCollection("text-embedding-3-small")).toBe("mem0");
+  });
+
+  it("без провайдера — прежняя настройка, байт в байт", () => {
+    expect(buildMem0Json({}, { baseUrl: "u", vectorPath: "/q", provider: null })).toEqual(
+      buildMem0Json({}, { baseUrl: "u", vectorPath: "/q" }),
+    );
+  });
+
+  it("применение к профилю пишет провайдера на диск", () => {
+    const dir = home();
+    applyMemoryProfile({
+      hermesHomeDir: dir,
+      vaultPath: path.join(HOME, "объект-A"),
+      env: {},
+      provider: gemini,
+    });
+    const written = JSON.parse(fs.readFileSync(path.join(dir, "mem0.json"), "utf-8"));
+    expect(written.oss.llm.config.api_key_env).toBe("GEMINI_API_KEY");
   });
 });

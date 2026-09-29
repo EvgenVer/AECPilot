@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PROVIDER_PRESETS,
   pendingEmbeddingSwitch,
+  memoryProviderSettings,
   ragProviderEnv,
   readProfileProvider,
   resolveProvider
@@ -144,6 +145,35 @@ describe('pendingEmbeddingSwitch (3G.7)', () => {
     ).toBeNull()
     expect(
       pendingEmbeddingSwitch({ builtWith: 'x', projectModel: null, providerModel: null })
+    ).toBeNull()
+  })
+})
+
+describe('memoryProviderSettings (3G.4, D-157)', () => {
+  it('gives Mem0 the Gemini address, the key variable NAME and the measured width', () => {
+    expect(memoryProviderSettings(resolveProvider({ provider: 'gemini' }))).toEqual({
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      keyEnvVar: 'GEMINI_API_KEY',
+      llmModel: 'gemini-3.5-flash-lite',
+      embeddingModel: 'gemini-embedding-2',
+      embeddingDims: 3072
+    })
+  })
+
+  it('keeps the memory embedder OpenAI users already have, so their facts stay', () => {
+    expect(memoryProviderSettings(resolveProvider({ provider: 'openai-api' }))).toMatchObject({
+      keyEnvVar: 'OPENAI_API_KEY',
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDims: 1536
+    })
+  })
+
+  it('is null without a provider and for a custom address', () => {
+    expect(memoryProviderSettings(resolveProvider({ provider: null }))).toBeNull()
+    expect(
+      memoryProviderSettings(
+        resolveProvider({ provider: 'custom:lab', baseUrl: 'http://x', keyEnvVar: 'LAB_KEY' })
+      )
     ).toBeNull()
   })
 })

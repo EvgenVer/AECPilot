@@ -96,9 +96,58 @@ export function vectorStorePath(hermesHomeDir) {
  */
 export const SYNC_MAX_CHARS = 16000;
 
-export function buildMem0Json(existing, { baseUrl, vectorPath }) {
+/** Задача 3G.4 (D-157): коллекция на модель эмбеддингов. Их `OSSBackend` при
+ *  другой ширине вектора УДАЛЯЕТ коллекцию (`_recreate_collection_if_dims_changed`),
+ *  то есть смена провайдера стёрла бы факты. Своя коллекция на модель их не трогает:
+ *  вернулся к прежнему провайдеру — вернулись и факты. Модель, на которой память
+ *  жила до 3G.4, остаётся в их коллекции по умолчанию `mem0`. */
+export function memoryCollection(embeddingModel) {
+  if (!embeddingModel || embeddingModel === "text-embedding-3-small") return "mem0";
+  return `mem0-${String(embeddingModel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+/** Блоки `llm`/`embedder`/`vector_store` под выбранного провайдера (3G.4).
+ *  Ключ — ИМЕНЕМ переменной (`api_key_env`): значение подставляет наш плагин ядра
+ *  в памяти процесса (`plugins/aec_secret_filter/mem0_shared.py`), на диск оно не
+ *  попадает. Провайдер mem0 остаётся `openai` — их OpenAI-совместимый путь. */
+function providerBlocks(provider, vectorPath) {
+  return {
+    llm: {
+      provider: "openai",
+      config: {
+        model: provider.llmModel,
+        openai_base_url: provider.baseUrl,
+        api_key_env: provider.keyEnvVar,
+      },
+    },
+    embedder: {
+      provider: "openai",
+      config: {
+        model: provider.embeddingModel,
+        embedding_dims: provider.embeddingDims,
+        openai_base_url: provider.baseUrl,
+        api_key_env: provider.keyEnvVar,
+      },
+    },
+    vector_store: {
+      provider: "qdrant",
+      config: { path: vectorPath, collection_name: memoryCollection(provider.embeddingModel) },
+    },
+  };
+}
+
+export function buildMem0Json(existing, { baseUrl, vectorPath, provider = null }) {
   const base = existing && typeof existing === "object" ? existing : {};
   const oss = base.oss && typeof base.oss === "object" ? base.oss : {};
+
+  if (provider) {
+    return {
+      ...base,
+      mode: "oss",
+      sync_max_chars: SYNC_MAX_CHARS,
+      oss: { ...oss, ...providerBlocks(provider, vectorPath) },
+    };
+  }
 
   return {
     ...base,
@@ -236,7 +285,7 @@ export function readMem0Json(hermesHomeDir) {
  * Возвращает `{ changed, key }`. `changed` — правда, если что-то на диске
  * действительно изменилось: вызывающему это нужно, чтобы не дёргать ядро зря.
  */
-export function applyMemoryProfile({ hermesHomeDir, vaultPath, env = process.env }) {
+export function applyMemoryProfile({ hermesHomeDir, vaultPath, env = process.env, provider = null }) {
   const key = projectMemoryKey(vaultPath);
   const configPath = path.join(hermesHomeDir, "config.yaml");
   const mem0Path = path.join(hermesHomeDir, "mem0.json");
@@ -263,6 +312,7 @@ export function applyMemoryProfile({ hermesHomeDir, vaultPath, env = process.env
     ...buildMem0Json(existing, {
       baseUrl: coreEndpoint(env),
       vectorPath: vectorStorePath(hermesHomeDir),
+      provider,
     }),
     user_id: key,
   };

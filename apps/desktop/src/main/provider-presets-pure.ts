@@ -183,6 +183,40 @@ export function pendingEmbeddingSwitch(input: {
   return { from, to }
 }
 
+/** Task 3G.4 (D-157): what the Mem0 layer is written with — the provider's address,
+ *  the NAME of its key variable (our core plugin turns it into the key in memory,
+ *  `plugins/aec_secret_filter/mem0_shared.py`) and the models. */
+export interface MemoryProviderSettings {
+  baseUrl: string
+  keyEnvVar: string
+  llmModel: string
+  embeddingModel: string
+  embeddingDims: number
+}
+
+/** Memory embedders per preset, with the vector width. OpenAI keeps the model the
+ *  memory layer has always used (`text-embedding-3-small`, 1536) so existing facts
+ *  stay readable; Gemini's width was measured by probe 3G.1 (3072). */
+const MEMORY_EMBEDDERS: Readonly<Record<'gemini' | 'openai-api', { model: string; dims: number }>> =
+  {
+    gemini: { model: 'gemini-embedding-2', dims: 3072 },
+    'openai-api': { model: 'text-embedding-3-small', dims: 1536 }
+  }
+
+/** `null` when there is no usable provider or its models are the person's to name
+ *  (`custom`) — the memory layer then keeps what it had. */
+export function memoryProviderSettings(resolved: ResolvedProvider): MemoryProviderSettings | null {
+  if (!resolved.ok || !resolved.models || resolved.id === 'custom') return null
+  const embedder = MEMORY_EMBEDDERS[resolved.id]
+  return {
+    baseUrl: resolved.baseUrl,
+    keyEnvVar: resolved.keyEnvVar,
+    llmModel: resolved.models.aux,
+    embeddingModel: embedder.model,
+    embeddingDims: embedder.dims
+  }
+}
+
 /** Environment for `aec-rag` (task 3G.3): names and addresses only, never a key.
  *  Empty when there is no usable provider — the server then says so per call. */
 export function ragProviderEnv(resolved: ResolvedProvider): Record<string, string> {

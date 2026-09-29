@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from aec_secret_filter.mem0_shared import shared_factory, storage_key
+import pytest
+from aec_secret_filter.mem0_shared import shared_factory, storage_key, with_keys_from_env
 
 
 class FakeBackend:
@@ -70,3 +71,40 @@ def test_storage_key_normalises_the_path(tmp_path) -> None:
     raw = str(tmp_path / "q")
     assert storage_key(cfg(raw)) == storage_key(cfg(raw + "/"))
     assert storage_key(cfg(None)) is None
+
+
+# Задача 3G.4 (D-157): ключ провайдера памяти — по имени переменной.
+def keyed(name: str | None) -> dict:
+    llm = {"model": "m", "openai_base_url": "https://g/"}
+    if name:
+        llm["api_key_env"] = name
+    return {
+        "llm": {"provider": "openai", "config": llm},
+        "embedder": {"provider": "openai", "config": dict(llm)},
+        "vector_store": {"provider": "qdrant", "config": {"path": "/q"}},
+    }
+
+
+def test_key_is_taken_by_variable_name_into_both_blocks() -> None:
+    resolved = with_keys_from_env(keyed("GEMINI_API_KEY"), secret={"GEMINI_API_KEY": "g-1"}.get)
+    for section in ("llm", "embedder"):
+        config = resolved[section]["config"]
+        assert config["api_key"] == "g-1"
+        assert "api_key_env" not in config  # их классы лишнего поля не примут
+
+
+def test_config_on_disk_is_not_changed() -> None:
+    original = keyed("GEMINI_API_KEY")
+    with_keys_from_env(original, secret={"GEMINI_API_KEY": "g-1"}.get)
+    assert "api_key" not in original["llm"]["config"]
+    assert original["llm"]["config"]["api_key_env"] == "GEMINI_API_KEY"
+
+
+def test_missing_key_is_refused_by_name_not_replaced_with_openai() -> None:
+    with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+        with_keys_from_env(keyed("GEMINI_API_KEY"), secret=lambda _name: "")
+
+
+def test_config_without_a_variable_name_passes_as_is() -> None:
+    plain = keyed(None)
+    assert with_keys_from_env(plain, secret=lambda _name: "x") == plain

@@ -104,6 +104,16 @@ def open_provider(home):
         sys.path.insert(0, src)
     from plugins.memory import load_memory_provider
 
+    # Задача 3G.4 (D-157): `mem0.json` несёт ИМЯ переменной ключа (`api_key_env`), а
+    # ключ подставляет наш плагин ядра. Этот процесс плагины ядра не грузит — ставим
+    # ту же подмену сами, из исходника плагина рядом.
+    plugins_dir = str(Path(__file__).resolve().parents[1] / "plugins")
+    if plugins_dir not in sys.path:
+        sys.path.insert(0, plugins_dir)
+    from aec_secret_filter.mem0_shared import install_shared_mem0_client
+
+    install_shared_mem0_client()
+
     provider = load_memory_provider("mem0", register_skills=False)
     provider.initialize(
         session_id="aec-memory-facts",
