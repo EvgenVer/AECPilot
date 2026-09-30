@@ -1,6 +1,7 @@
 // Resolves the isolated hermes-agent runtime paths used by setup.mjs and by
 // task 0.7 (launching `hermes serve`). Pure path/constant module — no side effects.
 
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -85,13 +86,45 @@ export const AEC_BIN_DIR = path.join(RUNTIME_DIR, "bin");
  * foreign install on PATH (D-141: `%LOCALAPPDATA%\hermes\bin`, another version, no
  * keys) the donor's `hermes -p <bot> chat …` ran THAT one. Windows keeps the key as
  * `Path`, so the existing spelling is reused.
+ *
+ * The core itself, at every start on Windows, PREPENDS the folders of a standard
+ * Hermes install (`hermes_cli/stdio.py::_augment_path_with_known_tools`), among them
+ * `%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts` with a foreign `hermes.exe` —
+ * but only those not on PATH yet (measured 30.09.2026: a routine ran the owner's
+ * separate install). So the ones that exist go to the END here: already present,
+ * they stay behind ours.
  */
-export function withOurHermesOnPath(env) {
+export function withOurHermesOnPath(env, isDir = isDirectory) {
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH";
   const rest = (env[key] ?? "")
     .split(path.delimiter)
     .filter((entry) => entry && path.resolve(entry) !== path.resolve(AEC_BIN_DIR));
-  return { ...env, [key]: [AEC_BIN_DIR, ...rest].join(path.delimiter) };
+  const listed = new Set(rest.map((entry) => entry.toLowerCase()));
+  const behind = coreKnownToolDirs(env).filter(
+    (dir) => isDir(dir) && !listed.has(dir.toLowerCase()),
+  );
+  return { ...env, [key]: [AEC_BIN_DIR, ...rest, ...behind].join(path.delimiter) };
+}
+
+/** The list of `_augment_path_with_known_tools` in the pinned core, same order. */
+function coreKnownToolDirs(env) {
+  const localAppData = env.LOCALAPPDATA;
+  if (!localAppData) return [];
+  return [
+    path.join(localAppData, "hermes", "git", "cmd"),
+    path.join(localAppData, "hermes", "git", "bin"),
+    path.join(localAppData, "hermes", "git", "usr", "bin"),
+    path.join(localAppData, "hermes", "hermes-agent", "venv", "Scripts"),
+    path.join(localAppData, "Microsoft", "WinGet", "Links"),
+  ];
+}
+
+function isDirectory(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 const isMain =

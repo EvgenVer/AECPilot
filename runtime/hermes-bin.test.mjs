@@ -26,6 +26,49 @@ describe("withOurHermesOnPath", () => {
   it("works without any PATH at all", () => {
     expect(withOurHermesOnPath({}).PATH).toBe(AEC_BIN_DIR);
   });
+
+  // 30.09.2026: the core prepends a standard install's folders at start unless they
+  // are on PATH already — a routine then ran the foreign `hermes.exe` from venv\Scripts.
+  it("puts the core's known install folders that exist BEHIND ours, once", () => {
+    const lad = path.join("C:", "Users", "x", "AppData", "Local");
+    const venv = path.join(lad, "hermes", "hermes-agent", "venv", "Scripts");
+    const winget = path.join(lad, "Microsoft", "WinGet", "Links");
+    const existing = new Set([venv, winget]);
+    const env = withOurHermesOnPath(
+      { LOCALAPPDATA: lad, PATH: ["C:\\Windows", winget.toUpperCase()].join(path.delimiter) },
+      (dir) => existing.has(dir),
+    );
+
+    expect(env.PATH.split(path.delimiter)).toEqual([
+      AEC_BIN_DIR,
+      "C:\\Windows",
+      winget.toUpperCase(),
+      venv,
+    ]);
+  });
+
+  it("adds nothing that does not exist", () => {
+    const env = withOurHermesOnPath({ LOCALAPPDATA: "C:\\nowhere", PATH: "C:\\a" }, () => false);
+    expect(env.PATH.split(path.delimiter)).toEqual([AEC_BIN_DIR, "C:\\a"]);
+  });
+
+  it("mirrors the core's list — a core upgrade that changes it fails here", () => {
+    const stdio = fs.readFileSync(
+      path.join(RUNTIME_DIR, ".hermes-src", "hermes_cli", "stdio.py"),
+      "utf-8",
+    );
+    const body = stdio.slice(stdio.indexOf("def _augment_path_with_known_tools"));
+    const dirs = [...body.slice(0, body.indexOf("existing =")).matchAll(/os\.path\.join\(local_appdata, ([^)]*)\)/g)].map(
+      (match) => match[1].replaceAll('"', "").split(", ").join("/"),
+    );
+    expect(dirs).toEqual([
+      "hermes/git/cmd",
+      "hermes/git/bin",
+      "hermes/git/usr/bin",
+      "hermes/hermes-agent/venv/Scripts",
+      "Microsoft/WinGet/Links",
+    ]);
+  });
 });
 
 describe("the wrappers", () => {

@@ -257,8 +257,15 @@ async function smetaJob(page: Page): Promise<CronJobRow | undefined> {
 }
 
 test('37.15.1 «Запустить сейчас»: рутина отработала', async () => {
+  test.setTimeout(600000)
   // Чат клона открыт с 37.13.
   const page = await ui()
+  // D-140 (3G.19): «живым владельцем» Bot Chat, которому ядро доставляет результат
+  // прямо в открытое окно, сессия становится только после первого хода в ней
+  // (`tui_gateway/methods_session.py`: «lease claimed lazily on turn 1»). Без хода
+  // результат пишется отдельным процессом в базу мимо окна — это D-140, решение
+  // владельца. Здесь проверяется сценарий «человек разговаривает со специалистом».
+  await turn(page, 'Ответь одним словом: готов.')
   const tab = page.getByText('Запланированные задачи', { exact: true }).last()
   await expect(tab).toBeVisible({ timeout: 60000 })
   const create = page.getByRole('button', { name: 'Новый cron' }).first()
@@ -290,43 +297,50 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
     timeout: 30000
   })
 
-  // D-134: в карточке специалиста кнопки «Выполнить сейчас» нет (их панель
-  // рутин — просмотр и удаление); запускаем тем же вызовом ядра, что их кнопка
-  // в общем списке задач (`triggerCronJob`), от имени профиля клона.
+  // Путь донора (D-158, паритет): в карточке специалиста кнопки запуска нет, она
+  // на странице «Запланированные задачи» ПРОФИЛЯ специалиста. Профиль выбирается
+  // квадратом в полосе профилей внизу вкладки «Сеансы» (на вкладке «Боты» её нет);
+  // подпись квадрата — имя профиля.
   await expect.poll(async () => Boolean(await smetaJob(page)), { timeout: 30000 }).toBe(true)
-  const job = await smetaJob(page)
-  // Ответ на «запустить» ядро иногда держит дольше 15 с нашего моста (замер
-  // 24.09.2026, сразу после включения расписаний) — запуск при этом уходит.
-  // Судим по факту запуска ниже, а не по ответу.
-  await api(page, {
-    path: `/api/cron/jobs/${job!.id}/trigger`,
-    method: 'POST',
-    profile: 'smeta-kopiya'
-  }).catch((error: unknown) => {
-    if (!/не ответило за/.test(String(error))) throw error
-    console.log('37.15.1 ответ на запуск не дождались: ' + String(error))
-  })
+  await page.getByRole('tab', { name: /Сеансы|Sessions/i }).click()
+  const rail = page.locator('[data-slot="profile-rail"]')
+  const clone = rail.getByRole('button', { name: /^(smeta-kopiya|Смета копия)$/ })
+  await clone.click()
+  await expect(clone).toHaveAttribute('aria-pressed', 'true', { timeout: 30000 })
+  await page.getByRole('button', { name: 'Запланированные задачи', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Запустить сейчас' }).first().click()
+  // Запуск берёт их планировщик на своём минутном тике — замерено от одного до
+  // четырёх тиков после нажатия (29.09.2026), плюс сам ход специалиста.
   await expect
     .poll(async () => (await smetaJob(page))?.last_run_at ?? null, {
-      timeout: 240000,
+      timeout: 420000,
       intervals: [5000]
     })
     .not.toBe(null)
+  // Назад, к агенту по умолчанию — их кнопкой «Переключиться на <агент>». Страница
+  // задач — окно поверх полосы, сначала его закрываем.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('heading', { name: 'Запланированные задачи' })).toBeHidden({
+    timeout: 15000
+  })
+  await rail.getByRole('button', { name: /^Переключиться на / }).click()
+  await expect(clone).toHaveAttribute('aria-pressed', 'false', { timeout: 30000 })
 })
 
-// D-141: рутина специалиста исполняется командой `hermes -p <профиль> chat …` в
-// терминале (промпт bot-mode донора), а `hermes` берётся с PATH — на машине
-// владельца это чужая установка 0.21.4 без наших ключей, на чистой машине его
-// нет. Замер 24.09.2026: «OPENAI_API_KEY is not set», специалист получил в чат
-// ошибку вместо результата. Ждёт решения владельца.
-test.fixme('37.15.2 результат виден в чате ЭТОГО специалиста, а не в общем', async () => {
+// D-141 закрыта задачей 3G.18: рутина исполняется командой `hermes -p <профиль>
+// chat …`, и `hermes` на PATH теперь наш (пин, наш профиль), а не чужая установка
+// без ключей («OPENAI_API_KEY is not set», замер 24.09.2026).
+test('37.15.2 результат виден в чате ЭТОГО специалиста, а не в общем', async () => {
   test.setTimeout(600000)
   const page = await roster(await ui())
-  // Доставка «в чат» — отдельный полный ход специалиста в его «Bot Chat»
-  // (`cron/scheduler_delivery.py`, `_deliver_to_bot_chat`), минуты. Ждём её по
-  // состоянию задачи, затем открываем его чат, как человек. В УЖЕ открытом чате
-  // доставленное само не появляется (замер 24.09.2026: доставлено, после
-  // переоткрытия видно) — D-140.
+  // Доставка «в чат» уходит ЖИВОМУ владельцу «Bot Chat» — сессии, открытой через
+  // шлюз ядра (`tools/bot_live_delivery.py`, флаг `bot_live_delivery_consumer`
+  // ставит `tui_gateway/session_lifecycle.py`), и там идёт полный ход
+  // специалиста. Живому владельцу ядро ставит квитанцию в очередь — исход
+  // `queued`; без него пишет отдельным процессом — `delivered` (замер 29.09.2026).
+  // D-140 (3G.19): открытый чат должен показать ответ сам, без переоткрытия, —
+  // поэтому чат открывается ОДИН раз и ждём в нём.
+  await openChat(page, 'Смета копия')
   await expect
     .poll(
       async () =>
@@ -334,24 +348,25 @@ test.fixme('37.15.2 результат виден в чате ЭТОГО спе�
           ?.latest_execution?.delivery_outcome ?? null,
       { timeout: 420000, intervals: [5000], message: 'результат рутины доставлен' }
     )
-    .toBe('delivered')
-  await openChat(page, 'Смета')
-  await openChat(page, 'Смета копия')
-  await expect(page.getByText(ROUTINE_MARK).first()).toBeVisible({ timeout: 60000 })
+    .toMatch(/^(queued|delivered)$/)
+  await expect(
+    thread(page).getByText(ROUTINE_MARK).filter({ visible: true }).first(),
+    'ответ специалиста появился в открытом чате без переоткрытия'
+  ).toBeVisible({ timeout: 300000 })
   await openChat(page, 'AECPilot')
-  await expect(page.getByText(ROUTINE_MARK)).toHaveCount(0)
+  // Только в ленте открытого чата и только видимое: в списке специалистов строка
+  // клона показывает его последнее сообщение — с меткой, и это верно; а его
+  // скрытый чат остаётся в разметке (замер 29.09.2026).
+  await expect(thread(page).getByText(ROUTINE_MARK).filter({ visible: true })).toHaveCount(0)
   await record(test.info(), page)
 })
 
 // ───────────────────────────── 37.6 Скрытие ───────────────────────────────────
 
-// D-136: по расписанию рутины специалистов не срабатывают вообще — скрыт он
-// или нет. Расписания у ядра свои у каждого профиля, и тикает их только
-// процесс, поднятый в домашней папке этого профиля; наш запускатель
-// (`main/cron-runner.ts`) поднимается один — для агента по умолчанию. Замер
-// 23.09.2026: задача «каждую минуту» у клона при «Расписания: работают» за
-// 4 минуты не сработала ни разу. Ждёт решения владельца.
-test.fixme('37.16.2 рутины скрытого специалиста продолжают работать', async () => {
+// D-136 закрыта задачей 3F.D1: наш запускатель поднимает их шлюз в режиме
+// мультиплекса профилей, и расписания тикают у КАЖДОГО профиля, а не только у
+// агента по умолчанию (замер 23.09.2026: без этого рутина клона не срабатывала).
+test('37.16.2 рутины скрытого специалиста продолжают работать', async () => {
   const page = await roster(await ui())
   const job = await smetaJob(page)
   expect(job, 'рутина клона есть').toBeTruthy()
@@ -376,7 +391,19 @@ test.fixme('37.16.2 рутины скрытого специалиста про�
     .not.toBe(before)
 })
 
-// Вторая половина AC12 (блок 30, шаг 7): результат рутины ПОСЛЕ СРАБАТЫВАНИЯ
-// по расписанию — то же, что 37.16.2, упирается в D-136. Результат ручного
-// запуска в чате этого специалиста проверен в 37.15.2.
-test.fixme('30.7.2 после срабатывания результат лёг в чат ЭТОГО специалиста', async () => {})
+// Вторая половина AC12 (блок 30, шаг 7): результат рутины ПОСЛЕ СРАБАТЫВАНИЯ по
+// расписанию (37.16.2) доставлен. Доставка у задачи одна — «В чат Смета копия»
+// (37.15.1), и на глаз она уже проверена в 37.15.2; здесь — что запуск по
+// расписанию дошёл до доставки, а не остановился на истории запусков.
+test('30.7.2 после срабатывания результат лёг в чат ЭТОГО специалиста', async () => {
+  test.setTimeout(600000)
+  const page = await ui()
+  await expect
+    .poll(
+      async () =>
+        ((await smetaJob(page)) as { latest_execution?: { delivery_outcome?: string } } | undefined)
+          ?.latest_execution?.delivery_outcome ?? null,
+      { timeout: 420000, intervals: [10000], message: 'результат запуска по расписанию доставлен' }
+    )
+    .toMatch(/^(queued|delivered)$/)
+})
