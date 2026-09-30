@@ -154,6 +154,19 @@ def run(command, ident, provider):
         answer = {"ok": problem is None, "deleted": ident}
         if problem is not None:
             answer["error"] = clean(problem)[:300]
+            return answer
+        # D-171: без этого факт возвращается — mem0 заново извлекает его из своего
+        # журнала реплик проекта (`aec_secret_filter/mem0_turns.py`). Сбой здесь не
+        # отменяет удаления, поэтому в ответ не идёт: строка stdout одна и о факте.
+        try:
+            from aec_secret_filter.mem0_turns import forget_scope_turns
+
+            forget_scope_turns(getattr(provider._backend, "_memory", None), provider._user_id)
+        except Exception as error:
+            print(
+                "журнал реплик не очищен: " + clean(type(error).__name__ + ": " + str(error))[:300],
+                file=sys.stderr,
+            )
         return answer
 
     return {"ok": False, "error": "неизвестная команда"}
