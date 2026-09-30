@@ -11,9 +11,12 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
 import { record } from '../lib/evidence'
-import { recordChatEvents, turn } from '../lib/turn'
+import { eventCount, eventsSince, recordChatEvents, turn, type ChatEvent } from '../lib/turn'
 
-test.describe.configure({ mode: 'serial' })
+// В каждой позиции по два хода модели, и каждому дано до 240 с (D-170: ход без
+// доверия останавливается «Стопом» только по пределу) — 300 с на позицию Gemini
+// не хватало (31.5.1, 30.09.2026).
+test.describe.configure({ mode: 'serial', timeout: 600000 })
 
 const stand = standFixture({ mode: 'live', label: 'model-31' })
 
@@ -100,13 +103,77 @@ async function askFreshTurn(page: Page): Promise<{ text: string; transcript: str
  * инструментами по явной просьбе человека ему можно; тогда строка правила в ответе
  * допустима. Замер 30.09.2026 на Gemini: `search_files` → `read_file` → правило. */
 async function expectUntrusted(page: Page, why: string): Promise<void> {
-  const { text, transcript } = await askFreshTurn(page)
-  expect(transcript, `${why}: скил не предложен ядром`).not.toContain('skill_view')
+  const { events, text, transcript } = await askUntrustedTurn(page)
+  // D-170: попытку открыть скил агент делает — имя он знает из памяти первого
+  // проекта. Граница в том, что ядро скил НЕ отдаёт: текста правила в ответе
+  // `skill_view` нет.
+  const viewIds = new Set(
+    events
+      .filter((event) => /^tool\.start/.test(event.type) && event.payload?.name === 'skill_view')
+      .map((event) => event.payload?.tool_id)
+  )
+  const views = events.filter(
+    (event) =>
+      event.type === 'tool.complete' && (viewIds.has(event.payload?.tool_id) || event.payload?.name === 'skill_view')
+  )
+  expect(JSON.stringify(views), `${why}: скил не отдан ядром`).not.toContain(RULE_LINE)
   if (text.includes(RULE_LINE)) {
     expect(transcript, `${why}: правило — только если агент сам прочёл файл`).toMatch(
       /read_file|search_files/
     )
   }
+}
+
+function toolNames(events: ChatEvent[]): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const event of events) {
+    if (!/^tool\.start/.test(event.type)) continue
+    const id = event.payload?.tool_id ?? `${names.length}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    names.push(event.payload?.name ?? '?')
+  }
+  return names
+}
+
+/** D-170 (решение владельца 2026-09-30): получив отказ ядра в скиле, Gemini в
+ * чужом проекте ищет «правила организации» по файлам и командам дольше 4 минут
+ * (3 прогона из 4). Это приемлемо — граница держится отказом ядра, а не скоростью.
+ * Ход дольше предела останавливается «Стопом», как остановил бы человек, и
+ * проверяется то, что агент успел сделать. */
+async function askUntrustedTurn(
+  page: Page
+): Promise<{ events: ChatEvent[]; text: string; transcript: string }> {
+  await page.getByRole('button', { name: /^(Новый сеанс|New session)/ }).first().click()
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({ timeout: 30000 })
+  const mark = await eventCount(page)
+  try {
+    // В поиске агент просит и команды — 30.09.2026 это был скрипт, читающий базу
+    // mem0 профиля. Подтверждение ядро спрашивает; осторожный человек отклоняет.
+    const result = await turn(page, QUESTION, { declineForeign: true })
+    console.log('31 ' + result.transcript.replace(/\n/g, ' ⏎ '))
+    return { events: await eventsSince(page, mark), text: result.text, transcript: result.transcript }
+  } catch (error) {
+    if (!String(error).includes('ход закончился (message.complete)')) throw error
+  }
+  await page.getByRole('button', { name: /^(Стоп|Stop)$/ }).first().click()
+  await expect
+    .poll(async () => (await eventsSince(page, mark)).some((event) => event.type === 'message.complete'), {
+      timeout: 60000,
+      message: 'ход остановлен «Стопом»'
+    })
+    .toBe(true)
+  const events = await eventsSince(page, mark)
+  const text = events.find((event) => event.type === 'message.complete')?.payload?.text ?? ''
+  const transcript = [
+    `> ${QUESTION}`,
+    ...toolNames(events).map((name) => `[инструмент] ${name}`),
+    '[ответ, остановлен «Стопом» после 240 с]',
+    text
+  ].join('\n')
+  console.log('31 ' + transcript.replace(/\n/g, ' ⏎ '))
+  return { events, text, transcript }
 }
 
 test('31.5.1 после «Доверять» агент правило выполняет (а до — нет)', async () => {
