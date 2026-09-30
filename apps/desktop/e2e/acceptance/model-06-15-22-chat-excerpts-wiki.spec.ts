@@ -119,6 +119,18 @@ test('6.1.2 пока ответ печатается, недописанный �
 
 test('6.2.1 видны карточки вызовов; рассуждения сворачиваются и разворачиваются', async () => {
   const page = await ui()
+  // D-169 (решение владельца 2026-09-30): уровень рассуждений выбирает человек в
+  // пилюле поля ввода. Пока он не выбран, ядро не просит у Gemini мыслей
+  // (`reasoning_effort` пуст), хотя пилюля показывает «Среднее» — поэтому
+  // выбирается «Высокое», а не то, что уже показано.
+  await page.getByTestId('reasoning-pill').first().click()
+  await page.getByRole('menuitemradio', { name: /^Высокое/ }).or(page.getByRole('menuitem', { name: /^Высокое/ })).first().click()
+  // Подпись пилюли — их английская («High»), пункт меню — русский.
+  await expect(page.getByTestId('reasoning-pill').first()).toContainText(/Высокое|High/, { timeout: 15000 })
+  // Меню уровней остаётся открытым, а открытое меню Radix прячет остальную
+  // страницу (`aria-hidden`) — поле ввода тогда не находится.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
   const result = await turn(
     page,
     'Выполни в терминале команду `echo aec-e2e-tool` и одним предложением скажи, что она вывела.',
