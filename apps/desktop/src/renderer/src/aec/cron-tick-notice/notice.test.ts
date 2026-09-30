@@ -20,7 +20,7 @@ vi.mock('../cron-runner/store', () => ({
   setCronRunner: (on: boolean) => setCronRunner(on)
 }))
 
-const { noticeCronHasNoTick, resetCronTickNotice } = await import('./notice')
+const { noticeBotChatResult, noticeCronHasNoTick, resetCronTickNotice } = await import('./notice')
 
 beforeEach(() => {
   notify.mockReset()
@@ -69,6 +69,26 @@ describe('когда человек завёл задачу по расписа�
     expect(noticeCronHasNoTick('create')).toBe(true)
     expect(noticeCronHasNoTick('create')).toBe(false)
     expect(noticeCronHasNoTick('resume')).toBe(false)
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+})
+
+// D-163: подсказка не зависит от состояния запуска — она про то, где виден результат.
+describe('когда человек завёл рутину специалиста с доставкой в его чат', () => {
+  it('говорит, что в открытом чате результат виден после реплики или переоткрытия', () => {
+    state = { enabled: true, running: true }
+    noticeBotChatResult()
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify.mock.calls[0][0]).toMatchObject({
+      kind: 'info',
+      title: 'cron.botChatTitle',
+      message: 'cron.botChatBody'
+    })
+  })
+
+  it('пять рутин подряд — одна подсказка', () => {
+    noticeBotChatResult()
+    noticeBotChatResult()
     expect(notify).toHaveBeenCalledTimes(1)
   })
 })

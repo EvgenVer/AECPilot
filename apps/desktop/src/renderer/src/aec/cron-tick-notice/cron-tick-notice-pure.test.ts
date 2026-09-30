@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cronRpcWriteKind, cronWriteKind } from './cron-tick-notice-pure'
+import { cronBotChatAdd, cronRpcWriteKind, cronWriteKind } from './cron-tick-notice-pure'
 
 // Предупреждение должно попасть в момент, когда человек строит ожидание
 // («задача будет запускаться сама»), и не мешаться там, где ожидания нет.
@@ -66,5 +66,17 @@ describe('cronRpcWriteKind: тот же вопрос для записи чер�
     expect(cronRpcWriteKind('cron.manage', { action: 'pause', name: 'abc123' })).toBeNull()
     expect(cronRpcWriteKind('cron.manage', { action: 'remove', name: 'abc123' })).toBeNull()
     expect(cronRpcWriteKind('session.list', { action: 'add' })).toBeNull()
+  })
+})
+
+describe('cronBotChatAdd: рутина, результат которой придёт в чат специалиста (D-163)', () => {
+  it('добавление с доставкой в чат специалиста — да', () => {
+    expect(cronBotChatAdd('cron.manage', { action: 'add', deliver: 'bot-chat', profile: 'smeta' })).toBe(true)
+  })
+
+  it('без доставки в чат, не добавление или чужой метод — нет', () => {
+    expect(cronBotChatAdd('cron.manage', { action: 'add', profile: 'smeta' })).toBe(false)
+    expect(cronBotChatAdd('cron.manage', { action: 'resume', deliver: 'bot-chat' })).toBe(false)
+    expect(cronBotChatAdd('session.list', { action: 'add', deliver: 'bot-chat' })).toBe(false)
   })
 })

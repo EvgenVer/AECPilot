@@ -70,7 +70,22 @@ export function noticeCronHasNoTick(kind: CronWriteKind | null): boolean {
   return true
 }
 
+let botChatShown = false
+
+/** Подсказка D-163: где и когда виден результат рутины специалиста. Один раз
+ * за жизнь окна, как и предложение выше. */
+export function noticeBotChatResult(): void {
+  if (botChatShown) return
+  botChatShown = true
+  notify({
+    kind: 'info',
+    title: t('cron.botChatTitle'),
+    message: t('cron.botChatBody')
+  })
+}
+
 /** Тестовый крючок: сбрасывает «уже показано». */
 export function resetCronTickNotice(): void {
   shown = false
+  botChatShown = false
 }

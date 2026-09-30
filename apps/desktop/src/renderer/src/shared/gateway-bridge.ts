@@ -39,7 +39,7 @@ import type {
   GatewayEvent as DonorTypedEvent,
   GatewayEventName
 } from '../donor/hermes-shared/gateway-events'
-import { cronRpcWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
+import { cronBotChatAdd, cronRpcWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import {
   markProvidersWithoutKey,
   noKeyRefusal,
@@ -238,6 +238,10 @@ export class GatewayBridge {
     const cronWrite = cronRpcWriteKind(method, params)
     if (cronWrite) {
       void import('../aec/cron-tick-notice/notice').then((m) => m.noticeCronHasNoTick(cronWrite))
+    }
+    // D-163: где будет виден результат такой рутины.
+    if (cronBotChatAdd(method, params)) {
+      void import('../aec/cron-tick-notice/notice').then((m) => m.noticeBotChatResult())
     }
 
     const call = this.keyAwareCall<T>(method, params, timeoutMs)

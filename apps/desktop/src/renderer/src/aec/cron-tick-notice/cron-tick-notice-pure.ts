@@ -54,3 +54,12 @@ export function cronRpcWriteKind(method: string, params: Record<string, unknown>
   if (params.action === 'resume') return 'resume'
   return null
 }
+
+/** D-163 (решение владельца 2026-09-30). Результат рутины специалиста ядро
+ * доставляет в его чат, но в УЖЕ открытое окно чата — только если в нём был
+ * ход после открытия: владельцем сессии ядро делает окно лениво, на первом
+ * ходе. Без хода результат пишется в базу, и окно видит его после переоткрытия.
+ * Сказать это человеку надо, когда он заводит такую рутину. */
+export function cronBotChatAdd(method: string, params: Record<string, unknown>): boolean {
+  return method === 'cron.manage' && params.action === 'add' && params.deliver === 'bot-chat'
+}

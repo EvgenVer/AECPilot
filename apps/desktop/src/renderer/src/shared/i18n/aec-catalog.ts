@@ -546,6 +546,9 @@ export const aecLocales: PluginLocaleBundles = {
       noTask: 'The core took the question but returned no task id, so there is nothing to wait for.'
     },
     cron: {
+      botChatTitle: 'Where the routine result appears',
+      botChatBody:
+        'The result goes to the specialist’s chat. If that chat is already open, the result appears after your next message there or when you reopen the chat.',
       noTickTitle: 'Scheduled jobs are not being run',
       noTickBody:
         'Running them needs a background process, and it is off. The job is saved and "Run now" works, but the time shown as the next run will pass without anything happening.',
@@ -1078,6 +1081,9 @@ export const aecLocales: PluginLocaleBundles = {
       noTask: 'Ядро приняло вопрос, но не дало идентификатора задачи — ждать ответа не по чему.'
     },
     cron: {
+      botChatTitle: 'Где появится результат рутины',
+      botChatBody:
+        'Результат придёт в чат специалиста. Если этот чат уже открыт, результат появится в нём после вашей реплики или когда вы переоткроете чат.',
       noTickTitle: 'Задачи по расписанию сейчас никто не запускает',
       noTickBody:
         'Для запуска нужен фоновый процесс, и он выключен. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.',
