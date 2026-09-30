@@ -232,6 +232,10 @@ test('48.4.1 чтение вне рабочей папки видно в лен�
   }
   const message = page.locator('[data-slot="aui_assistant-message-root"]').last()
   // Карточка вызова — отдельная строка ленты («Чтение win.ini L1-2000»), не текст ответа.
+  // Два чтения подряд донор сворачивает в одну строку «Explored 2 files»
+  // (`tool/run-summary.ts`) — человек раскрывает её щелчком, так и тест.
+  const group = message.getByRole('button', { name: /^Explored \d+ files?/ }).first()
+  if (await group.isVisible()) await group.click()
   await expect(message.getByText(/^(Чтение|Read) .*win\.ini/i).first(), 'карточка вызова называет путь вне проекта').toBeVisible()
   await record(test.info(), page, { transcript: result.transcript })
 })
