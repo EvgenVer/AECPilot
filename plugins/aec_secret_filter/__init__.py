@@ -250,6 +250,12 @@ _MEMORY_ROUTING_SECTION = (
 # Английский — как у текста, который он уточняет. Отказ от эвала — решение
 # владельца 2026-09-28 (AGENTS §9, вариант Б: «пока не с чем сравнивать»); вместо
 # него — полный прогон приёмки на новом наборе (3G.27).
+#
+# Пункт «Project documents» — D-168 (решение владельца 2026-09-30): ядро 0.21.5
+# прячет ЛЮБОЙ MCP-инструмент за tool_search (`tools/tool_search.py::
+# is_deferrable_tool_name`), настройки «сервер виден сразу» нет. Имя в подсказке
+# снимает шаг поиска. Эвал — отказ владельца того же дня; проверка — живые
+# позиции приёмки с вопросами по документам ×3.
 _PRODUCT_SECTION = (
     "Product context. You are the assistant of AECPilot; call the product AECPilot. "
     "Do not send the person to Hermes Agent or Nous Research documentation: that runtime is "
@@ -260,7 +266,10 @@ _PRODUCT_SECTION = (
     "above.\n"
     "- Project memory: search it when the question may depend on earlier project decisions, "
     "client requirements or past discussions; skip the search for self-contained questions. "
-    "This refines the memory guidance above."
+    "This refines the memory guidance above.\n"
+    "- Project documents: call mcp__aec_rag__rag_query via tool_call directly, no "
+    "tool_search first; sources: mcp__aec_sources__sources_list, "
+    "mcp__aec_sources__sources_tree, mcp__aec_sources__sources_read."
 )
 
 

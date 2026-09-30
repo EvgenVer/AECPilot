@@ -346,5 +346,8 @@ def test_разделы_промпта_продукт_и_память(monkeypatc
     assert "AECPilot" in product
     assert "skill_view" in product
     assert "earlier project decisions" in product
-    assert len(product) // 4 < 200
+    # D-168: имя поиска по документам — чтобы агент не искал его через tool_search.
+    assert "mcp__aec_rag__rag_query" in product
+    # Бюджет 200 + одобренные владельцем ~50 токенов подсказки D-168.
+    assert len(product) // 4 < 250
     assert "mem0_add" in ctx.sections["aec-memory-routing"]
