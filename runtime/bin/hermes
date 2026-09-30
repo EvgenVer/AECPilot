@@ -3,9 +3,11 @@
 # the bot-mode prompts of the donor run `hermes -p <bot> chat ...` and expect the
 # command on PATH. It points at the pinned core in runtime/.hermes-venv; HERMES_HOME
 # comes from the calling process, keys from that profile's .env (the core reads it).
-here="$(cd "$(dirname "$0")" && pwd)"
+# D-165: through hermes_gate.py - only `chat`, `--version`, `--help` pass; the rest
+# of the CLI changes the core's configuration past the app's consent cards.
+here="$(cd "$(dirname "$0")" && (pwd -W 2>/dev/null || pwd))"
 venv="$here/../.hermes-venv"
-if [ -x "$venv/Scripts/hermes.exe" ]; then
-  exec "$venv/Scripts/hermes.exe" "$@"
+if [ -x "$venv/Scripts/python.exe" ]; then
+  exec "$venv/Scripts/python.exe" "$here/hermes_gate.py" "$@"
 fi
-exec "$venv/bin/hermes" "$@"
+exec "$venv/bin/python" "$here/hermes_gate.py" "$@"

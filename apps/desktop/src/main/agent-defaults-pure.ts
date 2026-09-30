@@ -148,3 +148,20 @@ export const DISABLED_SKILLS: readonly string[] = [
   'xurl',
   'youtube-content'
 ]
+
+/** D-165 (решение владельца 2026-09-30). Команды, которые ядро не даст выполнить
+ * агенту НИКОГДА — даже при yolo и `approvals.mode: off` (`approvals.deny`,
+ * `tools/approval_floors.py::_match_user_deny_rule`: маски fnmatch без учёта регистра
+ * по имени исполняемого файла и по всей строке). 30.09.2026 агент поставил MCP-сервер
+ * через CLI ядра (`printf 'y' | hermes mcp add …`) мимо карточки согласия. Короткий
+ * `hermes` из PATH — наша обёртка, она пропускает только `chat` (runtime/bin/
+ * hermes_gate.py); здесь закрыты обходы мимо неё: `hermes.exe` любым путём (наш venv
+ * или отдельная установка) и `python -m hermes_cli`. Проверено их же сопоставителем на
+ * шести обходах и пяти обычных командах, включая команду рутины `hermes -p … chat`.
+ * Значения — готовый YAML (кавычки нужны из-за `*` и `"`). */
+export const APPROVAL_DENY: readonly string[] = [
+  'hermes.exe',
+  "'*hermes.exe *'",
+  `'*hermes.exe" *'`,
+  "'*-m hermes_cli*'"
+]

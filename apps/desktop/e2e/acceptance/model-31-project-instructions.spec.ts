@@ -84,11 +84,29 @@ async function reopenProject(page: Page, dir: string): Promise<void> {
 
 /** Вопрос в НОВОМ сеансе: инструкции проекта ядро кладёт в сеанс при создании. */
 async function askFresh(page: Page): Promise<string> {
+  return (await askFreshTurn(page)).text
+}
+
+async function askFreshTurn(page: Page): Promise<{ text: string; transcript: string }> {
   await page.getByRole('button', { name: /^(Новый сеанс|New session)/ }).first().click()
   await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({ timeout: 30000 })
   const result = await turn(page, QUESTION)
   console.log('31 ' + result.transcript.replace(/\n/g, ' ⏎ '))
-  return result.text
+  return result
+}
+
+/** D-166 (решение владельца 2026-09-30): без доверия скил проекта ядро агенту НЕ
+ * предлагает — открыть его через `skill_view` агент не может. Прочесть файл сам
+ * инструментами по явной просьбе человека ему можно; тогда строка правила в ответе
+ * допустима. Замер 30.09.2026 на Gemini: `search_files` → `read_file` → правило. */
+async function expectUntrusted(page: Page, why: string): Promise<void> {
+  const { text, transcript } = await askFreshTurn(page)
+  expect(transcript, `${why}: скил не предложен ядром`).not.toContain('skill_view')
+  if (text.includes(RULE_LINE)) {
+    expect(transcript, `${why}: правило — только если агент сам прочёл файл`).toMatch(
+      /read_file|search_files/
+    )
+  }
 }
 
 test('31.5.1 после «Доверять» агент правило выполняет (а до — нет)', async () => {
@@ -100,7 +118,7 @@ test('31.5.1 после «Доверять» агент правило выпо�
   await notice(page, /Проект несёт инструкции для агента/).getByRole('button', { name: 'Посмотреть' }).click()
   await expect(trustDialog(page)).toBeVisible({ timeout: 15000 })
   await trustDialog(page).getByRole('button', { name: 'Не сейчас' }).click()
-  expect(await askFresh(page), 'без доверия правило не действует').not.toContain(RULE_LINE)
+  await expectUntrusted(page, 'без доверия')
 
   // Шаг 5: окно из строки состояния — «Доверять».
   await page.getByRole('button', { name: 'Инструкции проекта: 1, без доверия' }).click()
@@ -116,7 +134,7 @@ test('31.6.2 после правки файла до нового подтвер
   writeProjectSkill(stand.get().projectDir, 'И ещё: нумеруй разделы.\n')
   await reopenProject(page, stand.get().projectDir)
   await expect(notice(page, /Инструкции проекта изменились/)).toBeVisible({ timeout: 30000 })
-  expect(await askFresh(page)).not.toContain(RULE_LINE)
+  await expectUntrusted(page, 'после правки файла')
   await record(test.info(), page)
 })
 
@@ -133,6 +151,6 @@ test('31.7.2 в другом проекте агент правило перво
 
   await openScratchProject(page)
   await expect(page.getByRole('button', { name: /^Инструкции проекта/ })).toHaveCount(0)
-  expect(await askFresh(page), 'в другом проекте — нет').not.toContain(RULE_LINE)
+  await expectUntrusted(page, 'в другом проекте')
   await record(test.info(), page)
 })

@@ -61,6 +61,9 @@ export function cronRunnerSpawnEnv(
     HERMES_HOME: homeDir,
     MEM0_TELEMETRY: 'false',
     MEM0_DIR: join(homeDir, 'mem0'),
-    GATEWAY_MULTIPLEX_PROFILES: 'true'
+    GATEWAY_MULTIPLEX_PROFILES: 'true',
+    // D-164: тот же каталог блокировок, что у serve (`gatewayLockDir` в
+    // runtime/hermes-env.mjs), — иначе шлюз рядом стоящего Hermes гасит наш.
+    HERMES_GATEWAY_LOCK_DIR: join(homeDir, 'gateway-locks')
   }
 }

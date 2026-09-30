@@ -106,6 +106,18 @@ export function withOurHermesOnPath(env, isDir = isDirectory) {
   return { ...env, [key]: [AEC_BIN_DIR, ...rest, ...behind].join(path.delimiter) };
 }
 
+/**
+ * D-164 (owner decision 2026-09-30). The core keeps «one gateway per OS user» through a
+ * lock dir shared by every Hermes on the machine (`gateway/status.py::_get_lock_dir`,
+ * default `~/.local/state/hermes/…`): with a separate Hermes gateway running, our cron
+ * runner said «already serves» and exited, and routines stopped silently. Our core
+ * processes get their own dir inside the profile — `HERMES_GATEWAY_LOCK_DIR`, the core's
+ * own override. Every process of ours must agree on it: serve and the cron runner.
+ */
+export function gatewayLockDir(homeDir) {
+  return path.join(homeDir, "gateway-locks");
+}
+
 /** The list of `_augment_path_with_known_tools` in the pinned core, same order. */
 function coreKnownToolDirs(env) {
   const localAppData = env.LOCALAPPDATA;

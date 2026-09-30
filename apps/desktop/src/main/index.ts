@@ -229,7 +229,7 @@ import {
   resolveProvider,
   type MemoryProviderSettings
 } from './provider-presets-pure'
-import { DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
+import { APPROVAL_DENY, DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
 import {
   addSourceToProject,
   createProject,
@@ -1173,6 +1173,11 @@ function applyBrowserBackend(homeDir: string): void {
  */
 function applyApprovalsMode(homeDir: string): void {
   applyConfigDefault(homeDir, 'approvals', 'mode', 'manual', 'the approvals mode')
+  // D-165: CLI ядра мимо наших карточек согласия — запрещён безусловно. Свой
+  // список `deny` человека не трогается (ключ есть — файл не меняется).
+  applyConfigMerge(homeDir, 'approvals', 'the command deny rules', (text) =>
+    ensureSectionList(text, 'approvals', 'deny', APPROVAL_DENY)
+  )
 }
 
 /**

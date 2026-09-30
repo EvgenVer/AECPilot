@@ -3083,6 +3083,9 @@ SSH-доступа; шлюз при этом остаётся на 127.0.0.1 (C1
    | Docling: модели разметки | кэш пользователя (`~/.cache`) | `artifacts_path` → `<root>/runtime/models` (6.22) |
    | `agent-browser` (запасная браузерная форма, 3E.17) | ищется в PATH, потом `<HERMES_HOME>/node_modules/.bin`, потом `npx` | поставить в `<HERMES_HOME>/node_modules` и не давать PATH победить (6.22) |
    | `hermes serve`: `.update_check` + запрос к `api.github.com` при каждом старте | профиль | опция `updates.check: false` — решение владельца, D-88 |
+   | ядро: блокировки шлюза «один на пользователя ОС» (`gateway/status.py::_get_lock_dir`) — ОБЩИЕ с отдельной установкой Hermes | `~/.local/state/hermes/…` | `HERMES_GATEWAY_LOCK_DIR` → `<HERMES_HOME>/gateway-locks` у serve и запускателя расписаний — **сделано 2026-09-30, D-164** (без этого шлюз отдельного Hermes гасил наши рутины) |
+   | ядро на Windows: при старте ставит в НАЧАЛО PATH папки стандартной установки Hermes (`hermes_cli/stdio.py::_augment_path_with_known_tools`) | PATH процесса | `withOurHermesOnPath` дописывает их в конец заранее — **сделано 2026-09-30** (рутины исполнял чужой `hermes`) |
+   | терминал ядра: снимок окружения оболочки `hermes-snap-*.sh`, временные файлы | `%TEMP%` | `TEMP`/`TMP` процессов ядра → `<root>/data/tmp` (6.22) |
    | uv, Playwright (`%LOCALAPPDATA%\uv`, `ms-playwright`) | каталоги пользователя | инструменты РАЗРАБОТКИ; в поставку не едут — ядро ставится из своего колеса (6.3) |
 
 **Соседство с обычной установкой Hermes на той же машине (вопрос владельца 2026-09-15,

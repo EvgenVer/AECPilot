@@ -5,7 +5,9 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { ensureSectionList } from './config-yaml-pure'
 import {
+  APPROVAL_DENY,
   CORE_DEFERRED_TOOLS,
   DEFERRED_TOOLS,
   DISABLED_SKILLS,
@@ -76,3 +78,25 @@ describe('допущение о ядре ещё верно', () => {
     expect([...names].sort()).toEqual([...KANBAN_TOOLS])
   })
 })
+
+// D-165: запрет CLI ядра агенту ложится в их `approvals.deny`, рядом с режимом.
+describe('APPROVAL_DENY', () => {
+  it('пишется в секцию approvals рядом с режимом и не трогает свой список человека', () => {
+    const merged = ensureSectionList('approvals:\n  mode: manual\n', 'approvals', 'deny', APPROVAL_DENY)
+    expect(merged.text).toBe(
+      [
+        'approvals:',
+        '  deny:',
+        '    - hermes.exe',
+        "    - '*hermes.exe *'",
+        `    - '*hermes.exe" *'`,
+        "    - '*-m hermes_cli*'",
+        '  mode: manual',
+        ''
+      ].join('\n')
+    )
+    const own = 'approvals:\n  mode: manual\n  deny:\n    - rm *\n'
+    expect(ensureSectionList(own, 'approvals', 'deny', APPROVAL_DENY).changed).toBe(false)
+  })
+})
+

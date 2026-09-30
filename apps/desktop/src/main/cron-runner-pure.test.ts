@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import {
   cronRunnerSpawnEnv,
@@ -46,5 +47,16 @@ describe('cronRunnerSpawnEnv (3F.D1, D-136)', () => {
     expect(
       cronRunnerSpawnEnv({ GATEWAY_MULTIPLEX_PROFILES: 'false' }, '/h').GATEWAY_MULTIPLEX_PROFILES
     ).toBe('true')
+  })
+
+  // D-164: общий с отдельным Hermes каталог блокировок гасил наш планировщик.
+  it('keeps gateway locks inside the profile, the same dir serve uses', async () => {
+    const specifier = pathToFileURL(join(__dirname, '..', '..', '..', '..', 'runtime', 'hermes-env.mjs'))
+    const { gatewayLockDir } = (await import(/* @vite-ignore */ specifier.href)) as {
+      gatewayLockDir: (home: string) => string
+    }
+    const env = cronRunnerSpawnEnv({ HERMES_GATEWAY_LOCK_DIR: '/shared' }, '/home/p')
+
+    expect(env.HERMES_GATEWAY_LOCK_DIR).toBe(gatewayLockDir('/home/p'))
   })
 })

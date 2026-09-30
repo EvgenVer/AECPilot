@@ -1,11 +1,12 @@
 // Task 3G.18 (D-141): our `hermes` first on the PATH of the core's processes.
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { AEC_BIN_DIR, RUNTIME_DIR, withOurHermesOnPath } from "./hermes-env.mjs";
+import { AEC_BIN_DIR, gatewayLockDir, RUNTIME_DIR, withOurHermesOnPath } from "./hermes-env.mjs";
 
 describe("withOurHermesOnPath", () => {
   it("puts our folder first and keeps the rest in order", () => {
@@ -72,14 +73,37 @@ describe("withOurHermesOnPath", () => {
 });
 
 describe("the wrappers", () => {
-  it("both point at the pinned core in runtime/.hermes-venv, nowhere else", () => {
+  it("both go through the gate with the pinned core's Python, nowhere else", () => {
     const sh = fs.readFileSync(path.join(AEC_BIN_DIR, "hermes"), "utf-8");
     const cmd = fs.readFileSync(path.join(AEC_BIN_DIR, "hermes.cmd"), "utf-8");
+    const gate = fs.readFileSync(path.join(AEC_BIN_DIR, "hermes_gate.py"), "utf-8");
 
     expect(sh.startsWith("#!/bin/sh\n")).toBe(true);
     expect(sh).toContain('venv="$here/../.hermes-venv"');
-    expect(cmd).toContain('"%~dp0..\\.hermes-venv\\Scripts\\hermes.exe" %*');
+    expect(sh).toContain('"$here/hermes_gate.py" "$@"');
+    expect(cmd).toContain('"%~dp0..\\.hermes-venv\\Scripts\\python.exe" "%~dp0hermes_gate.py" %*');
+    expect(gate).toContain('os.path.join(venv, "Scripts", "hermes.exe")');
     expect(path.dirname(AEC_BIN_DIR)).toBe(RUNTIME_DIR);
+  });
+
+  // D-165: 30.09.2026 агент поставил MCP-сервер через `printf 'y' | hermes mcp add …`.
+  const venvPython = path.join(RUNTIME_DIR, ".hermes-venv", "Scripts", "python.exe");
+  it.skipIf(!fs.existsSync(venvPython))("the gate lets through only what routines need", () => {
+    const code = [
+      "import sys",
+      `sys.path.insert(0, ${JSON.stringify(AEC_BIN_DIR)})`,
+      "from hermes_gate import allowed",
+      "cases = [",
+      "  ['-p', 'smeta-kopiya', 'chat', '-c', 'Routine: x', '-q', 'mcp add config set'],",
+      "  ['--profile=smeta', 'chat'], ['chat', '-q', 'hi'], ['--version'], ['-h'],",
+      "  ['mcp', 'add', 'fs'], ['-p', 'default', 'mcp', 'add', 'fs'], ['config', 'set', 'a', 'b'],",
+      "  ['plugins', 'install', 'x'], ['--yolo', 'chat'], [], ['-p'],",
+      "]",
+      "print(''.join('1' if allowed(c) else '0' for c in cases))",
+    ].join("\n");
+    const out = execFileSync(venvPython, ["-c", code], { encoding: "utf-8" }).trim();
+
+    expect(out).toBe("11111" + "0000000");
   });
 
   it("carry no key and set no HERMES_HOME — both come from the calling process", () => {
@@ -87,5 +111,12 @@ describe("the wrappers", () => {
       const text = fs.readFileSync(path.join(AEC_BIN_DIR, name), "utf-8");
       expect(text).not.toMatch(/API_KEY|HERMES_HOME=/);
     }
+  });
+});
+
+describe("gatewayLockDir (D-164)", () => {
+  it("lives inside the profile, not in the shared ~/.local/state/hermes", () => {
+    const home = path.join("D:", "aec", "profile");
+    expect(path.dirname(gatewayLockDir(home))).toBe(home);
   });
 });
