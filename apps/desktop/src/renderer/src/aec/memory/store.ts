@@ -7,6 +7,7 @@
 import { atom } from 'nanostores'
 
 import type { MemoryFact } from '../../../../shared/ipc'
+import { requestFreshSession } from '../../donor/store/profile'
 
 export interface MemoryNotesView {
   /** Пусто — записки ещё нет; это обычное состояние чистого профиля. */
@@ -89,10 +90,17 @@ export const FACTS_IDLE: MemoryFactsView = {
 
 export const $memoryFacts = atom<MemoryFactsView>(FACTS_IDLE)
 
+// D-161 (решение владельца 2026-09-30). Удалённый факт возвращается, если
+// продолжить разговор, где он прозвучал: фоновый разбор хода у ядра видит всю
+// историю и пишет его в память снова. Поэтому после удаления агент поднимается
+// в НОВОМ сеансе; прежняя переписка остаётся в истории.
+let factDeleted = false
+
 /** Гасит агента и читает хранилище. Цену человек видит до нажатия — текстом
  *  рядом с кнопкой. */
 export async function openMemoryFacts(): Promise<void> {
   $memoryFacts.set({ ...FACTS_IDLE, state: 'reading' })
+  factDeleted = false
 
   const answer = await window.aecpilot.readMemoryFacts()
   $memoryFacts.set(
@@ -109,6 +117,7 @@ export async function deleteMemoryFact(id: string): Promise<string> {
   const answer = await window.aecpilot.deleteMemoryFact(id)
   if (!answer.ok) return answer.error
 
+  factDeleted = true
   const view = $memoryFacts.get()
   $memoryFacts.set({ ...view, facts: view.facts.filter((fact) => fact.id !== id) })
   return ''
@@ -125,5 +134,9 @@ export async function closeMemoryFacts(): Promise<string> {
   // снова посреди подъёма (D-110).
   const answer = await window.aecpilot.closeMemoryFacts()
   $memoryFacts.set(FACTS_IDLE)
+  if (factDeleted) {
+    factDeleted = false
+    requestFreshSession()
+  }
   return answer.ok ? '' : answer.error
 }

@@ -153,13 +153,15 @@ test('51.1.1 экран памяти открылся, текст записки
 test('51.1.2 записка читается при открытии окна — правка агента видна сразу', async () => {
   const page = await ui()
   // Правка «агентом» — запись в файл записки мимо окна, так же, как это
-  // делает их инструмент памяти.
+  // делает их инструмент памяти. Текст НЕ про резерв мощности: записка уходит в
+  // промпт каждого хода, и 42.6.3 («удалённого факта нет в ответе») получала его
+  // отсюда, а не из памяти проекта (замер 30.09.2026).
   const agentNote = join(String(stand.get().profileDir), 'memories', 'MEMORY.md')
-  writeFileSync(agentNote, 'Объект e2e: резерв мощности обсуждается.\n', 'utf8')
+  writeFileSync(agentNote, 'Объект e2e: марка бетона обсуждается.\n', 'utf8')
 
   const dialog = await openMemory(page)
   await expect(dialog.getByRole('textbox', { name: 'Записка агента' })).toHaveValue(
-    /Объект e2e: резерв мощности обсуждается/
+    /Объект e2e: марка бетона обсуждается/
   )
   await closeMemory(page)
 })
@@ -266,6 +268,7 @@ test('42.3.4 счётчик называет число фактов проек�
   const page = await ui()
   const dialog = memoryDialog(page)
   const count = await factRows(dialog).count()
+  console.log('42.3 ФАКТЫ ' + JSON.stringify(await factRows(dialog).allInnerTexts()))
   await expect(dialog).toContainText(`Фактов в этом проекте: ${count}`)
 })
 
@@ -317,19 +320,20 @@ test('42.6.2 после «Закрыть список» агент снова о
   await agentAnswers(await ui())
 })
 
-// D-161 (ждёт решения владельца). Удалённый факт возвращается: после «Закрыть
-// список» разговор с фразой «Запомни: резерв…» продолжается, и их фоновый разбор
-// после хода (`background_review`) видит её в истории, не находит факта в памяти
-// и записывает заново — своими словами, по-английски. Замер 29.09.2026, 4 из 4:
-// перед вопросом в списке уже новый факт «User established a power reserve of
-// 20 percent…», `mem0_search` его находит. Проверка оставлена целиком.
-test.fixme('42.6.3 удалённого факта в ответе агента нет', async () => {
+// D-161 (решение владельца 2026-09-30, задача 3G.29). Если продолжить разговор с
+// фразой «Запомни: резерв…», их фоновый разбор после хода (`background_review`)
+// видит её в истории, не находит факта в памяти и записывает заново (замер
+// 29.09.2026, 4 из 4). Поэтому после удаления факта «Закрыть список» поднимает
+// агента в НОВОМ сеансе — сам, без кнопки; прежняя переписка остаётся в истории.
+test('42.6.3 удалённого факта нет ни в ответе, ни в списке; прежний разговор в истории', async () => {
   const page = await ui()
-  // В НОВОМ сеансе: после «Закрыть список» ядро поднимает прежний разговор с его
-  // историей (замер 29.09.2026), а там стоит сама фраза «Запомни: резерв…» —
-  // вопрос в том же чате проверял бы историю, а не память.
-  await page.getByRole('button', { name: /^Новый сеанс/ }).first().click()
-  await expect(page.getByText('Запомни: резерв мощности')).toHaveCount(0, { timeout: 15000 })
+  // Лента отрисована (ход 42.6.2 в ней), и фразы шага 1 в ней нет. Без первой
+  // строки `toHaveCount(0)` проходил сразу — пока лента ещё пуста.
+  await expect(page.getByText('Какого цвета ясное небо днём').first()).toBeVisible({ timeout: 30000 })
+  await expect(
+    page.getByText('Запомни: резерв мощности'),
+    'после удаления факта агент поднялся в новом сеансе'
+  ).toHaveCount(0)
   const result = await turn(
     page,
     'Что ты помнишь про этот объект? Ответь коротко, одной-двумя фразами.',
@@ -338,7 +342,28 @@ test.fixme('42.6.3 удалённого факта в ответе агента 
   console.log('42.6.3 ' + result.transcript)
   expect(result.status, result.transcript).toBe('complete')
   expect(result.text, 'удалённый факт про резерв 20 % не назван').not.toMatch(/20\s*%|резерв/i)
+
+  const dialog = await openFacts(page)
+  await expect(
+    factRows(dialog).filter({ hasText: /20\s*(%|percent)|резерв|power reserve/i }),
+    'фоновый разбор не записал факт заново'
+  ).toHaveCount(0)
+  await hideFacts(page)
+  await closeMemory(page)
+
+  // Прежний разговор — в истории: поиск сеансов ядра ищет по тексту сообщений.
+  await page.getByPlaceholder('Поиск сеансов…').fill('резерв')
+  const old = page.locator('button[data-slot="row-button"]').filter({ hasText: /резерв/i }).first()
+  await expect(old, 'прежний разговор находится в истории').toBeVisible({ timeout: 30000 })
+  // Щелчок событием, а не мышью: строки сортируемые, и слой перетаскивания
+  // перехватывает нажатие (см. donor-shell-smoke, позиция 4).
+  await old.dispatchEvent('click', { bubbles: true })
+  await expect(page.getByText('Запомни: резерв мощности').first()).toBeVisible({ timeout: 30000 })
+  await page.getByPlaceholder('Поиск сеансов…').fill('')
   await record(test.info(), page, { transcript: result.transcript })
+  // Дальше — не в прежнем разговоре: ход в нём вернул бы факт (D-161).
+  await page.getByRole('button', { name: /^Новый сеанс/ }).first().click()
+  await expect(page.getByText('Запомни: резерв мощности')).toHaveCount(0, { timeout: 15000 })
 })
 
 test('42.7.1 закрытие окна при открытом списке сначала поднимает агента', async () => {

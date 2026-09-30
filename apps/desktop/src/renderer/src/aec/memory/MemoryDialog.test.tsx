@@ -10,6 +10,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MemoryFact } from '../../../../shared/ipc'
+import { $freshSessionRequest } from '../../donor/store/profile'
 import { AecI18nProvider } from '../../shared/i18n'
 
 import MemoryDialog from './MemoryDialog'
@@ -230,6 +231,29 @@ describe('список фактов памяти проекта', () => {
 
     await waitFor(() => expect(closes).toBe(1))
     expect(screen.getByText(/читается только при остановленном агенте/)).toBeTruthy()
+  })
+
+  // D-161: удалённый факт фоновый разбор ядра записал бы снова из прежнего разговора.
+  it('после удаления факта агент поднимается в новом сеансе', async () => {
+    const before = $freshSessionRequest.get()
+    show()
+    await showList()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0])
+    await waitFor(() => expect(deletes).toEqual(['f-1']))
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть список и поднять агента' }))
+
+    await waitFor(() => expect(closes).toBe(1))
+    expect($freshSessionRequest.get()).toBe(before + 1)
+  })
+
+  it('без удаления прежний разговор продолжается', async () => {
+    const before = $freshSessionRequest.get()
+    show()
+    await showList()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть список и поднять агента' }))
+
+    await waitFor(() => expect(closes).toBe(1))
+    expect($freshSessionRequest.get()).toBe(before)
   })
 
   it('пока агент поднимается, кнопка так и говорит, а открыть список снова нельзя', async () => {
