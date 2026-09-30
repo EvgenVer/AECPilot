@@ -84,23 +84,49 @@ switch ($Action) {
     $auto = [System.Windows.Automation.AutomationElement]
     $class = New-Object System.Windows.Automation.PropertyCondition($auto::ClassNameProperty, '#32770')
     $rows = @()
-    foreach ($dialog in @($auto::RootElement.FindAll('Children', $class))) {
+    # Модальный диалог с окном-владельцем UIA кладёт ПОТОМКОМ окна приложения, а
+    # не корня (замер 30.09.2026: окно «Сохранение» есть, в детях корня — нет).
+    $pidCond = New-Object System.Windows.Automation.PropertyCondition($auto::ProcessIdProperty, [int]$Pid2)
+    $found = @($auto::RootElement.FindAll('Children', $class))
+    foreach ($owner in @($auto::RootElement.FindAll('Children', $pidCond))) {
+      $found += @($owner.FindAll('Children', $class))
+    }
+    foreach ($dialog in $found) {
       if ($dialog.Current.ProcessId -ne $Pid2) { continue }
       # Поле имени файла у стандартного диалога — Edit с AutomationId 1001.
       $idName = New-Object System.Windows.Automation.PropertyCondition($auto::AutomationIdProperty, '1001')
-      $field = $dialog.FindFirst('Descendants', $idName)
+      # Поле имени живёт внутри FileNameControlHost; второй 1001 — адресная строка.
+      # Эта сборка Windows отдаёт имя элементом Pane через Name, без ValuePattern
+      # (замер 30.09.2026: Pane id=1001 name='image.png').
+      $idHost = New-Object System.Windows.Automation.PropertyCondition($auto::AutomationIdProperty, 'FileNameControlHost')
+      $scope = $dialog.FindFirst('Descendants', $idHost)
+      if (-not $scope) { $scope = $dialog }
       $fileName = ''
-      if ($field) {
+      foreach ($field in @($scope.FindAll('Descendants', $idName))) {
         try {
           $fileName = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
         } catch {}
+        if (-not $fileName) { $fileName = $field.Current.Name }
+        if ($fileName) { break }
       }
       $rows += @{ title = $dialog.Current.Name; fileName = $fileName; hwnd = [int64]$dialog.Current.NativeWindowHandle }
       if ($Cancel) {
         $idCancel = New-Object System.Windows.Automation.PropertyCondition($auto::AutomationIdProperty, '2')
-        $button = $dialog.FindFirst('Descendants', $idCancel)
-        if ($button) {
-          $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        # Закрытие окна равно отмене. Искать «Отмену» по id 2 ненадёжно: тот же id
+        # у строки списка файлов («out»), а сама «Отмена» — Pane без InvokePattern
+        # (замер 30.09.2026).
+        $closed = $false
+        try {
+          $dialog.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+          $closed = $true
+        } catch {}
+        if (-not $closed) {
+          $isButton = New-Object System.Windows.Automation.PropertyCondition($auto::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+          $cancel = New-Object System.Windows.Automation.AndCondition($idCancel, $isButton)
+          $button = $dialog.FindFirst('Descendants', $cancel)
+          if ($button) {
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+          }
         }
       }
     }
