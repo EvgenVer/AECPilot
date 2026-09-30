@@ -78,7 +78,9 @@ test('44.1.1 страница открывается в окне; адресна
     .poll(() => guestEval<string>(app, 'document.body.innerText', 'example.com'), {
       timeout: 60000
     })
-    .toContain('Example Domain')
+    // 30.09.2026 example.com сменил текст: заголовка «Example Domain» в теле больше
+    // нет, есть «This domain is for use in documentation examples…».
+    .toMatch(/Example Domain|documentation examples/)
 
   const address = page.getByRole('textbox', { name: 'Адрес' }).last()
   await address.click()
