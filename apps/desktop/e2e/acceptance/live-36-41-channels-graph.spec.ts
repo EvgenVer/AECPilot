@@ -7,7 +7,13 @@
 
 import { expect, test, type Page } from '@playwright/test'
 
-import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import {
+  clearNotifications,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  standFixture
+} from '../lib/app'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -471,6 +477,10 @@ test('36.8.2 цена перезапуска названа ДО нажатия,
   await expect(enable, 'приёмник на стенде выключен — иначе цену не увидеть').toBeVisible({
     timeout: 30000
   })
+  // Прежние тосты спеки убираются ДО окна согласия: их стопка показывает сверху
+  // старый («Не удалось обновить Telegram»), а новый прячет под «Показать ещё N»
+  // (замер 30.09.2026). Щелчок по тосту поверх окна закрыл бы и само окно.
+  await clearNotifications(page)
   await enable.click()
 
   const dialog = page.getByRole('dialog', { name: 'Включить приёмник вебхуков?' })
