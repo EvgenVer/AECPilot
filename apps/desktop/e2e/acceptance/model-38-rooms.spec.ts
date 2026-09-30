@@ -292,7 +292,13 @@ test('38.6.1 комната появилась в списке с именем �
   await expect(page.getByRole('button', { name: byMembers }).first()).toBeVisible({
     timeout: 30000
   })
-  await expect(roomsSection(page), 'раздел появился с первой комнатой').toBeVisible()
+  // Раздел «Комнаты» донор выводит только при специалистах нескольких ядер
+  // (`rosterGatewaySections`: больше одного шлюза); у стенда ядро одно, и
+  // комната стоит в общем списке строкой «Участников: 3» (3G.37, 30.09.2026).
+  await expect(
+    page.locator('[data-slot="bots-roster"]').getByText('Участников: 3').first(),
+    'комната — в общем списке панели'
+  ).toBeVisible()
   await record(test.info(), page)
 })
 
@@ -534,16 +540,19 @@ test('38.15.3 ответы ссылаются на содержимое файл
     .click()
   await (await chooser).setFiles(file)
   await expect(page.getByText('нагрузки.txt').first()).toBeVisible({ timeout: 15000 })
-  const before = await roomText(page)
+  // «Каждый ответьте сам»: без этого участники по правилам комнаты пропускают ход
+  // («passed»), когда число уже назвал первый (Gemini, 30.09.2026: 2 из 3).
   await composer(page).fill(
-    '@everyone Какая нагрузка на перекрытие П-1 указана в приложенном файле? Назовите число.'
+    '@everyone Какая нагрузка на перекрытие П-1 указана в приложенном файле? Каждый ответьте сам, даже если число уже назвали, — назовите число.'
   )
   await composer(page).press('Escape')
   await composer(page).press('Enter')
   await expect(page.getByText(/Комната работает…|думает…/).first()).toBeVisible({ timeout: 60000 })
   await roundDone(page)
+  // Отсчёт от самого вопроса, а не по длине прежнего текста: лента комнаты
+  // перерисовывается, и срез по длине отрезал начало ответов (30.09.2026).
   const after = await roomText(page)
-  const added = after.slice(before.length)
+  const added = after.slice(after.lastIndexOf('Каждый ответьте сам'))
   console.log('38.15 ' + added.replace(/\n/g, ' ⏎ ').slice(0, 2000))
   const mentions = added.match(/7[,.]5/g) ?? []
   expect(mentions.length, 'число из файла назвали хотя бы двое').toBeGreaterThanOrEqual(2)
