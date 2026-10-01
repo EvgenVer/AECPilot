@@ -325,7 +325,7 @@ test('42.6.2 после «Закрыть список» агент снова о
 // видит её в истории, не находит факта в памяти и записывает заново (замер
 // 29.09.2026, 4 из 4). Поэтому после удаления факта «Закрыть список» поднимает
 // агента в НОВОМ сеансе — сам, без кнопки; прежняя переписка остаётся в истории.
-test('42.6.3 удалённого факта нет ни в ответе, ни в списке; прежний разговор в истории', async () => {
+test('42.6.3 удалённого факта нет ни в ответе, ни в списке', async () => {
   const page = await ui()
   // Лента отрисована (ход 42.6.2 в ней), и фразы шага 1 в ней нет. Без первой
   // строки `toHaveCount(0)` проходил сразу — пока лента ещё пуста.
@@ -350,7 +350,11 @@ test('42.6.3 удалённого факта нет ни в ответе, ни �
   ).toHaveCount(0)
   await hideFacts(page)
   await closeMemory(page)
+  await record(test.info(), page, { transcript: result.transcript })
+})
 
+test('42.6.4 прежний разговор с фразой из шага 1 находится в истории и открывается', async () => {
+  const page = await ui()
   // Прежний разговор — в истории: поиск сеансов ядра ищет по тексту сообщений.
   await page.getByPlaceholder('Поиск сеансов…').fill('резерв')
   const old = page.locator('button[data-slot="row-button"]').filter({ hasText: /резерв/i }).first()
@@ -360,7 +364,7 @@ test('42.6.3 удалённого факта нет ни в ответе, ни �
   await old.dispatchEvent('click', { bubbles: true })
   await expect(page.getByText('Запомни: резерв мощности').first()).toBeVisible({ timeout: 30000 })
   await page.getByPlaceholder('Поиск сеансов…').fill('')
-  await record(test.info(), page, { transcript: result.transcript })
+  await record(test.info(), page)
   // Дальше — не в прежнем разговоре: ход в нём вернул бы факт (D-161).
   await page.getByRole('button', { name: /^Новый сеанс/ }).first().click()
   await expect(page.getByText('Запомни: резерв мощности')).toHaveCount(0, { timeout: 15000 })

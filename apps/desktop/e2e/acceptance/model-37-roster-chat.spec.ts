@@ -6,6 +6,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import {
+  clearNotifications,
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
@@ -256,6 +257,8 @@ async function smetaJob(page: Page): Promise<CronJobRow | undefined> {
   return jobs.find((job) => job.name === `[bot:smeta-kopiya] ${ROUTINE}`)
 }
 
+let hintText = ''
+
 test('37.15.1 «Запустить сейчас»: рутина отработала', async () => {
   test.setTimeout(600000)
   // Чат клона открыт с 37.13.
@@ -271,6 +274,8 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   const create = page.getByRole('button', { name: 'Новый cron' }).first()
   if (!(await create.isVisible())) await tab.click()
   await expect(create).toBeVisible({ timeout: 120000 })
+  // Новая подсказка 30.7.1 не должна спрятаться в стопке прежних тостов.
+  await clearNotifications(page)
   await create.click()
   const dialog = page.getByRole('dialog').last()
   await dialog.getByRole('textbox').nth(0).fill(ROUTINE)
@@ -284,6 +289,14 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   await page.getByRole('option', { name: 'В чат Смета копия (специалист отвечает)' }).click()
   await dialog.getByRole('button', { name: /^Создать cron$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 30000 })
+  // 30.7.1 (D-163): рутина с доставкой в чат специалиста — подсказка, где появится
+  // результат. Проверяется в своей позиции ниже.
+  hintText = await page
+    .locator('[role="status"], [role="alert"]')
+    .filter({ hasText: 'Где появится результат рутины' })
+    .first()
+    .innerText({ timeout: 15000 })
+    .catch(() => '')
 
   // Планировщик: первая рутина предлагает его поднять (блок 30) — и рутина
   // специалиста тоже, она заводится через RPC `cron.manage` (D-135). Без него
@@ -325,6 +338,13 @@ test('37.15.1 «Запустить сейчас»: рутина отработа
   })
   await rail.getByRole('button', { name: /^Переключиться на / }).click()
   await expect(clone).toHaveAttribute('aria-pressed', 'false', { timeout: 30000 })
+})
+
+test('30.7.1 появилась подсказка «Где появится результат рутины»', () => {
+  expect(hintText, 'подсказка показана при создании рутины в чат специалиста').toContain(
+    'Где появится результат рутины'
+  )
+  expect(hintText).toMatch(/после вашей реплики|переоткроете чат/)
 })
 
 // D-141 закрыта задачей 3G.18: рутина исполняется командой `hermes -p <профиль>
@@ -395,7 +415,7 @@ test('37.16.2 рутины скрытого специалиста продол�
 // расписанию (37.16.2) доставлен. Доставка у задачи одна — «В чат Смета копия»
 // (37.15.1), и на глаз она уже проверена в 37.15.2; здесь — что запуск по
 // расписанию дошёл до доставки, а не остановился на истории запусков.
-test('30.7.2 после срабатывания результат лёг в чат ЭТОГО специалиста', async () => {
+test('30.7.3 после срабатывания результат лёг в чат ЭТОГО специалиста', async () => {
   test.setTimeout(600000)
   const page = await ui()
   await expect
