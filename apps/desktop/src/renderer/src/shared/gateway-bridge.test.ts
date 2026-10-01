@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GatewayBridge, JsonRpcGatewayError, toDonorState } from './gateway-bridge'
+import { createGatewayEventDedupe } from '../donor/app/gateway/gateway-event-dedupe'
 import type { AecpilotApi } from '../../../shared/ipc'
 import type {
   GatewayConnectionState,
@@ -427,5 +428,30 @@ describe('провайдеры без ключа в выборе модели (D
     expect(answer.providers[0].name).toBe('OpenRouter')
     await bridge.request('profiles.configure', { name: 'a', model: 'm', provider: 'openrouter' })
     expect(stub.rpc).toHaveBeenCalledTimes(2)
+  })
+})
+
+// D-132: каждый их клиент здесь — псевдоним одного соединения, поэтому кадр
+// сессии специалиста доходит до их общего обработчика дважды: от основного
+// клиента (метка `connectionId: 'local'`) и от клиента профиля (без метки).
+// Их фильтр должен узнать вторую копию — по эпохе, которую ставит главный процесс.
+describe('копии одного кадра от двух их клиентов', () => {
+  const frame = { type: 'message.delta', session_id: 'с-1', seq: 7, replayEpoch: 'e1' }
+
+  it('с эпохой проходят фильтр донора один раз', () => {
+    const dedupe = createGatewayEventDedupe()
+    const primary = { ...frame, connectionId: 'local', profile: 'default' }
+    const secondary = { ...frame, profile: 'smeta' }
+    expect(dedupe.admit(primary as never)).toBe(true)
+    expect(dedupe.admit(secondary as never)).toBe(false)
+  })
+
+  it('мост отдаёт эпоху их обработчикам как есть', async () => {
+    const stub = stubApi()
+    const bridge = new GatewayBridge(stub.api)
+    const seen: unknown[] = []
+    bridge.onAny((event) => seen.push(event))
+    stub.emitEvent(frame as GatewayEvent)
+    expect(seen).toEqual([frame])
   })
 })

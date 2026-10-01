@@ -11,6 +11,7 @@ import {
   noteEvent,
   planCatchUp,
   readCatchUp,
+  tagReplayEpoch,
   type ReplayWatermark
 } from './event-replay-pure'
 
@@ -168,5 +169,20 @@ describe('разбор ответа переигровки', () => {
 
     expect(reading.deliver.map((item) => item.params.seq)).toEqual([6])
     expect(reading.watermark.epoch).toBe('e1')
+  })
+})
+
+// D-132: их фильтр дублей узнаёт один кадр, пришедший двумя их клиентами, по
+// эпохе процесса; без неё ключ берётся из `connectionId`, а он у основного
+// клиента и у клиента профиля специалиста разный.
+describe('метка процесса на кадре для окна', () => {
+  it('кадр едет к окну с эпохой шлюза', () => {
+    const state = noteEvent(EMPTY_WATERMARK, ready('e1'))
+    expect(tagReplayEpoch(state, delta(3))).toEqual({ ...delta(3), replayEpoch: 'e1' })
+  })
+
+  it('ядро без эпохи — кадр не меняется', () => {
+    const event = delta(3)
+    expect(tagReplayEpoch(EMPTY_WATERMARK, event)).toBe(event)
   })
 })

@@ -51,6 +51,22 @@ export function noteEvent(state: ReplayWatermark, params: EventParams): ReplayWa
   return { epoch, lastSeq: Math.max(state.lastSeq, seq) }
 }
 
+/**
+ * Кадр для окна с эпохой шлюза (D-132) — то, что их клиент ставит сам
+ * (`json-rpc-gateway.ts`, `dispatchEvent`). Их пул держит по клиенту на профиль,
+ * и у нас все они — псевдонимы одного соединения: кадр сессии специалиста
+ * доходит до их обработчика дважды. Их фильтр дублей узнаёт копию по
+ * `(replayEpoch, session_id, seq)`; без эпохи ключ берётся из `connectionId`,
+ * а он у основного клиента `local`, у клиента профиля пуст — и каждая дельта
+ * печаталась дважды («ПрПриветивет»).
+ */
+export function tagReplayEpoch<E extends EventParams>(
+  state: ReplayWatermark,
+  event: E
+): E | (E & { replayEpoch: string }) {
+  return state.epoch === '' ? event : { ...event, replayEpoch: state.epoch }
+}
+
 function readEpoch(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return ''
   const value = (payload as Record<string, unknown>).replay_epoch

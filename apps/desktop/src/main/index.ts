@@ -184,6 +184,7 @@ import {
   noteEvent,
   planCatchUp,
   readCatchUp,
+  tagReplayEpoch,
   type ReplayWatermark
 } from './event-replay-pure'
 import {
@@ -739,7 +740,8 @@ async function connectGateway(url: string): Promise<void> {
     // приложении сокет был у рендерера, и он видел все кадры — маршрутизация
     // по сессии у них своя (плитки, фоновые сессии).
     rememberMcpStatus(event)
-    broadcastToWindows('chat:event', event)
+    // D-132: с эпохой их фильтр узнаёт кадр, дошедший двумя их клиентами.
+    broadcastToWindows('chat:event', tagReplayEpoch(replayWatermark, event))
   })
   // Вопросы ядра окну (0.21.3, задача 3.B5в): уточнение, подтверждение команды,
   // секрет, sudo, чтение терминала/предпросмотра, согласие на MCP, шаг тура.
@@ -809,7 +811,8 @@ async function catchUpAfterReconnect(): Promise<void> {
       const event = frame.params as GatewayEvent
       if (event.session_id && event.session_id !== sessionId) continue
       rememberMcpStatus(event)
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', event)
+      const tagged = tagReplayEpoch(replayWatermark, event)
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('chat:event', tagged)
     }
 
     console.info(
