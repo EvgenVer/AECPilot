@@ -256,6 +256,10 @@ _MEMORY_ROUTING_SECTION = (
 # is_deferrable_tool_name`), настройки «сервер виден сразу» нет. Имя в подсказке
 # снимает шаг поиска. Эвал — отказ владельца того же дня; проверка — живые
 # позиции приёмки с вопросами по документам ×3.
+#
+# Пункт «OS windows» — D-123 (решение владельца 2026-10-01): инструменты окна ОС
+# набора `desktop_ui` ядро тоже держит отложенными, и модель отвечала «инструмент
+# недоступен». Эвал — отказ владельца; проверка — вопрос без имени инструмента ×3.
 _PRODUCT_SECTION = (
     "Product context. You are the assistant of AECPilot; call the product AECPilot. "
     "Do not send the person to Hermes Agent or Nous Research documentation: that runtime is "
@@ -269,7 +273,8 @@ _PRODUCT_SECTION = (
     "This refines the memory guidance above.\n"
     "- Project documents: call mcp__aec_rag__rag_query via tool_call directly, no "
     "tool_search first; sources: mcp__aec_sources__sources_list, "
-    "mcp__aec_sources__sources_tree, mcp__aec_sources__sources_read."
+    "mcp__aec_sources__sources_tree, mcp__aec_sources__sources_read.\n"
+    "- OS windows: read_window_below, read_terminal, desktop_preview via tool_call directly."
 )
 
 
