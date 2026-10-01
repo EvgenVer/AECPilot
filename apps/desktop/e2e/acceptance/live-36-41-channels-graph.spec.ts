@@ -162,11 +162,8 @@ test('36.3.1 тумблер Telegram: вопрос со списком, что �
 
   const dialog = disclosure(page)
   await expect(dialog).toBeVisible({ timeout: 15000 })
-  // Заголовок называет канал его ИДЕНТИФИКАТОРОМ (`telegram`), а не именем с
-  // карточки («Telegram»). Для четырёх каналов это одно и то же слово, а для
-  // уведомлений Graph выходит «Открыть канал msgraph_webhook?» — замечание
-  // записано в TASKS, поведением это не считается.
-  await expect(dialog).toContainText('Открыть канал telegram?')
+  // D-107: заголовок называет канал именем с его карточки, а не id из конфига.
+  await expect(dialog).toContainText('Открыть канал Telegram?')
   await expect(dialog, 'что уходит: переписка').toContainText('всё сказанное в сессиях')
   await expect(dialog, 'доступ к файлам').toContainText('читает и пишет файлы vault')
   await expect(dialog, 'запуск снаружи').toContainText('возможность запустить его снаружи')

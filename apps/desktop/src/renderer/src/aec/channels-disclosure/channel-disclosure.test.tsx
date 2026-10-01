@@ -120,3 +120,31 @@ describe('раскрытие перед включением канала', () =
     expect(rest).not.toHaveBeenCalled()
   })
 })
+
+// D-107 (решение владельца 2026-10-01): человек отвечает «да» на вопрос,
+// который должен понимать, — канал назван так же, как на его карточке.
+describe('имя канала в вопросе', () => {
+  test('берётся из списка каналов, который экран уже прочитал', async () => {
+    const bridge = createHermesDesktopBridge()
+    rest.mockResolvedValueOnce({
+      platforms: [{ id: 'msgraph_webhook', name: 'Microsoft Graph', enabled: false }]
+    })
+    await bridge.api({ path: '/api/messaging/platforms' })
+    void bridge.api({ ...ENABLE, path: '/api/messaging/platforms/msgraph_webhook' })
+    await vi.waitFor(() => expect($channelConsent.get()).not.toBeNull())
+
+    renderDialog()
+
+    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe('Открыть канал Microsoft Graph?')
+  })
+
+  test('без списка — идентификатор, как раньше', async () => {
+    const bridge = createHermesDesktopBridge()
+    void bridge.api({ ...ENABLE, path: '/api/messaging/platforms/unknown_channel' })
+    await vi.waitFor(() => expect($channelConsent.get()).not.toBeNull())
+
+    renderDialog()
+
+    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe('Открыть канал unknown_channel?')
+  })
+})

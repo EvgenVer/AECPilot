@@ -33,7 +33,7 @@ import {
   isPlatformListing,
   shortlistPlatforms
 } from '../aec/channels-disclosure/disclosure-pure'
-import { askChannelConsent } from '../aec/channels-disclosure/store'
+import { askChannelConsent, rememberPlatformNames } from '../aec/channels-disclosure/store'
 import {
   installBeingRequested,
   mcpPutRequest,
@@ -413,7 +413,10 @@ const IMPLEMENTED: Record<string, unknown> = {
     // при следующем переносе. Уже ВКЛЮЧЁННЫЙ канал не прячется никогда — иначе
     // у человека пропал бы выключатель от того, что прямо сейчас работает.
     return isPlatformListing(request)
-      ? answer.then((value) => shortlistPlatforms(value) as T)
+      ? answer.then((value) => {
+          rememberPlatformNames(value)
+          return shortlistPlatforms(value) as T
+        })
       : answer
   },
 

@@ -156,3 +156,19 @@ export function shortlistPlatforms(answer: unknown): unknown {
     })
   }
 }
+
+/** Имена каналов с их карточек из того же ответа ядра (D-107): вопрос о
+ * включении называет канал так, как его видит человек, а не id из конфига. */
+export function platformNames(answer: unknown): Map<string, string> {
+  const names = new Map<string, string>()
+  const platforms = (answer as { platforms?: unknown } | null)?.platforms
+  if (!Array.isArray(platforms)) return names
+
+  for (const platform of platforms) {
+    const row = platform as { id?: unknown; name?: unknown } | null
+    if (typeof row?.id === 'string' && typeof row.name === 'string' && row.name.trim()) {
+      names.set(row.id, row.name.trim())
+    }
+  }
+  return names
+}

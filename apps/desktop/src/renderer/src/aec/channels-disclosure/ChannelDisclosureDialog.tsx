@@ -23,7 +23,7 @@ export default function ChannelDisclosureDialog(): React.JSX.Element | null {
 
   if (!request) return null
 
-  const title = t('channels.disclosure.title', request.platformId)
+  const title = t('channels.disclosure.title', request.platformName)
 
   return (
     <div
