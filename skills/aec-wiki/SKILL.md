@@ -419,16 +419,20 @@ Policy, never a silent overwrite.
 When the user asks an overview question about the project:
 
 ① **Read `index.md`** to identify relevant pages.
-② **For wikis with 100+ pages**, also `search_files` across all `.md` files
+② **Check freshness — every time, before answering:** call `wiki_stale()`. If a source
+   behind a page you will use changed after the wiki was built, the answer **starts** by
+   saying the wiki is out of date for that topic, gives the current value from the
+   document (`rag_query`) next to the wiki's, and offers «обнови вики». An answer from a
+   stale page without this warning is worse than none.
+③ **For wikis with 100+ pages**, also `search_files` across all `.md` files
    for key terms — the index alone may miss relevant content.
-③ **Read the relevant pages** using `read_file`.
-④ **Synthesize an answer** from the compiled knowledge. Cite the wiki pages
+④ **Read the relevant pages** using `read_file`.
+⑤ **Synthesize an answer** from the compiled knowledge. Cite the wiki pages
    you drew from ("по [[ТП-1]] и [[Электроснабжение]]…"); for an important fact also give
    the document citation the page carries.
-⑤ **Empty or missing topic** — say so, and offer to build the wiki or to answer by
-   document search (the `aec-qa` skill). **Stale** — warn: `wiki_lint()` shows pages whose
-   source was reissued. An answer from a stale page without a warning is worse than none.
-⑥ **File valuable answers back only on request** — a page in `queries/` or
+⑥ **Empty or missing topic** — say so, and offer to build the wiki or to answer by
+   document search (the `aec-qa` skill).
+⑦ **File valuable answers back only on request** — a page in `queries/` or
    `comparisons/`; `queries/` is not a dump of everything ever asked.
 
 ### 4. Lint
