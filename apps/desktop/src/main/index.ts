@@ -223,12 +223,14 @@ import {
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
 import {
-  memoryProviderSettings,
+  memoryProvider,
+  parseDataProviders,
   pendingEmbeddingSwitch,
-  ragProviderEnv,
+  ragProvider,
   readProfileProvider,
-  resolveProvider,
-  type MemoryProviderSettings
+  type DataProviders,
+  type MemoryProviderSettings,
+  type ProfileProvider
 } from './provider-presets-pure'
 import { APPROVAL_DENY, DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
 import {
@@ -322,30 +324,43 @@ async function loadServeModule(): Promise<ServeModule> {
  *  that needs `buildExtraEnv` does first (task 3G.3). */
 let knownHermesHome: string | null = null
 
-/** `AEC_RAG_*` for the provider the agent uses (task 3G.3, D-154): read from the
- *  profile's own `model.provider`, resolved through our preset table. Names and
- *  addresses only; empty when the profile names no usable provider. */
-function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
-  if (!hermesHome) return {}
-  let yamlText = ''
-  try {
-    yamlText = readFileSync(join(hermesHome, 'config.yaml'), 'utf-8')
-  } catch {
-    return {}
+/** The agent's provider (`model.provider` of the profile) and the person's choice
+ *  for RAG and memory (`aec-providers.json`, task 3G.46, D-172). A file that is not
+ *  there reads as empty: no agent provider, or «as the agent». */
+function readDataProviderInputs(hermesHome: string): {
+  agent: ProfileProvider
+  choices: DataProviders
+} {
+  const read = (name: string): string | null => {
+    try {
+      return readFileSync(join(hermesHome, name), 'utf-8')
+    } catch {
+      return null
+    }
   }
-  return ragProviderEnv(resolveProvider(readProfileProvider(yamlText)))
+  return {
+    agent: readProfileProvider(read('config.yaml') ?? ''),
+    choices: parseDataProviders(read('aec-providers.json'))
+  }
 }
 
-/** Задача 3G.4 (D-157): провайдер второго слоя памяти — тот, что выбран для агента.
- *  `null` — выбора нет (или это свой адрес без моделей), память остаётся как была. */
+/** `AEC_RAG_*` for the RAG provider (tasks 3G.3, 3G.46): the agent's by default, or
+ *  the person's own choice. Names and addresses only; empty when there is no usable
+ *  provider — the server then says so per call. */
+function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
+  if (!hermesHome) return {}
+  const { agent, choices } = readDataProviderInputs(hermesHome)
+  const rag = ragProvider(agent, choices)
+  return rag.ok ? rag.env : {}
+}
+
+/** Задачи 3G.4 (D-157), 3G.46 (D-172): провайдер второго слоя памяти — свой, если
+ *  выбран, иначе как у RAG, а тот по умолчанию как у агента. `null` — провайдера нет
+ *  (или у своего адреса не выбраны модели), память остаётся как была. */
 function memoryProviderFromProfile(hermesHome: string): MemoryProviderSettings | null {
-  let yamlText = ''
-  try {
-    yamlText = readFileSync(join(hermesHome, 'config.yaml'), 'utf-8')
-  } catch {
-    return null
-  }
-  return memoryProviderSettings(resolveProvider(readProfileProvider(yamlText)))
+  const { agent, choices } = readDataProviderInputs(hermesHome)
+  const memory = memoryProvider(agent, choices)
+  return memory.ok ? memory.settings : null
 }
 
 // TODO(Phase 5 / task 5.1): resolved relative to this file's location on

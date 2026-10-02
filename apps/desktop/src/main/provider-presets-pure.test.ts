@@ -2,9 +2,13 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_DATA_PROVIDERS,
   PROVIDER_PRESETS,
+  memoryProvider,
+  parseDataProviders,
   pendingEmbeddingSwitch,
   memoryProviderSettings,
+  ragProvider,
   ragProviderEnv,
   readProfileProvider,
   resolveProvider
@@ -191,5 +195,153 @@ describe('ragProviderEnv', () => {
 
   it('is empty without a usable provider', () => {
     expect(ragProviderEnv(resolveProvider({ provider: null }))).toEqual({})
+  })
+})
+
+// Task 3G.46 (D-172): RAG and memory get their own provider choice — by default one,
+// following the agent; a subscription agent has no address our modules can use.
+describe('parseDataProviders (3G.46)', () => {
+  it('defaults to «as the agent» for RAG and «as RAG» for memory when there is no file', () => {
+    expect(parseDataProviders(null)).toEqual(DEFAULT_DATA_PROVIDERS)
+    expect(parseDataProviders('not json')).toEqual(DEFAULT_DATA_PROVIDERS)
+    expect(parseDataProviders('{"rag":{"provider":"openai-codex"}}')).toEqual(
+      DEFAULT_DATA_PROVIDERS
+    )
+  })
+
+  it('reads both choices with their models', () => {
+    const text = JSON.stringify({
+      rag: {
+        provider: 'gemini',
+        embedding: 'gemini-embedding-2',
+        extraction: 'gemini-3.5-flash-lite'
+      },
+      memory: {
+        provider: 'custom',
+        base_url: 'http://lab/v1',
+        key_env: 'LAB_KEY',
+        llm: 'm',
+        embedding: 'e',
+        embedding_dims: 768
+      }
+    })
+    expect(parseDataProviders(text)).toEqual({
+      rag: {
+        provider: 'gemini',
+        embedding: 'gemini-embedding-2',
+        extraction: 'gemini-3.5-flash-lite'
+      },
+      memory: {
+        provider: 'custom',
+        baseUrl: 'http://lab/v1',
+        keyEnvVar: 'LAB_KEY',
+        llm: 'm',
+        embedding: 'e',
+        embeddingDims: 768
+      }
+    })
+  })
+})
+
+describe('ragProvider and memoryProvider (3G.46)', () => {
+  const codex = { provider: 'openai-codex' }
+
+  it('without a file behave as before: the agent provider for both', () => {
+    const rag = ragProvider({ provider: 'gemini' }, DEFAULT_DATA_PROVIDERS)
+    expect(rag).toEqual({ ok: true, env: ragProviderEnv(resolveProvider({ provider: 'gemini' })) })
+    const memory = memoryProvider({ provider: 'gemini' }, DEFAULT_DATA_PROVIDERS)
+    expect(memory).toEqual({
+      ok: true,
+      settings: memoryProviderSettings(resolveProvider({ provider: 'gemini' }))
+    })
+  })
+
+  it('refuse in words for a subscription agent with no choice made, naming the setting', () => {
+    for (const result of [
+      ragProvider(codex, DEFAULT_DATA_PROVIDERS),
+      memoryProvider(codex, DEFAULT_DATA_PROVIDERS)
+    ]) {
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.reason).toContain('openai-codex')
+        expect(result.reason).toContain('Индекс и память')
+      }
+    }
+  })
+
+  it('a RAG choice serves a subscription agent, and memory follows it by default', () => {
+    const choice = parseDataProviders('{"rag":{"provider":"gemini"}}')
+    expect(ragProvider(codex, choice)).toEqual({
+      ok: true,
+      env: {
+        AEC_RAG_BASE_URL: PROVIDER_PRESETS.gemini.baseUrl,
+        AEC_RAG_KEY_ENV: 'GEMINI_API_KEY',
+        AEC_RAG_EMBEDDING_MODEL: 'gemini-embedding-2',
+        AEC_RAG_EXTRACTION_MODEL: 'gemini-3.8-flash'
+      }
+    })
+    expect(memoryProvider(codex, choice)).toEqual({
+      ok: true,
+      settings: {
+        baseUrl: PROVIDER_PRESETS.gemini.baseUrl,
+        keyEnvVar: 'GEMINI_API_KEY',
+        llmModel: 'gemini-3.5-flash-lite',
+        embeddingModel: 'gemini-embedding-2',
+        embeddingDims: 3072
+      }
+    })
+  })
+
+  it('RAG and memory can be given different providers', () => {
+    const choice = parseDataProviders(
+      '{"rag":{"provider":"gemini"},"memory":{"provider":"openai-api"}}'
+    )
+    const rag = ragProvider(codex, choice)
+    const memory = memoryProvider(codex, choice)
+    expect(rag.ok && rag.env.AEC_RAG_KEY_ENV).toBe('GEMINI_API_KEY')
+    expect(memory.ok && memory.settings.keyEnvVar).toBe('OPENAI_API_KEY')
+    expect(memory.ok && memory.settings.embeddingModel).toBe('text-embedding-3-small')
+  })
+
+  it('chosen models go over the preset ones', () => {
+    const choice = parseDataProviders(
+      JSON.stringify({
+        rag: { provider: 'agent', embedding: 'text-embedding-3-small', extraction: 'gpt-5-nano' },
+        memory: {
+          provider: 'rag',
+          llm: 'gpt-5-nano',
+          embedding: 'text-embedding-3-large',
+          embedding_dims: 3072
+        }
+      })
+    )
+    const rag = ragProvider({ provider: 'openai-api' }, choice)
+    expect(rag.ok && rag.env.AEC_RAG_EMBEDDING_MODEL).toBe('text-embedding-3-small')
+    expect(rag.ok && rag.env.AEC_RAG_EXTRACTION_MODEL).toBe('gpt-5-nano')
+    const memory = memoryProvider({ provider: 'openai-api' }, choice)
+    expect(memory).toMatchObject({
+      ok: true,
+      settings: {
+        llmModel: 'gpt-5-nano',
+        embeddingModel: 'text-embedding-3-large',
+        embeddingDims: 3072
+      }
+    })
+  })
+
+  it('memory refuses a chosen embedder whose vector width was never measured', () => {
+    const choice = parseDataProviders(
+      '{"memory":{"provider":"gemini","embedding":"other-embedder"}}'
+    )
+    const memory = memoryProvider(codex, choice)
+    expect(memory.ok).toBe(false)
+  })
+
+  it('a custom address without models is refused, not half-configured', () => {
+    const choice = parseDataProviders(
+      '{"rag":{"provider":"custom","base_url":"http://lab/v1","key_env":"LAB_KEY"}}'
+    )
+    expect(ragProvider(codex, choice).ok).toBe(false)
+    expect(memoryProvider(codex, choice).ok).toBe(false)
   })
 })

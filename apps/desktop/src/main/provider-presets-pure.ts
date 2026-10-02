@@ -232,3 +232,188 @@ export function ragProviderEnv(resolved: ResolvedProvider): Record<string, strin
   }
   return env
 }
+
+// --- Own providers for RAG and memory (task 3G.46, D-172, SPEC C5) ---------------
+//
+// By default both follow the agent, as before. An agent on a subscription (the
+// core's OAuth providers, e.g. `openai-codex`) has no address with a key our
+// modules could use, so the person names one here: `aec-providers.json` in the
+// profile, next to `mem0.json`. Memory follows RAG unless it is given its own.
+// Only variable NAMES are stored, never values (C10).
+
+export interface RagChoice {
+  provider: 'agent' | PresetProviderId
+  /** `custom` only. */
+  baseUrl?: string
+  keyEnvVar?: string
+  /** Empty — the preset's model. */
+  embedding?: string
+  extraction?: string
+}
+
+export interface MemoryChoice {
+  provider: 'rag' | 'agent' | PresetProviderId
+  baseUrl?: string
+  keyEnvVar?: string
+  llm?: string
+  embedding?: string
+  /** Measured once when a non-preset embedder is chosen (task 3G.52). */
+  embeddingDims?: number
+}
+
+export interface DataProviders {
+  rag: RagChoice
+  memory: MemoryChoice
+}
+
+export const DEFAULT_DATA_PROVIDERS: DataProviders = {
+  rag: { provider: 'agent' },
+  memory: { provider: 'rag' }
+}
+
+const SETTINGS_PLACE = '«Настройки → Индекс и память»'
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function withoutEmpty<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T
+}
+
+/** The person's choice from `aec-providers.json`. A missing or broken file, or an
+ *  unknown provider, reads as the default — the modules then behave as before. */
+export function parseDataProviders(json: string | null): DataProviders {
+  let raw: unknown = null
+  try {
+    raw = json ? JSON.parse(json) : null
+  } catch {
+    raw = null
+  }
+  const rag = record(record(raw).rag)
+  const memory = record(record(raw).memory)
+  const ragProviderId =
+    rag.provider === 'agent' || isPresetProviderId(rag.provider) ? rag.provider : 'agent'
+  const memoryProviderId =
+    memory.provider === 'rag' || memory.provider === 'agent' || isPresetProviderId(memory.provider)
+      ? memory.provider
+      : 'rag'
+  const dims = memory.embedding_dims
+  return {
+    rag: withoutEmpty({
+      provider: ragProviderId,
+      baseUrl: text(rag.base_url),
+      keyEnvVar: text(rag.key_env),
+      embedding: text(rag.embedding),
+      extraction: text(rag.extraction)
+    }),
+    memory: withoutEmpty({
+      provider: memoryProviderId,
+      baseUrl: text(memory.base_url),
+      keyEnvVar: text(memory.key_env),
+      llm: text(memory.llm),
+      embedding: text(memory.embedding),
+      embeddingDims:
+        typeof dims === 'number' && Number.isFinite(dims) && dims > 0 ? dims : undefined
+    })
+  }
+}
+
+/** The agent's provider, with the refusal saying where to choose instead when the
+ *  agent works through something our modules cannot call (a subscription). */
+function resolveAgentProvider(agent: ProfileProvider): ResolvedProvider {
+  const resolved = resolveProvider(agent)
+  if (resolved.ok) return resolved
+  const raw = (agent.provider ?? '').trim()
+  if (raw && !raw.startsWith('custom:') && !isPresetProviderId(raw)) {
+    return {
+      ok: false,
+      reason: `агент работает через «${raw}» — у этого входа нет адреса с ключом для индекса и памяти; выберите провайдера в ${SETTINGS_PLACE}`
+    }
+  }
+  return resolved
+}
+
+function resolveChoice(
+  agent: ProfileProvider,
+  choice: { provider: 'agent' | PresetProviderId; baseUrl?: string; keyEnvVar?: string }
+): ResolvedProvider {
+  if (choice.provider === 'agent') return resolveAgentProvider(agent)
+  return resolveProvider({
+    provider: choice.provider,
+    baseUrl: choice.baseUrl,
+    keyEnvVar: choice.keyEnvVar
+  })
+}
+
+export type RagResolution =
+  { ok: true; env: Record<string, string> } | { ok: false; reason: string }
+
+/** Environment for `aec-rag` from the RAG choice: names and addresses only. */
+export function ragProvider(agent: ProfileProvider, choices: DataProviders): RagResolution {
+  const choice = choices.rag
+  const resolved = resolveChoice(agent, choice)
+  if (!resolved.ok) return resolved
+  const embedding = choice.embedding ?? resolved.models?.embedding
+  // Graph extraction runs on the agent's model of the preset (owner, 2026-09-28).
+  const extraction = choice.extraction ?? resolved.models?.agent
+  if (!embedding || !extraction) {
+    return {
+      ok: false,
+      reason: `у своего адреса не выбраны модели RAG — укажите их в ${SETTINGS_PLACE}`
+    }
+  }
+  return {
+    ok: true,
+    env: {
+      AEC_RAG_BASE_URL: resolved.baseUrl,
+      AEC_RAG_KEY_ENV: resolved.keyEnvVar,
+      AEC_RAG_EMBEDDING_MODEL: embedding,
+      AEC_RAG_EXTRACTION_MODEL: extraction
+    }
+  }
+}
+
+export type MemoryResolution =
+  { ok: true; settings: MemoryProviderSettings } | { ok: false; reason: string }
+
+/** What the Mem0 layer is written with: its own provider, or RAG's by default. */
+export function memoryProvider(agent: ProfileProvider, choices: DataProviders): MemoryResolution {
+  const choice = choices.memory
+  const source = choice.provider === 'rag' ? choices.rag : { ...choice, provider: choice.provider }
+  const resolved = resolveChoice(agent, source)
+  if (!resolved.ok) return resolved
+  const preset = resolved.id === 'custom' ? null : MEMORY_EMBEDDERS[resolved.id]
+  const llmModel = choice.llm ?? resolved.models?.aux
+  const embeddingModel = choice.embedding ?? preset?.model
+  const embeddingDims =
+    choice.embeddingDims ?? (preset && embeddingModel === preset.model ? preset.dims : undefined)
+  if (!llmModel || !embeddingModel) {
+    return {
+      ok: false,
+      reason: `у своего адреса не выбраны модели памяти — укажите их в ${SETTINGS_PLACE}`
+    }
+  }
+  if (!embeddingDims) {
+    return {
+      ok: false,
+      reason: `ширина вектора модели «${embeddingModel}» не измерена — выберите модель заново в ${SETTINGS_PLACE}`
+    }
+  }
+  return {
+    ok: true,
+    settings: {
+      baseUrl: resolved.baseUrl,
+      keyEnvVar: resolved.keyEnvVar,
+      llmModel,
+      embeddingModel,
+      embeddingDims
+    }
+  }
+}
