@@ -15,6 +15,10 @@ import { type IngestProgress, type IngestReport, readIngestLines } from './inges
 import type { RagStatus } from '../shared/ipc'
 
 // TODO(Phase 6 / task 6.2): same packaged-app caveat as scan-runner's.
+// Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
+// русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
+const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
+
 function aecRagBinPath(): string {
   const repoRoot = join(__dirname, '../../../../')
   return process.platform === 'win32'
@@ -57,7 +61,7 @@ export function runIngest(
       // D-115: эмбеддинги берут ключ провайдера из окружения процесса, а ключ
       // человека лежит в нашем зашифрованном хранилище — без него каждый файл
       // падает с «чанки есть, а векторов нет».
-      env: { ...process.env, ...options.extraEnv },
+      env: { ...process.env, ...options.extraEnv, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
@@ -132,6 +136,7 @@ export function runIndexStatus(
 ): Promise<RagStatus> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), ['status', '--project', vaultPath], {
+      env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })

@@ -12,6 +12,10 @@ import type { ScanReport } from '../shared/ipc'
 // packaged app — this relative path to the repo-root .venv must be revisited
 // for the bundled layout (same caveat as index.ts's loadServeModule/
 // agentsTemplatePath).
+// Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
+// русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
+const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
+
 function aecRagBinPath(): string {
   const repoRoot = join(__dirname, '../../../../')
   return process.platform === 'win32'
@@ -39,6 +43,7 @@ export function runScan(
 ): Promise<ScanReport> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), ['scan', '--project', vaultPath], {
+      env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       // Review fix (minor 5): without this, spawning a console-subsystem
       // binary from a GUI app flashes a black console window on every tick.
@@ -136,6 +141,7 @@ export function runDetach(
 ): Promise<DetachReport> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), ['detach', '--project', vaultPath, '--source', sourceId], {
+      env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })

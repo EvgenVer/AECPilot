@@ -26,6 +26,10 @@ export type QuoteCheckResult =
 
 // TODO(Phase 6 / task 6.2): тот же вопрос об упакованном приложении, что и у
 // scan-runner/ingest-runner.
+// Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
+// русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
+const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
+
 function aecRagBinPath(): string {
   const repoRoot = join(__dirname, '../../../../')
   return process.platform === 'win32'
@@ -50,7 +54,7 @@ export function runQuoteCheck(
     const proc = spawn(aecRagBinPath(), ['check-quotes', '--project', vaultPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-      env: { ...process.env, AEC_HERMES_HOME: hermesHome }
+      env: { ...process.env, AEC_HERMES_HOME: hermesHome, ...AEC_RAG_UTF8 }
     })
 
     const stdoutChunks: Buffer[] = []
