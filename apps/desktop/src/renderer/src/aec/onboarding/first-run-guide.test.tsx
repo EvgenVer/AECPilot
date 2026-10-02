@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
 
+import { $dataProviders, $dataProvidersOpen, EMPTY_STATE } from '../data-providers/store'
+
 import FirstRunGuide from './FirstRunGuide'
 import { GUIDE_STORAGE_KEY, readGuideMemory } from './onboarding-pure'
 
@@ -37,7 +39,19 @@ const api = {
   onIngestState: vi.fn(),
   pickProjectDirectory: vi.fn(),
   addSource: vi.fn(),
-  startIngest: vi.fn()
+  startIngest: vi.fn(),
+  getDataProviders: vi.fn()
+}
+
+/** Состояние окна «Индекс и память» (3G.48): по умолчанию агент на ключе. */
+function dataState(agentProvider: string, ready: boolean): unknown {
+  return {
+    ...EMPTY_STATE,
+    profileRead: true,
+    agentProvider,
+    rag: { ok: ready },
+    memory: { ok: ready }
+  }
 }
 
 const VAULT = 'C:/projects/site-x'
@@ -58,6 +72,7 @@ beforeEach(() => {
     running: false
   })
   api.onIngestState.mockReturnValue(() => {})
+  api.getDataProviders.mockResolvedValue(dataState('gemini', true))
 
   window.aecpilot = api as unknown as typeof window.aecpilot
 })
@@ -68,6 +83,8 @@ afterEach(() => {
   // «последний шаг» один раз уже соврал.
   cleanup()
   delete (window as { aecpilot?: unknown }).aecpilot
+  $dataProvidersOpen.set(false)
+  $dataProviders.set(EMPTY_STATE)
 })
 
 function mount(): void {
@@ -114,6 +131,33 @@ describe('мастер первого запуска', () => {
     await screen.findByText('Подключить папку')
     // Необязательный шаг — значит рядом стоит «Позже».
     expect(screen.getByText('Позже')).toBeTruthy()
+  })
+
+  test('агент по подписке: шаг «Провайдер для индекса и памяти» открывает окно и отмечается сам', async () => {
+    api.checkRuntime.mockResolvedValue({ ok: true })
+    api.getModelOptions.mockResolvedValue({ model: 'gpt-5.5' })
+    api.getDataProviders.mockResolvedValue(dataState('openai-codex', false))
+
+    mount()
+
+    fireEvent.click(await screen.findByText('Выбрать провайдера'))
+    expect($dataProvidersOpen.get()).toBe(true)
+
+    // Окно сохранило выбор и перечитало своё состояние — мастер узнаёт об этом
+    // оттуда же и переходит к папке.
+    api.getDataProviders.mockResolvedValue(dataState('openai-codex', true))
+    $dataProviders.set(dataState('openai-codex', true) as typeof EMPTY_STATE)
+    await screen.findByText('Подключить папку')
+  })
+
+  test('у ключевого провайдера шага «Провайдер для индекса и памяти» нет', async () => {
+    api.checkRuntime.mockResolvedValue({ ok: true })
+    api.getModelOptions.mockResolvedValue({ model: 'gpt-5' })
+
+    mount()
+
+    await screen.findByText('Подключить папку')
+    expect(screen.queryByText(/Провайдер для индекса и памяти/)).toBeNull()
   })
 
   test('отказ от папки уносит индексацию и приводит к вопросу', async () => {

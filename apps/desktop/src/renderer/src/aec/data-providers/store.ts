@@ -18,6 +18,18 @@ export const EMPTY_STATE: DataProvidersState = {
   memory: { ok: false }
 }
 
+/** Агент по подписке (их OAuth-провайдеры, например `openai-codex`): у входа нет
+ *  адреса с ключом, которым могли бы пользоваться индекс и память. Таблица
+ *  пресетов и свои адреса (`custom:*`) — не подписка. */
+export function isSubscriptionProvider(agentProvider: string | null): boolean {
+  return (
+    !!agentProvider &&
+    agentProvider !== 'gemini' &&
+    agentProvider !== 'openai-api' &&
+    !agentProvider.startsWith('custom')
+  )
+}
+
 export const $dataProviders = atom<DataProvidersState>(EMPTY_STATE)
 export const $dataProvidersOpen = atom<boolean>(false)
 

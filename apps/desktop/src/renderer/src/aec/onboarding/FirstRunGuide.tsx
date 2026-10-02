@@ -1,4 +1,5 @@
-// Мастер первого запуска (task 3.20): шесть шагов от пустой установки до
+// Мастер первого запуска (task 3.20): шесть шагов (седьмой — у агента по подписке,
+// задача 3G.48) от пустой установки до
 // первого ответа агента, без терминала.
 //
 // Список, а не последовательность экранов. Два шага из шести — ключ и модель —
@@ -16,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { IngestState, OpenProject } from '../../../../shared/ipc'
+import { $dataProviders, isSubscriptionProvider, openDataProviders } from '../data-providers/store'
 
 import { fillComposer, onProviderConfigured, openProviderSetup } from './bridge'
 import {
@@ -113,6 +115,11 @@ function Guide({
     queryKey: ['aec', 'onboarding', 'index'],
     queryFn: () => window.aecpilot.getIndexStatus()
   })
+  // Задача 3G.48: провайдер для индекса и памяти — шаг только у агента по подписке.
+  const data = useQuery({
+    queryKey: ['aec', 'onboarding', 'data'],
+    queryFn: () => window.aecpilot.getDataProviders()
+  })
 
   const recheck = useCallback(
     () => queryClient.invalidateQueries({ queryKey: ['aec', 'onboarding'] }),
@@ -122,6 +129,9 @@ function Guide({
   // Ключ и модель настраиваются на их экране; о его успехе мы узнаём только по
   // их же признаку готовности.
   useEffect(() => onProviderConfigured(() => void recheck()), [recheck])
+  // Выбор сохраняется в окне «Индекс и память»; оно перечитывает своё состояние, и
+  // шаг узнаёт об этом оттуда же.
+  useEffect(() => $dataProviders.listen(() => void recheck()), [recheck])
 
   useEffect(() => {
     void window.aecpilot.getIngestState().then(setIngest)
@@ -140,7 +150,12 @@ function Guide({
     sourceCount,
     filesIndexed: index.data?.ok ? index.data.status.files_indexed : 0,
     asked: memory.asked,
-    skipped: memory.skipped
+    skipped: memory.skipped,
+    dataStep: !isSubscriptionProvider(data.data?.agentProvider ?? null)
+      ? 'hidden'
+      : data.data?.rag.ok && data.data.memory.ok
+        ? 'done'
+        : 'needed'
   })
   const current = steps.find((step) => step.state === 'current')
   const complete = isGuideComplete(steps)
@@ -270,6 +285,7 @@ function Guide({
                 disabled={busy || (current.id === 'index' && ingest.running)}
                 onClick={() => {
                   if (current.id === 'key' || current.id === 'model') openProviderSetup()
+                  else if (current.id === 'data') openDataProviders()
                   else if (current.id === 'sources') void pickSource()
                   else if (current.id === 'index') void startIngest()
                   else if (current.id === 'ask') ask()

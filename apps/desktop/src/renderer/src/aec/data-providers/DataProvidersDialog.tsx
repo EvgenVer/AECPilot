@@ -26,6 +26,7 @@ import type { DataProvidersFile, DataProvidersState } from '../../../../shared/i
 import {
   $dataProviders,
   $dataProvidersOpen,
+  isSubscriptionProvider,
   listModels,
   saveDataChoice,
   saveDataKey
@@ -36,8 +37,6 @@ type MemoryChoice = DataProvidersFile['memory']
 type Preset = DataProvidersState['presets'][number]
 type Section = 'rag' | 'memory'
 
-const PRESET_IDS = ['gemini', 'openai-api']
-
 const inputClass =
   'min-w-0 flex-1 rounded border border-(--ui-border) bg-(--ui-bg-primary) p-1.5 text-xs text-(--ui-text-primary)'
 
@@ -46,12 +45,6 @@ function clean<T extends object>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, v]) => !(typeof v === 'string' && v.trim() === ''))
   ) as T
-}
-
-function isSubscription(agentProvider: string | null): boolean {
-  return (
-    !!agentProvider && !PRESET_IDS.includes(agentProvider) && !agentProvider.startsWith('custom')
-  )
 }
 
 function presetOf(state: DataProvidersState, id: string): Preset | undefined {
@@ -208,7 +201,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   )
 
   // У «как у агента» при агенте по подписке провайдера нет — и моделей тоже.
-  const agentUsable = !!state.agentProvider && !isSubscription(state.agentProvider)
+  const agentUsable = !!state.agentProvider && !isSubscriptionProvider(state.agentProvider)
   const ragHasProvider = draft.rag.provider !== 'agent' || agentUsable
   const memoryHasProvider =
     draft.memory.provider === 'rag'
@@ -312,7 +305,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                 ? t('dataProviders.agent', state.agentProvider)
                 : t('dataProviders.agentNone')}
             </p>
-            {isSubscription(state.agentProvider) && (
+            {isSubscriptionProvider(state.agentProvider) && (
               <p className="text-xs text-amber-500">{t('dataProviders.subscription')}</p>
             )}
 

@@ -520,6 +520,7 @@ export const aecLocales: PluginLocaleBundles = {
         project: 'Project',
         key: 'Provider key',
         model: 'Model',
+        data: 'Provider for the index and memory',
         sources: 'Documents folder',
         index: 'Indexing',
         ask: 'First question'
@@ -529,6 +530,7 @@ export const aecLocales: PluginLocaleBundles = {
         key: 'The agent answers through a model provider. The key is stored encrypted on this machine and is never sent anywhere but that provider.',
         model:
           'Pick the model that will answer. It can be changed at any time next to the input box.',
+        data: 'The agent signs in through a subscription, which has no key for document search and long-term memory. Choose a provider with an API key for them.',
         sources:
           'Connect the folder holding the project documents. It is read only — nothing there is modified.',
         index:
@@ -539,6 +541,7 @@ export const aecLocales: PluginLocaleBundles = {
         project: 'Open a project',
         key: 'Connect a provider',
         model: 'Choose a model',
+        data: 'Choose a provider',
         sources: 'Connect a folder',
         index: 'Index',
         ask: 'Put the question in the box'
@@ -1103,6 +1106,7 @@ export const aecLocales: PluginLocaleBundles = {
         project: 'Проект',
         key: 'Ключ провайдера',
         model: 'Модель',
+        data: 'Провайдер для индекса и памяти',
         sources: 'Папка с документами',
         index: 'Индексация',
         ask: 'Первый вопрос'
@@ -1112,6 +1116,7 @@ export const aecLocales: PluginLocaleBundles = {
         key: 'Отвечает не приложение, а модель провайдера. Ключ хранится на этой машине в зашифрованном виде и никуда, кроме самого провайдера, не уходит.',
         model:
           'Выберите модель, которая будет отвечать. Её можно сменить в любой момент рядом с полем ввода.',
+        data: 'Агент работает по подписке, а у подписки нет ключа для поиска по документам и долговременной памяти. Выберите для них провайдера с ключом API.',
         sources:
           'Подключите папку, где лежат документы проекта. Она только читается — в ней ничего не меняется.',
         index:
@@ -1122,6 +1127,7 @@ export const aecLocales: PluginLocaleBundles = {
         project: 'Открыть проект',
         key: 'Подключить провайдера',
         model: 'Выбрать модель',
+        data: 'Выбрать провайдера',
         sources: 'Подключить папку',
         index: 'Проиндексировать',
         ask: 'Подставить вопрос'

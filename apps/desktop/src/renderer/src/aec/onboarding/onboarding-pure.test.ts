@@ -102,6 +102,38 @@ describe('шаги мастера', () => {
   })
 })
 
+describe('шаг «Провайдер для индекса и памяти» (3G.48)', () => {
+  const READY: GuideFacts = { ...FRESH, runtimeOk: true, model: 'gpt-5.5' }
+
+  test('у ключевого провайдера агента шага нет — шагов столько же, сколько было', () => {
+    expect(guideSteps(READY)).toHaveLength(6)
+    expect(guideSteps({ ...READY, dataStep: 'hidden' }).map((step) => step.id)).not.toContain(
+      'data'
+    )
+  })
+
+  test('у агента по подписке без выбора шаг стоит после модели и становится текущим', () => {
+    const steps = guideSteps({ ...READY, dataStep: 'needed' })
+    expect(steps.map((step) => step.id)).toEqual([
+      'project',
+      'key',
+      'model',
+      'data',
+      'sources',
+      'index',
+      'ask'
+    ])
+    expect(currentStep(steps)?.id).toBe('data')
+    expect(steps.find((step) => step.id === 'data')?.optional).toBe(false)
+  })
+
+  test('рабочий выбор отмечает шаг сам — следующим идёт папка', () => {
+    const steps = guideSteps({ ...READY, dataStep: 'done' })
+    expect(stateOf({ ...READY, dataStep: 'done' }, 'data')).toBe('done')
+    expect(currentStep(steps)?.id).toBe('sources')
+  })
+})
+
 describe('подсказанный вопрос', () => {
   test('без подключённых документов вопрос другой', () => {
     // Иначе первый же ответ — «я ничего не вижу», и это выглядит как поломка.

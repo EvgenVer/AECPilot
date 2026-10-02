@@ -13,7 +13,7 @@
 // Хранится только то, у чего наблюдаемого следа нет: «пропустил», «спросил»,
 // «закрыл» (см. `readGuideMemory`).
 
-export const GUIDE_STEPS = ['project', 'key', 'model', 'sources', 'index', 'ask'] as const
+export const GUIDE_STEPS = ['project', 'key', 'model', 'data', 'sources', 'index', 'ask'] as const
 
 export type GuideStepId = (typeof GUIDE_STEPS)[number]
 
@@ -34,6 +34,10 @@ export interface GuideFacts {
   filesIndexed: number
   asked: boolean
   skipped: readonly GuideStepId[]
+  /** Задача 3G.48 (D-172): шаг «Провайдер для индекса и памяти». Есть только у
+   *  агента по подписке — у ключевого провайдера индекс и память берут его ключ, и
+   *  шагов столько же, сколько было. `done` — сохранённый выбор рабочий. */
+  dataStep?: 'done' | 'hidden' | 'needed'
 }
 
 export type GuideStepState = 'current' | 'done' | 'skipped' | 'waiting'
@@ -52,6 +56,8 @@ function isDone(id: GuideStepId, facts: GuideFacts): boolean {
       return facts.runtimeOk
     case 'model':
       return (facts.model ?? '').trim() !== ''
+    case 'data':
+      return facts.dataStep === 'done'
     case 'sources':
       return facts.sourceCount > 0
     case 'index':
@@ -61,7 +67,8 @@ function isDone(id: GuideStepId, facts: GuideFacts): boolean {
   }
 }
 
-/** Шесть шагов в фиксированном порядке, каждый со своим состоянием.
+/** Шаги в фиксированном порядке, каждый со своим состоянием (шесть; седьмой —
+ *  провайдер для индекса и памяти — только у агента по подписке).
  *
  * «Текущий» — первый несделанный и непропущенный; всё после него ждёт. Порядок
  * не подстраивается под факты: человек, которому этот экран нужен, читает
@@ -75,7 +82,11 @@ export function guideSteps(facts: GuideFacts): GuideStep[] {
 
   let currentTaken = false
 
-  return GUIDE_STEPS.map((id) => {
+  const shown = GUIDE_STEPS.filter(
+    (id) => id !== 'data' || (facts.dataStep ?? 'hidden') !== 'hidden'
+  )
+
+  return shown.map((id) => {
     const optional = OPTIONAL_STEPS.includes(id)
     if (isDone(id, facts)) return { id, optional, state: 'done' as const }
     if (skipped.has(id)) return { id, optional, state: 'skipped' as const }
