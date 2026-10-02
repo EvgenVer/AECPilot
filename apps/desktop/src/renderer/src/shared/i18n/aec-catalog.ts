@@ -340,6 +340,49 @@ export const aecLocales: PluginLocaleBundles = {
         'the conversation is kept. Turn on the receiver?',
       confirm: 'Turn on'
     },
+    dataProviders: {
+      command: 'Index and memory',
+      title: 'Index and memory',
+      lead:
+        'Search over the project documents (RAG) and the agent’s long-term memory call a ' +
+        'model and embeddings with a key of their own. By default they use the agent’s provider.',
+      agent: (provider: string) => `Agent: ${provider}`,
+      agentNone: 'The agent provider is not chosen yet.',
+      subscription:
+        'The agent signs in through a subscription, which has no key the index and memory ' +
+        'could use. Choose a provider for them below.',
+      ragLabel: 'Document search (RAG)',
+      memoryLabel: 'Long-term memory',
+      separate: 'A separate provider for memory',
+      optAgent: 'As the agent',
+      optGemini: 'Gemini (API key)',
+      optOpenai: 'OpenAI (API key)',
+      optCustom: 'Own OpenAI-compatible address',
+      baseUrl: 'Address (base_url)',
+      keyEnv: 'Key variable name',
+      embedding: 'Embedding model',
+      extraction: 'Model for parsing documents',
+      models: (embedding: string, extraction: string) =>
+        `Models: embeddings ${embedding}, parsing ${extraction}`,
+      memoryModels: (llm: string, embedding: string) => `Models: ${llm}, embeddings ${embedding}`,
+      keysTitle: 'Keys',
+      keySet: 'stored',
+      keyMissing: 'not set',
+      keySave: 'Save key',
+      keyNote:
+        'A key reaches the core through the environment of its process, so the core restarts ' +
+        'after it is saved.',
+      envOverride:
+        'The same variable is assigned in the profile’s .env, and the core prefers that one.',
+      noEncryption: 'This machine cannot encrypt local storage, so keys are not saved here.',
+      statusTitle: 'What works with the saved choice',
+      statusRag: 'Document search',
+      statusMemory: 'Memory',
+      ready: 'ready',
+      save: 'Save choice',
+      saved: 'Saved. The index and memory use the new provider from the next call.',
+      profileUnread: 'The core profile could not be read, so the choice can be neither shown nor saved.'
+    },
     graphAccess: {
       command: 'Microsoft Graph access',
       title: 'Microsoft Graph access',
@@ -878,6 +921,48 @@ export const aecLocales: PluginLocaleBundles = {
         'Ядро перезапустится — идущая работа агента прервётся, разговор сохранится. ' +
         'Включить приёмник?',
       confirm: 'Включить'
+    },
+    dataProviders: {
+      command: 'Индекс и память',
+      title: 'Индекс и память',
+      lead:
+        'Поиск по документам проекта (RAG) и долговременная память агента вызывают модель и ' +
+        'эмбеддинги своим ключом. По умолчанию — тот же провайдер, что у агента.',
+      agent: (provider: string) => `Агент: ${provider}`,
+      agentNone: 'Провайдер агента ещё не выбран.',
+      subscription:
+        'Агент работает по подписке, а у подписки нет ключа, которым могли бы пользоваться ' +
+        'индекс и память. Выберите для них провайдера ниже.',
+      ragLabel: 'Поиск по документам (RAG)',
+      memoryLabel: 'Долговременная память',
+      separate: 'Отдельный провайдер для памяти',
+      optAgent: 'Как у агента',
+      optGemini: 'Gemini (ключ API)',
+      optOpenai: 'OpenAI (ключ API)',
+      optCustom: 'Свой OpenAI-совместимый адрес',
+      baseUrl: 'Адрес (base_url)',
+      keyEnv: 'Имя переменной ключа',
+      embedding: 'Модель эмбеддингов',
+      extraction: 'Модель разбора документов',
+      models: (embedding: string, extraction: string) =>
+        `Модели: эмбеддинги ${embedding}, разбор ${extraction}`,
+      memoryModels: (llm: string, embedding: string) => `Модели: ${llm}, эмбеддинги ${embedding}`,
+      keysTitle: 'Ключи',
+      keySet: 'сохранён',
+      keyMissing: 'не задан',
+      keySave: 'Сохранить ключ',
+      keyNote:
+        'Ключ доходит до ядра через окружение его процесса, поэтому после сохранения ядро ' +
+        'перезапустится.',
+      envOverride: 'Та же переменная задана в .env профиля, и ядро берёт её оттуда.',
+      noEncryption: 'Эта машина не умеет шифровать локальное хранилище — ключи здесь не сохраняются.',
+      statusTitle: 'Что работает с сохранённым выбором',
+      statusRag: 'Поиск по документам',
+      statusMemory: 'Память',
+      ready: 'готово',
+      save: 'Сохранить выбор',
+      saved: 'Сохранено. Индекс и память берут нового провайдера со следующего вызова.',
+      profileUnread: 'Профиль ядра не прочитан — выбор не показать и не сохранить.'
     },
     graphAccess: {
       command: 'Доступы Microsoft Graph',

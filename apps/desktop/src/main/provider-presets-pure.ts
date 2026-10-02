@@ -197,7 +197,7 @@ export interface MemoryProviderSettings {
 /** Memory embedders per preset, with the vector width. OpenAI keeps the model the
  *  memory layer has always used (`text-embedding-3-small`, 1536) so existing facts
  *  stay readable; Gemini's width was measured by probe 3G.1 (3072). */
-const MEMORY_EMBEDDERS: Readonly<Record<'gemini' | 'openai-api', { model: string; dims: number }>> =
+export const MEMORY_EMBEDDERS: Readonly<Record<'gemini' | 'openai-api', { model: string; dims: number }>> =
   {
     gemini: { model: 'gemini-embedding-2', dims: 3072 },
     'openai-api': { model: 'text-embedding-3-small', dims: 1536 }
@@ -271,7 +271,7 @@ export const DEFAULT_DATA_PROVIDERS: DataProviders = {
   memory: { provider: 'rag' }
 }
 
-const SETTINGS_PLACE = '«Настройки → Индекс и память»'
+const SETTINGS_PLACE = 'окне «Индекс и память» (палитра команд, Ctrl+K)'
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -416,4 +416,43 @@ export function memoryProvider(agent: ProfileProvider, choices: DataProviders): 
       embeddingDims
     }
   }
+}
+
+/** The choice in the file's own shape (task 3G.47) — what the window sends and
+ *  what `aec-providers.json` holds. Empty fields are left out. */
+export function serializeDataProviders(choices: DataProviders): {
+  rag: Record<string, string>
+  memory: Record<string, string | number>
+} {
+  const { rag, memory } = choices
+  return {
+    rag: withoutEmpty({
+      provider: rag.provider,
+      base_url: rag.baseUrl,
+      key_env: rag.keyEnvVar,
+      embedding: rag.embedding,
+      extraction: rag.extraction
+    }) as Record<string, string>,
+    memory: withoutEmpty({
+      provider: memory.provider,
+      base_url: memory.baseUrl,
+      key_env: memory.keyEnvVar,
+      llm: memory.llm,
+      embedding: memory.embedding,
+      embedding_dims: memory.embeddingDims
+    }) as Record<string, string | number>
+  }
+}
+
+/** Key variables the person's own choice needs (task 3G.47): «as the agent» and
+ *  «as RAG» add none — the agent's key is the agent screen's business. */
+export function dataKeyEnvVars(choices: DataProviders): string[] {
+  const names: string[] = []
+  for (const choice of [choices.rag, choices.memory]) {
+    if (choice.provider === 'agent' || choice.provider === 'rag') continue
+    const name =
+      choice.provider === 'custom' ? choice.keyEnvVar : PROVIDER_PRESETS[choice.provider].keyEnvVar
+    if (name && !names.includes(name)) names.push(name)
+  }
+  return names
 }

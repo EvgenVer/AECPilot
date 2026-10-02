@@ -598,6 +598,48 @@ export interface GraphAccessState {
   }
 }
 
+/** Провайдеры RAG и памяти (задачи 3G.46–3G.47, D-172) в форме файла
+ *  `aec-providers.json` профиля: только имена переменных ключей, без значений. */
+export interface DataProvidersFile {
+  rag: {
+    provider: 'agent' | 'gemini' | 'openai-api' | 'custom'
+    base_url?: string
+    key_env?: string
+    embedding?: string
+    extraction?: string
+  }
+  memory: {
+    provider: 'rag' | 'agent' | 'gemini' | 'openai-api' | 'custom'
+    base_url?: string
+    key_env?: string
+    llm?: string
+    embedding?: string
+    embedding_dims?: number
+  }
+}
+
+/** Что показывает окно «Индекс и память». `rag`/`memory` — итог для СОХРАНЁННОГО
+ *  выбора: готово или почему нет, словами. */
+export interface DataProvidersState {
+  encryptionAvailable: boolean
+  /** `false` — профиль не прочитан (ядро на другой машине, нет файла). */
+  profileRead: boolean
+  /** `model.provider` агента как есть, `null` — не выбран. */
+  agentProvider: string | null
+  choice: DataProvidersFile
+  presets: {
+    id: 'gemini' | 'openai-api'
+    keyEnvVar: string
+    embedding: string
+    extraction: string
+    memoryLlm: string
+    memoryEmbedding: string
+  }[]
+  keys: { envOverrides: boolean; envVar: string; hasKey: boolean }[]
+  rag: { ok: boolean; reason?: string }
+  memory: { ok: boolean; reason?: string }
+}
+
 /** Состояние графового прогона. Отдельное от `IngestState` нарочно: уровень 1
  *  бесплатен, уровень 2 стоит вызова модели на каждый фрагмент, и один
  *  индикатор на оба скрыл бы, за что именно идут деньги. */
@@ -1397,6 +1439,12 @@ export interface AecpilotApi {
    *  учётные данные пишутся через `saveProviderKey` — наше шифрованное
    *  хранилище, — а три из четырёх мест живут в профиле ядра. */
   getGraphAccess(): Promise<GraphAccessState>
+  /** Окно «Индекс и память» (задача 3G.47, D-172): выбор провайдеров RAG и памяти
+   *  и готовность каждого. Только чтение; ключи пишутся через `saveProviderKey`. */
+  getDataProviders(): Promise<DataProvidersState>
+  /** Записывает выбор в `aec-providers.json` профиля и перерегистрирует `aec-rag`
+   *  открытого проекта с новым окружением; профиль памяти переписывается тут же. */
+  saveDataProviders(choice: DataProvidersFile): Promise<{ error?: string; ok: boolean }>
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a

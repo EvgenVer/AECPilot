@@ -3,12 +3,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DATA_PROVIDERS,
+  dataKeyEnvVars,
   PROVIDER_PRESETS,
   memoryProvider,
   parseDataProviders,
   pendingEmbeddingSwitch,
   memoryProviderSettings,
   ragProvider,
+  serializeDataProviders,
   ragProviderEnv,
   readProfileProvider,
   resolveProvider
@@ -343,5 +345,50 @@ describe('ragProvider and memoryProvider (3G.46)', () => {
     )
     expect(ragProvider(codex, choice).ok).toBe(false)
     expect(memoryProvider(codex, choice).ok).toBe(false)
+  })
+})
+
+describe('serializeDataProviders (3G.47)', () => {
+  it('writes the file shape back, and reading it gives the same choice', () => {
+    const choice = parseDataProviders(
+      JSON.stringify({
+        rag: {
+          provider: 'custom',
+          base_url: 'http://lab/v1',
+          key_env: 'LAB_KEY',
+          embedding: 'e',
+          extraction: 'x'
+        },
+        memory: { provider: 'gemini', llm: 'gemini-3.5-flash-lite' }
+      })
+    )
+    const file = serializeDataProviders(choice)
+    expect(file).toEqual({
+      rag: {
+        provider: 'custom',
+        base_url: 'http://lab/v1',
+        key_env: 'LAB_KEY',
+        embedding: 'e',
+        extraction: 'x'
+      },
+      memory: { provider: 'gemini', llm: 'gemini-3.5-flash-lite' }
+    })
+    expect(parseDataProviders(JSON.stringify(file))).toEqual(choice)
+  })
+
+  it('names the key variables the choice needs, without the agent ones', () => {
+    expect(dataKeyEnvVars(DEFAULT_DATA_PROVIDERS)).toEqual([])
+    expect(
+      dataKeyEnvVars(
+        parseDataProviders('{"rag":{"provider":"gemini"},"memory":{"provider":"openai-api"}}')
+      )
+    ).toEqual(['GEMINI_API_KEY', 'OPENAI_API_KEY'])
+    expect(
+      dataKeyEnvVars(
+        parseDataProviders(
+          '{"rag":{"provider":"custom","base_url":"http://x","key_env":"LAB_KEY"}}'
+        )
+      )
+    ).toEqual(['LAB_KEY'])
   })
 })

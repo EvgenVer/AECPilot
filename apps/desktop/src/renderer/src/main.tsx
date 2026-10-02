@@ -61,6 +61,7 @@ import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
+import { registerDataProviders } from './aec/data-providers/register'
 import { registerGraphAccess } from './aec/settings/register'
 import { AecI18nProvider } from './shared/i18n'
 
@@ -83,6 +84,9 @@ registerResumeProgress()
 // Задача 3E.9а: доступы Microsoft Graph. Команда палитры и её окно — поэтому
 // регистрируется до первого рендера, как и остальные команды.
 registerGraphAccess()
+// Задача 3G.47 (D-172): провайдер RAG и памяти. Команда палитры и окно — по той
+// же причине, что и доступы Graph.
+registerDataProviders()
 // Task 3.3: «Изменения в документах» takes the place of their git review pane
 // (SPEC HX6/UR16). Called from the body on purpose — a same-id registration
 // wins only if it runs after their shell module, and module bodies run after

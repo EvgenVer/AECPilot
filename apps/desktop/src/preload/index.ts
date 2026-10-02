@@ -268,6 +268,8 @@ const api: AecpilotApi = {
   startGraphAdd: (sourceId, rel, kind) => ipcRenderer.invoke('graph:add', { kind, rel, sourceId }),
   getGraphAddState: () => ipcRenderer.invoke('graph:add-state'),
   getGraphAccess: () => ipcRenderer.invoke('graph:access'),
+  getDataProviders: () => ipcRenderer.invoke('data-providers:get'),
+  saveDataProviders: (choice) => ipcRenderer.invoke('data-providers:save', choice),
   onGraphAddState: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
       cb(state)

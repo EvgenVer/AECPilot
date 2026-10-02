@@ -169,6 +169,7 @@ import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
 import type {
   CuratorStatus,
   GatewayRpcOutcome,
+  DataProvidersState,
   GraphAccessState,
   GraphAddState,
   IngestState,
@@ -223,11 +224,16 @@ import {
   validateSaveLlmSettingsPayload
 } from './llm-settings-pure'
 import {
+  DEFAULT_DATA_PROVIDERS,
+  MEMORY_EMBEDDERS,
+  PROVIDER_PRESETS,
+  dataKeyEnvVars,
   memoryProvider,
   parseDataProviders,
   pendingEmbeddingSwitch,
   ragProvider,
   readProfileProvider,
+  serializeDataProviders,
   type DataProviders,
   type MemoryProviderSettings,
   type ProfileProvider
@@ -3801,6 +3807,93 @@ ipcMain.handle('graph:access', async (): Promise<GraphAccessState> => {
     profileRead: configText !== undefined,
     readiness: readGraphReadiness(configText ?? '')
   }
+})
+
+// --- Окно «Индекс и память» (задачи 3G.46–3G.47, D-172) ----------------------
+//
+// Выбор провайдеров RAG и памяти лежит в профиле ядра (`aec-providers.json`), а не
+// в настройках приложения: он едет вместе с профилем, и на серверную машину фазы 6
+// тоже. Ни значения ключа, ни его маски здесь нет — только `hasKey` по имени.
+
+const DATA_PRESET_IDS = ['gemini', 'openai-api'] as const
+
+ipcMain.handle('data-providers:get', async (): Promise<DataProvidersState> => {
+  let profileDir: string | undefined
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch (error: unknown) {
+    console.error('aecpilot: could not locate the hermes profile for data providers', error)
+  }
+  const { agent, choices } = profileDir
+    ? readDataProviderInputs(profileDir)
+    : { agent: { provider: null }, choices: DEFAULT_DATA_PROVIDERS }
+  const rag = ragProvider(agent, choices)
+  const memory = memoryProvider(agent, choices)
+  const stored = new Set(storedProviderKeyNames())
+  const keyNames = [
+    ...new Set([
+      ...DATA_PRESET_IDS.map((id) => PROVIDER_PRESETS[id].keyEnvVar ?? ''),
+      ...dataKeyEnvVars(choices)
+    ])
+  ].filter(isCredentialEnvVarName)
+  return {
+    encryptionAvailable: isEncryptionAvailable(),
+    profileRead: profileDir ? existsSync(join(profileDir, 'config.yaml')) : false,
+    agentProvider: agent.provider,
+    choice: serializeDataProviders(choices) as DataProvidersState['choice'],
+    presets: DATA_PRESET_IDS.map((id) => {
+      const preset = PROVIDER_PRESETS[id]
+      return {
+        id,
+        keyEnvVar: preset.keyEnvVar ?? '',
+        embedding: preset.models?.embedding ?? '',
+        extraction: preset.models?.agent ?? '',
+        memoryLlm: preset.models?.aux ?? '',
+        memoryEmbedding: MEMORY_EMBEDDERS[id].model
+      }
+    }),
+    keys: keyNames.map((envVar) => ({
+      envVar,
+      hasKey: stored.has(envVar),
+      envOverrides: profileDir ? keyEnvVarStatus(profileDir, envVar) : false
+    })),
+    rag: rag.ok ? { ok: true } : { ok: false, reason: rag.reason },
+    memory: memory.ok ? { ok: true } : { ok: false, reason: memory.reason }
+  }
+})
+
+ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
+  const choices = parseDataProviders(JSON.stringify(payload ?? null))
+  for (const choice of [choices.rag, choices.memory]) {
+    if (choice.keyEnvVar && !isCredentialEnvVarName(choice.keyEnvVar)) {
+      return {
+        ok: false,
+        error: `имя переменной ключа «${choice.keyEnvVar}»: латинские заглавные буквы, цифры и _`
+      }
+    }
+  }
+  let profileDir: string
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch (error: unknown) {
+    console.error('aecpilot: could not locate the hermes profile for data providers', error)
+    return { ok: false, error: 'профиль ядра не найден — выбор не сохранён' }
+  }
+  try {
+    writeFileSync(
+      join(profileDir, 'aec-providers.json'),
+      JSON.stringify(serializeDataProviders(choices), null, 2) + '\n',
+      'utf-8'
+    )
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write aec-providers.json', error)
+    return { ok: false, error: 'файл выбора не записался — выбор не сохранён' }
+  }
+  // Открытый проект получает новое окружение сразу: `aec-rag` перерегистрируется
+  // (ядро перечитывает MCP), профиль памяти переписывается. Без проекта — при
+  // следующем открытии, тем же путём.
+  if (currentProject) await registerAecSourcesForProject(currentProject.vaultPath)
+  return { ok: true }
 })
 
 // --- Экран памяти, слой 1 и автозапись (задача 5.4) ------------------------
