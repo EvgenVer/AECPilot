@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DATA_PROVIDERS,
   dataKeyEnvVars,
+  dataSectionProvider,
+  embeddingChangeWarnings,
+  embeddingProbeTarget,
+  keepMeasuredWidth,
+  memoryEmbeddingModel,
+  parseEmbeddingWidth,
+  parseModelIds,
   PROVIDER_PRESETS,
   memoryProvider,
   parseDataProviders,
@@ -390,5 +397,98 @@ describe('serializeDataProviders (3G.47)', () => {
         )
       )
     ).toEqual(['LAB_KEY'])
+  })
+})
+
+describe('модели из списка провайдера (3G.52)', () => {
+  const gemini = { provider: 'gemini' }
+  const codex = { provider: 'openai-codex' }
+  const noIndex = { builtWith: null, projectModel: null }
+
+  it('список моделей — id без приставки `models/` Gemini, без повторов, по алфавиту', () => {
+    expect(
+      parseModelIds({
+        data: [{ id: 'models/gemini-embedding-2' }, { id: 'gpt-5-mini' }, { id: 'gpt-5-mini' }, {}]
+      })
+    ).toEqual(['gemini-embedding-2', 'gpt-5-mini'])
+    expect(parseModelIds({ error: 'nope' })).toEqual([])
+    expect(parseModelIds(null)).toEqual([])
+  })
+
+  it('ширина вектора — длина первого эмбеддинга; пустой ответ — null', () => {
+    expect(parseEmbeddingWidth({ data: [{ embedding: [0.1, 0.2, 0.3] }] })).toBe(3)
+    expect(parseEmbeddingWidth({ data: [] })).toBeNull()
+    expect(parseEmbeddingWidth('oops')).toBeNull()
+  })
+
+  it('провайдер раздела: память «как у RAG» читает список RAG', () => {
+    const choices = parseDataProviders('{"rag":{"provider":"openai-api"}}')
+    const memory = dataSectionProvider(codex, choices, 'memory')
+    expect(memory.ok && memory.id).toBe('openai-api')
+    expect(dataSectionProvider(codex, DEFAULT_DATA_PROVIDERS, 'rag').ok).toBe(false)
+  })
+
+  it('модель пресета не замеряется, своя — замеряется на адресе провайдера памяти', () => {
+    const preset = parseDataProviders('{"rag":{"provider":"gemini"}}')
+    expect(embeddingProbeTarget(codex, preset)).toBeNull()
+    const own = parseDataProviders(
+      '{"rag":{"provider":"gemini"},"memory":{"provider":"custom","base_url":"http://lab/v1","key_env":"LAB_KEY","llm":"qwen","embedding":"e5"}}'
+    )
+    expect(embeddingProbeTarget(codex, own)).toEqual({
+      baseUrl: 'http://lab/v1',
+      keyEnvVar: 'LAB_KEY',
+      model: 'e5'
+    })
+    expect(memoryEmbeddingModel(codex, own)).toBe('e5')
+  })
+
+  it('замеренная ширина живёт, пока не сменились модель и адрес; ширина из окна не принимается', () => {
+    const saved = parseDataProviders(
+      '{"memory":{"provider":"custom","base_url":"http://lab/v1","key_env":"LAB_KEY","llm":"qwen","embedding":"e5","embedding_dims":768}}'
+    )
+    expect(keepMeasuredWidth(gemini, saved, saved).memory.embeddingDims).toBe(768)
+    const otherModel = parseDataProviders(
+      '{"memory":{"provider":"custom","base_url":"http://lab/v1","key_env":"LAB_KEY","llm":"qwen","embedding":"bge","embedding_dims":768}}'
+    )
+    expect(keepMeasuredWidth(gemini, saved, otherModel).memory.embeddingDims).toBeUndefined()
+    expect(embeddingProbeTarget(gemini, keepMeasuredWidth(gemini, saved, otherModel))?.model).toBe(
+      'bge'
+    )
+  })
+
+  it('смена эмбеддингов RAG при построенном индексе — предупреждение до сохранения', () => {
+    const next = parseDataProviders('{"rag":{"provider":"openai-api"}}')
+    const warnings = embeddingChangeWarnings({
+      agent: gemini,
+      saved: DEFAULT_DATA_PROVIDERS,
+      next,
+      index: { builtWith: 'gemini-embedding-2', projectModel: null }
+    })
+    expect(warnings).toHaveLength(2)
+    expect(warnings[0]).toContain('«gemini-embedding-2»')
+    expect(warnings[0]).toContain('перестройку')
+    expect(warnings[1]).toContain('Прежние факты не будут видны')
+  })
+
+  it('без индекса, с моделью проекта или без смены — предупреждений нет', () => {
+    const next = parseDataProviders(
+      '{"rag":{"provider":"openai-api"},"memory":{"provider":"gemini"}}'
+    )
+    expect(
+      embeddingChangeWarnings({
+        agent: gemini,
+        saved: DEFAULT_DATA_PROVIDERS,
+        next,
+        index: noIndex
+      })
+    ).toEqual([])
+    expect(
+      embeddingChangeWarnings({
+        agent: gemini,
+        saved: DEFAULT_DATA_PROVIDERS,
+        next,
+        index: { builtWith: 'gemini-embedding-2', projectModel: 'gemini-embedding-2' }
+      })
+    ).toEqual([])
   })
 })

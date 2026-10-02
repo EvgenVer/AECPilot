@@ -3,7 +3,8 @@
 // Проверяется не вид, а договор: по умолчанию одна строка на RAG и память; память
 // разводится отдельным флажком; сохраняется выбор в форме файла профиля; ключ
 // выбранного провайдера уходит в наше шифрованное хранилище, а не в выбор; агент
-// по подписке назван словами.
+// по подписке назван словами. Задача 3G.52: модели — из списка провайдера по
+// кнопке, смена эмбеддингов спрашивается до записи.
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +18,7 @@ import { $dataProviders, $dataProvidersOpen, EMPTY_STATE } from './store'
 const saveDataProviders = vi.fn()
 const getDataProviders = vi.fn()
 const saveProviderKey = vi.fn()
+const listDataModels = vi.fn()
 
 function state(patch: Partial<DataProvidersState> = {}): DataProvidersState {
   return {
@@ -68,6 +70,7 @@ beforeEach(() => {
   $dataProvidersOpen.set(true)
   window.aecpilot = {
     getDataProviders,
+    listDataModels,
     saveDataProviders,
     saveProviderKey
   } as unknown as typeof window.aecpilot
@@ -99,10 +102,13 @@ describe('окно «Индекс и память»', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
     await waitFor(() =>
-      expect(saveDataProviders).toHaveBeenCalledWith({
-        rag: { provider: 'agent' },
-        memory: { provider: 'openai-api' }
-      })
+      expect(saveDataProviders).toHaveBeenCalledWith(
+        {
+          rag: { provider: 'agent' },
+          memory: { provider: 'openai-api' }
+        },
+        false
+      )
     )
     await screen.findByText(/Сохранено/)
   })
@@ -112,9 +118,12 @@ describe('окно «Индекс и память»', () => {
     fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
       target: { value: 'gemini' }
     })
-    expect(
-      screen.getByText('Модели: эмбеддинги gemini-embedding-2, разбор gemini-3.8-flash')
-    ).toBeTruthy()
+    expect(screen.getByLabelText('Модель эмбеддингов').getAttribute('placeholder')).toBe(
+      'gemini-embedding-2'
+    )
+    expect(screen.getByLabelText('Модель разбора документов').getAttribute('placeholder')).toBe(
+      'gemini-3.8-flash'
+    )
     const field = screen.getByLabelText('GEMINI_API_KEY')
     fireEvent.change(field, { target: { value: 'k-123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить ключ' }))
@@ -141,16 +150,19 @@ describe('окно «Индекс и память»', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
     await waitFor(() =>
-      expect(saveDataProviders).toHaveBeenCalledWith({
-        rag: {
-          provider: 'custom',
-          base_url: 'http://lab/v1',
-          key_env: 'LAB_KEY',
-          embedding: 'e5',
-          extraction: 'qwen'
+      expect(saveDataProviders).toHaveBeenCalledWith(
+        {
+          rag: {
+            provider: 'custom',
+            base_url: 'http://lab/v1',
+            key_env: 'LAB_KEY',
+            embedding: 'e5',
+            extraction: 'qwen'
+          },
+          memory: { provider: 'rag' }
         },
-        memory: { provider: 'rag' }
-      })
+        false
+      )
     )
   })
 
@@ -172,5 +184,86 @@ describe('окно «Индекс и память»', () => {
     show()
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
     await screen.findByText('файл выбора не записался')
+  })
+
+  it('список моделей провайдера приходит подсказками к полям модели', async () => {
+    listDataModels.mockResolvedValue({
+      ok: true,
+      models: ['gemini-embedding-2', 'gemini-3.8-flash']
+    })
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Список моделей' }))
+    await screen.findByText('Моделей в списке: 2')
+    expect(listDataModels).toHaveBeenCalledWith(
+      { rag: { provider: 'agent' }, memory: { provider: 'rag' } },
+      'rag'
+    )
+    const list = document.getElementById('data-models-rag')
+    expect([...(list?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual([
+      'gemini-embedding-2',
+      'gemini-3.8-flash'
+    ])
+    expect(screen.getByLabelText('Модель эмбеддингов').getAttribute('list')).toBe('data-models-rag')
+  })
+
+  it('провайдер не дал списка — отказ словами, поле остаётся для ввода руками', async () => {
+    listDataModels.mockResolvedValue({ ok: false, error: 'провайдер ответил 401' })
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Список моделей' }))
+    await screen.findByText('Списка нет: провайдер ответил 401. Впишите модель сами.')
+    fireEvent.change(screen.getByLabelText('Модель эмбеддингов'), { target: { value: 'my-embed' } })
+    expect((screen.getByLabelText('Модель эмбеддингов') as HTMLInputElement).value).toBe('my-embed')
+  })
+
+  it('смена эмбеддингов — вопрос до записи, запись только после «Сохранить всё равно»', async () => {
+    saveDataProviders
+      .mockResolvedValueOnce({ ok: false, warnings: ['Индекс проекта построен моделью «a»'] })
+      .mockResolvedValueOnce({ ok: true })
+    show()
+    fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
+      target: { value: 'openai-api' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
+    await screen.findByText('Индекс проекта построен моделью «a»')
+    expect(screen.queryByText(/Сохранено/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить всё равно' }))
+    await screen.findByText(/Сохранено/)
+    expect(saveDataProviders).toHaveBeenLastCalledWith(
+      { rag: { provider: 'openai-api' }, memory: { provider: 'rag' } },
+      true
+    )
+  })
+
+  it('у памяти свой адрес — адрес, переменная и модели памяти едут в выбор', async () => {
+    show()
+    fireEvent.click(screen.getByLabelText('Отдельный провайдер для памяти'))
+    fireEvent.change(screen.getByLabelText('Долговременная память'), {
+      target: { value: 'custom' }
+    })
+    fireEvent.change(screen.getByLabelText('Адрес (base_url)'), {
+      target: { value: 'http://lab/v1' }
+    })
+    fireEvent.change(screen.getByLabelText('Имя переменной ключа'), {
+      target: { value: 'lab_key' }
+    })
+    fireEvent.change(screen.getByLabelText('Модель памяти'), { target: { value: 'qwen' } })
+    fireEvent.change(screen.getByLabelText('Эмбеддинги памяти'), { target: { value: 'e5' } })
+    expect(screen.getByLabelText('LAB_KEY')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
+    await waitFor(() =>
+      expect(saveDataProviders).toHaveBeenCalledWith(
+        {
+          rag: { provider: 'agent' },
+          memory: {
+            provider: 'custom',
+            base_url: 'http://lab/v1',
+            key_env: 'LAB_KEY',
+            llm: 'qwen',
+            embedding: 'e5'
+          }
+        },
+        false
+      )
+    )
   })
 })

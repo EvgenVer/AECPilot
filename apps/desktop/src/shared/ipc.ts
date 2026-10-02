@@ -1444,7 +1444,19 @@ export interface AecpilotApi {
   getDataProviders(): Promise<DataProvidersState>
   /** Записывает выбор в `aec-providers.json` профиля и перерегистрирует `aec-rag`
    *  открытого проекта с новым окружением; профиль памяти переписывается тут же. */
-  saveDataProviders(choice: DataProvidersFile): Promise<{ error?: string; ok: boolean }>
+  /** Задача 3G.52: смена модели эмбеддингов спрашивается ДО записи — без `confirmed`
+   *  ответ несёт `warnings` и ничего не пишет. Ширину вектора своей модели памяти
+   *  main замеряет одним вызовом перед записью. */
+  saveDataProviders(
+    choice: DataProvidersFile,
+    confirmed: boolean
+  ): Promise<{ error?: string; ok: boolean; warnings?: string[] }>
+  /** Задача 3G.52: модели провайдера раздела — `GET <base_url>/models` его ключом,
+   *  только чтение. Отказ словами; окно тогда оставляет поле для ввода руками. */
+  listDataModels(
+    choice: DataProvidersFile,
+    section: 'rag' | 'memory'
+  ): Promise<{ error?: string; models?: string[]; ok: boolean }>
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a

@@ -197,11 +197,12 @@ export interface MemoryProviderSettings {
 /** Memory embedders per preset, with the vector width. OpenAI keeps the model the
  *  memory layer has always used (`text-embedding-3-small`, 1536) so existing facts
  *  stay readable; Gemini's width was measured by probe 3G.1 (3072). */
-export const MEMORY_EMBEDDERS: Readonly<Record<'gemini' | 'openai-api', { model: string; dims: number }>> =
-  {
-    gemini: { model: 'gemini-embedding-2', dims: 3072 },
-    'openai-api': { model: 'text-embedding-3-small', dims: 1536 }
-  }
+export const MEMORY_EMBEDDERS: Readonly<
+  Record<'gemini' | 'openai-api', { model: string; dims: number }>
+> = {
+  gemini: { model: 'gemini-embedding-2', dims: 3072 },
+  'openai-api': { model: 'text-embedding-3-small', dims: 1536 }
+}
 
 /** `null` when there is no usable provider or its models are the person's to name
  *  (`custom`) — the memory layer then keeps what it had. */
@@ -386,8 +387,7 @@ export type MemoryResolution =
 /** What the Mem0 layer is written with: its own provider, or RAG's by default. */
 export function memoryProvider(agent: ProfileProvider, choices: DataProviders): MemoryResolution {
   const choice = choices.memory
-  const source = choice.provider === 'rag' ? choices.rag : { ...choice, provider: choice.provider }
-  const resolved = resolveChoice(agent, source)
+  const resolved = dataSectionProvider(agent, choices, 'memory')
   if (!resolved.ok) return resolved
   const preset = resolved.id === 'custom' ? null : MEMORY_EMBEDDERS[resolved.id]
   const llmModel = choice.llm ?? resolved.models?.aux
@@ -455,4 +455,124 @@ export function dataKeyEnvVars(choices: DataProviders): string[] {
     if (name && !names.includes(name)) names.push(name)
   }
   return names
+}
+
+// --- Models from the provider's own list (task 3G.52, D-172) ----------------------
+
+/** The provider one section of the window resolves to — what its model list is read
+ *  from. Memory set to «as RAG» reads RAG's. */
+export function dataSectionProvider(
+  agent: ProfileProvider,
+  choices: DataProviders,
+  section: 'rag' | 'memory'
+): ResolvedProvider {
+  if (section === 'rag') return resolveChoice(agent, choices.rag)
+  const memory = choices.memory
+  return resolveChoice(
+    agent,
+    memory.provider === 'rag' ? choices.rag : { ...memory, provider: memory.provider }
+  )
+}
+
+/** Model ids from an OpenAI-compatible `GET /models` answer. Gemini's compatible
+ *  endpoint names them `models/<id>`, and the prefix is not part of the id its
+ *  `/embeddings` and `/chat/completions` accept. */
+export function parseModelIds(answer: unknown): string[] {
+  const data = record(answer).data
+  if (!Array.isArray(data)) return []
+  const ids = data
+    .map((item) => text(record(item).id))
+    .filter((id): id is string => id !== undefined)
+    .map((id) => id.replace(/^models\//, ''))
+  return [...new Set(ids)].sort()
+}
+
+/** Vector width from an OpenAI-compatible `POST /embeddings` answer. */
+export function parseEmbeddingWidth(answer: unknown): number | null {
+  const data = record(answer).data
+  const vector = Array.isArray(data) ? record(data[0]).embedding : undefined
+  return Array.isArray(vector) && vector.length > 0 ? vector.length : null
+}
+
+/** The memory embedding model the choice writes with; `null` — no provider. */
+export function memoryEmbeddingModel(
+  agent: ProfileProvider,
+  choices: DataProviders
+): string | null {
+  const resolved = dataSectionProvider(agent, choices, 'memory')
+  if (!resolved.ok) return null
+  const preset = resolved.id === 'custom' ? null : MEMORY_EMBEDDERS[resolved.id]
+  return choices.memory.embedding ?? preset?.model ?? null
+}
+
+/** A measured width stays only for the same model at the same address: the window
+ *  never sends one it measured itself, so a width from the renderer is dropped. */
+export function keepMeasuredWidth(
+  agent: ProfileProvider,
+  saved: DataProviders,
+  next: DataProviders
+): DataProviders {
+  const before = dataSectionProvider(agent, saved, 'memory')
+  const after = dataSectionProvider(agent, next, 'memory')
+  const same =
+    before.ok &&
+    after.ok &&
+    before.baseUrl === after.baseUrl &&
+    memoryEmbeddingModel(agent, saved) === memoryEmbeddingModel(agent, next)
+  return {
+    ...next,
+    memory: withoutEmpty({
+      ...next.memory,
+      embeddingDims: same ? saved.memory.embeddingDims : undefined
+    })
+  }
+}
+
+/** The memory embedder whose vector width nobody knows yet — the save measures it
+ *  with one call before writing (Mem0's store is created at that width). `null` —
+ *  nothing to measure: a preset model, a width already kept, or no provider. */
+export function embeddingProbeTarget(
+  agent: ProfileProvider,
+  choices: DataProviders
+): { baseUrl: string; keyEnvVar: string; model: string } | null {
+  const resolved = dataSectionProvider(agent, choices, 'memory')
+  if (!resolved.ok) return null
+  const model = memoryEmbeddingModel(agent, choices)
+  if (!model || choices.memory.embeddingDims) return null
+  const preset = resolved.id === 'custom' ? null : MEMORY_EMBEDDERS[resolved.id]
+  if (preset && preset.model === model) return null
+  return { baseUrl: resolved.baseUrl, keyEnvVar: resolved.keyEnvVar, model }
+}
+
+/** What changes in stored vectors if the choice is saved — asked BEFORE the save.
+ *  The index: vectors of different models are not comparable, so it will ask to be
+ *  rebuilt (task 3G.7). Memory: its store is per model (`mem0-<model>`), so facts
+ *  written before stay out of sight until the model is returned — not deleted. */
+export function embeddingChangeWarnings(input: {
+  agent: ProfileProvider
+  saved: DataProviders
+  next: DataProviders
+  index: { builtWith: string | null; projectModel: string | null }
+}): string[] {
+  const { agent, saved, next, index } = input
+  const warnings: string[] = []
+  const rag = ragProvider(agent, next)
+  const to = rag.ok ? rag.env.AEC_RAG_EMBEDDING_MODEL : null
+  const from = (index.builtWith ?? '').trim()
+  if (from && to && to !== from && !(index.projectModel ?? '').trim()) {
+    warnings.push(
+      `Индекс проекта построен моделью «${from}», с этим выбором эмбеддинги считает «${to}». ` +
+        'Векторы разных моделей несравнимы: после сохранения индекс попросит перестройку — ' +
+        'в индикаторе индекса, с ценой до запуска.'
+    )
+  }
+  const memoryFrom = memoryEmbeddingModel(agent, saved)
+  const memoryTo = memoryEmbeddingModel(agent, next)
+  if (memoryFrom && memoryTo && memoryFrom !== memoryTo) {
+    warnings.push(
+      `Память записана моделью «${memoryFrom}», с этим выбором — «${memoryTo}». ` +
+        'Прежние факты не будут видны, пока модель не возвращена; удалены они не будут.'
+    )
+  }
+  return warnings
 }

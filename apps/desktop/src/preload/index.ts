@@ -103,8 +103,10 @@ const api: AecpilotApi = {
     get: () => ipcRenderer.invoke('minimize-to-tray:get'),
     set: (on) => ipcRenderer.invoke('minimize-to-tray:set', on),
     onChanged: (cb) => {
-      const listener = (_event: Electron.IpcRendererEvent, status: Parameters<typeof cb>[0]): void =>
-        cb(status)
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: Parameters<typeof cb>[0]
+      ): void => cb(status)
       ipcRenderer.on('minimize-to-tray:changed', listener)
       return () => ipcRenderer.removeListener('minimize-to-tray:changed', listener)
     }
@@ -269,7 +271,10 @@ const api: AecpilotApi = {
   getGraphAddState: () => ipcRenderer.invoke('graph:add-state'),
   getGraphAccess: () => ipcRenderer.invoke('graph:access'),
   getDataProviders: () => ipcRenderer.invoke('data-providers:get'),
-  saveDataProviders: (choice) => ipcRenderer.invoke('data-providers:save', choice),
+  saveDataProviders: (choice, confirmed) =>
+    ipcRenderer.invoke('data-providers:save', { choice, confirmed }),
+  listDataModels: (choice, section) =>
+    ipcRenderer.invoke('data-providers:models', { choice, section }),
   onGraphAddState: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
       cb(state)

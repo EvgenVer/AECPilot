@@ -34,12 +34,28 @@ export function openDataProviders(): void {
   $dataProvidersOpen.set(true)
 }
 
-/** Текст отказа или пустая строка — отказ виден словами. */
-export async function saveDataChoice(choice: DataProvidersFile): Promise<string> {
-  const answer = await window.aecpilot.saveDataProviders(choice)
-  if (!answer.ok) return answer.error ?? 'выбор не сохранён'
+/** Отказ словами (`error`) или вопрос до записи (`warnings`, задача 3G.52): смена
+ *  модели эмбеддингов записывается только с `confirmed`. */
+export async function saveDataChoice(
+  choice: DataProvidersFile,
+  confirmed = false
+): Promise<{ error: string; warnings: string[] }> {
+  const answer = await window.aecpilot.saveDataProviders(choice, confirmed)
+  if (answer.warnings?.length) return { error: '', warnings: answer.warnings }
+  if (!answer.ok) return { error: answer.error ?? 'выбор не сохранён', warnings: [] }
   await refreshDataProviders()
-  return ''
+  return { error: '', warnings: [] }
+}
+
+/** Модели провайдера раздела (задача 3G.52) или отказ словами. */
+export async function listModels(
+  choice: DataProvidersFile,
+  section: 'rag' | 'memory'
+): Promise<{ ok: true; models: string[] } | { ok: false; error: string }> {
+  const answer = await window.aecpilot.listDataModels(choice, section)
+  return answer.ok && answer.models
+    ? { ok: true, models: answer.models }
+    : { ok: false, error: answer.error ?? 'список не получен' }
 }
 
 export async function saveDataKey(envVar: string, key: null | string): Promise<string> {

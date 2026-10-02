@@ -362,8 +362,11 @@ export const aecLocales: PluginLocaleBundles = {
       keyEnv: 'Key variable name',
       embedding: 'Embedding model',
       extraction: 'Model for parsing documents',
-      models: (embedding: string, extraction: string) =>
-        `Models: embeddings ${embedding}, parsing ${extraction}`,
+      modelsLoad: 'Model list',
+      modelsCount: (count: number) => `${count} model(s) in the list`,
+      modelsFailed: (reason: string) => `No list: ${reason}. Type the model yourself.`,
+      memoryLlm: 'Memory model',
+      memoryEmbedding: 'Memory embeddings',
       memoryModels: (llm: string, embedding: string) => `Models: ${llm}, embeddings ${embedding}`,
       keysTitle: 'Keys',
       keySet: 'stored',
@@ -380,8 +383,11 @@ export const aecLocales: PluginLocaleBundles = {
       statusMemory: 'Memory',
       ready: 'ready',
       save: 'Save choice',
+      saveAnyway: 'Save anyway',
+      warningsTitle: 'Before saving',
       saved: 'Saved. The index and memory use the new provider from the next call.',
-      profileUnread: 'The core profile could not be read, so the choice can be neither shown nor saved.'
+      profileUnread:
+        'The core profile could not be read, so the choice can be neither shown nor saved.'
     },
     graphAccess: {
       command: 'Microsoft Graph access',
@@ -944,8 +950,11 @@ export const aecLocales: PluginLocaleBundles = {
       keyEnv: 'Имя переменной ключа',
       embedding: 'Модель эмбеддингов',
       extraction: 'Модель разбора документов',
-      models: (embedding: string, extraction: string) =>
-        `Модели: эмбеддинги ${embedding}, разбор ${extraction}`,
+      modelsLoad: 'Список моделей',
+      modelsCount: (count: number) => `Моделей в списке: ${count}`,
+      modelsFailed: (reason: string) => `Списка нет: ${reason}. Впишите модель сами.`,
+      memoryLlm: 'Модель памяти',
+      memoryEmbedding: 'Эмбеддинги памяти',
       memoryModels: (llm: string, embedding: string) => `Модели: ${llm}, эмбеддинги ${embedding}`,
       keysTitle: 'Ключи',
       keySet: 'сохранён',
@@ -955,12 +964,15 @@ export const aecLocales: PluginLocaleBundles = {
         'Ключ доходит до ядра через окружение его процесса, поэтому после сохранения ядро ' +
         'перезапустится.',
       envOverride: 'Та же переменная задана в .env профиля, и ядро берёт её оттуда.',
-      noEncryption: 'Эта машина не умеет шифровать локальное хранилище — ключи здесь не сохраняются.',
+      noEncryption:
+        'Эта машина не умеет шифровать локальное хранилище — ключи здесь не сохраняются.',
       statusTitle: 'Что работает с сохранённым выбором',
       statusRag: 'Поиск по документам',
       statusMemory: 'Память',
       ready: 'готово',
       save: 'Сохранить выбор',
+      saveAnyway: 'Сохранить всё равно',
+      warningsTitle: 'Перед сохранением',
       saved: 'Сохранено. Индекс и память берут нового провайдера со следующего вызова.',
       profileUnread: 'Профиль ядра не прочитан — выбор не показать и не сохранить.'
     },

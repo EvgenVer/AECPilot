@@ -10,6 +10,11 @@
 //
 // ПО УМОЛЧАНИЮ ОДНА СТРОКА. Память идёт за RAG, RAG — за агентом (решение
 // владельца 2026-10-02: «по умолчанию один, но развести, если надо»).
+//
+// МОДЕЛИ (3G.52) — поле с подсказками из списка провайдера: список читается по
+// кнопке, не на каждый выбор, потому что это вызов чужого адреса чужим ключом.
+// Пустое поле — модель пресета (она же подсказка в поле); провайдер списка не
+// дал — модель вписывается руками в то же поле.
 
 import { useStore } from '@nanostores/react'
 import { useState } from 'react'
@@ -18,11 +23,18 @@ import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { DataProvidersFile, DataProvidersState } from '../../../../shared/ipc'
 
-import { $dataProviders, $dataProvidersOpen, saveDataChoice, saveDataKey } from './store'
+import {
+  $dataProviders,
+  $dataProvidersOpen,
+  listModels,
+  saveDataChoice,
+  saveDataKey
+} from './store'
 
 type RagChoice = DataProvidersFile['rag']
 type MemoryChoice = DataProvidersFile['memory']
 type Preset = DataProvidersState['presets'][number]
+type Section = 'rag' | 'memory'
 
 const PRESET_IDS = ['gemini', 'openai-api']
 
@@ -49,12 +61,16 @@ function presetOf(state: DataProvidersState, id: string): Preset | undefined {
 function Field({
   id,
   label,
+  list,
   onChange,
+  placeholder,
   value
 }: {
   id: string
   label: string
+  list?: string
   onChange: (value: string) => void
+  placeholder?: string
   value: string
 }): React.JSX.Element {
   return (
@@ -65,7 +81,9 @@ function Field({
       <input
         className={inputClass}
         id={id}
+        list={list}
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
         value={value}
       />
     </div>
@@ -140,6 +158,9 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [models, setModels] = useState<Partial<Record<Section, string[]>>>({})
+  const [modelsError, setModelsError] = useState<Partial<Record<Section, string>>>({})
 
   // Свежий выбор из профиля — после открытия и после сохранения. Сверка во время
   // отрисовки, а не в эффекте: так черновик не мигает старым выбором лишний кадр.
@@ -152,14 +173,24 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   if (!open) return null
 
   const separate = draft.memory.provider !== 'rag'
+  const touched = (): void => {
+    setMessage('')
+    setWarnings([])
+  }
   const setRag = (rag: RagChoice): void => {
     setDraft((current) => ({ ...current, rag }))
-    setMessage('')
+    touched()
   }
   const setMemory = (memory: MemoryChoice): void => {
     setDraft((current) => ({ ...current, memory }))
-    setMessage('')
+    touched()
   }
+  // Другой провайдер — другой список: прежний не подсказывает чужих моделей.
+  const forget = (section: Section): void => {
+    setModels((current) => ({ ...current, [section]: undefined }))
+    setModelsError((current) => ({ ...current, [section]: undefined }))
+  }
+  const cleaned = (): DataProvidersFile => ({ rag: clean(draft.rag), memory: clean(draft.memory) })
 
   const ragPreset = presetOf(
     state,
@@ -176,6 +207,14 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
     memoryPresetId === 'agent' ? (state.agentProvider ?? '') : memoryPresetId
   )
 
+  // У «как у агента» при агенте по подписке провайдера нет — и моделей тоже.
+  const agentUsable = !!state.agentProvider && !isSubscription(state.agentProvider)
+  const ragHasProvider = draft.rag.provider !== 'agent' || agentUsable
+  const memoryHasProvider =
+    draft.memory.provider === 'rag'
+      ? ragHasProvider
+      : draft.memory.provider !== 'agent' || agentUsable
+
   // Ключи, которые нужны выбору; «как у агента» своих не добавляет.
   const neededKeys: string[] = []
   for (const choice of [draft.rag, draft.memory]) {
@@ -187,14 +226,45 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
     if (name && !neededKeys.includes(name)) neededKeys.push(name)
   }
 
-  const save = async (): Promise<void> => {
+  const save = async (confirmed: boolean): Promise<void> => {
     setBusy(true)
     setError('')
-    const failure = await saveDataChoice({ rag: clean(draft.rag), memory: clean(draft.memory) })
+    const answer = await saveDataChoice(cleaned(), confirmed)
     setBusy(false)
-    if (failure) setError(failure)
-    else setMessage(t('dataProviders.saved'))
+    setWarnings(answer.warnings)
+    if (answer.error) setError(answer.error)
+    else if (answer.warnings.length === 0) setMessage(t('dataProviders.saved'))
   }
+
+  const loadModels = async (section: Section): Promise<void> => {
+    forget(section)
+    const answer = await listModels(cleaned(), section)
+    if (answer.ok) setModels((current) => ({ ...current, [section]: answer.models }))
+    else setModelsError((current) => ({ ...current, [section]: answer.error }))
+  }
+
+  const modelsRow = (section: Section): React.JSX.Element => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button onClick={() => void loadModels(section)} size="sm" variant="ghost">
+        {t('dataProviders.modelsLoad')}
+      </Button>
+      {models[section] && (
+        <span className="text-xs text-(--ui-text-secondary)">
+          {t('dataProviders.modelsCount', models[section].length)}
+        </span>
+      )}
+      {modelsError[section] && (
+        <span className="text-xs text-amber-500">
+          {t('dataProviders.modelsFailed', modelsError[section])}
+        </span>
+      )}
+      <datalist id={`data-models-${section}`}>
+        {(models[section] ?? []).map((model) => (
+          <option key={model} value={model} />
+        ))}
+      </datalist>
+    </div>
+  )
 
   const options = (withCustom: boolean): React.JSX.Element[] => [
     <option key="agent" value="agent">
@@ -253,14 +323,15 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
               <select
                 className={inputClass}
                 id="data-rag"
-                onChange={(event) =>
+                onChange={(event) => {
                   setRag({ provider: event.target.value as RagChoice['provider'] })
-                }
+                  forget('rag')
+                }}
                 value={draft.rag.provider}
               >
                 {options(true)}
               </select>
-              {draft.rag.provider === 'custom' ? (
+              {draft.rag.provider === 'custom' && (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Field
                     id="data-rag-base-url"
@@ -274,25 +345,30 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                     onChange={(value) => setRag({ ...draft.rag, key_env: value.toUpperCase() })}
                     value={draft.rag.key_env ?? ''}
                   />
-                  <Field
-                    id="data-rag-embedding"
-                    label={t('dataProviders.embedding')}
-                    onChange={(value) => setRag({ ...draft.rag, embedding: value })}
-                    value={draft.rag.embedding ?? ''}
-                  />
-                  <Field
-                    id="data-rag-extraction"
-                    label={t('dataProviders.extraction')}
-                    onChange={(value) => setRag({ ...draft.rag, extraction: value })}
-                    value={draft.rag.extraction ?? ''}
-                  />
                 </div>
-              ) : (
-                ragPreset && (
-                  <p className="text-xs text-(--ui-text-secondary)">
-                    {t('dataProviders.models', ragPreset.embedding, ragPreset.extraction)}
-                  </p>
-                )
+              )}
+              {ragHasProvider && (
+                <>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Field
+                      id="data-rag-embedding"
+                      label={t('dataProviders.embedding')}
+                      list="data-models-rag"
+                      onChange={(value) => setRag({ ...draft.rag, embedding: value })}
+                      placeholder={ragPreset?.embedding}
+                      value={draft.rag.embedding ?? ''}
+                    />
+                    <Field
+                      id="data-rag-extraction"
+                      label={t('dataProviders.extraction')}
+                      list="data-models-rag"
+                      onChange={(value) => setRag({ ...draft.rag, extraction: value })}
+                      placeholder={ragPreset?.extraction}
+                      value={draft.rag.extraction ?? ''}
+                    />
+                  </div>
+                  {modelsRow('rag')}
+                </>
               )}
             </section>
 
@@ -318,16 +394,58 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                   <select
                     className={inputClass}
                     id="data-memory"
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setMemory({ provider: event.target.value as MemoryChoice['provider'] })
-                    }
+                      forget('memory')
+                    }}
                     value={draft.memory.provider}
                   >
-                    {options(false)}
+                    {options(true)}
                   </select>
+                  {draft.memory.provider === 'custom' && (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Field
+                        id="data-memory-base-url"
+                        label={t('dataProviders.baseUrl')}
+                        onChange={(value) => setMemory({ ...draft.memory, base_url: value })}
+                        value={draft.memory.base_url ?? ''}
+                      />
+                      <Field
+                        id="data-memory-key-env"
+                        label={t('dataProviders.keyEnv')}
+                        onChange={(value) =>
+                          setMemory({ ...draft.memory, key_env: value.toUpperCase() })
+                        }
+                        value={draft.memory.key_env ?? ''}
+                      />
+                    </div>
+                  )}
+                  {memoryHasProvider && (
+                    <>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Field
+                          id="data-memory-llm"
+                          label={t('dataProviders.memoryLlm')}
+                          list="data-models-memory"
+                          onChange={(value) => setMemory({ ...draft.memory, llm: value })}
+                          placeholder={memoryPreset?.memoryLlm}
+                          value={draft.memory.llm ?? ''}
+                        />
+                        <Field
+                          id="data-memory-embedding"
+                          label={t('dataProviders.memoryEmbedding')}
+                          list="data-models-memory"
+                          onChange={(value) => setMemory({ ...draft.memory, embedding: value })}
+                          placeholder={memoryPreset?.memoryEmbedding}
+                          value={draft.memory.embedding ?? ''}
+                        />
+                      </div>
+                      {modelsRow('memory')}
+                    </>
+                  )}
                 </>
               )}
-              {memoryPreset && (
+              {!separate && memoryPreset && (
                 <p className="text-xs text-(--ui-text-secondary)">
                   {t(
                     'dataProviders.memoryModels',
@@ -386,17 +504,29 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
           </>
         )}
 
+        {warnings.length > 0 && (
+          <section className="flex flex-col gap-1 rounded border border-amber-500/50 p-2">
+            <h3 className="text-xs font-semibold text-(--ui-text-primary)">
+              {t('dataProviders.warningsTitle')}
+            </h3>
+            {warnings.map((warning) => (
+              <p className="text-xs text-(--ui-text-primary)" key={warning}>
+                {warning}
+              </p>
+            ))}
+          </section>
+        )}
         {error && <p className="text-xs text-(--ui-text-danger)">{error}</p>}
         {message && <p className="text-xs text-(--ui-text-primary)">{message}</p>}
 
         <div className="flex justify-end gap-2">
           <Button
             disabled={busy || !state.profileRead}
-            onClick={() => void save()}
+            onClick={() => void save(warnings.length > 0)}
             size="sm"
             variant="secondary"
           >
-            {t('dataProviders.save')}
+            {t(warnings.length > 0 ? 'dataProviders.saveAnyway' : 'dataProviders.save')}
           </Button>
           <Button onClick={() => $dataProvidersOpen.set(false)} size="sm" variant="ghost">
             {t('common.close')}

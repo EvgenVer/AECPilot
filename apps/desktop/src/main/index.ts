@@ -228,8 +228,14 @@ import {
   MEMORY_EMBEDDERS,
   PROVIDER_PRESETS,
   dataKeyEnvVars,
+  dataSectionProvider,
+  embeddingChangeWarnings,
+  embeddingProbeTarget,
+  keepMeasuredWidth,
   memoryProvider,
   parseDataProviders,
+  parseEmbeddingWidth,
+  parseModelIds,
   pendingEmbeddingSwitch,
   ragProvider,
   readProfileProvider,
@@ -3862,13 +3868,90 @@ ipcMain.handle('data-providers:get', async (): Promise<DataProvidersState> => {
   }
 })
 
+/** Задача 3G.52: один запрос к провайдеру его ключом. Ключ берётся из нашего
+ *  хранилища (или окружения запуска) и уходит только в заголовок; в тексте отказа
+ *  его нет — только адрес-неудача и код ответа. */
+async function providerRequest(
+  baseUrl: string,
+  keyEnvVar: string,
+  path: string,
+  body?: unknown
+): Promise<{ ok: true; answer: unknown } | { ok: false; error: string }> {
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    return { ok: false, error: `адрес «${baseUrl}» не http(s)` }
+  }
+  const key = buildProviderKeyEnv()[keyEnvVar] ?? process.env[keyEnvVar]
+  if (!key) return { ok: false, error: `ключ ${keyEnvVar} не задан` }
+  try {
+    const response = await fetch(baseUrl.replace(/\/+$/, '') + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (!response.ok) return { ok: false, error: `провайдер ответил ${response.status}` }
+    return { ok: true, answer: await response.json() }
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.name : 'ошибка сети'
+    return { ok: false, error: `провайдер не ответил (${reason})` }
+  }
+}
+
+/** Модель, которой построен индекс открытого проекта, и модель из его настроек
+ *  (задача 3G.7) — то же чтение, что у индикатора индекса. */
+function openIndexEmbedding(): { builtWith: string | null; projectModel: string | null } {
+  if (!currentProject) return { builtWith: null, projectModel: null }
+  const aec = join(currentProject.vaultPath, '.aecpilot')
+  const readJson = (path: string): Record<string, unknown> => {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'))
+      return typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+  const settings = readJson(join(aec, 'project.json')).settings as
+    { embedding_model?: unknown } | undefined
+  const asText = (value: unknown): string | null => (typeof value === 'string' ? value : null)
+  return {
+    builtWith: asText(readJson(join(aec, 'lightrag', 'aec-index.json')).embedding_model),
+    projectModel: asText(settings?.embedding_model)
+  }
+}
+
+ipcMain.handle('data-providers:models', async (_event, payload: unknown) => {
+  const { choice, section } = (payload ?? {}) as { choice?: unknown; section?: unknown }
+  let profileDir: string
+  try {
+    profileDir = (await loadServeModule()).HERMES_HOME_DIR
+  } catch {
+    return { ok: false, error: 'профиль ядра не найден' }
+  }
+  const { agent } = readDataProviderInputs(profileDir)
+  const choices = parseDataProviders(JSON.stringify(choice ?? null))
+  const resolved = dataSectionProvider(agent, choices, section === 'memory' ? 'memory' : 'rag')
+  if (!resolved.ok) return { ok: false, error: resolved.reason }
+  const answer = await providerRequest(resolved.baseUrl, resolved.keyEnvVar, '/models')
+  if (!answer.ok) return answer
+  const models = parseModelIds(answer.answer)
+  return models.length > 0
+    ? { ok: true, models }
+    : { ok: false, error: 'провайдер не назвал ни одной модели' }
+})
+
 ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
-  const choices = parseDataProviders(JSON.stringify(payload ?? null))
-  for (const choice of [choices.rag, choices.memory]) {
-    if (choice.keyEnvVar && !isCredentialEnvVarName(choice.keyEnvVar)) {
+  const { choice, confirmed } = (payload ?? {}) as { choice?: unknown; confirmed?: unknown }
+  const choices = parseDataProviders(JSON.stringify(choice ?? null))
+  for (const section of [choices.rag, choices.memory]) {
+    if (section.keyEnvVar && !isCredentialEnvVarName(section.keyEnvVar)) {
       return {
         ok: false,
-        error: `имя переменной ключа «${choice.keyEnvVar}»: латинские заглавные буквы, цифры и _`
+        error: `имя переменной ключа «${section.keyEnvVar}»: латинские заглавные буквы, цифры и _`
       }
     }
   }
@@ -3879,10 +3962,33 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
     console.error('aecpilot: could not locate the hermes profile for data providers', error)
     return { ok: false, error: 'профиль ядра не найден — выбор не сохранён' }
   }
+  // Задача 3G.52: ширина вектора — только замеренная здесь же и только для той же
+  // модели на том же адресе; смена эмбеддингов — вопрос до записи.
+  const { agent, choices: saved } = readDataProviderInputs(profileDir)
+  let next = keepMeasuredWidth(agent, saved, choices)
+  if (confirmed !== true) {
+    const warnings = embeddingChangeWarnings({ agent, saved, next, index: openIndexEmbedding() })
+    if (warnings.length > 0) return { ok: false, warnings }
+  }
+  const probe = embeddingProbeTarget(agent, next)
+  if (probe) {
+    const answer = await providerRequest(probe.baseUrl, probe.keyEnvVar, '/embeddings', {
+      model: probe.model,
+      input: 'ширина вектора'
+    })
+    const width = answer.ok ? parseEmbeddingWidth(answer.answer) : null
+    if (!width) {
+      return {
+        ok: false,
+        error: `ширина вектора модели «${probe.model}» не измерена: ${answer.ok ? 'в ответе нет вектора' : answer.error} — выбор не сохранён`
+      }
+    }
+    next = { ...next, memory: { ...next.memory, embeddingDims: width } }
+  }
   try {
     writeFileSync(
       join(profileDir, 'aec-providers.json'),
-      JSON.stringify(serializeDataProviders(choices), null, 2) + '\n',
+      JSON.stringify(serializeDataProviders(next), null, 2) + '\n',
       'utf-8'
     )
   } catch (error: unknown) {
@@ -4837,24 +4943,8 @@ ipcMain.handle('index:ingest-state', () => ingestState)
 // сети, поэтому его можно спрашивать при каждом открытии индикатора.
 ipcMain.handle('index:embedding-switch', () => {
   if (!currentProject) return null
-  const aec = join(currentProject.vaultPath, '.aecpilot')
-  const readJson = (path: string): Record<string, unknown> => {
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'))
-      return typeof parsed === 'object' && parsed !== null
-        ? (parsed as Record<string, unknown>)
-        : {}
-    } catch {
-      return {}
-    }
-  }
-  const fingerprint = readJson(join(aec, 'lightrag', 'aec-index.json'))
-  const settings = readJson(join(aec, 'project.json')).settings as
-    { embedding_model?: unknown } | undefined
-  const asText = (value: unknown): string | null => (typeof value === 'string' ? value : null)
   return pendingEmbeddingSwitch({
-    builtWith: asText(fingerprint.embedding_model),
-    projectModel: asText(settings?.embedding_model),
+    ...openIndexEmbedding(),
     providerModel: ragEnvFromProfile(knownHermesHome).AEC_RAG_EMBEDDING_MODEL ?? null
   })
 })
