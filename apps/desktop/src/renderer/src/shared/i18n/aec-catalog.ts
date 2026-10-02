@@ -158,6 +158,8 @@ export const aecLocales: PluginLocaleBundles = {
           : '.') +
         ' Nothing changes until you confirm.',
       rebuild: 'Rebuild the index',
+      provider: (reason: string) => `Document search has no provider: ${reason}.`,
+      providerChoose: 'Choose a provider',
       failed: (count: number) => `${count} file(s) could not be read — see the run report.`,
       graphTitle: 'Knowledge graph',
       graphEmpty:
@@ -266,7 +268,10 @@ export const aecLocales: PluginLocaleBundles = {
       unknown:
         'It reports unavailable, so nothing said in this conversation is remembered beyond the core note. The conversation itself continues.',
       toolFailed: (reason: string) =>
-        `Extended memory stopped answering: ${reason} The conversation continues; the core note still works.`
+        `Extended memory stopped answering: ${reason} The conversation continues; the core note still works.`,
+      provider: (reason: string) =>
+        `Long-term memory has no provider: ${reason}. The conversation continues; the core note still works.`,
+      choose: 'Choose a provider'
     },
     coreNotice: {
       riskTitle: 'Check where this text came from',
@@ -752,6 +757,8 @@ export const aecLocales: PluginLocaleBundles = {
           : '.') +
         ' Пока вы не подтвердите, ничего не меняется.',
       rebuild: 'Перестроить индекс',
+      provider: (reason: string) => `У поиска по документам нет провайдера: ${reason}.`,
+      providerChoose: 'Выбрать провайдера',
       failed: (count: number) => `${count} файл(ов) не прочитались — смотрите отчёт прогона.`,
       graphTitle: 'Граф знаний',
       graphEmpty:
@@ -857,7 +864,10 @@ export const aecLocales: PluginLocaleBundles = {
       unknown:
         'Она сообщает, что недоступна, поэтому сказанное в этом разговоре не запоминается — кроме записки ядра. Сам разговор продолжается.',
       toolFailed: (reason: string) =>
-        `Расширенная память перестала отвечать: ${reason} Разговор продолжается, записка ядра работает.`
+        `Расширенная память перестала отвечать: ${reason} Разговор продолжается, записка ядра работает.`,
+      provider: (reason: string) =>
+        `У долговременной памяти нет провайдера: ${reason}. Разговор продолжается, записка ядра работает.`,
+      choose: 'Выбрать провайдера'
     },
     coreNotice: {
       riskTitle: 'Проверьте, откуда этот текст',

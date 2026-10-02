@@ -27,6 +27,19 @@
 
 import { isGatewayEventOfType, type GatewayEvent } from '../../../../shared/gateway/types'
 
+/** Задача 3G.49 (D-172): у памяти нет провайдера — агент по подписке, а свой не
+ *  выбран (или у своего не хватает моделей). Причина — словами из main; `null` —
+ *  провайдер есть, или профиль не прочитан, или агент ещё не настроен (это дело
+ *  мастера, не уведомления). */
+export function memoryProviderGap(state: {
+  agentProvider: string | null
+  memory: { ok: boolean; reason?: string }
+  profileRead: boolean
+}): null | string {
+  if (!state.profileRead || !state.agentProvider || state.memory.ok) return null
+  return state.memory.reason ?? ''
+}
+
 /** Что стало со вторым слоем памяти. */
 export type MemoryLayerVerdict =
   /** Поднялся — говорить нечего. */

@@ -37,6 +37,17 @@ EMBEDDING_MODEL_ENV = "AEC_RAG_EMBEDDING_MODEL"
 # LightRAG calls an LLM per chunk to pull out entities and relations, so this is
 # the model that decides what an ingest costs.
 EXTRACTION_MODEL_ENV = "AEC_RAG_EXTRACTION_MODEL"
+# Why there is no provider, in words, when the app could not resolve one (task
+# 3G.49, D-172): an agent on a subscription has no key this server could use. The
+# refusal carries the reason and where to choose, instead of «not set».
+UNAVAILABLE_ENV = "AEC_RAG_UNAVAILABLE"
+
+
+def _no_provider(detail: str) -> RagIndexError:
+    """The refusal for a missing provider: the app's reason when it gave one."""
+    reason = os.environ.get(UNAVAILABLE_ENV, "").strip()
+    return RagIndexError(reason or detail)
+
 
 # The language entity names are written in (finding D-38).
 #
@@ -127,8 +138,9 @@ def load_settings(project_path: Path | str) -> RagSettings:
     configured = (settings or {}).get("embedding_model") or ""
     model = configured.strip() or os.environ.get(EMBEDDING_MODEL_ENV, "").strip()
     if not model:
-        raise RagIndexError(
-            "модель эмбеддингов не выбрана: провайдер не задан — выберите его в настройках"
+        raise _no_provider(
+            "модель эмбеддингов не выбрана: провайдер не задан — выберите его в окне "
+            "«Индекс и память» (палитра команд, Ctrl+K)"
         )
 
     language = ((settings or {}).get("extraction_language") or "").strip() or EXTRACTION_LANGUAGE
@@ -249,7 +261,7 @@ def api_key() -> str:
     """
     name = os.environ.get(KEY_ENV_NAME_ENV, "").strip()
     if not name:
-        raise RagIndexError("провайдер индекса не задан: не указана переменная ключа")
+        raise _no_provider("провайдер индекса не задан: не указана переменная ключа")
     key = os.environ.get(name, "").strip()
     if not key:
         raise RagIndexError(f"переменная окружения {name} не задана")
@@ -260,7 +272,7 @@ def base_url() -> str:
     """The provider's OpenAI-compatible address (see ``BASE_URL_ENV``)."""
     url = os.environ.get(BASE_URL_ENV, "").strip()
     if not url:
-        raise RagIndexError("провайдер индекса не задан: не указан адрес")
+        raise _no_provider("провайдер индекса не задан: не указан адрес")
     return url
 
 
@@ -338,7 +350,7 @@ def _default_llm_func(settings: RagSettings):
     async def complete(prompt: str, system_prompt: str | None = None, **kwargs: Any) -> str:
         kwargs.pop("hashing_kv", None)
         if not settings.extraction_model:
-            raise RagIndexError("модель разбора не выбрана: провайдер не задан")
+            raise _no_provider("модель разбора не выбрана: провайдер не задан")
         return await openai_complete_if_cache(
             settings.extraction_model,
             prompt,

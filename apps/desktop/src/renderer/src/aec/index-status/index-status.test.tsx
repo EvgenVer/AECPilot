@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AecI18nProvider } from '../../shared/i18n'
 import type { GraphAddState, IngestState, RagStatus } from '../../../../shared/ipc'
 
+import { $dataProvidersOpen, EMPTY_STATE } from '../data-providers/store'
+
 import { IndexStatus } from './IndexStatus'
 
 const getIndexStatus = vi.fn()
@@ -17,6 +19,7 @@ const getIngestState = vi.fn()
 const startIngest = vi.fn()
 const getGraphAddState = vi.fn()
 const getEmbeddingSwitch = vi.fn()
+const getDataProviders = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
@@ -59,7 +62,9 @@ beforeEach(() => {
   startIngest.mockResolvedValue({ started: true })
   getGraphAddState.mockResolvedValue(GRAPH_IDLE)
   getEmbeddingSwitch.mockResolvedValue(null)
+  getDataProviders.mockResolvedValue({ ...EMPTY_STATE, profileRead: true, rag: { ok: true } })
   window.aecpilot = {
+    getDataProviders,
     getIndexStatus,
     getIngestState,
     startIngest,
@@ -154,6 +159,26 @@ describe('IndexStatus', () => {
     })
 
     expect(startIngest).toHaveBeenCalledWith(true, true)
+  })
+
+  it('агент по подписке без выбора — причина словами и вход в окно «Индекс и память» (3G.49)', async () => {
+    const reason =
+      'агент работает через «openai-codex» — выберите провайдера в окне «Индекс и память»'
+    getDataProviders.mockResolvedValue({
+      ...EMPTY_STATE,
+      profileRead: true,
+      agentProvider: 'openai-codex',
+      rag: { ok: false, reason }
+    })
+    renderIndicator()
+    await openPanel()
+
+    await screen.findByText(`У поиска по документам нет провайдера: ${reason}.`)
+    await act(async () => {
+      screen.getByRole('button', { name: 'Выбрать провайдера' }).click()
+    })
+    expect($dataProvidersOpen.get()).toBe(true)
+    $dataProvidersOpen.set(false)
   })
 
   it('shows no rebuild question when the model did not change', async () => {

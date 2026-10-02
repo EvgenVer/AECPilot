@@ -84,6 +84,18 @@ def test_no_model_and_no_provider_is_said_not_guessed(tmp_path, monkeypatch):
     assert "провайдер" in str(excinfo.value)
 
 
+def test_no_provider_answers_with_the_apps_reason(tmp_path, monkeypatch):
+    """3G.49: an agent on a subscription — the refusal names why and where."""
+    monkeypatch.delenv("AEC_RAG_EMBEDDING_MODEL")
+    reason = "агент работает через «openai-codex» — выберите провайдера в окне «Индекс и память»"
+    monkeypatch.setenv("AEC_RAG_UNAVAILABLE", reason)
+
+    with pytest.raises(RagIndexError) as excinfo:
+        load_settings(make_vault(tmp_path))
+
+    assert str(excinfo.value) == reason
+
+
 @pytest.mark.anyio
 async def test_the_width_is_measured_once_then_read_from_the_fingerprint(tmp_path, monkeypatch):
     import lightrag.llm.openai as openai_module

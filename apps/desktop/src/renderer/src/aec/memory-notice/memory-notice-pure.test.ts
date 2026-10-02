@@ -8,7 +8,43 @@
 import { describe, expect, it } from 'vitest'
 
 import type { GatewayEvent } from '../../../../shared/gateway/types'
-import { MEMORY_TOOL_FAILURES, memoryLayerVerdict, memoryToolFailure } from './memory-notice-pure'
+import {
+  MEMORY_TOOL_FAILURES,
+  memoryLayerVerdict,
+  memoryProviderGap,
+  memoryToolFailure
+} from './memory-notice-pure'
+
+describe('у памяти нет провайдера (3G.49)', () => {
+  const reason =
+    'агент работает через «openai-codex» — выберите провайдера в окне «Индекс и память»'
+
+  it('агент по подписке без выбора — причина словами', () => {
+    expect(
+      memoryProviderGap({
+        profileRead: true,
+        agentProvider: 'openai-codex',
+        memory: { ok: false, reason }
+      })
+    ).toBe(reason)
+  })
+
+  it('провайдер есть, профиль не прочитан или агент не настроен — молчим', () => {
+    expect(
+      memoryProviderGap({ profileRead: true, agentProvider: 'gemini', memory: { ok: true } })
+    ).toBeNull()
+    expect(
+      memoryProviderGap({
+        profileRead: false,
+        agentProvider: 'openai-codex',
+        memory: { ok: false }
+      })
+    ).toBeNull()
+    expect(
+      memoryProviderGap({ profileRead: true, agentProvider: null, memory: { ok: false, reason } })
+    ).toBeNull()
+  })
+})
 
 /** Живой ответ: пакет на месте, ключей нет. */
 const NEEDS_CONFIG = {

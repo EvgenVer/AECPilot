@@ -357,13 +357,14 @@ function readDataProviderInputs(hermesHome: string): {
 }
 
 /** `AEC_RAG_*` for the RAG provider (tasks 3G.3, 3G.46): the agent's by default, or
- *  the person's own choice. Names and addresses only; empty when there is no usable
- *  provider — the server then says so per call. */
+ *  the person's own choice. Names and addresses only. Without a usable provider only
+ *  the reason goes in (`AEC_RAG_UNAVAILABLE`, task 3G.49): the server answers every
+ *  call with it, and the agent passes on a reason and a place instead of «not set». */
 function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
   if (!hermesHome) return {}
   const { agent, choices } = readDataProviderInputs(hermesHome)
   const rag = ragProvider(agent, choices)
-  return rag.ok ? rag.env : {}
+  return rag.ok ? rag.env : { AEC_RAG_UNAVAILABLE: rag.reason }
 }
 
 /** Задачи 3G.4 (D-157), 3G.46 (D-172): провайдер второго слоя памяти — свой, если

@@ -15,6 +15,7 @@ import { Button } from '../../donor/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '../../donor/components/ui/popover'
 import { useAecT } from '../../shared/i18n'
 import type { GraphAddState, IngestState } from '../../../../shared/ipc'
+import { $dataProviders, openDataProviders } from '../data-providers/store'
 
 const IDLE: IngestState = { error: null, lastReport: null, progress: null, running: false }
 
@@ -46,6 +47,25 @@ export function IndexStatus(): React.JSX.Element | null {
     queryFn: () => window.aecpilot.getEmbeddingSwitch()
   })
   const pendingSwitch = embeddingSwitch.data ?? null
+  // Задача 3G.49 (D-172): провайдера у поиска нет (агент по подписке без выбора) —
+  // причина словами и вход в окно выбора, а не немой отказ индексации.
+  const dataProviders = useQuery({
+    queryKey: ['aec', 'index-status', 'data-providers'],
+    queryFn: () => window.aecpilot.getDataProviders()
+  })
+  const providerGap =
+    dataProviders.data?.profileRead && !dataProviders.data.rag.ok
+      ? (dataProviders.data.rag.reason ?? '')
+      : null
+
+  // Выбор сохранён в окне — и причина, и модель эмбеддингов (3G.7) читаются заново.
+  useEffect(
+    () =>
+      $dataProviders.listen(
+        () => void queryClient.invalidateQueries({ queryKey: ['aec', 'index-status'] })
+      ),
+    [queryClient]
+  )
 
   // The state arrives by event, not by polling: an ingest is minutes long and
   // a poll either lags behind it or hammers a python process for nothing.
@@ -91,7 +111,7 @@ export function IndexStatus(): React.JSX.Element | null {
           {stale > 0 && !ingest.running ? (
             <span className="text-amber-500">{t('index.stale', stale)}</span>
           ) : null}
-          {pendingSwitch && !ingest.running ? (
+          {(pendingSwitch || providerGap !== null) && !ingest.running ? (
             <span className="codicon codicon-warning text-amber-500" aria-hidden />
           ) : null}
         </button>
@@ -128,6 +148,14 @@ export function IndexStatus(): React.JSX.Element | null {
             </div>
             <Button onClick={() => void window.aecpilot.startIngest(true, true)} size="sm">
               {t('index.rebuild')}
+            </Button>
+          </div>
+        ) : null}
+        {providerGap !== null ? (
+          <div className="space-y-2 rounded border border-amber-500/50 p-2" role="alert">
+            <div className="text-amber-500">{t('index.provider', providerGap)}</div>
+            <Button onClick={openDataProviders} size="sm">
+              {t('index.providerChoose')}
             </Button>
           </div>
         ) : null}

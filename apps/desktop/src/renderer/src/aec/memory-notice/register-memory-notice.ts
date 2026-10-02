@@ -13,7 +13,9 @@ import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 import type { GatewayEvent } from '../../../../shared/gateway/types'
 
-import { memoryLayerVerdict, memoryToolFailure } from './memory-notice-pure'
+import { openDataProviders } from '../data-providers/store'
+
+import { memoryLayerVerdict, memoryProviderGap, memoryToolFailure } from './memory-notice-pure'
 
 function t(key: string, ...args: unknown[]): string {
   return translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), key, args)
@@ -21,12 +23,12 @@ function t(key: string, ...args: unknown[]): string {
 
 let told = false
 
-function tell(message: string): void {
+function tell(message: string, action?: { label: string; onClick: () => void }): void {
   if (told) return
   told = true
   // `warning` у них висит до закрытия рукой, а не тает: сообщение о том, что
   // разговор не запоминается, человек должен успеть прочитать.
-  notify({ kind: 'warning', title: t('memoryNotice.title'), message })
+  notify({ kind: 'warning', title: t('memoryNotice.title'), message, action })
 }
 
 /** Спросить ядро, поднялся ли слой. Ответ приходит до первого хода — раньше,
@@ -42,8 +44,24 @@ async function askCore(): Promise<void> {
   }
 
   const verdict = memoryLayerVerdict(payload)
-  if (verdict.kind !== 'down') return
+  if (verdict.kind === 'off') return
 
+  // Задача 3G.49: нет провайдера — причина конкретнее любого ответа ядра, и у неё
+  // есть действие: окно выбора.
+  try {
+    const gap = memoryProviderGap(await window.aecpilot.getDataProviders())
+    if (gap !== null) {
+      tell(t('memoryNotice.provider', gap), {
+        label: t('memoryNotice.choose'),
+        onClick: openDataProviders
+      })
+      return
+    }
+  } catch {
+    // Профиль не прочитан — остаётся ответ ядра.
+  }
+
+  if (verdict.kind !== 'down') return
   tell(t(`memoryNotice.${verdict.reason}`))
 }
 
