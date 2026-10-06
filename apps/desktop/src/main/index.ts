@@ -1010,6 +1010,22 @@ const LOOP_MAX_TICKS = 10
  * ярус — см. `applyWebBackend`. */
 const DEFAULT_WEB_BACKEND = 'ddgs'
 
+/** Замечание D-173: на чистом профиле `config.yaml` ещё нет — ядро само его не
+ * создаёт, а все правила ниже на отсутствующем файле молча выходят. Итог был:
+ * первый запуск шёл без запретов подтверждений, бюджетов, голоса и отключённых
+ * наборов инструментов. Пустой файл безопасен: конфиг без `_config_version`
+ * ядро считает последней версией и не мигрирует. Существующий не трогается. */
+function ensureConfigFile(homeDir: string): void {
+  try {
+    mkdirSync(homeDir, { recursive: true })
+    writeFileSync(join(homeDir, 'config.yaml'), '', { encoding: 'utf-8', flag: 'wx' })
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      console.error('aecpilot: could not create config.yaml', error)
+    }
+  }
+}
+
 /** Дописывает умолчание в `config.yaml`, не трогая уже выбранное человеком. */
 function applyConfigDefault(
   homeDir: string,
@@ -5610,6 +5626,7 @@ app
           // config.yaml (plaintext — not a secret) and pass a decrypted API key
           // (if one is stored) into the child process env only — never written
           // to disk. This must happen before startServe spawns hermes.
+          ensureConfigFile(HERMES_HOME_DIR)
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
           applyDefaultSpeechVoice(HERMES_HOME_DIR)
           applyDefaultWakePhrase(HERMES_HOME_DIR)
