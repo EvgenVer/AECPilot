@@ -1,5 +1,5 @@
 // Проверка живого стенда (задача 3F.1): приложение само поднимает ядро во
-// ВРЕМЕННОМ профиле (копия dev-profile) на свободном порту, композер оживает,
+// ВРЕМЕННОМ профиле (копия e2e-profile) на свободном порту, композер оживает,
 // профиль разработчика не тронут, после прогона профиль и процессы убраны.
 // Ходов модели здесь нет.
 
@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { mainWindow, openProject, standFixture } from '../lib/app'
-import { devProfileDir, PROFILE_PREFIX } from '../lib/core'
+import { e2eProfileDir, PROFILE_PREFIX } from '../lib/core'
 
 const stand = standFixture({ mode: 'live', label: 'live-00-stand' })
 
@@ -41,7 +41,7 @@ function hermesProcessesWith(fragment: string): number[] {
 test('живой стенд: ядро поднято во временном профиле, композер жив', async () => {
   const current = stand.get()
   expect(current.profileDir).toContain(PROFILE_PREFIX)
-  expect(current.profileDir).not.toBe(devProfileDir)
+  expect(current.profileDir).not.toBe(e2eProfileDir)
   // Копия — целая: конфиг и ключ приехали файлами (содержимое не читается).
   expect(existsSync(join(current.profileDir!, 'config.yaml'))).toBe(true)
   expect(existsSync(join(current.profileDir!, '.env'))).toBe(true)

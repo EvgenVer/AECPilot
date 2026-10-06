@@ -1,38 +1,47 @@
 // Временный профиль ядра для живого стенда (задача 3F.1). Копия
-// `runtime/dev-profile` целиком — с `.env` ФАЙЛОМ (решение владельца
+// `runtime/e2e-profile` целиком — с `.env` ФАЙЛОМ (решение владельца
 // 2026-09-17): содержимое не читается и не печатается ничем, папка удаляется
 // по концу прогона. Без копии живое ядро в тестах либо портило бы профиль
 // разработчика, либо шло бы без ключа, а без ключа половина чек-листа не
 // проходится по определению.
+//
+// Профиль автотестов отделён от `runtime/dev-profile`, на котором работает
+// `pnpm dev` (решение владельца 2026-10-06): ручная приёмка начинается с чистого
+// старта и не видит ничего, что накопили прогоны, а прогоны — её данных.
 
 import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
 const repoRoot = join(__dirname, '..', '..', '..', '..')
-export const devProfileDir = join(repoRoot, 'runtime', 'dev-profile')
+export const e2eProfileDir = join(repoRoot, 'runtime', 'e2e-profile')
 export const PROFILE_PREFIX = 'aecpilot-acceptance-profile-'
 
 /** Что не едет в копию: резервные копии прошлых пинов и журналы — они большие
- *  и к поведению ядра отношения не имеют. Базы SQLite едут вместе со своими
- *  `-wal`/`-shm`: без них копия базы отстаёт от живой. */
+ *  и к поведению ядра отношения не имеют. Блокировки шлюза (`gateway-locks`) —
+ *  состояние запущенного процесса, а не профиля; ядро создаёт папку с правами
+ *  только для владельца, и чужому процессу она не читается (замер 2026-10-06).
+ *  Базы SQLite едут вместе со своими `-wal`/`-shm`: без них копия базы отстаёт
+ *  от живой. */
 function skip(entry: string): boolean {
   const name = basename(entry)
-  return name.startsWith('.bak-') || name === 'serve.log' || name === 'logs'
+  return (
+    name.startsWith('.bak-') || name === 'serve.log' || name === 'logs' || name === 'gateway-locks'
+  )
 }
 
-/** Скопировать dev-profile во временную папку и вернуть её путь.
+/** Скопировать профиль автотестов во временную папку и вернуть её путь.
  *
  * `withoutProviderKey` — копия без файла `.env`: ядро поднимается без ключа
  * провайдера, как на машине, где его ещё не вводили (ветка «ключа нет» блока
  * 14). Файл просто не копируется — его содержимое никто не читает. */
 export function prepareProfile(options: { withoutProviderKey?: boolean } = {}): string {
-  if (!existsSync(join(devProfileDir, 'config.yaml'))) {
-    throw new Error(`dev-profile не найден: ${devProfileDir} — сначала node runtime/setup.mjs`)
+  if (!existsSync(join(e2eProfileDir, 'config.yaml'))) {
+    throw new Error(`профиль автотестов не найден: ${e2eProfileDir}`)
   }
   const dir = mkdtempSync(join(tmpdir(), PROFILE_PREFIX))
-  const envFile = join(devProfileDir, '.env')
-  cpSync(devProfileDir, dir, {
+  const envFile = join(e2eProfileDir, '.env')
+  cpSync(e2eProfileDir, dir, {
     recursive: true,
     filter: (source) => !skip(source) && !(options.withoutProviderKey && source === envFile)
   })

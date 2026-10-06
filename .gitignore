@@ -16,6 +16,7 @@ __pycache__/
 runtime/.hermes-venv/
 runtime/.hermes-src/
 runtime/dev-profile/
+runtime/e2e-profile/
 
 # Real project documents used for measurement (task 2.2 and the eval set).
 # Never committed: they are somebody's design documents, and the repository is

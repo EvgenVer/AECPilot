@@ -42,7 +42,7 @@ export interface Stand {
   userDataDir: string
   /** Папка проекта (vault), заведённая до старта окна. */
   projectDir: string
-  /** Живой режим: временный профиль ядра (копия dev-profile) и порт шлюза. */
+  /** Живой режим: временный профиль ядра (копия e2e-profile) и порт шлюза. */
   profileDir?: string
   servePort?: number
   /** Mock-режим: порты мока. */
@@ -61,7 +61,7 @@ export interface LaunchOptions {
   mode: StandMode
   /** Готовая папка проекта; без неё стенд заводит пустую временную. */
   projectDir?: string
-  /** Живой режим: готовый профиль; без него стенд копирует dev-profile сам. */
+  /** Живой режим: готовый профиль; без него стенд копирует e2e-profile сам. */
   profileDir?: string
   /** Живой режим: копия профиля без `.env` — ядро без ключа провайдера. */
   withoutProviderKey?: boolean
