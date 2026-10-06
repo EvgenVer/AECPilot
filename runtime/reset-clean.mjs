@@ -87,4 +87,4 @@ if (failed.length > 0) {
   for (const target of failed) console.log(`  ${target}`);
   process.exit(1);
 }
-console.log("Готово: следующий `corepack pnpm dev` — чистый первый запуск.");
+console.log("Готово: следующий запуск приложения — чистый первый запуск.");

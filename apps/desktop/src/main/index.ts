@@ -5576,10 +5576,11 @@ app
     // Задача 3.8а: где лежит их конфиг и где мы храним доверие. Модуль шлюза
     // грузится тут же, откуда его берут все остальные — он знает их домашний
     // каталог, а мы этот путь не выдумываем.
-    configureProjectSkills({
-      homeDir: (await loadServeModule()).HERMES_HOME_DIR,
-      userDataDir: app.getPath('userData')
-    })
+    const coreHomeDir = (await loadServeModule()).HERMES_HOME_DIR
+    configureProjectSkills({ homeDir: coreHomeDir, userDataDir: app.getPath('userData') })
+    // D-173: конфиг должен быть до восстановления проекта ниже — его навыки и
+    // MCP-серверы пишутся в этот файл, и правила старта ядра тоже.
+    ensureConfigFile(coreHomeDir)
 
     installPermissionPolicy()
 
@@ -5626,7 +5627,6 @@ app
           // config.yaml (plaintext — not a secret) and pass a decrypted API key
           // (if one is stored) into the child process env only — never written
           // to disk. This must happen before startServe spawns hermes.
-          ensureConfigFile(HERMES_HOME_DIR)
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
           applyDefaultSpeechVoice(HERMES_HOME_DIR)
           applyDefaultWakePhrase(HERMES_HOME_DIR)

@@ -7,6 +7,7 @@
     "dev": "corepack pnpm -C apps/desktop dev",
     "reset:clean": "node runtime/reset-clean.mjs",
     "build": "corepack pnpm -C apps/desktop build",
+    "app": "corepack pnpm -C apps/desktop exec electron .",
     "lint": "corepack pnpm -C apps/desktop lint && corepack pnpm -C apps/desktop typecheck && corepack pnpm -C apps/desktop format:check && uv run ruff check . && uv run ruff format --check . && corepack pnpm audit --prod",
     "test": "corepack pnpm -C apps/desktop test && uv run pytest -q",
     "e2e": "corepack pnpm -C apps/desktop e2e",
