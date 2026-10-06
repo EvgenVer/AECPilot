@@ -126,4 +126,23 @@ const RU_PREVIEW: Translations['preview'] = {
   popOut: 'Вынести в окно'
 }
 
-export const ru = debrandTranslations({ ...donorRu, preview: RU_PREVIEW, tips: RU_TIPS }, OVERRIDES)
+// Семь строк окна «Настроим для вас AECPilot», которых нет в их русском
+// каталоге: строка локальных моделей и ошибки входа по подписке падали на
+// английский (замечание владельца 2026-10-06 к окну выбора провайдера, D-174).
+const RU_ONBOARDING: Translations['onboarding'] = {
+  ...donorRu.onboarding,
+  localModelsTitle: 'Запустить модель на этом компьютере',
+  localModelsPitch: 'Без учётной записи — скачайте модель и запускайте её здесь',
+  signInExpired:
+    'Страница входа устарела, пока вход не завершён. Попробуйте снова и завершите шаг в браузере за несколько минут или введите API-ключ.',
+  signInDidNotFinish: (provider: string) =>
+    `Вход через ${provider} не завершён. Проверьте подключение к интернету и попробуйте снова или выберите другого провайдера.`,
+  tryAgain: 'Попробовать снова',
+  useApiKeyInstead: 'Ввести API-ключ',
+  errorDetails: 'Подробности'
+}
+
+export const ru = debrandTranslations(
+  { ...donorRu, onboarding: RU_ONBOARDING, preview: RU_PREVIEW, tips: RU_TIPS },
+  OVERRIDES
+)

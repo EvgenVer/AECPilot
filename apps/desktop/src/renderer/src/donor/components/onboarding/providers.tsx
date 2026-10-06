@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/components/onboarding/providers.tsx
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [6] provider-picker defaults (owner decision 2026-10-06, D-174): the ChatGPT
+ *       subscription first, Nous Portal last in PROVIDER_ORDER
+ * (no other edits)
  */
 import { RowButton } from '@/components/ui/row-button'
 import { useI18n } from '@/i18n'
@@ -14,14 +17,16 @@ import type { OAuthProvider } from '@/types/hermes'
 // Titles live in PROVIDER_DISPLAY_NAMES (shared with the model pill); this is
 // only the featured order. Both Anthropic entries sit at the bottom: the API-key
 // path first, then the subscription OAuth path (only works with extra usage credits).
+// EDIT [6]: у них nous: 0, 'openai-codex': 1 — Nous первым (D-174, решение
+// владельца 2026-10-06: подписка ChatGPT первой, Nous Portal последним).
 const PROVIDER_ORDER: Record<string, number> = {
-  nous: 0,
-  'openai-codex': 1,
+  'openai-codex': 0,
   'minimax-oauth': 2,
   'qwen-oauth': 3,
   'xai-oauth': 4,
   anthropic: 5,
-  'claude-code': 6
+  'claude-code': 6,
+  nous: 100
 }
 
 const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`

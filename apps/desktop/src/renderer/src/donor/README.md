@@ -41,7 +41,7 @@ constants, pure helpers) may be taken from the electron root.
  */
 ```
 
-`Edits:` lists **only** the five allowed kinds below, by number, one line each,
+`Edits:` lists **only** the six allowed kinds below, by number, one line each,
 each naming what was touched. `(no other edits)` closes the list — the diff of
 our changes must be reconstructible from this header alone when the file is
 re-copied from a newer commit. A file copied unchanged says `Edits: none`.
@@ -52,7 +52,7 @@ header block sits in a `<name>.json.provenance` sidecar next to it (written by
 entry, and edits to the JSON are listed there. First case: their slash-command
 registry `lib/desktop-slash-registry.json` (v2026.9.14, task 3.B5).
 
-## Exactly five allowed edits
+## Exactly six allowed edits
 
 Anything else is not an edit — it means the file does not belong in this zone.
 
@@ -87,6 +87,12 @@ Anything else is not an edit — it means the file does not belong in this zone.
    grep -rhoE '^ \*   \[[0-9]\]' --include='*.ts' --include='*.tsx' --include='*.css'      apps/desktop/src/renderer/src/donor | sort | uniq -c
    ```
 
+6. **Provider-picker defaults** — which provider the first-run picker recommends
+   and the order of its rows (owner decision 2026-10-06, D-174: OpenAI by key
+   first, then the ChatGPT subscription, Nous Portal last). Only the constants
+   (`FEATURED_ID`, `PROVIDER_ORDER`) and the order of the rows — a row of ours
+   comes in under [3]. The sign-in and key flows stay theirs.
+
 Not allowed, and not negotiable per-file: renaming, reformatting, restyling,
 "while I'm here" fixes, adapting to our lint preferences, or replacing their
 state atoms with ours.
@@ -94,7 +100,7 @@ state atoms with ours.
 Our formatter and linter therefore skip `*.ts`/`*.tsx`/`*.css` in this
 directory (`.prettierignore`, `eslint.config.mjs`) — their config is not ours,
 and the only legal response to a finding inside their file is to leave it. What
-still guards this code: the provenance header, the five edits above, the
+still guards this code: the provenance header, the six edits above, the
 renderer socket guard (`shared/renderer-socket-guard.test.ts`, SPEC C9), and
 the tests that come with the file.
 

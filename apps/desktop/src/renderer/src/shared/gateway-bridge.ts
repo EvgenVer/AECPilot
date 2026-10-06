@@ -83,6 +83,19 @@ export function unwrapRpcOutcome<T>(outcome: GatewayRpcOutcome<T>): T {
   })
 }
 
+/** Замечание владельца D-175 (2026-10-06): окно выбора провайдера показывало
+ * над списком текст ядра «Hermes is not connected to any AI provider yet. Run
+ * `hermes model`…» — по-английски, с именем чужого продукта (SPEC C12) и с
+ * советом набрать команды в терминале, которого у нашего человека нет. Причина
+ * отказа `setup.runtime_check` с их именем снимается: без неё окно показывает
+ * свой обычный экран выбора, а сам отказ (`ok: false`) остаётся как был. */
+export function withoutForeignSetupReason<T>(result: T): T {
+  if (typeof result !== 'object' || result === null) return result
+  const error = (result as { error?: unknown }).error
+  if (typeof error !== 'string' || !/hermes/i.test(error)) return result
+  return { ...result, error: '' }
+}
+
 /** Their event envelope — since 0.21.3 generated from the core's contract
  * (`donor/hermes-shared/gateway-events.ts`, generic in the EVENT NAME, which
  * types the payload), so their `on('gateway.ready', …)` reads `payload.skin`
@@ -273,6 +286,7 @@ export class GatewayBridge {
         markProvidersWithoutKey(options, missing)
       )
     }
+    if (method === 'setup.runtime_check') return send().then(withoutForeignSetupReason)
     const provider = providerBeingSaved(method, params)
     if (provider) {
       return this.providersWithoutKey().then((missing) =>

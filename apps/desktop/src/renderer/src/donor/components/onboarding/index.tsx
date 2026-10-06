@@ -3,7 +3,13 @@
  * Source:  apps/desktop/src/components/onboarding/index.tsx
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] registered our RecommendedKeyRow (aec/onboarding) at the top of the picker
+ *   [6] provider-picker defaults (owner decision 2026-10-06, D-174): no featured
+ *       OAuth provider (FEATURED_ID ''), the ChatGPT subscription second as a plain
+ *       row, everything else behind the disclosure with the key rows ahead of the
+ *       OAuth list (Nous Portal last); FeaturedProviderRow no longer imported
+ * (no other edits)
  */
 import type { ModelOptionProvider } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
@@ -46,12 +52,12 @@ import {
 } from '@/store/onboarding'
 import { $onboardingSurfaces, onboardingSurfaceActive } from '@/store/onboarding-presence'
 import type { OAuthProvider } from '@/types/hermes'
+import { RecommendedKeyRow } from '../../../aec/onboarding/RecommendedKeyRow'
 
 import { DocsLink, FlowPanel, Status } from './flow'
 import { FreeTierSetupNotice } from './free-tier-setup-notice'
 import { DecodedLabel } from './glyph'
 import {
-  FeaturedProviderRow,
   FireworksProviderRow,
   LocalModelsProviderRow,
   OpenRouterProviderRow,
@@ -586,7 +592,12 @@ function Header() {
   )
 }
 
-export const FEATURED_ID = 'nous'
+// EDIT [6]: у них здесь 'nous' — Nous Portal с пометкой «Рекомендуется» над
+// всеми. Решение владельца 2026-10-06 (D-174): рекомендуем OpenAI по ключу
+// (наша `RecommendedKeyRow`), следом подписка ChatGPT, Nous — в конце списка.
+// Пустой id снимает выделенную строку и в «Настройки → Провайдеры».
+export const FEATURED_ID = ''
+const TOP_OAUTH_ID = 'openai-codex'
 const SHOW_ALL_KEY = 'hermes-onboarding-show-all-v1'
 
 const readShowAll = () => {
@@ -652,14 +663,13 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
   }
 
   const select = (p: OAuthProvider) => void startProviderOAuth(p, ctx)
-  const featured = ordered.find(p => p.id === FEATURED_ID) ?? null
-  const rest = featured ? ordered.filter(p => p.id !== FEATURED_ID) : ordered
-  // Collapse the secondary providers behind a disclosure whenever Nous Portal
-  // is present to anchor the choice — otherwise show the full list. The
-  // Fireworks/OpenRouter key rows always live behind the disclosure, so the
-  // toggle is warranted even when there are no other OAuth providers.
-  const collapsible = Boolean(featured)
-  const showRest = !collapsible || showAll
+  // EDIT [6]: наверху — наша строка OpenAI и подписка ChatGPT обычной строкой;
+  // остальное всегда под «Другие провайдеры», строки ключей перед OAuth, чтобы
+  // Nous Portal (последний в PROVIDER_ORDER) замыкал список.
+  const featured = ordered.find(p => p.id === TOP_OAUTH_ID) ?? null
+  const rest = featured ? ordered.filter(p => p.id !== TOP_OAUTH_ID) : ordered
+  const collapsible = true
+  const showRest = showAll
 
   // "Run models locally" leaves the picker for Settings -> Providers ->
   // Local Models, where install/download live. First-run: persist the skip
@@ -679,7 +689,8 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
   return (
     <div className="grid gap-2">
       <div className="grid max-h-[60dvh] gap-2 overflow-y-auto p-1">
-        {featured ? <FeaturedProviderRow onSelect={select} provider={featured} /> : null}
+        <RecommendedKeyRow onClick={() => openKeyForm('OPENAI_API_KEY')} />
+        {featured ? <ProviderRow onSelect={select} provider={featured} /> : null}
         {/* The no-account path: everything runs on this machine. Shipped
             behind the --local launch flag. (Fireworks moved into the
             expanded list on main.) */}
@@ -689,10 +700,10 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
             {/* Fireworks leads the expanded list, matching CANONICAL_PROVIDERS
                 (Nous → Fireworks), but stays hidden until the user opens it. */}
             <FireworksProviderRow onClick={() => openKeyForm('FIREWORKS_API_KEY')} />
+            <OpenRouterProviderRow onClick={() => openKeyForm('OPENROUTER_API_KEY')} />
             {rest.map(p => (
               <ProviderRow key={p.id} onSelect={select} provider={p} />
             ))}
-            <OpenRouterProviderRow onClick={() => openKeyForm('OPENROUTER_API_KEY')} />
           </>
         ) : null}
       </div>

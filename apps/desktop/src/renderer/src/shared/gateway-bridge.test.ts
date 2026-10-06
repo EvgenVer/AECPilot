@@ -455,3 +455,24 @@ describe('копии одного кадра от двух их клиентов
     expect(seen).toEqual([frame])
   })
 })
+
+describe('D-175: причина отказа ядра с их именем не доходит до окна выбора провайдера', () => {
+  const coreText = 'Hermes is not connected to any AI provider yet. Run `hermes model` to pick one.'
+
+  it('снимает текст с их именем, отказ оставляет', async () => {
+    const stub = stubApi()
+    stub.rpc.mockResolvedValueOnce({ ok: true, value: { ok: false, error: coreText } } as never)
+    const bridge = new GatewayBridge(stub.api)
+    expect(await bridge.request('setup.runtime_check')).toEqual({ ok: false, error: '' })
+  })
+
+  it('прочие причины и прочие методы не трогает', async () => {
+    const stub = stubApi()
+    const own = { ok: false, error: 'No usable credentials found for gemini.' }
+    stub.rpc.mockResolvedValueOnce({ ok: true, value: own } as never)
+    stub.rpc.mockResolvedValueOnce({ ok: true, value: { ok: false, error: coreText } } as never)
+    const bridge = new GatewayBridge(stub.api)
+    expect(await bridge.request('setup.runtime_check')).toEqual(own)
+    expect(await bridge.request('setup.status')).toEqual({ ok: false, error: coreText })
+  })
+})

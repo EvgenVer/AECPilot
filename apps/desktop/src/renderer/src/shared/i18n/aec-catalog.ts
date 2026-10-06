@@ -521,6 +521,11 @@ export const aecLocales: PluginLocaleBundles = {
       subtitle: (project: string) => `Project «${project}»`,
       skip: 'Later',
       skipped: 'postponed',
+      recommendedKey: {
+        title: 'OpenAI',
+        badge: 'Recommended',
+        pitch: 'An API key from platform.openai.com — it serves the agent, the index and memory'
+      },
       step: {
         project: 'Project',
         key: 'Provider key',
@@ -1112,6 +1117,11 @@ export const aecLocales: PluginLocaleBundles = {
       subtitle: (project: string) => `Проект «${project}»`,
       skip: 'Позже',
       skipped: 'отложено',
+      recommendedKey: {
+        title: 'OpenAI',
+        badge: 'Рекомендуется',
+        pitch: 'Ключ API с platform.openai.com — его хватает агенту, индексу и памяти'
+      },
       step: {
         project: 'Проект',
         key: 'Ключ провайдера',
