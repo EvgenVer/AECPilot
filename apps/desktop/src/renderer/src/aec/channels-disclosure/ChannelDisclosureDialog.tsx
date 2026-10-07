@@ -27,14 +27,14 @@ export default function ChannelDisclosureDialog(): React.JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onClick={() => request.answer(false)}
     >
       <div
         aria-label={title}
         aria-modal="true"
-        className="flex w-full max-w-md flex-col gap-4 rounded-lg bg-(--ui-bg-secondary) p-5 shadow-lg"
+        className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >

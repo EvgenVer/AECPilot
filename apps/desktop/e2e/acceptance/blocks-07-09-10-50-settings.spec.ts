@@ -260,8 +260,10 @@ test('7.3.2 разделов расписаний, каналов, вебхук�
   const labels = (await nav.count())
     ? await nav.innerText()
     : await page.locator('body').innerText()
+  // «Память агента» — наш пункт (D-180, решение владельца 2026-10-07), не их
+  // раздел агентов: слово «агент» в нём не считается.
   expect(labels).not.toMatch(
-    /расписани|schedul|cron|внешн\S* канал|channels?\b|вебхук|webhook|агент|agents?\b|command center/i
+    /расписани|schedul|cron|внешн\S* канал|channels?\b|вебхук|webhook|(?<!памят\S*\s)агент|agents?\b|command center/i
   )
   await closeSettings(page)
 })

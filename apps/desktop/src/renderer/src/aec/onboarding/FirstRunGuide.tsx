@@ -219,7 +219,7 @@ function Guide({
   return (
     <div
       aria-label={t('onboarding.title')}
-      className="fixed right-4 bottom-4 z-40 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-lg bg-(--ui-bg-secondary) p-4 shadow-lg"
+      className="fixed right-4 bottom-4 z-40 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-4 shadow-lg"
       role="region"
     >
       <div className="flex items-start justify-between gap-2">

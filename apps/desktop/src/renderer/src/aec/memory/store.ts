@@ -30,6 +30,13 @@ export const EMPTY: MemoryNotesView = {
 export const $memoryNotes = atom<MemoryNotesView>(EMPTY)
 export const $memoryOpen = atom<boolean>(false)
 
+/** Открыть окно «Память агента» со свежей запиской — значок нижней панели и
+ * пункт «Настроек» (D-180). */
+export function openMemoryScreen(): void {
+  void refreshMemoryNotes()
+  $memoryOpen.set(true)
+}
+
 export async function refreshMemoryNotes(): Promise<MemoryNotesView> {
   const answer = await window.aecpilot.readMemoryNotes()
   const view: MemoryNotesView = answer.ok

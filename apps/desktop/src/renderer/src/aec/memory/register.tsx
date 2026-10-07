@@ -13,7 +13,7 @@ import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { useAecT } from '../../shared/i18n'
 
 import MemoryDialog from './MemoryDialog'
-import { $memoryOpen, refreshMemoryNotes } from './store'
+import { openMemoryScreen } from './store'
 
 function MemoryBadge(): React.JSX.Element {
   const t = useAecT()
@@ -21,10 +21,7 @@ function MemoryBadge(): React.JSX.Element {
   return (
     <button
       className="text-xs text-(--ui-text-secondary) hover:text-(--ui-text-primary)"
-      onClick={() => {
-        void refreshMemoryNotes()
-        $memoryOpen.set(true)
-      }}
+      onClick={openMemoryScreen}
       title={t('memoryScreen.badgeHint')}
       type="button"
     >

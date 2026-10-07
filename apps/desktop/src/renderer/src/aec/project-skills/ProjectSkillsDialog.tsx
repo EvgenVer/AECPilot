@@ -30,14 +30,14 @@ export default function ProjectSkillsDialog(): React.JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onClick={() => $projectSkillsOpen.set(false)}
     >
       <div
         aria-label={title}
         aria-modal="true"
-        className="flex max-h-[80vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg bg-(--ui-bg-secondary) p-5 shadow-lg"
+        className="flex max-h-[80vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >

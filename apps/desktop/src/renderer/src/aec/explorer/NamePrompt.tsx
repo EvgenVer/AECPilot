@@ -35,14 +35,14 @@ export function NamePrompt({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/40 p-4"
       onClick={() => onAnswer(null)}
       role="presentation"
     >
       <form
         aria-label={message}
         aria-modal="true"
-        className="flex w-full max-w-sm flex-col gap-3 rounded-lg bg-(--ui-bg-secondary) p-5 shadow-lg"
+        className="flex w-full max-w-sm flex-col gap-3 rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onAnswer(null)

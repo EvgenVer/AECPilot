@@ -6,6 +6,8 @@
  * Edits:
  *   [3] removed the billing section (HX2)
  *   [3] removed the Credential Vault entry and view (HX24)
+ *   [3] registered our «Индекс и память» and «Память агента» entries — they
+ *       open our dialogs (owner decision 2026-10-07, D-180)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -18,16 +20,21 @@ import { Tip } from '@/components/ui/tooltip'
 import { getHermesConfigDefaults, getHermesConfigRecord, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
+import { openDataProviders } from '../../../aec/data-providers/store'
+import { openMemoryScreen } from '../../../aec/memory/store'
+import { useAecT } from '../../../shared/i18n'
 import {
   Archive,
   BarChart3,
   Bell,
+  Brain,
   Cpu,
   Download,
   Globe,
   Info,
   Keyboard,
   KeyRound,
+  Layers3,
   RefreshCw,
   Search,
   Settings2,
@@ -87,6 +94,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
   const scopeProfile = useStore($settingsScopeProfile)
   const activeConnectionId = useStore($activeConnectionId)
   const { t } = useI18n()
+  const aecT = useAecT()
   const navigate = useNavigate()
   const { hash, pathname, search } = useLocation()
 
@@ -301,6 +309,21 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.providers,
             onSelect: () => setActiveView('providers')
           },
+          // EDIT [3]: our two surfaces, opened as dialogs over Settings (D-180).
+          {
+            active: false,
+            icon: Layers3,
+            id: 'aec-data-providers',
+            label: aecT('dataProviders.title'),
+            onSelect: openDataProviders
+          },
+          {
+            active: false,
+            icon: Brain,
+            id: 'aec-memory',
+            label: aecT('memoryScreen.title'),
+            onSelect: openMemoryScreen
+          },
           {
             active: activeView === 'gateway',
             icon: Globe,
@@ -377,6 +400,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       providerView,
       subpage,
       t,
+      aecT,
       setActiveView,
       openProviderView,
       openKeysView,

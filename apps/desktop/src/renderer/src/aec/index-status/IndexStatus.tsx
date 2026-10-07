@@ -35,6 +35,10 @@ export function IndexStatus(): React.JSX.Element | null {
   const queryClient = useQueryClient()
   const [ingest, setIngest] = useState<IngestState>(IDLE)
   const [graph, setGraph] = useState<GraphAddState>(GRAPH_IDLE)
+  // D-179: панель закрывается, когда из неё открывают окно «Индекс и память», —
+  // иначе она лежит поверх окна, а щелчок мимо неё попадал в подложку окна и
+  // закрывал его (замечание владельца 14.10.7, 2026-10-07).
+  const [open, setOpen] = useState(false)
 
   const status = useQuery({
     queryKey: ['aec', 'index-status'],
@@ -96,7 +100,7 @@ export function IndexStatus(): React.JSX.Element | null {
     : t('index.summary', data.files_indexed, data.files_total)
 
   return (
-    <Popover>
+    <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <button
           className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 text-xs"
@@ -154,7 +158,13 @@ export function IndexStatus(): React.JSX.Element | null {
         {providerGap !== null ? (
           <div className="space-y-2 rounded border border-amber-500/50 p-2" role="alert">
             <div className="text-amber-500">{t('index.provider', providerGap)}</div>
-            <Button onClick={openDataProviders} size="sm">
+            <Button
+              onClick={() => {
+                setOpen(false)
+                openDataProviders()
+              }}
+              size="sm"
+            >
               {t('index.providerChoose')}
             </Button>
           </div>

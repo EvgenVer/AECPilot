@@ -251,14 +251,14 @@ export default function MemoryDialog(): React.JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/40 p-4"
       onClick={() => void leave()}
       role="presentation"
     >
       <div
         aria-label={t('memoryScreen.title')}
         aria-modal="true"
-        className="flex max-h-[85vh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-lg bg-(--ui-bg-secondary) p-5 shadow-lg"
+        className="flex max-h-[85vh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
