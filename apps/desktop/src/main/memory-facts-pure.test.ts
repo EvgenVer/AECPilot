@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { decideFactsOpen, readFactsAnswer } from './memory-facts-pure'
+import { readFactsAnswer } from './memory-facts-pure'
 
 // Замер 2026-09-10: ровно это печатает `runtime/memory-facts.py list` на живом
 // профиле, когда в хранилище один факт.
@@ -79,47 +79,5 @@ describe('чтение ответа читателя памяти', () => {
     expect(answer.ok).toBe(true)
     if (!answer.ok) return
     expect(answer.facts.map((row) => row.id)).toEqual(['a'])
-  })
-})
-
-describe('решение «можно ли гасить ядро»', () => {
-  const free = { factsOpen: false, graphRunning: false, ingestRunning: false, remote: false }
-
-  it('на свободном ядре — можно', () => {
-    expect(decideFactsOpen(free)).toEqual({ ok: true })
-  })
-
-  it('при удалённом ядре говорит про другую машину, а не про занятость', () => {
-    const answer = decideFactsOpen({ ...free, remote: true })
-
-    expect(answer.ok).toBe(false)
-    if (answer.ok) return
-    expect(answer.error).toContain('другой машине')
-  })
-
-  it('во время индексации не гасит', () => {
-    // Гасить ядро посреди индексации значит оборвать работу, которая уже
-    // идёт; та же граница, что у графа в 5.15.
-    const answer = decideFactsOpen({ ...free, ingestRunning: true })
-
-    expect(answer.ok).toBe(false)
-    if (answer.ok) return
-    expect(answer.error).toContain('индексация')
-  })
-
-  it('во время построения графа не гасит', () => {
-    const answer = decideFactsOpen({ ...free, graphRunning: true })
-
-    expect(answer.ok).toBe(false)
-    if (answer.ok) return
-    expect(answer.error).toContain('граф')
-  })
-
-  it('дважды не открывает: ядро уже остановлено нами', () => {
-    const answer = decideFactsOpen({ ...free, factsOpen: true })
-
-    expect(answer.ok).toBe(false)
-    if (answer.ok) return
-    expect(answer.error).toContain('уже открыт')
   })
 })

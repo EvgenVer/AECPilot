@@ -1,16 +1,15 @@
 // Блоки 42 и 51 чек-листа (задача 3F.8) на ЖИВОМ ядре: экран памяти (записка,
 // автозапись) и список фактов памяти проекта.
 //
-// ХОД МОДЕЛИ ЗДЕСЬ ОДИН — шаг 1 блока 42: «запомни: резерв мощности на объекте
-// 20 %». Факт в память проекта кладёт
-// только агент; своей записи в хранилище у
-// приложения нет (`runtime/memory-facts.py` умеет читать и удалять, но не
-// писать), а свежий проект стенда пуст. Ещё три коротких хода — позиции, где
-// агент должен просто ОТВЕТИТЬ (42.2.2, 42.6.2, 42.7.2, задача 3F.9): они
-// проверяют, что остановка ядра на время списка не оставляет его лежать.
-// 42.6.3 («удалённого факта нет в ответе») — ещё один ход, после удаления факта.
+// Факт в память проекта кладёт только агент — своей записи в хранилище у
+// приложения нет (команда `/aec-memory-facts` читает и удаляет, но не пишет), а
+// свежий проект стенда пуст. Ходы модели: шаг 1 блока 42 («запомни: резерв…»),
+// 42.2.3 (агент отвечает, пока страница открыта), 42.5.1 (удалённого факта нет в
+// ответе) и 42.6.1 («запомни: марка бетона…»).
 //
-// 42.9.1 («ядро на другой машине») здесь нет: на живом ядре её можно проверить
+// С задачи 3H.21 список читается командой живого ядра, без его остановки.
+//
+// 42.8.1 («ядро на другой машине») здесь нет: на живом ядре её можно проверить
 // только настоящим подключением к ядру на другой машине (блок 35).
 
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -24,7 +23,6 @@ import {
   mainWindow,
   openProject,
   reopenRecentProject,
-  send,
   standFixture
 } from '../lib/app'
 import { record } from '../lib/evidence'
@@ -63,11 +61,25 @@ async function openMemory(page: Page, tab: 'facts' | 'notes' = 'facts'): Promise
       .click()
   }
   await expect(memory).toBeVisible({ timeout: 15000 })
-  await memory
+  const tabButton = memory
     .getByRole('button', { name: tab === 'facts' ? 'Что запомнил агент' : 'Записки' })
     .first()
-    .click()
+  if ((await tabButton.getAttribute('data-active')) !== 'true') {
+    await dismissToasts(page)
+    await tabButton.click()
+  }
   return memory
+}
+
+/** Уведомления ядра («⏳ Retrying…» провайдера модели) висят над вкладками
+ *  страницы и перехватывают нажатие — их закрывают так же, как человек. */
+async function dismissToasts(page: Page): Promise<void> {
+  const clearAll = page.getByRole('button', { name: 'Очистить всё' })
+  if (await clearAll.isVisible()) await clearAll.click()
+  const close = page.getByRole('button', { name: 'Закрыть уведомление' })
+  while ((await close.count()) > 0 && (await close.first().isVisible())) {
+    await close.first().click()
+  }
 }
 
 /** Уйти со страницы в чат. Открытый список фактов страница при уходе закрывает
@@ -78,8 +90,6 @@ async function closeMemory(page: Page): Promise<void> {
   })
   await expect(memoryPage(page)).toBeHidden({ timeout: 15000 })
 }
-
-const SHOW = 'Показать список (агент остановится)'
 
 /** Агент отвечает в чате: страница памяти закрыта, короткий ход, ответ по существу. */
 async function agentAnswers(page: Page): Promise<void> {
@@ -97,32 +107,6 @@ async function agentAnswers(page: Page): Promise<void> {
   expect(result.text, result.transcript).toMatch(/голуб|син/i)
   await record(test.info(), page, { transcript: result.transcript })
 }
-const HIDE = 'Закрыть список и поднять агента'
-
-/** Записывать тексты, которые страница показывала между проверками:
- *  «Останавливаю…» и «Поднимаю агента…» живут доли секунды, опросом их не поймать. */
-async function recordTexts(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as { __seen?: string[]; __seenObserver?: MutationObserver }
-    w.__seen = []
-    w.__seenObserver?.disconnect()
-    const observer = new MutationObserver(() => {
-      const memory = document.querySelector('section[aria-label="Память агента"]')
-      if (memory) w.__seen?.push((memory as HTMLElement).innerText)
-    })
-    observer.observe(document.body, { characterData: true, childList: true, subtree: true })
-    w.__seenObserver = observer
-  })
-}
-
-async function seenTexts(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const w = window as unknown as { __seen?: string[]; __seenObserver?: MutationObserver }
-    w.__seenObserver?.disconnect()
-    return (w.__seen ?? []).join('\n')
-  })
-}
-
 /** Строки списка фактов. */
 function factRows(dialog: Locator): Locator {
   return dialog
@@ -130,17 +114,26 @@ function factRows(dialog: Locator): Locator {
     .filter({ has: dialog.page().getByRole('button', { name: 'Удалить' }) })
 }
 
+/** Страница памяти со списком фактов — список читается сам при входе. */
 async function openFacts(page: Page): Promise<Locator> {
   const dialog = await openMemory(page)
-  await dialog.getByRole('button', { name: SHOW }).click()
-  await expect(dialog.getByRole('button', { name: HIDE })).toBeVisible({ timeout: 120000 })
+  await expect(dialog).toContainText(/Фактов в этом проекте: \d+/, { timeout: 60000 })
   return dialog
 }
 
-async function hideFacts(page: Page): Promise<void> {
-  const dialog = memoryPage(page)
-  await dialog.getByRole('button', { name: HIDE }).click()
-  await expect(dialog.getByRole('button', { name: SHOW })).toBeVisible({ timeout: 180000 })
+/** Строка «Память» боковой панели. Строки живут на вкладке «Сеансы» левой колонки. */
+async function memoryNav(page: Page): Promise<Locator> {
+  await page.getByRole('tab', { name: 'Сеансы' }).click()
+  return page
+    .locator('[data-tour="sessions-sidebar"]')
+    .getByRole('button', { name: /^Память/ })
+    .first()
+}
+
+async function navCount(page: Page): Promise<number> {
+  const text = (await (await memoryNav(page)).innerText()).trim()
+  const match = /Память · (\d+)/.exec(text)
+  return match ? Number(match[1]) : -1
 }
 
 // ───────────────────────────── Блок 51. Записка и автозапись ──────────────────
@@ -160,7 +153,7 @@ test('51.1.2 записка читается при открытии окна �
   const page = await ui()
   // Правка «агентом» — запись в файл записки мимо окна, так же, как это
   // делает их инструмент памяти. Текст НЕ про резерв мощности: записка уходит в
-  // промпт каждого хода, и 42.6.3 («удалённого факта нет в ответе») получала его
+  // промпт каждого хода, и 42.5.1 («удалённого факта нет в ответе») получала его
   // отсюда, а не из памяти проекта (замер 30.09.2026).
   const agentNote = join(String(stand.get().profileDir), 'memories', 'MEMORY.md')
   writeFileSync(agentNote, 'Объект e2e: марка бетона обсуждается.\n', 'utf8')
@@ -214,48 +207,28 @@ test('51.3.1 один переключатель гасит оба пути ав
 // доставалось одному из них наугад — `mem0_add` отвечал «already accessed by
 // another instance of Qdrant client». С задачи 3F.D2 все агенты процесса ядра
 // берут ОДИН общий клиент Mem0 (наш плагин, `mem0_shared.py`), поэтому шаг 1 и
-// позиции, которым нужен его факт (42.3.2, 42.4.1, 42.5.1, 42.6.3), включены.
+// позиции, которым нужен его факт (42.2.1, 42.3.1, 42.4.1, 42.5.1), включены.
 test('шаг 1 блока 42: агент запомнил факт проекта', async () => {
   const page = await ui()
-  await send(page, 'Запомни: резерв мощности на объекте 20 %. Ответь одним словом.')
-  const stop = page.getByRole('button', { name: /^(Стоп|Stop)$/ })
-  // Во время хода «Стоп» два: в поле ввода и в стеке статусов над ним.
-  await expect(stop.first()).toBeVisible({ timeout: 60000 })
-  await expect(stop).toHaveCount(0, { timeout: 240000 })
-  // Автозапись идёт после хода — даём ей закончить до остановки ядра.
+  const result = await turn(
+    page,
+    'Запомни: резерв мощности на объекте 20 %. Ответь одним словом.',
+    {
+      declineForeign: true
+    }
+  )
+  console.log('шаг 1 ' + result.transcript)
+  expect(result.status, result.transcript).toBe('complete')
+  // Автозапись идёт после хода — даём ей закончить до чтения списка.
   await page.waitForTimeout(15000)
 })
 
-test('42.2.1 сначала сказано про остановку и обрыв разговора, потом кнопка', async () => {
+test('42.2.1 список показан сразу, без остановки агента; в нём факт из шага 1 с датой и каналом', async () => {
   const page = await ui()
-  const dialog = await openMemory(page)
-  const text = await dialog.innerText()
-  const why = text.indexOf('читается только при остановленном агенте')
-  const button = text.indexOf(SHOW)
-  expect(why, 'объяснение есть').toBeGreaterThan(-1)
-  expect(text).toContain('оборвётся')
-  expect(why, 'объяснение ДО кнопки').toBeLessThan(button)
-})
-
-test('42.2.2 пока список не открыт, агент работает — отвечает в чате', async () => {
-  const page = await ui()
-  await agentAnswers(page)
-  await openMemory(page)
-})
-
-test('42.3.1 видно остановку и чтение, затем появляется список', async () => {
-  const page = await ui()
-  const dialog = memoryPage(page)
-  await recordTexts(page)
-  await dialog.getByRole('button', { name: SHOW }).click()
-  await expect(dialog.getByRole('button', { name: HIDE })).toBeVisible({ timeout: 120000 })
-  expect(await seenTexts(page)).toContain('Останавливаю агента и читаю хранилище')
-  await expect(dialog).toContainText(/Фактов в этом проекте: \d+/)
-})
-
-test('42.3.2 в списке факт из шага 1 — с датой и каналом', async () => {
-  const page = await ui()
-  const row = factRows(memoryPage(page))
+  const dialog = await openFacts(page)
+  await expect(dialog.getByRole('button', { name: /агент остановится/ })).toHaveCount(0)
+  await expect(dialog).not.toContainText('остановлен')
+  const row = factRows(dialog)
     .filter({ hasText: /20\s*%/ })
     .first()
   await expect(row, 'факт про резерв 20 %').toBeVisible()
@@ -263,22 +236,21 @@ test('42.3.2 в списке факт из шага 1 — с датой и ка�
   await expect(row).toContainText(/из \S+/)
 })
 
-test('42.3.3 сказано, что агент остановлен, пока список открыт', async () => {
-  const page = await ui()
-  await expect(memoryPage(page)).toContainText(
-    'Пока список открыт, агент остановлен. Он поднимется, когда вы закроете список.'
-  )
-})
-
-test('42.3.4 счётчик называет число фактов проекта', async () => {
+test('42.2.2 счётчик называет число фактов, строка «Память» — то же число', async () => {
   const page = await ui()
   const dialog = memoryPage(page)
   const count = await factRows(dialog).count()
-  console.log('42.3 ФАКТЫ ' + JSON.stringify(await factRows(dialog).allInnerTexts()))
+  console.log('42.2 ФАКТЫ ' + JSON.stringify(await factRows(dialog).allInnerTexts()))
   await expect(dialog).toContainText(`Фактов в этом проекте: ${count}`)
+  await expect.poll(() => navCount(page)).toBe(count)
 })
 
-test('42.4.1 поиск оставляет подходящие строки; пустой возвращает весь список', async () => {
+test('42.2.3 пока страница открыта, агент работает — отвечает в чате', async () => {
+  await agentAnswers(await ui())
+  await openFacts(await ui())
+})
+
+test('42.3.1 поиск оставляет подходящие строки; пустой возвращает весь список', async () => {
   const page = await ui()
   const dialog = memoryPage(page)
   const all = await factRows(dialog).count()
@@ -291,7 +263,7 @@ test('42.4.1 поиск оставляет подходящие строки; п
   await expect(factRows(dialog)).toHaveCount(all)
 })
 
-test('42.4.2 по бессмысленному запросу — «Ничего не нашлось»', async () => {
+test('42.3.2 по бессмысленному запросу — «Ничего не нашлось»', async () => {
   const page = await ui()
   const dialog = memoryPage(page)
   const search = dialog.getByRole('searchbox', { name: 'Поиск по фактам' })
@@ -301,7 +273,7 @@ test('42.4.2 по бессмысленному запросу — «Ничего
   await search.fill('')
 })
 
-test('42.5.1 «Удалить» — строка исчезла', async () => {
+test('42.4.1 «Удалить» — строка исчезла, число на строке «Память» уменьшилось', async () => {
   const page = await ui()
   const dialog = memoryPage(page)
   const before = await factRows(dialog).count()
@@ -312,40 +284,27 @@ test('42.5.1 «Удалить» — строка исчезла', async () => {
   await row.getByRole('button', { name: 'Удалить' }).click()
   await expect(factRows(dialog)).toHaveCount(before - 1, { timeout: 30000 })
   await expect(dialog.getByText(text, { exact: true })).toHaveCount(0)
-})
-
-test('42.6.1 «Закрыть список» — агент поднимается, раздел снова с кнопкой', async () => {
-  const page = await ui()
-  await recordTexts(page)
-  await hideFacts(page)
-  expect(await seenTexts(page)).toContain('Поднимаю агента…')
-  await expect(memoryPage(page)).toContainText('читается только при остановленном агенте')
-})
-
-test('42.6.2 после «Закрыть список» агент снова отвечает в чате', async () => {
-  await agentAnswers(await ui())
+  await expect.poll(() => navCount(page)).toBe(before - 1)
 })
 
 // D-161 (решение владельца 2026-09-30, задача 3G.29). Если продолжить разговор с
 // фразой «Запомни: резерв…», их фоновый разбор после хода (`background_review`)
 // видит её в истории, не находит факта в памяти и записывает заново (замер
-// 29.09.2026, 4 из 4). Поэтому после удаления факта «Закрыть список» поднимает
-// агента в НОВОМ сеансе — сам, без кнопки; прежняя переписка остаётся в истории.
-test('42.6.3 удалённого факта нет ни в ответе, ни в списке', async () => {
+// 29.09.2026, 4 из 4). Поэтому после удаления факта уход со страницы открывает
+// НОВЫЙ сеанс — сам, без кнопки; прежняя переписка остаётся в истории.
+test('42.5.1 после удаления — новый сеанс; удалённого факта нет ни в ответе, ни в списке', async () => {
   const page = await ui()
-  // Лента отрисована (ход 42.6.2 в ней), и фразы шага 1 в ней нет. Без первой
-  // строки `toHaveCount(0)` проходил сразу — пока лента ещё пуста.
-  await expect(page.getByText('Какого цвета ясное небо днём').first()).toBeVisible({ timeout: 30000 })
+  await closeMemory(page)
   await expect(
     page.getByText('Запомни: резерв мощности'),
-    'после удаления факта агент поднялся в новом сеансе'
-  ).toHaveCount(0)
+    'после удаления факта открыт новый сеанс'
+  ).toHaveCount(0, { timeout: 30000 })
   const result = await turn(
     page,
     'Что ты помнишь про этот объект? Ответь коротко, одной-двумя фразами.',
     { declineForeign: true }
   )
-  console.log('42.6.3 ' + result.transcript)
+  console.log('42.5.1 ' + result.transcript)
   expect(result.status, result.transcript).toBe('complete')
   expect(result.text, 'удалённый факт про резерв 20 % не назван').not.toMatch(/20\s*%|резерв/i)
 
@@ -354,16 +313,18 @@ test('42.6.3 удалённого факта нет ни в ответе, ни �
     factRows(dialog).filter({ hasText: /20\s*(%|percent)|резерв|power reserve/i }),
     'фоновый разбор не записал факт заново'
   ).toHaveCount(0)
-  await hideFacts(page)
   await closeMemory(page)
   await record(test.info(), page, { transcript: result.transcript })
 })
 
-test('42.6.4 прежний разговор с фразой из шага 1 находится в истории и открывается', async () => {
+test('42.5.2 прежний разговор с фразой из шага 1 находится в истории и открывается', async () => {
   const page = await ui()
   // Прежний разговор — в истории: поиск сеансов ядра ищет по тексту сообщений.
   await page.getByPlaceholder('Поиск сеансов…').fill('резерв')
-  const old = page.locator('button[data-slot="row-button"]').filter({ hasText: /резерв/i }).first()
+  const old = page
+    .locator('button[data-slot="row-button"]')
+    .filter({ hasText: /резерв/i })
+    .first()
   await expect(old, 'прежний разговор находится в истории').toBeVisible({ timeout: 30000 })
   // Щелчок событием, а не мышью: строки сортируемые, и слой перетаскивания
   // перехватывает нажатие (см. donor-shell-smoke, позиция 4).
@@ -372,23 +333,24 @@ test('42.6.4 прежний разговор с фразой из шага 1 н�
   await page.getByPlaceholder('Поиск сеансов…').fill('')
   await record(test.info(), page)
   // Дальше — не в прежнем разговоре: ход в нём вернул бы факт (D-161).
-  await page.getByRole('button', { name: /^Новый сеанс/ }).first().click()
+  await page
+    .getByRole('button', { name: /^Новый сеанс/ })
+    .first()
+    .click()
   await expect(page.getByText('Запомни: резерв мощности')).toHaveCount(0, { timeout: 15000 })
 })
 
-test('42.7.1 уход со страницы при открытом списке поднимает агента', async () => {
+test('42.6.1 новый факт — число на строке «Память» выросло, страницу не открывали', async () => {
   const page = await ui()
-  await openFacts(page)
-  await closeMemory(page)
-  // Агент поднимается в фоне: вернувшись, человек видит раздел снова с кнопкой
-  // показа — подъём закончен, а не идёт.
-  const memory = await openMemory(page)
-  await expect(memory.getByRole('button', { name: SHOW })).toBeVisible({ timeout: 180000 })
-  await closeMemory(page)
-})
-
-test('42.7.2 после ухода со страницы агент работает — отвечает в чате', async () => {
-  await agentAnswers(await ui())
+  const before = await navCount(page)
+  const result = await turn(page, 'Запомни: марка бетона фундаментов B25. Ответь одним словом.', {
+    declineForeign: true
+  })
+  expect(result.status, result.transcript).toBe('complete')
+  // Явный `mem0_add` попадает в счёт сразу после хода; автозапись хода — позже,
+  // поэтому опрос ждёт, а не проверяет один раз.
+  await expect.poll(() => navCount(page), { timeout: 90000 }).toBeGreaterThan(Math.max(before, 0))
+  await record(test.info(), page, { transcript: result.transcript })
 })
 
 // Перезапуск стоит после блока 42: он открывает новые сессии ядра, а шаг 1
@@ -424,12 +386,11 @@ test('51.2.1 правка записки руками пережила пере�
   await closeMemory(page)
 })
 
-test('42.8.1 во время индексации — отказ словами, индексация не прервана', async () => {
+test('42.7.1 во время индексации список показан, индексация не прервана', async () => {
   const page = await ui()
   const folder = mkdtempSync(join(tmpdir(), 'aecpilot-index-'))
-  // Индексация должна идти ДОЛЬШЕ, чем нажатие кнопки. Формат — `.csv`:
-  // индексатор берёт только pdf/docx/xlsx/csv (`aec_rag.parse.SUPPORTED_SUFFIXES`),
-  // записки `.md` он пропускал, и «идущая» индексация длилась доли секунды.
+  // Индексация должна идти ДОЛЬШЕ, чем чтение списка. Формат — `.csv`:
+  // индексатор берёт только pdf/docx/xlsx/csv (`aec_rag.parse.SUPPORTED_SUFFIXES`).
   for (let i = 1; i <= 10; i += 1) {
     const rows = ['Этаж;Щит;Нагрузка, кВт;Резерв, %']
     for (let r = 1; r <= 100; r += 1)
@@ -444,8 +405,6 @@ test('42.8.1 во время индексации — отказ словами,
   expect(await page.evaluate(() => window.aecpilot.pickProjectDirectory())).toBe(folder)
   const added = await page.evaluate((dir) => window.aecpilot.addSource(dir, true), folder)
   expect(added, JSON.stringify(added)).toMatchObject({ ok: true })
-  // Окно открыто заранее: нажатие идёт сразу, как индексация пошла.
-  const dialog = await openMemory(page)
   await page.evaluate(() => window.aecpilot.startIngest(true))
   await expect
     .poll(
@@ -455,16 +414,10 @@ test('42.8.1 во время индексации — отказ словами,
       { intervals: [100], timeout: 60000 }
     )
     .toBe(true)
-  await dialog.getByRole('button', { name: SHOW }).click()
-  await expect(dialog).toContainText('Идёт индексация — остановить ядро сейчас нельзя', {
-    timeout: 30000
-  })
+  await openFacts(page)
   const state = (await page.evaluate(() => window.aecpilot.getIngestState())) as {
-    running?: boolean
-    error?: string
+    error?: string | null
   }
-  expect(state.running, 'индексация продолжается').toBe(true)
-  expect(state.error ?? '').toBe('')
-  await dialog.getByRole('button', { name: HIDE }).click()
+  expect(state.error ?? '', 'индексация не прервана').toBe('')
   await closeMemory(page)
 })

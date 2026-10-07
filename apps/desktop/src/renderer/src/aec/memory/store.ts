@@ -71,16 +71,16 @@ export async function setAutowrite(enabled: boolean): Promise<string> {
   return ''
 }
 
-// --- Факты памяти проекта (задача 5.16) ------------------------------------
+// --- Факты памяти проекта (задачи 5.16, 3H.21) ----------------------------
 //
-// ПОЧЕМУ СОСТОЯНИЕ ЧЕТЫРЁХЧАСТНОЕ, А НЕ «ЕСТЬ СПИСОК / НЕТ СПИСКА». Между
-// «не просили» и «список открыт» стоит остановка ядра: человек должен видеть,
-// что она идёт, а отказ после неё означает, что агент УЖЕ погашен — и его надо
-// поднять, а не просто показать сообщение.
+// СПИСОК ЧИТАЕТСЯ СРАЗУ, АГЕНТ НЕ ГАСИТСЯ. До 3H.21 между «не просили» и «список
+// открыт» стояла остановка ядра; теперь список отдаёт команда живого ядра
+// (specs/agent-memory.md, замер 3H.20), и состояние — обычное «читаю / есть /
+// отказ».
 
 export interface MemoryFactsView {
-  /** Хранилище занято живым ядром. Отдельно от прочих отказов: это поправимо
-   *  человеком, а не поломка. */
+  /** Хранилище занято — ядро ещё запускается. Отдельно от прочих отказов: это
+   *  проходит само, а не поломка. */
   busy: boolean
   error: string
   facts: MemoryFact[]
@@ -96,24 +96,33 @@ export const FACTS_IDLE: MemoryFactsView = {
 
 export const $memoryFacts = atom<MemoryFactsView>(FACTS_IDLE)
 
+/** Сколько фактов у проекта — для строки «Память» боковой панели (3H.21).
+ *  `null` — ещё не читали: строка тогда без числа, а не с нулём, которого нет. */
+export const $memoryFactsCount = atom<null | number>(null)
+
 // D-161 (решение владельца 2026-09-30). Удалённый факт возвращается, если
 // продолжить разговор, где он прозвучал: фоновый разбор хода у ядра видит всю
-// историю и пишет его в память снова. Поэтому после удаления агент поднимается
-// в НОВОМ сеансе; прежняя переписка остаётся в истории.
+// историю и пишет его в память снова. Поэтому после удаления, уходя со страницы,
+// человек попадает в НОВЫЙ сеанс; прежняя переписка остаётся в истории.
 let factDeleted = false
 
-/** Гасит агента и читает хранилище. Цену человек видит до нажатия — текстом
- *  рядом с кнопкой. */
-export async function openMemoryFacts(): Promise<void> {
-  $memoryFacts.set({ ...FACTS_IDLE, state: 'reading' })
-  factDeleted = false
+export async function loadMemoryFacts(): Promise<void> {
+  $memoryFacts.set({ ...$memoryFacts.get(), busy: false, error: '', state: 'reading' })
 
   const answer = await window.aecpilot.readMemoryFacts()
-  $memoryFacts.set(
-    answer.ok
-      ? { busy: false, error: '', facts: answer.facts, state: 'open' }
-      : { busy: answer.busy, error: answer.error, facts: [], state: 'failed' }
-  )
+  if (answer.ok) {
+    $memoryFacts.set({ busy: false, error: '', facts: answer.facts, state: 'open' })
+    $memoryFactsCount.set(answer.facts.length)
+  } else {
+    $memoryFacts.set({ busy: answer.busy, error: answer.error, facts: [], state: 'failed' })
+  }
+}
+
+/** Только число — после хода агента, без страницы. Отказ молчит: строка
+ *  остаётся с прежним числом, а причину человек увидит на самой странице. */
+export async function refreshMemoryFactsCount(): Promise<void> {
+  const answer = await window.aecpilot.readMemoryFacts()
+  if (answer.ok) $memoryFactsCount.set(answer.facts.length)
 }
 
 /** Возвращает текст отказа или пустую строку. Из списка факт исчезает только
@@ -125,24 +134,17 @@ export async function deleteMemoryFact(id: string): Promise<string> {
 
   factDeleted = true
   const view = $memoryFacts.get()
-  $memoryFacts.set({ ...view, facts: view.facts.filter((fact) => fact.id !== id) })
+  const facts = view.facts.filter((fact) => fact.id !== id)
+  $memoryFacts.set({ ...view, facts })
+  $memoryFactsCount.set(facts.length)
   return ''
 }
 
-/** Поднимает агента обратно. Зовётся и кнопкой «закрыть список», и закрытием
- *  окна — в том числе когда список прочитать не удалось: ядро к этому моменту
- *  уже погашено, и молча оставить его погашенным нельзя. */
-export async function closeMemoryFacts(): Promise<string> {
-  if ($memoryFacts.get().state === 'idle') return ''
-
-  // Список уходит ПОСЛЕ ответа, а не до: пока ядро поднимается, раздел
-  // показывает «Поднимаю агента…», а не кнопку, которая остановила бы его
-  // снова посреди подъёма (D-110).
-  const answer = await window.aecpilot.closeMemoryFacts()
+/** Уход со страницы памяти. */
+export function leaveMemoryFacts(): void {
   $memoryFacts.set(FACTS_IDLE)
   if (factDeleted) {
     factDeleted = false
     requestFreshSession()
   }
-  return answer.ok ? '' : answer.error
 }

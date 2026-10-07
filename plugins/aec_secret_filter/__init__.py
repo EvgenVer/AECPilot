@@ -35,6 +35,7 @@ import json
 import logging
 from typing import Any
 
+from . import memory_facts
 from .mem0_shared import install_shared_mem0_client
 from .secrets import find_secrets, redact_secrets, refusal_message
 
@@ -283,6 +284,17 @@ def register(ctx) -> None:
     install_sync_guard()
     # Задача 3F.D2 (D-111): один клиент Mem0 на процесс — см. `mem0_shared.py`.
     install_shared_mem0_client()
+    # Задача 3H.20 (D-190): список и удаление фактов без остановки ядра — см.
+    # `memory_facts.py`. Не встала — окно скажет, что список недоступен.
+    try:
+        ctx.register_command(
+            memory_facts.COMMAND,
+            memory_facts.handle,
+            description="AECPilot: факты памяти проекта (list | delete <id>)",
+            args_hint="list | delete <id>",
+        )
+    except Exception as error:
+        logger.warning("aec-secret-filter: команда фактов памяти не встала (%s)", error)
 
     # ПОЧЕМУ ПРАВИЛО ЖИВЁТ ЗДЕСЬ, А НЕ ТОЛЬКО В ПРОЕКТНОМ `AGENTS.md`.
     #

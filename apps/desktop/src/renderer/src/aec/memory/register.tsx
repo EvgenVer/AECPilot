@@ -8,6 +8,12 @@
 //
 // Подпись строки боковой панели их панель читает при перестройке области,
 // поэтому смена языка перерегистрирует строку — приём их плагина канбана.
+//
+// ЧИСЛО ФАКТОВ НА СТРОКЕ (задача 3H.21): «запомни» пишет в факты проекта, и
+// человек должен видеть, что память выросла, не открывая страницу. Число
+// обновляется после каждого завершённого хода — тогда же, когда агент мог
+// записать факт, — и при каждом чтении списка на странице. До первого чтения
+// строка без числа: ноль, которого никто не считал, был бы неправдой.
 
 import { PALETTE_AREA, type PaletteContribution } from '../../donor/app/command-palette/contrib'
 import {
@@ -22,10 +28,11 @@ import { translatePlugin } from '../../donor/i18n/plugin-i18n'
 import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { useAecT } from '../../shared/i18n'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
+import { gatewayBridge } from '../../shared/gateway-bridge'
 import { MEMORY_PAGE } from '../workspace-pages'
 
 import MemoryPage from './MemoryPage'
-import { openMemoryScreen } from './store'
+import { $memoryFactsCount, openMemoryScreen, refreshMemoryFactsCount } from './store'
 
 const t = (key: string, ...args: unknown[]): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), key, args)
@@ -81,6 +88,7 @@ export function registerMemoryScreen(): void {
   })
 
   const registerNav = (): void => {
+    const count = $memoryFactsCount.get()
     registry.register({
       id: 'aec-memory-nav',
       area: SIDEBAR_NAV_AREA,
@@ -88,7 +96,7 @@ export function registerMemoryScreen(): void {
       order: 41,
       data: {
         codicon: 'lightbulb',
-        label: t('memoryScreen.badge'),
+        label: count === null ? t('memoryScreen.badge') : t('memoryScreen.navCount', count),
         path: MEMORY_PAGE
       } satisfies SidebarNavContribution
     })
@@ -96,4 +104,10 @@ export function registerMemoryScreen(): void {
 
   registerNav()
   subscribeRuntimeI18nLocale(registerNav)
+  $memoryFactsCount.listen(registerNav)
+
+  gatewayBridge().on('message.complete', (event) => {
+    const status = (event as { payload?: { status?: string } }).payload?.status
+    if (status === 'complete') void refreshMemoryFactsCount()
+  })
 }

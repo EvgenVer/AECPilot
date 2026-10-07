@@ -1,13 +1,10 @@
-# Список фактов памяти проекта и их удаление — для окна памяти (задача 5.16).
+# Список фактов памяти проекта и их удаление, КОГДА ЯДРО НЕ ЗАПУЩЕНО (задачи 5.16, 3H.20).
 #
-# ПОЧЕМУ ЭТО ОТДЕЛЬНЫЙ ПРОЦЕСС, А НЕ КОД ПРИЛОЖЕНИЯ. Хранилище слоя 2 — встроенный
-# qdrant, и открыть его умеет только python ядра: у приложения нет ни клиента к
-# нему, ни перевода настройки `mem0.json` в конфиг mem0. Читает тот же код,
-# который пишет, — иначе форма факта разъехалась бы с формой записи.
-#
-# ЗАПУСКАТЬ ТОЛЬКО ПРИ ОСТАНОВЛЕННОМ ЯДРЕ: живое ядро держит папку хранилища
-# исключительно (замер `runtime/memory-store-access-probe.mjs`, задача 5.4), и
-# второй клиент получает отказ вместо списка.
+# С живым ядром список идёт его командой `/aec-memory-facts` (наш плагин,
+# `plugins/aec_secret_filter/memory_facts.py`): ядро уже держит папку хранилища,
+# и второй процесс получил бы отказ. Этот процесс — для случая, когда ядра нет и
+# держать папку некому. Код списка и удаления ОДИН — модуль плагина; здесь только
+# окружение отдельного процесса: `.env` профиля и чистка значений из отказа.
 #
 # НА STDOUT — РОВНО ОДНА СТРОКА JSON. Значения из окружения профиля в неё не
 # попадают: в тексте отказа они заменяются на «[скрыто]».
@@ -51,59 +48,10 @@ def clean(text):
     return text
 
 
-def facts_of(raw):
-    """mem0 отдаёт то список, то словарь с `results` — обе формы у них в ходу.
-
-    ФОРМА ФАКТА ЗАМЕРЕНА (задача 5.16): `{id, memory, hash, metadata: {channel},
-    created_at, updated_at, user_id, agent_id, role}`. Поля `session` в ней НЕТ —
-    провайдер пишет в метаданные только канал (`_write_metadata`), и спека
-    исправлена по этому замеру."""
-    items = raw.get("results", []) if isinstance(raw, dict) else raw
-    out = []
-    for item in items or []:
-        metadata = item.get("metadata") or {}
-        out.append(
-            {
-                "id": item.get("id", "") or "",
-                "text": item.get("memory", "") or "",
-                "created_at": item.get("created_at", "") or "",
-                "channel": metadata.get("channel", "") or "",
-            }
-        )
-    return out
-
-
-def error_in(answer):
-    """Их инструменты отвечают СТРОКОЙ JSON, и отказ лежит в поле `error`. Без
-    разбора человек увидел бы в окне сырой JSON вместо фразы. `None` — отказа нет."""
-    try:
-        parsed = json.loads(str(answer))
-    except ValueError:
-        return None
-    if isinstance(parsed, dict) and parsed.get("error"):
-        return str(parsed["error"])
-    return None
-
-
-def reason_from(provider):
-    """Почему списка нет — ИХ словами. Замер задачи 5.16: когда папку хранилища
-    держит другой процесс, провайдер НЕ бросает и `is_available()` отвечает True —
-    `_backend` просто остаётся None. Свой текст в этом месте врал бы (например, про
-    версию mem0), а их обработчик поиска несёт настоящую причину: «Storage folder …
-    is already accessed by another instance of Qdrant client»."""
-    try:
-        answer = provider.handle_tool_call("mem0_search", {"query": "факт"})
-    except Exception as error:
-        return type(error).__name__ + ": " + str(error)
-    return error_in(answer) or "список фактов недоступен: " + str(answer)[:200]
-
-
 def open_provider(home):
     src = os.environ.get("AEC_HERMES_SRC")
     if src and src not in sys.path:
         sys.path.insert(0, src)
-    from plugins.memory import load_memory_provider
-
     # Задача 3G.4 (D-157): `mem0.json` несёт ИМЯ переменной ключа (`api_key_env`), а
     # ключ подставляет наш плагин ядра. Этот процесс плагины ядра не грузит — ставим
     # ту же подмену сами, из исходника плагина рядом.
@@ -111,65 +59,19 @@ def open_provider(home):
     if plugins_dir not in sys.path:
         sys.path.insert(0, plugins_dir)
     from aec_secret_filter.mem0_shared import install_shared_mem0_client
+    from aec_secret_filter.memory_facts import open_provider as open_mem0
 
     install_shared_mem0_client()
-
-    provider = load_memory_provider("mem0", register_skills=False)
-    provider.initialize(
-        session_id="aec-memory-facts",
-        platform="tui",
-        hermes_home=home,
-        agent_context="primary",
-    )
-    return provider
+    return open_mem0(home)
 
 
 def run(command, ident, provider):
-    if command == "list":
-        # ПОЛНЫЙ СПИСОК ИХ ИНСТРУМЕНТОМ НЕ БЕРЁТСЯ: `mem0_search` требует запрос и
-        # отдаёт максимум 50 совпадений (`plugins/memory/mem0/__init__.py`) — это
-        # поиск, а не инвентарь. Поэтому список идёт у самого mem0 через их же
-        # backend: перевод настройки остаётся их, а `user_id` — тот, которым
-        # разделены проекты (задача 5.2).
-        backend = getattr(provider, "_backend", None)
-        if backend is None:
-            raise RuntimeError(reason_from(provider))
-        memory = getattr(backend, "_memory", None)
-        if memory is None or not hasattr(memory, "get_all"):
-            raise RuntimeError("список фактов есть только у локального mem0 (mode: oss)")
-        return {
-            "ok": True,
-            "user_id": provider._user_id,
-            # ФОРМА ФИЛЬТРА ЗАМЕРЕНА, А НЕ УГАДАНА: `get_all(user_id=...)` в mem0
-            # 2.0.10 отвечает отказом «Top-level entity parameters … are not
-            # supported … Use filters={...}», и их собственный поиск зовётся так же.
-            "facts": facts_of(memory.get_all(filters={"user_id": provider._user_id})),
-        }
+    from aec_secret_filter.memory_facts import run as run_facts
 
-    if command == "delete":
-        if not ident:
-            raise RuntimeError("не сказано, какой факт удалить")
-        # Удаление — ИХ инструментом: форма записи и её журнал остаются их.
-        problem = error_in(provider.handle_tool_call("mem0_delete", {"memory_id": ident}))
-        answer = {"ok": problem is None, "deleted": ident}
-        if problem is not None:
-            answer["error"] = clean(problem)[:300]
-            return answer
-        # D-171: без этого факт возвращается — mem0 заново извлекает его из своего
-        # журнала реплик проекта (`aec_secret_filter/mem0_turns.py`). Сбой здесь не
-        # отменяет удаления, поэтому в ответ не идёт: строка stdout одна и о факте.
-        try:
-            from aec_secret_filter.mem0_turns import forget_scope_turns
-
-            forget_scope_turns(getattr(provider._backend, "_memory", None), provider._user_id)
-        except Exception as error:
-            print(
-                "журнал реплик не очищен: " + clean(type(error).__name__ + ": " + str(error))[:300],
-                file=sys.stderr,
-            )
-        return answer
-
-    return {"ok": False, "error": "неизвестная команда"}
+    answer = run_facts(command, ident, provider)
+    if "error" in answer:
+        answer["error"] = clean(answer["error"])
+    return answer
 
 
 def main():

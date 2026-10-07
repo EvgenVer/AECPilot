@@ -1,6 +1,6 @@
-// Решения вокруг списка фактов памяти проекта — без процессов и без IPC
-// (задача 5.16). Здесь живёт то, что должно быть проверяемо тестом: что мы
-// поняли из ответа читателя и когда вообще нельзя гасить ядро.
+// Разбор ответа о фактах памяти проекта — без процессов и без IPC (задачи 5.16,
+// 3H.21). Ответ одной формы приходит двумя путями: выводом команды ядра
+// `/aec-memory-facts` и stdout отдельного процесса `runtime/memory-facts.py`.
 //
 // ЗАЧЕМ ОТДЕЛЬНЫЙ РАЗБОР ОТВЕТА. Читатель — процесс python, и на его stdout
 // может прийти не только наша строка: их провайдер и qdrant пишут предупреждения
@@ -26,7 +26,7 @@ function fact(value: unknown): MemoryFact | null {
   }
 }
 
-/** Разбирает ответ `runtime/memory-facts.py`. Ни одна ветка не бросает: отказ —
+/** Разбирает ответ команды ядра или `runtime/memory-facts.py`. Ни одна ветка не бросает: отказ —
  *  это такой же ответ, и человек увидит его словами. */
 export function readFactsAnswer(stdout: string): MemoryFactsAnswer {
   let parsed: Record<string, unknown> | undefined
@@ -60,34 +60,4 @@ export function readFactsAnswer(stdout: string): MemoryFactsAnswer {
     // Имя поля у читателя змеиное (`user_id`) — оно принадлежит mem0, а не нам.
     userId: typeof parsed.user_id === 'string' ? parsed.user_id : ''
   }
-}
-
-/** Можно ли сейчас гасить ядро ради списка.
- *
- * ПОЧЕМУ ЭТО НЕ ОДНА ПРОВЕРКА. Три причины отказа означают три разных
- * новости: на другой машине хранилища здесь нет вовсе; идущая индексация или
- * построение графа держат тот же индекс (та же граница, что в 5.15); а
- * открытый список означает, что ядро УЖЕ остановлено нами. */
-export function decideFactsOpen(state: {
-  factsOpen: boolean
-  graphRunning: boolean
-  ingestRunning: boolean
-  remote: boolean
-}): { ok: true } | { error: string; ok: false } {
-  if (state.remote) {
-    return {
-      error: 'Ядро работает на другой машине — список фактов читается только там',
-      ok: false
-    }
-  }
-  if (state.ingestRunning) {
-    return { error: 'Идёт индексация — остановить ядро сейчас нельзя', ok: false }
-  }
-  if (state.graphRunning) {
-    return { error: 'Строится граф — остановить ядро сейчас нельзя', ok: false }
-  }
-  if (state.factsOpen) {
-    return { error: 'Список уже открыт', ok: false }
-  }
-  return { ok: true }
 }

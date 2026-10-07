@@ -14,7 +14,12 @@ import { describe, expect, it } from "vitest";
 
 import { RUNTIME_DIR } from "./hermes-env.mjs";
 
-const reader = readFileSync(join(RUNTIME_DIR, "memory-facts.py"), "utf8");
+// Задача 3H.20: код списка и удаления живёт в модуле плагина ядра, а
+// `memory-facts.py` его только зовёт — сверяется модуль.
+const reader = readFileSync(
+  join(RUNTIME_DIR, "..", "plugins", "aec_secret_filter", "memory_facts.py"),
+  "utf8",
+);
 const parser = readFileSync(
   join(RUNTIME_DIR, "..", "apps", "desktop", "src", "main", "memory-facts-pure.ts"),
   "utf8",

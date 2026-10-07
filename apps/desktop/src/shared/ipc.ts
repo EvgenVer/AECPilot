@@ -1048,12 +1048,9 @@ export interface AecpilotApi {
    * канал, `session` в записи не появляется вовсе. Поле, которое всегда пусто,
    * на экране выглядело бы потерянным фактом. */
   readMemoryFacts(): Promise<MemoryFactsAnswer>
-  /** Удаляет один факт ИХ инструментом (`mem0_delete`). Зовётся только пока
-   * открыт список, то есть пока ядро остановлено нами же. */
+  /** Удаляет один факт ИХ инструментом (`mem0_delete`) — командой живого ядра,
+   * без его остановки (задача 3H.21). */
   deleteMemoryFact(id: string): Promise<{ ok: true } | { ok: false; error: string }>
-  /** Поднимает ядро обратно. Зовётся при закрытии списка — и в том числе когда
-   * список не удалось прочитать: иначе человек остался бы без агента. */
-  closeMemoryFacts(): Promise<{ ok: true } | { ok: false; error: string }>
   stopPreviewWatch(id: string): Promise<boolean>
   previewWatchCount(): Promise<number>
   onPreviewFileChanged(

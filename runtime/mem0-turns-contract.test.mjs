@@ -23,7 +23,11 @@ function mem0Dir() {
 
 const storage = readFileSync(join(mem0Dir(), "memory", "storage.py"), "utf8");
 const main = readFileSync(join(mem0Dir(), "memory", "main.py"), "utf8");
-const reader = readFileSync(join(RUNTIME_DIR, "memory-facts.py"), "utf8");
+// Задача 3H.20: удаление живёт в модуле плагина ядра (`memory-facts.py` его зовёт).
+const reader = readFileSync(
+  join(RUNTIME_DIR, "..", "plugins", "aec_secret_filter", "memory_facts.py"),
+  "utf8",
+);
 
 describe("журнал реплик mem0, который чистит удаление факта", () => {
   it("извлечение подмешивает последние реплики области", () => {

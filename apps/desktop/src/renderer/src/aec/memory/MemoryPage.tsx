@@ -8,13 +8,10 @@
 // промпт ЦЕЛИКОМ каждый ход, и человек имеет право видеть цену до того, как
 // отказ случится.
 //
-// СПИСОК ФАКТОВ ПРОЕКТА ЖИВЁТ ПОД УСЛОВИЕМ, и условие названо до нажатия.
-// Хранилище слоя 2 — встроенная база, и работающее ядро держит её папку
-// исключительно (замер `runtime/memory-store-access-probe.mjs`). Поэтому список
-// читается при остановленном агенте: цена — оборванный разговор, и человек
-// соглашается на неё кнопкой, а не узнаёт после. Пока список открыт, страница
-// говорит, что агент стоит; кнопка «Скрыть» и уход со страницы поднимают его
-// обратно.
+// СПИСОК ФАКТОВ ПРОЕКТА ЧИТАЕТСЯ ПРИ ВХОДЕ, агент при этом работает (задача
+// 3H.21): список отдаёт команда живого ядра (specs/agent-memory.md, замер 3H.20).
+// До неё список стоял за остановкой агента, и владелец не нашёл в окне того, что
+// агент запомнил.
 //
 // СТРАНИЦА, А НЕ ОКНО (задача 3H.8, SPEC UR43): окно жило в строке состояния и
 // пропадало вместе с ней (D-189). Факты — первая вкладка, записка ядра — вторая:
@@ -31,9 +28,9 @@ import { useAecT } from '../../shared/i18n'
 import {
   $memoryFacts,
   $memoryNotes,
-  closeMemoryFacts,
   deleteMemoryFact,
-  openMemoryFacts,
+  leaveMemoryFacts,
+  loadMemoryFacts,
   refreshMemoryNotes,
   saveMemoryNote,
   setAutowrite
@@ -140,20 +137,11 @@ function ProjectFacts(): React.JSX.Element {
   const t = useAecT()
   const view = useStore($memoryFacts)
   const [query, setQuery] = useState('')
-  const [restoring, setRestoring] = useState(false)
-  const [error, setError] = useState('')
 
   const needle = query.trim().toLowerCase()
   const rows = needle
     ? view.facts.filter((fact) => fact.text.toLowerCase().includes(needle))
     : view.facts
-
-  const hide = async (): Promise<void> => {
-    setRestoring(true)
-    const refusal = await closeMemoryFacts()
-    setRestoring(false)
-    setError(refusal)
-  }
 
   return (
     <section className="flex flex-col gap-2">
@@ -161,18 +149,7 @@ function ProjectFacts(): React.JSX.Element {
         {t('memoryScreen.projectFacts')}
       </h3>
 
-      {view.state === 'idle' && (
-        <>
-          <p className="text-xs text-(--ui-text-secondary)">{t('memoryScreen.factsWhyStop')}</p>
-          <div className="flex justify-start">
-            <Button onClick={() => void openMemoryFacts()} size="sm" variant="secondary">
-              {t('memoryScreen.factsShow')}
-            </Button>
-          </div>
-        </>
-      )}
-
-      {view.state === 'reading' && (
+      {(view.state === 'idle' || view.state === 'reading') && (
         <p className="text-xs text-(--ui-text-secondary)">{t('memoryScreen.factsReading')}</p>
       )}
 
@@ -181,11 +158,9 @@ function ProjectFacts(): React.JSX.Element {
           <p className="text-xs text-(--ui-text-danger)">
             {view.busy ? t('memoryScreen.factsBusy') : view.error}
           </p>
-          {/* Агент к этому моменту уже остановлен нами — кнопка поднимает его
-              обратно, а не просто прячет сообщение. */}
           <div className="flex justify-start">
-            <Button disabled={restoring} onClick={() => void hide()} size="sm" variant="secondary">
-              {t(restoring ? 'memoryScreen.factsRestoring' : 'memoryScreen.factsHide')}
+            <Button onClick={() => void loadMemoryFacts()} size="sm" variant="secondary">
+              {t('memoryScreen.factsRetry')}
             </Button>
           </div>
         </>
@@ -193,7 +168,6 @@ function ProjectFacts(): React.JSX.Element {
 
       {view.state === 'open' && (
         <>
-          <p className="text-xs text-amber-500">{t('memoryScreen.factsStopped')}</p>
           <input
             aria-label={t('memoryScreen.factsSearch')}
             className="w-full rounded border border-(--ui-border) bg-(--ui-bg-primary) p-1.5 text-xs text-(--ui-text-primary)"
@@ -202,9 +176,15 @@ function ProjectFacts(): React.JSX.Element {
             type="search"
             value={query}
           />
-          <span className="text-xs text-(--ui-text-secondary)">
-            {t('memoryScreen.factsCount', view.facts.length)}
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-(--ui-text-secondary)">
+              {t('memoryScreen.factsCount', view.facts.length)}
+            </span>
+            {/* Агент пишет в память и пока страница открыта — список не вечен. */}
+            <Button onClick={() => void loadMemoryFacts()} size="sm" variant="text">
+              {t('memoryScreen.factsRefresh')}
+            </Button>
+          </div>
           {rows.length === 0 ? (
             <p className="text-xs text-(--ui-text-secondary)">
               {t(needle ? 'memoryScreen.factsNoMatch' : 'memoryScreen.factsEmpty')}
@@ -216,15 +196,8 @@ function ProjectFacts(): React.JSX.Element {
               ))}
             </ul>
           )}
-          <div className="flex justify-start">
-            <Button disabled={restoring} onClick={() => void hide()} size="sm" variant="secondary">
-              {t(restoring ? 'memoryScreen.factsRestoring' : 'memoryScreen.factsHide')}
-            </Button>
-          </div>
         </>
       )}
-
-      {error && <p className="text-xs text-(--ui-text-danger)">{error}</p>}
     </section>
   )
 }
@@ -269,11 +242,8 @@ export default function MemoryPage(): React.JSX.Element {
     // Записку пишет и сам агент своим инструментом — читаем её при каждом входе,
     // иначе человеку предложат затереть чужую правку.
     void refreshMemoryNotes()
-    // Ушёл со страницы со списком фактов — агент поднимается обратно. Ждать
-    // некому: страницы уже нет, а отказ поднять агента ядро покажет само.
-    return () => {
-      if ($memoryFacts.get().state !== 'idle') void closeMemoryFacts()
-    }
+    void loadMemoryFacts()
+    return leaveMemoryFacts
   }, [])
 
   return (
