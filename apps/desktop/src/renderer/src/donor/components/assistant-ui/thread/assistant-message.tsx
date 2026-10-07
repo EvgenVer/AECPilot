@@ -7,6 +7,8 @@
  *   [3] removed the Send Diagnostics action — it uploads a debug bundle to
  *       Nous-internal diagnostics storage (`diagnostics.share_nous`), HX3 —
  *       with its store import and the now-unused `Upload` icon
+ *   [3] the per-answer "read aloud" button is not rendered — all voice is SPEC
+ *       HX19 since the owner decision 2026-10-07
  * (no other edits)
  */
 import {
@@ -997,7 +999,8 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
           </TooltipIconButton>
         )}
         <CopyButton appearance="icon" buttonSize="icon" label={copy.copy} text={getMessageText} />
-        <ReadAloudButton getText={getMessageText} messageId={messageId} />
+        {/* EDIT [3]: кнопка «прочитать вслух» (`ReadAloudButton`) стояла здесь —
+            голос исключён целиком, SPEC HX19 (решение владельца 2026-10-07). */}
         <ActionBarPrimitive.Reload asChild>
           <TooltipIconButton onClick={() => triggerHaptic('submit')} tooltip={copy.refresh}>
             <RefreshCwIcon className="size-3.5" />

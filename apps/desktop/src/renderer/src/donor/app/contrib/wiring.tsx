@@ -13,6 +13,8 @@
  *   [3] the wake phrase no longer starts a continuous voice conversation, and no
  *       longer raises the wake badge that only that conversation could lower —
  *       SPEC HX19 (owner decision 2026-09-08)
+ *   [3] the wake word is never armed and a wake event does nothing — all voice
+ *       is SPEC HX19 since the owner decision 2026-10-07
  * (no other edits)
  */
 /**
@@ -854,47 +856,11 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     (event: Parameters<typeof handleDesktopGatewayEvent>[0]) => {
       emitGatewayEvent(event)
 
+      // EDIT [3]: здесь слово-активатор переводил на профиль и открывал свежую
+      // сессию (освободив микрофон и сыграв звук). Голос исключён целиком —
+      // SPEC HX19, решение владельца 2026-10-07 (задача 3H.2); слово не
+      // взводится, и событие, если старое ядро его всё же пришлёт, гасится здесь.
       if (event.type === 'wake.detected') {
-        const payload = event.payload as { profile?: null | string; start_new_session?: boolean } | undefined
-
-        // Free the Mac mic so voice conversation can open getUserMedia.
-        // Server already pauses the detector lease; this stops client PCM feed.
-        stopClientCapture()
-
-        // Audible confirmation that the wake registered, before voice capture
-        // starts. Gated by the shared sound-mute toggle.
-        playWakeSound()
-        // EDIT [3]: здесь поднималась табличка «слово услышано»
-        // (`activateWakeIndicator`). Опустить её умел ТОЛЬКО непрерывный
-        // разговор (`syncWakeIndicatorWithVoice`), а он снят — SPEC HX19.
-        // Оставленный вызов означал бы табличку, висящую вечно.
-
-        // Multi-profile routing: a wake phrase enrolled by another profile
-        // re-homes the gateway to that profile first (live swap — same path
-        // as clicking it in the profile rail), then opens the fresh session
-        // and starts voice there.
-        const targetProfile = payload?.profile?.trim()
-        const activeProfile = normalizeProfileKey($activeGatewayProfile.get())
-
-        if (targetProfile && normalizeProfileKey(targetProfile) !== activeProfile) {
-          if (payload?.start_new_session !== false) {
-            newSessionInProfile(targetProfile)
-          } else {
-            void ensureGatewayProfile(normalizeProfileKey(targetProfile)).catch((error: unknown) => {
-              // #81094: the voice-path switch must surface its failure too.
-              notifyError(error, `Failed to switch to profile "${normalizeProfileKey(targetProfile)}"`)
-            })
-          }
-        } else if (payload?.start_new_session !== false) {
-          startFreshSessionDraft()
-        }
-
-        // EDIT [3]: дальше шёл `requestVoiceConversationStart()` — непрерывный
-        // разговор, SPEC HX19 (решение владельца 2026-09-08). Слово-активатор
-        // остаётся взятым (HX19 первой половиной) и делает то, что от него
-        // осталось: переводит на нужный профиль и открывает свежую сессию.
-        // Говорить в неё человек начинает сам — диктовкой.
-
         return
       }
 
@@ -922,13 +888,9 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     refreshSessions
   })
 
-  useEffect(() => {
-    if (gatewayState === 'open') {
-      // Status-then-arm, syncing $wakeWord so the composer toggle reflects the
-      // same listener this auto-arm claims.
-      void armWakeWord(requestGateway)
-    }
-  }, [gatewayState, requestGateway])
+  // EDIT [3]: здесь на каждом открытии шлюза взводилось слово-активатор
+  // (`armWakeWord` → `wake.start`). Этот вызов и заставлял ядро ставить пакеты
+  // распознавания в своё окружение (D-184). Голос исключён целиком — SPEC HX19.
 
   const activeIsMessaging =
     !!selectedStoredSessionId &&

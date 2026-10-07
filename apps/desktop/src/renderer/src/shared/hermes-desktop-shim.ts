@@ -651,13 +651,10 @@ const IMPLEMENTED: Record<string, unknown> = {
     }
   },
 
-  // Task 3.7a. Their recorder asks before opening capture and reads `false` as
-  // "denied"; the unbridged stand-in would REJECT here, and an `await` on a
-  // rejection is a throw, not a `false` — which is why pressing the microphone
-  // button raised their `recordingFailed` notice instead of recording.
-  requestMicrophoneAccess(): Promise<boolean> {
-    return window.aecpilot.requestMicrophoneAccess()
-  },
+  // Задача 3H.3: голос вне продукта (SPEC HX19) — микрофон окну не нужен, и
+  // член объявлен отсутствующим, а не заглушкой (правило PLAN «заглушка шима
+  // обязана отказывать честно»). Их вызов `?.()` даёт `undefined`, не бросок.
+  requestMicrophoneAccess: undefined,
 
   // Task 3.19. Every "open this in a browser" in their code lands here: the
   // OAuth sign-in URL, a provider's docs link, a link clicked in the terminal
@@ -769,23 +766,10 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.sshResolveHost(host)
   },
 
-  // Задача 3.7b. Слово-активатор слушает микрофон, когда на приложение никто не
-  // смотрит, поэтому о работающем захвате говорит отдельное окно поверх всех.
-  // Непроброшенным этот член ничего не ломал — и в этом была вся беда: захват
-  // шёл, а сказать об этом было нечем.
-  wakeIndicator: {
-    getState(): Promise<'capturing' | 'detected' | 'hidden'> {
-      return window.aecpilot.getWakeIndicator()
-    },
-    setState(state: 'capturing' | 'detected' | 'hidden'): void {
-      window.aecpilot.setWakeIndicator(state)
-    },
-    onState(_callback: (state: 'capturing' | 'detected' | 'hidden') => void): () => void {
-      // Состояние читает САМО окно-индикатор через свой крошечный мост; главному
-      // окну слушать нечего — оно это состояние и задаёт.
-      return () => {}
-    }
-  },
+  // Задача 3H.3: табличка слова-активатора (задача 3.7b, отдельное окно поверх
+  // всех) снята вместе со всем голосом — SPEC HX19. Член объявлен отсутствующим:
+  // их `wakeIndicator?.setState` на `undefined` молча ничего не делает.
+  wakeIndicator: undefined,
 
   // Задача 3.24. Плавающая лента. Их проверка возможности — `typeof
   // …hud?.open === 'function'`, и на заглушке она проходит: переключатель HUD в

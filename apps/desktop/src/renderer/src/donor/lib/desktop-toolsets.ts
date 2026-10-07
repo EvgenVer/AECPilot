@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/lib/desktop-toolsets.ts
  * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] the 'tts' toolset row is hidden — all voice is SPEC HX19 (owner decision
+ *       2026-10-07); the toolset itself is off via agent.disabled_toolsets
+ * (no other edits)
  */
 // Curation for the desktop "Skills & Tools → Toolsets" list.
 //
@@ -23,7 +26,9 @@ const DESKTOP_HIDDEN_TOOLSETS = new Set([
   'yuanbao',
   // Internal plumbing, not a user capability toggle.
   'context_engine',
-  'moa'
+  'moa',
+  // EDIT [3]: голос исключён целиком — SPEC HX19 (решение владельца 2026-10-07).
+  'tts'
 ])
 
 export function isDesktopToolsetVisible(name: string): boolean {

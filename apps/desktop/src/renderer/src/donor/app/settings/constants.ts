@@ -5,6 +5,7 @@
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
+ *   [3] dropped the Voice section — all voice is SPEC HX19 (owner decision 2026-10-07)
  * (no other edits)
  */
 
@@ -767,57 +768,9 @@ export const SECTIONS: DesktopConfigSection[] = [
       'auxiliary.compression.timeout'
     ]
   },
-  {
-    id: 'voice',
-    label: 'Voice',
-    icon: Mic,
-    keys: [
-      'voice.voice_chat_mode',
-      'voice.gpt_live.voice',
-      'voice.gpt_live.instructions',
-      'tts.provider',
-      'stt.enabled',
-      'stt.echo_transcripts',
-      'stt.provider',
-      'voice.auto_tts',
-      'tts.edge.voice',
-      'tts.openai.model',
-      'tts.openai.voice',
-      'tts.elevenlabs.voice_id',
-      'tts.elevenlabs.model_id',
-      'tts.xai.voice_id',
-      'tts.xai.language',
-      'tts.xai.speed',
-      'tts.xai.auto_speech_tags',
-      'tts.xai.optimize_streaming_latency',
-      'tts.xai.sample_rate',
-      'tts.xai.bit_rate',
-      'tts.minimax.model',
-      'tts.minimax.voice_id',
-      'tts.mistral.model',
-      'tts.mistral.voice_id',
-      'tts.gemini.model',
-      'tts.gemini.voice',
-      'tts.neutts.model',
-      'tts.neutts.device',
-      'tts.kittentts.model',
-      'tts.kittentts.voice',
-      'tts.piper.voice',
-      'tts.deepinfra.model',
-      'tts.deepinfra.voice',
-      'stt.local.model',
-      'stt.local.language',
-      'stt.openai.model',
-      'stt.groq.model',
-      'stt.mistral.model',
-      'stt.elevenlabs.model_id',
-      'stt.elevenlabs.language_code',
-      'stt.elevenlabs.tag_audio_events',
-      'stt.elevenlabs.diarize',
-      'voice.max_recording_seconds',
-      'voice.client_direct'
-    ]
-  },
+  // EDIT [3]: здесь стоял раздел «Голос» (распознавание, синтез, голосовой
+  // разговор) — голос исключён целиком, SPEC HX19, решение владельца 2026-10-07.
+  // С этой строкой таблицы уходят и пункт навигации, и поиск, и строки палитры.
   {
     id: 'advanced',
     label: 'Advanced',

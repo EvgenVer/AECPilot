@@ -81,6 +81,66 @@ export function ensureSectionScalar(
 }
 
 /**
+ * Ставит `key: value` в секции `section` ВСЕГДА — и когда ключа нет, и когда
+ * он задан другим значением (задача 3H.4).
+ *
+ * Исключение из правила «выбор человека старше умолчания», и потому отдельная
+ * функция, а не флаг у `ensureSectionScalar`: здесь пишется не умолчание, а
+ * граница объёма. Голос вне продукта (SPEC HX19, решение владельца 2026-10-07),
+ * и `wake_word.enabled: true`, оставшееся в профиле от прежней сборки, заставляет
+ * ядро ставить пакеты в своё окружение (D-184) — то есть выбора, который стоило
+ * бы беречь, здесь нет.
+ *
+ * Трогается только прямой потомок секции (два пробела отступа): одноимённый
+ * ключ глубже — чужое поле. Комментарий в конце строки ключа уходит вместе со
+ * старым значением — он описывал его.
+ */
+export function forceSectionScalar(
+  yamlText: string,
+  section: string,
+  key: string,
+  value: boolean | number | string
+): ConfigScalarResult {
+  const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
+  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const keyLine = new RegExp(`^  ${key}:(.*)$`)
+
+  const written = typeof value === 'string' ? JSON.stringify(value) : String(value)
+  const lines = yamlText.split('\n')
+
+  if (lines.some((line) => sectionScalar.test(line))) {
+    return { text: yamlText, changed: false, unexpectedStructure: true }
+  }
+
+  const start = lines.findIndex((line) => sectionLine.test(line))
+  if (start === -1) return ensureSectionScalar(yamlText, section, key, value)
+
+  let end = lines.length
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (TOP_LEVEL_LINE.test(lines[index])) {
+      end = index
+      break
+    }
+  }
+
+  const at = lines.slice(start + 1, end).findIndex((line) => keyLine.test(line))
+  if (at === -1) {
+    // Не `ensureSectionScalar`: тот ищет ключ на любой глубине и, найдя
+    // одноимённый ниже (`stt: local: enabled:`), ничего бы не дописал.
+    const inserted = [...lines.slice(0, start + 1), `  ${key}: ${written}`, ...lines.slice(start + 1)]
+    return { text: inserted.join('\n'), changed: true, unexpectedStructure: false }
+  }
+
+  const index = start + 1 + at
+  const current = (keyLine.exec(lines[index])?.[1] ?? '').replace(/#.*$/, '').trim()
+  if (current === written) return { text: yamlText, changed: false, unexpectedStructure: false }
+
+  const next = [...lines]
+  next[index] = `  ${key}: ${written}`
+  return { text: next.join('\n'), changed: true, unexpectedStructure: false }
+}
+
+/**
  * То же правило на глубине три: `section: sub: key: value` (задача 3.B6г —
  * `vault.bitwarden.enabled`). Ключ есть — файл не трогается; нет подсекции —
  * она дописывается в начало секции; нет секции — блок целиком в конец файла.

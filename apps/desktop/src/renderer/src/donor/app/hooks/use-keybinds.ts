@@ -6,6 +6,8 @@
  * Edits:
  *   [3] dropped the 'composer.voice' handler — the continuous voice
  *       conversation it toggled is SPEC HX19 (owner decision 2026-09-08)
+ *   [3] dropped the 'composer.dictate' handler — all voice is SPEC HX19 (owner
+ *       decision 2026-10-07)
  * (no other edits)
  */
 import { useEffect, useRef } from 'react'
@@ -211,7 +213,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
     },
     // EDIT [3]: 'composer.voice' (Ctrl+B) включал непрерывный разговор — SPEC HX19 (owner decision 2026-09-08).
-    'composer.dictate': requestComposerDictation,
+    // EDIT [3]: 'composer.dictate' — диктовка снята, SPEC HX19 (решение владельца 2026-10-07).
 
     // On the Settings overlay, ⌘K scopes to settings search; the second press
     // (or Esc) still closes as usual via toggle.

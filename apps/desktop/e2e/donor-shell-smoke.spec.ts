@@ -1705,41 +1705,26 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
   await assertRendererAlive(page, 'end of test 10')
 })
 
-test('an open microphone says so in a window of its own', async () => {
+// Задача 3H.3: табличка «микрофон слушает» (задача 3.7b) снята вместе со всем
+// голосом — SPEC HX19, решение владельца 2026-10-07. Проверяется, что моста к
+// ней нет и окна такого не появляется.
+test('у окна нет моста к микрофону и табличке слова-активатора', async () => {
   const page = await mainWindow()
 
-  const before = appWindows().length
-
-  // Захват начался — табличка появляется. Отдельным окном: слово-активатор
-  // работает при свёрнутом главном окне, и значок внутри него не виден.
-  await page.evaluate(() => window.aecpilot.setWakeIndicator('capturing'))
-  await expect.poll(() => appWindows().length).toBe(before + 1)
-
-  const shape = await app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows().find((candidate) =>
-      candidate.webContents.getURL().includes('wake-indicator')
+  const bridge = await page.evaluate(() => {
+    const api = window.aecpilot as unknown as Record<string, unknown>
+    return ['setWakeIndicator', 'getWakeIndicator', 'requestMicrophoneAccess', 'openSpeechStream'].filter(
+      (name) => typeof api[name] === 'function'
     )
-    return win ? { onTop: win.isAlwaysOnTop(), visible: win.isVisible() } : null
   })
-  expect(shape?.onTop, 'её должно быть видно поверх чужой программы').toBe(true)
-  expect(shape?.visible).toBe(true)
+  expect(bridge, 'голосовые члены моста обязаны отсутствовать').toEqual([])
 
-  expect(await page.evaluate(() => window.aecpilot.getWakeIndicator())).toBe('capturing')
-
-  // Захват кончился — табличка уходит. Оставшаяся табличка сообщала бы об
-  // открытом микрофоне, которого нет.
-  await page.evaluate(() => window.aecpilot.setWakeIndicator('hidden'))
-  await expect
-    .poll(() =>
-      app.evaluate(({ BrowserWindow }) => {
-        const win = BrowserWindow.getAllWindows().find((candidate) =>
-          candidate.webContents.getURL().includes('wake-indicator')
-        )
-        return win ? win.isVisible() : false
-      })
-    )
-    .toBe(false)
-  expect(await page.evaluate(() => window.aecpilot.getWakeIndicator())).toBe('hidden')
+  const wakeWindows = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().filter((candidate) =>
+      candidate.webContents.getURL().includes('wake-indicator')
+    ).length
+  )
+  expect(wakeWindows).toBe(0)
 
   await assertRendererAlive(page, 'end of test 11')
 })
@@ -2294,96 +2279,37 @@ test('рука агента попадает в цель при масштабе
   await assertRendererAlive(page, 'preview hand at 125%')
 })
 
-// Задача 3E.22 (SPEC HX19, замечание D-72). Граница голоса — «кто решает»:
-// кнопка «прочитать вслух» у отдельного ответа остаётся (человек нажимает её на
-// каждый ответ), а автоматическое чтение всех ответов и непрерывный разговор с
-// перебиванием снимаются.
+// Задача 3H.2 (SPEC HX19, решение владельца 2026-10-07): голос вне продукта
+// ЦЕЛИКОМ. Прежде здесь проверялась граница «кто решает» (3E.22) — диктовка и
+// «прочитать вслух» оставались. Теперь в окне не должно быть ни одной
+// голосовой кнопки, строки меню или клавиши.
 //
 // ЗАЧЕМ ЭТО ЗДЕСЬ, КОГДА ЕСТЬ ТЕСТ ПО ИСХОДНИКАМ. `voice-by-human-decision.
-// test.ts` доказывает, что снятые хоки никто не вызывает. Он не видит ОКНА: у
-// этих поверхностей было семь входов, и два из них — живая кнопка в композере и
-// горячая клавиша, то есть дверь, которую открывает человек, а не импорт.
-// Здесь проверяется именно окно: кнопок нет, клавиша ничего не открывает, а
-// диктовка и чтение по нажатию — работают.
-test('окно читает ответ по нажатию, но не говорит само', async () => {
+// test.ts` доказывает, что голосовые хуки никто не вызывает. Он не видит ОКНА:
+// кнопку можно оставить нарисованной другим путём.
+test('в окне нет голоса: ни микрофона, ни меню голоса, ни «прочитать вслух»', async () => {
   const page = await mainWindow()
 
   await page.keyboard.press('Escape')
   await hideFirstRunSurfaces(page)
   await clearNotifications(page)
 
-  // Подписи берутся из их же каталога (наш русский их не переводит, см. ru.ts),
-  // поэтому промах по ключу выглядел бы как 'composer.speakReplies'.
-  const startVoice = page.getByRole('button', {
-    name: /Start voice conversation|Начать голосовой разговор/
-  })
-  const endVoice = page.getByRole('button', {
-    name: /End voice conversation|Завершить голосовой разговор/
-  })
-
-  // Главная кнопка пустого композера. У них на этом месте стояла большая кнопка
-  // «начать голосовой разговор», и «Отправить» появлялась только с набранным
-  // текстом; теперь она одна и та же всегда.
   await expect(page.getByRole('button', { name: /^(Send|Отправить)$/ })).toBeVisible({
     timeout: 20000
   })
-  expect(await startVoice.count(), 'кнопки «начать голосовой разговор» быть не должно').toBe(0)
 
-  // Узкая полоса композера складывает голосовые кнопки в одно меню (`foldVoice`),
-  // и снятые строки жили ИМЕННО В НЁМ — значит смотреть надо внутрь, а не на
-  // полосу. Заодно это проверяет, что меню вообще осталось.
-  const voiceMenu = page.getByRole('button', { name: /^(Voice|Голос)$/ })
-
-  await expect(voiceMenu, 'меню голоса обязано остаться — в нём диктовка').toBeVisible({
-    timeout: 20000
+  const voiceButtons = page.getByRole('button', {
+    name: /^(Voice|Голос)$|Voice dictation|Голосовая диктовка|Start voice conversation|Начать голосовой разговор|^(Read aloud|Stop reading|Зачитать вслух|Остановить чтение)$/
   })
-  await voiceMenu.click()
+  expect(await voiceButtons.count(), 'голосовых кнопок быть не должно').toBe(0)
 
-  const dictation = page.getByRole('menuitemcheckbox', {
-    name: /Voice dictation|Stop dictation|Transcribing|Голосовая диктовка|Остановить диктовку|Расшифровка/
-  })
-
-  await expect(dictation, 'диктовка обязана остаться — HX19 её оставляет').toBeVisible({
-    timeout: 15000
-  })
-
-  expect(
-    await page
-      .getByRole('menuitemcheckbox', { name: /Read replies aloud|Зачитывать ответы вслух/ })
-      .count(),
-    'строки «читать все ответы вслух» в меню быть не должно'
-  ).toBe(0)
-  expect(
-    await page
-      .getByRole('menuitem', { name: /Start voice conversation|Начать голосовой разговор/ })
-      .count(),
-    'строки «начать голосовой разговор» в меню быть не должно'
-  ).toBe(0)
-
-  // Слово-активатор — третья строка меню, и оно HX19 оставляет взятым.
-  expect(
-    await page
-      .getByRole('menuitemcheckbox', { name: /hey |Say |Wake word|Слово-пробуждение/ })
-      .count(),
-    'слово-активатор обязано остаться в меню'
-  ).toBeGreaterThan(0)
-
-  await page.keyboard.press('Escape')
-
-  // Ctrl+B у них включал разговор. Клавиша снята из таблицы действий — нажатие
-  // обязано остаться НИЧЕМ, а не открыть табличку разговора.
+  // Ctrl+B у них включал разговор; клавиша снята ещё в 3E.22 и обязана остаться
+  // ничем.
   await page.keyboard.press('Control+b')
   await page.waitForTimeout(1000)
-  expect(await endVoice.count(), 'Ctrl+B открыл непрерывный разговор').toBe(0)
-
-  // Второй контроль: чтение ПО НАЖАТИЮ у ответа. В ленте к этому месту уже
-  // лежат ответы предыдущих тестов.
   expect(
-    await page
-      .getByRole('button', { name: /^(Read aloud|Stop reading|Зачитать вслух|Остановить чтение)$/ })
-      .count(),
-    'кнопка «прочитать вслух» у ответа обязана остаться — её нажимает человек'
-  ).toBeGreaterThan(0)
+    await page.getByRole('button', { name: /End voice conversation|Завершить голосовой разговор/ }).count()
+  ).toBe(0)
 
   await assertRendererAlive(page, 'voice by human decision')
 })

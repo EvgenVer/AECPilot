@@ -8,5 +8,7 @@
  *       the 'composer-voice' hint tells the person to click «Start voice chat» in the
  *       composer, and that button is gone with the voice conversation; 'advanced'
  *       says the command has no desktop surface here, which is true
+ *   [3] "/wake": null → "advanced" (SPEC HX19, owner decision 2026-10-07): the
+ *       wake word is gone with all voice, so the command has no desktop surface
  * (no other edits)
  */

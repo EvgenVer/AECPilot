@@ -16,7 +16,6 @@ const api: AecpilotApi = {
       timeoutMs: options?.timeoutMs
     }),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
-  requestMicrophoneAccess: () => ipcRenderer.invoke('media:request-microphone'),
   getZoom: () => ipcRenderer.invoke('zoom:get'),
   setZoomPercent: (percent) => ipcRenderer.invoke('zoom:set-percent', percent),
   onZoomChanged: (cb) => {
@@ -59,8 +58,6 @@ const api: AecpilotApi = {
   testConnection: (input) => ipcRenderer.invoke('connection:test', input),
   sshHosts: () => ipcRenderer.invoke('connection:ssh-hosts'),
   sshResolveHost: (alias) => ipcRenderer.invoke('connection:ssh-resolve', alias),
-  setWakeIndicator: (state) => ipcRenderer.send('wake-indicator:set', state),
-  getWakeIndicator: () => ipcRenderer.invoke('wake-indicator:get'),
   openHud: (request) => ipcRenderer.invoke('hud:open', request),
   closeHud: () => ipcRenderer.invoke('hud:close'),
   getHudState: () => ipcRenderer.invoke('hud:get-state'),
@@ -201,15 +198,6 @@ const api: AecpilotApi = {
     const listener = (): void => cb()
     ipcRenderer.on('power:resume', listener)
     return () => ipcRenderer.removeListener('power:resume', listener)
-  },
-  openSpeechStream: (id) => ipcRenderer.invoke('speech:open', id),
-  sendSpeechFrame: (id, frame) => ipcRenderer.invoke('speech:send', { id, frame }),
-  closeSpeechStream: (id) => ipcRenderer.invoke('speech:close', id),
-  onSpeechStreamEvent: (cb) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]): void =>
-      cb(payload)
-    ipcRenderer.on('speech:event', listener)
-    return () => ipcRenderer.removeListener('speech:event', listener)
   },
   completeSlash: (text) => ipcRenderer.invoke('chat:complete-slash', text),
   completePath: (word) => ipcRenderer.invoke('chat:complete-path', word),

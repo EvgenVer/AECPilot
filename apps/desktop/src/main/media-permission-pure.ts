@@ -13,10 +13,6 @@
 // `setPermissionCheckHandler` a single `mediaType` — and a policy written
 // twice is a policy that drifts.
 
-/** Media kinds this product captures. Video is deliberately absent: nothing in
- * the app reads a camera, so a request for one is a bug or an attack. */
-const ALLOWED_MEDIA_KINDS = ['audio']
-
 /** Granted regardless of media kind.
  *
  * `clipboard-sanitized-write` is the async clipboard write behind the mermaid
@@ -26,37 +22,15 @@ const ALLOWED_MEDIA_KINDS = ['audio']
 const ALLOWED_PERMISSIONS = ['clipboard-sanitized-write']
 
 /**
- * `mediaKinds` is what the caller was told the page wants — `['audio']` for
- * `getUserMedia({audio: true})`.
- *
- * An EMPTY list is treated as audio, not as "unknown, deny": Chromium does not
- * always populate the kinds (the check handler reports `'unknown'` on some
- * paths, and the field is optional in Electron's own types), and a microphone
- * that dies on a shape difference would be a silent regression. Denying video
- * is what this rule is actually for, and video always names itself. The
- * guarantee UR21 makes — the mic opens only on an explicit action — is carried
- * by the code path (`getUserMedia` is reached from the record button and from
- * barge-in during a voice conversation, nowhere else), not by this answer.
+ * `media` — микрофон и камера — запрещено ЦЕЛИКОМ (задача 3H.3). Микрофон был
+ * разрешён ради голосового режима (задача 3.7a, UR21); голос вне продукта
+ * (SPEC HX19, решение владельца 2026-10-07), и снимать с окна микрофон, оставив
+ * разрешение на него, значит держать дверь, которой никто не пользуется.
+ * `mediaKinds` остаётся в подписи: оба обработчика Electron его передают.
  */
 export function isAllowedPermission(
   permission: string,
-  mediaKinds: readonly string[] = []
+  _mediaKinds: readonly string[] = []
 ): boolean {
-  if (ALLOWED_PERMISSIONS.includes(permission)) return true
-  if (permission !== 'media') return false
-  return mediaKinds.every((kind) => ALLOWED_MEDIA_KINDS.includes(kind))
-}
-
-/** Their `requestMicrophoneAccess()` contract: `false` means "the OS will not
- * give us the microphone", and the donor's recorder turns that into a readable
- * "microphone access denied" instead of letting `getUserMedia` throw a
- * `NotAllowedError` at the user.
- *
- * Only macOS has a prompt API (`askForMediaAccess`), and it is asynchronous —
- * hence the caller passing its result in rather than this deciding. On Windows
- * `getMediaAccessStatus` reflects the OS privacy switch; on Linux it is not
- * implemented and the status arrives as `'unknown'`, which must not read as a
- * refusal. */
-export function decideMicrophoneAccess(status: string): boolean {
-  return status !== 'denied' && status !== 'restricted'
+  return ALLOWED_PERMISSIONS.includes(permission)
 }

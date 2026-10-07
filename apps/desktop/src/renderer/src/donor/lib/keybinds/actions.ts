@@ -6,6 +6,8 @@
  * Edits:
  *   [3] dropped the 'composer.voice' action — the continuous voice
  *       conversation is SPEC HX19 (owner decision 2026-09-08)
+ *   [3] dropped the 'composer.dictate' action — all voice is SPEC HX19 (owner
+ *       decision 2026-10-07)
  * (no other edits)
  */
 // The single source of truth for rebindable desktop hotkeys.
@@ -75,9 +77,8 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // разговором — SPEC HX19 (owner decision 2026-09-08). Снято именно ЗДЕСЬ, а не
   // только в обработчике: иначе сочетание осталось бы в панели клавиш строкой
   // «начать / остановить голосовой разговор», которую нечем исполнить.
-  // Dictation is intentionally unbound: it is available for users who prefer
-  // a keyboard trigger without claiming a chord from text entry by default.
-  { id: 'composer.dictate', category: 'composer', defaults: [] },
+  // EDIT [3]: 'composer.dictate' снято — диктовки больше нет, голос исключён
+  // целиком (SPEC HX19, решение владельца 2026-10-07).
 
   // ── Profiles ─────────────────────────────────────────────────────────────
   { id: 'profile.default', category: 'profiles', defaults: ['mod+d'] },

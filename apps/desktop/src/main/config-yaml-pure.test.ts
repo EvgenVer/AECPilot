@@ -10,6 +10,7 @@ import {
   ensureSectionList,
   ensureSectionScalar,
   ensureTopLevelList,
+  forceSectionScalar,
   upgradeSectionList
 } from './config-yaml-pure'
 
@@ -354,5 +355,50 @@ describe('список на глубине три (tools.tool_search.defer, за
         unexpectedStructure: false
       })
     }
+  })
+})
+
+// Задача 3H.4: голос вне объёма целиком (SPEC HX19), и поле, оставшееся от
+// прежней сборки или поставленное руками, переписывается — это граница, а не
+// умолчание.
+describe('поле, которое ставится всегда (wake_word.enabled, stt.enabled)', () => {
+  it('ключ задан другим значением — переписан, соседи и комментарии секции целы', () => {
+    const before = '# мой конфиг\nwake_word:\n  # фраза\n  phrase: "эй пилот"\n  enabled: true  # включил сам\nstt:\n  provider: local\n'
+    const result = forceSectionScalar(before, 'wake_word', 'enabled', false)
+
+    expect(result.changed).toBe(true)
+    expect(result.text).toBe(
+      '# мой конфиг\nwake_word:\n  # фраза\n  phrase: "эй пилот"\n  enabled: false\nstt:\n  provider: local\n'
+    )
+  })
+
+  it('значение уже то — файл не трогается', () => {
+    const text = 'stt:\n  enabled: false # так и надо\n'
+
+    expect(forceSectionScalar(text, 'stt', 'enabled', false)).toEqual({
+      text,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('ключа нет — дописан в секцию; секции нет — блок в конец', () => {
+    expect(forceSectionScalar('stt:\n  provider: local\n', 'stt', 'enabled', false).text).toBe(
+      'stt:\n  enabled: false\n  provider: local\n'
+    )
+    expect(forceSectionScalar('model:\n  x: 1\n', 'stt', 'enabled', false).text).toBe(
+      'model:\n  x: 1\nstt:\n  enabled: false\n'
+    )
+  })
+
+  it('одноимённый ключ глубже — чужое поле, не трогается', () => {
+    const before = 'stt:\n  local:\n    enabled: true\n'
+    const result = forceSectionScalar(before, 'stt', 'enabled', false)
+
+    expect(result.text).toBe('stt:\n  enabled: false\n  local:\n    enabled: true\n')
+  })
+
+  it('секция записана скаляром — файл оставлен как есть', () => {
+    expect(forceSectionScalar('stt: off\n', 'stt', 'enabled', false).unexpectedStructure).toBe(true)
   })
 })

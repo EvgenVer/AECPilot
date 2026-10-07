@@ -3464,6 +3464,30 @@ B (входы в «Индекс» и «Память») → C (индексаци
 в `runtime/.hermes-venv`, прежде чем упасть на занятом файле. После снятия вызова окружение ядра
 переустанавливается из замка (3H.5) — это смена окружения, значит Vibe Diff и стоп.
 
+**Перечень голосовых поверхностей (задача 3H.1, замер 2026-10-07).** Три оси; «как» — вид снятия.
+| Ось | Поверхность | Где | Как |
+|---|---|---|---|
+| окно донора | диктовка: микрофон и веер/меню голоса в композере | `composer/index.tsx` (`useVoiceRecorder`), `controls.tsx` (`VoiceFan`, `VoiceMenu`) | [3]: хук не вызывается, `voiceControls` не рисуются |
+| окно донора | «прочитать вслух» у ответа | `components/assistant-ui/thread/assistant-message.tsx` (`ReadAloudButton`) | [3]: кнопка не рисуется |
+| окно донора | слово-активатор: взвод, `wake.detected`, звук | `app/contrib/wiring.tsx` (`armWakeWord`, обработчик события) | [3]: взвод и обработчик сняты, импорты — [4] |
+| окно донора | раздел «Голос» в Настройках, его поиск и строки палитры | `app/settings/constants.ts` (`SECTIONS`, id `voice`) | [3]: строка таблицы снята — с ней уходят навигация, поиск и палитра |
+| окно донора | набор `tts` в «Возможностях → Наборы инструментов» | `lib/desktop-toolsets.ts` | [3]: `tts` в список скрытых (сам набор и так выключен `agent.disabled_toolsets`) |
+| окно донора | клавиша «диктовка» | `lib/keybinds/actions.ts`, `app/hooks/use-keybinds.ts`, `lib/keybinds/combo.ts` | [3]: действие `composer.dictate` снято |
+| окно донора | слэш-команды `/wake`, `/voice` | `lib/desktop-slash-commands.ts`, `desktop-slash-registry.json` | [3]: строки сняты |
+| окно донора | расшифровка аудио плиткой бота | `app/chat/session-tile.tsx` (`transcribeAudioClientDirect`) | без входа после снятия диктовки — проверяется тестом |
+| наш main | поток синтеза речи `speech:*` | `speech-stream.ts`, `speech-stream-pure.ts`, IPC в `index.ts`, preload | снимается целиком (у потока нет потребителя) |
+| наш main | табличка слова-активатора (отдельное окно) | `wake-indicator.ts`, `preload/wake-indicator.ts`, `renderer/wake-indicator.html`, `renderer/src/wake-indicator/`, `electron.vite.config` | снимается целиком |
+| наш main | голос синтеза и фраза-активатор в `config.yaml` | `speech-voice-pure.ts`, `applyDefaultWakePhrase` в `index.ts` | снимается: настраивать нечего |
+| наш main | доступ к микрофону | `media-permission-pure.ts`, IPC `media:request-microphone` | всегда отказ |
+| наш шим | члены `wakeIndicator`, поток речи | `shared/hermes-desktop-shim.ts`, `shared/speech-stream-socket.ts` | объявить отсутствующими (правило «заглушка отказывает честно») |
+| конфиг ядра | распознавание, слово-активатор | `config.yaml` профиля | main пишет при каждом старте `stt.enabled: false`, `wake_word.enabled: false` (их проверки: `is_stt_enabled`, `wake_surface_enabled`) |
+| конфиг ядра | синтез речи как инструмент модели | `agent.disabled_toolsets: [tts]` | уже стоит (D-67) |
+Не голос и остаются: звук завершения хода (`completion-sound.ts`), звук «думаю» (`thinking-sound.ts`),
+«не давать компьютеру засыпать» (`keep-awake`). Наши файлы, ставшие мёртвыми, удаляются одним
+Vibe Diff вместе с 3H.5; файлы зоны донора остаются дословными (правило зоны, `DEAD_SURFACE_FILES`).
+Гвард `shared/voice-by-human-decision.test.ts` держал прежнюю границу «диктовка и кнопка остаются» и
+переписывается на новую: ни одной голосовой поверхности с вызывающим.
+
 **B. Входы в «Индекс» и «Память» (UR43).** Корень пропажи (D-189): наши диалоги
 `DataProvidersDialog` и `MemoryDialog` зарегистрированы в области строки состояния, а донор
 размонтирует строку целиком в простом режиме (`SIMPLE_POLICY.statusbarVisible: false`) и по

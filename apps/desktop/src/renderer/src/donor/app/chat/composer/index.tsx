@@ -8,6 +8,9 @@
  *       hook — auto-speak of replies and the continuous voice conversation are
  *       SPEC HX19 (owner decision 2026-09-08); their three hook files stay in the
  *       zone untouched and simply have no caller
+ *   [3] the dictation recorder is not registered either, and the voice
+ *       recording / playback banners are not rendered — all voice is SPEC HX19
+ *       since the owner decision 2026-10-07
  * (no other edits)
  */
 import { ComposerPrimitive } from '@assistant-ui/react'
@@ -1097,12 +1100,13 @@ export function ChatBar({
   // Следствие: `voiceStopRef` навсегда остаётся `{ active: false }`, то есть
   // напечатанное «стоп» уходит агенту обычным сообщением — ровно то, что их же
   // код делает вне разговора.
-  const { dictate, voiceActivityState, voiceStatus } = useVoiceRecorder({
-    focusInput,
-    maxRecordingSeconds,
-    onTranscribeAudio,
-    onTranscript: insertText
-  })
+  // EDIT [3]: и диктовки тоже больше нет — голос исключён целиком, SPEC HX19
+  // (решение владельца 2026-10-07, задача 3H.2). `useVoiceRecorder` не
+  // вызывается: микрофон не открывается, клавиша диктовки некому слушать.
+  // Ряд управления получает неподвижные значения, а не пустые пропсы, — его
+  // тип остаётся их типом.
+  const dictate = (): void => undefined
+  const voiceStatus = 'idle' as const
 
   const contextMenu = (
     <ContextMenu
@@ -1469,8 +1473,8 @@ export function ChatBar({
                     onUndone={clearDraft}
                     readLiveText={syncDraftFromEditor}
                   />
-                  <VoiceActivity state={voiceActivityState} />
-                  <VoicePlaybackActivity />
+                  {/* EDIT [3]: таблички записи и воспроизведения голоса
+                      (`VoiceActivity`, `VoicePlaybackActivity`) — SPEC HX19. */}
                   {queueEdit && editingQueuedPrompt && (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-[color-mix(in_srgb,var(--dt-composer-ring)_32%,transparent)] bg-accent/18 px-2 py-1">
                       <div className="min-w-0 text-[0.7rem] text-muted-foreground/88">

@@ -10,6 +10,8 @@
  *       per-answer "read aloud" button lives on the message, not here. At
  *       v2026.9.14 the button became `./start-voice-button` (live voice, OpenAI
  *       Realtime) — same surface, same [3]: not imported, not rendered (2026-09-15)
+ *   [3] the dictation mic, the voice fan and the folded voice menu are no longer
+ *       rendered — all voice is SPEC HX19 since the owner decision 2026-10-07
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -84,17 +86,10 @@ export function ComposerControls({
   // else, which is the one thing that must survive every width.
   const foldedVoice = hudMode || foldVoice
 
-  const voiceControls = foldedVoice ? (
-    <VoiceMenu
-      disabled={disabled}
-      onDictate={onDictate}
-      state={state}
-      voiceStatus={voiceStatus}
-    />
-  ) : (
-    // One mic in the row; hovering it fans the other voice toggles out of it.
-    <VoiceFan disabled={disabled} onDictate={onDictate} state={state} voiceStatus={voiceStatus} />
-  )
+  // EDIT [3]: здесь рисовались микрофон диктовки, веер голоса (`VoiceFan`) и
+  // свёрнутое меню голоса (`VoiceMenu`) со словом-активатором. Голос исключён
+  // целиком — SPEC HX19, решение владельца 2026-10-07 (задача 3H.2).
+  const voiceControls = null
 
   return (
     <div className="flex min-w-0 shrink items-center gap-(--composer-control-gap)">

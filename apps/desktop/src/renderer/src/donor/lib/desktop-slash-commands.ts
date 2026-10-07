@@ -8,6 +8,8 @@
  *   [3] removed the /pet and /hatch command registrations (HX1)
  *   [3] /voice is re-routed in desktop-slash-registry.json (see its .provenance): the
  *       'composer-voice' hint promises the voice-chat button that HX19 removed
+ *   [3] removed the /wake command registration — all voice is SPEC HX19 since the
+ *       owner decision 2026-10-07
  * (no other edits)
  */
 import { translateNow } from '@/i18n/runtime'
@@ -204,12 +206,6 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     name: '/reasoning',
     description: 'Reasoning effort or display [<level> [--global]|show|hide|full|clamp]',
     surface: action('reasoning'),
-    argumentMode: 'options'
-  },
-  {
-    name: '/wake',
-    description: 'Control the desktop wake-word listener [on|off|status]',
-    surface: action('wake'),
     argumentMode: 'options'
   },
   {

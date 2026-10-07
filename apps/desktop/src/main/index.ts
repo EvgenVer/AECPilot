@@ -8,7 +8,6 @@ import {
   safeStorage,
   session,
   shell,
-  systemPreferences,
   webContents
 } from 'electron'
 import type { OpenDialogOptions } from 'electron'
@@ -19,8 +18,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
-import { decideMicrophoneAccess, isAllowedPermission } from './media-permission-pure'
-import { isValidStreamId } from './speech-stream-pure'
+import { isAllowedPermission } from './media-permission-pure'
 import {
   AUTOWRITE_FILE,
   decideNoteWrite,
@@ -30,7 +28,6 @@ import {
   parseAutowrite,
   serializeAutowrite
 } from './memory-notes-pure'
-import { ensureVoiceInConfigYaml } from './speech-voice-pure'
 import {
   type ConfigScalarResult,
   ensureNestedList,
@@ -38,14 +35,9 @@ import {
   ensureSectionList,
   ensureSectionScalar,
   ensureTopLevelList,
+  forceSectionScalar,
   upgradeSectionList
 } from './config-yaml-pure'
-import {
-  DEFAULT_WAKE_PHRASE,
-  setWakeIndicatorState,
-  stopWakeIndicator,
-  wakeIndicatorState
-} from './wake-indicator'
 import { isQuickEntryTarget } from './quick-entry-pure'
 import { sessionToFollow } from './session-follow-pure'
 import { planSelectPaths, type SelectPathsRequest } from './select-paths-pure'
@@ -113,13 +105,6 @@ import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
 import { levelForPercent } from './zoom-pure'
-import {
-  closeSpeechStream,
-  closeSpeechStreamsFor,
-  openSpeechStream,
-  sendSpeechFrame,
-  streamKey
-} from './speech-stream'
 import {
   imageMime,
   isInside,
@@ -942,31 +927,46 @@ function applyModelConfigOverride(
   }
 }
 
-/** Task 3.7a — writes the default speech voice into `config.yaml` when it has
- * none. Their default is English, and Edge answers a voice-vs-script mismatch
- * with an EMPTY audio stream, so on a clean install a Russian reply is not
- * spoken at all. Runs on every start and does nothing once a voice is set, so
- * the user's own choice survives. Failure here never blocks startup: the worst
- * case is the state we had before. */
-function applyDefaultSpeechVoice(homeDir: string): void {
+/** Задача 3H.4 — голос вне продукта целиком (SPEC HX19, решение владельца
+ * 2026-10-07): распознавание и слово-активатор выключены в `config.yaml` на
+ * каждом старте, даже если профиль от прежней сборки держит их включёнными.
+ *
+ * Почему не просто снять кнопки. Слово-активатор взводило ОКНО (`wake.start`),
+ * и ядро в ответ ставило пакеты распознавания в своё окружение — замер
+ * 2026-10-07 нашёл снятые метаданные `numpy` и `onnxruntime` (D-184). Окно
+ * больше не взводит, но выключенный конфиг закрывает и вход со стороны ядра:
+ * `wake_surface_enabled` и `is_stt_enabled` читают именно эти поля. Синтез
+ * речи как инструмент модели выключен отдельно — `agent.disabled_toolsets`
+ * (D-67). Неудача здесь не останавливает старт. */
+function applyVoiceOff(homeDir: string): void {
   const configPath = join(homeDir, 'config.yaml')
-  let original: string
+  let text: string
   try {
-    original = readFileSync(configPath, 'utf-8')
+    text = readFileSync(configPath, 'utf-8')
   } catch (error: unknown) {
-    console.error('aecpilot: could not read config.yaml to apply the default voice', error)
+    console.error('aecpilot: could not read config.yaml to switch voice off', error)
     return
   }
-  const merged = ensureVoiceInConfigYaml(original)
-  if (merged.unexpectedStructure) {
-    console.warn('aecpilot: config.yaml has a tts: scalar — leaving the voice untouched')
-    return
+
+  let changed = false
+  for (const [section, key] of [
+    ['stt', 'enabled'],
+    ['wake_word', 'enabled']
+  ] as const) {
+    const merged = forceSectionScalar(text, section, key, false)
+    if (merged.unexpectedStructure) {
+      console.warn(`aecpilot: config.yaml has a ${section}: scalar — leaving it untouched`)
+      continue
+    }
+    text = merged.text
+    changed = changed || merged.changed
   }
-  if (!merged.changed) return
+  if (!changed) return
+
   try {
-    writeFileSync(configPath, merged.text, 'utf-8')
+    writeFileSync(configPath, text, 'utf-8')
   } catch (error: unknown) {
-    console.error('aecpilot: could not write config.yaml with the default voice', error)
+    console.error('aecpilot: could not write config.yaml with voice off', error)
   }
 }
 
@@ -1442,40 +1442,6 @@ function applyDisabledToolsets(homeDir: string): void {
   }
 }
 
-/** Задача 3.7b — слово-активатор в `config.yaml`, если его там нет.
- *
- * Их умолчание называет ИХ продукт, и оно попадает не в код, а на экран: фразу
- * показывает подпись кнопки и подсказка слэш-команды, беря её из ответа ядра.
- * То есть без этой правки требование C12 («имени чужого продукта в интерфейсе
- * нет») обходится с той стороны, с которой его не сторожит ни один тест
- * каталога — через данные.
- *
- * Как и с голосом: однажды выбранная человеком фраза переживает все следующие
- * запуски, а неудача здесь никогда не блокирует старт. */
-function applyDefaultWakePhrase(homeDir: string): void {
-  const configPath = join(homeDir, 'config.yaml')
-
-  let original: string
-  try {
-    original = readFileSync(configPath, 'utf-8')
-  } catch (error: unknown) {
-    console.error('aecpilot: could not read config.yaml to apply the wake phrase', error)
-    return
-  }
-
-  const merged = ensureSectionScalar(original, 'wake_word', 'phrase', DEFAULT_WAKE_PHRASE)
-  if (merged.unexpectedStructure) {
-    console.warn('aecpilot: config.yaml has a wake_word: scalar — leaving the phrase untouched')
-    return
-  }
-  if (!merged.changed) return
-
-  try {
-    writeFileSync(configPath, merged.text, 'utf-8')
-  } catch (error: unknown) {
-    console.error('aecpilot: could not write config.yaml with the wake phrase', error)
-  }
-}
 
 /** Builds the spawn-env override for `startServe` (task 0.15, extended to a
  * provider map by 1.6.B2.5): every stored credential env var that decrypts on
@@ -1703,72 +1669,9 @@ ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
   }
 })
 
-/** Task 3.7a — the donor's recorder asks this BEFORE opening the microphone,
- * so a refusal by the OS becomes a sentence ("доступ к микрофону запрещён")
- * instead of a `NotAllowedError` thrown out of `getUserMedia`.
- *
- * macOS is the only platform with a prompt, and asking there is the point: the
- * first recording is what triggers the system dialog. Elsewhere the status is
- * read, never prompted. */
-ipcMain.handle('media:request-microphone', async () => {
-  if (process.platform === 'darwin') {
-    return systemPreferences.askForMediaAccess('microphone')
-  }
-  try {
-    return decideMicrophoneAccess(systemPreferences.getMediaAccessStatus('microphone'))
-  } catch {
-    // Not implemented on this platform (Linux). Not knowing is not a refusal —
-    // Chromium still gets to decide when the capture actually starts.
-    return true
-  }
-})
-
-// --- Streaming speech (task 3.7a) -------------------------------------------
-//
-// The socket to `/api/audio/speak-stream` is main's, because the credential
-// that opens it is the gateway's whole session token (SPEC C9; see
-// `speech-stream-pure.ts`). These three handlers are the entire renderer-facing
-// surface: name a stream, feed it one of their three frame shapes, close it.
-
-/** Windows whose teardown already closes their streams — one listener each,
- * not one per opened stream. */
-const speechCleanupHooked = new Set<number>()
-
-ipcMain.handle('speech:open', (event, id: unknown) => {
-  if (!isValidStreamId(id)) return { ok: false, error: 'неверный идентификатор потока речи' }
-
-  const sender = event.sender
-  const key = streamKey(sender.id, id)
-
-  // A reload or a closed window leaves the backend synthesizing into nothing.
-  if (!speechCleanupHooked.has(sender.id)) {
-    speechCleanupHooked.add(sender.id)
-    sender.once('destroyed', () => {
-      speechCleanupHooked.delete(sender.id)
-      closeSpeechStreamsFor(sender.id)
-    })
-  }
-
-  return openSpeechStream(key, restTarget(), (partial) => {
-    if (sender.isDestroyed()) return
-    sender.send('speech:event', { ...partial, id })
-  })
-})
-
-ipcMain.handle('speech:send', (event, payload: unknown) => {
-  const { id, frame } =
-    typeof payload === 'object' && payload !== null
-      ? (payload as { id?: unknown; frame?: unknown })
-      : {}
-  if (!isValidStreamId(id)) return { ok: false, error: 'неверный идентификатор потока речи' }
-
-  return sendSpeechFrame(streamKey(event.sender.id, id), frame)
-})
-
-ipcMain.handle('speech:close', (event, id: unknown) => {
-  if (!isValidStreamId(id)) return
-  closeSpeechStream(streamKey(event.sender.id, id))
-})
+// Задача 3H.3: здесь стояли запрос микрофона (`media:request-microphone`) и
+// поток синтеза речи (`speech:open/send/close`, задача 3.7a). Голос вне
+// продукта целиком — SPEC HX19, решение владельца 2026-10-07.
 
 // --- Artifacts: files on disk (tasks 1.6.B7.4/B7.5) -------------------------
 //
@@ -4437,11 +4340,6 @@ ipcMain.handle('connection:apply', async (_event, input: unknown) => {
   return { ...outcome, ok: false, error: connected.error, sshError: connected.sshError }
 })
 
-// Задача 3.7b. Табличка «микрофон слушает». Отдельное окно, потому что слово-
-// активатор работает при свёрнутом главном: значок внутри свёрнутого окна не
-// виден, то есть не делает своей работы.
-ipcMain.on('wake-indicator:set', (_event, state: unknown) => setWakeIndicatorState(state))
-ipcMain.handle('wake-indicator:get', () => wakeIndicatorState())
 
 // Задача 3.24. Плавающая лента поверх чужих окон. Решения о границах и
 // прозрачности — в `hud.ts` и `hud-pure.ts`.
@@ -5660,8 +5558,7 @@ app
           // (if one is stored) into the child process env only — never written
           // to disk. This must happen before startServe spawns hermes.
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
-          applyDefaultSpeechVoice(HERMES_HOME_DIR)
-          applyDefaultWakePhrase(HERMES_HOME_DIR)
+          applyVoiceOff(HERMES_HOME_DIR)
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
           applyCoreOptOuts(HERMES_HOME_DIR)
@@ -5855,8 +5752,6 @@ app.on('will-quit', () => {
   // работать после закрытия окна, не остановит уже никто.
   void stopSshTunnel()
   stopHud()
-  // Табличка, пережившая программу, сообщает о микрофоне, которого больше нет.
-  stopWakeIndicator()
   // Задача 3D.4: опрос роестра — такой же таймер, как планировщик выше, и
   // пережить закрытие он не должен.
   stopRosterSnapshotPolling()

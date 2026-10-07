@@ -68,10 +68,9 @@ export const CLASSIFICATION = {
     ourWay: "apps/desktop/src/preload/quick-entry.ts",
     note: "быстрый ввод по глобальному хоткею — своё окно, свой preload",
   },
-  "wake-indicator": {
-    ourWay: "apps/desktop/src/main/wake-indicator.ts",
-    note: "индикатор слова-активатора — своё окно поверх всех, сквозное для щелчков",
-  },
+  // «wake-indicator» — своё окно 3.7b — снято задачей 3H.3 вместе со всем
+  // голосом (решение владельца 2026-10-07): теперь это исключение HX19.
+  "wake-indicator": { hx: "HX19", note: "голос исключён целиком — табличка слова-активатора" },
   // СТРОКА «webhooks» УДАЛЕНА 2026-09-10 (задача 3.11, часть по коду): экран
   // перенесён и подключён, и причина отсутствия в таблице стала ложью — скрипт
   // назвал её сам («перенесена, но в таблице числится причина её отсутствия»).
@@ -127,7 +126,7 @@ export const ELECTRON_CLASSIFICATION = {
   hud: { ours: "hud", note: "плавающая лента — задача 3.24" },
   "quick-entry": { ourWay: "apps/desktop/src/preload/quick-entry.ts", note: "своё окно со своим preload — задача 3.15" },
   "keep-awake": { ours: "power", note: "power:keep-awake — задача 3.18" },
-  "wake-indicator": { ours: "wake-indicator", note: "задача 3.7b" },
+  "wake-indicator": { hx: "HX19", note: "голос исключён целиком (3H.3)" },
   updates: { task: "3.21" },
   "open-updates": { task: "3.21" },
   connections: { ours: "connection", note: "реестр подключений — задача 3.12, UR20" },

@@ -6,6 +6,8 @@
  * Edits:
  *   [3] dropped 'composer.voice' from the input-safe set — the action itself
  *       is gone with the voice conversation (SPEC HX19)
+ *   [3] dropped the 'composer.dictate' entry of the input-safe set — all voice is SPEC HX19 (owner
+ *       decision 2026-10-07)
  * (no other edits)
  */
 // Keybind combo normalization + display.
@@ -272,7 +274,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 const INPUT_SAFE_ACTIONS = new Set([
   'composer.modelPicker',
   // EDIT [3]: 'composer.voice' — SPEC HX19 (owner decision 2026-09-08).
-  'composer.dictate',
+  // EDIT [3]: 'composer.dictate' — диктовка снята, SPEC HX19 (2026-10-07).
   'keybinds.openPanel',
   'nav.commandPalette',
   'session.next',
