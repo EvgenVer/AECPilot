@@ -24,6 +24,7 @@ import { ru as donorRu } from '../../donor/i18n/ru'
 import type { Translations } from '../../donor/i18n/types'
 
 import { debrandTranslations } from './debrand'
+import { NO_INTRO_LINE } from './en'
 
 const RU_TIPS: Translations['tips'] = {
   close: 'Больше не показывать эту подсказку',
@@ -143,6 +144,12 @@ const RU_ONBOARDING: Translations['onboarding'] = {
 }
 
 export const ru = debrandTranslations(
-  { ...donorRu, onboarding: RU_ONBOARDING, preview: RU_PREVIEW, tips: RU_TIPS },
+  {
+    ...donorRu,
+    intro: NO_INTRO_LINE,
+    onboarding: RU_ONBOARDING,
+    preview: RU_PREVIEW,
+    tips: RU_TIPS
+  },
   OVERRIDES
 )

@@ -11,15 +11,24 @@
 // ПО УМОЛЧАНИЮ ОДНА СТРОКА. Память идёт за RAG, RAG — за агентом (решение
 // владельца 2026-10-02: «по умолчанию один, но развести, если надо»).
 //
-// МОДЕЛИ (3G.52) — поле с подсказками из списка провайдера: список читается по
+// МОДЕЛИ (3G.52) — поле плюс выбор из списка провайдера: список читается по
 // кнопке, не на каждый выбор, потому что это вызов чужого адреса чужим ключом.
 // Пустое поле — модель пресета (она же подсказка в поле); провайдер списка не
-// дал — модель вписывается руками в то же поле.
+// дал — модель вписывается руками в то же поле. Выбор — их `Select`, а не
+// `<datalist>` (D-187, задача 3H.25): подсказки `datalist` рисует Chromium, и
+// длинный список в них не прокручивался — до нижних моделей было не добраться.
 
 import { useStore } from '@nanostores/react'
 import { useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '../../donor/components/ui/select'
 import { useAecT } from '../../shared/i18n'
 import type { DataProvidersFile, DataProvidersState } from '../../../../shared/ipc'
 
@@ -40,6 +49,13 @@ type Section = 'rag' | 'memory'
 const inputClass =
   'min-w-0 flex-1 rounded border border-(--ui-border) bg-(--ui-bg-primary) p-1.5 text-xs text-(--ui-text-primary)'
 
+// Раскрытый список `<select>` рисует Chromium, а не наша тема (D-186, задача
+// 3H.24): фон поля полупрозрачный (`--ui-bg-primary` смешан с `transparent`), и
+// под ним список ложится на белое, а текст в тёмной теме светлый — читать нечего.
+// Строкам списка — непрозрачный фон и цвет их всплывающих меню; схема — по классу
+// `.dark`, которым донор включает тёмную тему.
+const selectClass = `${inputClass} [.dark_&]:[color-scheme:dark] [&_option]:bg-popover [&_option]:text-popover-foreground`
+
 /** Пустые поля не едут в файл: «не задано» и «пустая строка» — одно и то же. */
 function clean<T extends object>(value: T): T {
   return Object.fromEntries(
@@ -54,18 +70,21 @@ function presetOf(state: DataProvidersState, id: string): Preset | undefined {
 function Field({
   id,
   label,
-  list,
+  models,
   onChange,
   placeholder,
   value
 }: {
   id: string
   label: string
-  list?: string
+  /** Список провайдера, если его загрузили, — выбор под полем. */
+  models?: string[]
   onChange: (value: string) => void
   placeholder?: string
   value: string
 }): React.JSX.Element {
+  const t = useAecT()
+
   return (
     <div className="flex flex-col gap-0.5">
       <label className="text-xs text-(--ui-text-secondary)" htmlFor={id}>
@@ -74,11 +93,26 @@ function Field({
       <input
         className={inputClass}
         id={id}
-        list={list}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
       />
+      {models && models.length > 0 && (
+        // Значение пустое нарочно: выбор кладёт модель в поле и снова зовёт
+        // «выбрать» — поле, а не список, остаётся тем, что сохраняется.
+        <Select onValueChange={onChange} value="">
+          <SelectTrigger aria-label={t('dataProviders.modelsPick', label)} size="sm">
+            <SelectValue placeholder={t('dataProviders.modelsPickShort')} />
+          </SelectTrigger>
+          <SelectContent>
+            {models.map((model) => (
+              <SelectItem key={model} value={model}>
+                {model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   )
 }
@@ -251,11 +285,6 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
           {t('dataProviders.modelsFailed', modelsError[section])}
         </span>
       )}
-      <datalist id={`data-models-${section}`}>
-        {(models[section] ?? []).map((model) => (
-          <option key={model} value={model} />
-        ))}
-      </datalist>
     </div>
   )
 
@@ -314,7 +343,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                 {t('dataProviders.ragLabel')}
               </label>
               <select
-                className={inputClass}
+                className={selectClass}
                 id="data-rag"
                 onChange={(event) => {
                   setRag({ provider: event.target.value as RagChoice['provider'] })
@@ -346,7 +375,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                     <Field
                       id="data-rag-embedding"
                       label={t('dataProviders.embedding')}
-                      list="data-models-rag"
+                      models={models.rag}
                       onChange={(value) => setRag({ ...draft.rag, embedding: value })}
                       placeholder={ragPreset?.embedding}
                       value={draft.rag.embedding ?? ''}
@@ -354,7 +383,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                     <Field
                       id="data-rag-extraction"
                       label={t('dataProviders.extraction')}
-                      list="data-models-rag"
+                      models={models.rag}
                       onChange={(value) => setRag({ ...draft.rag, extraction: value })}
                       placeholder={ragPreset?.extraction}
                       value={draft.rag.extraction ?? ''}
@@ -385,7 +414,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                     {t('dataProviders.memoryLabel')}
                   </label>
                   <select
-                    className={inputClass}
+                    className={selectClass}
                     id="data-memory"
                     onChange={(event) => {
                       setMemory({ provider: event.target.value as MemoryChoice['provider'] })
@@ -419,7 +448,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                         <Field
                           id="data-memory-llm"
                           label={t('dataProviders.memoryLlm')}
-                          list="data-models-memory"
+                          models={models.memory}
                           onChange={(value) => setMemory({ ...draft.memory, llm: value })}
                           placeholder={memoryPreset?.memoryLlm}
                           value={draft.memory.llm ?? ''}
@@ -427,7 +456,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                         <Field
                           id="data-memory-embedding"
                           label={t('dataProviders.memoryEmbedding')}
-                          list="data-models-memory"
+                          models={models.memory}
                           onChange={(value) => setMemory({ ...draft.memory, embedding: value })}
                           placeholder={memoryPreset?.memoryEmbedding}
                           value={draft.memory.embedding ?? ''}

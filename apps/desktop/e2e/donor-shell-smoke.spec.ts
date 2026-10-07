@@ -681,6 +681,14 @@ test('their shell paints and the composer goes live over our bridge', async () =
   await expect(composer).not.toHaveAttribute('data-placeholder', /Starting|Reconnecting|Запуск/, {
     timeout: 60000
   })
+
+  // D-181 (решение владельца 2026-10-07, задача 3H.23): под логотипом пустого
+  // чата нет ни подписи, ни подсказки — ни из каталога, ни их английской из
+  // `intro-copy.jsonl`.
+  const intro = page.locator('[data-slot="aui_intro"]')
+  await expect(intro).toBeVisible()
+  // Логотип — тоже `<p>` (с `aria-label`); проверяется строка под ним.
+  await expect(intro.locator('p:not([aria-label])')).toHaveText('')
   await assertRendererAlive(page, 'end of test 1')
 })
 
@@ -1713,16 +1721,20 @@ test('у окна нет моста к микрофону и табличке с
 
   const bridge = await page.evaluate(() => {
     const api = window.aecpilot as unknown as Record<string, unknown>
-    return ['setWakeIndicator', 'getWakeIndicator', 'requestMicrophoneAccess', 'openSpeechStream'].filter(
-      (name) => typeof api[name] === 'function'
-    )
+    return [
+      'setWakeIndicator',
+      'getWakeIndicator',
+      'requestMicrophoneAccess',
+      'openSpeechStream'
+    ].filter((name) => typeof api[name] === 'function')
   })
   expect(bridge, 'голосовые члены моста обязаны отсутствовать').toEqual([])
 
-  const wakeWindows = await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().filter((candidate) =>
-      candidate.webContents.getURL().includes('wake-indicator')
-    ).length
+  const wakeWindows = await app.evaluate(
+    ({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((candidate) =>
+        candidate.webContents.getURL().includes('wake-indicator')
+      ).length
   )
   expect(wakeWindows).toBe(0)
 
@@ -2308,7 +2320,9 @@ test('в окне нет голоса: ни микрофона, ни меню г
   await page.keyboard.press('Control+b')
   await page.waitForTimeout(1000)
   expect(
-    await page.getByRole('button', { name: /End voice conversation|Завершить голосовой разговор/ }).count()
+    await page
+      .getByRole('button', { name: /End voice conversation|Завершить голосовой разговор/ })
+      .count()
   ).toBe(0)
 
   await assertRendererAlive(page, 'voice by human decision')

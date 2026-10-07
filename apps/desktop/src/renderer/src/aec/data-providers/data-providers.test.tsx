@@ -186,7 +186,7 @@ describe('окно «Индекс и память»', () => {
     await screen.findByText('файл выбора не записался')
   })
 
-  it('список моделей провайдера приходит подсказками к полям модели', async () => {
+  it('список моделей провайдера приходит выбором под полями модели (D-187)', async () => {
     listDataModels.mockResolvedValue({
       ok: true,
       models: ['gemini-embedding-2', 'gemini-3.8-flash']
@@ -198,12 +198,14 @@ describe('окно «Индекс и память»', () => {
       { rag: { provider: 'agent' }, memory: { provider: 'rag' } },
       'rag'
     )
-    const list = document.getElementById('data-models-rag')
-    expect([...(list?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual([
-      'gemini-embedding-2',
-      'gemini-3.8-flash'
-    ])
-    expect(screen.getByLabelText('Модель эмбеддингов').getAttribute('list')).toBe('data-models-rag')
+    // Выбор у обоих полей раздела; нативного `<datalist>` больше нет.
+    expect(
+      screen.getByRole('combobox', { name: 'Выбрать из списка: Модель эмбеддингов' })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('combobox', { name: 'Выбрать из списка: Модель разбора документов' })
+    ).toBeTruthy()
+    expect(document.querySelector('datalist')).toBeNull()
   })
 
   it('провайдер не дал списка — отказ словами, поле остаётся для ввода руками', async () => {

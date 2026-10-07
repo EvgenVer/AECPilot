@@ -1314,6 +1314,15 @@ const IMPLEMENTED: Record<string, unknown> = {
   profile: {
     set(name: string) {
       return window.aecpilot.useProfile(name)
+    },
+    /** Их «запомнить профиль к следующему запуску» после удачного переключения
+     *  специалиста (D-185, задача 3H.22). У нас запоминать нечего: выбор живёт в
+     *  главном процессе (`profiles:use`), а их липкий `POST /api/profiles/active`
+     *  мы не зовём нарочно (см. `useProfile` в `shared/ipc.ts`). Без этого члена
+     *  их код получал `remember is not a function` и показывал «Failed to switch
+     *  to profile», хотя переключение уже состоялось. */
+    remember(_name: string): Promise<void> {
+      return Promise.resolve()
     }
   }
 }

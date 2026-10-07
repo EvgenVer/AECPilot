@@ -384,3 +384,26 @@ describe('hermes-desktop shim: getAgentRoster и getConnectionFor (D-133)', () =
     expect(listProfiles).not.toHaveBeenCalled()
   })
 })
+
+// D-185 (приёмка 2026-10-07, задача 3H.22). После УДАЧНОГО переключения
+// специалиста их `selectProfile` зовёт `profile.remember(имя)` — запомнить выбор
+// к следующему запуску, — и всякий отказ здесь показывает тост «Failed to switch
+// to profile …», хотя переключение уже состоялось. У моста члена не было:
+// `remember is not a function` со словом hermesDesktop в тексте.
+describe('hermes-desktop shim: profile.remember', () => {
+  afterEach(() => withoutWindow())
+
+  it('есть и отвечает без отказа — переключение не кончается тостом об ошибке', async () => {
+    const useProfile = vi.fn()
+    ;(globalThis as unknown as { window?: unknown }).window = { aecpilot: { useProfile } }
+    const profile = createHermesDesktopBridge().profile as unknown as {
+      remember?: (name: string) => Promise<unknown>
+    }
+
+    expect(typeof profile.remember).toBe('function')
+    await expect(profile.remember!('4')).resolves.toBeUndefined()
+    // Запоминать профиль на следующий запуск у нас некуда и незачем: выбор живёт
+    // в главном процессе (`profiles:use`), и мост его не перезапускает.
+    expect(useProfile).not.toHaveBeenCalled()
+  })
+})

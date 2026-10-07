@@ -639,6 +639,111 @@ test('10.4.1 «Индекс» и «Память» открываются без 
   await closeSettings(page)
 })
 
+// Задачи 3H.24–3H.25 (приёмка 14.10.8–14.10.9, D-186, D-187): окно «Индекс и
+// память» — выпадающий список провайдера в тёмной теме и длинный список моделей.
+async function openProviders(page: Page): Promise<Locator> {
+  await openSettings(page, 'tab=about')
+  await page.locator('[data-tour="nav-aec-data-providers"]').click()
+  const dialog = page.getByRole('dialog', { name: 'Индекс и память' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+async function closeProviders(page: Page, dialog: Locator): Promise<void> {
+  await dialog.getByRole('button', { name: 'Закрыть', exact: true }).last().click()
+  await expect(dialog).toBeHidden()
+  await closeSettings(page)
+}
+
+test('10.5.1 «Индекс и память» в тёмной теме: строки выпадающего списка тёмные, текст читается', async () => {
+  const page = await ui()
+  await openSettings(page, 'tab=config:appearance&page=theme')
+  await page.getByRole('button', { name: 'Тёмная' }).click()
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
+    .toBe(true)
+  const dialog = await openProviders(page)
+
+  // Раскрытый список рисует Chromium по цветам `<option>` — их и мерим. Цвет
+  // переводится в RGBA холстом: `color-mix` в вычисленном стиле не всегда rgb().
+  const look = await dialog.locator('#data-rag').evaluate((select) => {
+    const rgba = (color: string): number[] => {
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 1
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = color
+      ctx.fillRect(0, 0, 1, 1)
+      return [...ctx.getImageData(0, 0, 1, 1).data]
+    }
+    const option = getComputedStyle(select.querySelector('option')!)
+    return {
+      scheme: getComputedStyle(select).colorScheme,
+      background: rgba(option.backgroundColor),
+      text: rgba(option.color)
+    }
+  })
+  // Худший случай — строка списка, положенная на белое (так Chromium рисовал
+  // список до правки): фон их меню почти непрозрачный, и сквозь него белое не
+  // должно сделать его светлым.
+  const overWhite = ([r, g, b, a]: number[]): number => {
+    const alpha = a / 255
+    return ((r + g + b) / 3) * alpha + 255 * (1 - alpha)
+  }
+  const light = ([r, g, b]: number[]): number => (r + g + b) / 3
+  expect(look.scheme).toBe('dark')
+  expect(overWhite(look.background), 'фон строк тёмный даже поверх белого').toBeLessThan(96)
+  expect(light(look.text) - overWhite(look.background), 'текст светлее фона').toBeGreaterThan(96)
+  await test
+    .info()
+    .attach('10.5.1-dark.png', { body: await page.screenshot(), contentType: 'image/png' })
+
+  await closeProviders(page, dialog)
+  await openSettings(page, 'tab=config:appearance&page=theme')
+  await page.getByRole('button', { name: 'Системная' }).click()
+  await closeSettings(page)
+})
+
+test('10.5.2 длинный список моделей прокручивается колесом, последняя модель выбирается', async () => {
+  const page = await ui()
+  // Список моделей — вызов провайдера чужим ключом; на подменном шлюзе его
+  // отдаёт подменный обработчик главного процесса — шестьдесят моделей.
+  await stand.get().app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('data-providers:models')
+    ipcMain.handle('data-providers:models', () => ({
+      ok: true,
+      models: Array.from({ length: 60 }, (_, i) => `model-${String(i + 1).padStart(2, '0')}`)
+    }))
+  })
+  const dialog = await openProviders(page)
+  await dialog.getByLabel('Поиск по документам (RAG)').selectOption('gemini')
+  await dialog.getByRole('button', { name: 'Список моделей' }).first().click()
+  await expect(dialog).toContainText('Моделей в списке: 60')
+
+  await dialog.getByRole('combobox', { name: 'Выбрать из списка: Модель эмбеддингов' }).click()
+  const listbox = page.getByRole('listbox')
+  await expect(listbox).toBeVisible()
+  const last = listbox.getByRole('option', { name: 'model-60' })
+  await expect(last).not.toBeInViewport()
+  // Колесом, как человек, — не `scrollIntoView` Playwright.
+  await listbox.hover()
+  for (let i = 0; i < 20 && !((await last.isVisible()) && (await isInView(last))); i += 1) {
+    await page.mouse.wheel(0, 400)
+  }
+  await expect(last).toBeInViewport()
+  await last.click()
+  await expect(dialog.getByLabel('Модель эмбеддингов', { exact: true })).toHaveValue('model-60')
+
+  await closeProviders(page, dialog)
+})
+
+async function isInView(locator: Locator): Promise<boolean> {
+  return locator.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    const port = el.closest('[role="listbox"]')!.getBoundingClientRect()
+    return box.top >= port.top && box.bottom <= port.bottom
+  })
+}
+
 // ───────────────────────── Блок 50. Правый клик, орфография, окно ─────────────────────────
 
 /** Правый клик в точке; возвращает открытое меню. */

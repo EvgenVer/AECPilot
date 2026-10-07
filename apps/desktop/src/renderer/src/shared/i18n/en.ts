@@ -7,6 +7,7 @@
 // продукте либо не называть частность вовсе.
 
 import { en as donorEn } from '../../donor/i18n/en'
+import type { Translations } from '../../donor/i18n/types'
 
 import { debrandTranslations } from './debrand'
 
@@ -49,4 +50,11 @@ const OVERRIDES: Record<string, string> = {
   'settings.appearance.themeSearchPlaceholder': 'Search your themes…'
 }
 
-export const en = debrandTranslations(donorEn, OVERRIDES)
+/** Подпись под логотипом пустого чата — убрана совсем (D-181, решение владельца
+ *  2026-10-07, задача 3H.23). Их компонент берёт текст из каталога, а без него —
+ *  из своего английского `intro-copy.jsonl`; пустая строка в каталоге закрывает
+ *  оба пути, и файлы донора не трогаются. `none` покрывает все «нейтральные»
+ *  личности, `custom` — любую названную. */
+export const NO_INTRO_LINE: Translations['intro'] = { stock: { none: [''] }, custom: () => [''] }
+
+export const en = debrandTranslations({ ...donorEn, intro: NO_INTRO_LINE }, OVERRIDES)
