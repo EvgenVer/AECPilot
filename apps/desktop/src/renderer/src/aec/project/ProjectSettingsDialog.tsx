@@ -38,6 +38,7 @@ import { useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 
 const SETTINGS_KEY = ['aec', 'project-settings'] as const
 const AGENT_LANGUAGE_KEY = ['aec', 'agent-language'] as const
@@ -185,6 +186,7 @@ export default function ProjectSettingsDialog({ onClose }: { onClose: () => void
       role="presentation"
       onClick={onClose}
     >
+      <CloseOnEscape onClose={onClose} />
       <div
         aria-label={title}
         aria-modal="true"

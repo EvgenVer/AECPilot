@@ -21,6 +21,7 @@ import { useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 
 import { $graphAccess, $graphAccessOpen, saveGraphKey } from './graph-access-store'
 
@@ -144,6 +145,7 @@ export default function GraphAccessDialog(): React.JSX.Element | null {
       onClick={() => $graphAccessOpen.set(false)}
       role="presentation"
     >
+      <CloseOnEscape onClose={() => $graphAccessOpen.set(false)} />
       <div
         aria-label={t('graphAccess.title')}
         aria-modal="true"

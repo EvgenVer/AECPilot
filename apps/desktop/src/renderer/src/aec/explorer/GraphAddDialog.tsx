@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 import type { GraphAddState } from '../../../../shared/ipc'
 
 import { $graphTarget, closeGraphAdd } from './graph-add-store'
@@ -82,6 +83,7 @@ export function GraphAddDialog(): React.JSX.Element | null {
       onClick={close}
       role="presentation"
     >
+      <CloseOnEscape onClose={close} />
       <div
         aria-label={t('graphAdd.title')}
         aria-modal="true"

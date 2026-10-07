@@ -30,6 +30,7 @@ import {
   SelectValue
 } from '../../donor/components/ui/select'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 import type { DataProvidersFile, DataProvidersState } from '../../../../shared/ipc'
 
 import {
@@ -313,6 +314,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
       onClick={() => $dataProvidersOpen.set(false)}
       role="presentation"
     >
+      <CloseOnEscape onClose={() => $dataProvidersOpen.set(false)} />
       <div
         aria-label={t('dataProviders.title')}
         aria-modal="true"

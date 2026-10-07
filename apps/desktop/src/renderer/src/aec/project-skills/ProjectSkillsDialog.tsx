@@ -14,6 +14,7 @@ import { useStore } from '@nanostores/react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 
 import { $projectSkills, $projectSkillsOpen, trustProjectSkills } from './store'
 
@@ -34,6 +35,7 @@ export default function ProjectSkillsDialog(): React.JSX.Element | null {
       role="presentation"
       onClick={() => $projectSkillsOpen.set(false)}
     >
+      <CloseOnEscape onClose={() => $projectSkillsOpen.set(false)} />
       <div
         aria-label={title}
         aria-modal="true"

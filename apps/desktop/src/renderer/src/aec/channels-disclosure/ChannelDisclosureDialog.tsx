@@ -13,6 +13,7 @@ import { useStore } from '@nanostores/react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 
 import { CHANNEL_DISCLOSURE_ITEMS, extraDisclosureItems } from './disclosure-pure'
 import { $channelConsent } from './store'
@@ -31,6 +32,7 @@ export default function ChannelDisclosureDialog(): React.JSX.Element | null {
       role="presentation"
       onClick={() => request.answer(false)}
     >
+      <CloseOnEscape onClose={() => request.answer(false)} />
       <div
         aria-label={title}
         aria-modal="true"

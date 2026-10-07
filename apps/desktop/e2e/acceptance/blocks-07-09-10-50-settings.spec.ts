@@ -736,6 +736,22 @@ test('10.5.2 длинный список моделей прокручивает
   await closeProviders(page, dialog)
 })
 
+// D-182: окна донора закрываются по Escape, наши не закрывались. Наше окно лежит
+// над их «Настройками» — первый Escape закрывает его, второй — сами «Настройки».
+test('10.5.3 Escape закрывает «Индекс и память», затем «Настройки» под ним', async () => {
+  const page = await ui()
+  const dialog = await openProviders(page)
+  const closeSettingsButton = page.getByRole('button', { name: /Закрыть настройки|Close settings/ })
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(closeSettingsButton).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(closeSettingsButton).toBeHidden()
+  await closeSettings(page)
+})
+
 async function isInView(locator: Locator): Promise<boolean> {
   return locator.evaluate((el) => {
     const box = el.getBoundingClientRect()

@@ -10,6 +10,7 @@ import { useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
+import { CloseOnEscape } from '../CloseOnEscape'
 
 export default function CreateProjectDialog({
   onClose,
@@ -78,6 +79,7 @@ export default function CreateProjectDialog({
       role="presentation"
       onClick={onClose}
     >
+      <CloseOnEscape onClose={onClose} />
       <div
         aria-label={title}
         aria-modal="true"
