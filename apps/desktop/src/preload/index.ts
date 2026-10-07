@@ -244,7 +244,9 @@ const api: AecpilotApi = {
   writeVaultFile: (rel, text) => ipcRenderer.invoke('vault:write-file', { rel, text }),
   getIndexStatus: () => ipcRenderer.invoke('index:status'),
   checkQuotes: (answer) => ipcRenderer.invoke('quotes:check', answer),
-  startIngest: (full, rebuild) => ipcRenderer.invoke('index:ingest', { full, rebuild }),
+  startIngest: (full, rebuild, target) =>
+    ipcRenderer.invoke('index:ingest', { full, rebuild, target }),
+  cancelIngest: () => ipcRenderer.invoke('index:cancel'),
   getEmbeddingSwitch: () => ipcRenderer.invoke('index:embedding-switch'),
   getIngestState: () => ipcRenderer.invoke('index:ingest-state'),
   onIngestState: (cb) => {

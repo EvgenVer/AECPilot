@@ -25,7 +25,7 @@ import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
 import { openDocument } from '../viewers/viewer-store'
 
 import { GraphAddDialog } from './GraphAddDialog'
-import { askGraphAdd } from './graph-add-store'
+import { askGraphAdd, indexTarget } from './graph-add-store'
 
 const SOURCES_KEY = ['aec', 'sources'] as const
 
@@ -115,6 +115,18 @@ function SourceNodes({
             {/* Единица выбора UR24 — папка либо файл, и вид здесь берётся из
                 дерева, а не из догадки по расширению. */}
             <ContextMenuContent>
+              <ContextMenuItem
+                onSelect={() =>
+                  void indexTarget({
+                    kind: node.type === 'dir' ? 'folder' : 'file',
+                    label: `${sourceId}/${node.path}`,
+                    rel: node.path,
+                    sourceId
+                  })
+                }
+              >
+                {t('index.menu')}
+              </ContextMenuItem>
               <ContextMenuItem
                 onSelect={() =>
                   askGraphAdd({
@@ -334,6 +346,18 @@ export function SourcesPanel() {
                   {/* Корень источника — тоже единица выбора (UR24), и для него
                       путь области это один идентификатор источника. */}
                   <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        void indexTarget({
+                          kind: 'folder',
+                          label: source.root_path,
+                          rel: '',
+                          sourceId: source.id
+                        })
+                      }
+                    >
+                      {t('index.menu')}
+                    </ContextMenuItem>
                     <ContextMenuItem
                       onSelect={() =>
                         askGraphAdd({

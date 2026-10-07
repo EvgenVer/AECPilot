@@ -32,7 +32,14 @@ import {
   type GuideStepId
 } from './onboarding-pure'
 
-const IDLE_INGEST: IngestState = { error: null, lastReport: null, progress: null, running: false }
+const IDLE_INGEST: IngestState = {
+  error: null,
+  files: [],
+  lastReport: null,
+  progress: null,
+  running: false,
+  stopping: false
+}
 
 /** Мастер — только в главном окне. Корень рендерера общий у всех окон, и без
  *  этой проверки панель вставала и в полосу быстрого ввода (`?win=hud`), и во

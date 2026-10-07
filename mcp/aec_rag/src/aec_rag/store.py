@@ -14,7 +14,7 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from aec_rag.chunk import Chunk
@@ -29,6 +29,16 @@ class PendingFile:
     source_id: str
     rel_path: str
     sha256: str
+
+
+@dataclass(frozen=True)
+class OcrWork:
+    """A file with pages waiting for the second pass."""
+
+    source_id: str
+    rel_path: str
+    sha256: str
+    pages: tuple[int, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -175,6 +185,163 @@ def store_chunks(
     return ids
 
 
+def recognized_pages(
+    conn: sqlite3.Connection, source_id: str, rel_path: str, sha256: str
+) -> dict[int, str]:
+    """Pages of this content of the file that recognition has already read."""
+    rows = conn.execute(
+        "SELECT page, text FROM pdf_pages WHERE source_id = ? AND rel_path = ? "
+        "AND sha256 = ? AND state = 'done'",
+        (source_id, rel_path, sha256),
+    ).fetchall()
+    return {page: text or "" for page, text in rows}
+
+
+def recognized_page_numbers(conn: sqlite3.Connection, source_id: str, rel_path: str) -> list[int]:
+    """Every page of the file with a recognition result, whatever its content —
+    each one has a vector document of its own that the first pass retires."""
+    rows = conn.execute(
+        "SELECT page FROM pdf_pages WHERE source_id = ? AND rel_path = ? AND state = 'done'",
+        (source_id, rel_path),
+    ).fetchall()
+    return [page for (page,) in rows]
+
+
+def set_pending_pages(
+    conn: sqlite3.Connection,
+    source_id: str,
+    rel_path: str,
+    sha256: str,
+    pending: Sequence[int],
+) -> None:
+    """After the first pass: ``pending`` are the pages still waiting for
+    recognition. Rows of other content go; finished pages of this content stay —
+    their text is what saves a second recognition."""
+    with conn:
+        conn.execute(
+            "DELETE FROM pdf_pages WHERE source_id = ? AND rel_path = ? "
+            "AND (sha256 != ? OR state != 'done')",
+            (source_id, rel_path, sha256),
+        )
+        conn.executemany(
+            "INSERT OR IGNORE INTO pdf_pages (source_id, rel_path, sha256, page, state) "
+            "VALUES (?, ?, ?, ?, 'pending')",
+            [(source_id, rel_path, sha256, page) for page in pending],
+        )
+
+
+def pending_ocr(conn: sqlite3.Connection) -> list[OcrWork]:
+    """Files whose current, already-ingested content still has pages to
+    recognise — the second pass's to-do list, and what a stopped run resumes."""
+    rows = conn.execute(
+        """
+        SELECT p.source_id, p.rel_path, p.sha256, p.page
+        FROM pdf_pages AS p
+        JOIN ingested_files AS i
+            ON i.source_id = p.source_id AND i.rel_path = p.rel_path AND i.sha256 = p.sha256
+        JOIN files AS f
+            ON f.source_id = p.source_id AND f.rel_path = p.rel_path AND f.sha256 = p.sha256
+        WHERE p.state = 'pending' AND f.status IN ('ok', 'changed')
+        ORDER BY p.source_id, p.rel_path, p.page
+        """
+    ).fetchall()
+    work: dict[tuple[str, str, str], list[int]] = {}
+    for source_id, rel_path, sha256, page in rows:
+        work.setdefault((source_id, rel_path, sha256), []).append(page)
+    return [OcrWork(s, r, h, tuple(pages)) for (s, r, h), pages in work.items()]
+
+
+def store_page_chunks(
+    conn: sqlite3.Connection,
+    source_id: str,
+    rel_path: str,
+    page: int,
+    chunks: Sequence[Chunk],
+) -> list[str]:
+    """Add a recognised page's chunks to the file, after the ones it has.
+
+    A page stored before and not marked done (a run stopped in between) is
+    replaced, not doubled.
+    """
+    with conn:
+        stale = [
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM chunks WHERE source_id = ? AND rel_path = ? "
+                "AND json_extract(locator, '$.page') = ?",
+                (source_id, rel_path, page),
+            )
+        ]
+        if stale:
+            placeholders = ",".join("?" for _ in stale)
+            conn.execute(f"DELETE FROM files_fts WHERE rowid IN ({placeholders})", stale)
+            conn.execute(f"DELETE FROM chunks WHERE id IN ({placeholders})", stale)
+        start = conn.execute(
+            "SELECT coalesce(max(ordinal), -1) + 1 FROM chunks "
+            "WHERE source_id = ? AND rel_path = ?",
+            (source_id, rel_path),
+        ).fetchone()[0]
+        ids: list[str] = []
+        for offset, chunk in enumerate(chunks):
+            ordinal = start + offset
+            identifier = chunk_id(source_id, rel_path, ordinal, chunk.text)
+            cursor = conn.execute(
+                """
+                INSERT INTO chunks
+                    (chunk_id, source_id, rel_path, ordinal, locator, is_table, text)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    source_id,
+                    rel_path,
+                    ordinal,
+                    json.dumps(chunk.locator, ensure_ascii=False),
+                    int(chunk.is_table),
+                    chunk.text,
+                ),
+            )
+            conn.execute(
+                "INSERT INTO files_fts (rowid, content) VALUES (?, ?)",
+                (cursor.lastrowid, chunk.text),
+            )
+            ids.append(identifier)
+        conn.execute(
+            "UPDATE ingested_files SET chunk_count = "
+            "(SELECT count(*) FROM chunks WHERE source_id = ? AND rel_path = ?) "
+            "WHERE source_id = ? AND rel_path = ?",
+            (source_id, rel_path, source_id, rel_path),
+        )
+    return ids
+
+
+def finish_page(
+    conn: sqlite3.Connection,
+    source_id: str,
+    rel_path: str,
+    sha256: str,
+    page: int,
+    *,
+    text: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Record a page's recognition: its text, or why it failed."""
+    with conn:
+        conn.execute(
+            "UPDATE pdf_pages SET state = ?, text = ?, error = ? "
+            "WHERE source_id = ? AND rel_path = ? AND sha256 = ? AND page = ?",
+            (
+                "failed" if error is not None else "done",
+                text,
+                error,
+                source_id,
+                rel_path,
+                sha256,
+                page,
+            ),
+        )
+
+
 def prune_removed(conn: sqlite3.Connection) -> int:
     """Drop chunks of files that are gone — deleted, detached, or no longer
     tracked at all. A deleted document must stop being quotable immediately;
@@ -195,6 +362,10 @@ def prune_removed(conn: sqlite3.Connection) -> int:
             removed += drop_file_chunks(conn, source_id, rel_path)
             conn.execute(
                 "DELETE FROM ingested_files WHERE source_id = ? AND rel_path = ?",
+                (source_id, rel_path),
+            )
+            conn.execute(
+                "DELETE FROM pdf_pages WHERE source_id = ? AND rel_path = ?",
                 (source_id, rel_path),
             )
     return removed
@@ -272,4 +443,7 @@ def index_stats(conn: sqlite3.Connection) -> dict[str, int]:
         "files_indexed": files_indexed,
         "chunks_total": chunks_total,
         "stale_count": len(pending_files(conn)),
+        # Pages the second pass has yet to recognise (task 3H.15): the file is
+        # searchable, but these pages of it are not yet.
+        "pages_pending": sum(len(work.pages) for work in pending_ocr(conn)),
     }

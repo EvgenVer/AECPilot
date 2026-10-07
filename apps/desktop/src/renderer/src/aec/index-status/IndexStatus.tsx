@@ -18,11 +18,18 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
-import type { GraphAddState, IngestState } from '../../../../shared/ipc'
+import type { GraphAddState, IngestFileRow, IngestState } from '../../../../shared/ipc'
 import { $dataProviders, openDataProviders } from '../data-providers/store'
 import { openIndexPage } from '../workspace-pages'
 
-const IDLE: IngestState = { error: null, lastReport: null, progress: null, running: false }
+const IDLE: IngestState = {
+  error: null,
+  files: [],
+  lastReport: null,
+  progress: null,
+  running: false,
+  stopping: false
+}
 
 // Задача 5.15: графовый прогон идёт минутами и стоит денег, а окно, из которого
 // его запустили, человек вправе закрыть. Значит ход должен быть виден там же,
@@ -197,17 +204,24 @@ export function IndexDetails(): React.JSX.Element | null {
           </Button>
         </div>
       ) : null}
-      {ingest.running ? (
-        <div className="text-muted-foreground">
-          {t('index.running', ingest.progress?.done ?? 0, ingest.progress?.total ?? 0)}
-        </div>
+      {ingest.running ? <RunStage progress={ingest.progress} /> : null}
+      {!ingest.running && (data.pages_pending ?? 0) > 0 ? (
+        <div className="text-amber-500">{t('index.pagesPending', data.pages_pending ?? 0)}</div>
       ) : null}
       {ingest.error ? <div className="text-destructive">{ingest.error}</div> : null}
+      {!ingest.running && ingest.lastReport?.stopped ? (
+        <div className="text-muted-foreground">{t('index.stopped')}</div>
+      ) : null}
       {ingest.lastReport && ingest.lastReport.files_failed > 0 ? (
         <div className="text-amber-500">{t('index.failed', ingest.lastReport.files_failed)}</div>
       ) : null}
+      {!ingest.running && (ingest.lastReport?.pages_recognized ?? 0) > 0 ? (
+        <div className="text-muted-foreground">
+          {t('index.recognized', ingest.lastReport?.pages_recognized ?? 0)}
+        </div>
+      ) : null}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           disabled={ingest.running}
           onClick={() => void window.aecpilot.startIngest()}
@@ -223,9 +237,91 @@ export function IndexDetails(): React.JSX.Element | null {
         >
           {t('index.runFull')}
         </Button>
+        {/* Задача 3H.16: остановка между файлами и страницами — готовое
+            остаётся, следующий прогон продолжает. */}
+        {ingest.running ? (
+          <Button
+            disabled={ingest.stopping}
+            onClick={() => void window.aecpilot.cancelIngest()}
+            size="sm"
+            variant="outline"
+          >
+            {ingest.stopping ? t('index.stopping') : t('index.stop')}
+          </Button>
+        ) : null}
+        <Button onClick={openDataProviders} size="sm" variant="ghost">
+          {t('index.providerOpen')}
+        </Button>
       </div>
 
+      <RunFiles files={ingest.files} />
+
       <GraphScope data={data} graph={graph} />
+    </div>
+  )
+}
+
+/** Где сейчас прогон (задача 3H.15): первый проход считает файлы, второй —
+ *  ещё и страницы файла, потому что распознавание идёт секундами на страницу. */
+function RunStage({ progress }: { progress: IngestState['progress'] }): React.JSX.Element {
+  const t = useAecT()
+  const done = progress?.done ?? 0
+  const total = progress?.total ?? 0
+
+  return (
+    <div className="text-muted-foreground" role="status">
+      {progress?.phase === 'ocr'
+        ? t('index.runningOcr', done, total, progress.page ?? 0, progress.pages ?? 0)
+        : t('index.runningText', done, total)}
+    </div>
+  )
+}
+
+/** Файлы прогона с их состоянием (задача 3H.19). Пусто — прогона ещё не было. */
+function RunFiles({ files }: { files: IngestFileRow[] }): React.JSX.Element | null {
+  const t = useAecT()
+  if (files.length === 0) return null
+
+  const label = (row: IngestFileRow): string => {
+    switch (row.state) {
+      case 'waiting':
+        return t('index.fileWaiting', row.pagesWaiting)
+      case 'recognizing':
+        return t('index.fileRecognizing', row.pagesDone, row.pagesWaiting)
+      case 'done':
+        return t('index.fileDone')
+      case 'failed':
+        return t('index.fileFailed', row.error)
+      case 'skipped':
+        return t('index.fileSkipped')
+      default:
+        return t('index.fileRead')
+    }
+  }
+
+  return (
+    <div className="border-border space-y-1 border-t pt-3">
+      <div className="font-medium">{t('index.filesTitle')}</div>
+      <ul aria-label={t('index.filesTitle')} className="space-y-0.5 text-xs">
+        {files.map((row) => (
+          <li className="flex gap-2" key={`${row.source_id}/${row.rel_path}`}>
+            <span className="min-w-0 flex-1 truncate" title={row.rel_path}>
+              {row.rel_path}
+            </span>
+            <span
+              className={
+                row.state === 'failed'
+                  ? 'text-destructive shrink-0'
+                  : row.state === 'waiting' || row.state === 'recognizing'
+                    ? 'shrink-0 text-amber-500'
+                    : 'text-muted-foreground shrink-0'
+              }
+            >
+              {label(row)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -236,13 +332,7 @@ export function IndexDetails(): React.JSX.Element | null {
  * through `rag_graph_add`, and what UR24 требует here is that a person can see
  * what is in the graph, what is waiting, and how big the waiting work is —
  * before agreeing to it. */
-function GraphScope({
-  data,
-  graph
-}: {
-  data: IndexData
-  graph: GraphAddState
-}): React.JSX.Element {
+function GraphScope({ data, graph }: { data: IndexData; graph: GraphAddState }): React.JSX.Element {
   const t = useAecT()
   const entries = data.graph_entries ?? []
   const pending = data.graph_pending

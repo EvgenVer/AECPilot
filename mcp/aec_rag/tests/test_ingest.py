@@ -19,7 +19,7 @@ from aec_rag.db import open_index as open_db
 from aec_rag.ingest import Progress, ingest, resolve_path
 from aec_rag.parse import ParsedDocument, ParsedSegment, ParseError
 from aec_rag.rag_index import RagSettings, open_index
-from aec_rag.store import PendingFile, pending_files
+from aec_rag.store import PendingFile, index_stats, pending_files, pending_ocr
 
 DIM = 32
 
@@ -287,3 +287,267 @@ async def test_a_failure_after_the_rows_leaves_the_file_pending(project, monkeyp
 
 def test_a_file_of_a_source_that_is_gone_resolves_to_nothing():
     assert resolve_path({}, PendingFile("tasks", "задание.pdf", "sha")) is None
+
+
+# ───────────────────── Две скорости: слой, затем распознавание (3H.13–3H.15) ─────
+
+SCAN = "[скан]"
+
+
+def layer_parser(path):
+    """Like :func:`fake_parser`, but a line reading ``[скан]`` is a page without
+    a usable text layer — empty, and waiting for recognition."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return ParsedDocument(
+        doctype="pdf",
+        markdown="\n\n".join(line for line in lines if line != SCAN),
+        segments=tuple(
+            ParsedSegment(locator={"page": number}, markdown="" if line == SCAN else line)
+            for number, line in enumerate(lines, start=1)
+        ),
+        pending_pages=tuple(number for number, line in enumerate(lines, start=1) if line == SCAN),
+    )
+
+
+class Recognizer:
+    """Reads «страница N распознана» off any page, and remembers what it was asked."""
+
+    def __init__(self, stop_after: int | None = None) -> None:
+        self.asked: list[int] = []
+        self.stop_after = stop_after
+
+    def __call__(self, path, pages):
+        for page in pages:
+            if self.stop_after is not None and len(self.asked) == self.stop_after:
+                raise KeyboardInterrupt  # what «Остановить» looks like from inside
+            self.asked.append(page)
+            yield page, f"Страница {page} распознана: грунт суглинок."
+
+
+def page_texts(conn):
+    return [
+        (row[0], row[1])
+        for row in conn.execute(
+            "SELECT json_extract(locator, '$.page'), text FROM chunks ORDER BY ordinal"
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_the_text_layer_is_searchable_before_any_page_is_recognised(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт об изысканиях.\n{SCAN}\n{SCAN}")
+    rag = await open_stub_index(vault)
+    seen: list[Progress] = []
+
+    def stop_before_recognition(progress):
+        seen.append(progress)
+        if progress.phase == "ocr":
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        await ingest(
+            conn,
+            rag,
+            {"tasks": str(source)},
+            parser=layer_parser,
+            recognizer=Recognizer(),
+            on_progress=stop_before_recognition,
+        )
+
+    assert page_texts(conn) == [(1, "Отчёт об изысканиях.")]
+    assert pending_files(conn) == []
+    assert [work.pages for work in pending_ocr(conn)] == [(2, 3)]
+    file_event = next(event for event in seen if event.stage == "file")
+    assert file_event.pages == 2
+    assert index_stats(conn)["pages_pending"] == 2
+
+
+@pytest.mark.anyio
+async def test_recognised_pages_join_the_same_file_under_their_own_page(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт об изысканиях.\n{SCAN}\n{SCAN}")
+    rag = await open_stub_index(vault)
+    seen: list[Progress] = []
+
+    report = await ingest(
+        conn,
+        rag,
+        {"tasks": str(source)},
+        parser=layer_parser,
+        recognizer=Recognizer(),
+        on_progress=seen.append,
+    )
+
+    assert report.pages_recognized == 2
+    assert page_texts(conn) == [
+        (1, "Отчёт об изысканиях."),
+        (2, "Страница 2 распознана: грунт суглинок."),
+        (3, "Страница 3 распознана: грунт суглинок."),
+    ]
+    assert pending_ocr(conn) == []
+    assert conn.execute("SELECT chunk_count FROM ingested_files").fetchone()[0] == 3
+    pages = [(e.done, e.total, e.page, e.pages) for e in seen if e.stage == "page"]
+    assert pages == [(1, 1, 1, 2), (1, 1, 2, 2)]
+    assert all(e.phase == "ocr" for e in seen if e.stage == "page")
+
+
+@pytest.mark.anyio
+async def test_a_stopped_run_resumes_from_the_first_page_not_done(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}\n{SCAN}\n{SCAN}")
+    rag = await open_stub_index(vault)
+
+    with pytest.raises(KeyboardInterrupt):
+        await ingest(
+            conn,
+            rag,
+            {"tasks": str(source)},
+            parser=layer_parser,
+            recognizer=Recognizer(stop_after=1),
+        )
+
+    again = Recognizer()
+    report = await ingest(conn, rag, {"tasks": str(source)}, parser=layer_parser, recognizer=again)
+
+    assert report.files_total == 0
+    assert again.asked == [3, 4]
+    assert [page for page, _ in page_texts(conn)] == [1, 2, 3, 4]
+
+
+@pytest.mark.anyio
+async def test_a_full_re_index_does_not_recognise_a_page_twice(project):
+    """«Перестроить индекс» for another embedding model re-embeds everything —
+    it must not pay for recognition again while the file is unchanged."""
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}")
+    rag = await open_stub_index(vault)
+    await ingest(conn, rag, {"tasks": str(source)}, parser=layer_parser, recognizer=Recognizer())
+
+    again = Recognizer()
+    report = await ingest(
+        conn, rag, {"tasks": str(source)}, mode="full", parser=layer_parser, recognizer=again
+    )
+
+    assert report.files_ingested == 1
+    assert again.asked == []
+    assert page_texts(conn) == [(1, "Отчёт."), (2, "Страница 2 распознана: грунт суглинок.")]
+
+
+@pytest.mark.anyio
+async def test_a_changed_file_is_recognised_again(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}")
+    rag = await open_stub_index(vault)
+    await ingest(conn, rag, {"tasks": str(source)}, parser=layer_parser, recognizer=Recognizer())
+
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт, редакция 2.\n{SCAN}")
+    again = Recognizer()
+    await ingest(conn, rag, {"tasks": str(source)}, parser=layer_parser, recognizer=again)
+
+    assert again.asked == [2]
+    assert [text for _, text in page_texts(conn)][0] == "Отчёт, редакция 2."
+
+
+@pytest.mark.anyio
+async def test_a_page_that_fails_is_reported_and_the_rest_go_on(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}\n{SCAN}")
+    rag = await open_stub_index(vault)
+
+    def recognizer(path, pages):
+        for page in pages:
+            if page == 2:
+                yield page, ParseError("страница 2 не распознана: битая картинка")
+            else:
+                yield page, f"Страница {page} распознана."
+
+    report = await ingest(
+        conn, rag, {"tasks": str(source)}, parser=layer_parser, recognizer=recognizer
+    )
+
+    assert report.pages_failed == 1
+    assert report.pages_recognized == 1
+    assert [page for page, _ in page_texts(conn)] == [1, 3]
+    assert pending_ocr(conn) == []
+
+
+@pytest.mark.anyio
+async def test_a_narrowed_run_recognises_only_its_own_files(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ/1.pdf", f"Отчёт 1.\n{SCAN}")
+    add_scanned(conn, source, "КР/2.pdf", f"Отчёт 2.\n{SCAN}")
+    rag = await open_stub_index(vault)
+    recognizer = Recognizer()
+
+    await ingest(
+        conn,
+        rag,
+        {"tasks": str(source)},
+        rel_paths=["ИГИ/"],
+        parser=layer_parser,
+        recognizer=recognizer,
+    )
+
+    assert recognizer.asked == [2]
+    rows = conn.execute("SELECT DISTINCT rel_path FROM chunks").fetchall()
+    assert [row[0] for row in rows] == ["ИГИ/1.pdf"]
+
+
+@pytest.mark.anyio
+async def test_a_stop_request_ends_the_run_between_pages_and_keeps_what_is_done(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}\n{SCAN}\n{SCAN}")
+    rag = await open_stub_index(vault)
+    recognizer = Recognizer()
+    seen: list[Progress] = []
+
+    report = await ingest(
+        conn,
+        rag,
+        {"tasks": str(source)},
+        parser=layer_parser,
+        recognizer=recognizer,
+        on_progress=seen.append,
+        should_stop=lambda: len(recognizer.asked) >= 1,
+    )
+
+    assert report.stopped
+    assert recognizer.asked == [2]
+    assert seen[-1].stage == "stopped"
+    assert [work.pages for work in pending_ocr(conn)] == [(3, 4)]
+
+
+@pytest.mark.anyio
+async def test_a_stop_request_before_a_file_leaves_it_for_the_next_run(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "1.pdf")
+    add_scanned(conn, source, "2.pdf")
+    rag = await open_stub_index(vault)
+    seen: list[Progress] = []
+
+    report = await ingest(
+        conn,
+        rag,
+        {"tasks": str(source)},
+        parser=fake_parser,
+        on_progress=seen.append,
+        should_stop=lambda: any(event.stage == "file" for event in seen),
+    )
+
+    assert report.stopped
+    assert report.files_ingested == 1
+    assert [file.rel_path for file in pending_files(conn)] == ["2.pdf"]
+
+
+@pytest.mark.anyio
+async def test_a_narrowed_folder_does_not_pull_in_its_namesake(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "ЭОМ/задание.pdf")
+    add_scanned(conn, source, "ЭОМ-2/задание.pdf")
+    rag = await open_stub_index(vault)
+
+    report = await ingest(conn, rag, {"tasks": str(source)}, rel_paths=["ЭОМ"], parser=fake_parser)
+
+    assert report.files_total == 1
+    assert [file.rel_path for file in pending_files(conn)] == ["ЭОМ-2/задание.pdf"]

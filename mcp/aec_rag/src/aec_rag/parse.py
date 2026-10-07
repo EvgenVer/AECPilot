@@ -1,4 +1,12 @@
-"""Docling-backed conversion of a source document into markdown plus locators.
+"""Conversion of a source document into markdown plus locators.
+
+A PDF is read in two speeds (task 3H.13–3H.14, PLAN §3H item C): its text layer
+first, page by page, with pypdfium2 — under a second for a 300-page report — and
+then, in the background, only the pages without a usable layer are rendered and
+recognised with RapidOCR. Docling is no longer used for PDFs: measured
+2026-10-07 it took about 8 s per page and returned an empty picture on scanned
+pages that carry a frame stamp in their text layer. DOCX, XLSX and CSV still go
+through Docling.
 
 See specs/qa-over-sources.md (Data schemas): every chunk carries a ``locator``
 pointing back at the place in the original document. Which place that is depends
@@ -22,6 +30,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
     from docling.document_converter import DocumentConverter
     from docling_core.types.doc import DoclingDocument
 
@@ -52,6 +62,9 @@ class ParsedDocument:
     doctype: str
     markdown: str
     segments: tuple[ParsedSegment, ...]
+    # PDF pages without a usable text layer, 1-based. Their segments are empty
+    # for now; the second pass recognises them and adds their chunks later.
+    pending_pages: tuple[int, ...] = ()
 
 
 def build_converter(*, ocr: bool = True) -> DocumentConverter:
@@ -157,59 +170,150 @@ def split_by_headings(markdown: str) -> list[tuple[str | None, str]]:
     return [(heading, body) for heading, body in result if heading is not None or body]
 
 
-def parse_pdf(path: Path | str, *, converter: DocumentConverter | None = None) -> ParsedDocument:
-    """Convert ``path`` into markdown, one segment per page.
+# A page counts as having a usable text layer when it holds at least this many
+# letters and digits, and they make up at least this share of its visible
+# characters. Measured 2026-10-07 on the ИГИ reports (PLAN §3H item C): a scanned
+# page whose layer is only the frame stamp carries 64–69 letters, a page of real
+# text runs into the hundreds and thousands. A font with a broken encoding gives
+# plenty of characters but few letters — the share catches that.
+TEXT_LAYER_MIN_LETTERS = 200
+TEXT_LAYER_MIN_SHARE = 0.6
 
-    A page with no extractable text keeps its place in the sequence with an
-    empty ``markdown``: drop it and every citation after it points one page
-    short.
 
-    ``converter`` is accepted so a caller processing many files builds one and
-    reuses it: constructing a converter loads the layout model, which is the
-    expensive part (about 12 s here against 6.5 s for the conversion itself).
+def usable_text_layer(
+    text: str,
+    *,
+    min_letters: int = TEXT_LAYER_MIN_LETTERS,
+    min_share: float = TEXT_LAYER_MIN_SHARE,
+) -> bool:
+    """Whether a page's text layer is worth indexing as it is."""
+    visible = [ch for ch in text if not ch.isspace()]
+    letters = sum(1 for ch in visible if ch.isalnum())
+    return letters >= min_letters and letters >= min_share * len(visible)
 
-    **One serialization, not one per page.** ``export_to_markdown(page_no=n)``
-    filters a full walk of the document, so calling it per page is quadratic in
-    the page count. Measured 2026-08-15 on a real drawing set: conversion took
-    55 minutes and this loop had not finished 45 minutes later, on a document
-    Docling had already parsed. Serializing once with a page-break marker and
-    splitting is a single pass, and the marker keeps the alignment the locators
-    depend on.
+
+def _clean_layer(text: str) -> str:
+    """pdfium's text: CRLF line ends and the odd control character for a soft
+    hyphen. Keep the lines, drop the rest."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(ch for ch in text if ch == "\n" or ch == "\t" or ch.isprintable()).strip()
+
+
+def _open_pdf(path: Path):
+    """Open ``path`` with pdfium from its bytes — the same reason as
+    :func:`_convert`: a Cyrillic path is ordinary here, and bytes sidestep every
+    question about how a native library spells it."""
+    import pypdfium2 as pdfium
+
+    try:
+        return pdfium.PdfDocument(path.read_bytes())
+    except (pdfium.PdfiumError, OSError) as exc:
+        raise ParseError(f"не удалось открыть {path}: {exc}") from exc
+
+
+def parse_pdf(
+    path: Path | str,
+    *,
+    min_letters: int = TEXT_LAYER_MIN_LETTERS,
+    min_share: float = TEXT_LAYER_MIN_SHARE,
+) -> ParsedDocument:
+    """Read a PDF's text layer, one segment per page — the first pass.
+
+    A page whose layer is not usable (see :func:`usable_text_layer`) keeps its
+    place in the sequence with an empty ``markdown`` and is listed in
+    ``pending_pages``: drop it and every citation after it points one page
+    short, and keep its stamp text and the search finds a frame instead of a
+    page.
     """
     path = Path(path)
-    document = _convert(path, converter)
-    markdown = document.export_to_markdown(page_break_placeholder=_PAGE_BREAK)
-    pages = _split_pages(document, markdown)
+    pdf = _open_pdf(path)
+    pages: list[str] = []
+    pending: list[int] = []
+    try:
+        for index in range(len(pdf)):
+            page = pdf[index]
+            textpage = page.get_textpage()
+            text = _clean_layer(textpage.get_text_range())
+            textpage.close()
+            page.close()
+            if usable_text_layer(text, min_letters=min_letters, min_share=min_share):
+                pages.append(text)
+            else:
+                pages.append("")
+                pending.append(index + 1)
+    except Exception as exc:  # pdfium raises its own error types per call
+        raise ParseError(f"не удалось прочитать {path}: {exc}") from exc
+    finally:
+        pdf.close()
+
     return ParsedDocument(
         doctype="pdf",
-        markdown=markdown.replace(_PAGE_BREAK, "").strip(),
+        markdown="\n\n".join(text for text in pages if text),
         segments=tuple(
             ParsedSegment(locator={"page": page_no}, markdown=text)
             for page_no, text in enumerate(pages, start=1)
         ),
+        pending_pages=tuple(pending),
     )
 
 
-# Not a string that can occur in a document: it is an HTML comment, and the
-# markdown serializer emits our own text verbatim.
-_PAGE_BREAK = "<!-- aec-page-break -->"
+# Rendering for recognition: 300 dpi, the resolution the measurement ran at,
+# but never more than this many pixels on the long side — an A1 sheet at 300
+# dpi is 70 megapixels, and the detector resizes it down anyway.
+OCR_DPI = 300
+OCR_MAX_SIDE = 5000
+
+_ocr_reader = None
 
 
-def _split_pages(document: DoclingDocument, markdown: str) -> list[str]:
-    """One markdown per page, in page order.
+def _reader():
+    """RapidOCR with the `eslav` model, built the way Docling builds it (PLAN
+    §Risks R4) — through their class, so the language and the model files stay
+    exactly what they were. Loads once per process, about 4 s."""
+    global _ocr_reader
+    if _ocr_reader is None:
+        from docling.datamodel.accelerator_options import AcceleratorOptions
+        from docling.datamodel.pipeline_options import RapidOcrOptions
+        from docling.models.stages.ocr.rapid_ocr_model import RapidOcrModel
 
-    Falls back to the per-page export when the split does not line up with the
-    page count. That fallback is the slow path the docstring above is about, and
-    it exists because the alternative is worse: a document whose markers do not
-    align would silently shift every locator after the first missing page, and a
-    citation off by a page is a citation that sends the reader to the wrong
-    place while looking perfectly valid.
+        model = RapidOcrModel(
+            enabled=True,
+            artifacts_path=None,
+            options=RapidOcrOptions(lang=["eslav"], backend="onnxruntime"),
+            accelerator_options=AcceleratorOptions(),
+        )
+        _ocr_reader = model.reader
+    return _ocr_reader
+
+
+def recognize_pages(
+    path: Path | str, pages: Sequence[int]
+) -> Iterator[tuple[int, str | ParseError]]:
+    """The second pass: render each of ``pages`` and recognise it.
+
+    Yields ``(page, text)`` page by page, so the caller stores and reports each
+    one as it lands — a stopped run keeps every page it finished. A page that
+    fails yields a :class:`ParseError` instead of ending the file.
     """
-    total = document.num_pages()
-    parts = [part.strip() for part in markdown.split(_PAGE_BREAK)]
-    if len(parts) == total:
-        return parts
-    return [document.export_to_markdown(page_no=page_no).strip() for page_no in range(1, total + 1)]
+    import numpy as np
+
+    path = Path(path)
+    reader = _reader()
+    pdf = _open_pdf(path)
+    try:
+        for page_no in pages:
+            try:
+                page = pdf[page_no - 1]
+                width, height = page.get_size()
+                scale = min(OCR_DPI / 72, OCR_MAX_SIDE / max(width, height, 1))
+                image = page.render(scale=scale).to_pil().convert("RGB")
+                page.close()
+                result = reader(np.asarray(image))
+                yield page_no, "\n".join(result.txts or ())
+            except Exception as exc:  # one bad page must not cost the rest
+                yield page_no, ParseError(f"страница {page_no} не распознана: {exc}")
+    finally:
+        pdf.close()
 
 
 def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) -> ParsedDocument:
@@ -246,12 +350,43 @@ def parse_file(path: Path | str, *, converter: DocumentConverter | None = None) 
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix == ".pdf":
-        return parse_pdf(path, converter=converter)
+        return parse_pdf(path)
     if suffix == ".docx":
         return parse_docx(path, converter=converter)
     if suffix in {".xlsx", ".csv"}:
         return parse_spreadsheet(path, converter=converter)
     raise ParseError(f"формат {suffix or '(без расширения)'} не индексируется: {path.name}")
+
+
+def parse_whole(path: Path | str) -> ParsedDocument:
+    """Both passes at once, for a caller that needs one file's text now.
+
+    `wiki_add_raw` is that caller: a person asked for this one file, and its
+    scanned pages are part of what they asked for — there is no background run
+    to finish them later. A page that cannot be recognised stays empty and stays
+    in ``pending_pages``.
+    """
+    path = Path(path)
+    parsed = parse_file(path)
+    if not parsed.pending_pages:
+        return parsed
+    texts = {
+        page: text
+        for page, text in recognize_pages(path, parsed.pending_pages)
+        if isinstance(text, str)
+    }
+    segments = tuple(
+        ParsedSegment(locator=segment.locator, markdown=texts[number])
+        if (number := int(segment.locator.get("page", 0))) in texts
+        else segment
+        for segment in parsed.segments
+    )
+    return ParsedDocument(
+        doctype=parsed.doctype,
+        markdown="\n\n".join(segment.markdown for segment in segments if segment.markdown),
+        segments=segments,
+        pending_pages=tuple(page for page in parsed.pending_pages if page not in texts),
+    )
 
 
 def _column_letter(index: int) -> str:

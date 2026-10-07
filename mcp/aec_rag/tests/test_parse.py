@@ -1,9 +1,10 @@
-"""Tests for the Docling parsing paths (tasks 2.1, 2.4, 2.5).
+"""Tests for the parsing paths (tasks 2.1, 2.4, 2.5, 3H.13, 3H.14).
 
-The format tests run the real converter — a stub would only prove that our own
-dataclasses work, and the thing worth pinning here is what Docling actually does
-with page numbers and headings. The converter is session-scoped because loading
-the layout model costs far more than the conversions themselves.
+The format tests run the real readers — a stub would only prove that our own
+dataclasses work, and the thing worth pinning here is what pdfium, RapidOCR and
+Docling actually do with page numbers and headings. The converter is
+session-scoped because loading the layout model costs far more than the
+conversions themselves.
 """
 
 from __future__ import annotations
@@ -17,7 +18,10 @@ from aec_rag.parse import (
     parse_docx,
     parse_pdf,
     parse_spreadsheet,
+    parse_whole,
+    recognize_pages,
     split_by_headings,
+    usable_text_layer,
 )
 from pdf_fixture import build_scanned_pdf, build_text_pdf
 
@@ -47,8 +51,10 @@ def sample_pdf(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def parsed_pdf(converter, sample_pdf):
-    return parse_pdf(sample_pdf, converter=converter)
+def parsed_pdf(sample_pdf):
+    # The fixture's pages are a line or two long; the default threshold is set
+    # for real pages (task 3H.11) and has its own tests below.
+    return parse_pdf(sample_pdf, min_letters=5)
 
 
 @pytest.fixture(scope="session")
@@ -101,10 +107,50 @@ def test_pdf_blank_page_keeps_its_place_in_the_sequence(parsed_pdf):
     assert parsed_pdf.segments[2].markdown == ""
 
 
+def test_pdf_page_without_a_layer_waits_for_recognition(parsed_pdf):
+    assert parsed_pdf.pending_pages == (3,)
+
+
 def test_pdf_document_markdown_holds_the_whole_document(parsed_pdf):
     for marker in PAGE_MARKERS:
         if marker is not None:
             assert marker in parsed_pdf.markdown
+
+
+# What a frame stamp on a scanned sheet reads like: measured 2026-10-07, such a
+# page carries 64–69 letters and digits (PLAN §3H item C).
+STAMP = "Взам. инв. № Подп. и дата Инв. № подл. Изм. Кол.уч. Лист №док. Подп. Дата 02-ПЗ"
+PROSE = (
+    "Инженерно-геологические условия площадки определены по результатам бурения "
+    "двенадцати скважин глубиной до тридцати метров. Грунты основания представлены "
+    "техногенными отложениями, песками средней крупности и суглинками тугопластичными. "
+)
+
+
+def test_text_layer_of_real_prose_is_usable():
+    assert usable_text_layer(PROSE)
+
+
+def test_a_frame_stamp_alone_is_not_a_text_layer():
+    assert not usable_text_layer(STAMP)
+
+
+def test_a_broken_font_encoding_is_not_a_text_layer():
+    """Plenty of characters, few letters — what a font without a ToUnicode map
+    extracts as."""
+    assert not usable_text_layer("".join("§¤¦¬" for _ in range(200)) + "аб12")
+
+
+def test_pdf_with_a_full_page_of_text_needs_no_recognition(tmp_path):
+    line = "The installed power of the building is 125 kW at 0.4 kV."
+    path = tmp_path / "text.pdf"
+    path.write_bytes(build_text_pdf([[line] * 8, ["Sheet 2"]]))
+
+    parsed = parse_pdf(path)
+
+    assert "125 kW" in parsed.segments[0].markdown
+    assert parsed.segments[1].markdown == ""
+    assert parsed.pending_pages == (2,)
 
 
 SCAN_LINES = [
@@ -114,59 +160,69 @@ SCAN_LINES = [
 
 
 @pytest.fixture(scope="session")
-def parsed_scan(converter, tmp_path_factory):
+def scan_pdf(tmp_path_factory):
     path = tmp_path_factory.mktemp("scan") / "scan.pdf"
     path.write_bytes(build_scanned_pdf(SCAN_LINES))
-    return parse_pdf(path, converter=converter)
+    return path
 
 
-def test_scanned_pdf_has_no_text_layer_to_begin_with(tmp_path):
+def test_scanned_pdf_has_no_text_layer_to_begin_with(scan_pdf):
     """Guards the fixture itself: if it ever grew a text layer the OCR test
     below would pass without OCR running at all.
     """
-    pdfium = pytest.importorskip("pypdfium2")
-    path = tmp_path / "scan.pdf"
-    path.write_bytes(build_scanned_pdf(SCAN_LINES))
+    parsed = parse_pdf(scan_pdf, min_letters=1)
 
-    document = pdfium.PdfDocument(path)
-    try:
-        pages = [document[index] for index in range(len(document))]
-        texts = [page.get_textpage().get_text_bounded().strip() for page in pages]
-    finally:
-        document.close()
-
-    assert texts == ["", ""]
+    assert [segment.markdown for segment in parsed.segments] == ["", ""]
+    assert parsed.pending_pages == (1, 2)
 
 
-def test_scanned_pdf_is_recognised_page_by_page(parsed_scan):
-    assert [segment.locator for segment in parsed_scan.segments] == [{"page": 1}, {"page": 2}]
-    assert "125" in parsed_scan.segments[0].markdown
-    assert "125" not in parsed_scan.segments[1].markdown
+def test_scanned_pdf_is_recognised_page_by_page(scan_pdf):
+    results = dict(recognize_pages(scan_pdf, [1, 2]))
+
+    assert "125" in results[1]
+    assert "125" not in results[2]
+    assert "3x50" in results[2].replace(" ", "")
 
 
-def test_pdf_under_a_cyrillic_path_is_parsed(converter, tmp_path):
-    """Docling's PDF backend cannot open a path with a non-ASCII character in
-    it — not in the file name, not in a directory above it (measured
-    2026-08-14 on the real project documents). Our users' files are named in
-    Russian and live in Russian-named folders, so this is not an edge case:
-    without the stream route most of a real project would not index at all.
+def test_a_page_that_cannot_be_recognised_does_not_end_the_file(scan_pdf):
+    results = list(recognize_pages(scan_pdf, [1, 9, 2]))
+
+    assert [page for page, _ in results] == [1, 9, 2]
+    assert isinstance(results[1][1], ParseError)
+    assert "125" in results[0][1]
+    assert isinstance(results[2][1], str)
+
+
+def test_a_caller_that_needs_the_text_now_gets_both_passes(scan_pdf):
+    """`wiki_add_raw` has no background run to finish the scanned pages later."""
+    parsed = parse_whole(scan_pdf)
+
+    assert "125" in parsed.segments[0].markdown
+    assert parsed.pending_pages == ()
+    assert "125" in parsed.markdown
+
+
+def test_pdf_under_a_cyrillic_path_is_parsed(tmp_path):
+    """Our users' files are named in Russian and live in Russian-named folders.
+    Docling's backend could not open such a path at all (measured 2026-08-14);
+    the text layer is read from bytes, so the path never reaches pdfium.
     """
     directory = tmp_path / "проекты" / "ЖК Нагатинский"
     directory.mkdir(parents=True)
     path = directory / "02-ПЗ-Нагатинская 297-1.pdf"
     path.write_bytes(build_text_pdf([["Installed power report", "125 kW"]]))
 
-    parsed = parse_pdf(path, converter=converter)
+    parsed = parse_pdf(path, min_letters=1)
 
     assert "125 kW" in parsed.markdown
 
 
-def test_unreadable_file_raises_parse_error(converter, tmp_path):
+def test_unreadable_file_raises_parse_error(tmp_path):
     broken = tmp_path / "broken.pdf"
     broken.write_bytes(b"%PDF-1.4\nthis is not a pdf\n")
 
     with pytest.raises(ParseError) as excinfo:
-        parse_pdf(broken, converter=converter)
+        parse_pdf(broken)
 
     assert str(broken) in str(excinfo.value)
 
@@ -285,51 +341,3 @@ def test_split_by_headings_ignores_hashes_inside_a_fenced_block():
 
 def test_split_by_headings_drops_an_empty_preamble():
     assert split_by_headings("\n\n## Первый\n\nтекст") == [("Первый", "## Первый\n\nтекст")]
-
-
-class _FakeDocument:
-    """A document that counts how many times it is serialized."""
-
-    def __init__(self, pages: int, markdown: str) -> None:
-        self._pages = pages
-        self._markdown = markdown
-        self.exports = 0
-
-    def num_pages(self) -> int:
-        return self._pages
-
-    def export_to_markdown(self, **kwargs) -> str:
-        self.exports += 1
-        page_no = kwargs.get("page_no")
-        if page_no is None:
-            return self._markdown
-        return f"страница {page_no}"
-
-
-def test_pages_are_split_from_one_serialization():
-    """`export_to_markdown(page_no=n)` filters a full walk of the document, so
-    calling it per page is quadratic. Measured 2026-08-15 on a real drawing set:
-    Docling converted it in 55 minutes and this loop had not finished 45 minutes
-    after that. One pass plus a split does the same job.
-    """
-    from aec_rag.parse import _PAGE_BREAK, _split_pages
-
-    document = _FakeDocument(3, f"первая{_PAGE_BREAK}вторая{_PAGE_BREAK}третья")
-
-    assert _split_pages(document, document.export_to_markdown()) == ["первая", "вторая", "третья"]
-    assert document.exports == 1
-
-
-def test_a_split_that_does_not_line_up_falls_back_rather_than_shifting_pages():
-    """A locator off by one page sends the reader to the wrong place while
-    looking perfectly valid — worse than being slow.
-    """
-    from aec_rag.parse import _PAGE_BREAK, _split_pages
-
-    document = _FakeDocument(3, f"первая{_PAGE_BREAK}вторая")
-
-    assert _split_pages(document, document.export_to_markdown()) == [
-        "страница 1",
-        "страница 2",
-        "страница 3",
-    ]

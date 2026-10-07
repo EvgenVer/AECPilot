@@ -503,14 +503,21 @@ export interface RagStatus {
    * UR24's «ask before spending», with the size of the spend attached. */
   graph_pending: { chunks_estimate: number; documents: number; not_indexed: number }
   last_ingest_at: null | string
+  /** Scanned PDF pages the second pass has yet to recognise (task 3H.15). */
+  pages_pending?: number
   stale_count: number
 }
 
-/** One step of an ingest run, as the CLI reports it (task 2.15). */
+/** One step of an ingest run, as the CLI reports it (task 2.15). `phase` names
+ * the pass (task 3H.15): `text` — the text layer and every other format, `ocr` —
+ * recognition of scanned pages; in it `page` of `pages` are the file's pages. */
 export interface IngestProgressEvent {
   chunks: number
   done: number
   error: string
+  page?: number
+  pages?: number
+  phase?: string
   rel_path: string
   source_id: string
   stage: string
@@ -525,14 +532,35 @@ export interface IngestRunReport {
   files_ingested: number
   files_skipped: number
   files_total: number
+  pages_failed?: number
+  pages_recognized?: number
   removed_chunks: number
+  /** Stopped on request between two files or pages (task 3H.16). */
+  stopped?: boolean
+}
+
+/** One file of the run, as the Index page lists it (task 3H.19). */
+export interface IngestFileRow {
+  error: string
+  /** Pages of the second pass done / waiting for it. */
+  pagesDone: number
+  pagesWaiting: number
+  rel_path: string
+  source_id: string
+  /** `read` — text pass done, nothing waits; `waiting` — scanned pages wait;
+   *  `recognizing` — the second pass is on it; `done` — every page is in. */
+  state: 'done' | 'failed' | 'read' | 'recognizing' | 'skipped' | 'waiting'
 }
 
 export interface IngestState {
   error: null | string
+  /** Files the current (or last) run touched, in the order it reached them. */
+  files: IngestFileRow[]
   lastReport: IngestRunReport | null
   progress: IngestProgressEvent | null
   running: boolean
+  /** «Остановить» was pressed; the run ends at the next file or page. */
+  stopping: boolean
 }
 
 /** Единица выбора UR24: папка (в том числе корень источника) либо файл. */
@@ -1379,7 +1407,15 @@ export interface AecpilotApi {
   /** Starts a tier-1 ingest of everything scanned but not indexed. Returns
    * immediately — progress arrives through `onIngestState`. `full` re-reads
    * every file rather than only the changed ones. */
-  startIngest(full?: boolean, rebuild?: boolean): Promise<{ error?: string; started: boolean }>
+  startIngest(
+    full?: boolean,
+    rebuild?: boolean,
+    /** Task 3H.18: only this folder or file of a source. */
+    target?: { kind: GraphScopeKind; rel: string; sourceId: string }
+  ): Promise<{ error?: string; started: boolean }>
+  /** Task 3H.16: stop the running ingest at the next file or page. What it
+   *  finished stays; the next run continues from there. */
+  cancelIngest(): Promise<{ stopping: boolean }>
   /** Задача 3G.7: провайдер сменил модель эмбеддингов, а индекс построен прежней
    *  (`null` — менять нечего). Только чтение: перестраивает `startIngest(true, true)`
    *  и только после согласия человека. */

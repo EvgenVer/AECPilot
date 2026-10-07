@@ -6,6 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
 from aec_rag import __main__ as aec_rag_main
 from aec_rag.__main__ import explain_operational_error, main
 from aec_rag.db import open_index
@@ -404,3 +405,23 @@ def test_graph_preview_on_an_empty_index_marks_nothing(tmp_path, capsys):
     assert report["not_indexed"] == 1
     assert [entry["path"] for entry in report["adds"]] == ["src-1"]
     assert project_json.read_bytes() == before
+
+
+def test_ingest_path_names_a_source_and_a_place_inside_it():
+    """`ingest --path` (task 3H.18) takes `<source>/<rel path>`, the shape the
+    graph commands take — the tree's two menu items name a place alike."""
+    from aec_rag.__main__ import _narrow
+
+    roots = {"tasks": "D:/ИД", "kr": "D:/КР"}
+
+    assert _narrow(roots, ["tasks/ИГИ/297-1.pdf", "kr"]) == (
+        ["kr", "tasks"],
+        ["ИГИ/297-1.pdf", ""],
+    )
+
+
+def test_ingest_path_outside_every_source_is_refused_by_name():
+    from aec_rag.__main__ import _narrow
+
+    with pytest.raises(ValueError, match="чужой/файл.pdf"):
+        _narrow({"tasks": "D:/ИД"}, ["чужой/файл.pdf"])

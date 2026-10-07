@@ -596,7 +596,8 @@ def add_raw(
     """Кладёт сырой источник в ``wiki/raw/user/<kind>/<name>.md``.
 
     В индекс и поиск по документам он НЕ попадает (UR6): это отдельная явная
-    команда. Файл разбирается тем же Docling, что у индекса, но сам не
+    команда. Файл разбирается тем же разбором, что у индекса, — у PDF сразу оба
+    прохода, слой и распознавание сканов (`parse_whole`), — но сам не
     копируется — в заголовке записан путь к нему и его ``source_sha256``, по
     которому ``stale_snapshots`` видит, что оригинал на диске изменился.
     """
@@ -612,7 +613,7 @@ def add_raw(
         if not source.is_file():
             raise WikiRefusal(f"файла нет: {source_path}")
         if parse is None:
-            from aec_rag.parse import parse_file as parse
+            from aec_rag.parse import parse_whole as parse
         body = _file_text(source, parse)
         fields["source_path"] = str(source)
         fields["source_sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()

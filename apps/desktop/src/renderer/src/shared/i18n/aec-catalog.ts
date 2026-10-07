@@ -171,7 +171,25 @@ export const aecLocales: PluginLocaleBundles = {
       graphPartial: (outside: number) => `${outside} document(s) are outside the graph.`,
       graphPending: (documents: number, chunks: number) =>
         `${documents} new document(s) in a marked folder are not in the graph — about ${chunks} fragments of work. They are already searchable.`,
-      graphRunning: (done: number, total: number) => `building the graph: ${done} of ${total}`
+      graphRunning: (done: number, total: number) => `building the graph: ${done} of ${total}`,
+      runningText: (done: number, total: number) => `Reading text: file ${done} of ${total}`,
+      runningOcr: (done: number, total: number, page: number, pages: number) =>
+        `Recognising scans: file ${done} of ${total}, page ${page} of ${pages}`,
+      stop: 'Stop',
+      stopping: 'Stopping…',
+      stopped: 'Stopped. What was done is kept — «Index» continues from where it stopped.',
+      pagesPending: (pages: number) =>
+        `${pages} scanned page(s) are waiting for recognition — the rest of their files is already searchable. «Index» continues.`,
+      recognized: (pages: number) => `Recognised ${pages} scanned page(s).`,
+      filesTitle: 'Files of the run',
+      fileRead: 'read',
+      fileWaiting: (pages: number) => `${pages} page(s) wait for recognition`,
+      fileRecognizing: (page: number, pages: number) => `recognising: page ${page} of ${pages}`,
+      fileDone: 'done',
+      fileFailed: (reason: string) => `failed: ${reason}`,
+      fileSkipped: 'skipped',
+      providerOpen: 'Search and memory provider',
+      menu: 'Index'
     },
     graphAdd: {
       menu: 'Add to the knowledge graph',
@@ -780,7 +798,25 @@ export const aecLocales: PluginLocaleBundles = {
       graphPartial: (outside: number) => `${outside} документ(ов) вне графа.`,
       graphPending: (documents: number, chunks: number) =>
         `${documents} новых документ(ов) в отмеченной папке не в графе — работы примерно на ${chunks} фрагментов. Поиском они уже находятся.`,
-      graphRunning: (done: number, total: number) => `строю граф: ${done} из ${total}`
+      graphRunning: (done: number, total: number) => `строю граф: ${done} из ${total}`,
+      runningText: (done: number, total: number) => `Читаю текст: файл ${done} из ${total}`,
+      runningOcr: (done: number, total: number, page: number, pages: number) =>
+        `Распознаю сканы: файл ${done} из ${total}, страница ${page} из ${pages}`,
+      stop: 'Остановить',
+      stopping: 'Останавливаю…',
+      stopped: 'Остановлено. Готовое сохранено — «Проиндексировать» продолжит с места остановки.',
+      pagesPending: (pages: number) =>
+        `${pages} стр. сканов ждут распознавания — остальной текст их файлов уже ищется. «Проиндексировать» продолжит.`,
+      recognized: (pages: number) => `Распознано страниц сканов: ${pages}.`,
+      filesTitle: 'Файлы прогона',
+      fileRead: 'прочитан',
+      fileWaiting: (pages: number) => `${pages} стр. ждут распознавания`,
+      fileRecognizing: (page: number, pages: number) => `распознаю: стр. ${page} из ${pages}`,
+      fileDone: 'готов',
+      fileFailed: (reason: string) => `ошибка: ${reason}`,
+      fileSkipped: 'пропущен',
+      providerOpen: 'Провайдер поиска и памяти',
+      menu: 'Проиндексировать'
     },
     graphAdd: {
       menu: 'Добавить в граф знаний',

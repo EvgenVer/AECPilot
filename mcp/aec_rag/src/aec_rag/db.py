@@ -68,6 +68,22 @@ CREATE TABLE IF NOT EXISTS graph_documents (
     added_at TEXT NOT NULL,
     UNIQUE (source_id, rel_path)
 );
+
+-- PDF pages without a usable text layer and their recognition (task 3H.13).
+-- Only such pages have a row: a page read from its layer is done in the first
+-- pass. `sha256` is the content the row belongs to — a changed file starts over.
+-- `text` keeps what recognition read, so a full re-index or a rebuild for
+-- another embedding model never recognises the same page twice.
+CREATE TABLE IF NOT EXISTS pdf_pages (
+    source_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    page INTEGER NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('pending', 'done', 'failed')),
+    text TEXT,
+    error TEXT,
+    UNIQUE (source_id, rel_path, page)
+);
 """
 
 

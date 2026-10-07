@@ -11,6 +11,7 @@
 import { atom } from 'nanostores'
 
 import type { GraphScopeKind } from '../../../../shared/ipc'
+import { openIndexPage } from '../workspace-pages'
 
 export interface GraphTarget {
   kind: GraphScopeKind
@@ -29,4 +30,18 @@ export function askGraphAdd(target: GraphTarget): void {
 
 export function closeGraphAdd(): void {
   $graphTarget.set(null)
+}
+
+/** «Проиндексировать» на папке или файле дерева (задача 3H.18): индексируется
+ *  только выбранное, оба прохода, и человек сразу видит ход на странице
+ *  «Индекс». Цель — та же пара «источник и запись», что у графа: путь собирает
+ *  главный процесс. Отказ из дерева возможен один — «индексация уже идёт», и
+ *  страница, на которую мы переходим, показывает ту, что идёт. */
+export async function indexTarget(target: GraphTarget): Promise<void> {
+  await window.aecpilot.startIngest(false, false, {
+    kind: target.kind,
+    rel: target.rel,
+    sourceId: target.sourceId
+  })
+  openIndexPage()
 }

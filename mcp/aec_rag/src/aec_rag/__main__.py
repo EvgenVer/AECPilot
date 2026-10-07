@@ -151,13 +151,17 @@ def run_detach(project_arg: Path, source_id: str) -> dict:
     return {"source_id": source_id, "detached": detached}
 
 
-def run_ingest(project_arg: Path, *, mode: str) -> dict:
+def run_ingest(project_arg: Path, *, mode: str, paths: list[str] | None = None) -> dict:
     """Tier-1 ingest over every scanned file (task 2.10), reporting as it goes.
 
     Progress is written to stdout as one JSON object per line while the run is
     in flight, and the final report is the last line. That shape is what lets
     the desktop app show a live indicator without a second channel — it is the
     same thing `scan` already does, and the app already knows how to read it.
+
+    ``paths`` narrows the run to those files and folders (task 3H.18) — each a
+    ``<source>/<rel path>`` string, the shape `graph-add` takes. Both passes
+    honour it.
     """
     import asyncio
 
@@ -173,16 +177,72 @@ def run_ingest(project_arg: Path, *, mode: str) -> dict:
     def emit(progress) -> None:
         print(json.dumps({"progress": progress.as_dict()}, ensure_ascii=False), flush=True)
 
+    stop = _listen_for_stop()
+
     async def run() -> dict:
         conn = open_index(project_path.parent / "index.db")
         try:
             rag = await open_rag_index(vault, settings)
-            report = await ingest(conn, rag, roots, mode=mode, on_progress=emit)
+            source_ids, rel_paths = (None, None) if not paths else _narrow(roots, paths)
+            report = await ingest(
+                conn,
+                rag,
+                roots,
+                mode=mode,
+                source_ids=source_ids,
+                rel_paths=rel_paths,
+                on_progress=emit,
+                should_stop=stop.is_set,
+            )
             return report.as_dict()
         finally:
             conn.close()
 
     return asyncio.run(run())
+
+
+def _listen_for_stop():
+    """A line «stop» on stdin asks the run to stop at the next file or page
+    (task 3H.16) — how the desktop's «Остановить» reaches it without killing a
+    process that may be in the middle of writing the vector store. The end of
+    stdin is not a request: a run started with no stdin at all must not stop
+    at once."""
+    import threading
+
+    stop = threading.Event()
+
+    def listen() -> None:
+        try:
+            for line in sys.stdin:
+                if line.strip() == "stop":
+                    stop.set()
+                    return
+        except (OSError, ValueError):
+            return
+
+    threading.Thread(target=listen, daemon=True).start()
+    return stop
+
+
+def _narrow(roots: dict[str, str], paths: list[str]) -> tuple[list[str], list[str]]:
+    """``<source>/<rel path>`` strings → the sources and the paths inside them.
+
+    The same shape the graph commands take (`graph_scope.file_path`), so the
+    tree's «Проиндексировать» and «Добавить в граф» name a place alike. A path
+    in no connected source is refused by name: «index this» on something the
+    index does not cover would otherwise finish silently with nothing done.
+    """
+    from aec_rag.graph_scope import clean_path
+
+    source_ids: list[str] = []
+    rel_paths: list[str] = []
+    for raw in paths:
+        source_id, _, rel = clean_path(raw).partition("/")
+        if source_id not in roots:
+            raise ValueError(f"путь вне подключённых источников: {raw}")
+        source_ids.append(source_id)
+        rel_paths.append(rel)
+    return sorted(set(source_ids)), rel_paths
 
 
 def run_graph_preview(project_arg: Path, paths: list[str], kind: str) -> dict:
@@ -436,6 +496,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Drop the built index first (another embedding model), then re-read every file",
     )
+    ingest_parser.add_argument(
+        "--path",
+        action="append",
+        dest="paths",
+        default=None,
+        help="Only this <source>/<path> file or folder (repeatable)",
+    )
 
     status_parser = subparsers.add_parser("status", help="Print what the index holds")
     status_parser.add_argument("--project", required=True, type=Path)
@@ -495,7 +562,9 @@ def main(argv: list[str] | None = None) -> int:
 
                 drop_index(_resolve_project_json(args.project).parent.parent)
             full = args.full or args.rebuild
-            report = run_ingest(args.project, mode="full" if full else "incremental")
+            report = run_ingest(
+                args.project, mode="full" if full else "incremental", paths=args.paths
+            )
         elif args.command == "serve":
             run_serve(args.project)
             return 0

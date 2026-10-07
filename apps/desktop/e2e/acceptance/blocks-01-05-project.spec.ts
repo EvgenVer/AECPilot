@@ -10,7 +10,7 @@
 // открытого проекта, и только он вправе его открыть. Файл идёт одним воркером
 // сверху вниз (так же устроен smoke).
 
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   cpSync,
   existsSync,
@@ -662,6 +662,131 @@ test('4.6.3 файл из этой папки открывается во вью
   // Вьюер показывает содержимое файла, а не его имя в списке.
   await expect(page.getByText('Нагрузка щита 42 кВт')).toBeVisible({ timeout: 30000 })
   await clickEntry(page, oneDrive)
+})
+
+// Задачи 3H.18 и 3H.19 (UR8): индексация выборочно — правым кликом по папке или
+// файлу дерева, — и ход виден на странице «Индекс».
+const indexPage = (page: Page): Locator => page.getByRole('region', { name: 'Индекс', exact: true })
+
+test('4.7.1 «Проиндексировать» есть у папки и у файла; файл уходит в индексацию, «Остановить» её гасит', async () => {
+  const page = await ui()
+  await clickEntry(page, sample.sourceA)
+  const file = row(page, SAMPLE.docx)
+  await expect(file).toBeVisible({ timeout: 30000 })
+
+  await row(page, sample.sourceA).click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: 'Проиндексировать' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await file.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Проиндексировать' }).click()
+  const region = indexPage(page)
+  await expect(region).toBeVisible({ timeout: 15000 })
+
+  // Задача 3H.16 на настоящем процессе: «Остановить» гасит прогон, и это не
+  // ошибка. Стенд без ключа провайдера, поэтому прогон сам не кончается быстро —
+  // ровно тот случай, ради которого кнопка есть.
+  const stop = region.getByRole('button', { name: 'Остановить' })
+  await expect(stop).toBeVisible({ timeout: 30000 })
+  const pressed = Date.now()
+  await stop.click()
+  await expect
+    .poll(async () => (await page.evaluate(() => window.aecpilot.getIngestState())).running, {
+      intervals: [250],
+      timeout: 30000
+    })
+    .toBe(false)
+  console.log(`4.7.1 остановка заняла ${Date.now() - pressed} мс`)
+  expect((await page.evaluate(() => window.aecpilot.getIngestState())).error).toBeNull()
+
+  await page.evaluate(() => {
+    location.hash = '#/'
+  })
+  await clickEntry(page, sample.sourceA)
+})
+
+test('4.7.2 страница «Индекс» на ходу: стадия, страница N из M, файлы и «Остановить»', async () => {
+  const page = await ui()
+  await page.evaluate(() => {
+    location.hash = '#/aec-index'
+  })
+  await expect(indexPage(page)).toBeVisible({ timeout: 15000 })
+  await expect(indexPage(page).getByRole('button', { name: 'Проиндексировать' })).toBeVisible({
+    timeout: 30000
+  })
+
+  // Подменный ход — то, что главный процесс шлёт окну во время настоящего прогона.
+  const send = (state: unknown): Promise<void> =>
+    stand.get().app.evaluate(({ BrowserWindow }, next) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('index:ingest-state', next)
+      }
+    }, state)
+  await send({
+    error: null,
+    files: [
+      {
+        error: '',
+        pagesDone: 3,
+        pagesWaiting: 150,
+        rel_path: 'ИГИ/297-1.pdf',
+        source_id: 'tasks',
+        state: 'recognizing'
+      },
+      {
+        error: '',
+        pagesDone: 0,
+        pagesWaiting: 0,
+        rel_path: 'ИГИ/ПЗ.docx',
+        source_id: 'tasks',
+        state: 'read'
+      }
+    ],
+    lastReport: null,
+    progress: {
+      chunks: 1,
+      done: 1,
+      error: '',
+      page: 3,
+      pages: 150,
+      phase: 'ocr',
+      rel_path: 'ИГИ/297-1.pdf',
+      source_id: 'tasks',
+      stage: 'page',
+      total: 2
+    },
+    running: true,
+    stopping: false
+  })
+
+  const region = indexPage(page)
+  await expect(region.getByRole('status')).toHaveText(
+    'Распознаю сканы: файл 1 из 2, страница 3 из 150'
+  )
+  await expect(region.getByText('распознаю: стр. 3 из 150')).toBeVisible()
+  await expect(region.getByText('прочитан', { exact: true })).toBeVisible()
+  await expect(region.getByRole('button', { name: 'Остановить' })).toBeVisible()
+  await expect(region.getByRole('button', { name: 'Провайдер поиска и памяти' })).toBeVisible()
+  // Строка боковой панели несёт тот же ход. Строки живут на вкладке «Сеансы»
+  // левой колонки; тест стоит на вкладке «Vault» и возвращается на неё.
+  await page.getByRole('tab', { name: 'Сеансы' }).click()
+  await expect(
+    page.locator('[data-tour="sessions-sidebar"]').getByRole('button', { name: /^Индекс · 1\/2/ })
+  ).toBeVisible()
+  await page.getByRole('tab', { name: /^Vault/ }).click()
+
+  await send({
+    error: null,
+    files: [],
+    lastReport: null,
+    progress: null,
+    running: false,
+    stopping: false
+  })
+  await expect(region.getByRole('button', { name: 'Остановить' })).toHaveCount(0)
+  await page.evaluate(() => {
+    location.hash = '#/'
+  })
 })
 
 // ── Блок 5. Детект изменений ────────────────────────────────────────────────

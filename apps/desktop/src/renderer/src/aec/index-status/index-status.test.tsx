@@ -21,10 +21,18 @@ const startIngest = vi.fn()
 const getGraphAddState = vi.fn()
 const getEmbeddingSwitch = vi.fn()
 const getDataProviders = vi.fn()
+const cancelIngest = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
-const IDLE: IngestState = { error: null, lastReport: null, progress: null, running: false }
+const IDLE: IngestState = {
+  error: null,
+  files: [],
+  lastReport: null,
+  progress: null,
+  running: false,
+  stopping: false
+}
 const GRAPH_IDLE: GraphAddState = {
   error: null,
   lastReport: null,
@@ -62,6 +70,7 @@ beforeEach(() => {
     startIngest,
     getGraphAddState,
     getEmbeddingSwitch,
+    cancelIngest,
     onIngestState: (cb: (state: IngestState) => void) => {
       emitIngestState = cb
       return () => {}
@@ -255,6 +264,80 @@ describe('IndexStatus', () => {
     })
 
     expect(window.location.hash).toBe('#/aec-index')
+  })
+
+  it('второй проход называет файл и страницу, «Остановить» уходит в главный процесс (3H.15, 3H.16)', async () => {
+    await renderPage()
+
+    await act(async () => {
+      emitIngestState({
+        ...IDLE,
+        files: [
+          {
+            error: '',
+            pagesDone: 3,
+            pagesWaiting: 150,
+            rel_path: 'ИГИ/297-1.pdf',
+            source_id: 'tasks',
+            state: 'recognizing'
+          },
+          {
+            error: '',
+            pagesDone: 0,
+            pagesWaiting: 0,
+            rel_path: 'ИГИ/ПЗ.docx',
+            source_id: 'tasks',
+            state: 'read'
+          }
+        ],
+        progress: {
+          chunks: 1,
+          done: 1,
+          error: '',
+          page: 3,
+          pages: 150,
+          phase: 'ocr',
+          rel_path: 'ИГИ/297-1.pdf',
+          source_id: 'tasks',
+          stage: 'page',
+          total: 2
+        },
+        running: true
+      })
+    })
+
+    expect(screen.getByRole('status').textContent).toBe(
+      'Распознаю сканы: файл 1 из 2, страница 3 из 150'
+    )
+    expect(screen.getByText('распознаю: стр. 3 из 150')).toBeTruthy()
+    expect(screen.getByText('прочитан')).toBeTruthy()
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Остановить' }).click()
+    })
+    expect(cancelIngest).toHaveBeenCalledTimes(1)
+  })
+
+  it('остановленный прогон говорит, что готовое сохранено и что продолжит (3H.16)', async () => {
+    getIndexStatus.mockResolvedValue({ ok: true, status: status({ pages_pending: 147 }) })
+    getIngestState.mockResolvedValue({
+      ...IDLE,
+      lastReport: {
+        chunks: 40,
+        errors: [],
+        files_failed: 0,
+        files_ingested: 1,
+        files_skipped: 0,
+        files_total: 3,
+        removed_chunks: 0,
+        stopped: true
+      }
+    })
+    await renderPage()
+
+    await waitFor(() => expect(screen.getByText(/Остановлено\. Готовое сохранено/)).toBeTruthy())
+    expect(screen.getByText(/147 стр\. сканов ждут распознавания/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Остановить' })).toBeNull()
   })
 
   it('shows nothing at all when no project is open', async () => {

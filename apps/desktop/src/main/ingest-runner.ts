@@ -11,7 +11,12 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
-import { type IngestProgress, type IngestReport, readIngestLines } from './ingest-progress-pure'
+import {
+  type IngestProgress,
+  type IngestReport,
+  readIngestLines,
+  watchSilence
+} from './ingest-progress-pure'
 import type { RagStatus } from '../shared/ipc'
 
 // TODO(Phase 6 / task 6.2): same packaged-app caveat as scan-runner's.
@@ -26,12 +31,27 @@ function aecRagBinPath(): string {
     : join(repoRoot, '.venv', 'bin', 'aec-rag')
 }
 
-// An ingest of a real project is parsing, OCR and embedding over hundreds of
-// documents — the measurement in 2.9a puts a single ТЗ at 99 s of parsing
-// alone. An hour is not a budget, it is a ceiling that keeps a wedged process
-// from leaving the indicator spinning forever.
-export const DEFAULT_INGEST_TIMEOUT_MS = 60 * 60 * 1000
+// D-183, task 3H.17: the run ends when it goes quiet, not when it gets long. The
+// hour that stood here cut off a folder of scanned reports in the middle of its
+// third file (owner's acceptance, 2026-10-07): recognition takes 2–11 s a page
+// and a report has hundreds of them, yet every page is a line of output. A
+// wedged process says nothing — and fifteen minutes covers the longest silent
+// step there is, the embeddings of one large file or Docling on one big DOCX.
+export const DEFAULT_INGEST_SILENCE_MS = 15 * 60 * 1000
+// Task 3H.16: «Остановить» asks the run to stop at the next file or page, which
+// keeps the vector store whole. A page is 2–11 s; if the run has not stopped by
+// this, it is ended outright.
+export const STOP_GRACE_MS = 20 * 1000
 export const DEFAULT_STATUS_TIMEOUT_MS = 30 * 1000
+
+/** The run was stopped on request and ended before it could report — what it
+ *  finished is stored all the same. Not a failure, and not shown as one. */
+export class IngestStoppedError extends Error {
+  constructor() {
+    super('Индексация остановлена')
+    this.name = 'IngestStoppedError'
+  }
+}
 
 export type IngestOutcome = {
   progress: IngestProgress[]
@@ -46,15 +66,20 @@ export function runIngest(
   options: {
     extraEnv?: Record<string, string>
     full?: boolean
+    /** Task 3H.18: only these `<source>/<rel path>` files and folders. */
+    paths?: string[]
     /** Task 3G.7: drop the index built by another embedding model first. */
     rebuild?: boolean
-    timeoutMs?: number
+    /** Task 3H.16: aborting asks the run to stop at the next file or page. */
+    signal?: AbortSignal
+    silenceMs?: number
   } = {}
 ): Promise<IngestOutcome> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_INGEST_TIMEOUT_MS
+  const silenceMs = options.silenceMs ?? DEFAULT_INGEST_SILENCE_MS
   const args = ['ingest', '--project', vaultPath]
   if (options.full) args.push('--full')
   if (options.rebuild) args.push('--rebuild')
+  for (const path of options.paths ?? []) args.push('--path', path)
 
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args, {
@@ -62,7 +87,9 @@ export function runIngest(
       // человека лежит в нашем зашифрованном хранилище — без него каждый файл
       // падает с «чанки есть, а векторов нет».
       env: { ...process.env, ...options.extraEnv, ...AEC_RAG_UTF8 },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      // stdin is the stop channel (task 3H.16): a line «stop» ends the run at
+      // the next file or page.
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     })
 
@@ -71,23 +98,50 @@ export function runIngest(
     let pending = ''
     let report: IngestReport | undefined
     let settled = false
+    let stopRequested = false
+    let graceTimer: ReturnType<typeof setTimeout> | null = null
 
-    const timeoutTimer = setTimeout(() => {
-      if (settled) return
+    const finish = (): void => {
       settled = true
+      silence.stop()
+      if (graceTimer) clearTimeout(graceTimer)
+      options.signal?.removeEventListener('abort', requestStop)
+    }
+
+    const silence = watchSilence(silenceMs, () => {
+      if (settled) return
+      finish()
       proc.kill()
       reject(
         new Error(
-          `aec-rag ingest не завершился за ${Math.round(timeoutMs / 60000)} мин — процесс принудительно остановлен`
+          `aec-rag ingest молчал ${Math.round(silenceMs / 60000)} мин — процесс остановлен. ` +
+            'Готовое сохранено; следующий запуск продолжит с места остановки.'
         )
       )
-    }, timeoutMs)
+    })
+
+    // Killing the aec-rag.exe launcher ends the python it started (measured
+    // 2026-10-07: the child goes with it), so `kill()` on the grace path is
+    // enough to free the index.
+    function requestStop(): void {
+      if (settled || stopRequested) return
+      stopRequested = true
+      proc.stdin.write('stop\n')
+      graceTimer = setTimeout(() => {
+        if (!settled) proc.kill()
+      }, STOP_GRACE_MS)
+    }
+    if (options.signal?.aborted) requestStop()
+    else options.signal?.addEventListener('abort', requestStop)
+    // A closed pipe on a process that has just exited must not crash main.
+    proc.stdin.on('error', () => undefined)
 
     // Decoded per chunk rather than at the end: this stream is the progress
     // indicator, and holding it until the process exits would defeat it. A
     // multi-byte character split across a chunk boundary is handled by
     // `readIngestLines`, which only ever hands complete lines on.
     proc.stdout.on('data', (chunk: Buffer) => {
+      silence.poke()
       const parsed = readIngestLines(pending + chunk.toString('utf8'))
       pending = parsed.rest
       for (const event of parsed.progress) {
@@ -98,28 +152,31 @@ export function runIngest(
     })
 
     proc.stderr.on('data', (chunk: Buffer) => {
+      silence.poke()
       stderrChunks.push(chunk)
     })
 
     proc.on('error', (error: Error) => {
       if (settled) return
-      settled = true
-      clearTimeout(timeoutTimer)
+      finish()
       reject(new Error(`не удалось запустить aec-rag ingest: ${error.message}`))
     })
 
     proc.on('close', (code) => {
       if (settled) return
-      settled = true
-      clearTimeout(timeoutTimer)
+      finish()
 
+      const tail = readIngestLines(pending + '\n')
+      const finalReport = tail.report ?? report
       if (code !== 0) {
+        if (stopRequested) {
+          reject(new IngestStoppedError())
+          return
+        }
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
         reject(new Error(`aec-rag ingest завершился с ошибкой (код ${code}): ${stderr.trim()}`))
         return
       }
-      const tail = readIngestLines(pending + '\n')
-      const finalReport = tail.report ?? report
       if (!finalReport) {
         reject(new Error('aec-rag ingest не отчитался о результате'))
         return

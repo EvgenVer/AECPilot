@@ -6,25 +6,11 @@
 // the awkward parts have tests: a line split across two reads, a partial line
 // at the end, and a line that is not ours at all.
 
-export type IngestProgress = {
-  chunks: number
-  done: number
-  error: string
-  rel_path: string
-  source_id: string
-  stage: string
-  total: number
-}
+import type { IngestFileRow, IngestProgressEvent, IngestRunReport } from '../shared/ipc'
 
-export type IngestReport = {
-  chunks: number
-  errors: { error: string; rel_path: string; source_id: string }[]
-  files_failed: number
-  files_ingested: number
-  files_skipped: number
-  files_total: number
-  removed_chunks: number
-}
+export type IngestProgress = IngestProgressEvent
+
+export type IngestReport = IngestRunReport
 
 export type IngestLines = {
   progress: IngestProgress[]
@@ -94,7 +80,7 @@ export function isProgress(value: unknown): value is IngestProgress {
   return typeof record.stage === 'string' && typeof record.done === 'number'
 }
 
-function isReport(value: Record<string, unknown>): value is IngestReport {
+function isReport(value: Record<string, unknown>): value is Record<string, unknown> & IngestReport {
   return typeof value.files_total === 'number' && typeof value.files_ingested === 'number'
 }
 
@@ -105,4 +91,77 @@ export function describeProgress(progress: IngestProgress | null): null | string
   if (progress.stage === 'started') return `0 / ${progress.total}`
   if (progress.stage === 'finished') return null
   return `${progress.done} / ${progress.total}`
+}
+
+/** The run's files as the Index page lists them (task 3H.19), updated by one
+ *  progress event. A new run (`started` of the text pass) starts the list over;
+ *  every other event updates the row of its file, adding it on first sight. */
+export function applyIngestEvent(rows: IngestFileRow[], event: IngestProgress): IngestFileRow[] {
+  const ocr = event.phase === 'ocr'
+  if (event.stage === 'started') return ocr ? rows : []
+  if (!event.rel_path) return rows
+
+  const index = rows.findIndex(
+    (row) => row.source_id === event.source_id && row.rel_path === event.rel_path
+  )
+  const row: IngestFileRow =
+    index === -1
+      ? {
+          error: '',
+          pagesDone: 0,
+          pagesWaiting: 0,
+          rel_path: event.rel_path,
+          source_id: event.source_id,
+          state: 'read'
+        }
+      : rows[index]
+
+  let next: IngestFileRow = row
+  if (ocr) {
+    const pages = event.pages ?? 0
+    const page = event.page ?? 0
+    next = {
+      ...row,
+      error: event.stage === 'failed' ? event.error : row.error,
+      pagesDone: page,
+      pagesWaiting: pages,
+      state: page >= pages ? 'done' : 'recognizing'
+    }
+  } else if (event.stage === 'file') {
+    const waiting = event.pages ?? 0
+    next = { ...row, pagesWaiting: waiting, state: waiting > 0 ? 'waiting' : 'read' }
+  } else if (event.stage === 'failed') {
+    next = { ...row, error: event.error, state: 'failed' }
+  } else if (event.stage === 'skipped') {
+    next = { ...row, error: event.error, state: 'skipped' }
+  }
+
+  if (index === -1) return [...rows, next]
+  return rows.map((current, position) => (position === index ? next : current))
+}
+
+/** D-183: a run is ended when it goes quiet, not when it gets long. A project
+ *  of scanned reports recognises for hours and reports every page; a wedged
+ *  process says nothing. `poke` on every line of output; `onSilent` fires once
+ *  if `limitMs` pass without one. */
+export function watchSilence(
+  limitMs: number,
+  onSilent: () => void
+): { poke: () => void; stop: () => void } {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const arm = (): void => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = null
+      onSilent()
+    }, limitMs)
+  }
+  arm()
+  return {
+    poke: arm,
+    stop: () => {
+      if (timer) clearTimeout(timer)
+      timer = null
+    }
+  }
 }

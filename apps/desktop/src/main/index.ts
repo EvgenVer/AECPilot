@@ -149,6 +149,7 @@ import {
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import { decideGraphMark } from './graph-scope-pure'
+import { applyIngestEvent } from './ingest-progress-pure'
 import { decideFactsOpen } from './memory-facts-pure'
 import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
 import type {
@@ -1441,7 +1442,6 @@ function applyDisabledToolsets(homeDir: string): void {
     console.error('aecpilot: could not write config.yaml with the disabled toolsets', error)
   }
 }
-
 
 /** Builds the spawn-env override for `startServe` (task 0.15, extended to a
  * provider map by 1.6.B2.5): every stored credential env var that decrypts on
@@ -4340,7 +4340,6 @@ ipcMain.handle('connection:apply', async (_event, input: unknown) => {
   return { ...outcome, ok: false, error: connected.error, sshError: connected.sshError }
 })
 
-
 // Задача 3.24. Плавающая лента поверх чужих окон. Решения о границах и
 // прозрачности — в `hud.ts` и `hud-pure.ts`.
 ipcMain.handle('hud:open', (_event, request: unknown) =>
@@ -4840,10 +4839,14 @@ ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
 // nobody asked for.
 let ingestState: IngestState = {
   error: null,
+  files: [],
   lastReport: null,
   progress: null,
-  running: false
+  running: false,
+  stopping: false
 }
+// Task 3H.16: «Остановить» aborts this; the run stops at the next file or page.
+let ingestAbort: AbortController | null = null
 
 function publishIngestState(next: Partial<IngestState>): void {
   ingestState = { ...ingestState, ...next }
@@ -4908,13 +4911,28 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
     typeof payload === 'object' &&
     payload !== null &&
     (payload as { rebuild?: unknown }).rebuild === true
+  // Task 3H.18: «Проиндексировать» on a folder or a file of the tree. The path
+  // is built here, the same way the graph's is — the window does not build paths.
+  const target =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { target?: unknown }).target
+      : undefined
+  let paths: string[] | undefined
+  if (target !== undefined && target !== null) {
+    const sourceIds = listProjectSources(currentProject.vaultPath).map((source) => source.id)
+    const decision = decideGraphMark(target, sourceIds)
+    if (!decision.ok) return { started: false, error: decision.error }
+    paths = [decision.path]
+  }
   // Captured at start: the run belongs to the project it began against, and a
   // project switch mid-run must not make its report land on somebody else's
   // indicator (the same rule the scan runner already follows).
   const vaultPath = currentProject.vaultPath
-  const { runIngest } = await import('./ingest-runner')
+  const { IngestStoppedError, runIngest } = await import('./ingest-runner')
+  const abort = new AbortController()
+  ingestAbort = abort
 
-  publishIngestState({ error: null, progress: null, running: true })
+  publishIngestState({ error: null, files: [], progress: null, running: true, stopping: false })
 
   // D-114. Индексация берёт только просканированные файлы, а подключение папки
   // скана не запускает — до следующего по расписанию (5 минут) «Проиндексировать»
@@ -4928,27 +4946,41 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
         vaultPath,
         (progress) => {
           if (currentProject?.vaultPath !== vaultPath) return
-          publishIngestState({ progress })
+          publishIngestState({ files: applyIngestEvent(ingestState.files, progress), progress })
         },
-        { extraEnv: buildExtraEnv(), full, rebuild }
+        { extraEnv: buildExtraEnv(), full, paths, rebuild, signal: abort.signal }
       )
     )
     .then(({ report }) => {
       if (currentProject?.vaultPath !== vaultPath) {
-        publishIngestState({ progress: null, running: false })
+        publishIngestState({ progress: null, running: false, stopping: false })
         return
       }
-      publishIngestState({ lastReport: report, progress: null, running: false })
+      publishIngestState({ lastReport: report, progress: null, running: false, stopping: false })
     })
     .catch((error: unknown) => {
+      // Stopped on request and ended before its report: what it finished is
+      // stored, and that is not an error to show.
+      const stopped = error instanceof IngestStoppedError
       publishIngestState({
-        error: error instanceof Error ? error.message : String(error),
+        error: stopped ? null : error instanceof Error ? error.message : String(error),
         progress: null,
-        running: false
+        running: false,
+        stopping: false
       })
+    })
+    .finally(() => {
+      if (ingestAbort === abort) ingestAbort = null
     })
 
   return { started: true }
+})
+
+ipcMain.handle('index:cancel', () => {
+  if (!ingestState.running || !ingestAbort) return { stopping: false }
+  publishIngestState({ stopping: true })
+  ingestAbort.abort()
+  return { stopping: true }
 })
 
 // Задача 5.15: отметка папки или файла в граф из проводника.

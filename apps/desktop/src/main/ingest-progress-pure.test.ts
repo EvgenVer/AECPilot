@@ -1,8 +1,14 @@
 // Tests for reading `aec-rag ingest`'s stdout (task 2.15).
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { describeProgress, readIngestLines } from './ingest-progress-pure'
+import {
+  applyIngestEvent,
+  describeProgress,
+  type IngestProgress,
+  readIngestLines,
+  watchSilence
+} from './ingest-progress-pure'
 
 const started =
   '{"progress":{"stage":"started","done":0,"total":2,"source_id":"","rel_path":"","chunks":0,"error":""}}'
@@ -62,5 +68,95 @@ describe('describeProgress', () => {
 
     expect(describeProgress(finished.progress[0])).toBeNull()
     expect(describeProgress(null)).toBeNull()
+  })
+})
+
+describe('applyIngestEvent — файлы прогона для страницы «Индекс» (3H.15, 3H.19)', () => {
+  const event = (patch: Partial<IngestProgress>): IngestProgress => ({
+    chunks: 0,
+    done: 1,
+    error: '',
+    page: 0,
+    pages: 0,
+    phase: 'text',
+    rel_path: 'ИГИ/297-1.pdf',
+    source_id: 'tasks',
+    stage: 'file',
+    total: 3,
+    ...patch
+  })
+
+  it('файл после первого прохода ждёт распознавания столько страниц, сколько сказано', () => {
+    const rows = applyIngestEvent([], event({ pages: 150 }))
+
+    expect(rows).toEqual([
+      {
+        error: '',
+        pagesDone: 0,
+        pagesWaiting: 150,
+        rel_path: 'ИГИ/297-1.pdf',
+        source_id: 'tasks',
+        state: 'waiting'
+      }
+    ])
+  })
+
+  it('второй проход ведёт страницу N из M и закрывает файл на последней', () => {
+    let rows = applyIngestEvent([], event({ pages: 2 }))
+    rows = applyIngestEvent(rows, event({ page: 1, pages: 2, phase: 'ocr', stage: 'page' }))
+    expect(rows[0]).toMatchObject({ pagesDone: 1, pagesWaiting: 2, state: 'recognizing' })
+
+    rows = applyIngestEvent(rows, event({ page: 2, pages: 2, phase: 'ocr', stage: 'page' }))
+    expect(rows[0]).toMatchObject({ pagesDone: 2, state: 'done' })
+  })
+
+  it('файл без сканов готов сразу, сбойный — со словами причины', () => {
+    let rows = applyIngestEvent([], event({ rel_path: 'ПЗ.docx' }))
+    rows = applyIngestEvent(
+      rows,
+      event({ error: 'битый файл', rel_path: 'x.pdf', stage: 'failed' })
+    )
+
+    expect(rows.map((row) => row.state)).toEqual(['read', 'failed'])
+    expect(rows[1].error).toBe('битый файл')
+  })
+
+  it('новый прогон начинает список заново, начало второго прохода — нет', () => {
+    const rows = applyIngestEvent([], event({ pages: 1 }))
+
+    expect(applyIngestEvent(rows, event({ phase: 'ocr', rel_path: '', stage: 'started' }))).toBe(
+      rows
+    )
+    expect(applyIngestEvent(rows, event({ rel_path: '', stage: 'started' }))).toEqual([])
+  })
+})
+
+describe('watchSilence — предел молчания вместо часа (D-183, 3H.17)', () => {
+  it('процесс, который говорит, не обрывается и через два часа', () => {
+    vi.useFakeTimers()
+    const silent = vi.fn()
+    const watch = watchSilence(15 * 60 * 1000, silent)
+
+    for (let minute = 0; minute < 120; minute += 1) {
+      vi.advanceTimersByTime(60 * 1000)
+      watch.poke()
+    }
+
+    expect(silent).not.toHaveBeenCalled()
+    watch.stop()
+    vi.useRealTimers()
+  })
+
+  it('молчащий дольше предела обрывается один раз', () => {
+    vi.useFakeTimers()
+    const silent = vi.fn()
+    const watch = watchSilence(15 * 60 * 1000, silent)
+
+    vi.advanceTimersByTime(15 * 60 * 1000 + 1)
+    vi.advanceTimersByTime(60 * 60 * 1000)
+
+    expect(silent).toHaveBeenCalledTimes(1)
+    watch.stop()
+    vi.useRealTimers()
   })
 })
