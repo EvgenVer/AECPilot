@@ -538,6 +538,107 @@ test('10.3.1 две сессии: переключение, история ка�
   await expect(page.getByText('один', { exact: true })).toHaveCount(0)
 })
 
+/** Строка Ctrl+K по её подписи. Щелчок по строке cmdk перехватывает корень
+ *  списка, поэтому путь — клавиатура, как в `pickLanguage`: набрать, стрелкой
+ *  дойти до нужной строки (выше неё может стоять другая совпавшая) и нажать Enter. */
+async function runPalette(page: Page, label: string | RegExp): Promise<Locator> {
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog').last()
+  await expect(palette).toBeVisible()
+  await page.keyboard.type(typeof label === 'string' ? label : label.source)
+  const option = palette.getByRole('option', { name: label }).first()
+  await expect(option).toBeVisible()
+  for (let step = 0; step < 10; step += 1) {
+    if ((await option.getAttribute('aria-selected')) === 'true') break
+    await page.keyboard.press('ArrowDown')
+  }
+  await expect(option).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Enter')
+  return palette
+}
+
+/** Их переключатель простого режима в Ctrl+K. Строка-переключатель держит
+ *  палитру открытой (их `paletteToggle`, `keepOpen`), и подпись у неё английская
+ *  в любом языке — так у них. */
+async function toggleSimpleMode(page: Page): Promise<void> {
+  const palette = await runPalette(page, /Simple mode/)
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+}
+
+/** Строка их боковой панели по началу подписи («Индекс · 4/12» тоже «Индекс»). */
+function navRow(page: Page, label: string): Locator {
+  return page
+    .locator('[data-tour="sessions-sidebar"]')
+    .getByRole('button', { name: new RegExp(`^${label}`) })
+    .first()
+}
+
+// Задачи 3H.7–3H.10 (SPEC UR43, D-189). На приёмке 2026-10-07 в простом режиме
+// строка состояния пропала вместе с нашими окнами, и пункты «Настроек» перестали
+// их открывать. Здесь строка спрятана обоими путями донора — Ctrl+Shift+S и
+// простым режимом, — и каждый вход обязан работать без неё.
+test('10.4.1 «Индекс» и «Память» открываются без строки состояния и в простом режиме', async () => {
+  const page = await ui()
+  const statusbar = page.getByRole('contentinfo')
+  const indexPage = page.getByRole('region', { name: 'Индекс', exact: true })
+  const memoryPage = page.getByRole('region', { name: 'Память агента', exact: true })
+  const providers = page.getByRole('dialog', { name: 'Индекс и память' })
+
+  await expect(statusbar).toBeVisible()
+  // Значок строки состояния ведёт на ту же страницу, пока строка видна.
+  await statusbar.getByRole('button', { name: /^Память$/ }).click()
+  await expect(memoryPage).toBeVisible()
+  await closeSettings(page)
+
+  await page.keyboard.press('Control+Shift+S')
+  await expect(statusbar).toBeHidden()
+
+  // Строки боковой панели.
+  await navRow(page, 'Индекс').click()
+  await expect(indexPage).toBeVisible()
+  await navRow(page, 'Память').click()
+  await expect(memoryPage).toBeVisible()
+  // Факты — первая вкладка, записка — вторая (D-190).
+  await expect(memoryPage.getByText('Память проекта', { exact: true })).toBeVisible()
+  await memoryPage.getByRole('button', { name: 'Записки' }).first().click()
+  await expect(memoryPage.getByLabel('Записка о вас')).toBeVisible()
+  await closeSettings(page)
+
+  // Ctrl+K.
+  await runPalette(page, 'Открыть индекс')
+  await expect(indexPage).toBeVisible()
+  await runPalette(page, 'Открыть память агента')
+  await expect(memoryPage).toBeVisible()
+  await closeSettings(page)
+
+  // «Настройки»: окно провайдера — поверх, страницы — вместо настроек.
+  await openSettings(page, 'tab=about')
+  await page.locator('[data-tour="nav-aec-data-providers"]').click()
+  await expect(providers).toBeVisible()
+  await providers.getByRole('button', { name: 'Закрыть', exact: true }).last().click()
+  await expect(providers).toBeHidden()
+  await page.locator('[data-tour="nav-aec-index"]').click()
+  await expect(indexPage).toBeVisible()
+  await openSettings(page, 'tab=about')
+  await page.locator('[data-tour="nav-aec-memory"]').click()
+  await expect(memoryPage).toBeVisible()
+  await closeSettings(page)
+
+  // Простой режим: строки боковой панели без `tier` видны и здесь.
+  await page.keyboard.press('Control+Shift+S')
+  await expect(statusbar).toBeVisible()
+  await toggleSimpleMode(page)
+  await expect(statusbar).toBeHidden()
+  await navRow(page, 'Индекс').click()
+  await expect(indexPage).toBeVisible()
+  await navRow(page, 'Память').click()
+  await expect(memoryPage).toBeVisible()
+  await toggleSimpleMode(page)
+  await expect(statusbar).toBeVisible()
+  await closeSettings(page)
+})
+
 // ───────────────────────── Блок 50. Правый клик, орфография, окно ─────────────────────────
 
 /** Правый клик в точке; возвращает открытое меню. */

@@ -9,10 +9,8 @@ import { PALETTE_AREA, type PaletteContribution } from '../../donor/app/command-
 import { registry } from '../../donor/contrib/registry'
 import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
-import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
-import GraphAccessDialog from './GraphAccessDialog'
 import { $graphAccessOpen, refreshGraphAccess } from './graph-access-store'
 
 const t = (key: string, ...args: unknown[]): string =>
@@ -39,14 +37,7 @@ export function registerGraphAccess(): void {
     } satisfies PaletteContribution
   })
 
-  // Окно живёт в той же области, что и окно памяти, и по той же причине: его
-  // открывает не компонент, а команда, поэтому оно должно быть смонтировано
-  // всегда, пока жива оболочка.
-  registry.register({
-    id: 'aec-graph-access-dialog',
-    area: STATUSBAR_AREAS.left,
-    source: 'core',
-    order: -91,
-    render: () => <GraphAccessDialog />
-  })
+  // Само окно смонтировано в корне (`main.tsx`): его открывает команда, а не
+  // компонент, и жить в строке состояния, которую донор прячет, оно не может
+  // (D-189, задача 3H.7).
 }

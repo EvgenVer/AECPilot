@@ -16,7 +16,6 @@ import { IndexStatus } from '../index-status/IndexStatus'
 import { DocumentViewer } from '../viewers/DocumentViewer'
 import { setAfterOpenDocument } from '../viewers/viewer-store'
 import { ProjectMenu } from '../project/ProjectMenu'
-import { ScanWatcher } from '../scan/ScanWatcher'
 
 import { VaultExplorer } from './VaultExplorer'
 
@@ -40,9 +39,6 @@ registry.register({
   render: () => <ProjectMenu />
 })
 
-// Renders nothing — a subscription that turns our scan reports into one of
-// their notifications. Mounted through the registry so it lives exactly as long
-// as the shell does.
 // The index indicator sits next to the project menu: «what am I working on»
 // and «has it been read» are the two things that decide whether an answer can
 // be trusted, and both belong where they are always visible.
@@ -52,14 +48,6 @@ registry.register({
   source: 'core',
   order: -98,
   render: () => <IndexStatus />
-})
-
-registry.register({
-  id: 'aec-scan-watcher',
-  area: STATUSBAR_AREAS.left,
-  source: 'core',
-  order: -99,
-  render: () => <ScanWatcher />
 })
 
 // Checkpoints used to be registered here as a pane of our own. Task 3.3 moved

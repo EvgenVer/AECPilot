@@ -33,6 +33,9 @@ import { ProjectGate } from './aec/project/ProjectGate'
 import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosureDialog'
 import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
 import WebhookConsentDialog from './aec/webhook-consent/WebhookConsentDialog'
+import DataProvidersDialog from './aec/data-providers/DataProvidersDialog'
+import GraphAccessDialog from './aec/settings/GraphAccessDialog'
+import { ScanWatcher } from './aec/scan/ScanWatcher'
 // Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
 import './aec/cron-runner/register'
 // Задача 3.8а: уведомление и строка состояния для инструкций проекта.
@@ -60,6 +63,7 @@ import {
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerMemoryScreen } from './aec/memory/register'
+import { registerIndexPage } from './aec/index-page/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { registerDataProviders } from './aec/data-providers/register'
 import { registerGraphAccess } from './aec/settings/register'
@@ -76,6 +80,8 @@ registerCoreNotices()
 // чем человек успеет сказать что-то в пустоту.
 registerMemoryNotice()
 registerMemoryScreen()
+// Задача 3H.8 (UR43): страница «Индекс» — маршрут, строка боковой панели и Ctrl+K.
+registerIndexPage()
 // Находка D-39: при холодном возврате к старой сессии история подгружается в
 // фоне, и до этого человек всё это время смотрел на пустое окно без слова
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать
@@ -148,6 +154,14 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         их собственный оверлей, и мастер должен стоять рядом
                         с ним, а не под ним. */}
                     <FirstRunGuide />
+                    {/* Задача 3H.7 (D-189): окна, которые открывает команда,
+                        а не компонент, — выбор провайдера, доступы Graph — и
+                        подписка на отчёты сканера. Раньше жили в строке
+                        состояния и пропадали вместе с ней: донор прячет её в
+                        простом режиме и по Ctrl+Shift+S. */}
+                    <DataProvidersDialog />
+                    <GraphAccessDialog />
+                    <ScanWatcher />
                   </ProjectGate>
                 </HashRouter>
               </RootTooltipProvider>

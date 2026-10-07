@@ -1,6 +1,7 @@
 // What the indicator has to get right (tasks 2.15, 2.15a): say plainly when the
 // index has fallen behind, never start a graph on its own, and show what adding
-// to one would cost before it is agreed to.
+// to one would cost before it is agreed to. Задача 3H.10: подробности живут на
+// странице «Индекс», значок строки состояния ведёт на неё.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
@@ -12,7 +13,7 @@ import type { GraphAddState, IngestState, RagStatus } from '../../../../shared/i
 
 import { $dataProvidersOpen, EMPTY_STATE } from '../data-providers/store'
 
-import { IndexStatus } from './IndexStatus'
+import { IndexDetails, IndexStatus } from './IndexStatus'
 
 const getIndexStatus = vi.fn()
 const getIngestState = vi.fn()
@@ -46,16 +47,7 @@ function status(patch: Partial<RagStatus> = {}): RagStatus {
   }
 }
 
-// Radix's popover measures its trigger, and jsdom has no ResizeObserver. A
-// no-op is honest here: nothing in these tests depends on a measured size.
-class NoopResizeObserver {
-  disconnect(): void {}
-  observe(): void {}
-  unobserve(): void {}
-}
-
 beforeEach(() => {
-  globalThis.ResizeObserver ??= NoopResizeObserver as unknown as typeof ResizeObserver
   window.localStorage.clear()
   getIndexStatus.mockResolvedValue({ ok: true, status: status() })
   getIngestState.mockResolvedValue(IDLE)
@@ -86,22 +78,21 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-const renderIndicator = () =>
+const withProviders = (node: React.ReactNode) =>
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <AecI18nProvider>
-        <IndexStatus />
-      </AecI18nProvider>
+      <AecI18nProvider>{node}</AecI18nProvider>
     </QueryClientProvider>
   )
 
-async function openPanel(): Promise<void> {
-  await waitFor(() => expect(screen.getByRole('button')).toBeTruthy())
-  await act(async () => {
-    screen.getByRole('button').click()
-  })
+const renderIndicator = () => withProviders(<IndexStatus />)
+
+/** Тело страницы «Индекс», дождавшись прочитанного состояния. */
+async function renderPage(): Promise<void> {
+  withProviders(<IndexDetails />)
+  await waitFor(() => expect(screen.getByText('Проиндексировать')).toBeTruthy())
 }
 
 describe('IndexStatus', () => {
@@ -121,8 +112,7 @@ describe('IndexStatus', () => {
   })
 
   it('starts an ingest when asked and never on its own', async () => {
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     expect(startIngest).not.toHaveBeenCalled()
 
@@ -144,8 +134,7 @@ describe('IndexStatus', () => {
         graph: { chunks: 40, covers_whole_project: false, documents: 2, documents_outside: 10 }
       })
     })
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     const question = await screen.findByRole('alert')
     expect(question.textContent).toContain('text-embedding-3-large')
@@ -170,8 +159,7 @@ describe('IndexStatus', () => {
       agentProvider: 'openai-codex',
       rag: { ok: false, reason }
     })
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     await screen.findByText(`У поиска по документам нет провайдера: ${reason}.`)
     await act(async () => {
@@ -182,8 +170,7 @@ describe('IndexStatus', () => {
   })
 
   it('shows no rebuild question when the model did not change', async () => {
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByText('Перестроить индекс')).toBeNull()
@@ -213,8 +200,7 @@ describe('IndexStatus', () => {
   })
 
   it('says the graph is empty on a clean project — UR24: it is never built on its own', async () => {
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     expect(screen.getByText(/Пуст\./)).toBeTruthy()
   })
@@ -228,8 +214,7 @@ describe('IndexStatus', () => {
         graph_pending: { chunks_estimate: 96, documents: 2, not_indexed: 0 }
       })
     })
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     expect(screen.getByText('tasks/ЭОМ')).toBeTruthy()
     expect(screen.getByText(/2 новых документ.*96 фрагментов/)).toBeTruthy()
@@ -240,8 +225,7 @@ describe('IndexStatus', () => {
     // Задача 5.15. Уровень 2 тратит деньги минутами, а окно, из которого его
     // запустили, человек вправе закрыть. Если ход не видно здесь, расход
     // становится невидимым вовсе.
-    renderIndicator()
-    await openPanel()
+    await renderPage()
 
     await act(async () => {
       emitGraphState({
@@ -261,6 +245,16 @@ describe('IndexStatus', () => {
     })
 
     expect(screen.getByText('строю граф: 3 из 12')).toBeTruthy()
+  })
+
+  it('значок строки состояния ведёт на страницу «Индекс» (3H.10)', async () => {
+    renderIndicator()
+    await waitFor(() => expect(screen.getByText('12 / 12')).toBeTruthy())
+    await act(async () => {
+      screen.getByRole('button').click()
+    })
+
+    expect(window.location.hash).toBe('#/aec-index')
   })
 
   it('shows nothing at all when no project is open', async () => {

@@ -46,38 +46,44 @@ async function ui(): Promise<Page> {
   return page
 }
 
-function memoryDialog(page: Page): Locator {
-  return page.getByRole('dialog', { name: 'Память агента', exact: true })
+/** Страница «Память агента» (задача 3H.8: окно стало страницей в основной
+ *  области; факты — вкладка «Что запомнил агент», записки — «Записки»). */
+function memoryPage(page: Page): Locator {
+  return page.getByRole('region', { name: 'Память агента', exact: true })
 }
 
-/** Окно памяти — значок «Память» в строке состояния. */
-async function openMemory(page: Page): Promise<Locator> {
-  const dialog = memoryDialog(page)
-  if (!(await dialog.isVisible())) {
+/** Страница памяти — значок «Память» в строке состояния; `tab` — вкладка. */
+async function openMemory(page: Page, tab: 'facts' | 'notes' = 'facts'): Promise<Locator> {
+  const memory = memoryPage(page)
+  if (!(await memory.isVisible())) {
     await page
       .getByRole('contentinfo')
       .getByRole('button', { name: /Память/ })
       .first()
       .click()
   }
-  await expect(dialog).toBeVisible({ timeout: 15000 })
-  return dialog
+  await expect(memory).toBeVisible({ timeout: 15000 })
+  await memory
+    .getByRole('button', { name: tab === 'facts' ? 'Что запомнил агент' : 'Записки' })
+    .first()
+    .click()
+  return memory
 }
 
+/** Уйти со страницы в чат. Открытый список фактов страница при уходе закрывает
+ *  сама и поднимает агента (42.7.1). */
 async function closeMemory(page: Page): Promise<void> {
-  const dialog = memoryDialog(page)
-  await dialog
-    .getByRole('button', { name: /^Закрыть$/ })
-    .last()
-    .click()
-  await expect(dialog).toBeHidden({ timeout: 120000 })
+  await page.evaluate(() => {
+    location.hash = '#/'
+  })
+  await expect(memoryPage(page)).toBeHidden({ timeout: 15000 })
 }
 
 const SHOW = 'Показать список (агент остановится)'
 
-/** Агент отвечает в чате: окно памяти закрыто, короткий ход, ответ по существу. */
+/** Агент отвечает в чате: страница памяти закрыта, короткий ход, ответ по существу. */
 async function agentAnswers(page: Page): Promise<void> {
-  if (await memoryDialog(page).isVisible()) await closeMemory(page)
+  if (await memoryPage(page).isVisible()) await closeMemory(page)
   // Вопрос без счёта: арифметику модель норовит проверить `execute_code`, и
   // ход упирается в подтверждение команды. Чужую команду тест отклоняет.
   const result = await turn(
@@ -93,16 +99,16 @@ async function agentAnswers(page: Page): Promise<void> {
 }
 const HIDE = 'Закрыть список и поднять агента'
 
-/** Записывать тексты, которые окно показывало между проверками: «Останавливаю…»
- *  и «Поднимаю агента…» живут доли секунды, опросом их не поймать. */
+/** Записывать тексты, которые страница показывала между проверками:
+ *  «Останавливаю…» и «Поднимаю агента…» живут доли секунды, опросом их не поймать. */
 async function recordTexts(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as { __seen?: string[]; __seenObserver?: MutationObserver }
     w.__seen = []
     w.__seenObserver?.disconnect()
     const observer = new MutationObserver(() => {
-      const dialog = document.querySelector('[role="dialog"]')
-      if (dialog) w.__seen?.push((dialog as HTMLElement).innerText)
+      const memory = document.querySelector('section[aria-label="Память агента"]')
+      if (memory) w.__seen?.push((memory as HTMLElement).innerText)
     })
     observer.observe(document.body, { characterData: true, childList: true, subtree: true })
     w.__seenObserver = observer
@@ -132,7 +138,7 @@ async function openFacts(page: Page): Promise<Locator> {
 }
 
 async function hideFacts(page: Page): Promise<void> {
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   await dialog.getByRole('button', { name: HIDE }).click()
   await expect(dialog.getByRole('button', { name: SHOW })).toBeVisible({ timeout: 180000 })
 }
@@ -141,7 +147,7 @@ async function hideFacts(page: Page): Promise<void> {
 
 test('51.1.1 экран памяти открылся, текст записки показан', async () => {
   const page = await ui()
-  const dialog = await openMemory(page)
+  const dialog = await openMemory(page, 'notes')
   const user = dialog.getByRole('textbox', { name: 'Записка о вас' })
   await expect(user).toBeVisible()
   const onDisk = readFileSync(join(String(stand.get().profileDir), 'memories', 'USER.md'), 'utf8')
@@ -159,7 +165,7 @@ test('51.1.2 записка читается при открытии окна �
   const agentNote = join(String(stand.get().profileDir), 'memories', 'MEMORY.md')
   writeFileSync(agentNote, 'Объект e2e: марка бетона обсуждается.\n', 'utf8')
 
-  const dialog = await openMemory(page)
+  const dialog = await openMemory(page, 'notes')
   await expect(dialog.getByRole('textbox', { name: 'Записка агента' })).toHaveValue(
     /Объект e2e: марка бетона обсуждается/
   )
@@ -187,7 +193,7 @@ function autowriteOnDisk(): { endOfTurn: boolean; backgroundReview: boolean } {
 
 test('51.3.1 один переключатель гасит оба пути автозаписи', async () => {
   const page = await ui()
-  const dialog = await openMemory(page)
+  const dialog = await openMemory(page, 'notes')
   const toggle = autowriteSwitch(dialog)
   await expect(toggle).toBeChecked()
 
@@ -239,7 +245,7 @@ test('42.2.2 пока список не открыт, агент работае�
 
 test('42.3.1 видно остановку и чтение, затем появляется список', async () => {
   const page = await ui()
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   await recordTexts(page)
   await dialog.getByRole('button', { name: SHOW }).click()
   await expect(dialog.getByRole('button', { name: HIDE })).toBeVisible({ timeout: 120000 })
@@ -249,7 +255,7 @@ test('42.3.1 видно остановку и чтение, затем появ�
 
 test('42.3.2 в списке факт из шага 1 — с датой и каналом', async () => {
   const page = await ui()
-  const row = factRows(memoryDialog(page))
+  const row = factRows(memoryPage(page))
     .filter({ hasText: /20\s*%/ })
     .first()
   await expect(row, 'факт про резерв 20 %').toBeVisible()
@@ -259,14 +265,14 @@ test('42.3.2 в списке факт из шага 1 — с датой и ка�
 
 test('42.3.3 сказано, что агент остановлен, пока список открыт', async () => {
   const page = await ui()
-  await expect(memoryDialog(page)).toContainText(
+  await expect(memoryPage(page)).toContainText(
     'Пока список открыт, агент остановлен. Он поднимется, когда вы закроете список.'
   )
 })
 
 test('42.3.4 счётчик называет число фактов проекта', async () => {
   const page = await ui()
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   const count = await factRows(dialog).count()
   console.log('42.3 ФАКТЫ ' + JSON.stringify(await factRows(dialog).allInnerTexts()))
   await expect(dialog).toContainText(`Фактов в этом проекте: ${count}`)
@@ -274,7 +280,7 @@ test('42.3.4 счётчик называет число фактов проек�
 
 test('42.4.1 поиск оставляет подходящие строки; пустой возвращает весь список', async () => {
   const page = await ui()
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   const all = await factRows(dialog).count()
   const search = dialog.getByRole('searchbox', { name: 'Поиск по фактам' })
   await search.fill('резерв')
@@ -287,7 +293,7 @@ test('42.4.1 поиск оставляет подходящие строки; п
 
 test('42.4.2 по бессмысленному запросу — «Ничего не нашлось»', async () => {
   const page = await ui()
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   const search = dialog.getByRole('searchbox', { name: 'Поиск по фактам' })
   await search.fill('щзхъ-нет-такого')
   await expect(dialog).toContainText('Ничего не нашлось.')
@@ -297,7 +303,7 @@ test('42.4.2 по бессмысленному запросу — «Ничего
 
 test('42.5.1 «Удалить» — строка исчезла', async () => {
   const page = await ui()
-  const dialog = memoryDialog(page)
+  const dialog = memoryPage(page)
   const before = await factRows(dialog).count()
   const row = factRows(dialog)
     .filter({ hasText: /20\s*%/ })
@@ -313,7 +319,7 @@ test('42.6.1 «Закрыть список» — агент поднимаетс
   await recordTexts(page)
   await hideFacts(page)
   expect(await seenTexts(page)).toContain('Поднимаю агента…')
-  await expect(memoryDialog(page)).toContainText('читается только при остановленном агенте')
+  await expect(memoryPage(page)).toContainText('читается только при остановленном агенте')
 })
 
 test('42.6.2 после «Закрыть список» агент снова отвечает в чате', async () => {
@@ -370,15 +376,18 @@ test('42.6.4 прежний разговор с фразой из шага 1 н�
   await expect(page.getByText('Запомни: резерв мощности')).toHaveCount(0, { timeout: 15000 })
 })
 
-test('42.7.1 закрытие окна при открытом списке сначала поднимает агента', async () => {
+test('42.7.1 уход со страницы при открытом списке поднимает агента', async () => {
   const page = await ui()
   await openFacts(page)
-  await recordTexts(page)
   await closeMemory(page)
-  expect(await seenTexts(page)).toContain('Поднимаю агента…')
+  // Агент поднимается в фоне: вернувшись, человек видит раздел снова с кнопкой
+  // показа — подъём закончен, а не идёт.
+  const memory = await openMemory(page)
+  await expect(memory.getByRole('button', { name: SHOW })).toBeVisible({ timeout: 180000 })
+  await closeMemory(page)
 })
 
-test('42.7.2 после закрытия окна агент работает — отвечает в чате', async () => {
+test('42.7.2 после ухода со страницы агент работает — отвечает в чате', async () => {
   await agentAnswers(await ui())
 })
 
@@ -390,7 +399,7 @@ const USER_EDIT = 'Предпочитаю краткие ответы (прав�
 
 test('51.2.1 правка записки руками пережила перезапуск', async () => {
   let page = await ui()
-  let dialog = await openMemory(page)
+  let dialog = await openMemory(page, 'notes')
   const user = dialog.getByRole('textbox', { name: 'Записка о вас' })
   await user.fill(`${await user.inputValue()}\n${USER_EDIT}`)
   // У каждой записки своя кнопка «Сохранить» — первая относится к «о вас».
@@ -408,7 +417,7 @@ test('51.2.1 правка записки руками пережила пере�
   await hideFirstRunSurfaces(page)
   // С 3G.20 (D-89) последний проект открывается сам.
   await reopenRecentProject(page)
-  dialog = await openMemory(page)
+  dialog = await openMemory(page, 'notes')
   await expect(dialog.getByRole('textbox', { name: 'Записка о вас' })).toHaveValue(
     new RegExp(USER_EDIT.replace(/[()]/g, '\\$&'))
   )

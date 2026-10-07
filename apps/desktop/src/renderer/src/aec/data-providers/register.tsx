@@ -1,17 +1,16 @@
 // Где человек находит выбор провайдеров RAG и памяти (задача 3G.47, D-172).
 //
 // Тот же приём, что у доступов Microsoft Graph (3E.9а): команда палитры — вход для
-// того, у кого ничего не настроено; окно смонтировано всегда, потому что его
-// открывает не компонент, а команда или отказ (индикатор индекса, память, мастер).
+// того, у кого ничего не настроено. Само окно смонтировано в корне (`main.tsx`),
+// а не в строке состояния: её донор прячет в простом режиме и по Ctrl+Shift+S, и
+// окно пропадало вместе с ней (D-189, задача 3H.7).
 
 import { PALETTE_AREA, type PaletteContribution } from '../../donor/app/command-palette/contrib'
 import { registry } from '../../donor/contrib/registry'
 import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
-import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
-import DataProvidersDialog from './DataProvidersDialog'
 import { openDataProviders } from './store'
 
 const t = (key: string, ...args: unknown[]): string =>
@@ -42,13 +41,5 @@ export function registerDataProviders(): void {
       ],
       run: openDataProviders
     } satisfies PaletteContribution
-  })
-
-  registry.register({
-    id: 'aec-data-providers-dialog',
-    area: STATUSBAR_AREAS.left,
-    source: 'core',
-    order: -90,
-    render: () => <DataProvidersDialog />
   })
 }

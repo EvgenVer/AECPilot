@@ -6,8 +6,9 @@
  * Edits:
  *   [3] removed the billing section (HX2)
  *   [3] removed the Credential Vault entry and view (HX24)
- *   [3] registered our «Индекс и память» and «Память агента» entries — they
- *       open our dialogs (owner decision 2026-10-07, D-180)
+ *   [3] registered our «Индекс и память», «Индекс» and «Память агента» entries —
+ *       the first opens our provider dialog (owner decision 2026-10-07, D-180),
+ *       the other two lead to our pages (SPEC UR43, task 3H.10)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -22,6 +23,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { openDataProviders } from '../../../aec/data-providers/store'
 import { openMemoryScreen } from '../../../aec/memory/store'
+import { openIndexPage } from '../../../aec/workspace-pages'
 import { useAecT } from '../../../shared/i18n'
 import {
   Archive,
@@ -309,13 +311,21 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.providers,
             onSelect: () => setActiveView('providers')
           },
-          // EDIT [3]: our two surfaces, opened as dialogs over Settings (D-180).
+          // EDIT [3]: our surfaces — the provider dialog over Settings (D-180) and
+          // the Index and Memory pages, which take the place of Settings (UR43).
           {
             active: false,
             icon: Layers3,
             id: 'aec-data-providers',
             label: aecT('dataProviders.title'),
             onSelect: openDataProviders
+          },
+          {
+            active: false,
+            icon: codiconIcon('database'),
+            id: 'aec-index',
+            label: aecT('index.title'),
+            onSelect: openIndexPage
           },
           {
             active: false,

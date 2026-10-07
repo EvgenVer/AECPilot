@@ -140,6 +140,8 @@ export const aecLocales: PluginLocaleBundles = {
     },
     index: {
       title: 'Index',
+      pageCommand: 'Open the index',
+      pageHint: 'What the document search holds, indexing, the knowledge graph',
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} fragments`,
       stale: (count: number) => `· ${count} stale`,
@@ -480,6 +482,9 @@ export const aecLocales: PluginLocaleBundles = {
     },
     memoryScreen: {
       title: 'Agent memory',
+      pageCommand: 'Open agent memory',
+      tabFacts: 'What the agent remembered',
+      tabNotes: 'Notes',
       badge: 'Memory',
       badgeHint:
         'The note the agent carries into every turn, and whether it writes to memory on its own',
@@ -744,6 +749,8 @@ export const aecLocales: PluginLocaleBundles = {
     },
     index: {
       title: 'Индекс',
+      pageCommand: 'Открыть индекс',
+      pageHint: 'Что есть в поиске по документам, индексация, граф знаний',
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} фрагментов`,
       stale: (count: number) => `· ${count} устарело`,
@@ -1078,6 +1085,9 @@ export const aecLocales: PluginLocaleBundles = {
     },
     memoryScreen: {
       title: 'Память агента',
+      pageCommand: 'Открыть память агента',
+      tabFacts: 'Что запомнил агент',
+      tabNotes: 'Записки',
       badge: 'Память',
       badgeHint: 'Записка, которую агент несёт в каждый ход, и пополняет ли он память сам',
       agentNote: 'Записка агента',

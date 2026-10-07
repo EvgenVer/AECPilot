@@ -12,24 +12,29 @@
 // Хранилище слоя 2 — встроенная база, и работающее ядро держит её папку
 // исключительно (замер `runtime/memory-store-access-probe.mjs`). Поэтому список
 // читается при остановленном агенте: цена — оборванный разговор, и человек
-// соглашается на неё кнопкой, а не узнаёт после. Пока список открыт, окно
-// говорит, что агент стоит; закрытие списка поднимает его обратно, и окно не
-// закрывается раньше, чем это случилось.
+// соглашается на неё кнопкой, а не узнаёт после. Пока список открыт, страница
+// говорит, что агент стоит; кнопка «Скрыть» и уход со страницы поднимают его
+// обратно.
+//
+// СТРАНИЦА, А НЕ ОКНО (задача 3H.8, SPEC UR43): окно жило в строке состояния и
+// пропадало вместе с ней (D-189). Факты — первая вкладка, записка ядра — вторая:
+// «запомни» пишет в факты, и человек ищет сказанное именно там (D-190).
 
 import { useStore } from '@nanostores/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { MemoryFact } from '../../../../shared/ipc'
+import { PageSearchShell } from '../../donor/app/page-search-shell'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 
 import {
   $memoryFacts,
   $memoryNotes,
-  $memoryOpen,
   closeMemoryFacts,
   deleteMemoryFact,
   openMemoryFacts,
+  refreshMemoryNotes,
   saveMemoryNote,
   setAutowrite
 } from './store'
@@ -151,7 +156,7 @@ function ProjectFacts(): React.JSX.Element {
   }
 
   return (
-    <section className="flex flex-col gap-2 border-t border-(--ui-border) pt-3">
+    <section className="flex flex-col gap-2">
       <h3 className="text-xs font-semibold text-(--ui-text-primary)">
         {t('memoryScreen.projectFacts')}
       </h3>
@@ -224,78 +229,70 @@ function ProjectFacts(): React.JSX.Element {
   )
 }
 
-export default function MemoryDialog(): React.JSX.Element | null {
-  const open = useStore($memoryOpen)
+function Notes(): React.JSX.Element {
   const view = useStore($memoryNotes)
-  const facts = useStore($memoryFacts)
   const t = useAecT()
   const [toggleError, setToggleError] = useState('')
-  const [closing, setClosing] = useState(false)
-  const [closeError, setCloseError] = useState('')
-
-  if (!open) return null
-
-  // ОКНО НЕ ЗАКРЫВАЕТСЯ, ПОКА АГЕНТ НЕ ПОДНЯТ. Закрыть его раньше значило бы
-  // оставить человека без агента и без единого слова о том, почему.
-  const leave = async (): Promise<void> => {
-    if (facts.state === 'idle') {
-      $memoryOpen.set(false)
-      return
-    }
-    setClosing(true)
-    const refusal = await closeMemoryFacts()
-    setClosing(false)
-    setCloseError(refusal)
-    if (!refusal) $memoryOpen.set(false)
-  }
 
   return (
-    <div
-      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/40 p-4"
-      onClick={() => void leave()}
-      role="presentation"
-    >
-      <div
-        aria-label={t('memoryScreen.title')}
-        aria-modal="true"
-        className="flex max-h-[85vh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-lg border border-(--stroke-nous) bg-(--ui-chat-bubble-background) p-5 shadow-lg"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <h2 className="text-sm font-semibold text-(--ui-text-primary)">
-          {t('memoryScreen.title')}
-        </h2>
+    <div className="flex flex-col gap-4">
+      {view.error && <p className="text-xs text-(--ui-text-danger)">{view.error}</p>}
 
-        {view.error && <p className="text-xs text-(--ui-text-danger)">{view.error}</p>}
+      <NoteEditor target="user" />
+      <NoteEditor target="memory" />
 
-        <NoteEditor target="user" />
-        <NoteEditor target="memory" />
-
-        <section className="flex flex-col gap-1 border-t border-(--ui-border) pt-3">
-          <label className="flex items-center gap-2 text-xs text-(--ui-text-primary)">
-            <input
-              checked={view.autowrite}
-              onChange={async (event) => {
-                setToggleError(await setAutowrite(event.target.checked))
-              }}
-              type="checkbox"
-            />
-            {t('memoryScreen.autowrite')}
-          </label>
-          <p className="text-xs text-(--ui-text-secondary)">{t('memoryScreen.autowriteHint')}</p>
-          {toggleError && <p className="text-xs text-(--ui-text-danger)">{toggleError}</p>}
-        </section>
-
-        <ProjectFacts />
-
-        {closeError && <p className="text-xs text-(--ui-text-danger)">{closeError}</p>}
-
-        <div className="flex justify-end">
-          <Button disabled={closing} onClick={() => void leave()} size="sm" variant="secondary">
-            {t(closing ? 'memoryScreen.factsRestoring' : 'memoryScreen.close')}
-          </Button>
-        </div>
-      </div>
+      <section className="flex flex-col gap-1 border-t border-(--ui-border) pt-3">
+        <label className="flex items-center gap-2 text-xs text-(--ui-text-primary)">
+          <input
+            checked={view.autowrite}
+            onChange={async (event) => {
+              setToggleError(await setAutowrite(event.target.checked))
+            }}
+            type="checkbox"
+          />
+          {t('memoryScreen.autowrite')}
+        </label>
+        <p className="text-xs text-(--ui-text-secondary)">{t('memoryScreen.autowriteHint')}</p>
+        {toggleError && <p className="text-xs text-(--ui-text-danger)">{toggleError}</p>}
+      </section>
     </div>
+  )
+}
+
+type MemoryTab = 'facts' | 'notes'
+
+export default function MemoryPage(): React.JSX.Element {
+  const t = useAecT()
+  const [tab, setTab] = useState<MemoryTab>('facts')
+
+  useEffect(() => {
+    // Записку пишет и сам агент своим инструментом — читаем её при каждом входе,
+    // иначе человеку предложат затереть чужую правку.
+    void refreshMemoryNotes()
+    // Ушёл со страницы со списком фактов — агент поднимается обратно. Ждать
+    // некому: страницы уже нет, а отказ поднять агента ядро покажет само.
+    return () => {
+      if ($memoryFacts.get().state !== 'idle') void closeMemoryFacts()
+    }
+  }, [])
+
+  return (
+    <PageSearchShell
+      activeTab={tab}
+      aria-label={t('memoryScreen.title')}
+      onSearchChange={() => undefined}
+      onTabChange={(id) => setTab(id as MemoryTab)}
+      searchHidden
+      searchPlaceholder=""
+      searchValue=""
+      tabs={[
+        { id: 'facts', label: t('memoryScreen.tabFacts') },
+        { id: 'notes', label: t('memoryScreen.tabNotes') }
+      ]}
+    >
+      <div className="h-full overflow-y-auto px-6 pb-6 pt-2">
+        <div className="max-w-2xl">{tab === 'facts' ? <ProjectFacts /> : <Notes />}</div>
+      </div>
+    </PageSearchShell>
   )
 }

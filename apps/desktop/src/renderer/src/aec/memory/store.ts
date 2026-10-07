@@ -1,6 +1,6 @@
 // Экран памяти: состояние записки и автозаписи (задача 5.4, спека agent-memory).
 //
-// ЧИТАЕТСЯ ПРИ ОТКРЫТИИ ОКНА, а не один раз при запуске: записку меняет не
+// ЧИТАЕТСЯ ПРИ ОТКРЫТИИ СТРАНИЦЫ, а не один раз при запуске: записку меняет не
 // только человек — её пишет сам агент своим инструментом, и показывать ему
 // устаревший текст значит предлагать затереть чужую правку.
 
@@ -8,6 +8,7 @@ import { atom } from 'nanostores'
 
 import type { MemoryFact } from '../../../../shared/ipc'
 import { requestFreshSession } from '../../donor/store/profile'
+import { MEMORY_PAGE, openWorkspacePage } from '../workspace-pages'
 
 export interface MemoryNotesView {
   /** Пусто — записки ещё нет; это обычное состояние чистого профиля. */
@@ -28,13 +29,11 @@ export const EMPTY: MemoryNotesView = {
 }
 
 export const $memoryNotes = atom<MemoryNotesView>(EMPTY)
-export const $memoryOpen = atom<boolean>(false)
 
-/** Открыть окно «Память агента» со свежей запиской — значок нижней панели и
- * пункт «Настроек» (D-180). */
+/** Открыть страницу «Память агента» — значок строки состояния, пункт «Настроек»
+ * (D-180) и строка Ctrl+K. Записку страница читает сама при входе (3H.10). */
 export function openMemoryScreen(): void {
-  void refreshMemoryNotes()
-  $memoryOpen.set(true)
+  openWorkspacePage(MEMORY_PAGE)
 }
 
 export async function refreshMemoryNotes(): Promise<MemoryNotesView> {
