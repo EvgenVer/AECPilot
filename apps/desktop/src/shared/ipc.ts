@@ -1864,9 +1864,14 @@ export interface AecpilotApi {
    * restarts the backend, because a key reaches hermes through the child
    * process's environment and therefore only applies from the next start.
    * `ok: false` with a message when this machine cannot encrypt — the key is
-   * NOT written in plaintext as a fallback. */
+   * NOT written in plaintext as a fallback.
+   *
+   * `keepConnection` (D-177): окна не видят обрыва связи на время этого
+   * перезапуска — им пользуется окно первого запуска, которое иначе
+   * закрывается на переподключении, не дойдя до шага выбора модели. */
   saveProviderKey(payload: {
     envVar: string
     key: string | null
+    keepConnection?: boolean
   }): Promise<{ ok: boolean; restarted: boolean; error?: string }>
 }

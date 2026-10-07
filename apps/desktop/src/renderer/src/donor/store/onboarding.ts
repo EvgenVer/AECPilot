@@ -5,7 +5,8 @@
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
- *   [1] onboarding provider key → our safeStorage bridge (R2)
+ *   [1] onboarding provider key → our safeStorage bridge (R2), the restart
+ *       hidden from the window (keepConnection, D-177)
  * (no other edits)
  */
 import type { ModelOptionProvider } from '@hermes/shared'
@@ -1075,8 +1076,11 @@ export async function saveOnboardingApiKey(
   try {
     // EDIT [1]: same seam as model-settings.tsx — this is a provider key, and
     // rule R2 keeps those in our safeStorage rather than the core's .env. The
-    // rest of the onboarding flow (model confirmation below) is theirs.
-    const saved = await window.aecpilot.saveProviderKey({ envVar: envKey, key: trimmed })
+    // rest of the onboarding flow (model confirmation below) is theirs. The
+    // restart that brings the key into the core is hidden from this window
+    // (D-177): a visible reconnect re-checks readiness and closes the overlay
+    // before the model-confirm step.
+    const saved = await window.aecpilot.saveProviderKey({ envVar: envKey, key: trimmed, keepConnection: true })
 
     if (generation !== flowGeneration) {
       return { ok: false }

@@ -727,6 +727,10 @@ function startScanSchedulerForProject(vaultPath: string): void {
 // fires while no window exists to receive the push, so a push-only channel
 // would leave the renderer stuck at 'closed'.
 let gatewayState: GatewayConnectionState = 'closed'
+/** D-177: перезапуск ядра, обрыв которого окнам не показывается (ключ из окна
+ * первого запуска). Состояние копится в `gatewayState` и уходит окнам одним
+ * кадром, когда перезапуск закончен. */
+let holdGatewayState = false
 /** Метод каждого открытого вопроса ядра по его id — чтобы на ответ окна
  * поставить пометку R22 по ИМЕНИ запроса, которого в ответе нет. Запись живёт
  * до ответа или отзыва (`request.cancel`); ядро минтит один id на вопрос. */
@@ -784,6 +788,7 @@ async function connectGateway(url: string): Promise<void> {
   gateway.onStateChange((state) => {
     const wasReconnecting = gatewayState === 'reconnecting'
     gatewayState = state
+    if (holdGatewayState) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('gateway:state', state)
 
     // Связь вернулась после обрыва — догнать то, что окно пропустило.
@@ -2251,9 +2256,13 @@ ipcMain.handle('chat:complete-path', async (_event, word: unknown) => {
 // local endpoint, so a normal picker open must not set it.
 ipcMain.handle('model:options', async (_event, refresh: unknown) => {
   if (!gateway) throw new Error('no gateway connection')
-  const activeSessionId = await ensureSession()
+  // D-178: без сессии — ядро отвечает и так (`_session_agent` даёт None), а
+  // сессия, заведённая ради списка моделей до выбора провайдера, падает на
+  // сборке агента и приходит человеку тостом ядра «Hermes could not start the
+  // assistant…» (замечание владельца 7.3.2, 2026-10-07). Есть своя — берём её:
+  // живой агент знает текущую модель точнее конфига.
   return gateway.request('model.options', {
-    session_id: activeSessionId,
+    ...(sessionId ? { session_id: sessionId } : {}),
     // REQUIRED since hermes 0.19.0, and silently so. Up to 0.18.0 their
     // handler forced `include_unconfigured=True` itself; 0.19.0 turned it into
     // a parameter that defaults to FALSE. Measured on the upgrade: without
@@ -3692,16 +3701,20 @@ async function stopBackend(): Promise<void> {
  * arrives later only takes effect on the next start. One implementation means
  * the two paths cannot drift into leaving the app connected to a backend
  * running with stale credentials. */
-async function restartBackend(configOverride?: {
-  model?: string
-  baseUrl?: string
-}): Promise<{ ok: boolean; restarted: boolean; error?: string }> {
+async function restartBackend(
+  configOverride?: {
+    model?: string
+    baseUrl?: string
+  },
+  options: { keepConnection?: boolean } = {}
+): Promise<{ ok: boolean; restarted: boolean; error?: string }> {
   // AEC_GATEWAY_URL (task 0.16 e2e mode): no hermes serve process is running
   // to restart — settings are saved, but nothing to reconnect.
   if (process.env.AEC_GATEWAY_URL) {
     return { ok: true, restarted: false }
   }
 
+  holdGatewayState = options.keepConnection === true
   try {
     const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
 
@@ -3735,6 +3748,21 @@ async function restartBackend(configOverride?: {
       ok: false,
       restarted: false,
       error: error instanceof Error ? error.message : 'backend restart failed'
+    }
+  } finally {
+    if (holdGatewayState) {
+      holdGatewayState = false
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('gateway:state', gatewayState)
+      }
+      // Окна не видели переподключения и не перечитали готовность ядра — строка
+      // состояния так и показывала бы «нужна настройка». `setup.ready` ядро шлёт
+      // само после своей загрузки, но до того, как мы подключились; по их же
+      // коду это только подсказка «перечитай», без данных.
+      broadcastToWindows(
+        'chat:event',
+        tagReplayEpoch(replayWatermark, { type: 'setup.ready', payload: {} } as GatewayEvent)
+      )
     }
   }
 }
@@ -3770,7 +3798,11 @@ ipcMain.handle('keys:list', async (_event, envVars: unknown) => {
 })
 
 ipcMain.handle('keys:save', async (_event, payload: unknown) => {
-  const { envVar, key } = (payload ?? {}) as { envVar?: unknown; key?: unknown }
+  const { envVar, key, keepConnection } = (payload ?? {}) as {
+    envVar?: unknown
+    key?: unknown
+    keepConnection?: unknown
+  }
   if (!isCredentialEnvVarName(envVar)) throw new Error('invalid credential env var name')
   if (key !== null && typeof key !== 'string') throw new Error('invalid key')
   const value = key === null ? null : key.trim()
@@ -3785,7 +3817,7 @@ ipcMain.handle('keys:save', async (_event, payload: unknown) => {
   }
   // A key only reaches hermes through the child process's environment, so it
   // takes effect on the next start and not before.
-  return restartBackend()
+  return restartBackend(undefined, { keepConnection: keepConnection === true })
 })
 
 // --- Доступы Microsoft Graph (задача 3E.9а, SPECIFICATION UR34) ------------

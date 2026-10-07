@@ -54,7 +54,11 @@ from websockets.asyncio.server import ServerConnection, serve
 # session the window last created, resumed or prompted in.
 SESSION_ID = "e2e-1"
 ACTIVE_SESSION = SESSION_ID
-_session_count = 0
+# `e2e-1` — заготовленная строка списка («e2e», mock_rest.LIVE_SESSION_ID), не
+# новая сессия: новые нумеруются с `e2e-2`, как у ядра — каждой своя строка.
+# До D-178 номер `e2e-1` съедала сессия, которую главный процесс заводил ради
+# списка моделей, и первая сессия окна случайно получала свою строку.
+_session_count = 1
 
 
 def new_session_id() -> str:
