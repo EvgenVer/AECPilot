@@ -542,7 +542,9 @@ export const aecLocales: PluginLocaleBundles = {
       skip: 'Later',
       skipped: 'postponed',
       recommendedKey: {
-        title: 'OpenAI',
+        // То же имя, что у их строки ключа (D-188): «OpenAI-API» — так ядро зовёт
+        // провайдера, и под этим именем окно показывает «… подключён».
+        title: 'OpenAI-API',
         badge: 'Recommended',
         pitch: 'An API key from platform.openai.com — it serves the agent, the index and memory'
       },
@@ -1159,7 +1161,7 @@ export const aecLocales: PluginLocaleBundles = {
       skip: 'Позже',
       skipped: 'отложено',
       recommendedKey: {
-        title: 'OpenAI',
+        title: 'OpenAI-API',
         badge: 'Рекомендуется',
         pitch: 'Ключ API с platform.openai.com — его хватает агенту, индексу и памяти'
       },

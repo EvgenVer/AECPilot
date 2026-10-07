@@ -8,7 +8,8 @@
  *   [6] provider-picker defaults (owner decision 2026-10-06, D-174): no featured
  *       OAuth provider (FEATURED_ID ''), the ChatGPT subscription second as a plain
  *       row, everything else behind the disclosure with the key rows ahead of the
- *       OAuth list (Nous Portal last); FeaturedProviderRow no longer imported
+ *       OAuth list (Nous Portal last); FeaturedProviderRow no longer imported;
+ *       the OpenAI key row named 'OpenAI-API' (owner decision 2026-10-07, D-188)
  * (no other edits)
  */
 import type { ModelOptionProvider } from '@hermes/shared'
@@ -113,7 +114,12 @@ const API_KEY_OPTIONS: ApiKeyOption[] = [
   },
   {
     id: 'openai',
-    name: 'OpenAI',
+    // EDIT [6]: у них 'OpenAI'. Их `saveOnboardingApiKey` ищет провайдера ядра по
+    // надписи строки (`label.toLowerCase()`), а ядро зовёт его 'openai-api':
+    // совпадения не было, бралась первая строка списка (Nous, без моделей), и
+    // окно закрывалось без шага выбора модели (D-188, решение владельца
+    // 2026-10-07 — надпись «OpenAI-API»).
+    name: 'OpenAI-API',
     envKey: 'OPENAI_API_KEY',
     docsUrl: 'https://platform.openai.com/api-keys'
   },

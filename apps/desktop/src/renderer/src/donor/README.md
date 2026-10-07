@@ -90,8 +90,12 @@ Anything else is not an edit — it means the file does not belong in this zone.
 6. **Provider-picker defaults** — which provider the first-run picker recommends
    and the order of its rows (owner decision 2026-10-06, D-174: OpenAI by key
    first, then the ChatGPT subscription, Nous Portal last). Only the constants
-   (`FEATURED_ID`, `PROVIDER_ORDER`) and the order of the rows — a row of ours
-   comes in under [3]. The sign-in and key flows stay theirs.
+   (`FEATURED_ID`, `PROVIDER_ORDER`, the name of a row in `API_KEY_OPTIONS`) and
+   the order of the rows — a row of ours comes in under [3]. The sign-in and key
+   flows stay theirs. One row constant is ours for a reason that is not taste:
+   the OpenAI key row is named `OpenAI-API`, because their key flow finds the
+   core's provider by the row's name and the core calls it `openai-api` (D-188,
+   owner decision 2026-10-07).
 
 Not allowed, and not negotiable per-file: renaming, reformatting, restyling,
 "while I'm here" fixes, adapting to our lint preferences, or replacing their
