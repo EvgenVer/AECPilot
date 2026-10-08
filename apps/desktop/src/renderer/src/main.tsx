@@ -64,6 +64,7 @@ import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerIndexPage } from './aec/index-page/register'
+import { registerProjectPage } from './aec/project/register'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { registerDataProviders } from './aec/data-providers/register'
 import { registerGraphAccess } from './aec/settings/register'
@@ -82,6 +83,8 @@ registerMemoryNotice()
 registerMemoryScreen()
 // Задача 3H.8 (UR43): страница «Индекс» — маршрут, строка боковой панели и Ctrl+K.
 registerIndexPage()
+// Задача 3H.28 (D-191): какой проект открыт — видно и в простом режиме.
+registerProjectPage()
 // Находка D-39: при холодном возврате к старой сессии история подгружается в
 // фоне, и до этого человек всё это время смотрел на пустое окно без слова
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать

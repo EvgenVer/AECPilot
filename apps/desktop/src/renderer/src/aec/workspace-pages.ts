@@ -1,5 +1,5 @@
-// Наши страницы в основной области: «Индекс» и «Память» (задачи 3H.8–3H.10,
-// SPEC UR43).
+// Наши страницы в основной области: «Индекс», «Память» и «Проект» (задачи
+// 3H.8–3H.10, 3H.28, SPEC UR43).
 //
 // СТРАНИЦА, А НЕ ОКНО НАД СТРОКОЙ СОСТОЯНИЯ: в простом режиме и по Ctrl+Shift+S
 // донор прячет строку состояния, и всё, что в ней смонтировано, исчезает вместе
@@ -13,6 +13,7 @@ import { syncWorkspaceRoute } from '../donor/app/routes'
 
 export const INDEX_PAGE = '/aec-index'
 export const MEMORY_PAGE = '/aec-memory'
+export const PROJECT_PAGE = '/aec-project'
 
 export function openWorkspacePage(path: string): void {
   window.location.hash = `#${path}`

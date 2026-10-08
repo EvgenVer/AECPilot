@@ -89,6 +89,12 @@ export const aecLocales: PluginLocaleBundles = {
       // интервал сканирования и модель эмбеддингов правились только руками в
       // project.json.
       settingsTitle: 'Project settings',
+      // Task 3H.28 (D-191): the project page and its sidebar row.
+      pageTitle: 'Project',
+      navLabel: (name: string) => `Project: ${name}`,
+      pageBadges: 'Project instructions and schedules',
+      pageBadgesHint:
+        'The same badges as in the status bar: they show up when the project has instructions or schedules are on.',
       scanLabel: 'How often to check the sources for changes',
       scanUnit: 'minutes',
       scanHint:
@@ -715,6 +721,11 @@ export const aecLocales: PluginLocaleBundles = {
         'Ваш, а не проекта. Строка попадает в характер (SOUL) нового специалиста при создании; уже созданный SOUL правится руками. Пока не задан — не пишется ничего: язык за вас мы не выбираем.',
       langUiWhere: 'Язык интерфейса — в настройках, раздел «Оформление».',
       settingsTitle: 'Настройки проекта',
+      pageTitle: 'Проект',
+      navLabel: (name: string) => `Проект: ${name}`,
+      pageBadges: 'Инструкции проекта и расписания',
+      pageBadgesHint:
+        'Те же значки, что в строке состояния: появляются, когда в проекте есть инструкции или включены расписания.',
       scanLabel: 'Как часто проверять источники на изменения',
       scanUnit: 'минут',
       scanHint:

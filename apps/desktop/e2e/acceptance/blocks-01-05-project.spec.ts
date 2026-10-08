@@ -47,6 +47,36 @@ let scanToast = ''
 
 const PROJECT_NAME = 'Приёмка'
 const SECOND_NAME = 'Второй'
+
+/** Меню проекта в строке состояния. Только там: с задачи 3H.28 имя проекта несёт
+ *  и строка боковой панели «Проект: <имя>», а она ведёт на страницу, не в меню. */
+function projectMenu(page: Page, name: string): Locator {
+  return page.getByRole('contentinfo').getByRole('button', { name: new RegExp(name) })
+}
+
+/** Строка «Проект: <имя>» боковой панели (задача 3H.28). */
+function projectRow(page: Page, name: string): Locator {
+  return page
+    .locator('[data-tour="sessions-sidebar"]')
+    .getByRole('button', { name: new RegExp(`^(Project|Проект): ${name}`) })
+}
+
+/** Их переключатель простого режима в Ctrl+K (подпись английская в любом языке). */
+async function toggleSimpleMode(page: Page): Promise<void> {
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog').last()
+  await expect(palette).toBeVisible()
+  await page.keyboard.type('Simple mode')
+  const option = palette.getByRole('option', { name: /Simple mode/ }).first()
+  await expect(option).toBeVisible()
+  for (let step = 0; step < 10; step += 1) {
+    if ((await option.getAttribute('aria-selected')) === 'true') break
+    await page.keyboard.press('ArrowDown')
+  }
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+}
 const ONE_DRIVE = 'OneDrive - Проектная организация'
 
 test.beforeAll(async () => {
@@ -295,10 +325,7 @@ test('1.3.1 после перезапуска сразу интерфейс аг
 test('1.4.1 «Открыть проект» на папке без .aecpilot даёт диалог создания', async () => {
   const page = await ui()
   await pickFolder(sample.sourceB)
-  await page
-    .getByRole('button', { name: new RegExp(PROJECT_NAME) })
-    .first()
-    .click()
+  await projectMenu(page, PROJECT_NAME).click()
   await page.getByRole('menuitem', { name: /Open project|Открыть проект/ }).click()
 
   // Не ошибка, а предложение завести проект здесь же — с подставленными папкой
@@ -315,17 +342,14 @@ test('1.4.1 «Открыть проект» на папке без .aecpilot д�
 
 test('2.1.1 имя проекта видно в статус-баре без наведения и клика', async () => {
   const page = await ui()
-  await expect(page.getByRole('button', { name: new RegExp(PROJECT_NAME) }).first()).toBeVisible({
+  await expect(projectMenu(page, PROJECT_NAME)).toBeVisible({
     timeout: 30000
   })
 })
 
 test('2.2.1 меню несёт путь, «создать», «открыть» и недавние без текущего', async () => {
   const page = await ui()
-  await page
-    .getByRole('button', { name: new RegExp(PROJECT_NAME) })
-    .first()
-    .click()
+  await projectMenu(page, PROJECT_NAME).click()
   const menu = page.getByRole('menu')
   await expect(menu).toBeVisible()
   await expect(menu.getByText(stand.get().projectDir, { exact: false })).toBeVisible()
@@ -347,10 +371,7 @@ test('2.3.1 переключение на другой проект перери
   // главный процесс принимает ТОЛЬКО папку, выбранную в системном диалоге
   // (охранник задачи 4D-11), и правильно делает — окно не вправе назвать путь.
   await pickFolder(second)
-  await page
-    .getByRole('button', { name: new RegExp(PROJECT_NAME) })
-    .first()
-    .click()
+  await projectMenu(page, PROJECT_NAME).click()
   await page.getByRole('menuitem', { name: /New project|Создать проект/ }).click()
   const dialog = page.getByRole('dialog', { name: /New project|Создать проект/ })
   await expect(dialog).toBeVisible()
@@ -359,18 +380,15 @@ test('2.3.1 переключение на другой проект перери
   await dialog.getByRole('button', { name: /^(Create|Создать)$/ }).click()
   await expect(dialog).toHaveCount(0, { timeout: 60000 })
 
-  await expect(page.getByRole('button', { name: new RegExp(SECOND_NAME) }).first()).toBeVisible({
+  await expect(projectMenu(page, SECOND_NAME)).toBeVisible({
     timeout: 30000
   })
   await expect(page.getByText('метка-второго.md')).toBeVisible({ timeout: 30000 })
 
-  await page
-    .getByRole('button', { name: new RegExp(SECOND_NAME) })
-    .first()
-    .click()
+  await projectMenu(page, SECOND_NAME).click()
   await page.getByRole('menuitem', { name: new RegExp(`^${PROJECT_NAME}$`) }).click()
 
-  await expect(page.getByRole('button', { name: new RegExp(PROJECT_NAME) }).first()).toBeVisible({
+  await expect(projectMenu(page, PROJECT_NAME)).toBeVisible({
     timeout: 30000
   })
   // Дерево перерисовалось под открытый проект: файла второго больше нет, есть
@@ -378,6 +396,45 @@ test('2.3.1 переключение на другой проект перери
   // на живом ядре (блок 6).
   await expect(page.getByText('метка-второго.md')).toHaveCount(0)
   await expect(row(page, 'notes')).toBeVisible({ timeout: 30000 })
+})
+
+// Задача 3H.28 (D-191, решение владельца 2026-10-08): в простом режиме строки
+// состояния с меню проекта нет. Какой проект открыт, говорит строка «Проект:
+// <имя>» боковой панели, а её страница даёт те же действия; подпись строки
+// следует за проектом.
+test('2.3.2 строка «Проект» в обычном и простом режиме, её страница переключает проект', async () => {
+  const page = await ui()
+  const statusbar = page.getByRole('contentinfo')
+  // Строки их панели живут на вкладке «Сеансы», а здесь открыт проводник.
+  await page.getByRole('tab', { name: /^(Sessions|Сеансы)/ }).click()
+  await expect(projectRow(page, PROJECT_NAME)).toBeVisible({ timeout: 30000 })
+
+  await toggleSimpleMode(page)
+  await expect(statusbar).toBeHidden()
+  await projectRow(page, PROJECT_NAME).click()
+  const projectPage = page.getByRole('region', { name: /^(Project|Проект)$/ })
+  await expect(projectPage).toBeVisible()
+  await expect(projectPage.getByRole('heading', { name: PROJECT_NAME })).toBeVisible()
+  await expect(projectPage.getByText(stand.get().projectDir, { exact: true })).toBeVisible()
+
+  await projectPage.getByRole('button', { name: /Project settings|Настройки проекта/ }).click()
+  const settings = page.getByRole('dialog', { name: /Project settings|Настройки проекта/ })
+  await expect(settings).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(settings).toHaveCount(0)
+
+  await projectPage.getByRole('button', { name: SECOND_NAME, exact: true }).click()
+  await expect(projectRow(page, SECOND_NAME)).toBeVisible({ timeout: 30000 })
+  await expect(projectPage.getByRole('heading', { name: SECOND_NAME })).toBeVisible()
+  await projectPage.getByRole('button', { name: PROJECT_NAME, exact: true }).click()
+  await expect(projectRow(page, PROJECT_NAME)).toBeVisible({ timeout: 30000 })
+
+  await toggleSimpleMode(page)
+  await expect(statusbar).toBeVisible()
+  await page.evaluate(() => {
+    location.hash = '#/'
+  })
+  await page.getByRole('tab', { name: /^Vault/ }).click()
 })
 
 // ── Блок 3. Проводник vault ─────────────────────────────────────────────────

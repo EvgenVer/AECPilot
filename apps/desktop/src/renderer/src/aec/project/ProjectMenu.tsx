@@ -7,8 +7,6 @@
 // real damage in the wrong project.
 
 import { useStore } from '@nanostores/react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
@@ -24,52 +22,13 @@ import {
 import { useAecT } from '../../shared/i18n'
 import { $cronContinuity, setCronContinuity } from '../cron-continuity/store'
 
-import CreateProjectDialog from './CreateProjectDialog'
-import ProjectSettingsDialog from './ProjectSettingsDialog'
-
-const CURRENT_PROJECT_KEY = ['aec', 'current-project'] as const
-const RECENTS_KEY = ['aec', 'recent-projects'] as const
+import { useProjectActions } from './use-project-actions'
 
 export function ProjectMenu() {
   const t = useAecT()
   const continuity = useStore($cronContinuity)
-  const queryClient = useQueryClient()
-  const [dialog, setDialog] = useState<{ dirPath?: string; name?: string } | undefined>(undefined)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [error, setError] = useState<string | undefined>(undefined)
-
-  const { data: project } = useQuery({
-    queryKey: CURRENT_PROJECT_KEY,
-    queryFn: () => window.aecpilot.getCurrentProject()
-  })
-  const { data: recents } = useQuery({
-    queryKey: RECENTS_KEY,
-    queryFn: () => window.aecpilot.listRecentProjects()
-  })
-
-  const open = useCallback(
-    async (vaultPath: string) => {
-      setError(undefined)
-      const result = await window.aecpilot.openProject(vaultPath)
-      if ('needsInit' in result) {
-        // Same rule as the Welcome screen: a folder that is not a project yet
-        // opens the create dialog pre-filled instead of erroring.
-        setDialog({ dirPath: vaultPath, name: result.suggestedName })
-        return
-      }
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      await queryClient.invalidateQueries()
-    },
-    [queryClient]
-  )
-
-  const pickAndOpen = useCallback(async () => {
-    const picked = await window.aecpilot.pickProjectDirectory()
-    if (picked) await open(picked)
-  }, [open])
+  const { project, otherRecents, error, open, pickAndOpen, create, openSettings, dialogs } =
+    useProjectActions()
 
   return (
     <>
@@ -89,7 +48,7 @@ export function ProjectMenu() {
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem onSelect={() => setDialog({})}>{t('welcome.create')}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={create}>{t('welcome.create')}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void pickAndOpen()}>
             {t('welcome.open')}
           </DropdownMenuItem>
@@ -98,26 +57,24 @@ export function ProjectMenu() {
               вместе с проектом, поэтому вход к ним — здесь, у имени проекта, а
               не в настройках приложения: там они читались бы как общие. */}
           {project && (
-            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+            <DropdownMenuItem onSelect={openSettings}>
               {t('project.settingsTitle')}
             </DropdownMenuItem>
           )}
 
-          {(recents ?? []).filter((entry) => entry.vaultPath !== project?.vaultPath).length > 0 && (
+          {otherRecents.length > 0 && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t('welcome.recentTitle')}</DropdownMenuLabel>
-              {(recents ?? [])
-                .filter((entry) => entry.vaultPath !== project?.vaultPath)
-                .map((entry) => (
-                  <DropdownMenuItem
-                    key={entry.vaultPath}
-                    onSelect={() => void open(entry.vaultPath)}
-                    title={entry.vaultPath}
-                  >
-                    <span className="max-w-72 truncate">{entry.name}</span>
-                  </DropdownMenuItem>
-                ))}
+              {otherRecents.map((entry) => (
+                <DropdownMenuItem
+                  key={entry.vaultPath}
+                  onSelect={() => void open(entry.vaultPath)}
+                  title={entry.vaultPath}
+                >
+                  <span className="max-w-72 truncate">{entry.name}</span>
+                </DropdownMenuItem>
+              ))}
             </>
           )}
 
@@ -143,18 +100,7 @@ export function ProjectMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {dialog && (
-        <CreateProjectDialog
-          initialDirPath={dialog.dirPath}
-          initialName={dialog.name}
-          onClose={() => {
-            setDialog(undefined)
-            void queryClient.invalidateQueries()
-          }}
-        />
-      )}
-
-      {settingsOpen && <ProjectSettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {dialogs}
     </>
   )
 }
