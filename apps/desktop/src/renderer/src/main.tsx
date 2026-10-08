@@ -65,6 +65,10 @@ import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerIndexPage } from './aec/index-page/register'
 import { registerProjectPage } from './aec/project/register'
+import { refreshModelOptionsOnSetupReady } from './aec/model-keys/refresh-model-options'
+import { reloadAfterBegin } from './aec/onboarding/reload-after-begin'
+import { $desktopOnboarding } from './donor/store/onboarding'
+import { gatewayBridge } from './shared/gateway-bridge'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { registerDataProviders } from './aec/data-providers/register'
 import { registerGraphAccess } from './aec/settings/register'
@@ -85,6 +89,11 @@ registerMemoryScreen()
 registerIndexPage()
 // Задача 3H.28 (D-191): какой проект открыт — видно и в простом режиме.
 registerProjectPage()
+// 7.3.1: после ключа из окна первого запуска список моделей перечитывается.
+refreshModelOptionsOnSetupReady(gatewayBridge(), queryClient)
+// После «Начать» их окно подключения остаётся растворённым — перезагрузка окна
+// (решение владельца 2026-10-08), иначе вход по подписке в той же сессии невидим.
+reloadAfterBegin($desktopOnboarding, () => window.location.reload())
 // Находка D-39: при холодном возврате к старой сессии история подгружается в
 // фоне, и до этого человек всё это время смотрел на пустое окно без слова
 // объяснения. Подписка ставится до первого рендера — ядро успевает прислать

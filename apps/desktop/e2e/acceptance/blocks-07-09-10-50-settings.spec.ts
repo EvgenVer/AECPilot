@@ -361,7 +361,10 @@ async function chooseAgentLanguage(page: Page, label: string, stored: string): P
   await expect
     .poll(() => page.evaluate(async () => (await window.aecpilot.getAgentLanguage()).language))
     .toBe(stored)
-  if (await dialog.isVisible()) await closeDialog(dialog)
+  // «Сохранить» закрывает окно само, после записи. Проверка «ещё открыто — закрыть
+  // крестиком» гонялась с этим закрытием: окно успевало исчезнуть между проверкой
+  // и щелчком (прогон 2026-10-08).
+  await expect(dialog).toBeHidden()
 }
 
 /** SOUL, который ДОЕХАЛ до ядра: мок печатает полученный `profiles.create`.
