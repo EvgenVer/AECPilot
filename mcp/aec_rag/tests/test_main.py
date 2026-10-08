@@ -425,3 +425,46 @@ def test_ingest_path_outside_every_source_is_refused_by_name():
 
     with pytest.raises(ValueError, match="чужой/файл.pdf"):
         _narrow({"tasks": "D:/ИД"}, ["чужой/файл.pdf"])
+
+
+# D-194: the desktop keeps stdin open as the «Остановить» channel. Listening on
+# it must not hang the run: a thread blocked reading a Windows pipe stalled the
+# first native import after it (numpy, from LightRAG) forever — the owner's
+# indexing sat at zero, 2026-10-08. A fresh process, because numpy must not be
+# loaded yet.
+_STOP_CHILD = """
+import time
+from aec_rag.__main__ import _listen_for_stop
+should_stop = _listen_for_stop()
+import numpy
+print("imported", flush=True)
+for _ in range(200):
+    if should_stop():
+        print("stopped", flush=True)
+        break
+    time.sleep(0.05)
+"""
+
+
+def test_stop_channel_neither_hangs_native_imports_nor_misses_stop():
+    import subprocess
+    import sys
+    import threading
+
+    child = subprocess.Popen(
+        [sys.executable, "-c", _STOP_CHILD],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    watchdog = threading.Timer(60, child.kill)
+    watchdog.start()
+    try:
+        assert child.stdout.readline().strip() == "imported"
+        child.stdin.write("stop\n")
+        child.stdin.flush()
+        assert child.stdout.readline().strip() == "stopped"
+    finally:
+        watchdog.cancel()
+        child.kill()
+        child.wait()

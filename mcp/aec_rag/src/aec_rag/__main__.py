@@ -177,7 +177,7 @@ def run_ingest(project_arg: Path, *, mode: str, paths: list[str] | None = None) 
     def emit(progress) -> None:
         print(json.dumps({"progress": progress.as_dict()}, ensure_ascii=False), flush=True)
 
-    stop = _listen_for_stop()
+    should_stop = _listen_for_stop()
 
     async def run() -> dict:
         conn = open_index(project_path.parent / "index.db")
@@ -192,7 +192,7 @@ def run_ingest(project_arg: Path, *, mode: str, paths: list[str] | None = None) 
                 source_ids=source_ids,
                 rel_paths=rel_paths,
                 on_progress=emit,
-                should_stop=stop.is_set,
+                should_stop=should_stop,
             )
             return report.as_dict()
         finally:
@@ -206,22 +206,51 @@ def _listen_for_stop():
     (task 3H.16) — how the desktop's «Остановить» reaches it without killing a
     process that may be in the middle of writing the vector store. The end of
     stdin is not a request: a run started with no stdin at all must not stop
-    at once."""
-    import threading
+    at once.
 
-    stop = threading.Event()
+    Returns the ``should_stop`` check, which only reads what is already in the
+    pipe. D-194: a thread left waiting on a Windows pipe hung the run — the
+    next native module to load (numpy, from LightRAG) blocked behind that read
+    for good, and the owner's indexing sat at zero (2026-10-08)."""
+    import os
 
-    def listen() -> None:
+    try:
+        fd = sys.stdin.fileno()
+    except (AttributeError, OSError, ValueError):
+        return lambda: False
+
+    received = b""
+    stopped = False
+
+    def available() -> int:
+        if sys.platform == "win32":
+            import ctypes
+            import msvcrt
+            from ctypes import wintypes
+
+            count = wintypes.DWORD()
+            peek = ctypes.windll.kernel32.PeekNamedPipe
+            if not peek(msvcrt.get_osfhandle(fd), None, 0, None, ctypes.byref(count), None):
+                return 0  # not a pipe, or the desktop closed it
+            return count.value
+        import select
+
+        return 4096 if select.select([fd], [], [], 0)[0] else 0
+
+    def should_stop() -> bool:
+        nonlocal received, stopped
+        if stopped:
+            return True
         try:
-            for line in sys.stdin:
-                if line.strip() == "stop":
-                    stop.set()
-                    return
-        except (OSError, ValueError):
-            return
+            size = available()
+            chunk = os.read(fd, size) if size else b""
+        except OSError:
+            return False
+        received += chunk
+        stopped = any(line.strip() == b"stop" for line in received.split(b"\n"))
+        return stopped
 
-    threading.Thread(target=listen, daemon=True).start()
-    return stop
+    return should_stop
 
 
 def _narrow(roots: dict[str, str], paths: list[str]) -> tuple[list[str], list[str]]:
