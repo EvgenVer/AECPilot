@@ -109,6 +109,25 @@ def main() -> int:
         finally:
             reset_hermes_home_override(token)
 
+    # Задача 3I.3: команда памяти читает настройку Mem0 через `get_secret`. Без
+    # привязки при мультиплексе — их `UnscopedSecretError` (страница «Память»);
+    # внутри шва нашей команды (`memory_facts.profile_scope`) — без отказа.
+    from agent.secret_scope import get_secret
+
+    sys.path.insert(0, str(PLUGIN_SOURCE.parent))
+    from aec_secret_filter.memory_facts import profile_scope
+
+    for label, scoped in (("MEM0_MODE unscoped", False), ("MEM0_MODE in command", True)):
+        try:
+            if scoped:
+                with profile_scope():
+                    get_secret("MEM0_MODE")
+            else:
+                get_secret("MEM0_MODE")
+            print(f"{label}: ok")
+        except Exception as error:
+            print(f"{label}: {type(error).__name__}")
+
     ref = "${env:" + KEY_NAME + "}"
     for label, home in (("launch", launch), ("specialist", spec), ("spec+disc", spec)):
         if label == "spec+disc":

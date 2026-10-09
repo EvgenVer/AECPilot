@@ -20,6 +20,7 @@ quick/plugin/bundle/skill command», и человек увидел бы чуж�
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from typing import Any
@@ -145,26 +146,48 @@ def run(command: str, ident: str, provider: Any) -> dict:
     return {"ok": False, "error": "неизвестная команда"}
 
 
+def profile_scope() -> Any:
+    """Привязка главного профиля на время команды (задача 3I.3, D-195).
+
+    С двух профилей ядро в мультиплексе, и `get_secret` вне привязки профиля
+    бросает `UnscopedSecretError` — так страница «Память» получала отказ на
+    `MEM0_MODE`: `command.dispatch` шлюза привязки не ставит. Их шов
+    `launch_profile_scope_if_multiplexed` собирает секреты главного профиля вместе
+    с окружением запуска, то есть с ключом провайдера для эмбеддингов Mem0; пока
+    профиль один, он ничего не делает. Уже привязанный вызов не трогаем. Без ядра
+    (тесты, `runtime/memory-facts.py`) привязывать нечего."""
+    try:
+        from agent.secret_scope import current_secret_scope
+        from tui_gateway.launch_profile_policy import launch_profile_scope_if_multiplexed
+    except ImportError:
+        return contextlib.nullcontext()
+    if current_secret_scope() is not None:
+        return contextlib.nullcontext()
+    return launch_profile_scope_if_multiplexed()
+
+
 def handle(raw_args: str) -> str:
     """Обработчик `/aec-memory-facts`: `list` или `delete <id>` — строка JSON."""
     parts = (raw_args or "").split()
     command = parts[0] if parts else ""
     ident = parts[1] if len(parts) > 1 else ""
-    provider = None
     try:
-        provider = open_provider()
-        answer = run(command, ident, provider)
+        with profile_scope():
+            provider = None
+            try:
+                provider = open_provider()
+                answer = run(command, ident, provider)
+            finally:
+                if provider is not None:
+                    try:
+                        # Отпускает аренду общего клиента, а не сам клиент: живые
+                        # сессии продолжают писать в ту же папку (`mem0_shared._Lease`).
+                        provider.shutdown()
+                    except Exception:
+                        pass
     except Exception as error:
         text, _found = redact_secrets(type(error).__name__ + ": " + str(error))
         answer = {"ok": False, "error": text[:300]}
-    finally:
-        if provider is not None:
-            try:
-                # Отпускает аренду общего клиента, а не сам клиент: живые сессии
-                # продолжают писать в ту же папку (`mem0_shared._Lease`).
-                provider.shutdown()
-            except Exception:
-                pass
     if "error" in answer:
         answer["error"], _found = redact_secrets(answer["error"])
     return json.dumps(answer, ensure_ascii=False)

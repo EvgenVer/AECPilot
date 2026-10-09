@@ -105,6 +105,64 @@ def test_команда_не_бросает_и_вычищает_секрет(mon
     assert secret not in answer["error"]
 
 
+def _fake_core(monkeypatch: pytest.MonkeyPatch, *, bound: object | None) -> list[str]:
+    """Подставные `agent.secret_scope` и `tui_gateway.launch_profile_policy` ядра:
+    журнал входа и выхода из их привязки главного профиля."""
+    import contextlib
+    import sys
+    import types
+
+    events: list[str] = []
+
+    @contextlib.contextmanager
+    def launch_scope():
+        events.append("enter")
+        yield
+        events.append("exit")
+
+    scope = types.ModuleType("agent.secret_scope")
+    scope.current_secret_scope = lambda: bound
+    policy = types.ModuleType("tui_gateway.launch_profile_policy")
+    policy.launch_profile_scope_if_multiplexed = launch_scope
+    for name, module in (
+        ("agent", types.ModuleType("agent")),
+        ("agent.secret_scope", scope),
+        ("tui_gateway", types.ModuleType("tui_gateway")),
+        ("tui_gateway.launch_profile_policy", policy),
+    ):
+        monkeypatch.setitem(sys.modules, name, module)
+    return events
+
+
+# D-195 (задача 3I.3): при специалистах ядро в мультиплексе, и чтение настройки
+# Mem0 вне привязки профиля бросает `UnscopedSecretError` — `command.dispatch`
+# привязки не ставит. Команда ставит её сама, их швом.
+def test_команда_работает_внутри_привязки_главного_профиля(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events = _fake_core(monkeypatch, bound=None)
+    provider = FakeProvider()
+
+    def opened(*_: object) -> FakeProvider:
+        events.append("open")
+        return provider
+
+    monkeypatch.setattr(memory_facts, "open_provider", opened)
+    answer = json.loads(memory_facts.handle("list"))
+
+    assert answer["ok"] is True
+    assert events == ["enter", "open", "exit"]
+    assert provider.closed is True
+
+
+def test_уже_привязанный_вызов_не_перепривязывается(monkeypatch: pytest.MonkeyPatch) -> None:
+    events = _fake_core(monkeypatch, bound={"KEY": "v"})
+    monkeypatch.setattr(memory_facts, "open_provider", lambda *_: FakeProvider())
+
+    assert json.loads(memory_facts.handle("list"))["ok"] is True
+    assert events == []
+
+
 def test_команда_регистрируется_в_ядре(monkeypatch: pytest.MonkeyPatch) -> None:
     import aec_secret_filter
 
