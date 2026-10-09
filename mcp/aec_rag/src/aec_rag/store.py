@@ -115,6 +115,36 @@ def unmark_ingested(conn: sqlite3.Connection, source_id: str, rel_path: str) -> 
         )
 
 
+def record_file_error(
+    conn: sqlite3.Connection,
+    source_id: str,
+    rel_path: str,
+    sha256: str,
+    stage: str,
+    code: str,
+    detail: str,
+) -> None:
+    """Remember why ``stage`` failed for this file (task 3J.7) — the last
+    failure wins; the Index page reads it long after the run is over."""
+    with conn:
+        conn.execute(
+            "INSERT INTO file_errors (source_id, rel_path, sha256, stage, code, detail, at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (source_id, rel_path, stage) DO UPDATE SET sha256 = excluded.sha256, "
+            "code = excluded.code, detail = excluded.detail, at = excluded.at",
+            (source_id, rel_path, sha256, stage, code, detail[:2000], _iso_now()),
+        )
+
+
+def clear_file_error(conn: sqlite3.Connection, source_id: str, rel_path: str, stage: str) -> None:
+    """A success at ``stage`` retires its recorded failure."""
+    with conn:
+        conn.execute(
+            "DELETE FROM file_errors WHERE source_id = ? AND rel_path = ? AND stage = ?",
+            (source_id, rel_path, stage),
+        )
+
+
 def drop_file_chunks(conn: sqlite3.Connection, source_id: str, rel_path: str) -> int:
     """Remove a file's chunks and their full-text rows. Returns how many went."""
     ids = [

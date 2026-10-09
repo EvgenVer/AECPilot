@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aec_rag.chunk import chunk_document
+from aec_rag.errors import OCR_FAILED, SOURCE_DETACHED, UNSUPPORTED, classify
 from aec_rag.lightrag_bridge import IndexedChunk, delete_document, document_id, insert_document
 from aec_rag.parse import (
     SUPPORTED_SUFFIXES,
@@ -47,6 +48,7 @@ from aec_rag.parse import (
 from aec_rag.store import (
     OcrWork,
     PendingFile,
+    clear_file_error,
     finish_page,
     live_files,
     pending_files,
@@ -54,6 +56,7 @@ from aec_rag.store import (
     prune_removed,
     recognized_page_numbers,
     recognized_pages,
+    record_file_error,
     set_pending_pages,
     store_chunks,
     store_page_chunks,
@@ -85,6 +88,9 @@ class Progress:
     phase: str = "text"
     page: int = 0
     pages: int = 0
+    # Why, as a code from aec_rag.errors (task 3J.7) — the app words it in the
+    # interface language; ``error`` keeps the library's own text.
+    code: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -98,6 +104,7 @@ class Progress:
             "phase": self.phase,
             "page": self.page,
             "pages": self.pages,
+            "code": self.code,
         }
 
 
@@ -209,7 +216,15 @@ async def ingest(
         path = resolve_path(roots, file)
         if path is None:
             report.files_skipped += 1
-            _fail(report, on_progress, file, done, "источник не подключён", skipped=True)
+            _fail(
+                report,
+                on_progress,
+                file,
+                done,
+                "источник не подключён",
+                code=SOURCE_DETACHED,
+                skipped=True,
+            )
             continue
         if path.suffix.lower() not in SUPPORTED_SUFFIXES:
             report.files_skipped += 1
@@ -220,6 +235,7 @@ async def ingest(
                     total=report.files_total,
                     source_id=file.source_id,
                     rel_path=file.rel_path,
+                    code=UNSUPPORTED,
                 )
             )
             continue
@@ -228,10 +244,19 @@ async def ingest(
             count, waiting = await ingest_one(
                 conn, rag, file, path, parse=parse, max_chars=max_chars
             )
-        except (ParseError, OSError, ValueError, RuntimeError) as exc:
+        # Any failure of ONE file — a provider refusal included (3J.7): before,
+        # an `openai` error was none of the four types caught here and took the
+        # whole run down with it, the other files never reached.
+        except Exception as exc:  # noqa: BLE001
+            code, detail = classify(exc)
             report.files_failed += 1
-            _fail(report, on_progress, file, done, str(exc))
+            record_file_error(
+                conn, file.source_id, file.rel_path, file.sha256, "index", code, detail
+            )
+            _fail(report, on_progress, file, done, detail, code=code)
             continue
+
+        clear_file_error(conn, file.source_id, file.rel_path, "index")
 
         report.files_ingested += 1
         report.chunks += count
@@ -325,7 +350,7 @@ async def _recognize(
                     conn, item.source_id, item.rel_path, item.sha256, page, error=str(result)
                 )
                 report.pages_failed += 1
-                on_progress(Progress(stage="failed", error=str(result), **base))
+                on_progress(Progress(stage="failed", error=str(result), code=OCR_FAILED, **base))
                 continue
 
             segment = ParsedSegment(locator={"page": page}, markdown=result)
@@ -442,9 +467,12 @@ def _fail(
     done: int,
     message: str,
     *,
+    code: str,
     skipped: bool = False,
 ) -> None:
-    report.errors.append({"source_id": file.source_id, "rel_path": file.rel_path, "error": message})
+    report.errors.append(
+        {"source_id": file.source_id, "rel_path": file.rel_path, "error": message, "code": code}
+    )
     on_progress(
         Progress(
             stage="skipped" if skipped else "failed",
@@ -453,5 +481,6 @@ def _fail(
             source_id=file.source_id,
             rel_path=file.rel_path,
             error=message,
+            code=code,
         )
     )

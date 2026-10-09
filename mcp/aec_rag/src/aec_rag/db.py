@@ -84,6 +84,21 @@ CREATE TABLE IF NOT EXISTS pdf_pages (
     error TEXT,
     UNIQUE (source_id, rel_path, page)
 );
+
+-- The last failure of a file, per stage (task 3J.7): what the Index page shows
+-- after the run that produced it is long gone. A success at the same stage
+-- removes the row. `code` is from the closed list in aec_rag.errors; `detail`
+-- is the library's own words. Recognition failures stay per page in pdf_pages.
+CREATE TABLE IF NOT EXISTS file_errors (
+    source_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    stage TEXT NOT NULL CHECK (stage IN ('index', 'graph')),
+    code TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    at TEXT NOT NULL,
+    UNIQUE (source_id, rel_path, stage)
+);
 """
 
 

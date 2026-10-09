@@ -296,8 +296,9 @@ async def add_documents_to_graph(
     such rather than quietly skipped, because «added to the graph» must never be
     said about something that was not.
     """
+    from aec_rag.errors import GRAPH_FAILED, NOT_INDEXED, classify
     from aec_rag.lightrag_bridge import IndexedChunk, insert_document
-    from aec_rag.store import get_file_chunks
+    from aec_rag.store import clear_file_error, get_file_chunks, record_file_error
 
     added = 0
     chunks_total = 0
@@ -306,12 +307,17 @@ async def add_documents_to_graph(
     for done, file in enumerate(files, start=1):
         stored = get_file_chunks(conn, file.source_id, file.rel_path)
         if not stored:
+            detail = "документ ещё не проиндексирован — сначала ingest"
             errors.append(
                 {
                     "source_id": file.source_id,
                     "rel_path": file.rel_path,
-                    "error": "документ ещё не проиндексирован — сначала ingest",
+                    "error": detail,
+                    "code": NOT_INDEXED,
                 }
+            )
+            record_file_error(
+                conn, file.source_id, file.rel_path, file.sha256, "graph", NOT_INDEXED, detail
             )
             continue
         try:
@@ -323,12 +329,22 @@ async def add_documents_to_graph(
                 build_graph=True,
             )
         except Exception as exc:  # noqa: BLE001 — one document must not stop the rest
+            code, detail = classify(exc, default=GRAPH_FAILED)
             errors.append(
-                {"source_id": file.source_id, "rel_path": file.rel_path, "error": str(exc)}
+                {
+                    "source_id": file.source_id,
+                    "rel_path": file.rel_path,
+                    "error": detail,
+                    "code": code,
+                }
+            )
+            record_file_error(
+                conn, file.source_id, file.rel_path, file.sha256, "graph", code, detail
             )
             continue
 
         mark_in_graph(conn, file.source_id, file.rel_path, file.sha256, len(stored))
+        clear_file_error(conn, file.source_id, file.rel_path, "graph")
         added += 1
         chunks_total += len(stored)
         if on_progress is not None:

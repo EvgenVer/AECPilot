@@ -3688,13 +3688,18 @@ Docling в 1,3–7 раз и видит текст там, где Docling отд
   процесс, без SQLite в main), после каждого прогона и при открытии страницы. Почему CLI, а
   не чтение базы из main: одна точка правды о схеме — Python, и это уже правило проекта.
 - **Ошибки — кодом, текст — каталогом.** `aec-rag` отдаёт ошибку как `{code, detail}`
-  (закрытый список кодов: `source_detached`, `unsupported`, `parse_failed`, `empty_text`,
-  `ocr_failed`, `provider_missing`, `provider_key`, `provider_unreachable`, `graph_failed`,
-  `unknown`); `detail` — исходный текст библиотеки как есть. Перевод кодов — в
+  (закрытый список кодов — `aec_rag/errors.py`: `source_detached`, `unsupported`,
+  `file_unreadable`, `parse_failed`, `ocr_failed`, `not_indexed`, `provider_missing`,
+  `provider_key`, `provider_limit`, `provider_unreachable`, `graph_failed`, `unknown`;
+  `empty_text` не понадобился — пустой текстовый слой у PDF уходит в распознавание, а не в
+  ошибку); `detail` — исходный текст библиотеки как есть. Перевод кодов — в
   `aec-catalog.ts` (ru/en), по UR9. Последняя ошибка файла хранится в новой таблице
-  `file_errors` (`source_id, rel_path, sha256, stage, code, detail, at`): пишется при сбое
-  индексации/распознавания/графа, снимается успехом по тому же файлу. Схема — `CREATE TABLE
-  IF NOT EXISTS`, без миграции существующих данных.
+  `file_errors` (`source_id, rel_path, sha256, stage, code, detail, at`; `stage` —
+  `index | graph`): пишется при сбое индексации/графа, снимается успехом по тому же файлу.
+  Сбой распознавания страницы уже лежит постранично в `pdf_pages.error` — `inventory` берёт
+  его оттуда, второй копии в `file_errors` нет. Прогон, не сумевший начаться, печатает одну
+  строку `{"fatal": {code, detail}}`. Схема — `CREATE TABLE IF NOT EXISTS`, без миграции
+  существующих данных.
 - **«Повторить этот файл»** — уже есть выборочная индексация (`startIngest(full, rebuild,
   target)`); строка дерева зовёт её на файл.
 - **Остановившийся прогон.** Сторож тишины — и для графа (`graph-runner.ts`, тот же

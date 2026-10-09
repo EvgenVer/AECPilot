@@ -551,3 +551,108 @@ async def test_a_narrowed_folder_does_not_pull_in_its_namesake(project):
 
     assert report.files_total == 1
     assert [file.rel_path for file in pending_files(conn)] == ["ЭОМ-2/задание.pdf"]
+
+
+# ───────────────────── Ошибки кодом и таблица file_errors (3J.7) ─────
+
+
+def file_errors(conn):
+    return [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT rel_path, stage, code, detail FROM file_errors ORDER BY rel_path, stage"
+        )
+    ]
+
+
+class _ProviderRefusal(Exception):
+    """Shaped like an openai.BadRequestError — not one of the four types the
+    loop used to catch."""
+
+    status_code = 400
+
+
+@pytest.mark.anyio
+async def test_a_failed_file_leaves_its_reason_as_a_code_and_success_clears_it(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "битое.pdf")
+    rag = await open_stub_index(vault)
+
+    def broken(path):
+        raise ParseError("не удалось разобрать")
+
+    report = await ingest(conn, rag, {"tasks": str(source)}, parser=broken)
+
+    assert report.errors[0]["code"] == "parse_failed"
+    assert file_errors(conn) == [("битое.pdf", "index", "parse_failed", "не удалось разобрать")]
+
+    await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser)
+    assert file_errors(conn) == []
+
+
+@pytest.mark.anyio
+async def test_a_provider_refusal_costs_one_file_not_the_run(project, monkeypatch):
+    """D-195 class: Gemini's 400 «Please pass a valid API key» used to escape the
+    per-file guard and end the run with a traceback."""
+    vault, source, conn = project
+    add_scanned(conn, source, "а.pdf")
+    add_scanned(conn, source, "б.pdf", "Категория вторая.")
+    rag = await open_stub_index(vault)
+
+    import aec_rag.ingest as ingest_module
+
+    real_insert = ingest_module.insert_document
+
+    async def refusing_insert(rag, *, rel_path, **kwargs):
+        if rel_path == "а.pdf":
+            raise _ProviderRefusal("API key not valid. Please pass a valid API key.")
+        return await real_insert(rag, rel_path=rel_path, **kwargs)
+
+    monkeypatch.setattr(ingest_module, "insert_document", refusing_insert)
+    report = await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser)
+
+    assert report.files_ingested == 1
+    assert report.files_failed == 1
+    assert [row[:3] for row in file_errors(conn)] == [("а.pdf", "index", "provider_key")]
+
+
+@pytest.mark.anyio
+async def test_skipped_files_say_why_as_a_code(project):
+    vault, source, conn = project
+    add_scanned(conn, source, "план.dwg")
+    add_scanned(conn, source, "задание.pdf")
+    rag = await open_stub_index(vault)
+    seen: list[Progress] = []
+
+    await ingest(conn, rag, {}, parser=fake_parser, on_progress=seen.append)
+    await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser, on_progress=seen.append)
+
+    codes = {(p.rel_path, p.stage, p.code) for p in seen if p.stage == "skipped"}
+    assert ("задание.pdf", "skipped", "source_detached") in codes
+    assert ("план.dwg", "skipped", "unsupported") in codes
+
+
+@pytest.mark.anyio
+async def test_a_graph_failure_is_recorded_under_the_graph_stage(project, monkeypatch):
+    from aec_rag.graph_scope import add_documents_to_graph
+
+    vault, source, conn = project
+    sha = add_scanned(conn, source, "задание.pdf")
+    rag = await open_stub_index(vault)
+    await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser)
+
+    import aec_rag.lightrag_bridge as bridge
+
+    async def limited(*args, **kwargs):
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(bridge, "insert_document", limited)
+    file = PendingFile("tasks", "задание.pdf", sha)
+    missing = PendingFile("tasks", "нет.pdf", "x")
+    report = await add_documents_to_graph(conn, rag, [file, missing])
+
+    assert [error["code"] for error in report["errors"]] == ["provider_limit", "not_indexed"]
+    assert [row[:3] for row in file_errors(conn)] == [
+        ("задание.pdf", "graph", "provider_limit"),
+        ("нет.pdf", "graph", "not_indexed"),
+    ]

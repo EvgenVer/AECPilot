@@ -151,6 +151,15 @@ def run_detach(project_arg: Path, source_id: str) -> dict:
     return {"source_id": source_id, "detached": detached}
 
 
+def _print_fatal(exc: BaseException) -> None:
+    """One stdout line ``{"fatal": {code, detail}}`` — the reason a run could
+    not start, in the shape the app reads progress in (task 3J.7)."""
+    from aec_rag.errors import classify
+
+    code, detail = classify(exc)
+    print(json.dumps({"fatal": {"code": code, "detail": detail}}, ensure_ascii=False), flush=True)
+
+
 def run_ingest(project_arg: Path, *, mode: str, paths: list[str] | None = None) -> dict:
     """Tier-1 ingest over every scanned file (task 2.10), reporting as it goes.
 
@@ -605,10 +614,20 @@ def main(argv: list[str] | None = None) -> int:
     except RagIndexError as exc:
         # The index refusing to open is a configuration answer, not a crash:
         # a changed embedding model, or a key that was never handed to us.
+        _print_fatal(exc)
         print(f"aec-rag: {exc}", file=sys.stderr)
         return 1
     except sqlite3.OperationalError as exc:
         print(explain_operational_error(exc, getattr(args, "command", "")), file=sys.stderr)
+        return 1
+    except Exception as exc:
+        # 3J.7: a run that cannot start (a refused key while the index measures
+        # its width, say) says why as a code the app can word, not only as a
+        # traceback in a log nobody reads.
+        if getattr(args, "command", "") not in ("ingest", "graph-add"):
+            raise
+        _print_fatal(exc)
+        print(f"aec-rag: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
     print(json.dumps(report))

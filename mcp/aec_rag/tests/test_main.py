@@ -468,3 +468,24 @@ def test_stop_channel_neither_hangs_native_imports_nor_misses_stop():
         watchdog.cancel()
         child.kill()
         child.wait()
+
+
+def test_a_run_that_cannot_start_prints_its_reason_as_a_code(tmp_path, capsys, monkeypatch):
+    """3J.7: a provider refusing the key before the first file used to end the
+    run with a bare traceback; the app now gets one ``fatal`` line to word."""
+
+    class AuthenticationError(Exception):
+        status_code = 401
+
+    def refuse(*args, **kwargs):
+        raise AuthenticationError("Incorrect API key provided")
+
+    monkeypatch.setattr(aec_rag_main, "run_ingest", refuse)
+    code = main(["ingest", "--project", str(tmp_path)])
+
+    out = capsys.readouterr()
+    assert code == 1
+    assert json.loads(out.out.strip().splitlines()[-1]) == {
+        "fatal": {"code": "provider_key", "detail": "Incorrect API key provided"}
+    }
+    assert "AuthenticationError" in out.err
