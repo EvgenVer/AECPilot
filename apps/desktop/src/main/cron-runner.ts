@@ -21,7 +21,11 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cronRunnerSpawnEnv, parseCronRunnerPref, serializeCronRunnerPref } from './cron-runner-pure'
+import {
+  cronRunnerSpawnEnv,
+  parseCronRunnerPref,
+  serializeCronRunnerPref
+} from './cron-runner-pure'
 
 export interface CronRunnerState {
   /** Выбор человека. Переживает перезапуск приложения. */
@@ -67,9 +71,12 @@ function launch(): void {
   // настроены, поэтому наружу он не ходит; в лог он это и пишет. Окружение —
   // `cronRunnerSpawnEnv` (память, мультиплекс профилей — 3F.D1).
   const base = env.withOurHermesOnPath ? env.withOurHermesOnPath(process.env) : process.env
+  // D-198: скрытая консоль на Windows — иначе пустое окно консоли, и потомки
+  // шлюза (рутины ботов) наследуют его.
   const proc = spawn(env.binary, ['gateway', 'run'], {
     env: cronRunnerSpawnEnv(base, env.homeDir),
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
   })
 
   // Вывод уходит в наш журнал (задача 3.29) через обычный console — там он

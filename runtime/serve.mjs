@@ -65,6 +65,18 @@ function appendLog(line) {
 }
 
 /**
+ * D-198: every child we start on Windows gets a HIDDEN console. Without it a
+ * console child of the app may get a visible, empty console window, and the
+ * core's own children (MCP servers, file search) inherit that console. The
+ * core counts on this: it is launched hidden by their Desktop
+ * (`hiddenWindowsChildOptions`), and its descendants inherit the hidden console
+ * so nothing flashes. `windowsHide` is ignored off Windows.
+ */
+export function hiddenChild(options) {
+  return { ...options, windowsHide: true };
+}
+
+/**
  * Spawns `hermes serve` against the isolated dev profile.
  * `extraEnv` (task 0.15) is merged over the base env (HERMES_HOME,
  * HERMES_DASHBOARD_SESSION_TOKEN, and the inherited process.env) — used by
@@ -102,7 +114,7 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
   const proc = spawn(
     HERMES_BIN,
     ["serve", "--port", String(port), "--host", host, "--skip-build"],
-    {
+    hiddenChild({
       env: {
         // D-141: our `hermes` first, so the donor's bot routines run our pin.
         ...withOurHermesOnPath(process.env),
@@ -121,7 +133,7 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
         ...extraEnv,
       },
       stdio: ["ignore", "pipe", "pipe"],
-    },
+    }),
   );
 
   fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
@@ -323,7 +335,7 @@ export async function stopServe(serveHandle, { gracefulTimeoutMs = 5000, portTim
     });
 
     if (process.platform === "win32") {
-      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], hiddenChild({ stdio: "ignore" }));
     } else {
       proc.kill();
     }
@@ -335,7 +347,7 @@ export async function stopServe(serveHandle, { gracefulTimeoutMs = 5000, portTim
 
     if (timedOut && process.platform === "win32") {
       appendLog(`stop timed out for pid=${proc.pid}, taskkill /T /F once more`);
-      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+      spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], hiddenChild({ stdio: "ignore" }));
       await exited;
     } else if (timedOut) {
       proc.kill("SIGKILL");
