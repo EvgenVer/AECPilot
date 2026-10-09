@@ -1522,6 +1522,20 @@ export interface AecpilotApi {
   /** Task 3H.16: stop the running ingest at the next file or page. What it
    *  finished stays; the next run continues from there. */
   cancelIngest(): Promise<{ stopping: boolean }>
+  /** Task 3K.4 (SPEC UR45): vault-relative paths of the project files a person
+   *  marked for the index. */
+  listProjectIndex(): Promise<string[]>
+  /** Mark a vault file or folder for the index and index it at once; progress
+   *  arrives through `onIngestState`. A folder is the files it holds now. */
+  includeInIndex(target: {
+    kind: GraphScopeKind
+    rel: string
+  }): Promise<{ files: string[]; ok: true; started: boolean } | { error: string; ok: false }>
+  /** Out of search and the graph, unmarked; the file itself stays. */
+  excludeFromIndex(target: {
+    kind: GraphScopeKind
+    rel: string
+  }): Promise<{ files: string[]; ok: true } | { error: string; ok: false }>
   /** Задача 3G.7: провайдер сменил модель эмбеддингов, а индекс построен прежней
    *  (`null` — менять нечего). Только чтение: перестраивает `startIngest(true, true)`
    *  и только после согласия человека. */

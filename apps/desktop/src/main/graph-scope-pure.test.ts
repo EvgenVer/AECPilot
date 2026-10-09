@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BAD_KIND_ERROR,
   PARENT_SEGMENT_ERROR,
+  PROJECT_SOURCE_ID,
   UNKNOWN_SOURCE_ERROR,
   decideGraphMark,
   graphScopePath,
@@ -129,5 +130,25 @@ describe('readGraphLines', () => {
 
     expect(first.progress).toEqual([])
     expect(second.progress[0].rel_path).toBe('ЭОМ/задание.pdf')
+  })
+})
+
+describe('decideGraphMark — файлы проекта (3K.4)', () => {
+  it('служебный источник project известен без project.json', () => {
+    const decision = decideGraphMark(
+      { kind: 'file', rel: 'wiki/КР.md', sourceId: PROJECT_SOURCE_ID },
+      SOURCES
+    )
+
+    expect(decision).toEqual({ kind: 'file', ok: true, path: 'project/wiki/КР.md' })
+  })
+
+  it('выход из папки проекта — отказ, как у источника', () => {
+    const decision = decideGraphMark(
+      { kind: 'folder', rel: '../x', sourceId: PROJECT_SOURCE_ID },
+      SOURCES
+    )
+
+    expect(decision).toEqual({ error: PARENT_SEGMENT_ERROR, ok: false })
   })
 })

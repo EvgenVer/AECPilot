@@ -108,3 +108,45 @@ describe('runIngest — прогон без отчёта говорит прич
     expect((second as Error).message).toContain('Traceback')
   })
 })
+
+describe('файлы проекта в индексе (3K.4)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('include называет путь vault и отдаёт ответ команды', async () => {
+    const { spawn } = await import('node:child_process')
+    const { runProjectInclude } = await import('./ingest-runner')
+    const run = runProjectInclude('D:/vault', 'wiki/КР.md')
+    proc.stdout.emit(
+      'data',
+      Buffer.from('{"selected":["wiki/КР.md"],"added":["wiki/КР.md"],"files":["wiki/КР.md"]}')
+    )
+    proc.emit('close', 0)
+
+    expect((await run).selected).toEqual(['wiki/КР.md'])
+    const args = vi.mocked(spawn).mock.lastCall!
+    expect(args[1]).toEqual(['project-include', '--project', 'D:/vault', '--path', 'wiki/КР.md'])
+  })
+
+  it('exclude несёт окружение провайдера — векторы убираются из хранилища', async () => {
+    const { spawn } = await import('node:child_process')
+    const { runProjectExclude } = await import('./ingest-runner')
+    const run = runProjectExclude('D:/vault', 'workspace', { AEC_RAG_EMBEDDING_MODEL: 'm' })
+    proc.stdout.emit('data', Buffer.from('{"removed":["workspace/a.md"],"files":[]}'))
+    proc.emit('close', 0)
+
+    expect(await run).toEqual({ files: [], removed: ['workspace/a.md'] })
+    const options = vi.mocked(spawn).mock.lastCall![2] as { env: Record<string, string> }
+    expect(options.env.AEC_RAG_EMBEDDING_MODEL).toBe('m')
+  })
+
+  it('отказ команды (путь вне проекта) — ошибка с её словами', async () => {
+    const { runProjectInclude } = await import('./ingest-runner')
+    const run = runProjectInclude('D:/vault', '../чужое')
+    proc.stderr.emit('data', Buffer.from('aec-rag: путь вне проекта: ../чужое'))
+    proc.emit('close', 1)
+
+    await expect(run).rejects.toThrow('путь вне проекта')
+  })
+})

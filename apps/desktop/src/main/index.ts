@@ -149,7 +149,7 @@ import {
 } from './context-menu'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
-import { decideGraphMark } from './graph-scope-pure'
+import { decideGraphMark, PROJECT_SOURCE_ID } from './graph-scope-pure'
 import { applyIngestEvent, failureOf } from './ingest-progress-pure'
 import { readFactsAnswer } from './memory-facts-pure'
 import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
@@ -242,6 +242,7 @@ import {
   updateProjectSettings,
   getSourceStatusResult,
   getSourceTreeResult,
+  listProjectIndex,
   listProjectSources,
   openProject,
   removeSourceFromProject,
@@ -4995,10 +4996,18 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
     if (!decision.ok) return { started: false, error: decision.error }
     paths = [decision.path]
   }
+  return beginIngest(currentProject.vaultPath, { full, paths, rebuild })
+})
+
+/** Starts a tier-1 run; progress goes out through `index:ingest-state`. Shared
+ *  by «Проиндексировать» and the project files' «Включить в индекс» (3K.4). */
+async function beginIngest(
   // Captured at start: the run belongs to the project it began against, and a
   // project switch mid-run must not make its report land on somebody else's
   // indicator (the same rule the scan runner already follows).
-  const vaultPath = currentProject.vaultPath
+  vaultPath: string,
+  { full, paths, rebuild }: { full: boolean; paths?: string[]; rebuild: boolean }
+): Promise<{ error?: string; started: boolean }> {
   const { IngestStoppedError, runIngest } = await import('./ingest-runner')
   const abort = new AbortController()
   ingestAbort = abort
@@ -5055,6 +5064,61 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
     })
 
   return { started: true }
+}
+
+// Task 3K.4 (SPEC UR45): the project's own files — a wiki page, a draft in
+// `workspace/` — enter the index only where a person marked them, never on
+// their own. The window names a vault entry; the path is checked here.
+function projectFileRequest(
+  payload: unknown
+): { ok: true; path: string; rel: string } | { error: string; ok: false } {
+  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (typeof payload !== 'object' || payload === null) {
+    return { error: 'invalid payload', ok: false }
+  }
+  const decision = decideGraphMark({ ...payload, sourceId: PROJECT_SOURCE_ID }, [])
+  if (!decision.ok) return decision
+  const rel = decision.path.slice(PROJECT_SOURCE_ID.length + 1)
+  if (rel === '') return { error: 'Выберите файл или папку проекта', ok: false }
+  return { ok: true, path: decision.path, rel }
+}
+
+ipcMain.handle('index:project-list', () =>
+  currentProject ? listProjectIndex(currentProject.vaultPath) : []
+)
+
+// «Включить в индекс» marks and indexes at once (owner, 2026-10-09): the same
+// run «Проиндексировать» starts on a file of a source.
+ipcMain.handle('index:project-include', async (_event, payload: unknown) => {
+  const request = projectFileRequest(payload)
+  if (!request.ok) return request
+  if (ingestState.running) return { error: 'Индексация уже идёт', ok: false }
+  if (graphState.running) return { error: 'Строится граф — включите после него', ok: false }
+  const vaultPath = currentProject!.vaultPath
+  try {
+    const { runProjectInclude } = await import('./ingest-runner')
+    const report = await runProjectInclude(vaultPath, request.rel)
+    const run = await beginIngest(vaultPath, { full: false, paths: [request.path], rebuild: false })
+    return { files: report.files, ok: true, started: run.started }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
+// «Убрать из индекса»: out of search and the graph, the mark goes; the file
+// itself is not touched. Not during a run — both write the same index.
+ipcMain.handle('index:project-exclude', async (_event, payload: unknown) => {
+  const request = projectFileRequest(payload)
+  if (!request.ok) return request
+  if (ingestState.running) return { error: 'Идёт индексация — уберите после неё', ok: false }
+  if (graphState.running) return { error: 'Строится граф — уберите после него', ok: false }
+  try {
+    const { runProjectExclude } = await import('./ingest-runner')
+    const report = await runProjectExclude(currentProject!.vaultPath, request.rel, buildExtraEnv())
+    return { files: report.files, ok: true }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
 })
 
 ipcMain.handle('index:cancel', () => {

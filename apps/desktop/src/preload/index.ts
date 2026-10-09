@@ -249,6 +249,9 @@ const api: AecpilotApi = {
   startIngest: (full, rebuild, target) =>
     ipcRenderer.invoke('index:ingest', { full, rebuild, target }),
   cancelIngest: () => ipcRenderer.invoke('index:cancel'),
+  listProjectIndex: () => ipcRenderer.invoke('index:project-list'),
+  includeInIndex: (target) => ipcRenderer.invoke('index:project-include', target),
+  excludeFromIndex: (target) => ipcRenderer.invoke('index:project-exclude', target),
   getEmbeddingSwitch: () => ipcRenderer.invoke('index:embedding-switch'),
   getIngestState: () => ipcRenderer.invoke('index:ingest-state'),
   onIngestState: (cb) => {

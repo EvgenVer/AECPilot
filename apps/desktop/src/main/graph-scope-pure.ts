@@ -26,6 +26,9 @@ import { isProgress, readFatal, readJsonLines } from './ingest-progress-pure'
 
 export const PARENT_SEGMENT_ERROR = 'Путь в граф не может выходить за корень источника'
 export const UNKNOWN_SOURCE_ERROR = 'Источник не найден'
+/** Task 3K.4 (SPEC UR45): the source id the project's own files are indexed
+ *  under — the vault itself, never written to `project.json.sources`. */
+export const PROJECT_SOURCE_ID = 'project'
 export const BAD_KIND_ERROR = 'Вид записи в граф может быть только папкой или файлом'
 
 export type GraphMarkDecision =
@@ -54,7 +57,9 @@ export function decideGraphMark(payload: unknown, sourceIds: string[]): GraphMar
   }
   if (typeof rel !== 'string') return { error: 'rel must be a string', ok: false }
   if (!isScopeKind(kind)) return { error: BAD_KIND_ERROR, ok: false }
-  if (!sourceIds.includes(sourceId)) return { error: UNKNOWN_SOURCE_ERROR, ok: false }
+  if (sourceId !== PROJECT_SOURCE_ID && !sourceIds.includes(sourceId)) {
+    return { error: UNKNOWN_SOURCE_ERROR, ok: false }
+  }
   if (rel.split('/').includes('..')) return { error: PARENT_SEGMENT_ERROR, ok: false }
 
   return { kind, ok: true, path: graphScopePath(sourceId, rel.trim()) }

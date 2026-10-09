@@ -44,7 +44,10 @@ export const DEFAULT_INGEST_SILENCE_MS = 15 * 60 * 1000
 // keeps the vector store whole. A page is 2–11 s; if the run has not stopped by
 // this, it is ended outright.
 export const STOP_GRACE_MS = 20 * 1000
-export const DEFAULT_STATUS_TIMEOUT_MS = 30 * 1000
+export // A folder of a few hundred files is hashed in seconds; removing a file's
+// vectors opens the store once. Minutes mean something hung.
+const DEFAULT_PROJECT_FILES_TIMEOUT_MS = 5 * 60_000
+const DEFAULT_STATUS_TIMEOUT_MS = 30 * 1000
 
 /** The run was stopped on request and ended before it could report — what it
  *  finished is stored all the same. Not a failure, and not shown as one. */
@@ -218,17 +221,54 @@ export function runIndexInventory(
   return runOneShot<IndexInventory>('inventory', vaultPath, timeoutMs)
 }
 
-/** A read-only `aec-rag <command> --project <vaultPath>` that answers with one
- *  JSON object. Shared with the graph export (3J.14). */
+/** Task 3K.4: what `project-include` answers. `selected` — every file the path
+ *  names now, marked before or not; `files` — everything marked. */
+export interface ProjectIncludeReport {
+  added: string[]
+  files: string[]
+  selected: string[]
+}
+
+/** `aec-rag project-include --path <rel>`: mark a vault file or folder for the
+ *  index and scan it (SPEC UR45). Indexing is the caller's next step. */
+export function runProjectInclude(
+  vaultPath: string,
+  rel: string,
+  timeoutMs = DEFAULT_PROJECT_FILES_TIMEOUT_MS
+): Promise<ProjectIncludeReport> {
+  return runOneShot<ProjectIncludeReport>('project-include', vaultPath, timeoutMs, ['--path', rel])
+}
+
+/** `aec-rag project-exclude --path <rel>`: out of the index and the graph,
+ *  then unmarked. Takes the provider env — removing vectors opens the store. */
+export function runProjectExclude(
+  vaultPath: string,
+  rel: string,
+  extraEnv: Record<string, string>,
+  timeoutMs = DEFAULT_PROJECT_FILES_TIMEOUT_MS
+): Promise<{ files: string[] }> {
+  return runOneShot<{ files: string[] }>(
+    'project-exclude',
+    vaultPath,
+    timeoutMs,
+    ['--path', rel],
+    extraEnv
+  )
+}
+
+/** A short `aec-rag <command> --project <vaultPath>` that answers with one
+ *  JSON object. Shared with the graph export (3J.14) and the project files
+ *  (3K.4). */
 export function runOneShot<T>(
   command: string,
   vaultPath: string,
   timeoutMs: number,
-  extraArgs: string[] = []
+  extraArgs: string[] = [],
+  extraEnv: Record<string, string> = {}
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), [command, '--project', vaultPath, ...extraArgs], {
-      env: { ...process.env, ...AEC_RAG_UTF8 },
+      env: { ...process.env, ...extraEnv, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
