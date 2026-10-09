@@ -428,6 +428,23 @@ def run_status(project_arg: Path) -> dict:
         conn.close()
 
 
+def run_inventory(project_arg: Path) -> dict:
+    """Every file of the project with its index, scan and graph state (3J.8)."""
+    from aec_rag.graph_scope import read_scope
+    from aec_rag.inventory import empty_inventory, inventory
+
+    project_path = _resolve_project_json(project_arg)
+    source_ids = [root.id for root in parse_project_config(project_path)]
+    index_db_path = project_path.parent / "index.db"
+    if not index_db_path.is_file():
+        return empty_inventory()
+    conn = open_index(index_db_path)
+    try:
+        return inventory(conn, read_scope(project_path), source_ids)
+    finally:
+        conn.close()
+
+
 def run_serve(project_arg: Path) -> None:
     """Run the aec-rag MCP server over stdio (task 2.10)."""
     from aec_rag.server import build_server
@@ -545,6 +562,11 @@ def main(argv: list[str] | None = None) -> int:
     status_parser = subparsers.add_parser("status", help="Print what the index holds")
     status_parser.add_argument("--project", required=True, type=Path)
 
+    inventory_parser = subparsers.add_parser(
+        "inventory", help="Print every file with its index, scan and graph state"
+    )
+    inventory_parser.add_argument("--project", required=True, type=Path)
+
     # Both graph commands take the same three arguments, and `--kind` applies to
     # every `--path` given: the interface marks one node from a context menu, and
     # a per-path kind would be a flag nobody calls.
@@ -590,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
             report = run_detach(args.project, args.source)
         elif args.command == "status":
             report = run_status(args.project)
+        elif args.command == "inventory":
+            report = run_inventory(args.project)
         elif args.command == "graph-preview":
             report = run_graph_preview(args.project, args.paths, args.kind)
         elif args.command == "graph-add":
