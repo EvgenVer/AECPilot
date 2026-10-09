@@ -12,6 +12,12 @@ export function folderName(rootPath: string): string {
   return parts[parts.length - 1] ?? rootPath
 }
 
+/** Задача 3K (SPEC UR45): служебный источник, под которым в индексе лежат
+ *  отмеченные человеком файлы самого проекта. Корень — папка проекта; в
+ *  `project.json.sources` он не пишется. Id подключённых источников — UUID, и
+ *  совпасть с ним не могут. */
+export const PROJECT_SOURCE_ID = 'project'
+
 export function sourceDisplayName(source: { label?: string; root_path: string }): string {
   const label = source.label?.trim()
   return label ? label : folderName(source.root_path)

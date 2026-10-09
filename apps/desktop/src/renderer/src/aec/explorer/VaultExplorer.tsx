@@ -23,6 +23,7 @@ import {
 } from '../../donor/components/ui/context-menu'
 import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
+import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
 
 import { openDocument } from '../viewers/viewer-store'
 import { openIndexPage } from '../workspace-pages'
@@ -257,9 +258,6 @@ function TreeRow({
 // One key for the tree, so any mutation can invalidate it by name.
 const VAULT_TREE_KEY = ['aec', 'vault-tree'] as const
 const PROJECT_INDEX_KEY = ['aec', 'project-index'] as const
-/** The source id the project's own files are indexed under (main's
- *  `graph-scope-pure.ts`). */
-const PROJECT_SOURCE_ID = 'project'
 const NO_MARKS: ReadonlySet<string> = new Set()
 
 export function VaultExplorer() {

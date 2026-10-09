@@ -236,6 +236,7 @@ export const aecLocales: PluginLocaleBundles = {
       fileSkipped: 'skipped',
       inventory: {
         title: 'Index contents',
+        projectFiles: 'Project files',
         summary: (files: number, indexed: number, problems: number) =>
           `${files} file(s): ${indexed} in the index, ${problems} need a look`,
         empty: 'The project has not been scanned yet — the index is empty.',
@@ -630,7 +631,10 @@ export const aecLocales: PluginLocaleBundles = {
       navCount: (count: number) => `Memory · ${count}`
     },
     citations: {
-      unverified: 'This phrase is not in the cited place:'
+      unverified: 'This phrase is not in the cited place:',
+      projectFile: 'project file',
+      projectFileHint:
+        'A file of the project itself (a draft, a wiki page) — not a source document.'
     },
     onboarding: {
       title: 'Getting started',
@@ -956,6 +960,7 @@ export const aecLocales: PluginLocaleBundles = {
       fileSkipped: 'пропущен',
       inventory: {
         title: 'Состав индекса',
+        projectFiles: 'Файлы проекта',
         summary: (files: number, indexed: number, problems: number) =>
           `Файлов: ${files}, в индексе: ${indexed}, требуют внимания: ${problems}`,
         empty: 'Проект ещё не сканировался — индекс пуст.',
@@ -1343,7 +1348,9 @@ export const aecLocales: PluginLocaleBundles = {
       navCount: (count: number) => `Память · ${count}`
     },
     citations: {
-      unverified: 'Этой фразы в процитированном месте нет:'
+      unverified: 'Этой фразы в процитированном месте нет:',
+      projectFile: 'файл проекта',
+      projectFileHint: 'Файл самого проекта (черновик, страница вики), а не документ источника.'
     },
     onboarding: {
       title: 'С чего начать',

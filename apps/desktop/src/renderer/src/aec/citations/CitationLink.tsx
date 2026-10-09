@@ -15,6 +15,7 @@ import { useStore } from '@nanostores/react'
 
 import { openDocument } from '../viewers/viewer-store'
 import { useAecT } from '../../shared/i18n'
+import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
 
 import { citationLabel, type Citation } from './citation-pure'
 import { $unverifiedQuotes } from './quote-verdicts'
@@ -22,10 +23,13 @@ import { $unverifiedQuotes } from './quote-verdicts'
 export function CitationChip({ citation }: { citation: Citation }): React.JSX.Element {
   const t = useAecT()
   const unverified = useStore($unverifiedQuotes)[citation.raw] ?? []
+  // Задача 3K.6: черновик или страница вики не должны выглядеть первоисточником.
+  const projectFile = citation.sourceId === PROJECT_SOURCE_ID
 
+  const raw = projectFile ? `${citation.raw}\n${t('citations.projectFileHint')}` : citation.raw
   const title = unverified.length
-    ? `${citation.raw}\n\n${t('citations.unverified')}\n${unverified.map((quote) => `«${quote}»`).join('\n')}`
-    : citation.raw
+    ? `${raw}\n\n${t('citations.unverified')}\n${unverified.map((quote) => `«${quote}»`).join('\n')}`
+    : raw
 
   return (
     <button
@@ -48,6 +52,7 @@ export function CitationChip({ citation }: { citation: Citation }): React.JSX.El
         className={`codicon ${unverified.length ? 'codicon-warning' : 'codicon-file'}`}
         aria-hidden
       />
+      {projectFile && <span className="shrink-0 opacity-75">{t('citations.projectFile')}:</span>}
       <span className="truncate">{citationLabel(citation)}</span>
     </button>
   )

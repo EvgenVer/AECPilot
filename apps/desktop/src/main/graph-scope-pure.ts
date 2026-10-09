@@ -13,6 +13,7 @@
 // открывается, — а про то, что попадёт в список «что входит в граф» и будет
 // показано человеку как его выбор.
 
+import { PROJECT_SOURCE_ID } from '../shared/source-name'
 import type {
   GraphPreview,
   GraphRunReport,
@@ -26,9 +27,7 @@ import { isProgress, readFatal, readJsonLines } from './ingest-progress-pure'
 
 export const PARENT_SEGMENT_ERROR = 'Путь в граф не может выходить за корень источника'
 export const UNKNOWN_SOURCE_ERROR = 'Источник не найден'
-/** Task 3K.4 (SPEC UR45): the source id the project's own files are indexed
- *  under — the vault itself, never written to `project.json.sources`. */
-export const PROJECT_SOURCE_ID = 'project'
+export { PROJECT_SOURCE_ID }
 export const BAD_KIND_ERROR = 'Вид записи в граф может быть только папкой или файлом'
 
 export type GraphMarkDecision =

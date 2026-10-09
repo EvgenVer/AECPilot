@@ -121,3 +121,19 @@ describe('страница из ссылки', () => {
     expect(requestedPage($openDocument.get())).toBe(12)
   })
 })
+
+describe('файл проекта в индексе (3K.6)', () => {
+  test('ссылка project/… открывает файл папки проекта, а не источника', () => {
+    open('wiki/КР.md', undefined, 'project')
+
+    expect($openDocument.get()?.relPath).toBe('wiki/КР.md')
+    expect($openDocument.get()?.sourceId).toBeUndefined()
+  })
+
+  test('та же вкладка, что открыта из дерева проекта', () => {
+    open('wiki/КР.md')
+    open('wiki/КР.md', undefined, 'project')
+
+    expect($tabs.get()).toHaveLength(1)
+  })
+})

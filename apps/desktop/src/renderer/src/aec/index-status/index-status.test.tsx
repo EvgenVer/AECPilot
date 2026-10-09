@@ -493,4 +493,18 @@ describe('IndexStatus', () => {
     await waitFor(() => expect(getIndexStatus).toHaveBeenCalled())
     expect(container.textContent).toBe('')
   })
+
+  it('опись: отмеченные файлы проекта — отдельным корнем «Файлы проекта» (3K.6)', async () => {
+    getIndexInventory.mockResolvedValue({
+      ok: true,
+      inventory: inventory([
+        inventoryFile('задание.pdf'),
+        inventoryFile('wiki/КР.md', { source_id: 'project' })
+      ])
+    })
+    await renderPage()
+
+    await waitFor(() => expect(screen.getByText('Файлы проекта')).toBeTruthy())
+    expect(screen.getByText('Нагатинская')).toBeTruthy()
+  })
 })

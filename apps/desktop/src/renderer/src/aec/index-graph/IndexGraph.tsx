@@ -12,6 +12,7 @@ import type Sigma from 'sigma'
 
 import { useAecT } from '../../shared/i18n'
 import type { GraphExportNode } from '../../../../shared/ipc'
+import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
 import { openDocument } from '../viewers/viewer-store'
 import { toGraphology } from './graph-model'
 
@@ -137,6 +138,7 @@ function Entity({ entity }: { entity: GraphExportNode }): React.JSX.Element {
                 title={`[src: ${doc.source_id}/${doc.rel_path}]`}
                 type="button"
               >
+                {doc.source_id === PROJECT_SOURCE_ID ? `${t('citations.projectFile')}: ` : ''}
                 {doc.rel_path}
               </button>
             </li>

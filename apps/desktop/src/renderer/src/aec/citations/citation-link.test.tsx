@@ -114,3 +114,24 @@ describe('пометка непроверенной выдержки (задач
     expect(screen.getByRole('button').querySelector('.codicon-warning')).toBeNull()
   })
 })
+
+describe('файл проекта (3K.6)', () => {
+  afterEach(cleanup)
+
+  it('помечен «файл проекта» и открывается из папки проекта', () => {
+    renderChip('[src: project/wiki/КР.md]')
+
+    const chip = screen.getByRole('button')
+    expect(chip.textContent).toContain('project file:')
+    expect(chip.getAttribute('title')).toContain('not a source document')
+    fireEvent.click(chip)
+    expect($openDocument.get()?.relPath).toBe('wiki/КР.md')
+    expect($openDocument.get()?.sourceId).toBeUndefined()
+  })
+
+  it('ссылка на источник пометки не несёт', () => {
+    renderChip('[src: tasks/задание.pdf#p3]')
+
+    expect(screen.getByRole('button').textContent).not.toContain('project file')
+  })
+})

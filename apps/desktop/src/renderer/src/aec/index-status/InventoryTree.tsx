@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { InventoryFile } from '../../../../shared/ipc'
-import { sourceDisplayName } from '../../../../shared/source-name'
+import { PROJECT_SOURCE_ID, sourceDisplayName } from '../../../../shared/source-name'
 import {
   buildInventoryTree,
   canRetry,
@@ -78,6 +78,10 @@ export function InventoryTree({ running }: { running: boolean }): React.JSX.Elem
     id: source.id,
     name: sourceDisplayName(source)
   }))
+  // Задача 3K.6: отмеченные файлы проекта — отдельным корнем, и только когда они есть.
+  if (data.files.some((file) => file.source_id === PROJECT_SOURCE_ID)) {
+    named.push({ id: PROJECT_SOURCE_ID, name: t('index.inventory.projectFiles') })
+  }
   const roots = buildInventoryTree(data.files, named, onlyProblems)
   const problems = data.files.filter(isProblem).length
 
