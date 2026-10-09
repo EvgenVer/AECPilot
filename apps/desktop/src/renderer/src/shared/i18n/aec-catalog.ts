@@ -142,6 +142,9 @@ export const aecLocales: PluginLocaleBundles = {
       addAnyway: 'Connect anyway',
       remove: 'Disconnect',
       removeConfirm: 'Disconnect this source? Its files are not touched.',
+      rename: 'Rename',
+      renameLabel: 'Source name (the folder on disk keeps its name)',
+      openInExplorer: 'Open in Explorer',
       unavailable: 'unavailable'
     },
     index: {
@@ -773,6 +776,9 @@ export const aecLocales: PluginLocaleBundles = {
       addAnyway: 'Подключить всё равно',
       remove: 'Отключить',
       removeConfirm: 'Отключить этот источник? Файлы останутся на месте.',
+      rename: 'Переименовать',
+      renameLabel: 'Название источника (папка на диске не переименовывается)',
+      openInExplorer: 'Открыть в проводнике',
       unavailable: 'недоступен'
     },
     index: {

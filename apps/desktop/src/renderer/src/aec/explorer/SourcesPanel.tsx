@@ -9,7 +9,7 @@
 // disconnected share — which has to be visible without expanding anything.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { Codicon } from '../../donor/components/ui/codicon'
@@ -21,6 +21,7 @@ import {
 } from '../../donor/components/ui/context-menu'
 import { useAecT } from '../../shared/i18n'
 import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
+import { sourceDisplayName } from '../../../../shared/source-name'
 
 import { openDocument } from '../viewers/viewer-store'
 
@@ -161,6 +162,18 @@ export function SourcesPanel() {
     { rootPath: string; warnings: string[] } | undefined
   >(undefined)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  // 3J.6: источник, чьё название правится прямо в строке, и черновик названия.
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | undefined>(undefined)
+  // Меню при закрытии возвращает фокус на строку, и поле названия теряло его
+  // сразу же. Фокус ставится полю после закрытия меню; потеря фокуса сохраняет
+  // только изменённое название — пустым его не перезапишет.
+  const renameInput = useRef<HTMLInputElement | null>(null)
+  const renamingId = renaming?.id
+  useEffect(() => {
+    if (!renamingId) return
+    const timer = window.setTimeout(() => renameInput.current?.focus(), 0)
+    return () => window.clearTimeout(timer)
+  }, [renamingId])
 
   // Задача 3.13b. Наши расширения запускает само ядро — значит при удалённом
   // ядре они живут там же и читают ту машину. Здешний список к его работе
@@ -253,6 +266,29 @@ export function SourcesPanel() {
     [refresh, t]
   )
 
+  // 3J.6 (SPEC UR44): название — только в project.json, папка на диске та же.
+  const commitRename = useCallback(async () => {
+    const draft = renaming
+    setRenaming(undefined)
+    if (!draft) return
+    setError(undefined)
+    try {
+      const result = await window.aecpilot.renameSource(draft.id, draft.value)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [refresh, renaming])
+
+  const openSourceFolder = useCallback(async (source: ProjectSource) => {
+    const result = await window.aecpilot.showSourceEntryInExplorer(source.id, '')
+    if (!result.ok) setError(result.error)
+  }, [])
+
   return (
     <div className="flex flex-col gap-1 border-t border-(--ui-stroke-secondary) p-2">
       <div className="flex items-center justify-between gap-2">
@@ -318,10 +354,32 @@ export function SourcesPanel() {
                           className="text-(--ui-text-secondary)"
                           name={expanded[source.id] ? 'chevron-down' : 'chevron-right'}
                         />
-                        <span className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)">
-                          {source.root_path}
-                        </span>
+                        {renaming?.id === source.id ? null : (
+                          <span className="min-w-0 flex-1 truncate text-xs text-(--ui-text-primary)">
+                            {sourceDisplayName(source)}
+                          </span>
+                        )}
                       </button>
+                      {renaming?.id === source.id && (
+                        <input
+                          aria-label={t('sources.renameLabel')}
+                          className="min-w-0 flex-1 rounded-[4px] border border-(--ui-border) bg-transparent px-1 text-xs text-(--ui-text-primary)"
+                          onBlur={() => {
+                            if (renaming.value.trim() !== (source.label ?? '')) void commitRename()
+                          }}
+                          onChange={(event) =>
+                            setRenaming({ id: source.id, value: event.target.value })
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') void commitRename()
+                            if (event.key === 'Escape') setRenaming(undefined)
+                          }}
+                          placeholder={sourceDisplayName({ root_path: source.root_path })}
+                          ref={renameInput}
+                          title={t('sources.renameLabel')}
+                          value={renaming.value}
+                        />
+                      )}
                       {status && status !== 'ok' && (
                         // A source that has gone away is the failure this panel
                         // exists to make visible — a moved drive, a share that is no
@@ -330,6 +388,16 @@ export function SourcesPanel() {
                           {t('sources.unavailable')}
                         </span>
                       )}
+                      <Button
+                        aria-label={t('sources.openInExplorer')}
+                        className="hidden group-focus-within:flex group-hover:flex"
+                        onClick={() => void openSourceFolder(source)}
+                        size="icon-xs"
+                        title={t('sources.openInExplorer')}
+                        variant="ghost"
+                      >
+                        <Codicon name="folder-opened" />
+                      </Button>
                       <Button
                         aria-label={t('sources.remove')}
                         className="hidden group-focus-within:flex group-hover:flex"
@@ -347,10 +415,18 @@ export function SourcesPanel() {
                       путь области это один идентификатор источника. */}
                   <ContextMenuContent>
                     <ContextMenuItem
+                      onSelect={() => setRenaming({ id: source.id, value: source.label ?? '' })}
+                    >
+                      {t('sources.rename')}
+                    </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void openSourceFolder(source)}>
+                      {t('sources.openInExplorer')}
+                    </ContextMenuItem>
+                    <ContextMenuItem
                       onSelect={() =>
                         void indexTarget({
                           kind: 'folder',
-                          label: source.root_path,
+                          label: sourceDisplayName(source),
                           rel: '',
                           sourceId: source.id
                         })
@@ -362,7 +438,7 @@ export function SourcesPanel() {
                       onSelect={() =>
                         askGraphAdd({
                           kind: 'folder',
-                          label: source.root_path,
+                          label: sourceDisplayName(source),
                           rel: '',
                           sourceId: source.id
                         })

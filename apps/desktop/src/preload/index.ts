@@ -233,6 +233,7 @@ const api: AecpilotApi = {
   addSource: (rootPath, confirmed) => ipcRenderer.invoke('sources:add', { rootPath, confirmed }),
   getSourceStatus: (sourceId) => ipcRenderer.invoke('sources:status', { sourceId }),
   removeSource: (sourceId) => ipcRenderer.invoke('sources:remove', { sourceId }),
+  renameSource: (sourceId, label) => ipcRenderer.invoke('sources:rename', { sourceId, label }),
   getSourceTree: (sourceId) => ipcRenderer.invoke('sources:tree', { sourceId }),
   showSourceEntryInExplorer: (sourceId, rel) =>
     ipcRenderer.invoke('sources:show-in-explorer', { sourceId, rel }),

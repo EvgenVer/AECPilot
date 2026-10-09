@@ -17,6 +17,8 @@ import { closeGraphAdd } from './graph-add-store'
 const listSources = vi.fn()
 const addSource = vi.fn()
 const removeSource = vi.fn()
+const renameSource = vi.fn()
+const showSourceEntryInExplorer = vi.fn()
 const getSourceStatus = vi.fn()
 const pickProjectDirectory = vi.fn()
 const getConnection = vi.fn()
@@ -76,6 +78,8 @@ beforeEach(() => {
     getConnection,
     addSource,
     removeSource,
+    renameSource,
+    showSourceEntryInExplorer,
     getSourceStatus,
     pickProjectDirectory,
     getSourceTree,
@@ -115,9 +119,9 @@ const click = async (name: string) => {
 }
 
 describe('SourcesPanel', () => {
-  it('lists connected sources by their root path', async () => {
+  it('lists connected sources by their folder name, full path in the tooltip (3J.5)', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
     expect(screen.queryByText('недоступен')).toBeNull()
   })
 
@@ -135,7 +139,7 @@ describe('SourcesPanel', () => {
 
   it('connects a picked folder', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await click('Подключить папку')
 
@@ -145,7 +149,7 @@ describe('SourcesPanel', () => {
   it('holds a warned folder until it is confirmed', async () => {
     addSource.mockResolvedValueOnce({ needsConfirm: ['папка пересекается с другим источником'] })
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await click('Подключить папку')
 
@@ -163,7 +167,7 @@ describe('SourcesPanel', () => {
   it('drops a warned folder when the user backs out', async () => {
     addSource.mockResolvedValueOnce({ needsConfirm: ['папка сейчас недоступна'] })
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await click('Подключить папку')
     await click('Отмена')
@@ -175,7 +179,7 @@ describe('SourcesPanel', () => {
   it('asks before disconnecting, and reports a refusal', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await click('Отключить')
     expect(removeSource).not.toHaveBeenCalled()
@@ -214,7 +218,7 @@ describe('добавление в граф', () => {
 
   it('показывает объём и стоимость до запуска', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await openMenuOn('D:/проект/чертежи')
     await chooseAddToGraph()
@@ -228,7 +232,7 @@ describe('добавление в граф', () => {
 
   it('отказ не запускает ничего', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await openMenuOn('D:/проект/чертежи')
     await chooseAddToGraph()
@@ -244,7 +248,7 @@ describe('добавление в граф', () => {
 
   it('согласие запускает прогон по тому же пути', async () => {
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
     await expand()
     // Папка источника тоже открывается щелчком: дерево показывает свой уровень.
     await waitFor(() => expect(screen.getByTitle('ЭОМ')).toBeTruthy())
@@ -291,7 +295,7 @@ describe('добавление в граф', () => {
       preview: preview({ adds: [], chunks_estimate: 0, documents: 0, index_missing: true })
     })
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await openMenuOn('D:/проект/чертежи')
     await chooseAddToGraph()
@@ -306,7 +310,7 @@ describe('добавление в граф', () => {
       error: 'aec-rag graph-preview не ответил вовремя'
     })
     renderPanel()
-    await waitFor(() => expect(screen.getByText('D:/проект/чертежи')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await openMenuOn('D:/проект/чертежи')
     await chooseAddToGraph()
@@ -334,5 +338,42 @@ describe('ядро на другой машине', () => {
 
     expect(await screen.findByText(/Источники — на машине ядра/)).toBeTruthy()
     expect(listSources).not.toHaveBeenCalled()
+  })
+})
+
+describe('название и папка источника (3J.5–3J.6)', () => {
+  it('источник с названием показан названием', async () => {
+    listSources.mockResolvedValue([{ ...source, label: 'Чертежи КР' }])
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('Чертежи КР')).toBeTruthy())
+    expect(screen.getByTitle('D:/проект/чертежи')).toBeTruthy()
+  })
+
+  it('значок открывает саму папку источника', async () => {
+    showSourceEntryInExplorer.mockResolvedValue({ ok: true })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
+    await click('Открыть в проводнике')
+    expect(showSourceEntryInExplorer).toHaveBeenCalledWith('s1', '')
+  })
+
+  it('«Переименовать» правит название в строке и сохраняет по Enter', async () => {
+    renameSource.mockResolvedValue({ ok: true, sources: [{ ...source, label: 'ИГИ' }] })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
+    await act(async () => {
+      fireEvent.contextMenu(screen.getByTitle('D:/проект/чертежи').closest('div') as HTMLElement)
+    })
+    await act(async () => {
+      screen.getByRole('menuitem', { name: 'Переименовать' }).click()
+    })
+    const input = await screen.findByRole('textbox', {
+      name: 'Название источника (папка на диске не переименовывается)'
+    })
+    fireEvent.change(input, { target: { value: 'ИГИ' } })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+    })
+    expect(renameSource).toHaveBeenCalledWith('s1', 'ИГИ')
   })
 })

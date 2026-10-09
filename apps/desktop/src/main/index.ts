@@ -245,6 +245,7 @@ import {
   listProjectSources,
   openProject,
   removeSourceFromProject,
+  renameSource,
   type OpenProject
 } from './project-manager'
 import {
@@ -4842,8 +4843,28 @@ ipcMain.handle('sources:show-in-explorer', async (_event, payload: unknown) => {
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+  // 3J.6: корень источника открывается САМ, а не выделенным в родительской
+  // папке. Путь — из project.json, а не от модели, поэтому `openPath` здесь
+  // безопасен (довод против него в `artifacts:*` — путь, названный моделью).
+  if (rel === '') {
+    const failure = await shell.openPath(absPath)
+    return failure ? { ok: false, error: failure } : { ok: true }
+  }
   shell.showItemInFolder(absPath)
   return { ok: true }
+})
+
+// 3J.6 (SPEC UR44): название источника в приложении — только в project.json.
+ipcMain.handle('sources:rename', async (_event, payload: unknown) => {
+  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  const { sourceId, label } = (payload ?? {}) as Record<string, unknown>
+  if (typeof sourceId !== 'string' || sourceId.length === 0) {
+    return { ok: false, error: 'sourceId must be a non-empty string' }
+  }
+  if (typeof label !== 'string' || label.length > 200) {
+    return { ok: false, error: 'label must be a string up to 200 characters' }
+  }
+  return renameSource(currentProject.vaultPath, sourceId, label)
 })
 
 // Task 1.5.5: resolves a connected source's entry to its absolute path,

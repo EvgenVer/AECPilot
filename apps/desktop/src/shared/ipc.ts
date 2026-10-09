@@ -936,6 +936,12 @@ export interface AecpilotApi {
   removeSource(
     sourceId: string
   ): Promise<{ ok: true; sources: ProjectSource[] } | { ok: false; error: string }>
+  /** Название источника в приложении (3J.6, SPEC UR44): пишется только в
+   *  `project.json`, папка на диске не меняется; пустое — сброс к имени папки. */
+  renameSource(
+    sourceId: string,
+    label: string
+  ): Promise<{ ok: true; sources: ProjectSource[] } | { ok: false; error: string }>
   /** Reads a connected source's directory tree (task 1.8) — read-only, no
    * write operations exist for a source (RO by construction, see
    * specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
