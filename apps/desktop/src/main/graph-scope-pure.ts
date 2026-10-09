@@ -18,10 +18,11 @@ import type {
   GraphRunReport,
   GraphScopeEntry,
   GraphScopeKind,
-  IngestProgressEvent
+  IngestProgressEvent,
+  RunFailure
 } from '../shared/ipc'
 
-import { isProgress, readJsonLines } from './ingest-progress-pure'
+import { isProgress, readFatal, readJsonLines } from './ingest-progress-pure'
 
 export const PARENT_SEGMENT_ERROR = 'Путь в граф не может выходить за корень источника'
 export const UNKNOWN_SOURCE_ERROR = 'Источник не найден'
@@ -101,6 +102,8 @@ export function readGraphPreview(stdout: string): GraphPreview {
 }
 
 export interface GraphLines {
+  /** Task 3J.7: the run could not start, and said why. */
+  fatal?: RunFailure
   progress: IngestProgressEvent[]
   report?: GraphRunReport
   /** Хвост после последнего перевода строки — ещё не строка, ещё не разобран. */
@@ -119,14 +122,16 @@ export function readGraphLines(buffered: string): GraphLines {
 
   const progress: IngestProgressEvent[] = []
   let report: GraphRunReport | undefined
+  let fatal: RunFailure | undefined
 
   for (const record of records) {
     if (isProgress(record.progress)) {
       progress.push(record.progress)
       continue
     }
+    fatal = readFatal(record) ?? fatal
     if (isGraphReport(record)) report = record
   }
 
-  return { progress, report, rest }
+  return { fatal, progress, report, rest }
 }

@@ -17,6 +17,7 @@ import type {
 } from '../shared/ipc'
 
 import { readGraphLines, readGraphPreview } from './graph-scope-pure'
+import { RunFailedError, watchSilence } from './ingest-progress-pure'
 
 // TODO(Phase 6 / task 6.2): та же оговорка про упакованное приложение, что у
 // scan-runner и ingest-runner — путь к venv репозитория.
@@ -33,11 +34,12 @@ function aecRagBinPath(): string {
 
 export const DEFAULT_PREVIEW_TIMEOUT_MS = 60 * 1000
 
-// Замер 2.9a: 1,97 с на фрагмент на настоящем документе. Двенадцать часов —
-// не бюджет, а потолок: столько живёт прогон примерно на 21 000 фрагментов, и
-// выше этого числа процесс скорее завис, чем работает. Без потолка зависший
-// процесс держал бы индикатор вечно.
-export const DEFAULT_GRAPH_TIMEOUT_MS = 12 * 60 * 60 * 1000
+// Задача 3J.11 (как D-183 у индексации): прогон кончается, когда замолчал, а не
+// когда долго идёт. Прежний потолок в двенадцать часов держал зависший процесс
+// полдня с индикатором «идёт». Строка вывода — каждый документ (и журнал
+// LightRAG в stderr); полчаса тишины перекрывают один большой документ при
+// 1,97 с на фрагмент (замер 2.9a) и параллельных вызовах модели.
+export const DEFAULT_GRAPH_SILENCE_MS = 30 * 60 * 1000
 
 function args(command: string, vaultPath: string, path: string, kind: GraphScopeKind): string[] {
   return [command, '--project', vaultPath, '--path', path, '--kind', kind]
@@ -107,7 +109,7 @@ export function runGraphAdd(
   kind: GraphScopeKind,
   onProgress: (progress: IngestProgressEvent) => void,
   extraEnv: Record<string, string> = {},
-  timeoutMs = DEFAULT_GRAPH_TIMEOUT_MS
+  silenceMs = DEFAULT_GRAPH_SILENCE_MS
 ): Promise<GraphRunReport> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args('graph-add', vaultPath, path, kind), {
@@ -121,52 +123,64 @@ export function runGraphAdd(
     const stderrChunks: Buffer[] = []
     let pending = ''
     let report: GraphRunReport | undefined
+    let fatal: { code: string; detail: string } | undefined
     let settled = false
 
-    const timeoutTimer = setTimeout(() => {
+    const silence = watchSilence(silenceMs, () => {
       if (settled) return
       settled = true
       proc.kill()
       reject(
-        new Error(
-          `aec-rag graph-add не завершился за ${Math.round(timeoutMs / 3600000)} ч — процесс принудительно остановлен`
+        new RunFailedError(
+          'silent',
+          `aec-rag graph-add молчал ${Math.round(silenceMs / 60000)} мин — процесс остановлен. ` +
+            'Добавленные документы остаются в графе.'
         )
       )
-    }, timeoutMs)
+    })
 
     proc.stdout.on('data', (chunk: Buffer) => {
+      silence.poke()
       const parsed = readGraphLines(pending + chunk.toString('utf8'))
       pending = parsed.rest
       for (const event of parsed.progress) onProgress(event)
       if (parsed.report) report = parsed.report
+      if (parsed.fatal) fatal = parsed.fatal
     })
 
-    proc.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
+    proc.stderr.on('data', (chunk: Buffer) => {
+      silence.poke()
+      stderrChunks.push(chunk)
+    })
 
     proc.on('error', (error: Error) => {
       if (settled) return
       settled = true
-      clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag graph-add: ${error.message}`))
+      silence.stop()
+      reject(
+        new RunFailedError('spawn', `не удалось запустить aec-rag graph-add: ${error.message}`)
+      )
     })
 
     proc.on('close', (code) => {
       if (settled) return
       settled = true
-      clearTimeout(timeoutTimer)
+      silence.stop()
 
+      const tail = readGraphLines(pending + '\n')
+      fatal = tail.fatal ?? fatal
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag graph-add завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        const detail = `aec-rag graph-add завершился с ошибкой (код ${code}): ${stderr.trim()}`
+        reject(new RunFailedError(fatal?.code ?? 'exit', fatal?.detail || detail))
         return
       }
-      const tail = readGraphLines(pending + '\n')
       const finalReport = tail.report ?? report
       if (!finalReport) {
         // Важно именно отказом: выбор к этому моменту УЖЕ записан, и молчаливое
         // «готово» после неизвестного результата показало бы папку в графе,
         // которой там может не быть.
-        reject(new Error('aec-rag graph-add не отчитался о результате'))
+        reject(new RunFailedError('no_report', 'aec-rag graph-add не отчитался о результате'))
         return
       }
       resolve(finalReport)

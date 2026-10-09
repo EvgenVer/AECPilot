@@ -16,6 +16,7 @@ import {
   type IngestReport,
   interruptedFile,
   readIngestLines,
+  RunFailedError,
   watchSilence
 } from './ingest-progress-pure'
 import type { IndexInventory, RagStatus } from '../shared/ipc'
@@ -103,6 +104,7 @@ export function runIngest(
     const stderrChunks: Buffer[] = []
     let pending = ''
     let report: IngestReport | undefined
+    let fatal: { code: string; detail: string } | undefined
     let settled = false
     let stopRequested = false
     let killedAfterGrace = false
@@ -120,7 +122,8 @@ export function runIngest(
       finish()
       proc.kill()
       reject(
-        new Error(
+        new RunFailedError(
+          'silent',
           `aec-rag ingest молчал ${Math.round(silenceMs / 60000)} мин — процесс остановлен. ` +
             'Готовое сохранено; следующий запуск продолжит с места остановки.'
         )
@@ -158,6 +161,7 @@ export function runIngest(
         onProgress(event)
       }
       if (parsed.report) report = parsed.report
+      if (parsed.fatal) fatal = parsed.fatal
     })
 
     proc.stderr.on('data', (chunk: Buffer) => {
@@ -168,7 +172,7 @@ export function runIngest(
     proc.on('error', (error: Error) => {
       if (settled) return
       finish()
-      reject(new Error(`не удалось запустить aec-rag ingest: ${error.message}`))
+      reject(new RunFailedError('spawn', `не удалось запустить aec-rag ingest: ${error.message}`))
     })
 
     proc.on('close', (code) => {
@@ -177,17 +181,19 @@ export function runIngest(
 
       const tail = readIngestLines(pending + '\n')
       const finalReport = tail.report ?? report
+      fatal = tail.fatal ?? fatal
       if (code !== 0) {
         if (stopRequested) {
           reject(new IngestStoppedError(killedAfterGrace ? interruptedFile(seen) : null))
           return
         }
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag ingest завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        const detail = `aec-rag ingest завершился с ошибкой (код ${code}): ${stderr.trim()}`
+        reject(new RunFailedError(fatal?.code ?? 'exit', fatal?.detail || detail))
         return
       }
       if (!finalReport) {
-        reject(new Error('aec-rag ingest не отчитался о результате'))
+        reject(new RunFailedError('no_report', 'aec-rag ingest не отчитался о результате'))
         return
       }
       resolve({ progress: seen, report: finalReport })

@@ -18,13 +18,14 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
-import type { GraphAddState, IngestFileRow, IngestState } from '../../../../shared/ipc'
+import type { GraphAddState, IngestFileRow, IngestState, RunFailure } from '../../../../shared/ipc'
 import { $dataProviders, openDataProviders } from '../data-providers/store'
 import { openIndexPage } from '../workspace-pages'
-import { InventoryTree } from './InventoryTree'
+import { errorCodeKey, InventoryTree } from './InventoryTree'
 
 const IDLE: IngestState = {
   error: null,
+  failure: null,
   files: [],
   interrupted: null,
   lastReport: null,
@@ -38,6 +39,7 @@ const IDLE: IngestState = {
 // где всё остальное про индекс, — иначе расход становится невидимым.
 const GRAPH_IDLE: GraphAddState = {
   error: null,
+  failure: null,
   lastReport: null,
   path: null,
   progress: null,
@@ -165,6 +167,7 @@ export function IndexDetails(): React.JSX.Element | null {
 
   return (
     <div className="space-y-3 text-sm">
+      <RunFailures graph={graph} ingest={ingest} />
       <div className="space-y-1">
         <div className="text-muted-foreground">
           {t('index.summary', data.files_indexed, data.files_total)} ·{' '}
@@ -210,7 +213,6 @@ export function IndexDetails(): React.JSX.Element | null {
       {!ingest.running && (data.pages_pending ?? 0) > 0 ? (
         <div className="text-amber-500">{t('index.pagesPending', data.pages_pending ?? 0)}</div>
       ) : null}
-      {ingest.error ? <div className="text-destructive">{ingest.error}</div> : null}
       {!ingest.running && ingest.lastReport?.stopped ? (
         <div className="text-muted-foreground">{t('index.stopped')}</div>
       ) : null}
@@ -266,6 +268,49 @@ export function IndexDetails(): React.JSX.Element | null {
       <InventoryTree running={ingest.running} />
 
       <GraphScope data={data} graph={graph} />
+    </div>
+  )
+}
+
+/** Codes a runner gives a run that ended without its report (3J.11); any
+ *  other code came from `aec-rag` itself and is worded like a file's error. */
+const RUN_CODES = new Set(['exit', 'no_report', 'silent', 'spawn'])
+
+export function failureKey(failure: RunFailure): string {
+  return RUN_CODES.has(failure.code)
+    ? `index.failure.code.${failure.code}`
+    : errorCodeKey(failure.code)
+}
+
+/** Задача 3J.11: прогон, кончившийся без отчёта, — первым на странице и на
+ *  языке интерфейса; исходный текст — подсказкой. Раньше индексация показывала
+ *  русскую строку из main, а остановившийся граф не показывался вовсе. */
+function RunFailures({
+  graph,
+  ingest
+}: {
+  graph: GraphAddState
+  ingest: IngestState
+}): React.JSX.Element | null {
+  const t = useAecT()
+  const rows: { detail: string; text: string }[] = []
+  if (!ingest.running && (ingest.failure || ingest.error)) {
+    const reason = ingest.failure ? t(failureKey(ingest.failure)) : (ingest.error ?? '')
+    rows.push({ detail: ingest.error ?? '', text: t('index.failure.ingest', reason) })
+  }
+  if (!graph.running && (graph.failure || graph.error)) {
+    const reason = graph.failure ? t(failureKey(graph.failure)) : (graph.error ?? '')
+    rows.push({ detail: graph.error ?? '', text: t('index.failure.graph', reason) })
+  }
+  if (rows.length === 0) return null
+
+  return (
+    <div className="space-y-1 rounded border border-red-500/50 p-2" role="alert">
+      {rows.map((row) => (
+        <div className="text-destructive" key={row.text} title={row.detail}>
+          {row.text}
+        </div>
+      ))}
     </div>
   )
 }

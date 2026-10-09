@@ -35,6 +35,7 @@ let emitGraphState: (state: GraphAddState) => void = () => {}
 
 const IDLE: IngestState = {
   error: null,
+  failure: null,
   files: [],
   interrupted: null,
   lastReport: null,
@@ -44,6 +45,7 @@ const IDLE: IngestState = {
 }
 const GRAPH_IDLE: GraphAddState = {
   error: null,
+  failure: null,
   lastReport: null,
   path: null,
   progress: null,
@@ -461,6 +463,27 @@ describe('IndexStatus', () => {
     await waitFor(() =>
       expect(screen.getByText('Проект ещё не сканировался — индекс пуст.')).toBeTruthy()
     )
+  })
+
+  it('прогон без отчёта — причина первой строкой на языке интерфейса, текст — подсказкой (3J.11)', async () => {
+    getIngestState.mockResolvedValue({
+      ...IDLE,
+      error: 'aec-rag ingest молчал 15 мин — процесс остановлен.',
+      failure: { code: 'silent', detail: 'aec-rag ingest молчал 15 мин — процесс остановлен.' }
+    })
+    getGraphAddState.mockResolvedValue({
+      ...GRAPH_IDLE,
+      error: 'Incorrect API key',
+      failure: { code: 'provider_key', detail: 'Incorrect API key' }
+    })
+    await renderPage()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(
+      'Индексация остановилась: процесс замолчал и был остановлен — готовое сохранено'
+    )
+    const graph = screen.getByText('Построение графа остановилось: провайдер не принял ключ')
+    expect(graph.getAttribute('title')).toBe('Incorrect API key')
   })
 
   it('shows nothing at all when no project is open', async () => {

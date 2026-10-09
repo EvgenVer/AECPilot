@@ -32,6 +32,7 @@ const source = { id: 's1', root_path: 'D:/проект/чертежи', added_at
 
 const GRAPH_IDLE: GraphAddState = {
   error: null,
+  failure: null,
   lastReport: null,
   path: null,
   progress: null,

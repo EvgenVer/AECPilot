@@ -194,6 +194,17 @@ export const aecLocales: PluginLocaleBundles = {
       recognized: (pages: number) => `Recognised ${pages} scanned page(s).`,
       filesTitle: 'Files of the run',
       fileReading: 'reading…',
+      navProblem: 'needs a look',
+      failure: {
+        ingest: (reason: string) => `Indexing stopped: ${reason}`,
+        graph: (reason: string) => `Building the graph stopped: ${reason}`,
+        code: {
+          silent: 'the process went quiet and was ended — what was done is kept',
+          no_report: 'the process ended without reporting a result',
+          exit: 'the process ended with an error — details in the tooltip',
+          spawn: 'the indexer could not be started'
+        }
+      },
       fileRead: 'read',
       fileWaiting: (pages: number) => `${pages} page(s) wait for recognition`,
       fileRecognizing: (page: number, pages: number) => `recognising: page ${page} of ${pages}`,
@@ -881,6 +892,17 @@ export const aecLocales: PluginLocaleBundles = {
       recognized: (pages: number) => `Распознано страниц сканов: ${pages}.`,
       filesTitle: 'Файлы прогона',
       fileReading: 'читаю…',
+      navProblem: 'требует внимания',
+      failure: {
+        ingest: (reason: string) => `Индексация остановилась: ${reason}`,
+        graph: (reason: string) => `Построение графа остановилось: ${reason}`,
+        code: {
+          silent: 'процесс замолчал и был остановлен — готовое сохранено',
+          no_report: 'процесс завершился, не сообщив результата',
+          exit: 'процесс завершился с ошибкой — подробности в подсказке',
+          spawn: 'не удалось запустить индексатор'
+        }
+      },
       fileRead: 'прочитан',
       fileWaiting: (pages: number) => `${pages} стр. ждут распознавания`,
       fileRecognizing: (page: number, pages: number) => `распознаю: стр. ${page} из ${pages}`,

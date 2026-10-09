@@ -557,6 +557,15 @@ export interface IngestFileRow {
   state: 'done' | 'failed' | 'read' | 'reading' | 'recognizing' | 'skipped' | 'waiting'
 }
 
+/** Task 3J.11: why a run ended without its report, as a code the catalog
+ *  words in the interface language — `silent` (went quiet and was ended),
+ *  `no_report`, `exit`, `spawn`, or a code of `aec_rag/errors.py` from the
+ *  run's own `fatal` line. `detail` is the raw text, for the tooltip. */
+export interface RunFailure {
+  code: string
+  detail: string
+}
+
 /** Task 3J.8: a file's place in the index, as `aec-rag inventory` reports it. */
 export type InventoryIndexState = 'failed' | 'indexed' | 'missing' | 'skipped' | 'stale'
 export type InventoryGraphState = 'in' | 'marked' | 'none' | 'stale'
@@ -598,6 +607,8 @@ export interface IndexInventory {
 
 export interface IngestState {
   error: null | string
+  /** Task 3J.11: the same failure as `error`, as a code. */
+  failure: null | RunFailure
   /** Files the current (or last) run touched, in the order it reached them. */
   files: IngestFileRow[]
   /** Task 3J.9: the stop had to end the run by force while this file was being
@@ -709,6 +720,8 @@ export interface DataProvidersState {
  *  индикатор на оба скрыл бы, за что именно идут деньги. */
 export interface GraphAddState {
   error: null | string
+  /** Task 3J.11: the same failure as `error`, as a code. */
+  failure: null | RunFailure
   lastReport: GraphRunReport | null
   /** Что добавляют прямо сейчас. `null` — ничего не идёт. */
   path: null | string

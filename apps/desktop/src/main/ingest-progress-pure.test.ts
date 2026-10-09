@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyIngestEvent,
   describeProgress,
+  failureOf,
   type IngestProgress,
   interruptedFile,
   readIngestLines,
+  RunFailedError,
   watchSilence
 } from './ingest-progress-pure'
 
@@ -198,5 +200,23 @@ describe('interruptedFile — какой файл прочитается зан�
 
   it('строка файла показывает «читаю», пока проход по нему идёт', () => {
     expect(applyIngestEvent([], at('reading', 'а.pdf'))[0].state).toBe('reading')
+  })
+})
+
+describe('fatal и failureOf (3J.7, 3J.11)', () => {
+  it('строка fatal читается рядом с прогрессом, чужой объект — нет', () => {
+    const lines = readIngestLines(
+      '{"fatal": {"code": "provider_missing", "detail": "нет ключа"}}\n{"fatal": 3}\n'
+    )
+    expect(lines.fatal).toEqual({ code: 'provider_missing', detail: 'нет ключа' })
+    expect(readIngestLines('{"fatal": {"detail": "x"}}\n').fatal).toBeUndefined()
+  })
+
+  it('чужая ошибка — код exit с её текстом', () => {
+    expect(failureOf(new Error('сломалось'))).toEqual({ code: 'exit', detail: 'сломалось' })
+    expect(failureOf(new RunFailedError('silent', 'молчал'))).toEqual({
+      code: 'silent',
+      detail: 'молчал'
+    })
   })
 })

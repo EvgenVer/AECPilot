@@ -21,7 +21,7 @@ import { registry } from '../../donor/contrib/registry'
 import { getRuntimeI18nLocale, subscribeRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
-import type { IngestState } from '../../../../shared/ipc'
+import type { GraphAddState, IngestState } from '../../../../shared/ipc'
 import { INDEX_PAGE, openIndexPage } from '../workspace-pages'
 
 import IndexPage from './IndexPage'
@@ -57,18 +57,24 @@ export function registerIndexPage(): void {
   })
 
   let ingest: IngestState | null = null
+  let graph: GraphAddState | null = null
   const registerNav = (): void => {
     const progress = ingest?.running ? ingest.progress : null
+    // Задача 3J.11: прогон остановился или файлы не прочитались — видно из
+    // боковой панели, не открывая страницу.
+    const problem = !progress && hasRunProblem(ingest, graph)
     registry.register({
       id: 'aec-index-nav',
       area: SIDEBAR_NAV_AREA,
       source: 'core',
       order: 40,
       data: {
-        codicon: 'database',
+        codicon: problem ? 'warning' : 'database',
         label: progress
           ? `${t('index.title')} · ${progress.done}/${progress.total}`
-          : t('index.title'),
+          : problem
+            ? `${t('index.title')} · ${t('index.navProblem')}`
+            : t('index.title'),
         path: INDEX_PAGE
       } satisfies SidebarNavContribution
     })
@@ -84,4 +90,25 @@ export function registerIndexPage(): void {
     ingest = state
     registerNav()
   })
+  void window.aecpilot.getGraphAddState().then((state) => {
+    graph = state
+    registerNav()
+  })
+  window.aecpilot.onGraphAddState((state) => {
+    graph = state
+    registerNav()
+  })
+}
+
+/** The last run of either kind ended without its report, or left files failed. */
+export function hasRunProblem(ingest: IngestState | null, graph: GraphAddState | null): boolean {
+  if (ingest && !ingest.running) {
+    if (ingest.failure || ingest.error) return true
+    if ((ingest.lastReport?.files_failed ?? 0) > 0) return true
+  }
+  if (graph && !graph.running) {
+    if (graph.failure || graph.error) return true
+    if ((graph.lastReport?.failed ?? 0) > 0) return true
+  }
+  return false
 }

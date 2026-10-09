@@ -34,6 +34,7 @@ import {
 
 const IDLE_INGEST: IngestState = {
   error: null,
+  failure: null,
   files: [],
   interrupted: null,
   lastReport: null,

@@ -23,6 +23,7 @@ vi.mock('node:child_process', () => ({
 }))
 
 const { IngestStoppedError, STOP_GRACE_MS, runIngest } = await import('./ingest-runner')
+const { RunFailedError } = await import('./ingest-progress-pure')
 
 const line = (stage: string, rel_path: string): Buffer =>
   Buffer.from(
@@ -68,5 +69,42 @@ describe('runIngest — остановка (3H.16, 3J.9)', () => {
 
     const error = await run.catch((e: unknown) => e)
     expect((error as InstanceType<typeof IngestStoppedError>).interrupted).toBeNull()
+  })
+})
+
+describe('runIngest — прогон без отчёта говорит причину кодом (3J.11)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('строка fatal от aec-rag — её код и её текст', async () => {
+    const run = runIngest('D:/vault', () => undefined)
+    proc.stdout.emit(
+      'data',
+      Buffer.from('{"fatal": {"code": "provider_key", "detail": "Incorrect API key"}}\n')
+    )
+    proc.emit('close', 1)
+
+    const error = await run.catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(RunFailedError)
+    expect((error as InstanceType<typeof RunFailedError>).failure).toEqual({
+      code: 'provider_key',
+      detail: 'Incorrect API key'
+    })
+  })
+
+  it('ноль на выходе без отчёта — no_report, ненулевой без fatal — exit', async () => {
+    const quiet = runIngest('D:/vault', () => undefined)
+    proc.emit('close', 0)
+    const first = await quiet.catch((e: unknown) => e)
+    expect((first as InstanceType<typeof RunFailedError>).failure.code).toBe('no_report')
+
+    proc = new FakeProc()
+    const crashed = runIngest('D:/vault', () => undefined)
+    proc.stderr.emit('data', Buffer.from('Traceback ...'))
+    proc.emit('close', 1)
+    const second = await crashed.catch((e: unknown) => e)
+    expect((second as InstanceType<typeof RunFailedError>).failure.code).toBe('exit')
+    expect((second as Error).message).toContain('Traceback')
   })
 })

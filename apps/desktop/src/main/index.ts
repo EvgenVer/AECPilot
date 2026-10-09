@@ -150,7 +150,7 @@ import {
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import { decideGraphMark } from './graph-scope-pure'
-import { applyIngestEvent } from './ingest-progress-pure'
+import { applyIngestEvent, failureOf } from './ingest-progress-pure'
 import { readFactsAnswer } from './memory-facts-pure'
 import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
 import type {
@@ -4897,6 +4897,7 @@ ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
 // nobody asked for.
 let ingestState: IngestState = {
   error: null,
+  failure: null,
   files: [],
   interrupted: null,
   lastReport: null,
@@ -5004,6 +5005,7 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 
   publishIngestState({
     error: null,
+    failure: null,
     files: [],
     interrupted: null,
     progress: null,
@@ -5041,6 +5043,7 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
       const stopped = error instanceof IngestStoppedError
       publishIngestState({
         error: stopped ? null : error instanceof Error ? error.message : String(error),
+        failure: stopped ? null : failureOf(error),
         interrupted: stopped ? error.interrupted : null,
         progress: null,
         running: false,
@@ -5077,6 +5080,7 @@ ipcMain.handle('index:cancel', () => {
 // меню, из которого это зовут, там недостижимо.
 let graphState: GraphAddState = {
   error: null,
+  failure: null,
   lastReport: null,
   path: null,
   progress: null,
@@ -5127,7 +5131,13 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
   const vaultPath = currentProject!.vaultPath
   const { runGraphAdd } = await import('./graph-runner')
 
-  publishGraphState({ error: null, path: request.path, progress: null, running: true })
+  publishGraphState({
+    error: null,
+    failure: null,
+    path: request.path,
+    progress: null,
+    running: true
+  })
 
   void runGraphAdd(
     vaultPath,
@@ -5149,6 +5159,7 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
     .catch((error: unknown) => {
       publishGraphState({
         error: error instanceof Error ? error.message : String(error),
+        failure: failureOf(error),
         path: null,
         progress: null,
         running: false

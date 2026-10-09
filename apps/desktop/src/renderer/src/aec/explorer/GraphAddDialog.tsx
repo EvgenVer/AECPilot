@@ -28,6 +28,7 @@ import { $graphTarget, closeGraphAdd } from './graph-add-store'
 
 const IDLE: GraphAddState = {
   error: null,
+  failure: null,
   lastReport: null,
   path: null,
   progress: null,

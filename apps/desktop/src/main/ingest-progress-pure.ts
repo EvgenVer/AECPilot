@@ -6,13 +6,15 @@
 // the awkward parts have tests: a line split across two reads, a partial line
 // at the end, and a line that is not ours at all.
 
-import type { IngestFileRow, IngestProgressEvent, IngestRunReport } from '../shared/ipc'
+import type { IngestFileRow, IngestProgressEvent, IngestRunReport, RunFailure } from '../shared/ipc'
 
 export type IngestProgress = IngestProgressEvent
 
 export type IngestReport = IngestRunReport
 
 export type IngestLines = {
+  /** Task 3J.7: the run could not start, and said why. */
+  fatal?: RunFailure
   progress: IngestProgress[]
   report?: IngestReport
   /** The tail after the last newline — not yet a line, so not yet parsed. */
@@ -62,16 +64,46 @@ export function readIngestLines(buffered: string): IngestLines {
 
   const progress: IngestProgress[] = []
   let report: IngestReport | undefined
+  let fatal: RunFailure | undefined
 
   for (const record of records) {
     if (isProgress(record.progress)) {
       progress.push(record.progress)
       continue
     }
+    fatal = readFatal(record) ?? fatal
     if (isReport(record)) report = record
   }
 
-  return { progress, report, rest }
+  return { fatal, progress, report, rest }
+}
+
+/** Task 3J.7: `{"fatal": {code, detail}}` — the line `aec-rag` prints when a
+ *  run cannot start. */
+export function readFatal(record: Record<string, unknown>): RunFailure | undefined {
+  const fatal = record.fatal
+  if (typeof fatal !== 'object' || fatal === null) return undefined
+  const { code, detail } = fatal as Record<string, unknown>
+  if (typeof code !== 'string') return undefined
+  return { code, detail: typeof detail === 'string' ? detail : '' }
+}
+
+/** Task 3J.11: a run that ended without its report, carrying the reason as a
+ *  code. The message stays the raw text — logs and the tooltip read it. */
+export class RunFailedError extends Error {
+  readonly failure: RunFailure
+
+  constructor(code: string, detail: string) {
+    super(detail)
+    this.name = 'RunFailedError'
+    this.failure = { code, detail }
+  }
+}
+
+/** The failure to publish for whatever a run rejected with. */
+export function failureOf(error: unknown): RunFailure {
+  if (error instanceof RunFailedError) return error.failure
+  return { code: 'exit', detail: error instanceof Error ? error.message : String(error) }
 }
 
 export function isProgress(value: unknown): value is IngestProgress {
