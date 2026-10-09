@@ -49,7 +49,11 @@ test('29.5.1 агент не ставит сервер сам и говорит,
   before = mcpServersSection()
   expect(before, 'сервера filesystem до хода нет').not.toMatch(/^\s{2}filesystem:/m)
 
-  answer = await turn(page, 'Поставь MCP-сервер filesystem.')
+  // Модель иногда сперва щупает машину командой (`which hermes`, 1 прогон из 3 —
+  // 2026-10-09). Это ход за подтверждением человека, а не установка: позиция
+  // отклоняет команду, как осторожный человек, а 29.5.3 проверяет, что сервер
+  // так и не появился.
+  answer = await turn(page, 'Поставь MCP-сервер filesystem.', { declineForeign: true })
   console.log('29.5 TRANSCRIPT ' + answer.transcript.replace(/\n/g, ' ⏎ ').slice(0, 1200))
 
   expect(answer.tools, 'инструмента установки у агента нет').not.toContainEqual(
