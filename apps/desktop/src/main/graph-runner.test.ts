@@ -6,6 +6,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 class FakeProc extends EventEmitter {
+  stdin = null
   stdout = new EventEmitter()
   stderr = new EventEmitter()
   kill = vi.fn(() => true)
@@ -13,11 +14,10 @@ class FakeProc extends EventEmitter {
 
 let proc: FakeProc
 
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(() => proc)
-}))
+const spawn = vi.fn((..._args: unknown[]) => proc)
+vi.mock('node:child_process', () => ({ spawn }))
 
-const { runGraphAdd } = await import('./graph-runner')
+const { runGraphAdd, runGraphExport } = await import('./graph-runner')
 const { RunFailedError } = await import('./ingest-progress-pure')
 
 const failureOf = async (run: Promise<unknown>): Promise<unknown> =>
@@ -58,5 +58,26 @@ describe('runGraphAdd — сторож тишины и причины кодом
     const silent = runGraphAdd('D:/vault', 'tasks', 'folder', () => undefined, {}, 1000)
     proc.emit('close', 0)
     expect(await failureOf(silent)).toBe('no_report')
+  })
+})
+
+describe('runGraphExport (3J.14)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('документ уходит аргументом --document, ответ — разобранный JSON', async () => {
+    const run = runGraphExport('D:/vault', 'tasks/ИГИ/отчёт.pdf')
+    proc.stdout.emit('data', Buffer.from('{"graph_exists": false, "nodes": []}'))
+    proc.emit('close', 0)
+
+    expect(await run).toMatchObject({ graph_exists: false })
+    expect(spawn.mock.calls.at(-1)?.[1]).toEqual([
+      'graph-export',
+      '--project',
+      'D:/vault',
+      '--document',
+      'tasks/ИГИ/отчёт.pdf'
+    ])
   })
 })

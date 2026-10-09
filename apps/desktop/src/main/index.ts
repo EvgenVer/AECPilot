@@ -5117,6 +5117,24 @@ ipcMain.handle('graph:preview', async (_event, payload: unknown) => {
 
 ipcMain.handle('graph:add-state', () => graphState)
 
+// Задача 3J.14: граф для вкладки «Граф». Путь документа собирает main, как и у
+// отметки, — окно путей не строит.
+ipcMain.handle('graph:export', async (_event, payload: unknown) => {
+  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  let document: null | string = null
+  if (payload !== null && payload !== undefined) {
+    const request = markRequest({ ...(payload as object), kind: 'file' })
+    if (!request.ok) return { error: request.error, ok: false }
+    document = request.path
+  }
+  try {
+    const { runGraphExport } = await import('./graph-runner')
+    return { graph: await runGraphExport(currentProject.vaultPath, document), ok: true }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
 ipcMain.handle('graph:add', async (_event, payload: unknown) => {
   const request = markRequest(payload)
   if (!request.ok) return { error: request.error, started: false }

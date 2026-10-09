@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
 import type {
+  GraphExport,
   GraphPreview,
   GraphRunReport,
   GraphScopeKind,
@@ -18,6 +19,7 @@ import type {
 
 import { readGraphLines, readGraphPreview } from './graph-scope-pure'
 import { RunFailedError, watchSilence } from './ingest-progress-pure'
+import { runOneShot } from './ingest-runner'
 
 // TODO(Phase 6 / task 6.2): та же оговорка про упакованное приложение, что у
 // scan-runner и ingest-runner — путь к venv репозитория.
@@ -186,4 +188,15 @@ export function runGraphAdd(
       resolve(finalReport)
     })
   })
+}
+
+/** Задача 3J.14: граф для вкладки «Граф» — узлы с раскладкой, рёбра, документы.
+ *  Только чтение; `document` — `<source>/<rel path>`, только его сущности. */
+export function runGraphExport(
+  vaultPath: string,
+  document: null | string,
+  timeoutMs = DEFAULT_PREVIEW_TIMEOUT_MS
+): Promise<GraphExport> {
+  const extra = document ? ['--document', document] : []
+  return runOneShot<GraphExport>('graph-export', vaultPath, timeoutMs, extra)
 }

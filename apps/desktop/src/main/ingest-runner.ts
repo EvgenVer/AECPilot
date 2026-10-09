@@ -219,10 +219,15 @@ export function runIndexInventory(
 }
 
 /** A read-only `aec-rag <command> --project <vaultPath>` that answers with one
- *  JSON object. */
-function runOneShot<T>(command: string, vaultPath: string, timeoutMs: number): Promise<T> {
+ *  JSON object. Shared with the graph export (3J.14). */
+export function runOneShot<T>(
+  command: string,
+  vaultPath: string,
+  timeoutMs: number,
+  extraArgs: string[] = []
+): Promise<T> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), [command, '--project', vaultPath], {
+    const proc = spawn(aecRagBinPath(), [command, '--project', vaultPath, ...extraArgs], {
       env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true

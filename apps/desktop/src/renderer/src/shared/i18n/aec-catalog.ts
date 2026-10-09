@@ -151,6 +151,24 @@ export const aecLocales: PluginLocaleBundles = {
       title: 'Index',
       pageCommand: 'Open the index',
       pageHint: 'What the document search holds, indexing, the knowledge graph',
+      tabs: { overview: 'Overview', graph: 'Graph' },
+      graph: {
+        loading: 'Reading the graph…',
+        loadFailed: (error: string) => `Could not read the graph: ${error}`,
+        empty:
+          'The knowledge graph is empty — no document has been added to it yet. Mark a folder or a file in the explorer (right click → to the graph).',
+        shownAll: (nodes: number, edges: number) => `${nodes} entities, ${edges} relations`,
+        shownPart: (shown: number, matched: number, total: number) =>
+          `The ${shown} best-connected entities of ${matched} (${total} in the whole graph) — narrow by document to see the rest`,
+        document: 'Document:',
+        allDocuments: 'All documents',
+        documentOption: (path: string, entities: number) => `${path} (${entities})`,
+        canvas: 'Knowledge graph',
+        hint: 'Click an entity to see which documents it comes from.',
+        documents: 'From the documents',
+        noDocuments:
+          'No indexed document — the entity came from text that is no longer in the index.'
+      },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} fragments`,
       stale: (count: number) => `· ${count} stale`,
@@ -849,6 +867,24 @@ export const aecLocales: PluginLocaleBundles = {
       title: 'Индекс',
       pageCommand: 'Открыть индекс',
       pageHint: 'Что есть в поиске по документам, индексация, граф знаний',
+      tabs: { overview: 'Обзор', graph: 'Граф' },
+      graph: {
+        loading: 'Читаю граф…',
+        loadFailed: (error: string) => `Не удалось прочитать граф: ${error}`,
+        empty:
+          'Граф знаний пуст — в него ещё не добавлен ни один документ. Отметьте папку или файл в проводнике (правый клик → в граф).',
+        shownAll: (nodes: number, edges: number) => `Сущностей: ${nodes}, связей: ${edges}`,
+        shownPart: (shown: number, matched: number, total: number) =>
+          `Показаны ${shown} самых связанных сущностей из ${matched} (во всём графе ${total}) — сузьте по документу, чтобы увидеть остальные`,
+        document: 'Документ:',
+        allDocuments: 'Все документы',
+        documentOption: (path: string, entities: number) => `${path} (${entities})`,
+        canvas: 'Граф знаний',
+        hint: 'Щёлкните сущность — покажу, из каких документов она взята.',
+        documents: 'Из документов',
+        noDocuments:
+          'Нет проиндексированного документа — сущность взята из текста, которого в индексе уже нет.'
+      },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} фрагментов`,
       stale: (count: number) => `· ${count} устарело`,

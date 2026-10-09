@@ -557,6 +557,39 @@ export interface IngestFileRow {
   state: 'done' | 'failed' | 'read' | 'reading' | 'recognizing' | 'skipped' | 'waiting'
 }
 
+/** Task 3J.13/3J.14: the knowledge graph as `aec-rag graph-export` lays it out. */
+export interface GraphExportNode {
+  degree: number
+  description: string
+  documents: { rel_path: string; source_id: string }[]
+  id: string
+  label: string
+  type: string
+  x: number
+  y: number
+}
+
+export interface GraphExportEdge {
+  label: string
+  source: string
+  target: string
+  weight: number
+}
+
+export interface GraphExport {
+  /** Documents that have entities in the graph — the filter's list. */
+  documents: { entities: number; rel_path: string; source_id: string }[]
+  edges: GraphExportEdge[]
+  graph_exists: boolean
+  /** Entities that pass the document filter, before the limit. */
+  matched_nodes: number
+  nodes: GraphExportNode[]
+  total_edges: number
+  total_nodes: number
+  /** The picture is the best-connected part, not all of it. */
+  truncated: boolean
+}
+
 /** Task 3J.11: why a run ended without its report, as a code the catalog
  *  words in the interface language — `silent` (went quiet and was ended),
  *  `no_report`, `exit`, `spawn`, or a code of `aec_rag/errors.py` from the
@@ -1467,6 +1500,12 @@ export interface AecpilotApi {
   checkQuotes(answer: string): Promise<QuoteCheckResult>
   /** What the index holds, for the indicator (task 2.15). */
   getIndexStatus(): Promise<{ ok: true; status: RagStatus } | { error: string; ok: false }>
+  /** Task 3J.14: the knowledge graph laid out for drawing; `document` keeps
+   *  only the entities of that file. */
+  exportGraph(document?: {
+    rel: string
+    sourceId: string
+  }): Promise<{ graph: GraphExport; ok: true } | { error: string; ok: false }>
   /** Task 3J.10: every file of the project with its index, scan and graph state. */
   getIndexInventory(): Promise<
     { inventory: IndexInventory; ok: true } | { error: string; ok: false }
