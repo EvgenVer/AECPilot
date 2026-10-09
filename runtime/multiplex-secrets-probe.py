@@ -39,7 +39,7 @@ description: "probe"
 
 # Тот же вид источника, что в плане 3I.2: имена — из AEC_PROVIDER_KEY_NAMES,
 # значения — из окружения процесса.
-PLUGIN_INIT = '''
+PLUGIN_INIT = """
 import os
 from pathlib import Path
 from agent.secret_sources.base import FetchResult, SecretSource
@@ -51,13 +51,14 @@ class AecPilotSource(SecretSource):
     shape = "bulk"
 
     def fetch(self, cfg, home_path: Path) -> FetchResult:
-        names = [n.strip() for n in os.environ.get("AEC_PROVIDER_KEY_NAMES", "").split(",") if n.strip()]
+        listed = os.environ.get("AEC_PROVIDER_KEY_NAMES", "").split(",")
+        names = [n.strip() for n in listed if n.strip()]
         return FetchResult(secrets={n: os.environ[n] for n in names if os.environ.get(n)})
 
 
 def register(ctx):
     ctx.register_secret_source(AecPilotSource())
-'''
+"""
 
 CONFIG = """plugins:
   enabled:
@@ -78,9 +79,15 @@ def make_home(root: Path) -> tuple[Path, Path]:
     spec = launch / "profiles" / "spec1"
     for home in (launch, spec):
         (home / "plugins" / "aec-probe-source").mkdir(parents=True)
-        (home / "plugins" / "aec-probe-source" / "plugin.yaml").write_text(PLUGIN_YAML, encoding="utf-8")
-        (home / "plugins" / "aec-probe-source" / "__init__.py").write_text(PLUGIN_INIT, encoding="utf-8")
-        (home / "config.yaml").write_text(CONFIG + (SECRETS if WITH_SOURCE else ""), encoding="utf-8")
+        (home / "plugins" / "aec-probe-source" / "plugin.yaml").write_text(
+            PLUGIN_YAML, encoding="utf-8"
+        )
+        (home / "plugins" / "aec-probe-source" / "__init__.py").write_text(
+            PLUGIN_INIT, encoding="utf-8"
+        )
+        (home / "config.yaml").write_text(
+            CONFIG + (SECRETS if WITH_SOURCE else ""), encoding="utf-8"
+        )
     # Профиль специалиста — «настоящий» для ядра: непустой `.env` без ключа.
     (spec / ".env").write_text("AEC_PROBE_MARKER=1\n", encoding="utf-8")
     return launch, spec
@@ -95,7 +102,12 @@ def main() -> int:
         os.environ["AEC_PROVIDER_KEY_NAMES"] = KEY_NAME
     sys.path.insert(0, str(REPO / "runtime" / ".hermes-src"))
 
-    from agent.secret_scope import build_profile_secret_scope, is_multiplex_active, reset_secret_scope, set_secret_scope
+    from agent.secret_scope import (
+        build_profile_secret_scope,
+        is_multiplex_active,
+        reset_secret_scope,
+        set_secret_scope,
+    )
     from hermes_cli.env_loader import hydrate_profile_secret_sources
     from hermes_cli.plugins import discover_plugins
     from tools.mcp_tool_config import _interpolate_env_vars
@@ -104,8 +116,10 @@ def main() -> int:
     discover_plugins()
     from agent.secret_sources.registry import list_plugin_sources
 
-    print(f"source: {'with' if WITH_SOURCE else 'WITHOUT'}; plugin sources: {[s.name for s in list_plugin_sources()]}")
-    print(f"multiplex activated at boot: {activate_multi_profile_hosting_eagerly()} (active={is_multiplex_active()})")
+    sources = [s.name for s in list_plugin_sources()]
+    print(f"source: {'with' if WITH_SOURCE else 'WITHOUT'}; plugin sources: {sources}")
+    activated = activate_multi_profile_hosting_eagerly()
+    print(f"multiplex activated at boot: {activated} (active={is_multiplex_active()})")
 
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
@@ -131,19 +145,29 @@ def main() -> int:
             resolved = _interpolate_env_vars(ref)
         finally:
             reset_secret_scope(token)
-        verdict = "KEY" if resolved == KEY_VALUE else ("LITERAL" if resolved == ref else f"OTHER({len(resolved)})")
-        print(f"{label:10s}: key in profile scope={scope.get(KEY_NAME) == KEY_VALUE}; MCP ${{env:}} -> {verdict}")
+        verdict = (
+            "KEY"
+            if resolved == KEY_VALUE
+            else ("LITERAL" if resolved == ref else f"OTHER({len(resolved)})")
+        )
+        in_scope = scope.get(KEY_NAME) == KEY_VALUE
+        print(f"{label:10s}: key in profile scope={in_scope}; MCP ${{env:}} -> {verdict}")
         if "--debug" in sys.argv:
             from agent.secret_sources.registry import apply_all, list_sources
             from hermes_cli.env_loader import _load_secrets_config
             from hermes_constants import hermes_home_key
+
             cfg = _load_secrets_config(home)
-            print(f"   cfg={cfg}; sources for scope={[s.name for s in list_sources(scope=hermes_home_key(home))]}")
+            scoped = [s.name for s in list_sources(scope=hermes_home_key(home))]
+            print(f"   cfg={cfg}; sources for scope={scoped}")
             report = apply_all(cfg, home, environ={})
             for src in report.sources:
                 r = src.result
-                print(f"   {src.name}: ok={r.ok} err={r.error} n={len(r.secrets)} applied={src.applied} "
-                      f"skipped={getattr(src, 'skipped_existing', [])}")
+                skipped = getattr(src, "skipped_existing", [])
+                print(
+                    f"   {src.name}: ok={r.ok} err={r.error} n={len(r.secrets)} "
+                    f"applied={src.applied} skipped={skipped}"
+                )
     return 0
 
 
