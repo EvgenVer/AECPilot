@@ -282,7 +282,8 @@ def test_scan_sweep_is_idempotent_second_scan_reports_no_orphans(tmp_path, capsy
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert "detached_orphans" not in report
-    assert report["sources"] == {}
+    # Only the project's own files (task 3K.2) — nothing of the orphan.
+    assert list(report["sources"]) == ["project"]
 
 
 def test_scan_reports_no_detached_orphans_key_when_nothing_orphaned(tmp_path, capsys):

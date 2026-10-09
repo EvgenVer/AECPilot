@@ -27,6 +27,7 @@ from pathlib import Path
 from aec_rag.db import open_index
 from aec_rag.indexer import detach_source, scan_source
 from aec_rag.project_config import ProjectConfigError, parse_project_config
+from aec_rag.project_scope import PROJECT_SOURCE_ID, all_roots, read_project_index, vault_of
 from aec_rag.rag_index import RagIndexError
 
 
@@ -106,8 +107,15 @@ def run_scan(project_arg: Path) -> dict:
     conn = open_index(index_db_path)
     try:
         reports = {root.id: scan_source(conn, root.id, root.root_path) for root in roots}
+        # Task 3K.2: the project's own files — only those a person marked.
+        reports[PROJECT_SOURCE_ID] = scan_source(
+            conn,
+            PROJECT_SOURCE_ID,
+            vault_of(project_path),
+            only=[entry.path for entry in read_project_index(project_path)],
+        )
 
-        configured_ids = {root.id for root in roots}
+        configured_ids = {root.id for root in roots} | {PROJECT_SOURCE_ID}
         rows = conn.execute(
             "SELECT DISTINCT source_id FROM files WHERE status != 'detached'"
         ).fetchall()
@@ -179,7 +187,7 @@ def run_ingest(project_arg: Path, *, mode: str, paths: list[str] | None = None) 
     from aec_rag.rag_index import open_index as open_rag_index
 
     project_path = _resolve_project_json(project_arg)
-    roots = {root.id: root.root_path for root in parse_project_config(project_path)}
+    roots = all_roots(project_path)
     vault = project_path.parent.parent
     settings = load_settings(project_path)
 
@@ -434,7 +442,7 @@ def run_inventory(project_arg: Path) -> dict:
     from aec_rag.inventory import empty_inventory, inventory
 
     project_path = _resolve_project_json(project_arg)
-    source_ids = [root.id for root in parse_project_config(project_path)]
+    source_ids = [root.id for root in parse_project_config(project_path)] + [PROJECT_SOURCE_ID]
     index_db_path = project_path.parent / "index.db"
     if not index_db_path.is_file():
         return empty_inventory()

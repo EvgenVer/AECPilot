@@ -61,6 +61,16 @@ def clean_rel(path: str) -> str:
     return "/".join(parts)
 
 
+def all_roots(project_json: Path | str) -> dict[str, str]:
+    """Every root a ``<source>/<rel path>`` can name: the connected sources and
+    the vault itself under :data:`PROJECT_SOURCE_ID` (task 3K.2)."""
+    from aec_rag.project_config import parse_project_config
+
+    roots = {root.id: root.root_path for root in parse_project_config(Path(project_json))}
+    roots[PROJECT_SOURCE_ID] = str(vault_of(project_json))
+    return roots
+
+
 def read_project_index(project_json: Path | str) -> list[ProjectFile]:
     """Marked files, oldest first. Absent or malformed entries are skipped."""
     data = _read_project(Path(project_json))

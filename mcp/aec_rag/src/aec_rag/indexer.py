@@ -13,6 +13,10 @@ import sqlite3
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 # Default cap (bytes) above which a file is skipped rather than hashed, per
 # specs/workspace-sources.md (Edge cases: "Файл больше лимита ... default 200 МБ").
@@ -209,8 +213,14 @@ def scan_source(
     *,
     max_size: int = DEFAULT_MAX_SIZE,
     rehash_after_s: float = DEFAULT_REHASH_AFTER_S,
+    only: Sequence[str] | None = None,
 ) -> dict:
     """Scan ``root_path`` and reconcile ``files`` rows for ``source_id``.
+
+    ``only`` (task 3K.2) replaces the walk with exactly these root-relative
+    files: the project's own files are scanned only where a person marked them
+    (SPEC UR45), never by walking the vault. A listed file that is gone is
+    reconciled as deleted, like any other.
 
     Returns ``{added: [rel_path, ...], changed: [...], deleted: [...],
     unchanged: n, unreadable_dirs: [...], root_unavailable: bool}``.
@@ -314,7 +324,14 @@ def scan_source(
     seen: set[str] = set()
 
     unreadable_dirs: list[str] = []
-    for file_path in walk_files(root, unreadable_dirs):
+    files = (
+        walk_files(root, unreadable_dirs)
+        if only is None
+        else (
+            root / rel for rel in only if (root / rel).is_file() and not (root / rel).is_symlink()
+        )
+    )
+    for file_path in files:
         rel_path = file_path.relative_to(root).as_posix()
         seen.add(rel_path)
         prior = existing.get(rel_path)

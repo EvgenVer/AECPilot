@@ -37,7 +37,7 @@ from aec_rag.citation import parse_citations
 from aec_rag.db import open_index as open_db
 from aec_rag.evidence import EvidenceUnavailable, check_quote, chunk_text
 from aec_rag.ingest import Progress, ingest
-from aec_rag.project_config import ProjectConfigError, parse_project_config
+from aec_rag.project_config import ProjectConfigError
 from aec_rag.rag_index import RagIndexError, load_settings, open_index
 from aec_rag.store import index_stats
 
@@ -108,7 +108,9 @@ class RagServer:
 
     @property
     def roots(self) -> dict[str, str]:
-        return {root.id: root.root_path for root in parse_project_config(self.project_json)}
+        from aec_rag.project_scope import all_roots
+
+        return all_roots(self.project_json)
 
     def db(self) -> sqlite3.Connection:
         if self._conn is None:
