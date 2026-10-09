@@ -445,6 +445,21 @@ def run_inventory(project_arg: Path) -> dict:
         conn.close()
 
 
+def run_graph_export(project_arg: Path, limit: int, document: tuple[str, str] | None) -> dict:
+    """The knowledge graph with a layout, for the Index page (3J.13)."""
+    from aec_rag.graph_export import export_graph, graph_file
+
+    project_path = _resolve_project_json(project_arg)
+    vault = project_path.parent.parent
+    index_db_path = project_path.parent / "index.db"
+    conn = open_index(index_db_path) if index_db_path.is_file() else None
+    try:
+        return export_graph(conn, graph_file(vault), limit=limit, document=document)
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def run_serve(project_arg: Path) -> None:
     """Run the aec-rag MCP server over stdio (task 2.10)."""
     from aec_rag.server import build_server
@@ -567,6 +582,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     inventory_parser.add_argument("--project", required=True, type=Path)
 
+    from aec_rag.graph_export import DEFAULT_LIMIT, parse_document
+
+    export_parser = subparsers.add_parser(
+        "graph-export", help="Print the knowledge graph with a layout (only reads)"
+    )
+    export_parser.add_argument("--project", required=True, type=Path)
+    export_parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    export_parser.add_argument(
+        "--document",
+        type=parse_document,
+        default=None,
+        help="Only entities of this '<source_id>/<relative path>' document",
+    )
+
     # Both graph commands take the same three arguments, and `--kind` applies to
     # every `--path` given: the interface marks one node from a context menu, and
     # a per-path kind would be a flag nobody calls.
@@ -614,6 +643,8 @@ def main(argv: list[str] | None = None) -> int:
             report = run_status(args.project)
         elif args.command == "inventory":
             report = run_inventory(args.project)
+        elif args.command == "graph-export":
+            report = run_graph_export(args.project, args.limit, args.document)
         elif args.command == "graph-preview":
             report = run_graph_preview(args.project, args.paths, args.kind)
         elif args.command == "graph-add":
