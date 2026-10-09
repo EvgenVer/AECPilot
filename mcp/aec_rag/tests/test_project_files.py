@@ -118,6 +118,46 @@ def test_the_inventory_lists_marked_project_files(tmp_path, capsys):
     ]
 
 
+# --- task 3K.7: the agent's search tells a project file from a source ---------
+
+
+def test_search_marks_project_files_and_only_them(tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+
+    from aec_rag.chunk import Chunk
+    from aec_rag.db import open_index
+    from aec_rag.server import search_chunks
+    from aec_rag.store import store_chunks
+
+    conn = open_index(tmp_path / "index.db")
+    store_chunks(conn, PROJECT_SOURCE_ID, "wiki/КР.md", "a", [Chunk(text="Сваи С-1", locator={})])
+    store_chunks(conn, "tasks", "задание.pdf", "b", [Chunk(text="Сваи С-2", locator={"page": 3})])
+
+    async def no_vectors(_query, top_k):
+        return []
+
+    rag = SimpleNamespace(chunks_vdb=SimpleNamespace(query=no_vectors))
+    hits = asyncio.run(search_chunks(conn, rag, "Сваи"))
+    conn.close()
+
+    marks = {hit["rel_path"]: hit.get("project_file") for hit in hits}
+    assert marks == {"wiki/КР.md": True, "задание.pdf": None}
+
+
+def test_the_search_tool_tells_the_agent_how_to_treat_a_project_file():
+    """Owner's decision, 2026-10-09 (waiver — no eval): the description is the
+    only place the agent learns this."""
+    import inspect
+
+    from aec_rag import server
+
+    source = inspect.getsource(server)
+    assert "`project_file: true`" in source
+    assert "[src: project/<rel_path>]" in source
+    assert "never present it as a primary source" in source
+
+
 # --- task 3K.3: project-include / project-exclude ---------------------------
 
 

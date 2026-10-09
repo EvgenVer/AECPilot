@@ -261,7 +261,12 @@ def build_server(project_json: Path) -> MCPServer:
             "matching chunks with the place each came from (file, and page/sheet/heading) "
             "so the answer can cite it. `score` is the vector similarity and is null for a "
             "chunk only the full-text half found; `match` says which half found it. "
-            "filters accepts source_id, path_prefix and doctype."
+            "filters accepts source_id, path_prefix and doctype. "
+            "A chunk with `project_file: true` is from a file of the project itself that a "
+            "person chose to index (a draft, a wiki page), not from a source document: its "
+            "`rel_path` is relative to the project folder, cite it as "
+            "[src: project/<rel_path>], read it with the file tools rather than sources_read, "
+            "and never present it as a primary source."
         )
     )
     async def rag_query(
@@ -692,11 +697,20 @@ async def search_chunks(
                 "is_table": chunk.is_table,
                 "score": round(score, 4) if score is not None else None,
                 "match": _match_kind(identifier, vector_ids, text_ids),
+                **_origin(chunk),
             }
         )
         if len(results) >= wanted:
             break
     return results
+
+
+def _origin(chunk) -> dict[str, bool]:
+    """Task 3K.7 (SPEC UR45): a chunk of the project's own files says so — a
+    draft or a wiki page must not pass for a source document."""
+    from aec_rag.project_scope import PROJECT_SOURCE_ID
+
+    return {"project_file": True} if chunk.source_id == PROJECT_SOURCE_ID else {}
 
 
 def _match_kind(identifier: str, vector_ids: list[str], text_ids: list[str]) -> str:
@@ -796,6 +810,7 @@ def _chunks_of(conn: sqlite3.Connection, hits: Sequence[dict[str, Any]]) -> list
             "rel_path": chunk.rel_path,
             "locator": chunk.locator,
             "is_table": chunk.is_table,
+            **_origin(chunk),
         }
         for identifier in identifiers
         if (chunk := stored.get(identifier)) is not None
