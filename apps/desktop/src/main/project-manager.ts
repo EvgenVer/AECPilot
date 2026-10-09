@@ -253,17 +253,50 @@ function readProjectConfigFile(
 
 /** Writes `config` to `<vaultPath>/.aecpilot/project.json` atomically
  * (write to a temp file, then rename over the original) — same 2-space
- * indent + trailing newline as `generateVault`. */
+ * indent + trailing newline as `generateVault`.
+ *
+ * D-200: written OVER the object already in the file. `aec-rag` keeps its own
+ * fields there (`graph_scope`, `project_index`) that `ProjectConfig` does not
+ * know, and validation drops them — writing `config` alone wiped the person's
+ * graph choice on every source add, remove or rename. */
 function writeProjectConfigFile(vaultPath: string, config: ProjectConfig): void {
   const configPath = join(vaultPath, '.aecpilot', 'project.json')
   const tempPath = `${configPath}.tmp-${randomUUID()}`
-  writeFileSync(tempPath, `${JSON.stringify(config, null, 2)}\n`)
+  writeFileSync(
+    tempPath,
+    `${JSON.stringify({ ...readRawConfig(configPath), ...config }, null, 2)}\n`
+  )
   try {
     renameSync(tempPath, configPath)
   } catch (error: unknown) {
     unlinkSync(tempPath)
     throw error
   }
+}
+
+function readRawConfig(configPath: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(configPath, 'utf-8'))
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Project files a person marked for the index (task 3K.4, SPEC UR45): the
+ *  vault-relative paths `aec-rag project-include` wrote to `project_index`.
+ *  An unreadable file or list is an empty answer — the tree only uses it to
+ *  pick a menu item and a badge. */
+export function listProjectIndex(vaultPath: string): string[] {
+  const entries = readRawConfig(join(vaultPath, '.aecpilot', 'project.json')).project_index
+  if (!Array.isArray(entries)) return []
+  return entries
+    .map((entry: unknown) =>
+      typeof entry === 'object' && entry !== null ? (entry as { path?: unknown }).path : undefined
+    )
+    .filter((path): path is string => typeof path === 'string' && path.length > 0)
 }
 
 /** Lists a project's connected sources by reading `project.json` (task 1.7,

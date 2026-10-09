@@ -14,6 +14,7 @@ import {
   getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
+  listProjectIndex,
   listProjectSources,
   openProject,
   removeSourceFromProject,
@@ -834,5 +835,84 @@ describe('renameSource (3J.5)', () => {
       ok: false,
       error: 'Источник не найден'
     })
+  })
+})
+
+describe('D-200: поля project.json, которых нет в схеме приложения, переживают запись', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-d200-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+    const configPath = path.join(vaultPath, '.aecpilot', 'project.json')
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    raw.graph_scope = { entries: [{ added_at: 't', kind: 'folder', path: 'id-a/КР' }] }
+    raw.project_index = [{ added_at: 't', path: 'wiki/КР.md' }]
+    fs.writeFileSync(configPath, JSON.stringify(raw))
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('подключение, переименование и удаление источника не стирают граф и файлы проекта', async () => {
+    const sourceDir = path.join(parent, 'Изыскания')
+    fs.mkdirSync(sourceDir)
+    await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+    renameSource(vaultPath, 'id-a', 'ИГИ')
+    removeSourceFromProject(vaultPath, 'id-a')
+    updateProjectSettings(vaultPath, { scan_interval_s: 600 })
+
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    )
+    expect(raw.graph_scope.entries[0].path).toBe('id-a/КР')
+    expect(raw.project_index).toEqual([{ added_at: 't', path: 'wiki/КР.md' }])
+    expect(raw.settings.scan_interval_s).toBe(600)
+    expect(raw.sources).toEqual([])
+  })
+})
+
+describe('listProjectIndex (3K.4)', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-project-index-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('ничего не отмечено — пустой список', () => {
+    expect(listProjectIndex(vaultPath)).toEqual([])
+  })
+
+  it('отдаёт пути отмеченных файлов и пропускает мусор', () => {
+    const configPath = path.join(vaultPath, '.aecpilot', 'project.json')
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    raw.project_index = [{ path: 'wiki/КР.md', added_at: 't' }, { path: '' }, 'x', null]
+    fs.writeFileSync(configPath, JSON.stringify(raw))
+
+    expect(listProjectIndex(vaultPath)).toEqual(['wiki/КР.md'])
+  })
+
+  it('нет проекта — пустой список, а не исключение', () => {
+    expect(listProjectIndex(path.join(parent, 'нет'))).toEqual([])
   })
 })
