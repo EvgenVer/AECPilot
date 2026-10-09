@@ -27,7 +27,13 @@ from pathlib import Path
 from aec_rag.db import open_index
 from aec_rag.indexer import detach_source, scan_source
 from aec_rag.project_config import ProjectConfigError, parse_project_config
-from aec_rag.project_scope import PROJECT_SOURCE_ID, all_roots, read_project_index, vault_of
+from aec_rag.project_scope import (
+    PROJECT_SOURCE_ID,
+    ProjectPathError,
+    all_roots,
+    read_project_index,
+    vault_of,
+)
 from aec_rag.rag_index import RagIndexError
 
 
@@ -390,6 +396,67 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
     return asyncio.run(run())
 
 
+def run_project_include(project_arg: Path, paths: list[str]) -> dict:
+    """Mark project files for the index and scan them (task 3K.3, SPEC UR45).
+
+    ``selected`` is every file the paths name now, marked before or not: the app
+    indexes exactly those next — a second «Включить в индекс» on a file whose
+    first run was stopped must still index it.
+    """
+    from aec_rag.project_scope import add_to_project_index, clean_rel, expand
+
+    project_path = _resolve_project_json(project_arg)
+    vault = vault_of(project_path)
+    selected = sorted({rel for path in paths for rel in expand(vault, clean_rel(path))})
+    added = add_to_project_index(project_path, paths)
+    marked = [entry.path for entry in read_project_index(project_path)]
+    conn = open_index(project_path.parent / "index.db")
+    try:
+        scan = scan_source(conn, PROJECT_SOURCE_ID, vault, only=marked)
+    finally:
+        conn.close()
+    return {"selected": selected, "added": added, "files": marked, "scan": scan}
+
+
+def run_project_exclude(project_arg: Path, paths: list[str]) -> dict:
+    """Take project files out of the index and the graph, then unmark them
+    (task 3K.3). The mark goes LAST: a run that fails halfway leaves the files
+    marked, and the person's second click finishes the job."""
+    import asyncio
+
+    from aec_rag.lightrag_bridge import delete_document
+    from aec_rag.project_scope import (
+        forget_files,
+        marked_under,
+        remove_from_project_index,
+        vector_documents,
+    )
+    from aec_rag.rag_index import index_dir, load_settings
+    from aec_rag.rag_index import open_index as open_rag_index
+
+    project_path = _resolve_project_json(project_arg)
+    vault = vault_of(project_path)
+    targets = marked_under(project_path, paths)
+    index_db_path = project_path.parent / "index.db"
+    if targets and index_db_path.is_file():
+        conn = open_index(index_db_path)
+        try:
+            doc_ids = vector_documents(conn, targets)
+            if doc_ids and index_dir(vault).is_dir():
+
+                async def drop() -> None:
+                    rag = await open_rag_index(vault, load_settings(project_path))
+                    for doc_id in doc_ids:
+                        await delete_document(rag, doc_id)
+
+                asyncio.run(drop())
+            forget_files(conn, targets)
+        finally:
+            conn.close()
+    removed = remove_from_project_index(project_path, paths)
+    return {"removed": removed, "files": [entry.path for entry in read_project_index(project_path)]}
+
+
 def run_status(project_arg: Path) -> dict:
     """What the index holds, for the desktop's indicator (task 2.15).
 
@@ -622,6 +689,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         graph_parser.add_argument("--kind", choices=("folder", "file"), default="folder")
 
+    for name, help_text in (
+        ("project-include", "Mark project files for the index and scan them (UR45)"),
+        ("project-exclude", "Take project files out of the index and the graph, unmark them"),
+    ):
+        project_files_parser = subparsers.add_parser(name, help=help_text)
+        project_files_parser.add_argument("--project", required=True, type=Path)
+        project_files_parser.add_argument(
+            "--path",
+            required=True,
+            action="append",
+            dest="paths",
+            help="A file or folder relative to the project folder; repeatable",
+        )
+
     serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
     serve_parser.add_argument("--project", required=True, type=Path)
 
@@ -657,6 +738,10 @@ def main(argv: list[str] | None = None) -> int:
             report = run_graph_preview(args.project, args.paths, args.kind)
         elif args.command == "graph-add":
             report = run_graph_add(args.project, args.paths, args.kind)
+        elif args.command == "project-include":
+            report = run_project_include(args.project, args.paths)
+        elif args.command == "project-exclude":
+            report = run_project_exclude(args.project, args.paths)
         elif args.command == "ingest":
             if args.rebuild:
                 from aec_rag.rag_index import drop_index
@@ -674,6 +759,12 @@ def main(argv: list[str] | None = None) -> int:
     except ProjectConfigError as exc:
         print(f"aec-rag: {exc}", file=sys.stderr)
         return 1
+    except ProjectPathError as exc:
+        # A path outside the vault, the service folder, or one that is gone:
+        # an answer the app shows as it is, not a crash.
+        _print_fatal(exc)
+        print(f"aec-rag: {exc}", file=sys.stderr)
+        return 1
     except RagIndexError as exc:
         # The index refusing to open is a configuration answer, not a crash:
         # a changed embedding model, or a key that was never handed to us.
@@ -687,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
         # 3J.7: a run that cannot start (a refused key while the index measures
         # its width, say) says why as a code the app can word, not only as a
         # traceback in a log nobody reads.
-        if getattr(args, "command", "") not in ("ingest", "graph-add"):
+        if getattr(args, "command", "") not in ("ingest", "graph-add", "project-exclude"):
             raise
         _print_fatal(exc)
         print(f"aec-rag: {type(exc).__name__}: {exc}", file=sys.stderr)

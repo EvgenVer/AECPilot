@@ -116,3 +116,139 @@ def test_the_inventory_lists_marked_project_files(tmp_path, capsys):
     assert [(f["source_id"], f["rel_path"], f["index"]) for f in files] == [
         (PROJECT_SOURCE_ID, "wiki/КР.md", "missing")
     ]
+
+
+# --- task 3K.3: project-include / project-exclude ---------------------------
+
+
+def run(capsys, *argv):
+    code = main(list(argv))
+    lines = capsys.readouterr().out.strip().splitlines()
+    return code, json.loads(lines[-1])
+
+
+def test_include_marks_scans_and_names_what_to_index(tmp_path, capsys):
+    vault = make_vault(tmp_path)
+
+    code, report = run(
+        capsys,
+        "project-include",
+        "--project",
+        str(vault),
+        "--path",
+        "workspace",
+        "--path",
+        "wiki/КР.md",
+    )
+
+    assert code == 0
+    assert report["selected"] == ["wiki/КР.md", "workspace/черновик.txt"]
+    assert report["files"] == ["workspace/черновик.txt", "wiki/КР.md"]
+    assert sorted(report["scan"]["added"]) == ["wiki/КР.md", "workspace/черновик.txt"]
+    assert set(project_rows(vault)) == {"wiki/КР.md", "workspace/черновик.txt"}
+
+
+def test_a_second_include_still_names_the_file(tmp_path, capsys):
+    """A run stopped before the file was read: the next click must index it,
+    although nothing new gets marked."""
+    vault = make_vault(tmp_path)
+    run(capsys, "project-include", "--project", str(vault), "--path", "wiki/КР.md")
+
+    _code, report = run(capsys, "project-include", "--project", str(vault), "--path", "wiki")
+
+    assert report["added"] == ["wiki/ОВ.md"]
+    assert report["selected"] == ["wiki/КР.md", "wiki/ОВ.md"]
+
+
+def test_include_of_a_path_outside_the_project_is_an_answer(tmp_path, capsys):
+    vault = make_vault(tmp_path)
+
+    code, report = run(capsys, "project-include", "--project", str(vault), "--path", "../чужое")
+
+    assert code == 1
+    assert "путь вне проекта" in report["fatal"]["detail"]
+
+
+def seed_indexed(vault, rel):
+    """What a finished ingest and graph run leave behind for one file."""
+    from aec_rag.chunk import Chunk
+    from aec_rag.db import open_index
+    from aec_rag.graph_scope import mark_in_graph
+    from aec_rag.store import record_file_error, store_chunks
+
+    conn = open_index(vault / ".aecpilot" / "index.db")
+    try:
+        store_chunks(conn, PROJECT_SOURCE_ID, rel, "sha", [Chunk(text="Сваи С-1.", locator={})])
+        mark_in_graph(conn, PROJECT_SOURCE_ID, rel, "sha", 1)
+        record_file_error(conn, PROJECT_SOURCE_ID, rel, "sha", "index", "parse_failed", "x")
+    finally:
+        conn.close()
+
+
+class FakeRag:
+    def __init__(self):
+        self.deleted = []
+
+    async def adelete_by_doc_id(self, doc_id):
+        from types import SimpleNamespace
+
+        self.deleted.append(doc_id)
+        return SimpleNamespace(status="success", message="")
+
+
+def test_exclude_takes_the_file_out_of_everything_but_the_disk(tmp_path, capsys, monkeypatch):
+    from aec_rag import rag_index
+    from aec_rag.lightrag_bridge import document_id
+
+    vault = make_vault(tmp_path)
+    run(capsys, "project-include", "--project", str(vault), "--path", "wiki")
+    seed_indexed(vault, "wiki/КР.md")
+    rag_index.index_dir(vault).mkdir(parents=True)
+    rag = FakeRag()
+
+    async def fake_open(_vault, _settings):
+        return rag
+
+    monkeypatch.setattr(rag_index, "open_index", fake_open)
+    monkeypatch.setattr(rag_index, "load_settings", lambda _path: None)
+
+    code, report = run(capsys, "project-exclude", "--project", str(vault), "--path", "wiki/КР.md")
+
+    assert code == 0
+    assert report == {"removed": ["wiki/КР.md"], "files": ["wiki/ОВ.md"]}
+    assert rag.deleted == [document_id(PROJECT_SOURCE_ID, "wiki/КР.md")]
+    conn = sqlite3.connect(str(vault / ".aecpilot" / "index.db"))
+    try:
+        for table in ("files", "chunks", "ingested_files", "graph_documents", "file_errors"):
+            left = conn.execute(
+                f"SELECT count(*) FROM {table} WHERE source_id = ? AND rel_path = ?",
+                (PROJECT_SOURCE_ID, "wiki/КР.md"),
+            ).fetchone()[0]
+            assert left == 0, table
+    finally:
+        conn.close()
+    assert (vault / "wiki" / "КР.md").is_file()
+    assert "wiki/ОВ.md" in project_rows(vault)
+
+
+def test_exclude_of_a_never_indexed_file_needs_no_provider(tmp_path, capsys, monkeypatch):
+    """Only scanned, never read: nothing in the vector store, so it is not
+    opened — unmarking must work with no provider configured at all."""
+    from aec_rag import rag_index
+
+    vault = make_vault(tmp_path)
+    run(capsys, "project-include", "--project", str(vault), "--path", "workspace")
+    rag_index.index_dir(vault).mkdir(parents=True)
+
+    def refuse(*_args):
+        raise AssertionError("the vector store must not be opened")
+
+    monkeypatch.setattr(rag_index, "load_settings", refuse)
+
+    code, report = run(capsys, "project-exclude", "--project", str(vault), "--path", "workspace")
+
+    assert code == 0
+    assert report == {"removed": ["workspace/черновик.txt"], "files": []}
+    assert project_rows(vault) == {}
+    # And the next scan does not bring it back.
+    assert scan(vault, capsys)["added"] == []

@@ -16,9 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aec_rag.graph_scope import _read_project, _write_project
+
+if TYPE_CHECKING:
+    import sqlite3
 
 #: The source id the project's own files are indexed under. Ids of connected
 #: sources are UUIDs, so this one cannot collide with them.
@@ -147,20 +150,75 @@ def add_to_project_index(project_json: Path | str, paths: list[str]) -> list[str
     return added
 
 
+def marked_under(project_json: Path | str, paths: list[str]) -> list[str]:
+    """The marked files ``paths`` name: a file itself, a folder every marked
+    file under it — whether or not the file is still on disk."""
+    targets = [clean_rel(path) for path in paths]
+    return [
+        entry.path
+        for entry in read_project_index(project_json)
+        if any(entry.path == target or entry.path.startswith(f"{target}/") for target in targets)
+    ]
+
+
 def remove_from_project_index(project_json: Path | str, paths: list[str]) -> list[str]:
-    """Unmark ``paths``; a folder unmarks every marked file under it, whether or
-    not the file is still on disk. Returns the files unmarked."""
+    """Unmark ``paths`` (see :func:`marked_under`). Returns the files unmarked."""
     project_json = Path(project_json)
     data = _read_project(project_json)
+    removed = set(marked_under(project_json, paths))
     current = read_project_index(project_json)
-    targets = [clean_rel(path) for path in paths]
+    _store(project_json, data, [entry for entry in current if entry.path not in removed])
+    return [entry.path for entry in current if entry.path in removed]
 
-    def dropped(rel: str) -> bool:
-        return any(rel == target or rel.startswith(f"{target}/") for target in targets)
 
-    removed = [entry.path for entry in current if dropped(entry.path)]
-    _store(project_json, data, [entry for entry in current if not dropped(entry.path)])
-    return removed
+def vector_documents(conn: sqlite3.Connection, rels: list[str]) -> list[str]:
+    """Vector-store document ids these project files may have (task 3K.3): the
+    file's own, which also carries its graph, and one per recognised PDF page.
+
+    Only files the index ever consumed or the graph holds are asked about — a
+    file that was merely scanned has nothing there, and opening the vector store
+    for it would need a provider for nothing."""
+    from aec_rag.ingest import _page_doc_rel_path
+    from aec_rag.lightrag_bridge import document_id
+    from aec_rag.store import recognized_page_numbers
+
+    ids: list[str] = []
+    for rel in rels:
+        held = conn.execute(
+            "SELECT 1 FROM ingested_files WHERE source_id = ? AND rel_path = ? "
+            "UNION SELECT 1 FROM graph_documents WHERE source_id = ? AND rel_path = ?",
+            (PROJECT_SOURCE_ID, rel, PROJECT_SOURCE_ID, rel),
+        ).fetchone()
+        if held is None:
+            continue
+        ids.append(document_id(PROJECT_SOURCE_ID, rel))
+        ids.extend(
+            document_id(PROJECT_SOURCE_ID, _page_doc_rel_path(rel, page))
+            for page in recognized_page_numbers(conn, PROJECT_SOURCE_ID, rel)
+        )
+    return ids
+
+
+def forget_files(conn: sqlite3.Connection, rels: list[str]) -> None:
+    """Every ``index.db`` row of these project files: scan state, chunks,
+    the ingest and graph marks, recognised pages, recorded failures. The file
+    on disk is not touched — unmarking is not deleting."""
+    from aec_rag.store import drop_file_chunks
+
+    with conn:
+        for rel in rels:
+            drop_file_chunks(conn, PROJECT_SOURCE_ID, rel)
+            for table in (
+                "ingested_files",
+                "graph_documents",
+                "pdf_pages",
+                "file_errors",
+                "files",
+            ):
+                conn.execute(
+                    f"DELETE FROM {table} WHERE source_id = ? AND rel_path = ?",
+                    (PROJECT_SOURCE_ID, rel),
+                )
 
 
 def _store(project_json: Path, data: dict[str, Any], entries: list[ProjectFile]) -> None:
