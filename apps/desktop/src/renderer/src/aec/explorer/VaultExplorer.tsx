@@ -25,14 +25,19 @@ import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
 import { openDocument } from '../viewers/viewer-store'
+import { openIndexPage } from '../workspace-pages'
 
 import { splitBySearchQuery, subtreeMatchesSearchQuery } from './explorer-search-pure'
+import { askGraphAdd } from './graph-add-store'
 import { NamePrompt } from './NamePrompt'
+import { indexMark } from './project-index-pure'
 import { SourcesPanel } from './SourcesPanel'
 
 /** Folders the user has opened. Collapsed is the default: a vault's top level
  * is the map, and expanding everything on load buries it. */
 type Expanded = Record<string, boolean>
+
+type RowAction = 'newFile' | 'newDir' | 'rename' | 'delete' | 'include' | 'exclude'
 
 function TreeRow({
   node,
@@ -41,18 +46,22 @@ function TreeRow({
   onToggle,
   onAction,
   busy,
+  marked,
   query
 }: {
   node: VaultTreeNode
   depth: number
   expanded: Expanded
   onToggle: (path: string) => void
-  onAction: (action: 'newFile' | 'newDir' | 'rename' | 'delete', node: VaultTreeNode) => void
+  onAction: (action: RowAction, node: VaultTreeNode) => void
   busy: boolean
+  /** Task 3K.5: project files marked for the index (SPEC UR45). */
+  marked: ReadonlySet<string>
   query: string
 }) {
   const t = useAecT()
   const isDir = node.type === 'dir'
+  const mark = indexMark(node, marked)
   // While filtering, a folder is open whether or not the user opened it —
   // otherwise the match is behind a closed door.
   const isOpen = isDir && (query.trim() !== '' || expanded[node.path] === true)
@@ -98,6 +107,16 @@ function TreeRow({
                   )}
                   {post}
                 </span>
+                {!isDir && mark === 'all' && (
+                  <span
+                    aria-label={t('explorer.inIndex')}
+                    className="shrink-0 text-(--ui-text-secondary)"
+                    role="img"
+                    title={t('explorer.inIndex')}
+                  >
+                    <Codicon name="database" />
+                  </span>
+                )}
               </button>
 
               {/* Row actions stay hidden until the row is hovered or focused —
@@ -179,6 +198,34 @@ function TreeRow({
             >
               {t('explorer.reveal')}
             </ContextMenuItem>
+            {/* Task 3K.5 (SPEC UR45): nothing of the project is indexed unless
+                a person picks it here. The graph is built over indexed text
+                only, so it is offered where something is marked. */}
+            <ContextMenuSeparator />
+            {mark !== 'all' && (
+              <ContextMenuItem onSelect={() => onAction('include', node)}>
+                {t('explorer.includeInIndex')}
+              </ContextMenuItem>
+            )}
+            {mark !== 'none' && (
+              <>
+                <ContextMenuItem onSelect={() => onAction('exclude', node)}>
+                  {t('explorer.excludeFromIndex')}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() =>
+                    askGraphAdd({
+                      kind: isDir ? 'folder' : 'file',
+                      label: node.path,
+                      rel: node.path,
+                      sourceId: PROJECT_SOURCE_ID
+                    })
+                  }
+                >
+                  {t('graphAdd.menu')}
+                </ContextMenuItem>
+              </>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => onAction('delete', node)} variant="destructive">
               {t('explorer.delete')}
@@ -196,6 +243,7 @@ function TreeRow({
               depth={depth + 1}
               expanded={expanded}
               key={child.path}
+              marked={marked}
               node={child}
               onAction={onAction}
               onToggle={onToggle}
@@ -208,6 +256,11 @@ function TreeRow({
 
 // One key for the tree, so any mutation can invalidate it by name.
 const VAULT_TREE_KEY = ['aec', 'vault-tree'] as const
+const PROJECT_INDEX_KEY = ['aec', 'project-index'] as const
+/** The source id the project's own files are indexed under (main's
+ *  `graph-scope-pure.ts`). */
+const PROJECT_SOURCE_ID = 'project'
+const NO_MARKS: ReadonlySet<string> = new Set()
 
 export function VaultExplorer() {
   const t = useAecT()
@@ -249,10 +302,17 @@ export function VaultExplorer() {
     enabled: connectionUnknown || connection?.mode === 'local'
   })
 
-  const reload = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: VAULT_TREE_KEY }),
-    [queryClient]
-  )
+  const { data: projectIndex } = useQuery({
+    queryKey: PROJECT_INDEX_KEY,
+    queryFn: () => window.aecpilot.listProjectIndex(),
+    enabled: connectionUnknown || connection?.mode === 'local'
+  })
+  const marked = projectIndex ? new Set(projectIndex) : NO_MARKS
+
+  const reload = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: VAULT_TREE_KEY })
+    await queryClient.invalidateQueries({ queryKey: PROJECT_INDEX_KEY })
+  }, [queryClient])
 
   useEffect(() => {
     // A project switch replaces the whole tree, so the open/closed state of the
@@ -268,8 +328,33 @@ export function VaultExplorer() {
   }, [])
 
   const runAction = useCallback(
-    async (action: 'newFile' | 'newDir' | 'rename' | 'delete', node: VaultTreeNode) => {
+    async (action: RowAction, node: VaultTreeNode) => {
       setActionError(undefined)
+
+      // Task 3K.5: «Включить в индекс» marks and indexes at once, and the Index
+      // page shows the run — the same as «Проиндексировать» on a source.
+      if (action === 'include' || action === 'exclude') {
+        if (action === 'exclude' && !window.confirm(t('explorer.excludeConfirm'))) return
+        const target = { kind: node.type === 'dir' ? 'folder' : 'file', rel: node.path } as const
+        setBusy(true)
+        try {
+          const result =
+            action === 'include'
+              ? await window.aecpilot.includeInIndex(target)
+              : await window.aecpilot.excludeFromIndex(target)
+          if (!result.ok) {
+            setActionError(result.error)
+            return
+          }
+          queryClient.setQueryData(PROJECT_INDEX_KEY, result.files)
+          if (action === 'include') openIndexPage()
+        } catch (err) {
+          setActionError(err instanceof Error ? err.message : String(err))
+        } finally {
+          setBusy(false)
+        }
+        return
+      }
 
       // Имя спрашивает своё окно (`NamePrompt`): `window.prompt` в Electron не
       // реализован и бросает исключение — дефект D-90, до него ни создание, ни
@@ -326,7 +411,7 @@ export function VaultExplorer() {
         setBusy(false)
       }
     },
-    [reload, t]
+    [queryClient, reload, t]
   )
 
   // Filtering keeps a folder that only CONTAINS a match, so the path down to
@@ -400,6 +485,7 @@ export function VaultExplorer() {
                 depth={0}
                 expanded={expanded}
                 key={node.path}
+                marked={marked}
                 node={node}
                 onAction={runAction}
                 onToggle={toggle}

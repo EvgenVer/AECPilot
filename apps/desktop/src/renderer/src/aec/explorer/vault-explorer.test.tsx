@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { VaultExplorer } from './VaultExplorer'
+import { $graphTarget } from './graph-add-store'
 import { AecI18nProvider } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 
@@ -28,6 +29,12 @@ const createVaultFile = vi.fn()
 const createVaultDir = vi.fn()
 const renameVaultEntry = vi.fn()
 const deleteVaultEntry = vi.fn()
+const listProjectIndex = vi.fn()
+const includeInIndex = vi.fn()
+const excludeFromIndex = vi.fn()
+const openIndexPage = vi.fn()
+
+vi.mock('../workspace-pages', () => ({ openIndexPage: () => openIndexPage() }))
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -37,6 +44,9 @@ beforeEach(() => {
   createVaultDir.mockResolvedValue({ ok: true })
   renameVaultEntry.mockResolvedValue({ ok: true })
   deleteVaultEntry.mockResolvedValue({ ok: true })
+  listProjectIndex.mockResolvedValue([])
+  includeInIndex.mockResolvedValue({ files: ['AGENTS.md'], ok: true, started: true })
+  excludeFromIndex.mockResolvedValue({ files: [], ok: true })
   window.aecpilot = {
     getVaultTree,
     getConnection,
@@ -45,6 +55,9 @@ beforeEach(() => {
     createVaultDir,
     renameVaultEntry,
     deleteVaultEntry,
+    listProjectIndex,
+    includeInIndex,
+    excludeFromIndex,
     onProjectOpened: () => () => {},
     // Панель источников висит в том же дереве и с задачи 5.15 слушает состояние
     // графового прогона. Сам граф к этим тестам не относится — заглушки ровно
@@ -308,5 +321,89 @@ describe('ядро на другой машине', () => {
     renderExplorer()
 
     expect(await screen.findByText('AGENTS.md')).toBeTruthy()
+  })
+})
+
+// Задача 3K.5 (SPEC UR45): файлы проекта попадают в индекс только по выбору
+// человека — пункт меню на строке, и никак иначе.
+describe('файлы проекта в индексе', () => {
+  async function openMenu(rowName: string) {
+    const row = screen.getByTitle(rowName).closest('div') as HTMLElement
+    await act(async () => {
+      fireEvent.contextMenu(row)
+    })
+  }
+
+  it('неотмеченный файл: только «Включить в индекс»; включение открывает «Индекс»', async () => {
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await openMenu('AGENTS.md')
+    expect(screen.queryByRole('menuitem', { name: 'Убрать из индекса' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Добавить в граф знаний' })).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Включить в индекс' }))
+    })
+
+    expect(includeInIndex).toHaveBeenCalledWith({ kind: 'file', rel: 'AGENTS.md' })
+    expect(openIndexPage).toHaveBeenCalled()
+    // Ответ main — новый список отметок: значок появляется сразу.
+    await waitFor(() => expect(screen.getByRole('img', { name: 'В индексе' })).toBeTruthy())
+  })
+
+  it('отмеченный файл: значок, «Убрать из индекса» с вопросом и граф на project', async () => {
+    listProjectIndex.mockResolvedValue(['docs/заметка.md'])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('docs'))
+    })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'В индексе' })).toBeTruthy())
+
+    await openMenu('docs/заметка.md')
+    expect(screen.queryByRole('menuitem', { name: 'Включить в индекс' })).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить в граф знаний' }))
+    })
+    expect($graphTarget.get()).toEqual({
+      kind: 'file',
+      label: 'docs/заметка.md',
+      rel: 'docs/заметка.md',
+      sourceId: 'project'
+    })
+    $graphTarget.set(null)
+
+    await openMenu('docs/заметка.md')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать из индекса' }))
+    })
+    expect(window.confirm).toHaveBeenCalled()
+    expect(excludeFromIndex).toHaveBeenCalledWith({ kind: 'file', rel: 'docs/заметка.md' })
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'В индексе' })).toBeNull())
+  })
+
+  it('папка с частью отмеченного предлагает и включить, и убрать', async () => {
+    listProjectIndex.mockResolvedValue(['docs/старое.md'])
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+
+    await openMenu('docs')
+    expect(screen.getByRole('menuitem', { name: 'Включить в индекс' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Убрать из индекса' })).toBeTruthy()
+  })
+
+  it('отказ main показан, а «Индекс» не открывается', async () => {
+    includeInIndex.mockResolvedValue({ error: 'Индексация уже идёт', ok: false })
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
+
+    await openMenu('AGENTS.md')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Включить в индекс' }))
+    })
+
+    expect(await screen.findByText('Индексация уже идёт')).toBeTruthy()
+    expect(openIndexPage).not.toHaveBeenCalled()
   })
 })
