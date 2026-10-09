@@ -13,7 +13,7 @@
 // `shell.trashItem` itself.
 
 import * as fs from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 
 export interface VaultTreeNode {
   name: string
@@ -284,7 +284,9 @@ function readVaultDir(absDir: string, relPrefix: string): VaultTreeNode[] {
 }
 
 /** Creates an empty file named `name` inside `parentRel` (relative to the
- * vault root; `''`/`undefined` means the vault root). Throws a
+ * vault root; `''`/`undefined` means the vault root). A name without an
+ * extension becomes a Markdown note, `<name>.md`, as in Obsidian — a file
+ * with no extension opens in no viewer. Throws a
  * Russian-message `Error` on an invalid name, an escaping/`.aecpilot`
  * `parentRel`, or an already-existing entry at the target path. */
 export function createFileEntry(
@@ -295,7 +297,8 @@ export function createFileEntry(
   const nameError = validateEntryName(name)
   if (nameError) throw new Error(nameError)
   const parentAbs = resolveVaultRel(vaultPath, parentRel)
-  const target = join(parentAbs, name)
+  const fileName = extname(name) || name.startsWith('.') ? name : `${name}.md`
+  const target = join(parentAbs, fileName)
   if (fs.existsSync(target)) throw new Error('Файл или папка с таким именем уже существует')
   fs.writeFileSync(target, '')
 }

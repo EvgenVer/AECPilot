@@ -400,6 +400,23 @@ describe('createFileEntry / createDirEntry', () => {
     expect(fs.existsSync(path.join(vaultPath, 'wiki', 'page.md'))).toBe(true)
   })
 
+  it('makes a name without an extension a Markdown note, as Obsidian does', () => {
+    createFileEntry(vaultPath, 'wiki', 'Сваи')
+    expect(fs.existsSync(path.join(vaultPath, 'wiki', 'Сваи.md'))).toBe(true)
+    expect(fs.existsSync(path.join(vaultPath, 'wiki', 'Сваи'))).toBe(false)
+    createFileEntry(vaultPath, undefined, 'расчёт.txt')
+    createFileEntry(vaultPath, undefined, '.gitignore')
+    expect(fs.existsSync(path.join(vaultPath, 'расчёт.txt'))).toBe(true)
+    expect(fs.existsSync(path.join(vaultPath, '.gitignore'))).toBe(true)
+  })
+
+  it('refuses a bare name when its .md note already exists', () => {
+    createFileEntry(vaultPath, undefined, 'dup.md')
+    expect(() => createFileEntry(vaultPath, undefined, 'dup')).toThrow(
+      'Файл или папка с таким именем уже существует'
+    )
+  })
+
   it('creates a new directory', () => {
     createDirEntry(vaultPath, undefined, 'drafts')
     expect(fs.statSync(path.join(vaultPath, 'drafts')).isDirectory()).toBe(true)
