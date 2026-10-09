@@ -57,7 +57,7 @@ def test_every_index_state(tmp_path):
     add_file(conn, "новый.pdf")
     add_file(conn, "сбой.pdf")
     error(conn, "сбой.pdf", "new", "index", "provider_key")
-    add_file(conn, "заметки.txt")
+    add_file(conn, "план.dwg")
     add_file(conn, "огромный.pdf", sha=None, skip_reason="too_large")
     add_file(conn, "удалён.pdf", status="deleted")
     add_file(conn, "отключён.pdf", source="gone")
@@ -69,10 +69,10 @@ def test_every_index_state(tmp_path):
         "изменён.pdf": "stale",
         "новый.pdf": "missing",
         "сбой.pdf": "failed",
-        "заметки.txt": "skipped",
+        "план.dwg": "skipped",
         "огромный.pdf": "skipped",
     }
-    assert files["заметки.txt"]["reason"] == "unsupported"
+    assert files["план.dwg"]["reason"] == "unsupported"
     assert files["огромный.pdf"]["reason"] == "too_large"
     assert files["сбой.pdf"]["errors"] == [
         {"stage": "index", "code": "provider_key", "detail": "деталь", "at": "t"}

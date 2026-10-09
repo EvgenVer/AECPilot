@@ -2,7 +2,7 @@
 // «Повторить» на один файл, значок строки «Индекс» и вкладка «Граф».
 //
 // Источник — три файла, по одному на каждый исход: таблица CSV читается,
-// записка `.txt` пропускается (формат, D-199), «PDF» из мусора не разбирается.
+// чертёж `.dwg` пропускается по формату, «PDF» из мусора не разбирается.
 // Граф строится по одному маленькому документу — вызов модели на фрагмент стоит
 // денег, поэтому только он.
 
@@ -26,7 +26,7 @@ test.describe.configure({ mode: 'serial' })
 const stand = standFixture({ mode: 'live', label: 'live-3j', providerKeyInStore: true })
 
 const GOOD = 'паспорт объекта.csv'
-const NOTE = 'Изыскания/заметки.txt'
+const NOTE = 'Изыскания/план.dwg'
 const BROKEN = 'битый.pdf'
 
 const source = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-3j-'))
@@ -36,7 +36,7 @@ writeFileSync(
   'utf8'
 )
 mkdirSync(join(source, 'Изыскания'))
-writeFileSync(join(source, NOTE), 'Записка инженера: сваи С-1 по ИГЭ-2.\n', 'utf8')
+writeFileSync(join(source, NOTE), 'AC1027 — чертёж, не текст\n', 'utf8')
 writeFileSync(join(source, BROKEN), '%PDF-1.4\nэто не PDF, а мусор\n', 'utf8')
 
 const CODES = [
@@ -150,7 +150,7 @@ test('3J.10 страница «Индекс»: дерево, причина сл
 
   await page.getByLabel('Только требующие внимания').check()
   await expect(tree.getByText(BROKEN)).toBeVisible()
-  await expect(tree.getByText('заметки.txt')).toBeVisible()
+  await expect(tree.getByText('план.dwg')).toBeVisible()
   await expect(tree.getByText('пропущен: формат не читается')).toBeVisible()
   await expect(tree.getByText(/^Индексация: /)).toBeVisible()
   await expect(tree.getByText(GOOD)).toHaveCount(0)

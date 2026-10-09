@@ -6,7 +6,7 @@ then, in the background, only the pages without a usable layer are rendered and
 recognised with RapidOCR. Docling is no longer used for PDFs: measured
 2026-10-07 it took about 8 s per page and returned an empty picture on scanned
 pages that carry a frame stamp in their text layer. DOCX, XLSX and CSV still go
-through Docling.
+through Docling; MD and TXT are read as text (D-199).
 
 See specs/qa-over-sources.md (Data schemas): every chunk carries a ``locator``
 pointing back at the place in the original document. Which place that is depends
@@ -337,7 +337,47 @@ def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) 
     return ParsedDocument(doctype="docx", markdown=markdown, segments=segments)
 
 
-SUPPORTED_SUFFIXES = frozenset({".pdf", ".docx", ".xlsx", ".csv"})
+def read_text(path: Path) -> str:
+    """A plain-text file's contents: UTF-8 (with or without BOM), else
+    Windows-1251 — the encoding Russian notes written in Notepad before 2019
+    still arrive in. Anything else is not text we can trust to quote."""
+    data = path.read_bytes()
+    for encoding in ("utf-8-sig", "cp1251"):
+        try:
+            text = data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        # cp1251 decodes almost any bytes; a NUL says it was not text at all.
+        if "\x00" not in text:
+            return text
+    raise ParseError(f"файл не похож на текст: {path.name}")
+
+
+def parse_text(path: Path | str) -> ParsedDocument:
+    """A ``.md`` or ``.txt`` file (D-199, owner's decision 2026-10-09).
+
+    Markdown has headings and nothing else to point at, so it is split the way
+    a DOCX is and every segment carries its heading. Plain text has no
+    structure at all: one segment, the citation names the file, and the
+    chunker cuts it by size.
+    """
+    path = Path(path)
+    text = read_text(path).replace("\r\n", "\n").strip()
+    suffix = path.suffix.lower()
+    if suffix == ".md":
+        segments = tuple(
+            ParsedSegment(
+                locator={"heading": heading} if heading is not None else {},
+                markdown=body,
+            )
+            for heading, body in split_by_headings(text)
+        )
+    else:
+        segments = (ParsedSegment(locator={}, markdown=text),) if text else ()
+    return ParsedDocument(doctype=suffix.lstrip("."), markdown=text, segments=segments)
+
+
+SUPPORTED_SUFFIXES = frozenset({".pdf", ".docx", ".xlsx", ".csv", ".md", ".txt"})
 
 
 def parse_file(path: Path | str, *, converter: DocumentConverter | None = None) -> ParsedDocument:
@@ -355,6 +395,8 @@ def parse_file(path: Path | str, *, converter: DocumentConverter | None = None) 
         return parse_docx(path, converter=converter)
     if suffix in {".xlsx", ".csv"}:
         return parse_spreadsheet(path, converter=converter)
+    if suffix in {".md", ".txt"}:
+        return parse_text(path)
     raise ParseError(f"формат {suffix or '(без расширения)'} не индексируется: {path.name}")
 
 
