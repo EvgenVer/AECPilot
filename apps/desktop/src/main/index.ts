@@ -528,6 +528,8 @@ async function syncRosterTool(specialists: { name: string; title: string }[]): P
 // 15s is generous, but still bounded well under the client's 60s default so
 // project:open/create can't hang behind it (review fix, minor 3).
 const RELOAD_MCP_TIMEOUT_MS = 15000
+/** D-201: a `reload.mcp` asked for while the connection was not ready. */
+let mcpReloadOwed = false
 
 /** Forces hermes to disconnect and reconnect every configured MCP server via
  * the `reload.mcp` RPC (`confirm: true`, no live session to warn — see
@@ -552,7 +554,16 @@ const RELOAD_MCP_TIMEOUT_MS = 15000
  * refreshed `aec-sources` data on its very next tool call — see the "does not
  * reset the session" note on the `sources:add`/`sources:remove` handlers. */
 async function reloadMcp(): Promise<void> {
-  if (!gateway) return
+  // D-201: a project opened while the core is still starting, or while the
+  // gateway client exists but has not connected yet. `hermes serve` read
+  // config.yaml when it was spawned — before our rewrite — and the request
+  // failed with «gateway connection error»: the agent searched the previous
+  // project until the app was restarted. The reload is owed and paid as soon
+  // as the connection is ready.
+  if (!gateway || gatewayState !== 'ready') {
+    mcpReloadOwed = true
+    return
+  }
   try {
     const result = await gateway.request('reload.mcp', { confirm: true }, RELOAD_MCP_TIMEOUT_MS)
     if (result.status !== 'reloaded') {
@@ -817,6 +828,11 @@ async function connectGateway(url: string): Promise<void> {
 
     // Связь вернулась после обрыва — догнать то, что окно пропустило.
     if (state === 'ready' && wasReconnecting) void catchUpAfterReconnect()
+    // D-201: перезагрузка MCP, которую просили, пока связи не было.
+    if (state === 'ready' && mcpReloadOwed) {
+      mcpReloadOwed = false
+      void reloadMcp()
+    }
   })
 
   try {
