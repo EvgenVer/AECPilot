@@ -243,6 +243,7 @@ const api: AecpilotApi = {
   readSheets: (rel, sourceId) => ipcRenderer.invoke('viewer:read-sheets', { rel, sourceId }),
   writeVaultFile: (rel, text) => ipcRenderer.invoke('vault:write-file', { rel, text }),
   getIndexStatus: () => ipcRenderer.invoke('index:status'),
+  getIndexInventory: () => ipcRenderer.invoke('index:inventory'),
   checkQuotes: (answer) => ipcRenderer.invoke('quotes:check', answer),
   startIngest: (full, rebuild, target) =>
     ipcRenderer.invoke('index:ingest', { full, rebuild, target }),

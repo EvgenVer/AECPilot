@@ -557,6 +557,45 @@ export interface IngestFileRow {
   state: 'done' | 'failed' | 'read' | 'reading' | 'recognizing' | 'skipped' | 'waiting'
 }
 
+/** Task 3J.8: a file's place in the index, as `aec-rag inventory` reports it. */
+export type InventoryIndexState = 'failed' | 'indexed' | 'missing' | 'skipped' | 'stale'
+export type InventoryGraphState = 'in' | 'marked' | 'none' | 'stale'
+
+/** The last failure of a file at one stage. `code` is from `aec_rag/errors.py`
+ *  and is worded by the catalog; `detail` is the library's own words. */
+export interface InventoryError {
+  at: string
+  code: string
+  detail: string
+  stage: 'graph' | 'index'
+}
+
+export interface InventoryFile {
+  errors: InventoryError[]
+  graph: InventoryGraphState
+  index: InventoryIndexState
+  /** Why `skipped`: `unsupported`, `too_large`, `unreadable`. */
+  reason: null | string
+  rel_path: string
+  /** Scanned pages of this content; `null` — the file has none. */
+  scans: null | { done: number; error: null | string; failed: number; total: number }
+  size: null | number
+  source_id: string
+}
+
+export interface IndexInventory {
+  files: InventoryFile[]
+  /** `false` — the project was never scanned; not an error. */
+  index_exists: boolean
+  summary: {
+    files: number
+    graph: Record<InventoryGraphState, number>
+    index: Record<InventoryIndexState, number>
+    scans: { files: number; pages_done: number; pages_failed: number; pages_total: number }
+    with_errors: number
+  }
+}
+
 export interface IngestState {
   error: null | string
   /** Files the current (or last) run touched, in the order it reached them. */
@@ -1415,6 +1454,10 @@ export interface AecpilotApi {
   checkQuotes(answer: string): Promise<QuoteCheckResult>
   /** What the index holds, for the indicator (task 2.15). */
   getIndexStatus(): Promise<{ ok: true; status: RagStatus } | { error: string; ok: false }>
+  /** Task 3J.10: every file of the project with its index, scan and graph state. */
+  getIndexInventory(): Promise<
+    { inventory: IndexInventory; ok: true } | { error: string; ok: false }
+  >
   /** Starts a tier-1 ingest of everything scanned but not indexed. Returns
    * immediately — progress arrives through `onIngestState`. `full` re-reads
    * every file rather than only the changed ones. */

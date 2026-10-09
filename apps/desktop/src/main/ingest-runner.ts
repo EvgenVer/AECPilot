@@ -18,7 +18,7 @@ import {
   readIngestLines,
   watchSilence
 } from './ingest-progress-pure'
-import type { RagStatus } from '../shared/ipc'
+import type { IndexInventory, RagStatus } from '../shared/ipc'
 
 // TODO(Phase 6 / task 6.2): same packaged-app caveat as scan-runner's.
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
@@ -200,8 +200,23 @@ export function runIndexStatus(
   vaultPath: string,
   timeoutMs = DEFAULT_STATUS_TIMEOUT_MS
 ): Promise<RagStatus> {
+  return runOneShot<RagStatus>('status', vaultPath, timeoutMs)
+}
+
+/** Task 3J.8/3J.10: `aec-rag inventory` — every file with its index, scan and
+ *  graph state. Read-only, like `status`; a big project is one SQLite pass. */
+export function runIndexInventory(
+  vaultPath: string,
+  timeoutMs = DEFAULT_STATUS_TIMEOUT_MS
+): Promise<IndexInventory> {
+  return runOneShot<IndexInventory>('inventory', vaultPath, timeoutMs)
+}
+
+/** A read-only `aec-rag <command> --project <vaultPath>` that answers with one
+ *  JSON object. */
+function runOneShot<T>(command: string, vaultPath: string, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), ['status', '--project', vaultPath], {
+    const proc = spawn(aecRagBinPath(), [command, '--project', vaultPath], {
       env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -215,7 +230,7 @@ export function runIndexStatus(
       if (settled) return
       settled = true
       proc.kill()
-      reject(new Error('aec-rag status не ответил вовремя'))
+      reject(new Error(`aec-rag ${command} не ответил вовремя`))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
@@ -225,7 +240,7 @@ export function runIndexStatus(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag status: ${error.message}`))
+      reject(new Error(`не удалось запустить aec-rag ${command}: ${error.message}`))
     })
 
     proc.on('close', (code) => {
@@ -234,15 +249,15 @@ export function runIndexStatus(
       clearTimeout(timeoutTimer)
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag status завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        reject(new Error(`aec-rag ${command} завершился с ошибкой (код ${code}): ${stderr.trim()}`))
         return
       }
       try {
-        resolve(JSON.parse(Buffer.concat(stdoutChunks).toString('utf8')) as RagStatus)
+        resolve(JSON.parse(Buffer.concat(stdoutChunks).toString('utf8')) as T)
       } catch (error: unknown) {
         reject(
           new Error(
-            `не удалось разобрать ответ aec-rag status: ${
+            `не удалось разобрать ответ aec-rag ${command}: ${
               error instanceof Error ? error.message : String(error)
             }`
           )

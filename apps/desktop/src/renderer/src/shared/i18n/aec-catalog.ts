@@ -200,6 +200,56 @@ export const aecLocales: PluginLocaleBundles = {
       fileDone: 'done',
       fileFailed: (reason: string) => `failed: ${reason}`,
       fileSkipped: 'skipped',
+      inventory: {
+        title: 'Index contents',
+        summary: (files: number, indexed: number, problems: number) =>
+          `${files} file(s): ${indexed} in the index, ${problems} need a look`,
+        empty: 'The project has not been scanned yet — the index is empty.',
+        loadFailed: (error: string) => `Could not read the index contents: ${error}`,
+        onlyProblems: 'Only files that need a look',
+        noProblems: 'No file needs a look.',
+        folderCount: (files: number, problems: number) =>
+          problems > 0 ? `${files} file(s), ${problems} need a look` : `${files} file(s)`,
+        skippedBecause: (reason: string) => `skipped: ${reason}`,
+        scans: (done: number, total: number, failed: number) =>
+          failed > 0
+            ? `scans: ${done} of ${total}, ${failed} unreadable`
+            : `scans: ${done} of ${total}`,
+        retry: 'Retry',
+        state: {
+          indexed: 'in the index',
+          stale: 'changed — the index has an older version',
+          missing: 'not indexed yet',
+          failed: 'failed',
+          skipped: 'skipped'
+        },
+        reason: {
+          unsupported: 'this format is not read',
+          too_large: 'too large',
+          unreadable: 'could not be read'
+        },
+        graph: {
+          in: 'in the graph',
+          stale: 'in the graph — older version',
+          marked: 'waits for the graph',
+          none: ''
+        },
+        stage: { index: 'Indexing', graph: 'Graph' },
+        code: {
+          source_detached: 'the source is not connected',
+          unsupported: 'this format is not read',
+          file_unreadable: 'the file could not be opened (locked or no access)',
+          parse_failed: 'the document could not be parsed',
+          ocr_failed: 'a scanned page could not be recognised',
+          not_indexed: 'the document is not indexed yet — index it first',
+          provider_missing: 'no search provider is chosen',
+          provider_key: 'the provider refused the key',
+          provider_limit: 'the provider limit is reached — try later',
+          provider_unreachable: 'the provider could not be reached',
+          graph_failed: 'the graph could not take the document',
+          unknown: 'unexpected error — details in the tooltip'
+        }
+      },
       providerOpen: 'Search and memory provider',
       menu: 'Index'
     },
@@ -837,6 +887,56 @@ export const aecLocales: PluginLocaleBundles = {
       fileDone: 'готов',
       fileFailed: (reason: string) => `ошибка: ${reason}`,
       fileSkipped: 'пропущен',
+      inventory: {
+        title: 'Состав индекса',
+        summary: (files: number, indexed: number, problems: number) =>
+          `Файлов: ${files}, в индексе: ${indexed}, требуют внимания: ${problems}`,
+        empty: 'Проект ещё не сканировался — индекс пуст.',
+        loadFailed: (error: string) => `Не удалось прочитать состав индекса: ${error}`,
+        onlyProblems: 'Только требующие внимания',
+        noProblems: 'Файлов, требующих внимания, нет.',
+        folderCount: (files: number, problems: number) =>
+          problems > 0 ? `файлов: ${files}, требуют внимания: ${problems}` : `файлов: ${files}`,
+        skippedBecause: (reason: string) => `пропущен: ${reason}`,
+        scans: (done: number, total: number, failed: number) =>
+          failed > 0
+            ? `сканы: ${done} из ${total}, не распознано: ${failed}`
+            : `сканы: ${done} из ${total}`,
+        retry: 'Повторить',
+        state: {
+          indexed: 'в индексе',
+          stale: 'изменён — в индексе прежняя версия',
+          missing: 'ещё не проиндексирован',
+          failed: 'ошибка',
+          skipped: 'пропущен'
+        },
+        reason: {
+          unsupported: 'формат не читается',
+          too_large: 'слишком большой',
+          unreadable: 'не удалось прочитать'
+        },
+        graph: {
+          in: 'в графе',
+          stale: 'в графе — прежняя версия',
+          marked: 'ждёт графа',
+          none: ''
+        },
+        stage: { index: 'Индексация', graph: 'Граф' },
+        code: {
+          source_detached: 'источник не подключён',
+          unsupported: 'формат не читается',
+          file_unreadable: 'файл не открылся (занят или нет доступа)',
+          parse_failed: 'документ не удалось разобрать',
+          ocr_failed: 'страницу-скан не удалось распознать',
+          not_indexed: 'документ ещё не проиндексирован — сначала индексация',
+          provider_missing: 'не выбран провайдер поиска',
+          provider_key: 'провайдер не принял ключ',
+          provider_limit: 'исчерпан лимит провайдера — повторите позже',
+          provider_unreachable: 'провайдер недоступен',
+          graph_failed: 'граф не принял документ',
+          unknown: 'непредвиденная ошибка — подробности в подсказке'
+        }
+      },
       providerOpen: 'Провайдер поиска и памяти',
       menu: 'Проиндексировать'
     },

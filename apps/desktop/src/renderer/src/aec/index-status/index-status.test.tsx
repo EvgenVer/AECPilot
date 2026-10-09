@@ -9,7 +9,13 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
-import type { GraphAddState, IngestState, RagStatus } from '../../../../shared/ipc'
+import type {
+  GraphAddState,
+  IndexInventory,
+  IngestState,
+  InventoryFile,
+  RagStatus
+} from '../../../../shared/ipc'
 
 import { $dataProvidersOpen, EMPTY_STATE } from '../data-providers/store'
 
@@ -22,6 +28,8 @@ const getGraphAddState = vi.fn()
 const getEmbeddingSwitch = vi.fn()
 const getDataProviders = vi.fn()
 const cancelIngest = vi.fn()
+const getIndexInventory = vi.fn()
+const listSources = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
@@ -56,6 +64,40 @@ function status(patch: Partial<RagStatus> = {}): RagStatus {
   }
 }
 
+function inventory(files: InventoryFile[], exists = true): IndexInventory {
+  return {
+    files,
+    index_exists: exists,
+    summary: {
+      files: files.length,
+      graph: { in: 0, marked: 0, none: files.length, stale: 0 },
+      index: {
+        failed: files.filter((f) => f.index === 'failed').length,
+        indexed: files.filter((f) => f.index === 'indexed').length,
+        missing: 0,
+        skipped: 0,
+        stale: 0
+      },
+      scans: { files: 0, pages_done: 0, pages_failed: 0, pages_total: 0 },
+      with_errors: 0
+    }
+  }
+}
+
+function inventoryFile(rel_path: string, patch: Partial<InventoryFile> = {}): InventoryFile {
+  return {
+    errors: [],
+    graph: 'none',
+    index: 'indexed',
+    reason: null,
+    rel_path,
+    scans: null,
+    size: 1,
+    source_id: 'tasks',
+    ...patch
+  }
+}
+
 beforeEach(() => {
   window.localStorage.clear()
   getIndexStatus.mockResolvedValue({ ok: true, status: status() })
@@ -64,7 +106,11 @@ beforeEach(() => {
   getGraphAddState.mockResolvedValue(GRAPH_IDLE)
   getEmbeddingSwitch.mockResolvedValue(null)
   getDataProviders.mockResolvedValue({ ...EMPTY_STATE, profileRead: true, rag: { ok: true } })
+  getIndexInventory.mockResolvedValue({ ok: true, inventory: inventory([], false) })
+  listSources.mockResolvedValue([{ id: 'tasks', root_path: 'D:/Проекты/Нагатинская' }])
   window.aecpilot = {
+    getIndexInventory,
+    listSources,
     getDataProviders,
     getIndexStatus,
     getIngestState,
@@ -351,6 +397,69 @@ describe('IndexStatus', () => {
 
     await waitFor(() =>
       expect(screen.getByText(/«Изыскания\/отчёт ИГИ\.pdf» — при следующем запуске/)).toBeTruthy()
+    )
+  })
+
+  it('опись: дерево по источнику, причина ошибки словами, «Повторить» только этот файл (3J.10)', async () => {
+    getIndexInventory.mockResolvedValue({
+      ok: true,
+      inventory: inventory([
+        inventoryFile('Изыскания/отчёт ИГИ.pdf', {
+          errors: [
+            {
+              at: 't',
+              code: 'provider_key',
+              detail: 'API key not valid. Please pass a valid API key.',
+              stage: 'index'
+            }
+          ],
+          index: 'failed'
+        }),
+        inventoryFile('задание.pdf'),
+        inventoryFile('заметки.txt', { index: 'skipped', reason: 'unsupported' })
+      ])
+    })
+    await renderPage()
+
+    await waitFor(() => expect(screen.getByText('Нагатинская')).toBeTruthy())
+    expect(screen.getByText('Файлов: 3, в индексе: 1, требуют внимания: 2')).toBeTruthy()
+    expect(screen.getByText('пропущен: формат не читается')).toBeTruthy()
+    // Папка закрыта, пока её не открыли.
+    expect(screen.queryByText('отчёт ИГИ.pdf')).toBeNull()
+    act(() => screen.getByText('Изыскания').click())
+
+    const reason = screen.getByText('Индексация: провайдер не принял ключ')
+    expect(reason.getAttribute('title')).toBe('API key not valid. Please pass a valid API key.')
+    act(() => screen.getByRole('button', { name: 'Повторить' }).click())
+    expect(startIngest).toHaveBeenCalledWith(false, false, {
+      kind: 'file',
+      rel: 'Изыскания/отчёт ИГИ.pdf',
+      sourceId: 'tasks'
+    })
+  })
+
+  it('опись: «только требующие внимания» раскрывает путь к ним и прячет остальное', async () => {
+    getIndexInventory.mockResolvedValue({
+      ok: true,
+      inventory: inventory([
+        inventoryFile('Изыскания/отчёт.pdf', { index: 'missing' }),
+        inventoryFile('задание.pdf')
+      ])
+    })
+    await renderPage()
+    await waitFor(() => expect(screen.getByText('Нагатинская')).toBeTruthy())
+
+    act(() => screen.getByLabelText('Только требующие внимания').click())
+
+    expect(screen.getByText('отчёт.pdf')).toBeTruthy()
+    expect(screen.getByText('ещё не проиндексирован')).toBeTruthy()
+    expect(screen.queryByText('задание.pdf')).toBeNull()
+  })
+
+  it('опись: проекта ещё не сканировали — сказано прямо', async () => {
+    await renderPage()
+    await waitFor(() =>
+      expect(screen.getByText('Проект ещё не сканировался — индекс пуст.')).toBeTruthy()
     )
   })
 

@@ -21,6 +21,7 @@ import { useAecT } from '../../shared/i18n'
 import type { GraphAddState, IngestFileRow, IngestState } from '../../../../shared/ipc'
 import { $dataProviders, openDataProviders } from '../data-providers/store'
 import { openIndexPage } from '../workspace-pages'
+import { InventoryTree } from './InventoryTree'
 
 const IDLE: IngestState = {
   error: null,
@@ -261,6 +262,8 @@ export function IndexDetails(): React.JSX.Element | null {
       </div>
 
       <RunFiles files={ingest.files} />
+
+      <InventoryTree running={ingest.running} />
 
       <GraphScope data={data} graph={graph} />
     </div>

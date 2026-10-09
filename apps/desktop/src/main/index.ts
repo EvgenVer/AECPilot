@@ -4924,6 +4924,17 @@ ipcMain.handle('index:status', async () => {
   }
 })
 
+// Task 3J.10: the Index page's tree — every file of the project with its state.
+ipcMain.handle('index:inventory', async () => {
+  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  try {
+    const { runIndexInventory } = await import('./ingest-runner')
+    return { ok: true, inventory: await runIndexInventory(currentProject.vaultPath) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 ipcMain.handle('quotes:check', async (_event, answer: unknown) => {
   // Несостоявшаяся проверка возвращается значением, а не исключением: рендерер
   // обязан отличать «выдержка не найдена» от «проверить не удалось», и второе
