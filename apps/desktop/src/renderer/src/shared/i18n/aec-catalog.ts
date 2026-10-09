@@ -187,10 +187,13 @@ export const aecLocales: PluginLocaleBundles = {
       stop: 'Stop',
       stopping: 'Stopping…',
       stopped: 'Stopped. What was done is kept — «Index» continues from where it stopped.',
+      interrupted: (file: string) =>
+        `The stop could not wait for «${file}» to finish — it will be read again on the next run.`,
       pagesPending: (pages: number) =>
         `${pages} scanned page(s) are waiting for recognition — the rest of their files is already searchable. «Index» continues.`,
       recognized: (pages: number) => `Recognised ${pages} scanned page(s).`,
       filesTitle: 'Files of the run',
+      fileReading: 'reading…',
       fileRead: 'read',
       fileWaiting: (pages: number) => `${pages} page(s) wait for recognition`,
       fileRecognizing: (page: number, pages: number) => `recognising: page ${page} of ${pages}`,
@@ -821,10 +824,13 @@ export const aecLocales: PluginLocaleBundles = {
       stop: 'Остановить',
       stopping: 'Останавливаю…',
       stopped: 'Остановлено. Готовое сохранено — «Проиндексировать» продолжит с места остановки.',
+      interrupted: (file: string) =>
+        `Остановка не дождалась конца файла «${file}» — при следующем запуске он будет прочитан заново.`,
       pagesPending: (pages: number) =>
         `${pages} стр. сканов ждут распознавания — остальной текст их файлов уже ищется. «Проиндексировать» продолжит.`,
       recognized: (pages: number) => `Распознано страниц сканов: ${pages}.`,
       filesTitle: 'Файлы прогона',
+      fileReading: 'читаю…',
       fileRead: 'прочитан',
       fileWaiting: (pages: number) => `${pages} стр. ждут распознавания`,
       fileRecognizing: (page: number, pages: number) => `распознаю: стр. ${page} из ${pages}`,

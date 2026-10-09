@@ -28,6 +28,7 @@ let emitGraphState: (state: GraphAddState) => void = () => {}
 const IDLE: IngestState = {
   error: null,
   files: [],
+  interrupted: null,
   lastReport: null,
   progress: null,
   running: false,
@@ -338,6 +339,19 @@ describe('IndexStatus', () => {
     await waitFor(() => expect(screen.getByText(/Остановлено\. Готовое сохранено/)).toBeTruthy())
     expect(screen.getByText(/147 стр\. сканов ждут распознавания/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Остановить' })).toBeNull()
+  })
+
+  it('принудительная остановка посреди файла называет его — он прочитается заново (3J.9)', async () => {
+    getIndexStatus.mockResolvedValue({ ok: true, status: status() })
+    getIngestState.mockResolvedValue({
+      ...IDLE,
+      interrupted: { rel_path: 'Изыскания/отчёт ИГИ.pdf', source_id: 'tasks' }
+    })
+    await renderPage()
+
+    await waitFor(() =>
+      expect(screen.getByText(/«Изыскания\/отчёт ИГИ\.pdf» — при следующем запуске/)).toBeTruthy()
+    )
   })
 
   it('shows nothing at all when no project is open', async () => {

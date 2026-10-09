@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import {
   type IngestProgress,
   type IngestReport,
+  interruptedFile,
   readIngestLines,
   watchSilence
 } from './ingest-progress-pure'
@@ -47,9 +48,14 @@ export const DEFAULT_STATUS_TIMEOUT_MS = 30 * 1000
 /** The run was stopped on request and ended before it could report — what it
  *  finished is stored all the same. Not a failure, and not shown as one. */
 export class IngestStoppedError extends Error {
-  constructor() {
+  /** Task 3J.9: set when the grace ran out in the middle of a file's text
+   *  pass — that file is read again next time, and the person is told so. */
+  readonly interrupted: null | { rel_path: string; source_id: string }
+
+  constructor(interrupted: null | { rel_path: string; source_id: string } = null) {
     super('Индексация остановлена')
     this.name = 'IngestStoppedError'
+    this.interrupted = interrupted
   }
 }
 
@@ -99,6 +105,7 @@ export function runIngest(
     let report: IngestReport | undefined
     let settled = false
     let stopRequested = false
+    let killedAfterGrace = false
     let graceTimer: ReturnType<typeof setTimeout> | null = null
 
     const finish = (): void => {
@@ -128,7 +135,9 @@ export function runIngest(
       stopRequested = true
       proc.stdin.write('stop\n')
       graceTimer = setTimeout(() => {
-        if (!settled) proc.kill()
+        if (settled) return
+        killedAfterGrace = true
+        proc.kill()
       }, STOP_GRACE_MS)
     }
     if (options.signal?.aborted) requestStop()
@@ -170,7 +179,7 @@ export function runIngest(
       const finalReport = tail.report ?? report
       if (code !== 0) {
         if (stopRequested) {
-          reject(new IngestStoppedError())
+          reject(new IngestStoppedError(killedAfterGrace ? interruptedFile(seen) : null))
           return
         }
         const stderr = Buffer.concat(stderrChunks).toString('utf8')

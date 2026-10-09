@@ -656,3 +656,24 @@ async def test_a_graph_failure_is_recorded_under_the_graph_stage(project, monkey
         ("задание.pdf", "graph", "provider_limit"),
         ("нет.pdf", "graph", "not_indexed"),
     ]
+
+
+@pytest.mark.anyio
+async def test_every_file_announces_its_start_before_its_end(project):
+    """3J.9: the app names the file a forced stop interrupted — it can only if
+    the start of the text pass was said."""
+    vault, source, conn = project
+    add_scanned(conn, source, "а.pdf")
+    add_scanned(conn, source, "б.pdf", "Категория вторая.")
+    rag = await open_stub_index(vault)
+    seen: list[Progress] = []
+
+    await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser, on_progress=seen.append)
+
+    stages = [(p.stage, p.rel_path, p.done) for p in seen if p.rel_path]
+    assert stages == [
+        ("reading", "а.pdf", 0),
+        ("file", "а.pdf", 1),
+        ("reading", "б.pdf", 1),
+        ("file", "б.pdf", 2),
+    ]

@@ -515,6 +515,8 @@ export interface RagStatus {
  * recognition of scanned pages; in it `page` of `pages` are the file's pages. */
 export interface IngestProgressEvent {
   chunks: number
+  /** Task 3J.7: why, as a code from `aec_rag/errors.py` — worded by the catalog. */
+  code?: string
   done: number
   error: string
   page?: number
@@ -529,7 +531,7 @@ export interface IngestProgressEvent {
 /** What an ingest run produced. */
 export interface IngestRunReport {
   chunks: number
-  errors: { error: string; rel_path: string; source_id: string }[]
+  errors: { code?: string; error: string; rel_path: string; source_id: string }[]
   files_failed: number
   files_ingested: number
   files_skipped: number
@@ -549,15 +551,19 @@ export interface IngestFileRow {
   pagesWaiting: number
   rel_path: string
   source_id: string
-  /** `read` — text pass done, nothing waits; `waiting` — scanned pages wait;
-   *  `recognizing` — the second pass is on it; `done` — every page is in. */
-  state: 'done' | 'failed' | 'read' | 'recognizing' | 'skipped' | 'waiting'
+  /** `reading` — the text pass is on it (3J.9); `read` — text pass done,
+   *  nothing waits; `waiting` — scanned pages wait; `recognizing` — the second
+   *  pass is on it; `done` — every page is in. */
+  state: 'done' | 'failed' | 'read' | 'reading' | 'recognizing' | 'skipped' | 'waiting'
 }
 
 export interface IngestState {
   error: null | string
   /** Files the current (or last) run touched, in the order it reached them. */
   files: IngestFileRow[]
+  /** Task 3J.9: the stop had to end the run by force while this file was being
+   *  read — its text layer is lost and it is read again next time. */
+  interrupted: null | { rel_path: string; source_id: string }
   lastReport: IngestRunReport | null
   progress: IngestProgressEvent | null
   running: boolean

@@ -6,6 +6,7 @@ import {
   applyIngestEvent,
   describeProgress,
   type IngestProgress,
+  interruptedFile,
   readIngestLines,
   watchSilence
 } from './ingest-progress-pure'
@@ -158,5 +159,44 @@ describe('watchSilence — предел молчания вместо часа (
     expect(silent).toHaveBeenCalledTimes(1)
     watch.stop()
     vi.useRealTimers()
+  })
+})
+
+describe('interruptedFile — какой файл прочитается заново (3J.9)', () => {
+  const at = (stage: string, rel_path: string, phase = 'text'): IngestProgress => ({
+    chunks: 0,
+    done: 0,
+    error: '',
+    phase,
+    rel_path,
+    source_id: 'tasks',
+    stage,
+    total: 2
+  })
+
+  it('reading без file — этот файл', () => {
+    expect(
+      interruptedFile([
+        at('started', ''),
+        at('reading', 'а.pdf'),
+        at('file', 'а.pdf'),
+        at('reading', 'б.pdf')
+      ])
+    ).toEqual({ rel_path: 'б.pdf', source_id: 'tasks' })
+  })
+
+  it('каждый начатый файл закончен — ничего', () => {
+    expect(interruptedFile([at('reading', 'а.pdf'), at('failed', 'а.pdf')])).toBeNull()
+    expect(interruptedFile([at('reading', 'а.pdf'), at('file', 'а.pdf')])).toBeNull()
+  })
+
+  it('распознавание страниц не теряет ничего — не считается', () => {
+    expect(
+      interruptedFile([at('reading', 'а.pdf'), at('file', 'а.pdf'), at('page', 'а.pdf', 'ocr')])
+    ).toBeNull()
+  })
+
+  it('строка файла показывает «читаю», пока проход по нему идёт', () => {
+    expect(applyIngestEvent([], at('reading', 'а.pdf'))[0].state).toBe('reading')
   })
 })

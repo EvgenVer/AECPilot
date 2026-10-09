@@ -127,6 +127,8 @@ export function applyIngestEvent(rows: IngestFileRow[], event: IngestProgress): 
       pagesWaiting: pages,
       state: page >= pages ? 'done' : 'recognizing'
     }
+  } else if (event.stage === 'reading') {
+    next = { ...row, state: 'reading' }
   } else if (event.stage === 'file') {
     const waiting = event.pages ?? 0
     next = { ...row, pagesWaiting: waiting, state: waiting > 0 ? 'waiting' : 'read' }
@@ -138,6 +140,30 @@ export function applyIngestEvent(rows: IngestFileRow[], event: IngestProgress): 
 
   if (index === -1) return [...rows, next]
   return rows.map((current, position) => (position === index ? next : current))
+}
+
+/** Task 3J.9: the file whose text pass began (`reading`) and never ended —
+ *  no `file`, `failed` or `skipped` after it. `null` when every file that was
+ *  started also finished. Only the text pass counts: recognition is stored
+ *  page by page and loses nothing to a stop. */
+export function interruptedFile(
+  events: IngestProgress[]
+): null | { rel_path: string; source_id: string } {
+  let open: null | { rel_path: string; source_id: string } = null
+  for (const event of events) {
+    if (event.phase === 'ocr') continue
+    if (event.stage === 'reading') {
+      open = { rel_path: event.rel_path, source_id: event.source_id }
+    } else if (
+      open &&
+      event.source_id === open.source_id &&
+      event.rel_path === open.rel_path &&
+      (event.stage === 'file' || event.stage === 'failed' || event.stage === 'skipped')
+    ) {
+      open = null
+    }
+  }
+  return open
 }
 
 /** D-183: a run is ended when it goes quiet, not when it gets long. A project

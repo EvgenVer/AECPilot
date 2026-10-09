@@ -4898,6 +4898,7 @@ ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
 let ingestState: IngestState = {
   error: null,
   files: [],
+  interrupted: null,
   lastReport: null,
   progress: null,
   running: false,
@@ -4990,7 +4991,14 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
   const abort = new AbortController()
   ingestAbort = abort
 
-  publishIngestState({ error: null, files: [], progress: null, running: true, stopping: false })
+  publishIngestState({
+    error: null,
+    files: [],
+    interrupted: null,
+    progress: null,
+    running: true,
+    stopping: false
+  })
 
   // D-114. Индексация берёт только просканированные файлы, а подключение папки
   // скана не запускает — до следующего по расписанию (5 минут) «Проиндексировать»
@@ -5022,6 +5030,7 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
       const stopped = error instanceof IngestStoppedError
       publishIngestState({
         error: stopped ? null : error instanceof Error ? error.message : String(error),
+        interrupted: stopped ? error.interrupted : null,
         progress: null,
         running: false,
         stopping: false

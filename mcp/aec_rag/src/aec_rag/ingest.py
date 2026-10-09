@@ -240,6 +240,18 @@ async def ingest(
             )
             continue
 
+        # Task 3J.9: the text layer is written whole, at the end of the file. A
+        # run ended by force while a file is being read loses that file's work,
+        # and the app can only say which one if the start was announced.
+        on_progress(
+            Progress(
+                stage="reading",
+                done=done - 1,
+                total=report.files_total,
+                source_id=file.source_id,
+                rel_path=file.rel_path,
+            )
+        )
         try:
             count, waiting = await ingest_one(
                 conn, rag, file, path, parse=parse, max_chars=max_chars

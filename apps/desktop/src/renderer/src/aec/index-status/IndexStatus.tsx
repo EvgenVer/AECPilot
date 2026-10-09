@@ -25,6 +25,7 @@ import { openIndexPage } from '../workspace-pages'
 const IDLE: IngestState = {
   error: null,
   files: [],
+  interrupted: null,
   lastReport: null,
   progress: null,
   running: false,
@@ -212,6 +213,11 @@ export function IndexDetails(): React.JSX.Element | null {
       {!ingest.running && ingest.lastReport?.stopped ? (
         <div className="text-muted-foreground">{t('index.stopped')}</div>
       ) : null}
+      {!ingest.running && ingest.interrupted ? (
+        <div className="text-amber-500" role="status">
+          {t('index.interrupted', ingest.interrupted.rel_path)}
+        </div>
+      ) : null}
       {ingest.lastReport && ingest.lastReport.files_failed > 0 ? (
         <div className="text-amber-500">{t('index.failed', ingest.lastReport.files_failed)}</div>
       ) : null}
@@ -284,6 +290,8 @@ function RunFiles({ files }: { files: IngestFileRow[] }): React.JSX.Element | nu
 
   const label = (row: IngestFileRow): string => {
     switch (row.state) {
+      case 'reading':
+        return t('index.fileReading')
       case 'waiting':
         return t('index.fileWaiting', row.pagesWaiting)
       case 'recognizing':
