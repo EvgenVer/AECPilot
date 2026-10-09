@@ -14,8 +14,10 @@ import {
   getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
+  listProjectSources,
   openProject,
   removeSourceFromProject,
+  renameSource,
   updateProjectSettings
 } from './project-manager'
 
@@ -775,5 +777,62 @@ describe('updateProjectSettings — язык извлечения', () => {
     expect(result.ok).toBe(false)
     // И, что важнее отказа, — на диск ничего не легло.
     expect(onDisk().extraction_language).toBe('')
+  })
+})
+
+describe('renameSource (3J.5)', () => {
+  let parent: string
+  let vaultPath: string
+  let sourceDir: string
+
+  beforeEach(async () => {
+    parent = makeTempDir('aecpilot-rename-source-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-07-14T12:00:00.000Z'
+    })
+    sourceDir = path.join(parent, 'Изыскания')
+    fs.mkdirSync(sourceDir)
+    await addSourceToProject(vaultPath, sourceDir, { idFactory: () => 'id-a' })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('пишет название только в project.json — папка на диске та же', () => {
+    const result = renameSource(vaultPath, 'id-a', '  ИГИ  ')
+
+    expect(result).toEqual({
+      ok: true,
+      sources: [{ id: 'id-a', root_path: sourceDir, added_at: expect.any(String), label: 'ИГИ' }]
+    })
+    expect(fs.existsSync(sourceDir)).toBe(true)
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(vaultPath, '.aecpilot', 'project.json'), 'utf-8')
+    )
+    expect(validateProjectConfig(raw).ok).toBe(true)
+    expect(listProjectSources(vaultPath)[0]?.label).toBe('ИГИ')
+  })
+
+  it('пустое название — сброс к имени папки', () => {
+    renameSource(vaultPath, 'id-a', 'ИГИ')
+    const result = renameSource(vaultPath, 'id-a', '   ')
+
+    expect(result.ok && result.sources[0]).toEqual({
+      id: 'id-a',
+      root_path: sourceDir,
+      added_at: expect.any(String)
+    })
+  })
+
+  it('неизвестный источник — отказ без записи', () => {
+    expect(renameSource(vaultPath, 'no-such-id', 'X')).toEqual({
+      ok: false,
+      error: 'Источник не найден'
+    })
   })
 })

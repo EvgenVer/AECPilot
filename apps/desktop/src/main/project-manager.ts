@@ -502,6 +502,39 @@ export function removeSourceFromProject(vaultPath: string, sourceId: string): Re
     sources: config.sources.filter((s) => s.id !== sourceId)
   }
 
+  return writeSources(vaultPath, updatedConfig)
+}
+
+/** Название источника в приложении (задача 3J.5, SPEC UR44): пишется только в
+ *  `project.json`, папка на диске не переименовывается. Пустое название —
+ *  сброс к имени конечной папки. */
+export function renameSource(
+  vaultPath: string,
+  sourceId: string,
+  label: string
+): RemoveSourceResult {
+  const configResult = readProjectConfigFile(vaultPath)
+  if (!configResult.ok) return { ok: false, error: configResult.error }
+  const config = configResult.config
+
+  if (!config.sources.some((s) => s.id === sourceId)) {
+    return { ok: false, error: 'Источник не найден' }
+  }
+
+  const name = label.trim()
+  const updatedConfig: ProjectConfig = {
+    ...config,
+    sources: config.sources.map((source) => {
+      if (source.id !== sourceId) return source
+      const rest = { id: source.id, root_path: source.root_path, added_at: source.added_at }
+      return name === '' ? rest : { ...rest, label: name }
+    })
+  }
+
+  return writeSources(vaultPath, updatedConfig)
+}
+
+function writeSources(vaultPath: string, updatedConfig: ProjectConfig): RemoveSourceResult {
   try {
     writeProjectConfigFile(vaultPath, updatedConfig)
   } catch (error: unknown) {

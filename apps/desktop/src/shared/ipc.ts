@@ -198,6 +198,8 @@ export interface ProjectSource {
   id: string
   root_path: string
   added_at: string
+  /** Имя в приложении (3J.5); нет — имя конечной папки (`sourceDisplayName`). */
+  label?: string
 }
 
 /** A node in the vault explorer tree (task 1.6) — mirrors `VaultTreeNode`

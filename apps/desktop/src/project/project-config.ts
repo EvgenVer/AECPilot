@@ -15,6 +15,9 @@ export interface ProjectSource {
   id: string
   root_path: string
   added_at: string
+  /** Имя источника в приложении (3J.5, SPEC UR44). Нет — имя конечной папки;
+   *  папка на диске при переименовании не меняется. */
+  label?: string
 }
 
 export interface ProjectSettings {
@@ -96,6 +99,9 @@ function validateSource(
   }
   if (!isIsoDateString(source.added_at)) {
     errors.push({ path: `${path}.added_at`, message: 'added_at must be an ISO-8601 date string' })
+  }
+  if (source.label !== undefined && typeof source.label !== 'string') {
+    errors.push({ path: `${path}.label`, message: 'label must be a string' })
   }
 }
 
@@ -184,7 +190,10 @@ export function validateProjectConfig(input: unknown): ValidateProjectConfigResu
       sources: sources.map((source) => ({
         id: source.id as string,
         root_path: source.root_path as string,
-        added_at: source.added_at as string
+        added_at: source.added_at as string,
+        ...(typeof source.label === 'string' && source.label.trim() !== ''
+          ? { label: source.label }
+          : {})
       })),
       settings: {
         wiki_lang: settings.wiki_lang as string,
