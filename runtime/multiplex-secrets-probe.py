@@ -8,8 +8,9 @@
 конфиге MCP остаётся строкой. План 3I — отдать их ядру источником секретов
 плагина (их контракт `SecretSource`). Вопросы, на которые отвечает зонд:
 
-1. регистрируется ли источник из настоящего плагина при их загрузке плагинов и
-   перечитывает ли ядро после неё секреты главного профиля;
+1. регистрируется ли источник из настоящего плагина (`plugins/aec_secret_filter`,
+   `key_source.py`) при их загрузке плагинов и перечитывает ли ядро после неё
+   секреты главного профиля;
 2. попадает ли значение в секреты профиля специалиста (routed home);
 3. во что превращается `${env:KEY}` конфига MCP под привязкой профиля-владельца
    (`tools/mcp_tool_discovery.py::_owner_secret_scope`) — ключ или строка;
@@ -31,38 +32,15 @@ KEY_NAME = "AEC_PROBE_API_KEY"
 KEY_VALUE = "not-a-real-key-000"
 WITH_SOURCE = "--no-source" not in sys.argv
 
-PLUGIN_YAML = """name: aec-probe-source
-kind: standalone
-version: "0.0.1"
-description: "probe"
-"""
+# Настоящий плагин (задача 3I.2), а не подделка: так зонд проверяет и класс
+# источника `key_source.py`, которого тесты плагина без ядра не видят. Состав —
+# как у `runtime/register-secret-filter.mjs::PLUGIN_FILES` (без тестов).
+PLUGIN_SOURCE = REPO / "plugins" / "aec_secret_filter"
+PLUGIN_ID = "aec-secret-filter"
 
-# Тот же вид источника, что в плане 3I.2: имена — из AEC_PROVIDER_KEY_NAMES,
-# значения — из окружения процесса.
-PLUGIN_INIT = """
-import os
-from pathlib import Path
-from agent.secret_sources.base import FetchResult, SecretSource
-
-
-class AecPilotSource(SecretSource):
-    name = "aecpilot"
-    label = "AECPilot"
-    shape = "bulk"
-
-    def fetch(self, cfg, home_path: Path) -> FetchResult:
-        listed = os.environ.get("AEC_PROVIDER_KEY_NAMES", "").split(",")
-        names = [n.strip() for n in listed if n.strip()]
-        return FetchResult(secrets={n: os.environ[n] for n in names if os.environ.get(n)})
-
-
-def register(ctx):
-    ctx.register_secret_source(AecPilotSource())
-"""
-
-CONFIG = """plugins:
+CONFIG = f"""plugins:
   enabled:
-    - aec-probe-source
+    - {PLUGIN_ID}
 """
 # Без раздела `secrets:` ядро не опрашивает внешние источники профиля вовсе
 # (`hermes_cli/env_loader.py::_hydrate_profile_secret_sources`: `if not cfg:
@@ -78,13 +56,10 @@ def make_home(root: Path) -> tuple[Path, Path]:
     launch = root / "home"
     spec = launch / "profiles" / "spec1"
     for home in (launch, spec):
-        (home / "plugins" / "aec-probe-source").mkdir(parents=True)
-        (home / "plugins" / "aec-probe-source" / "plugin.yaml").write_text(
-            PLUGIN_YAML, encoding="utf-8"
-        )
-        (home / "plugins" / "aec-probe-source" / "__init__.py").write_text(
-            PLUGIN_INIT, encoding="utf-8"
-        )
+        target = home / "plugins" / PLUGIN_ID
+        target.mkdir(parents=True)
+        for source in [PLUGIN_SOURCE / "plugin.yaml", *PLUGIN_SOURCE.glob("*.py")]:
+            (target / source.name).write_bytes(source.read_bytes())
         (home / "config.yaml").write_text(
             CONFIG + (SECRETS if WITH_SOURCE else ""), encoding="utf-8"
         )

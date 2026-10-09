@@ -35,7 +35,7 @@ import json
 import logging
 from typing import Any
 
-from . import memory_facts
+from . import key_source, memory_facts
 from .mem0_shared import install_shared_mem0_client
 from .secrets import find_secrets, redact_secrets, refusal_message
 
@@ -295,6 +295,13 @@ def register(ctx) -> None:
         )
     except Exception as error:
         logger.warning("aec-secret-filter: команда фактов памяти не встала (%s)", error)
+    # Задача 3I.2 (D-195): ключи провайдеров — в секреты каждого профиля, иначе
+    # при специалистах (мультиплекс) MCP `aec-rag` и Mem0 остаются без ключа. См.
+    # `key_source.py`.
+    try:
+        ctx.register_secret_source(key_source.build_source())
+    except Exception as error:
+        logger.warning("aec-secret-filter: источник ключей не встал (%s)", error)
 
     # ПОЧЕМУ ПРАВИЛО ЖИВЁТ ЗДЕСЬ, А НЕ ТОЛЬКО В ПРОЕКТНОМ `AGENTS.md`.
     #

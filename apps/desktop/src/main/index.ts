@@ -208,7 +208,8 @@ import {
   mergeApprovalsModeIntoConfigYaml,
   mergeModelIntoConfigYaml,
   parseApprovalsMode,
-  validateSaveLlmSettingsPayload
+  validateSaveLlmSettingsPayload,
+  withProviderKeyNames
 } from './llm-settings-pure'
 import {
   DEFAULT_DATA_PROVIDERS,
@@ -430,7 +431,21 @@ async function loadHermesEnvModule(): Promise<HermesEnvModule> {
 }
 
 interface SecretFilterModule {
-  installSecretFilter: (hermesHomeDir: string) => { changed: boolean }
+  installSecretFilterEverywhere: (hermesHomeDir: string) => { changed: boolean }
+}
+
+/** Плагин в главный профиль и в профиль каждого специалиста (задачи 5.3, 3I.2):
+ * ядро ищет плагины только в папке профиля, а копия конфига при создании
+ * специалиста плагин не несёт — без него у специалиста нет ни фильтра секретов,
+ * ни ключей при мультиплексе (D-195). */
+async function armProfiles(): Promise<void> {
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const { installSecretFilterEverywhere } = await loadSecretFilterModule()
+    installSecretFilterEverywhere(HERMES_HOME_DIR)
+  } catch (error: unknown) {
+    console.error('aecpilot: SECRET FILTER NOT INSTALLED, memory writes are unfiltered', error)
+  }
 }
 
 // Задача 5.3, та же причина динамического импорта, что у соседей выше.
@@ -1450,7 +1465,7 @@ function applyDisabledToolsets(homeDir: string): void {
  * enough to be handed to `startServe`'s child_process spawn — never logged,
  * never returned from here to anything but that call. */
 function buildExtraEnv(): Record<string, string> {
-  return { ...ragEnvFromProfile(knownHermesHome), ...buildProviderKeyEnv() }
+  return { ...ragEnvFromProfile(knownHermesHome), ...withProviderKeyNames(buildProviderKeyEnv()) }
 }
 
 /** Lazily creates the initial chat session (task 0.11) and caches its id.
@@ -3113,7 +3128,12 @@ ipcMain.handle('profiles:list', async () => {
 ipcMain.handle('profiles:create', async (_event, payload: unknown) => {
   const { name } = (payload ?? {}) as { name?: unknown }
   if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
-  return hermesRest(restTarget(), '/api/profiles', { method: 'POST', body: { name } })
+  const created = await hermesRest(restTarget(), '/api/profiles', {
+    method: 'POST',
+    body: { name }
+  })
+  await armProfiles() // D-195: новый специалист — с плагином и источником ключей
+  return created
 })
 
 // DESTRUCTIVE — removes the profile's whole directory: its config, keys, skills
@@ -3322,6 +3342,9 @@ ipcMain.handle(
       ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       const value = await gateway.request(method as never, params, timeoutMs)
+      // D-195: профиль специалиста, созданный их окном, получает плагин до того,
+      // как ядро начнёт его обслуживать и загрузит его плагины.
+      if (method === 'profiles.create') await armProfiles()
       followWindowSession(method, value)
       return { ok: true, value }
     } catch (error: unknown) {
@@ -5567,15 +5590,7 @@ app
           // приложение, не открывшееся из-за этого, не защитит никого. Отказ
           // громко пишется в лог; тихой замены фильтра на его отсутствие тут
           // нет только благодаря этой строке.
-          try {
-            const { installSecretFilter } = await loadSecretFilterModule()
-            installSecretFilter(HERMES_HOME_DIR)
-          } catch (error: unknown) {
-            console.error(
-              'aecpilot: SECRET FILTER NOT INSTALLED, memory writes are unfiltered',
-              error
-            )
-          }
+          await armProfiles()
 
           serveHandle = await startServe({ extraEnv: buildExtraEnv() })
 

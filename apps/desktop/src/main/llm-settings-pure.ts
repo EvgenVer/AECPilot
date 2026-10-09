@@ -290,6 +290,19 @@ export function buildProviderEnv(
   return env
 }
 
+/** Env var naming the decrypted keys for our plugin's secret source
+ * (`plugins/aec_secret_filter/key_source.py::NAMES_ENV`). */
+export const PROVIDER_KEY_NAMES_ENV = 'AEC_PROVIDER_KEY_NAMES'
+
+/** Adds the NAMES of the keys in `keyEnv` — never their values — for the core's
+ * secret source (task 3I.2, D-195). With two profiles the core multiplexes and
+ * reads keys only from a profile's secrets, not the process env; our plugin
+ * hands them over by this list. */
+export function withProviderKeyNames(keyEnv: Record<string, string>): Record<string, string> {
+  const names = Object.keys(keyEnv).sort()
+  return names.length === 0 ? keyEnv : { ...keyEnv, [PROVIDER_KEY_NAMES_ENV]: names.join(',') }
+}
+
 /** Payload accepted by the `settings:save` IPC handler. `key: string` sets a
  * new key, `key: null` clears it, `key: undefined` (or omitted) leaves it
  * untouched. Validated here at the IPC boundary before anything touches

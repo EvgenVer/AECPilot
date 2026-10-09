@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildProviderEnv,
+  PROVIDER_KEY_NAMES_ENV,
+  withProviderKeyNames,
   envVarIsDefined,
   isApprovalMode,
   isCredentialEnvVarName,
@@ -439,5 +441,22 @@ describe('mergeApprovalsModeIntoConfigYaml', () => {
     const result = mergeApprovalsModeIntoConfigYaml('model:\n  default: "x"\n', 'off')
     const line = result.text.split('\n').find((l) => /^\s*mode:/.test(l))
     expect(line).toBe(`  mode: ${JSON.stringify('off')}`)
+  })
+})
+
+// Задача 3I.2 (D-195): ядру уходит список ИМЁН ключей — для источника секретов плагина.
+describe('withProviderKeyNames', () => {
+  it('добавляет имена ключей через запятую, не трогая значения', () => {
+    const env = withProviderKeyNames({ OPENAI_API_KEY: 'o', GEMINI_API_KEY: 'g' })
+
+    expect(env[PROVIDER_KEY_NAMES_ENV]).toBe('GEMINI_API_KEY,OPENAI_API_KEY')
+    expect(env.OPENAI_API_KEY).toBe('o')
+    expect(env[PROVIDER_KEY_NAMES_ENV]?.split(','), 'в списке — имена, не значения').not.toContain(
+      'o'
+    )
+  })
+
+  it('без ключей списка нет', () => {
+    expect(withProviderKeyNames({})).toEqual({})
   })
 })

@@ -33,7 +33,13 @@ export const PLUGIN_FILES = [
   // Задача 3H.20: команда фактов памяти и чистка журнала реплик при удалении.
   "memory_facts.py",
   "mem0_turns.py",
+  // Задача 3I.2 (D-195): ключи провайдеров — внешним источником секретов.
+  "key_source.py",
 ];
+
+/** Имя источника ключей в плагине (`key_source.py::NAME`) — ключ раздела
+ *  `secrets:` конфига, которым ядро его включает. */
+export const KEY_SOURCE_ID = "aecpilot";
 
 /** Исходник лежит В `plugins/`, А НЕ В `mcp/`, и имя у него через подчёркивание.
  *
@@ -119,6 +125,46 @@ export function mergePluginEnabledIntoConfigYaml(yamlText, pluginId = PLUGIN_ID)
   };
 }
 
+const SECRETS_SECTION_RE = /^secrets:\s*(#.*)?$/;
+
+/**
+ * Вносит `secrets: { aecpilot: { enabled: true } }` в текст `config.yaml`
+ * (задача 3I.2, D-195). Без раздела `secrets:` ядро не опрашивает внешние
+ * источники профиля вовсе (`env_loader._hydrate_profile_secret_sources`, замер
+ * 3I.1), и ключи при специалистах не доходят до MCP и Mem0.
+ *
+ * Только когда записи нет: если человек выключил источник (`enabled: false`),
+ * это его решение, и запись не трогается.
+ */
+export function mergeKeySourceIntoConfigYaml(yamlText, sourceId = KEY_SOURCE_ID) {
+  const block = [`  ${sourceId}:`, "    enabled: true"];
+  const hadTrailingNewline = yamlText.endsWith("\n");
+  const lines = (hadTrailingNewline ? yamlText.slice(0, -1) : yamlText).split("\n");
+
+  const sectionStart = lines.findIndex((line) => SECRETS_SECTION_RE.test(line));
+  if (sectionStart === -1) {
+    const separator = yamlText === "" || hadTrailingNewline ? "" : "\n";
+    return { text: `${yamlText}${separator}secrets:\n${block.join("\n")}\n`, changed: true };
+  }
+
+  let sectionEnd = lines.length;
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    if (TOP_LEVEL_LINE_RE.test(lines[i])) {
+      sectionEnd = i;
+      break;
+    }
+  }
+  const own = new RegExp(`^ {2}${sourceId}:\\s*(#.*)?$`);
+  if (lines.slice(sectionStart + 1, sectionEnd).some((line) => own.test(line))) {
+    return { text: yamlText, changed: false };
+  }
+
+  return {
+    text: [...lines.slice(0, sectionStart + 1), ...block, ...lines.slice(sectionStart + 1)].join("\n") + "\n",
+    changed: true,
+  };
+}
+
 /** Ставит плагин в профиль. Идемпотентно; возвращает `{ changed }`. */
 export function installSecretFilter(hermesHomeDir) {
   const target = path.join(hermesHomeDir, "plugins", PLUGIN_ID);
@@ -148,11 +194,41 @@ export function installSecretFilter(hermesHomeDir) {
     // конфига ещё нет — секция допишется в новый файл
   }
 
-  const merged = mergePluginEnabledIntoConfigYaml(yamlText);
-  if (merged.changed) {
+  const enabled = mergePluginEnabledIntoConfigYaml(yamlText);
+  const merged = mergeKeySourceIntoConfigYaml(enabled.text);
+  if (enabled.changed || merged.changed) {
     fs.writeFileSync(configPath, merged.text, "utf-8");
     changed = true;
   }
 
+  return { changed };
+}
+
+/**
+ * Профили специалистов: `<home>/profiles/<имя>/` с `config.yaml` (задача 3I.2,
+ * D-195). Ядро ищет пользовательские плагины только в `<home профиля>/plugins`
+ * (`hermes_cli/plugins_discovery.py`), а копия конфига при создании специалиста
+ * плагин с собой не несёт — без этой установки у специалиста нет ни фильтра
+ * секретов, ни источника ключей.
+ */
+export function specialistHomes(hermesHomeDir) {
+  const root = path.join(hermesHomeDir, "profiles");
+  let names = [];
+  try {
+    names = fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+  return names
+    .map((name) => path.join(root, name))
+    .filter((home) => fs.existsSync(path.join(home, "config.yaml")));
+}
+
+/** Главный профиль и все профили специалистов. Идемпотентно. */
+export function installSecretFilterEverywhere(hermesHomeDir) {
+  let changed = false;
+  for (const home of [hermesHomeDir, ...specialistHomes(hermesHomeDir)]) {
+    if (installSecretFilter(home).changed) changed = true;
+  }
   return { changed };
 }
