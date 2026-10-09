@@ -102,6 +102,7 @@ import {
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
 import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
+import { createdProfileByRest, inheritMainSoul } from './soul-inherit-pure'
 import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
 import { levelForPercent } from './zoom-pure'
@@ -445,6 +446,25 @@ async function armProfiles(): Promise<void> {
     installSecretFilterEverywhere(HERMES_HOME_DIR)
   } catch (error: unknown) {
     console.error('aecpilot: SECRET FILTER NOT INSTALLED, memory writes are unfiltered', error)
+  }
+}
+
+/** Новый специалист — с плагином и источником ключей (D-195) и с SOUL, который
+ *  начинается с SOUL главного агента (3J.4). Зовётся сразу после создания
+ *  профиля любым из трёх путей: диалог донора, их страница профилей, наш IPC. */
+async function finishNewProfile(name: unknown): Promise<void> {
+  await armProfiles()
+  if (!isValidProfileName(name)) return
+  try {
+    const { HERMES_HOME_DIR } = await loadServeModule()
+    const mainPath = join(HERMES_HOME_DIR, 'SOUL.md')
+    const ownPath = join(HERMES_HOME_DIR, 'profiles', name, 'SOUL.md')
+    if (!existsSync(mainPath)) return
+    const own = existsSync(ownPath) ? readFileSync(ownPath, 'utf-8') : ''
+    const next = inheritMainSoul(own, readFileSync(mainPath, 'utf-8'))
+    if (next !== own) writeFileSync(ownPath, next, 'utf-8')
+  } catch (error: unknown) {
+    console.error('aecpilot: specialist SOUL was not inherited', error)
   }
 }
 
@@ -3132,7 +3152,7 @@ ipcMain.handle('profiles:create', async (_event, payload: unknown) => {
     method: 'POST',
     body: { name }
   })
-  await armProfiles() // D-195: новый специалист — с плагином и источником ключей
+  await finishNewProfile(name) // D-195, 3J.4
   return created
 })
 
@@ -3343,8 +3363,10 @@ ipcMain.handle(
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       const value = await gateway.request(method as never, params, timeoutMs)
       // D-195: профиль специалиста, созданный их окном, получает плагин до того,
-      // как ядро начнёт его обслуживать и загрузит его плагины.
-      if (method === 'profiles.create') await armProfiles()
+      // как ядро начнёт его обслуживать и загрузит его плагины; 3J.4 — SOUL.
+      if (method === 'profiles.create') {
+        await finishNewProfile((params as { name?: unknown } | null)?.name)
+      }
       followWindowSession(method, value)
       return { ok: true, value }
     } catch (error: unknown) {
@@ -3459,11 +3481,16 @@ ipcMain.handle(
     if (envWrite.action !== 'forward') return captureCredentialWrite(envWrite)
 
     try {
-      return await hermesRest(restTarget(), path, {
+      const result = await hermesRest(restTarget(), path, {
         method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         ...(payload?.body === undefined ? {} : { body: payload.body }),
         ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
       })
+      // Их страница профилей создаёт специалиста REST-ом — тот же шаг, что у
+      // диалога (D-195, 3J.4).
+      const created = createdProfileByRest(method, path, payload?.body)
+      if (created !== null) await finishNewProfile(created)
+      return result
     } catch (error: unknown) {
       // One known core regression gets a message the user can act on instead
       // of a raw 500 (D-14); everything else is passed through untouched.

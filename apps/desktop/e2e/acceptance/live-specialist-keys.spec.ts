@@ -48,9 +48,11 @@ const SPECIALIST = 'keys-check'
 const CIPHER = 'КРАСНЫЙ-ЛИС-4417'
 
 const source = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-keys-'))
+// CSV, а не TXT: `.txt` индексатор пропускает молча (D-199), и первые прогоны
+// находили шифр чтением файла, а не поиском.
 writeFileSync(
-  join(source, 'паспорт объекта.txt'),
-  `Паспорт объекта.\nШифр проекта: ${CIPHER}.\nЗаказчик: ООО «Пример».\n`,
+  join(source, 'паспорт объекта.csv'),
+  `Поле;Значение\nОбъект;Паспорт объекта\nШифр проекта;${CIPHER}\nЗаказчик;ООО «Пример»\n`,
   'utf8'
 )
 
@@ -125,6 +127,10 @@ async function ui(): Promise<Page> {
       { timeout: 300000, intervals: [3000], message: 'индексация закончилась' }
     )
     .toBe(true)
+  // Иначе проверка поиска падает загадочно: агент ищет в пустом индексе.
+  const report = ((await page.evaluate(() => window.aecpilot.getIngestState())) as IngestState)
+    .lastReport as IngestState['lastReport'] & { files_ingested?: number; errors?: unknown }
+  expect(report?.files_ingested, `индексация: ${JSON.stringify(report)}`).toBeGreaterThan(0)
   return page
 }
 
@@ -138,6 +144,18 @@ test('D-196 у специалиста стоит наш плагин и вклю
   expect(readFileSync(join(specialistHome, 'config.yaml'), 'utf8')).toMatch(
     /^secrets:\n {2}aecpilot:\n/m
   )
+})
+
+test('3J.4 SOUL специалиста начинается с SOUL главного агента', async () => {
+  await ui()
+  const profileDir = stand.get().profileDir as string
+  const main = readFileSync(join(profileDir, 'SOUL.md'), 'utf8').trim()
+  const own = readFileSync(join(profileDir, 'profiles', SPECIALIST, 'SOUL.md'), 'utf8')
+
+  // SOUL главного на стенде — свой, короткий; важна связь, а не текст.
+  expect(main.length).toBeGreaterThan(0)
+  expect(own.startsWith(main)).toBe(true)
+  expect(own).toContain('## Специалист')
 })
 
 /** Журнал ядра после последнего старта с мультиплексом. */
