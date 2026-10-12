@@ -736,8 +736,9 @@ test('4.7.1 «Проиндексировать» есть у папки и у ф
   await expect(page.getByRole('menuitem', { name: 'Проиндексировать' })).toBeVisible()
   await page.keyboard.press('Escape')
 
+  // С 3L.6 у файла источника — действия по документу: «Индексировать».
   await file.click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Проиндексировать' }).click()
+  await page.getByRole('menuitem', { name: 'Индексировать', exact: true }).click()
   const region = indexPage(page)
   await expect(region).toBeVisible({ timeout: 15000 })
 
