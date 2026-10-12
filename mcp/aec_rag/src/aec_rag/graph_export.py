@@ -13,6 +13,8 @@ document instead.
 
 from __future__ import annotations
 
+import json
+import re
 import sqlite3
 from collections import Counter
 from pathlib import Path
@@ -148,6 +150,173 @@ def export_graph(
                 per_document.items(), key=lambda item: (-item[1], item[0])
             )
         ],
+    }
+
+
+#: A document's code is the start of its file name up to the section mark
+#: (task 3L.8): «297-2024-КР Конструктивные решения.pdf» → «297-2024-КР»,
+#: «297-1-ИГИ.pdf» → «297-1-ИГИ». A code holds a digit — «Задание-КР» names a
+#: kind of document, not one document.
+_CODE = re.compile(
+    r"^[0-9A-Za-zА-Яа-яЁё.]+(?:-[0-9A-Za-zА-Яа-яЁё.]+)*?-[А-ЯЁ]{2,5}\d*(?:\.\d+)*(?![А-Яа-яЁё])"
+)
+_DASHES = str.maketrans({dash: "-" for dash in "‐‑‒–—−"})
+#: An edge names at most this many shared entities, the best-connected first.
+EDGE_ENTITIES = 20
+#: …and each entity, or a reference, at most this many places.
+_PLACES = 6
+
+
+def document_code(rel_path: str) -> str | None:
+    """The code in a file name, or ``None`` — then the file gets no «ссылается»."""
+    match = _CODE.match(Path(rel_path).stem.translate(_DASHES).strip())
+    if match is None or not any(char.isdigit() for char in match.group(0)):
+        return None
+    return match.group(0)
+
+
+def _locator(raw: str) -> dict[str, Any]:
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def export_documents(conn: sqlite3.Connection | None, path: Path) -> dict[str, Any]:
+    """The graph as a map of documents (task 3L.8, owner decision 2026-10-12).
+
+    A node is a document of the graph. Two documents are linked by the entities
+    they share — the edge carries how many (``weight``) and names up to
+    ``EDGE_ENTITIES`` of them with the places they come from, so a click on it
+    answers «связаны через что». A document is also linked to another whose
+    code (from the file name) it mentions: kind ``refers``, from the one that
+    mentions to the one mentioned, with the places of the mention.
+
+    Only reads. No layout: the window lays the map out live.
+    """
+    import networkx as nx
+
+    empty = {"graph_exists": False, "view": "documents", "nodes": [], "edges": []}
+    if not path.is_file():
+        return empty
+    graph = nx.read_graphml(path)
+    if conn is None or graph.number_of_nodes() == 0:
+        return {**empty, "graph_exists": True}
+
+    chunks: dict[str, tuple[tuple[str, str], dict[str, Any]]] = {}
+    for chunk_id, source_id, rel_path, locator in conn.execute(
+        "SELECT chunk_id, source_id, rel_path, locator FROM chunks"
+    ):
+        chunks[chunk_id] = ((source_id, rel_path), _locator(locator))
+
+    def place(chunk_id: str) -> dict[str, Any]:
+        (source_id, rel_path), locator = chunks[chunk_id]
+        return {
+            "source_id": source_id,
+            "rel_path": rel_path,
+            "chunk_id": chunk_id,
+            "locator": locator,
+        }
+
+    entities_of: Counter[tuple[str, str]] = Counter()
+    # (document a, document b) sorted → [(degree, label, type, chunk ids)]
+    shared: dict[tuple[tuple[str, str], tuple[str, str]], list] = {}
+    degree = dict(graph.degree())
+    for node, data in graph.nodes(data=True):
+        by_document: dict[tuple[str, str], list[str]] = {}
+        for raw_key in str(data.get("source_id") or "").split(FIELD_SEP):
+            parts = split_chunk_key(raw_key.strip())
+            if parts and parts[1] in chunks:
+                by_document.setdefault(chunks[parts[1]][0], []).append(parts[1])
+        entities_of.update(by_document.keys())
+        documents = sorted(by_document)
+        for i, first in enumerate(documents):
+            for second in documents[i + 1 :]:
+                shared.setdefault((first, second), []).append(
+                    (
+                        degree[node],
+                        str(data.get("entity_id") or node),
+                        str(data.get("entity_type") or ""),
+                        by_document[first][: _PLACES // 2] + by_document[second][: _PLACES // 2],
+                    )
+                )
+
+    documents = set(entities_of)
+    has_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'graph_documents'"
+    ).fetchone()
+    if has_table:
+        documents.update(conn.execute("SELECT source_id, rel_path FROM graph_documents"))
+
+    def node_id(document: tuple[str, str]) -> str:
+        return f"{document[0]}/{document[1]}"
+
+    edges: list[dict[str, Any]] = []
+    for (first, second), entities in sorted(shared.items(), key=lambda item: -len(item[1])):
+        entities.sort(key=lambda entity: (-entity[0], entity[1]))
+        edges.append(
+            {
+                "kind": "shared",
+                "source": node_id(first),
+                "target": node_id(second),
+                "weight": len(entities),
+                "entities": [
+                    {
+                        "label": label,
+                        "type": entity_type,
+                        "places": [place(chunk_id) for chunk_id in chunk_ids],
+                    }
+                    for _, label, entity_type, chunk_ids in entities[:EDGE_ENTITIES]
+                ],
+            }
+        )
+
+    codes = {document: document_code(document[1]) for document in documents}
+    patterns = {
+        document: re.compile(rf"(?<![\w-]){re.escape(code)}(?!\w)")
+        for document, code in codes.items()
+        if code
+    }
+    mentions: dict[tuple[tuple[str, str], tuple[str, str]], list[str]] = {}
+    if patterns:
+        for chunk_id, source_id, rel_path, text in conn.execute(
+            "SELECT chunk_id, source_id, rel_path, text FROM chunks ORDER BY ordinal"
+        ):
+            mentioning = (source_id, rel_path)
+            if mentioning not in documents:
+                continue
+            text = text.translate(_DASHES)
+            for mentioned, pattern in patterns.items():
+                if mentioned != mentioning and pattern.search(text):
+                    mentions.setdefault((mentioning, mentioned), []).append(chunk_id)
+    for (mentioning, mentioned), chunk_ids in sorted(mentions.items()):
+        edges.append(
+            {
+                "kind": "refers",
+                "source": node_id(mentioning),
+                "target": node_id(mentioned),
+                "weight": len(chunk_ids),
+                "code": codes[mentioned],
+                "places": [place(chunk_id) for chunk_id in chunk_ids[:_PLACES]],
+            }
+        )
+
+    return {
+        "graph_exists": True,
+        "view": "documents",
+        "nodes": [
+            {
+                "id": node_id(document),
+                "source_id": document[0],
+                "rel_path": document[1],
+                "label": Path(document[1]).name,
+                "code": codes[document],
+                "entities": entities_of[document],
+            }
+            for document in sorted(documents)
+        ],
+        "edges": edges,
     }
 
 

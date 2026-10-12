@@ -13,7 +13,13 @@ import networkx as nx
 import pytest
 from aec_rag.__main__ import main
 from aec_rag.db import open_index
-from aec_rag.graph_export import export_graph, graph_file, parse_document
+from aec_rag.graph_export import (
+    document_code,
+    export_documents,
+    export_graph,
+    graph_file,
+    parse_document,
+)
 from aec_rag.lightrag_bridge import chunk_key, document_id
 
 
@@ -169,3 +175,124 @@ def test_the_cli_prints_the_export(vault, capsys):
     assert code == 0
     assert len(result["nodes"]) == 3
     assert result["graph_exists"] is True
+
+
+# --- task 3L.8: the map of documents -------------------------------------------
+
+KR = "297-2024-КР Расчёт.pdf"
+IGI = "ИГИ/297-1-ИГИ отчёт.pdf"
+LETTER = "письмо.pdf"
+
+
+@pytest.fixture
+def documents_vault(tmp_path):
+    """КР mentions the ИГИ report by its code; the letter names another code only."""
+    vault = tmp_path / "vault"
+    (vault / ".aecpilot").mkdir(parents=True)
+    conn = open_index(vault / ".aecpilot" / "index.db")
+    for rel_path, chunk_id, locator, text in (
+        (KR, "k1", '{"page": 2}', "Основание — по отчёту 297‑1‑ИГИ, ИГЭ-2."),
+        (IGI, "k2", '{"page": 5}', "Отчёт 297-1-ИГИ: суглинок."),
+        (LETTER, "k3", "{}", "См. изменение 297-1-ИГИ2."),
+    ):
+        conn.execute(
+            "INSERT INTO chunks (chunk_id, source_id, rel_path, ordinal, locator, is_table, text) "
+            "VALUES (?, 's', ?, 0, ?, 0, ?)",
+            (chunk_id, rel_path, locator, text),
+        )
+    conn.commit()
+
+    graph = nx.Graph()
+    for name, documents in (
+        ("Заказчик", [(KR, "k1"), (IGI, "k2"), (LETTER, "k3")]),
+        ("Свая С-1", [(KR, "k1"), (IGI, "k2")]),
+        ("Грунт ИГЭ-2", [(KR, "k1"), (IGI, "k2")]),
+        ("Срок", [(LETTER, "k3")]),
+    ):
+        graph.add_node(
+            name,
+            entity_id=name,
+            entity_type="конструкция",
+            source_id="<SEP>".join(key("s", rel, chunk) for rel, chunk in documents),
+        )
+    graph.add_edge("Заказчик", "Свая С-1")
+    graph.add_edge("Заказчик", "Грунт ИГЭ-2")
+    graph.add_edge("Свая С-1", "Грунт ИГЭ-2")
+    graph.add_edge("Заказчик", "Срок")
+    path = graph_file(vault)
+    path.parent.mkdir(parents=True)
+    nx.write_graphml(graph, path)
+    return vault, conn
+
+
+def test_a_code_is_taken_from_the_file_name():
+    assert document_code(KR) == "297-2024-КР"
+    assert document_code(IGI) == "297-1-ИГИ"
+    assert document_code("ПД–297–АР1.pdf") == "ПД-297-АР1"
+    # No digit — a kind of document, not a document; no hyphen — no code.
+    assert document_code("Задание-КР.pdf") is None
+    assert document_code(LETTER) is None
+
+
+def test_documents_are_linked_by_the_entities_they_share(documents_vault):
+    vault, conn = documents_vault
+
+    result = export_documents(conn, graph_file(vault))
+
+    assert result["view"] == "documents"
+    nodes = {node["id"]: node for node in result["nodes"]}
+    assert nodes[f"s/{KR}"]["code"] == "297-2024-КР"
+    assert nodes[f"s/{KR}"]["entities"] == 3
+    assert nodes[f"s/{LETTER}"]["code"] is None
+    shared = {
+        frozenset((edge["source"], edge["target"])): edge
+        for edge in result["edges"]
+        if edge["kind"] == "shared"
+    }
+    kr_igi = shared[frozenset((f"s/{KR}", f"s/{IGI}"))]
+    assert kr_igi["weight"] == 3
+    # The best-connected entity first; each with the places it comes from.
+    assert [entity["label"] for entity in kr_igi["entities"]] == [
+        "Заказчик",
+        "Грунт ИГЭ-2",
+        "Свая С-1",
+    ]
+    assert {place["chunk_id"] for place in kr_igi["entities"][0]["places"]} == {"k1", "k2"}
+    assert shared[frozenset((f"s/{IGI}", f"s/{LETTER}"))]["weight"] == 1
+
+
+def test_a_document_refers_to_another_by_its_code(documents_vault):
+    """КР mentions «297‑1‑ИГИ» (with non-breaking hyphens): an edge from КР to
+    the report, with the place. The report's own code in its own text is no
+    reference; «297-1-ИГИ2» in the letter is another code."""
+    vault, conn = documents_vault
+
+    result = export_documents(conn, graph_file(vault))
+
+    refers = [edge for edge in result["edges"] if edge["kind"] == "refers"]
+    assert [(edge["source"], edge["target"], edge["code"]) for edge in refers] == [
+        (f"s/{KR}", f"s/{IGI}", "297-1-ИГИ")
+    ]
+    assert refers[0]["places"] == [
+        {"source_id": "s", "rel_path": KR, "chunk_id": "k1", "locator": {"page": 2}}
+    ]
+
+
+def test_the_document_map_without_a_graph(tmp_path):
+    assert export_documents(None, graph_file(tmp_path / "vault"))["graph_exists"] is False
+
+
+def test_the_cli_prints_the_document_map(documents_vault, capsys):
+    vault, conn = documents_vault
+    conn.close()
+    (vault / ".aecpilot" / "project.json").write_text(
+        json.dumps({"schema_version": 1, "sources": [{"id": "s", "root_path": "D:/x"}]}),
+        encoding="utf-8",
+    )
+
+    code = main(["graph-export", "--project", str(vault), "--view", "documents"])
+
+    result = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert result["view"] == "documents"
+    assert len(result["nodes"]) == 3
