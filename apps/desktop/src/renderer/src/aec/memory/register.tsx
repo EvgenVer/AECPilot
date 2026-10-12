@@ -12,7 +12,8 @@
 // ЧИСЛО ФАКТОВ НА СТРОКЕ (задача 3H.21): «запомни» пишет в факты проекта, и
 // человек должен видеть, что память выросла, не открывая страницу. Число
 // обновляется после каждого завершённого хода — тогда же, когда агент мог
-// записать факт, — и при каждом чтении списка на странице. До первого чтения
+// записать факт, — при каждом чтении списка на странице и при открытии другого
+// проекта: факты у каждого проекта свои (D-205). До первого чтения
 // строка без числа: ноль, которого никто не считал, был бы неправдой.
 
 import { PALETTE_AREA, type PaletteContribution } from '../../donor/app/command-palette/contrib'
@@ -32,7 +33,12 @@ import { gatewayBridge } from '../../shared/gateway-bridge'
 import { MEMORY_PAGE } from '../workspace-pages'
 
 import MemoryPage from './MemoryPage'
-import { $memoryFactsCount, openMemoryScreen, refreshMemoryFactsCount } from './store'
+import {
+  $memoryFactsCount,
+  followProjectForFactsCount,
+  openMemoryScreen,
+  refreshMemoryFactsCount
+} from './store'
 
 const t = (key: string, ...args: unknown[]): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), key, args)
@@ -105,6 +111,7 @@ export function registerMemoryScreen(): void {
   registerNav()
   subscribeRuntimeI18nLocale(registerNav)
   $memoryFactsCount.listen(registerNav)
+  followProjectForFactsCount()
 
   gatewayBridge().on('message.complete', (event) => {
     const status = (event as { payload?: { status?: string } }).payload?.status

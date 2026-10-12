@@ -125,6 +125,12 @@ export async function refreshMemoryFactsCount(): Promise<void> {
   if (answer.ok) $memoryFactsCount.set(answer.facts.length)
 }
 
+/** D-205: факты у каждого проекта свои — при открытии другого проекта число на
+ *  строке перечитывается сразу, а не после первого хода или открытия страницы. */
+export function followProjectForFactsCount(): () => void {
+  return window.aecpilot.onProjectOpened(() => void refreshMemoryFactsCount())
+}
+
 /** Возвращает текст отказа или пустую строку. Из списка факт исчезает только
  *  после подтверждённого удаления: вычеркнуть строку раньше значило бы показать
  *  память, которой нет. */
