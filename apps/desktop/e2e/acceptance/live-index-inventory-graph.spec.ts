@@ -1,5 +1,6 @@
 // Фаза 3J (задача 3J.15) на ЖИВОМ стенде: опись индекса, ошибка файла словами,
-// «Повторить» на один файл, значок строки «Индекс» и вкладка «Граф».
+// «Индексировать» на один файл (до 3L.6 — «Повторить»), значок строки «Индекс»
+// и вкладка «Граф» (с 3L.9 — вид «Сущности»).
 //
 // Источник — три файла, по одному на каждый исход: таблица CSV читается,
 // чертёж `.dwg` пропускается по формату, «PDF» из мусора не разбирается.
@@ -157,12 +158,12 @@ test('3J.10 страница «Индекс»: дерево, причина сл
   await record(test.info(), page)
 })
 
-test('3J.10 «Повторить» индексирует только этот файл', async () => {
+test('3J.10 «Индексировать» индексирует только этот файл', async () => {
   const page = await ui()
   await openIndex(page)
   const tree = page.getByRole('tree', { name: 'Состав индекса' })
   await page.getByLabel('Только требующие внимания').check()
-  await tree.getByRole('button', { name: 'Повторить' }).click()
+  await tree.getByRole('button', { name: 'Индексировать' }).click()
 
   const report = await waitIngest(page)
   expect(report).toMatchObject({ files_failed: 1, files_total: 1 })
@@ -211,6 +212,8 @@ test('3J.13–3J.14 граф одного документа: сущности �
 
   await openIndex(page)
   await page.getByRole('tab', { name: 'Граф' }).click()
+  // С 3L.9 вкладка открывается картой документов; сущности — второй вид.
+  await page.getByRole('button', { name: 'Сущности' }).click()
   await expect(page.getByRole('img', { name: 'Граф знаний' })).toBeVisible({ timeout: 30000 })
   await expect(page.getByText(/Сущностей: \d+, связей: \d+/)).toBeVisible()
   await expect(page.locator('[data-testid="index-graph-canvas"] canvas').first()).toBeVisible({

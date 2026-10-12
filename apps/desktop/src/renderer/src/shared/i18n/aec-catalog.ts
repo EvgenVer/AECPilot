@@ -184,6 +184,7 @@ export const aecLocales: PluginLocaleBundles = {
         search: 'Search by name',
         fullscreen: 'Full screen',
         exitFullscreen: 'Exit full screen',
+        canvasFull: 'Graph on the whole window',
         documentsShown: (documents: number, links: number) =>
           `${documents} documents, ${links} links`,
         mapCanvas: 'Map of documents',
@@ -940,6 +941,7 @@ export const aecLocales: PluginLocaleBundles = {
         search: 'Поиск по имени',
         fullscreen: 'На весь экран',
         exitFullscreen: 'Выйти из полноэкранного режима',
+        canvasFull: 'Граф на всё окно',
         documentsShown: (documents: number, links: number) =>
           `Документов: ${documents}, связей: ${links}`,
         mapCanvas: 'Карта документов',

@@ -251,9 +251,7 @@ describe('карта документов (3L.9)', () => {
     expect(screen.getByRole('button', { name: '297-2024-КР Расчёт.pdf, с. 2' })).toBeTruthy()
   })
 
-  it('поиск перерисовывает граф; «на весь экран» разворачивает область', async () => {
-    const requestFullscreen = vi.fn(() => Promise.resolve())
-    HTMLElement.prototype.requestFullscreen = requestFullscreen
+  it('поиск перерисовывает граф; «на весь экран» — слой на всё окно, Esc возвращает', async () => {
     renderTab()
     await waitFor(() => expect(drawnOrder).toBe(2))
     refresh.mockClear()
@@ -264,6 +262,10 @@ describe('карта документов (3L.9)', () => {
     expect(refresh).toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'На весь экран' }))
-    expect(requestFullscreen).toHaveBeenCalledTimes(1)
+    const layer = screen.getByRole('dialog', { name: 'Граф на всё окно' })
+    expect(layer.className).toContain('fixed')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Граф на всё окно' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'На весь экран' })).toBeTruthy()
   })
 })

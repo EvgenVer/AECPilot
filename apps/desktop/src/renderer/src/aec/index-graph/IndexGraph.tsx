@@ -9,12 +9,13 @@
 // and searched by name, and the area goes full screen.
 
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { GraphExportNode } from '../../../../shared/ipc'
 import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
+import { CloseOnEscape } from '../CloseOnEscape'
 import { openDocument } from '../viewers/viewer-store'
 import { DocumentMap } from './DocumentMap'
 import { toGraphology } from './graph-model'
@@ -27,26 +28,19 @@ export function IndexGraph(): React.JSX.Element {
   const t = useAecT()
   const [view, setView] = useState<View>('documents')
   const [query, setQuery] = useState('')
+  // «На весь экран» — слой поверх всего окна, а не полноэкранный режим ОС:
+  // разрешение `fullscreen` политика 3.7a держит закрытым намеренно
+  // (`media-permission-pure.ts`), а окно приложения и есть экран человека.
   const [full, setFull] = useState(false)
-  const area = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const sync = (): void =>
-      setFull(area.current !== null && globalThis.document.fullscreenElement === area.current)
-    globalThis.document.addEventListener('fullscreenchange', sync)
-    return () => globalThis.document.removeEventListener('fullscreenchange', sync)
-  }, [])
-
-  const toggleFull = (): void => {
-    if (globalThis.document.fullscreenElement) void globalThis.document.exitFullscreen()
-    else void area.current?.requestFullscreen()
-  }
 
   return (
     <div
-      className={`space-y-2 text-sm ${full ? 'bg-background overflow-auto p-3' : ''}`}
-      ref={area}
+      aria-label={full ? t('index.graph.canvasFull') : undefined}
+      className={`space-y-2 text-sm ${full ? 'bg-background fixed inset-0 z-(--z-modal) overflow-auto p-3' : ''}`}
+      data-testid="index-graph-area"
+      role={full ? 'dialog' : undefined}
     >
+      {full ? <CloseOnEscape onClose={() => setFull(false)} /> : null}
       <div className="flex flex-wrap items-center gap-2">
         <div aria-label={t('index.graph.view')} className="flex gap-1" role="group">
           {(['documents', 'entities'] as const).map((value) => (
@@ -71,7 +65,7 @@ export function IndexGraph(): React.JSX.Element {
           type="search"
           value={query}
         />
-        <Button onClick={toggleFull} size="sm" variant="ghost">
+        <Button onClick={() => setFull(!full)} size="sm" variant="ghost">
           {full ? t('index.graph.exitFullscreen') : t('index.graph.fullscreen')}
         </Button>
       </div>
