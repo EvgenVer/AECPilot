@@ -130,15 +130,6 @@ import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from '.
 import { installPreviewGuestGuard } from './preview-guest'
 import { installBrowserNavGestures } from './preview-nav'
 import { readWindowBelow } from './os-windows'
-import {
-  disposeAllTerminals,
-  disposeTerminal,
-  disposeTerminalsOfWindow,
-  resizeTerminal,
-  startTerminal,
-  terminalCwd,
-  writeTerminal
-} from './terminal'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
 import {
   addWordToGuestDictionary,
@@ -1636,9 +1627,6 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   win.webContents.once('destroyed', () => {
     activeWorkByWindow.delete(contentsId)
     f12ShortcutWindows.delete(contentsId)
-    // Задача 3E.8: оболочки этого окна закрываются вместе с ним. Иначе
-    // после закрытия остались бы живые `cmd.exe`, о которых никто не знает.
-    disposeTerminalsOfWindow(win.webContents.id)
   })
 
   // Задача 3E.10: координаты правого клика и факты орфографии — то, что видит
@@ -4317,20 +4305,6 @@ ipcMain.handle('preview:capture', async (event, payload: unknown) => {
   }
 })
 
-// Задача 3E.8 (UR30, отменённый HX7). Живая оболочка терминала. Сессия
-// принадлежит ОКНУ: закрыли окно — оболочки этого окна убиты (см. шапку
-// `terminal.ts`). Цена канала названа в отменённом HX7 и принята владельцем;
-// ответ на неё — R21, а не запрет здесь.
-ipcMain.handle('terminal:start', (event, options: unknown) =>
-  startTerminal(event.sender, options as never, currentProject?.vaultPath)
-)
-ipcMain.handle('terminal:write', (_event, id: unknown, data: unknown) => writeTerminal(id, data))
-ipcMain.handle('terminal:resize', (_event, id: unknown, size: unknown) =>
-  resizeTerminal(id, size as never)
-)
-ipcMain.handle('terminal:dispose', (_event, id: unknown) => disposeTerminal(id))
-ipcMain.handle('terminal:cwd', (_event, id: unknown) => terminalCwd(id))
-
 // Задача 3E.8 (UR30, отменённый HX12). Окно ОС под нашим — ТОЛЬКО метаданные.
 // Контракт приватности и причина, по которой на macOS разрешение не
 // запрашивается, — в шапке `os-windows.ts`.
@@ -6062,10 +6036,6 @@ app.on('before-quit', (event) => {
 
   // Задача 3G.23: выход принят — закрытие окна больше не прячет его в трей.
   minimizeToTray?.beginQuit()
-
-  // Задача 3E.8: оболочки закрываются раньше ядра и раньше любого возврата
-  // ниже. Выход с живым `cmd.exe` за спиной оставил бы процесс без хозяина.
-  disposeAllTerminals()
 
   if (quitting || !serveHandle || !stopServeFn) return
   event.preventDefault()

@@ -861,24 +861,13 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.readWindowBelow()
   },
 
-  // Задача 3E.8 (UR30, отменённый HX7). Раздел был ОБЪЯВЛЕН ОТСУТСТВУЮЩИМ:
-  // их `providers-settings.tsx` проверяет его как `Boolean(...terminal)`, и
-  // заглушка-прокси отвечала бы «есть» про то, чего нет. Теперь есть.
-  terminal: {
-    start: (options?: { cols?: number; cwd?: string; rows?: number }) =>
-      window.aecpilot.terminal.start(options),
-    write: (id: string, data: string) => window.aecpilot.terminal.write(id, data),
-    resize: (id: string, size: { cols: number; rows: number }) =>
-      window.aecpilot.terminal.resize(id, size),
-    dispose: (id: string) => window.aecpilot.terminal.dispose(id),
-    cwd: (id: string) => window.aecpilot.terminal.cwd(id),
-    onData: (id: string, callback: (chunk: string) => void) =>
-      window.aecpilot.terminal.onData(id, callback),
-    onExit: (
-      id: string,
-      callback: (event: { code: number | null; signal: string | null }) => void
-    ) => window.aecpilot.terminal.onExit(id, callback)
-  },
+  // Задача 3L.11 (SPEC HX7-прим., решение владельца 2026-10-12). Живой
+  // оболочки больше нет — раздел снова ОБЪЯВЛЕН ОТСУТСТВУЮЩИМ, как до 3E.8:
+  // заглушка-прокси ответила бы «есть». Их `providers-settings.tsx` по
+  // `Boolean(...terminal)` решает, предлагать ли «Отключить в терминале» у
+  // внешнего провайдера (Claude Code); без раздела он показывает свою
+  // подсказку «отключите в самом инструменте».
+  terminal: undefined,
 
   // Задача 3E.26 (SPEC UR22, замечание D-75). Их кнопка «открыть в браузере».
   // До неё их панель отвечала отказом: `lib/local-preview.ts` зовёт

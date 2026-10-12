@@ -113,33 +113,6 @@ const api: AecpilotApi = {
   openBrowserWindow: (tabId) => ipcRenderer.invoke('window:open-browser', tabId),
   reachPreviewUrl: (url) => ipcRenderer.invoke('preview:reach', url),
   readWindowBelow: () => ipcRenderer.invoke('os-window:below'),
-  terminal: {
-    start: (options) => ipcRenderer.invoke('terminal:start', options),
-    write: (id, data) => ipcRenderer.invoke('terminal:write', id, data),
-    resize: (id, size) => ipcRenderer.invoke('terminal:resize', id, size),
-    dispose: (id) => ipcRenderer.invoke('terminal:dispose', id),
-    cwd: (id) => ipcRenderer.invoke('terminal:cwd', id),
-    onData: (id, cb) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        payload: { id: string; chunk: string }
-      ): void => {
-        if (payload.id === id) cb(payload.chunk)
-      }
-      ipcRenderer.on('terminal:data', listener)
-      return () => ipcRenderer.removeListener('terminal:data', listener)
-    },
-    onExit: (id, cb) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        payload: { id: string; code: number | null; signal: string | null }
-      ): void => {
-        if (payload.id === id) cb({ code: payload.code, signal: payload.signal })
-      }
-      ipcRenderer.on('terminal:exit', listener)
-      return () => ipcRenderer.removeListener('terminal:exit', listener)
-    }
-  },
   onPreviewNav: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, command: Parameters<typeof cb>[0]): void =>
       cb(command)
