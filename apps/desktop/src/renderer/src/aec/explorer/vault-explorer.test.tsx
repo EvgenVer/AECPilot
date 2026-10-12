@@ -32,6 +32,8 @@ const deleteVaultEntry = vi.fn()
 const listProjectIndex = vi.fn()
 const includeInIndex = vi.fn()
 const excludeFromIndex = vi.fn()
+const getIndexInventory = vi.fn()
+const indexDocument = vi.fn()
 const openIndexPage = vi.fn()
 
 vi.mock('../workspace-pages', () => ({ openIndexPage: () => openIndexPage() }))
@@ -47,6 +49,8 @@ beforeEach(() => {
   listProjectIndex.mockResolvedValue([])
   includeInIndex.mockResolvedValue({ files: ['AGENTS.md'], ok: true, started: true })
   excludeFromIndex.mockResolvedValue({ files: [], ok: true })
+  getIndexInventory.mockResolvedValue({ inventory: { files: [] }, ok: true })
+  indexDocument.mockResolvedValue({ ok: true, started: true })
   window.aecpilot = {
     getVaultTree,
     getConnection,
@@ -59,6 +63,11 @@ beforeEach(() => {
     includeInIndex,
     excludeFromIndex,
     onProjectOpened: () => () => {},
+    // Задача 3L.6: опись и список убранного — для меню и значков деревьев.
+    getIndexInventory,
+    indexDocument,
+    listIndexExclude: () => Promise.resolve([]),
+    onIngestState: () => () => {},
     // Панель источников висит в том же дереве и с задачи 5.15 слушает состояние
     // графового прогона. Сам граф к этим тестам не относится — заглушки ровно
     // настолько, чтобы окно не падало на подписке.
@@ -371,6 +380,44 @@ describe('файлы проекта в индексе', () => {
     expect(openIndexPage).toHaveBeenCalled()
     // Ответ main — новый список отметок: значок появляется сразу.
     await waitFor(() => expect(screen.getByRole('img', { name: 'В индексе' })).toBeTruthy())
+  })
+
+  it('у отмеченного файла ждут сканы — «Продолжить распознавание сканов» (3L.6)', async () => {
+    listProjectIndex.mockResolvedValue(['docs/заметка.md'])
+    getIndexInventory.mockResolvedValue({
+      inventory: {
+        files: [
+          {
+            errors: [],
+            graph: 'none',
+            index: 'partial',
+            reason: null,
+            rel_path: 'docs/заметка.md',
+            scans: { done: 1, error: null, failed: 0, total: 4 },
+            size: 1,
+            source_id: 'project'
+          }
+        ]
+      },
+      ok: true
+    })
+    renderExplorer()
+    await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('docs'))
+    })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'В индексе' })).toBeTruthy())
+
+    await openMenu('docs/заметка.md')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Продолжить распознавание сканов' }))
+    })
+    expect(indexDocument).toHaveBeenCalledWith({
+      kind: 'file',
+      rel: 'docs/заметка.md',
+      sourceId: 'project'
+    })
+    await waitFor(() => expect(openIndexPage).toHaveBeenCalled())
   })
 
   it('отмеченный файл: значок, «Убрать из индекса» с вопросом и граф на project', async () => {

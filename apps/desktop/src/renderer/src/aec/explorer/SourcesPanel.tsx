@@ -19,11 +19,20 @@ import {
   ContextMenuItem,
   ContextMenuTrigger
 } from '../../donor/components/ui/context-menu'
+import { notify } from '../../donor/store/notifications'
 import { useAecT } from '../../shared/i18n'
-import type { ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
+import type { InventoryFile, ProjectSource, SourceTreeNode } from '../../../../shared/ipc'
 import { sourceDisplayName } from '../../../../shared/source-name'
 
+import {
+  type DocumentAction,
+  type DocumentIndex,
+  documentActions,
+  runDocumentAction,
+  useDocumentIndex
+} from '../index-status/document-actions'
 import { openDocument } from '../viewers/viewer-store'
+import { openIndexPage } from '../workspace-pages'
 
 import { GraphAddDialog } from './GraphAddDialog'
 import { askGraphAdd, indexTarget } from './graph-add-store'
@@ -34,10 +43,55 @@ const SOURCES_KEY = ['aec', 'sources'] as const
 /** Reachability per source id, filled in after the list arrives. */
 type Statuses = Record<string, 'ok' | 'unavailable' | 'error'>
 
+/** Задача 3L.6: действие по файлу источника из его меню. */
+type FileAct = (action: DocumentAction, sourceId: string, rel: string) => Promise<void>
+
+/** Значки состояния файла источника — из той же описи, что на странице
+ *  «Индекс» (задача 3L.6, SPEC UR46). */
+function FileMarks({ excluded, file }: { excluded: boolean; file: InventoryFile | null }) {
+  const t = useAecT()
+  const marks: { className?: string; icon: string; label: string }[] = []
+  if (excluded) marks.push({ icon: 'circle-slash', label: t('index.document.excluded') })
+  else if (file?.index === 'indexed') marks.push({ icon: 'database', label: t('explorer.inIndex') })
+  else if (file?.index === 'partial' && file.scans) {
+    marks.push({
+      className: 'text-amber-500',
+      icon: 'database',
+      label: t('index.document.partial', file.scans.done, file.scans.total)
+    })
+  }
+  if (!excluded && file?.graph === 'in') {
+    marks.push({ icon: 'type-hierarchy', label: t('index.inventory.graph.in') })
+  }
+  return (
+    <>
+      {marks.map((mark) => (
+        <span
+          aria-label={mark.label}
+          className={`flex shrink-0 ${mark.className ?? 'text-(--ui-text-secondary)'}`}
+          key={mark.label}
+          role="img"
+          title={mark.label}
+        >
+          <Codicon name={mark.icon} />
+        </span>
+      ))}
+    </>
+  )
+}
+
 /** One source's files, read only when the user opens it — a source can be a
  * network share with tens of thousands of entries, and nothing about the panel
  * needs them until someone looks. */
-function SourceTree({ sourceId }: { sourceId: string }) {
+function SourceTree({
+  act,
+  index,
+  sourceId
+}: {
+  act: FileAct
+  index: DocumentIndex
+  sourceId: string
+}) {
   const t = useAecT()
   const { data } = useQuery({
     queryKey: [...SOURCES_KEY, 'tree', sourceId],
@@ -51,14 +105,18 @@ function SourceTree({ sourceId }: { sourceId: string }) {
     return <div className="pl-5 text-xs text-destructive">{t('sources.unavailable')}</div>
   }
 
-  return <SourceNodes depth={1} nodes={data.tree} sourceId={sourceId} />
+  return <SourceNodes act={act} depth={1} index={index} nodes={data.tree} sourceId={sourceId} />
 }
 
 function SourceNodes({
+  act,
+  index,
   nodes,
   depth,
   sourceId
 }: {
+  act: FileAct
+  index: DocumentIndex
   nodes: SourceTreeNode[]
   depth: number
   sourceId: string
@@ -68,86 +126,110 @@ function SourceNodes({
 
   return (
     <ul className="flex flex-col">
-      {nodes.map((node) => (
-        <li key={node.path}>
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div
-                className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
-                style={{ paddingLeft: `${depth * 0.75}rem` }}
-              >
-                <button
-                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
-                  // Задача 4.2a: файл источника открывается тем же просмотрщиком.
-                  // Открывается — не правится: источники read-only (SPEC UR2, AC6).
-                  onClick={() =>
-                    node.type === 'dir'
-                      ? setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
-                      : openDocument({ locator: {}, relPath: node.path, sourceId })
-                  }
-                  title={node.path}
-                  type="button"
+      {nodes.map((node) => {
+        const file = node.type === 'dir' ? null : index.file(sourceId, node.path)
+        const excluded = node.type !== 'dir' && index.excluded(sourceId, node.path)
+        return (
+          <li key={node.path}>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div
+                  className="group flex items-center gap-1 rounded-[4px] pr-1 hover:bg-(--chrome-action-hover)"
+                  style={{ paddingLeft: `${depth * 0.75}rem` }}
                 >
-                  <Codicon
-                    className="text-(--ui-text-secondary)"
-                    name={
+                  <button
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 py-0.5 text-left text-xs"
+                    // Задача 4.2a: файл источника открывается тем же просмотрщиком.
+                    // Открывается — не правится: источники read-only (SPEC UR2, AC6).
+                    onClick={() =>
                       node.type === 'dir'
-                        ? open[node.path]
-                          ? 'chevron-down'
-                          : 'chevron-right'
-                        : 'file'
+                        ? setOpen((c) => ({ ...c, [node.path]: !c[node.path] }))
+                        : openDocument({ locator: {}, relPath: node.path, sourceId })
                     }
-                  />
-                  <span className="truncate">{node.name}</span>
-                </button>
-                <Button
-                  aria-label={t('explorer.reveal')}
-                  className="hidden group-focus-within:flex group-hover:flex"
-                  onClick={() =>
-                    void window.aecpilot.showSourceEntryInExplorer(sourceId, node.path)
-                  }
-                  size="icon-xs"
-                  title={t('explorer.reveal')}
-                  variant="ghost"
-                >
-                  <Codicon name="folder-opened" />
-                </Button>
-              </div>
-            </ContextMenuTrigger>
-            {/* Единица выбора UR24 — папка либо файл, и вид здесь берётся из
+                    title={node.path}
+                    type="button"
+                  >
+                    <Codicon
+                      className="text-(--ui-text-secondary)"
+                      name={
+                        node.type === 'dir'
+                          ? open[node.path]
+                            ? 'chevron-down'
+                            : 'chevron-right'
+                          : 'file'
+                      }
+                    />
+                    <span className="truncate">{node.name}</span>
+                  </button>
+                  {node.type === 'dir' ? null : <FileMarks excluded={excluded} file={file} />}
+                  <Button
+                    aria-label={t('explorer.reveal')}
+                    className="hidden group-focus-within:flex group-hover:flex"
+                    onClick={() =>
+                      void window.aecpilot.showSourceEntryInExplorer(sourceId, node.path)
+                    }
+                    size="icon-xs"
+                    title={t('explorer.reveal')}
+                    variant="ghost"
+                  >
+                    <Codicon name="folder-opened" />
+                  </Button>
+                </div>
+              </ContextMenuTrigger>
+              {/* Единица выбора UR24 — папка либо файл, и вид здесь берётся из
                 дерева, а не из догадки по расширению. */}
-            <ContextMenuContent>
-              <ContextMenuItem
-                onSelect={() =>
-                  void indexTarget({
-                    kind: node.type === 'dir' ? 'folder' : 'file',
-                    label: `${sourceId}/${node.path}`,
-                    rel: node.path,
-                    sourceId
-                  })
-                }
-              >
-                {t('index.menu')}
-              </ContextMenuItem>
-              <ContextMenuItem
-                onSelect={() =>
-                  askGraphAdd({
-                    kind: node.type === 'dir' ? 'folder' : 'file',
-                    label: `${sourceId}/${node.path}`,
-                    rel: node.path,
-                    sourceId
-                  })
-                }
-              >
-                {t('graphAdd.menu')}
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-          {node.type === 'dir' && open[node.path] && (
-            <SourceNodes depth={depth + 1} nodes={node.children ?? []} sourceId={sourceId} />
-          )}
-        </li>
-      ))}
+              <ContextMenuContent>
+                {/* Задача 3L.6: у файла — действия по его состоянию в описи; папка
+                  индексируется целиком, как раньше. */}
+                {node.type === 'dir' ? (
+                  <ContextMenuItem
+                    onSelect={() =>
+                      void indexTarget({
+                        kind: 'folder',
+                        label: `${sourceId}/${node.path}`,
+                        rel: node.path,
+                        sourceId
+                      })
+                    }
+                  >
+                    {t('index.menu')}
+                  </ContextMenuItem>
+                ) : (
+                  documentActions(file, excluded).map((action) => (
+                    <ContextMenuItem
+                      key={action}
+                      onSelect={() => void act(action, sourceId, node.path)}
+                    >
+                      {t(`index.document.${action}`)}
+                    </ContextMenuItem>
+                  ))
+                )}
+                <ContextMenuItem
+                  onSelect={() =>
+                    askGraphAdd({
+                      kind: node.type === 'dir' ? 'folder' : 'file',
+                      label: `${sourceId}/${node.path}`,
+                      rel: node.path,
+                      sourceId
+                    })
+                  }
+                >
+                  {t('graphAdd.menu')}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+            {node.type === 'dir' && open[node.path] && (
+              <SourceNodes
+                act={act}
+                depth={depth + 1}
+                index={index}
+                nodes={node.children ?? []}
+                sourceId={sourceId}
+              />
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -210,6 +292,26 @@ export function SourcesPanel() {
 
   // D-204: своё окно подтверждения, не `window.confirm` (см. useConfirm).
   const { confirm, dialog: confirmDialog } = useConfirm()
+
+  // Задача 3L.6: опись и список убранного — для значков и меню файлов.
+  const documentIndex = useDocumentIndex(connectionUnknown || connection?.mode === 'local')
+  const actOnFile = useCallback<FileAct>(
+    async (action, sourceId, rel) => {
+      if (
+        action === 'exclude' &&
+        !(await confirm(t('index.document.excludeConfirm'), t('index.document.exclude')))
+      )
+        return
+      const failed = await runDocumentAction(action, { kind: 'file', rel, sourceId })
+      if (failed) {
+        notify({ kind: 'error', title: t('index.document.failedTitle'), message: failed })
+        return
+      }
+      if (action === 'exclude') await documentIndex.refresh()
+      else openIndexPage()
+    },
+    [confirm, documentIndex, t]
+  )
 
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: SOURCES_KEY }),
@@ -452,7 +554,9 @@ export function SourcesPanel() {
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
-                {expanded[source.id] && <SourceTree sourceId={source.id} />}
+                {expanded[source.id] && (
+                  <SourceTree act={actOnFile} index={documentIndex} sourceId={source.id} />
+                )}
               </li>
             )
           })}

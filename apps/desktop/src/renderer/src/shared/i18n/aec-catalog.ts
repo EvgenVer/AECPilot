@@ -234,6 +234,16 @@ export const aecLocales: PluginLocaleBundles = {
       fileDone: 'done',
       fileFailed: (reason: string) => `failed: ${reason}`,
       fileSkipped: 'skipped',
+      document: {
+        index: 'Index',
+        continueScans: 'Continue recognising scans',
+        exclude: 'Remove from index',
+        excludeConfirm:
+          'Remove this from the index? Its text and its place in the graph go; the file on disk stays, and the scan will not bring it back until you index it again.',
+        excluded: 'removed from the index',
+        partial: (done: number, total: number) => `partly — scans ${done} of ${total}`,
+        failedTitle: 'Could not do it'
+      },
       inventory: {
         title: 'Index contents',
         projectFiles: 'Project files',
@@ -250,7 +260,6 @@ export const aecLocales: PluginLocaleBundles = {
           failed > 0
             ? `scans: ${done} of ${total}, ${failed} unreadable`
             : `scans: ${done} of ${total}`,
-        retry: 'Retry',
         state: {
           indexed: 'in the index',
           partial: 'partly',
@@ -959,6 +968,16 @@ export const aecLocales: PluginLocaleBundles = {
       fileDone: 'готов',
       fileFailed: (reason: string) => `ошибка: ${reason}`,
       fileSkipped: 'пропущен',
+      document: {
+        index: 'Индексировать',
+        continueScans: 'Продолжить распознавание сканов',
+        exclude: 'Убрать из индекса',
+        excludeConfirm:
+          'Убрать из индекса? Его текст и место в графе уйдут; файл на диске останется, и скан не вернёт его, пока вы не проиндексируете его снова.',
+        excluded: 'убран из индекса',
+        partial: (done: number, total: number) => `частично — сканы ${done} из ${total}`,
+        failedTitle: 'Не получилось'
+      },
       inventory: {
         title: 'Состав индекса',
         projectFiles: 'Файлы проекта',
@@ -975,7 +994,6 @@ export const aecLocales: PluginLocaleBundles = {
           failed > 0
             ? `сканы: ${done} из ${total}, не распознано: ${failed}`
             : `сканы: ${done} из ${total}`,
-        retry: 'Повторить',
         state: {
           indexed: 'в индексе',
           partial: 'частично',

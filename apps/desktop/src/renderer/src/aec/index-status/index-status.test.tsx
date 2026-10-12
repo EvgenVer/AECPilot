@@ -5,7 +5,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
@@ -30,6 +30,8 @@ const getDataProviders = vi.fn()
 const cancelIngest = vi.fn()
 const getIndexInventory = vi.fn()
 const listSources = vi.fn()
+const indexDocument = vi.fn()
+const excludeDocument = vi.fn()
 let emitIngestState: (state: IngestState) => void = () => {}
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
@@ -111,9 +113,13 @@ beforeEach(() => {
   getDataProviders.mockResolvedValue({ ...EMPTY_STATE, profileRead: true, rag: { ok: true } })
   getIndexInventory.mockResolvedValue({ ok: true, inventory: inventory([], false) })
   listSources.mockResolvedValue([{ id: 'tasks', root_path: 'D:/Проекты/Нагатинская' }])
+  indexDocument.mockResolvedValue({ ok: true, started: true })
+  excludeDocument.mockResolvedValue({ ok: true })
   window.aecpilot = {
     getIndexInventory,
     listSources,
+    indexDocument,
+    excludeDocument,
     getDataProviders,
     getIndexStatus,
     getIngestState,
@@ -403,7 +409,7 @@ describe('IndexStatus', () => {
     )
   })
 
-  it('опись: дерево по источнику, причина ошибки словами, «Повторить» только этот файл (3J.10)', async () => {
+  it('опись: дерево по источнику, причина ошибки словами, «Индексировать» только этот файл (3J.10, 3L.6)', async () => {
     getIndexInventory.mockResolvedValue({
       ok: true,
       inventory: inventory([
@@ -433,12 +439,51 @@ describe('IndexStatus', () => {
 
     const reason = screen.getByText('Индексация: провайдер не принял ключ')
     expect(reason.getAttribute('title')).toBe('API key not valid. Please pass a valid API key.')
-    act(() => screen.getByRole('button', { name: 'Повторить' }).click())
-    expect(startIngest).toHaveBeenCalledWith(false, false, {
-      kind: 'file',
-      rel: 'Изыскания/отчёт ИГИ.pdf',
-      sourceId: 'tasks'
+    act(() => screen.getByRole('button', { name: 'Индексировать' }).click())
+    await waitFor(() =>
+      expect(indexDocument).toHaveBeenCalledWith({
+        kind: 'file',
+        rel: 'Изыскания/отчёт ИГИ.pdf',
+        sourceId: 'tasks'
+      })
+    )
+  })
+
+  it('опись: ждущие сканы — «Продолжить распознавание», «Убрать» — после подтверждения своим окном (3L.6)', async () => {
+    getIndexInventory.mockResolvedValue({
+      ok: true,
+      inventory: inventory([
+        inventoryFile('альбом КР.pdf', {
+          index: 'partial',
+          scans: { done: 3, error: null, failed: 0, total: 10 }
+        })
+      ])
     })
+    await renderPage()
+    await waitFor(() => expect(screen.getByText('альбом КР.pdf')).toBeTruthy())
+
+    act(() => screen.getByRole('button', { name: 'Продолжить распознавание сканов' }).click())
+    await waitFor(() =>
+      expect(indexDocument).toHaveBeenCalledWith({
+        kind: 'file',
+        rel: 'альбом КР.pdf',
+        sourceId: 'tasks'
+      })
+    )
+
+    act(() => screen.getByRole('button', { name: 'Убрать из индекса' }).click())
+    const dialog = await screen.findByRole('dialog')
+    expect(excludeDocument).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Убрать из индекса' }))
+    })
+    await waitFor(() =>
+      expect(excludeDocument).toHaveBeenCalledWith({
+        kind: 'file',
+        rel: 'альбом КР.pdf',
+        sourceId: 'tasks'
+      })
+    )
   })
 
   it('опись: «только требующие внимания» раскрывает путь к ним и прячет остальное', async () => {

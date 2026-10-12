@@ -495,6 +495,39 @@ async def test_a_narrowed_run_recognises_only_its_own_files(project):
 
 
 @pytest.mark.anyio
+async def test_a_run_on_one_file_finishes_its_waiting_scans(project):
+    """Task 3L.6: «Продолжить распознавание сканов» is a run on that file. Its
+    text is in the index already and nothing else of it is read again; only
+    its own waiting pages are recognised, not another file's."""
+    vault, source, conn = project
+    add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}\n{SCAN}\n{SCAN}")
+    add_scanned(conn, source, "КР.pdf", f"Расчёт.\n{SCAN}")
+    rag = await open_stub_index(vault)
+    with pytest.raises(KeyboardInterrupt):
+        await ingest(
+            conn,
+            rag,
+            {"tasks": str(source)},
+            parser=layer_parser,
+            recognizer=Recognizer(stop_after=1),
+        )
+
+    again = Recognizer()
+    report = await ingest(
+        conn,
+        rag,
+        {"tasks": str(source)},
+        rel_paths=["ИГИ.pdf"],
+        parser=layer_parser,
+        recognizer=again,
+    )
+
+    assert report.files_total == 0
+    assert again.asked == [3, 4]
+    assert [(item.rel_path, item.pages) for item in pending_ocr(conn)] == [("КР.pdf", (2,))]
+
+
+@pytest.mark.anyio
 async def test_a_stop_request_ends_the_run_between_pages_and_keeps_what_is_done(project):
     vault, source, conn = project
     add_scanned(conn, source, "ИГИ.pdf", f"Отчёт.\n{SCAN}\n{SCAN}\n{SCAN}")

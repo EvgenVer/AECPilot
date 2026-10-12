@@ -25,6 +25,7 @@ import { useAecT } from '../../shared/i18n'
 import type { VaultTreeNode } from '../../../../shared/ipc'
 import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
 
+import { runDocumentAction, useDocumentIndex, waitingScans } from '../index-status/document-actions'
 import { openDocument } from '../viewers/viewer-store'
 import { openIndexPage } from '../workspace-pages'
 
@@ -39,7 +40,8 @@ import { SourcesPanel } from './SourcesPanel'
  * is the map, and expanding everything on load buries it. */
 type Expanded = Record<string, boolean>
 
-type RowAction = 'newFile' | 'newDir' | 'rename' | 'delete' | 'include' | 'exclude'
+type RowAction =
+  'newFile' | 'newDir' | 'rename' | 'delete' | 'include' | 'exclude' | 'continueScans'
 
 function TreeRow({
   node,
@@ -49,6 +51,7 @@ function TreeRow({
   onAction,
   busy,
   marked,
+  scansWaiting,
   query
 }: {
   node: VaultTreeNode
@@ -59,6 +62,8 @@ function TreeRow({
   busy: boolean
   /** Task 3K.5: project files marked for the index (SPEC UR45). */
   marked: ReadonlySet<string>
+  /** Task 3L.6: a marked file whose scanned pages still wait for recognition. */
+  scansWaiting: (path: string) => boolean
   query: string
 }) {
   const t = useAecT()
@@ -209,6 +214,11 @@ function TreeRow({
                 {t('explorer.includeInIndex')}
               </ContextMenuItem>
             )}
+            {!isDir && scansWaiting(node.path) && (
+              <ContextMenuItem onSelect={() => onAction('continueScans', node)}>
+                {t('index.document.continueScans')}
+              </ContextMenuItem>
+            )}
             {mark !== 'none' && (
               <>
                 <ContextMenuItem onSelect={() => onAction('exclude', node)}>
@@ -250,6 +260,7 @@ function TreeRow({
               onAction={onAction}
               onToggle={onToggle}
               query={query}
+              scansWaiting={scansWaiting}
             />
           ))}
     </>
@@ -308,6 +319,16 @@ export function VaultExplorer() {
     enabled: connectionUnknown || connection?.mode === 'local'
   })
   const marked = projectIndex ? new Set(projectIndex) : NO_MARKS
+  // Task 3L.6: the same inventory as the Index page — which marked file still
+  // has scanned pages waiting.
+  const documentIndex = useDocumentIndex(connectionUnknown || connection?.mode === 'local')
+  const scansWaiting = useCallback(
+    (path: string): boolean => {
+      const file = documentIndex.file(PROJECT_SOURCE_ID, path)
+      return file !== null && waitingScans(file) > 0
+    },
+    [documentIndex]
+  )
 
   const reload = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: VAULT_TREE_KEY })
@@ -330,6 +351,18 @@ export function VaultExplorer() {
   const runAction = useCallback(
     async (action: RowAction, node: VaultTreeNode) => {
       setActionError(undefined)
+
+      // Task 3L.6: the run on this file finishes its scanned pages.
+      if (action === 'continueScans') {
+        const failed = await runDocumentAction('continueScans', {
+          kind: 'file',
+          rel: node.path,
+          sourceId: PROJECT_SOURCE_ID
+        })
+        if (failed) setActionError(failed)
+        else openIndexPage()
+        return
+      }
 
       // Task 3K.5: «Включить в индекс» marks and indexes at once, and the Index
       // page shows the run — the same as «Проиндексировать» on a source.
@@ -498,6 +531,7 @@ export function VaultExplorer() {
                 onAction={runAction}
                 onToggle={toggle}
                 query={query}
+                scansWaiting={scansWaiting}
               />
             ))}
           </ul>

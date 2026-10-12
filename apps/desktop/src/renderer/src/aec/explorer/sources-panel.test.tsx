@@ -14,6 +14,8 @@ import type { GraphAddState, GraphPreview } from '../../../../shared/ipc'
 
 import { closeGraphAdd } from './graph-add-store'
 
+vi.mock('../workspace-pages', () => ({ openIndexPage: () => openIndexPage() }))
+
 const listSources = vi.fn()
 const addSource = vi.fn()
 const removeSource = vi.fn()
@@ -26,6 +28,11 @@ const getSourceTree = vi.fn()
 const previewGraphAdd = vi.fn()
 const startGraphAdd = vi.fn()
 const getGraphAddState = vi.fn()
+const getIndexInventory = vi.fn()
+const listIndexExclude = vi.fn()
+const indexDocument = vi.fn()
+const excludeDocument = vi.fn()
+const openIndexPage = vi.fn()
 let emitGraphState: (state: GraphAddState) => void = () => {}
 
 const source = { id: 's1', root_path: 'D:/проект/чертежи', added_at: '2026-08-06T00:00:00Z' }
@@ -74,7 +81,17 @@ beforeEach(() => {
   previewGraphAdd.mockResolvedValue({ ok: true, preview: preview() })
   startGraphAdd.mockResolvedValue({ started: true })
   getGraphAddState.mockResolvedValue(GRAPH_IDLE)
+  getIndexInventory.mockResolvedValue({ inventory: { files: [] }, ok: true })
+  listIndexExclude.mockResolvedValue([])
+  indexDocument.mockResolvedValue({ ok: true, started: true })
+  excludeDocument.mockResolvedValue({ ok: true })
+  emitGraphState = () => {}
   window.aecpilot = {
+    getIndexInventory,
+    listIndexExclude,
+    indexDocument,
+    excludeDocument,
+    onIngestState: () => () => {},
     listSources,
     getConnection,
     addSource,
@@ -87,8 +104,13 @@ beforeEach(() => {
     previewGraphAdd,
     startGraphAdd,
     getGraphAddState,
+    // Слушателей двое — окно графа и значки дерева (3L.6): событие доходит до всех.
     onGraphAddState: (cb: (state: GraphAddState) => void) => {
-      emitGraphState = cb
+      const previous = emitGraphState
+      emitGraphState = (state) => {
+        previous(state)
+        cb(state)
+      }
       return () => {}
     }
   } as unknown as typeof window.aecpilot
@@ -388,5 +410,116 @@ describe('название и папка источника (3J.5–3J.6)', () =
       fireEvent.keyDown(input, { key: 'Enter' })
     })
     expect(renameSource).toHaveBeenCalledWith('s1', 'ИГИ')
+  })
+})
+
+// Задача 3L.6 (SPEC UR46): у файла источника — значки его состояния из описи и
+// действия по нему в меню.
+describe('действия по документу (3L.6)', () => {
+  const file = (patch: Record<string, unknown>) => ({
+    errors: [],
+    graph: 'none',
+    index: 'indexed',
+    reason: null,
+    rel_path: 'ЭОМ/задание.pdf',
+    scans: null,
+    size: 1,
+    source_id: 's1',
+    ...patch
+  })
+
+  const openFileMenu = async () => {
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
+    await act(async () => {
+      screen.getByTitle('D:/проект/чертежи').click()
+    })
+    await act(async () => {
+      ;(await screen.findByTitle('ЭОМ')).click()
+    })
+    const row = (await screen.findByTitle('ЭОМ/задание.pdf')).closest('div') as HTMLElement
+    return row
+  }
+
+  const menuOf = async (row: HTMLElement) => {
+    await act(async () => {
+      fireEvent.contextMenu(row)
+    })
+    return screen.getAllByRole('menuitem').map((item) => item.textContent)
+  }
+
+  it('в индексе и в графе — значки; в меню «Индексировать» и «Убрать из индекса»', async () => {
+    getIndexInventory.mockResolvedValue({
+      inventory: { files: [file({ graph: 'in' })] },
+      ok: true
+    })
+    const row = await openFileMenu()
+    await waitFor(() => expect(within(row).getByRole('img', { name: 'В индексе' })).toBeTruthy())
+    expect(within(row).getByRole('img', { name: 'в графе' })).toBeTruthy()
+    expect(await menuOf(row)).toEqual([
+      'Индексировать',
+      'Убрать из индекса',
+      'Добавить в граф знаний'
+    ])
+  })
+
+  it('«Убрать» — только после своего окна подтверждения', async () => {
+    getIndexInventory.mockResolvedValue({ inventory: { files: [file({})] }, ok: true })
+    const row = await openFileMenu()
+    await waitFor(() => expect(within(row).getByRole('img', { name: 'В индексе' })).toBeTruthy())
+    await menuOf(row)
+    await act(async () => {
+      screen.getByRole('menuitem', { name: 'Убрать из индекса' }).click()
+    })
+    const dialog = await screen.findByRole('dialog')
+    expect(excludeDocument).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Убрать из индекса' }))
+    })
+    await waitFor(() =>
+      expect(excludeDocument).toHaveBeenCalledWith({
+        kind: 'file',
+        rel: 'ЭОМ/задание.pdf',
+        sourceId: 's1'
+      })
+    )
+  })
+
+  it('убранный — значок и одно действие: «Индексировать» возвращает и ведёт на «Индекс»', async () => {
+    listIndexExclude.mockResolvedValue(['s1/ЭОМ'])
+    const row = await openFileMenu()
+    await waitFor(() =>
+      expect(within(row).getByRole('img', { name: 'убран из индекса' })).toBeTruthy()
+    )
+    expect(await menuOf(row)).toEqual(['Индексировать', 'Добавить в граф знаний'])
+    await act(async () => {
+      screen.getByRole('menuitem', { name: 'Индексировать' }).click()
+    })
+    await waitFor(() =>
+      expect(indexDocument).toHaveBeenCalledWith({
+        kind: 'file',
+        rel: 'ЭОМ/задание.pdf',
+        sourceId: 's1'
+      })
+    )
+    await waitFor(() => expect(openIndexPage).toHaveBeenCalled())
+  })
+
+  it('сканы ждут — «частично» значком и «Продолжить распознавание сканов» в меню', async () => {
+    getIndexInventory.mockResolvedValue({
+      inventory: {
+        files: [file({ index: 'partial', scans: { done: 3, error: null, failed: 0, total: 10 } })]
+      },
+      ok: true
+    })
+    const row = await openFileMenu()
+    await waitFor(() =>
+      expect(within(row).getByRole('img', { name: 'частично — сканы 3 из 10' })).toBeTruthy()
+    )
+    expect(await menuOf(row)).toEqual([
+      'Продолжить распознавание сканов',
+      'Убрать из индекса',
+      'Добавить в граф знаний'
+    ])
   })
 })
