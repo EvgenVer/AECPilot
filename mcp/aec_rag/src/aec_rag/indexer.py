@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from aec_rag.index_exclude import is_excluded
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -214,6 +216,7 @@ def scan_source(
     max_size: int = DEFAULT_MAX_SIZE,
     rehash_after_s: float = DEFAULT_REHASH_AFTER_S,
     only: Sequence[str] | None = None,
+    exclude: Sequence[str] = (),
 ) -> dict:
     """Scan ``root_path`` and reconcile ``files`` rows for ``source_id``.
 
@@ -221,6 +224,10 @@ def scan_source(
     files: the project's own files are scanned only where a person marked them
     (SPEC UR45), never by walking the vault. A listed file that is gone is
     reconciled as deleted, like any other.
+
+    ``exclude`` (task 3L.3) — places a person took out of the index: files
+    there are not read, and not reconciled as deleted either — they are on
+    disk; the index simply holds nothing of them.
 
     Returns ``{added: [rel_path, ...], changed: [...], deleted: [...],
     unchanged: n, unreadable_dirs: [...], root_unavailable: bool}``.
@@ -334,6 +341,8 @@ def scan_source(
     for file_path in files:
         rel_path = file_path.relative_to(root).as_posix()
         seen.add(rel_path)
+        if exclude and is_excluded(rel_path, exclude):
+            continue
         prior = existing.get(rel_path)
 
         if prior is not None and prior["status"] == "detached":

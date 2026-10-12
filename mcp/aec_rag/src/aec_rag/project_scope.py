@@ -171,9 +171,12 @@ def remove_from_project_index(project_json: Path | str, paths: list[str]) -> lis
     return [entry.path for entry in current if entry.path in removed]
 
 
-def vector_documents(conn: sqlite3.Connection, rels: list[str]) -> list[str]:
-    """Vector-store document ids these project files may have (task 3K.3): the
-    file's own, which also carries its graph, and one per recognised PDF page.
+def vector_documents(
+    conn: sqlite3.Connection, rels: list[str], source_id: str = PROJECT_SOURCE_ID
+) -> list[str]:
+    """Vector-store document ids these files may have (task 3K.3): the file's
+    own, which also carries its graph, and one per recognised PDF page. A
+    source file taken out of the index (task 3L.3) is asked about the same way.
 
     Only files the index ever consumed or the graph holds are asked about — a
     file that was merely scanned has nothing there, and opening the vector store
@@ -187,27 +190,29 @@ def vector_documents(conn: sqlite3.Connection, rels: list[str]) -> list[str]:
         held = conn.execute(
             "SELECT 1 FROM ingested_files WHERE source_id = ? AND rel_path = ? "
             "UNION SELECT 1 FROM graph_documents WHERE source_id = ? AND rel_path = ?",
-            (PROJECT_SOURCE_ID, rel, PROJECT_SOURCE_ID, rel),
+            (source_id, rel, source_id, rel),
         ).fetchone()
         if held is None:
             continue
-        ids.append(document_id(PROJECT_SOURCE_ID, rel))
+        ids.append(document_id(source_id, rel))
         ids.extend(
-            document_id(PROJECT_SOURCE_ID, _page_doc_rel_path(rel, page))
-            for page in recognized_page_numbers(conn, PROJECT_SOURCE_ID, rel)
+            document_id(source_id, _page_doc_rel_path(rel, page))
+            for page in recognized_page_numbers(conn, source_id, rel)
         )
     return ids
 
 
-def forget_files(conn: sqlite3.Connection, rels: list[str]) -> None:
-    """Every ``index.db`` row of these project files: scan state, chunks,
-    the ingest and graph marks, recognised pages, recorded failures. The file
-    on disk is not touched — unmarking is not deleting."""
+def forget_files(
+    conn: sqlite3.Connection, rels: list[str], source_id: str = PROJECT_SOURCE_ID
+) -> None:
+    """Every ``index.db`` row of these files: scan state, chunks, the ingest
+    and graph marks, recognised pages, recorded failures. The file on disk is
+    not touched — unmarking is not deleting."""
     from aec_rag.store import drop_file_chunks
 
     with conn:
         for rel in rels:
-            drop_file_chunks(conn, PROJECT_SOURCE_ID, rel)
+            drop_file_chunks(conn, source_id, rel)
             for table in (
                 "ingested_files",
                 "graph_documents",
@@ -217,7 +222,7 @@ def forget_files(conn: sqlite3.Connection, rels: list[str]) -> None:
             ):
                 conn.execute(
                     f"DELETE FROM {table} WHERE source_id = ? AND rel_path = ?",
-                    (PROJECT_SOURCE_ID, rel),
+                    (source_id, rel),
                 )
 
 

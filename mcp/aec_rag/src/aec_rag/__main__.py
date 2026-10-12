@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 from aec_rag.db import open_index
+from aec_rag.index_exclude import excluded_paths
 from aec_rag.indexer import detach_source, scan_source
 from aec_rag.project_config import ProjectConfigError, parse_project_config
 from aec_rag.project_scope import (
@@ -112,7 +113,13 @@ def run_scan(project_arg: Path) -> dict:
     index_db_path = project_path.parent / "index.db"
     conn = open_index(index_db_path)
     try:
-        reports = {root.id: scan_source(conn, root.id, root.root_path) for root in roots}
+        # Task 3L.3: files a person took out of the index are not read.
+        reports = {
+            root.id: scan_source(
+                conn, root.id, root.root_path, exclude=excluded_paths(project_path, root.id)
+            )
+            for root in roots
+        }
         # Task 3K.2: the project's own files — only those a person marked.
         reports[PROJECT_SOURCE_ID] = scan_source(
             conn,
@@ -457,6 +464,81 @@ def run_project_exclude(project_arg: Path, paths: list[str]) -> dict:
     return {"removed": removed, "files": [entry.path for entry in read_project_index(project_path)]}
 
 
+def run_index_exclude(project_arg: Path, places: list[str]) -> dict:
+    """Take source files out of the index (task 3L.3, SPEC UR46): what the
+    index holds of them goes — fragments, vectors, the graph document, the
+    inventory rows — and the place is written down so the scan skips it.
+
+    The list is written FIRST, unlike ``project-exclude``: a run that fails
+    halfway then leaves a file the next scan does not bring back, and the
+    second click finishes removing what is left.
+    """
+    import asyncio
+
+    from aec_rag.index_exclude import add_index_exclude, indexed_under, split_place
+    from aec_rag.lightrag_bridge import delete_document
+    from aec_rag.project_scope import forget_files, vector_documents
+    from aec_rag.rag_index import index_dir, load_settings
+    from aec_rag.rag_index import open_index as open_rag_index
+
+    project_path = _resolve_project_json(project_arg)
+    vault = vault_of(project_path)
+    source_ids = [root.id for root in parse_project_config(project_path)]
+    targets = [split_place(place, source_ids) for place in places]
+    added = add_index_exclude(project_path, targets)
+    removed: list[str] = []
+    index_db_path = project_path.parent / "index.db"
+    if index_db_path.is_file():
+        conn = open_index(index_db_path)
+        try:
+            for source_id, path in targets:
+                rels = indexed_under(conn, source_id, path)
+                doc_ids = vector_documents(conn, rels, source_id)
+                if doc_ids and index_dir(vault).is_dir():
+
+                    async def drop(ids: list[str] = doc_ids) -> None:
+                        rag = await open_rag_index(vault, load_settings(project_path))
+                        for doc_id in ids:
+                            await delete_document(rag, doc_id)
+
+                    asyncio.run(drop())
+                forget_files(conn, rels, source_id)
+                removed.extend(f"{source_id}/{rel}" for rel in rels)
+        finally:
+            conn.close()
+    return {"added": added, "removed": removed, "excluded": excluded_places(project_path)}
+
+
+def run_index_include(project_arg: Path, places: list[str]) -> dict:
+    """Put excluded source files back (task 3L.3): off the list, then a scan
+    of their sources, so the app's next ingest of these places reads them."""
+    from aec_rag.index_exclude import remove_index_exclude, split_place
+
+    project_path = _resolve_project_json(project_arg)
+    roots = parse_project_config(project_path)
+    targets = [split_place(place, [root.id for root in roots]) for place in places]
+    returned = remove_index_exclude(project_path, targets)
+    touched = {source_id for source_id, _path in targets}
+    conn = open_index(project_path.parent / "index.db")
+    try:
+        scan = {
+            root.id: scan_source(
+                conn, root.id, root.root_path, exclude=excluded_paths(project_path, root.id)
+            )
+            for root in roots
+            if root.id in touched
+        }
+    finally:
+        conn.close()
+    return {"returned": returned, "excluded": excluded_places(project_path), "scan": scan}
+
+
+def excluded_places(project_path: Path) -> list[str]:
+    from aec_rag.index_exclude import read_index_exclude
+
+    return [entry.place for entry in read_index_exclude(project_path)]
+
+
 def run_status(project_arg: Path) -> dict:
     """What the index holds, for the desktop's indicator (task 2.15).
 
@@ -703,6 +785,20 @@ def main(argv: list[str] | None = None) -> int:
             help="A file or folder relative to the project folder; repeatable",
         )
 
+    for name, help_text in (
+        ("index-exclude", "Take source files out of the index; the scan skips them (UR46)"),
+        ("index-include", "Put excluded source files back and scan their sources"),
+    ):
+        exclude_parser = subparsers.add_parser(name, help=help_text)
+        exclude_parser.add_argument("--project", required=True, type=Path)
+        exclude_parser.add_argument(
+            "--path",
+            required=True,
+            action="append",
+            dest="paths",
+            help="'<source_id>/<relative path>' — a file or folder of a source; repeatable",
+        )
+
     serve_parser = subparsers.add_parser("serve", help="Run the aec-rag MCP server over stdio")
     serve_parser.add_argument("--project", required=True, type=Path)
 
@@ -742,6 +838,10 @@ def main(argv: list[str] | None = None) -> int:
             report = run_project_include(args.project, args.paths)
         elif args.command == "project-exclude":
             report = run_project_exclude(args.project, args.paths)
+        elif args.command == "index-exclude":
+            report = run_index_exclude(args.project, args.paths)
+        elif args.command == "index-include":
+            report = run_index_include(args.project, args.paths)
         elif args.command == "ingest":
             if args.rebuild:
                 from aec_rag.rag_index import drop_index
@@ -778,7 +878,12 @@ def main(argv: list[str] | None = None) -> int:
         # 3J.7: a run that cannot start (a refused key while the index measures
         # its width, say) says why as a code the app can word, not only as a
         # traceback in a log nobody reads.
-        if getattr(args, "command", "") not in ("ingest", "graph-add", "project-exclude"):
+        if getattr(args, "command", "") not in (
+            "ingest",
+            "graph-add",
+            "project-exclude",
+            "index-exclude",
+        ):
             raise
         _print_fatal(exc)
         print(f"aec-rag: {type(exc).__name__}: {exc}", file=sys.stderr)
