@@ -166,17 +166,16 @@ async function pickFolder(dir: string): Promise<void> {
   }, dir)
 }
 
-/** Ответ на `window.confirm` / `window.prompt`: они платформенные, и Playwright
- *  видит их как `dialog`. Возвращает, о чём спросили. */
-function nextDialog(page: Page, action: 'accept' | 'dismiss', answer = ''): Promise<string> {
-  return new Promise((resolve) => {
-    page.once('dialog', async (dialog) => {
-      const message = dialog.message()
-      if (action === 'accept') await dialog.accept(answer)
-      else await dialog.dismiss()
-      resolve(message)
-    })
-  })
+/** Ответить окну «вы уверены?» кнопкой `button` (отказ — «Отмена»). Окно —
+ *  приложения, а не `window.confirm`: после системного окно Electron теряло
+ *  фокус клавиатуры (D-204). Возвращает, о чём спросили. */
+async function answerConfirm(page: Page, button: RegExp): Promise<string> {
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible({ timeout: 30000 })
+  const asked = await dialog.innerText()
+  await dialog.getByRole('button', { name: button }).click()
+  await expect(dialog).toHaveCount(0)
+  return asked
 }
 
 /** Ответить окну «как назвать?» проводника (`NamePrompt`, дефект D-90: своё
@@ -194,12 +193,13 @@ async function answerName(page: Page, name: string): Promise<string> {
 /** Отключить источник той же кнопкой, что человек, с подтверждением. Мост
  *  (`removeSource`) для этого не годится: панель не узнала бы об удалении. */
 async function disconnect(page: Page, rootPath: string): Promise<void> {
-  const asked = nextDialog(page, 'accept')
   await row(page, rootPath).hover()
   await row(page, rootPath)
     .getByRole('button', { name: /^(Disconnect|Отключить)$/ })
     .click()
-  expect(await asked).toMatch(/Отключить этот источник|Disconnect this source/)
+  expect(await answerConfirm(page, /^(Disconnect|Отключить)$/)).toMatch(
+    /Отключить этот источник|Disconnect this source/
+  )
   await expect(row(page, rootPath)).toHaveCount(0, { timeout: 30000 })
 }
 
@@ -465,12 +465,11 @@ test('3.2.1 перед удалением спрашивают подтверж�
     .click()
   await expect(row(page, victim)).toBeVisible({ timeout: 30000 })
 
-  const asked = nextDialog(page, 'dismiss')
   await row(page, victim).hover()
   await row(page, victim)
     .getByRole('button', { name: /^(Delete|Удалить)$/ })
     .click()
-  expect(await asked).toMatch(/Удалить эту запись|Delete this entry/)
+  expect(await answerConfirm(page, /^(Cancel|Отмена)$/)).toMatch(/Удалить эту запись|Delete this entry/)
   // Отказ — файл на месте.
   expect(existsSync(join(stand.get().projectDir, victim))).toBe(true)
 })
@@ -521,11 +520,12 @@ test('3.4.1 Del на выделенной строке тоже спрашива
   const page = await ui()
   const victim = 'на-удаление.md'
   await expect(row(page, victim)).toBeVisible()
-  const asked = nextDialog(page, 'accept')
   await clickEntry(page, victim)
   await page.keyboard.press('Delete')
   // Del — сокращение, а не обход: вопрос тот же самый.
-  expect(await asked).toMatch(/Удалить эту запись|Delete this entry/)
+  expect(await answerConfirm(page, /^(Delete|Удалить)$/)).toMatch(
+    /Удалить эту запись|Delete this entry/
+  )
   await expect(row(page, victim)).toHaveCount(0, { timeout: 30000 })
   expect(existsSync(join(stand.get().projectDir, victim))).toBe(false)
 })
@@ -662,12 +662,13 @@ test('4.5.1 отключение спрашивает подтверждение
   const page = await ui()
   const before = treeSnapshot(sample.sourceA)
 
-  const asked = nextDialog(page, 'dismiss')
   await row(page, sample.sourceA).hover()
   await row(page, sample.sourceA)
     .getByRole('button', { name: /^(Disconnect|Отключить)$/ })
     .click()
-  expect(await asked).toMatch(/Отключить этот источник|Disconnect this source/)
+  expect(await answerConfirm(page, /^(Cancel|Отмена)$/)).toMatch(
+    /Отключить этот источник|Disconnect this source/
+  )
 
   // Отказ — источник на месте, и файлы тоже.
   const sources = await page.evaluate(() => window.aecpilot.listSources())

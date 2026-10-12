@@ -102,6 +102,23 @@ async function clickRowAction(rowName: string, actionLabel: string) {
   })
 }
 
+/** D-204: «вы уверены?» — окно приложения. Системный `window.confirm` оставляет
+ *  окно Electron без фокуса клавиатуры, поэтому здесь он бросает: позвать его —
+ *  значит вернуть дефект. */
+function forbidNativeConfirm() {
+  return vi.spyOn(window, 'confirm').mockImplementation(() => {
+    throw new Error('window.confirm вызван (D-204)')
+  })
+}
+
+/** Ответить окну подтверждения кнопкой с этой подписью. */
+async function answerConfirm(button: string) {
+  const dialog = await screen.findByRole('dialog')
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole('button', { name: button }))
+  })
+}
+
 /** Ответить окну «как назвать?» (`NamePrompt`): имя — ввести и подтвердить,
  *  `null` — отказаться. Своё окно вместо `window.prompt`, которого в Electron
  *  нет (дефект D-90). */
@@ -174,32 +191,36 @@ describe('VaultExplorer', () => {
   })
 
   it('asks before deleting, and skips when refused', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const native = forbidNativeConfirm()
     renderExplorer()
     await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
 
     await clickRowAction('AGENTS.md', 'Удалить')
+    await answerConfirm('Отмена')
 
     expect(deleteVaultEntry).not.toHaveBeenCalled()
+    expect(native).not.toHaveBeenCalled()
   })
 
   it('deletes by path once confirmed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    forbidNativeConfirm()
     renderExplorer()
     await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
 
     await clickRowAction('AGENTS.md', 'Удалить')
+    await answerConfirm('Удалить')
 
-    expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md')
+    await waitFor(() => expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md'))
   })
 
   it('shows what main refused instead of failing silently', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    forbidNativeConfirm()
     deleteVaultEntry.mockResolvedValue({ ok: false, error: 'файл занят другим процессом' })
     renderExplorer()
     await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
 
     await clickRowAction('AGENTS.md', 'Удалить')
+    await answerConfirm('Удалить')
 
     await waitFor(() => expect(screen.getByText('файл занят другим процессом')).toBeTruthy())
   })
@@ -245,7 +266,7 @@ describe('VaultExplorer', () => {
   })
 
   it('deletes the focused row on Del, still asking first', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    forbidNativeConfirm()
     renderExplorer()
     await waitFor(() => expect(screen.getByText('AGENTS.md')).toBeTruthy())
 
@@ -254,13 +275,14 @@ describe('VaultExplorer', () => {
       fireEvent.keyDown(row, { key: 'Delete' })
     })
     // Del is a shortcut, not a bypass: refusing the confirm keeps the file.
+    await answerConfirm('Отмена')
     expect(deleteVaultEntry).not.toHaveBeenCalled()
 
-    confirm.mockReturnValue(true)
     await act(async () => {
       fireEvent.keyDown(row, { key: 'Delete' })
     })
-    expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md')
+    await answerConfirm('Удалить')
+    await waitFor(() => expect(deleteVaultEntry).toHaveBeenCalledWith('AGENTS.md'))
   })
 
   it('offers the same actions from the context menu', async () => {
@@ -353,7 +375,7 @@ describe('файлы проекта в индексе', () => {
 
   it('отмеченный файл: значок, «Убрать из индекса» с вопросом и граф на project', async () => {
     listProjectIndex.mockResolvedValue(['docs/заметка.md'])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const native = forbidNativeConfirm()
     renderExplorer()
     await waitFor(() => expect(screen.getByText('docs')).toBeTruthy())
     await act(async () => {
@@ -378,8 +400,11 @@ describe('файлы проекта в индексе', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать из индекса' }))
     })
-    expect(window.confirm).toHaveBeenCalled()
-    expect(excludeFromIndex).toHaveBeenCalledWith({ kind: 'file', rel: 'docs/заметка.md' })
+    await answerConfirm('Убрать из индекса')
+    expect(native).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(excludeFromIndex).toHaveBeenCalledWith({ kind: 'file', rel: 'docs/заметка.md' })
+    )
     await waitFor(() => expect(screen.queryByRole('img', { name: 'В индексе' })).toBeNull())
   })
 

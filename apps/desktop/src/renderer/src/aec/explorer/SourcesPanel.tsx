@@ -27,6 +27,7 @@ import { openDocument } from '../viewers/viewer-store'
 
 import { GraphAddDialog } from './GraphAddDialog'
 import { askGraphAdd, indexTarget } from './graph-add-store'
+import { useConfirm } from './useConfirm'
 
 const SOURCES_KEY = ['aec', 'sources'] as const
 
@@ -207,6 +208,9 @@ export function SourcesPanel() {
     }
   })
 
+  // D-204: своё окно подтверждения, не `window.confirm` (см. useConfirm).
+  const { confirm, dialog: confirmDialog } = useConfirm()
+
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: SOURCES_KEY }),
     [queryClient]
@@ -247,7 +251,7 @@ export function SourcesPanel() {
 
   const handleRemove = useCallback(
     async (source: ProjectSource) => {
-      if (!window.confirm(t('sources.removeConfirm'))) return
+      if (!(await confirm(t('sources.removeConfirm'), t('sources.remove')))) return
       setBusy(true)
       setError(undefined)
       try {
@@ -263,7 +267,7 @@ export function SourcesPanel() {
         setBusy(false)
       }
     },
-    [refresh, t]
+    [confirm, refresh, t]
   )
 
   // 3J.6 (SPEC UR44): название — только в project.json, папка на диске та же.
@@ -456,6 +460,7 @@ export function SourcesPanel() {
       )}
 
       <GraphAddDialog />
+      {confirmDialog}
     </div>
   )
 }

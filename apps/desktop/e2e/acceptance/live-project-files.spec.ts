@@ -227,9 +227,12 @@ test('3K.5 «Убрать из индекса»: из поиска и графа
   await showVault(page)
   if ((await row(page, WIKI).count()) === 0)
     await row(page, 'wiki').locator('[title="wiki"]').click()
-  page.once('dialog', (dialog) => void dialog.accept())
   await row(page, WIKI).click({ button: 'right' })
   await page.getByRole('menu').getByRole('menuitem', { name: 'Убрать из индекса' }).click()
+  // D-204: вопрос — окно приложения, не `window.confirm`.
+  const confirm = page.getByRole('dialog')
+  await confirm.getByRole('button', { name: 'Убрать из индекса' }).click()
+  await expect(confirm).toHaveCount(0)
 
   await expect.poll(() => marked(page), { timeout: 120000 }).toEqual([DRAFT])
   const files = await inventory(page)

@@ -31,6 +31,7 @@ import { openIndexPage } from '../workspace-pages'
 import { splitBySearchQuery, subtreeMatchesSearchQuery } from './explorer-search-pure'
 import { askGraphAdd } from './graph-add-store'
 import { NamePrompt } from './NamePrompt'
+import { useConfirm } from './useConfirm'
 import { indexMark } from './project-index-pure'
 import { SourcesPanel } from './SourcesPanel'
 
@@ -267,6 +268,7 @@ export function VaultExplorer() {
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
   const [actionError, setActionError] = useState<string | undefined>(undefined)
+  const { confirm, dialog: confirmDialog } = useConfirm()
   // Открытый вопрос «как назвать?» и тот, кто ждёт ответа. Обещание, а не
   // колбэк в состоянии действия: `runAction` тогда читается как прежний
   // линейный сценарий — спросил, получил, сделал.
@@ -332,7 +334,11 @@ export function VaultExplorer() {
       // Task 3K.5: «Включить в индекс» marks and indexes at once, and the Index
       // page shows the run — the same as «Проиндексировать» on a source.
       if (action === 'include' || action === 'exclude') {
-        if (action === 'exclude' && !window.confirm(t('explorer.excludeConfirm'))) return
+        if (
+          action === 'exclude' &&
+          !(await confirm(t('explorer.excludeConfirm'), t('explorer.excludeFromIndex')))
+        )
+          return
         const target = { kind: node.type === 'dir' ? 'folder' : 'file', rel: node.path } as const
         setBusy(true)
         try {
@@ -356,8 +362,8 @@ export function VaultExplorer() {
 
       // Имя спрашивает своё окно (`NamePrompt`): `window.prompt` в Electron не
       // реализован и бросает исключение — дефект D-90, до него ни создание, ни
-      // переименование из проводника не работали. `window.confirm` Electron
-      // показывает, и удаление осталось на платформенном вопросе.
+      // переименование из проводника не работали. Подтверждение — тоже своим
+      // окном (`useConfirm`, D-204): после системного поля окна теряют фокус.
       const ask = (message: string, initial = ''): Promise<string | undefined> =>
         new Promise((resolve) =>
           setNamePrompt({
@@ -381,7 +387,11 @@ export function VaultExplorer() {
         name = await ask(t('explorer.renamePrompt'), node.name)
         if (!name || name === node.name) return
       }
-      if (action === 'delete' && !window.confirm(t('explorer.deleteConfirm'))) return
+      if (
+        action === 'delete' &&
+        !(await confirm(t('explorer.deleteConfirm'), t('explorer.delete')))
+      )
+        return
 
       setBusy(true)
       try {
@@ -409,7 +419,7 @@ export function VaultExplorer() {
         setBusy(false)
       }
     },
-    [queryClient, reload, t]
+    [confirm, queryClient, reload, t]
   )
 
   // Filtering keeps a folder that only CONTAINS a match, so the path down to
@@ -506,6 +516,7 @@ export function VaultExplorer() {
           onAnswer={namePrompt.resolve}
         />
       )}
+      {confirmDialog}
     </div>
   )
 }

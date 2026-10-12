@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { SourcesPanel } from './SourcesPanel'
@@ -178,18 +178,30 @@ describe('SourcesPanel', () => {
   })
 
   it('asks before disconnecting, and reports a refusal', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    // D-204: окно приложения, не `window.confirm` — после него окно Electron
+    // теряет фокус клавиатуры.
+    const native = vi.spyOn(window, 'confirm').mockImplementation(() => {
+      throw new Error('window.confirm вызван (D-204)')
+    })
+    const answer = async (button: string) => {
+      const dialog = await screen.findByRole('dialog')
+      await act(async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: button }))
+      })
+    }
     renderPanel()
     await waitFor(() => expect(screen.getByText('чертежи')).toBeTruthy())
 
     await click('Отключить')
+    await answer('Отмена')
     expect(removeSource).not.toHaveBeenCalled()
 
-    confirm.mockReturnValue(true)
     removeSource.mockResolvedValue({ ok: false, error: 'источник занят индексацией' })
     await click('Отключить')
+    await answer('Отключить')
 
-    expect(removeSource).toHaveBeenCalledWith('s1')
+    await waitFor(() => expect(removeSource).toHaveBeenCalledWith('s1'))
+    expect(native).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByText('источник занят индексацией')).toBeTruthy())
   })
 })
