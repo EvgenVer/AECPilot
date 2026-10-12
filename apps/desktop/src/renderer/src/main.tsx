@@ -65,6 +65,7 @@ import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerIndexPage } from './aec/index-page/register'
 import { registerProjectPage } from './aec/project/register'
+import { followOpenProjectSessions } from './aec/project/session-scope'
 import { refreshModelOptionsOnSetupReady } from './aec/model-keys/refresh-model-options'
 import { reloadAfterBegin } from './aec/onboarding/reload-after-begin'
 import { $desktopOnboarding } from './donor/store/onboarding'
@@ -89,6 +90,8 @@ registerMemoryScreen()
 registerIndexPage()
 // Задача 3H.28 (D-191): какой проект открыт — видно и в простом режиме.
 registerProjectPage()
+// Задача 3L.1 (D-206): в панели сеансов — только сеансы открытого проекта.
+followOpenProjectSessions()
 // 7.3.1: после ключа из окна первого запуска список моделей перечитывается.
 refreshModelOptionsOnSetupReady(gatewayBridge(), queryClient)
 // После «Начать» их окно подключения остаётся растворённым — перезагрузка окна
