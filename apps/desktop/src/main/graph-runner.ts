@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
 import type {
+  GraphDocumentMap,
   GraphExport,
   GraphPreview,
   GraphRunReport,
@@ -208,4 +209,12 @@ export function runGraphExport(
 ): Promise<GraphExport> {
   const extra = document ? ['--document', document] : []
   return runOneShot<GraphExport>('graph-export', vaultPath, timeoutMs, extra)
+}
+
+/** Задача 3L.9: граф картой документов — `graph-export --view documents`. */
+export function runDocumentMapExport(
+  vaultPath: string,
+  timeoutMs = DEFAULT_PREVIEW_TIMEOUT_MS
+): Promise<GraphDocumentMap> {
+  return runOneShot<GraphDocumentMap>('graph-export', vaultPath, timeoutMs, ['--view', 'documents'])
 }

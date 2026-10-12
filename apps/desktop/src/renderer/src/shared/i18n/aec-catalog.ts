@@ -177,7 +177,24 @@ export const aecLocales: PluginLocaleBundles = {
         rebuildWhat:
           'Every marked document is extracted again, with the structural-design (КР) entity types — the ones already in the graph too.',
         rebuildNothing: 'Nothing to rebuild: nothing is marked for the graph.',
-        rebuildConfirm: 'Rebuild'
+        rebuildConfirm: 'Rebuild',
+        view: 'View',
+        viewDocuments: 'Documents',
+        viewEntities: 'Entities',
+        search: 'Search by name',
+        fullscreen: 'Full screen',
+        exitFullscreen: 'Exit full screen',
+        documentsShown: (documents: number, links: number) =>
+          `${documents} documents, ${links} links`,
+        mapCanvas: 'Map of documents',
+        mapHint:
+          'Click a link to see what connects the two documents; click a document to open it. Arrows — one document mentions the code of another.',
+        linkedThrough: 'Linked through',
+        sharedEntities: (count: number) => `Shared entities: ${count}`,
+        refers: (from: string, to: string, code: string) =>
+          `«${from}» mentions «${to}» (code ${code})`,
+        mentions: 'Where it is mentioned',
+        place: (name: string, page: null | number) => (page ? `${name}, p. ${page}` : name)
       },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} fragments`,
@@ -916,7 +933,24 @@ export const aecLocales: PluginLocaleBundles = {
         rebuildWhat:
           'Все отмеченные документы извлекаются заново, с типами сущностей под КР — и те, что уже в графе.',
         rebuildNothing: 'Перестраивать нечего: в граф ничего не отмечено.',
-        rebuildConfirm: 'Перестроить'
+        rebuildConfirm: 'Перестроить',
+        view: 'Вид',
+        viewDocuments: 'Документы',
+        viewEntities: 'Сущности',
+        search: 'Поиск по имени',
+        fullscreen: 'На весь экран',
+        exitFullscreen: 'Выйти из полноэкранного режима',
+        documentsShown: (documents: number, links: number) =>
+          `Документов: ${documents}, связей: ${links}`,
+        mapCanvas: 'Карта документов',
+        mapHint:
+          'Щёлкните связь — покажу, через что связаны документы; щёлкните документ — открою его. Стрелка — документ упоминает шифр другого.',
+        linkedThrough: 'Связаны через',
+        sharedEntities: (count: number) => `Общих сущностей: ${count}`,
+        refers: (from: string, to: string, code: string) =>
+          `«${from}» ссылается на «${to}» (шифр ${code})`,
+        mentions: 'Где упомянут',
+        place: (name: string, page: null | number) => (page ? `${name}, с. ${page}` : name)
       },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} фрагментов`,

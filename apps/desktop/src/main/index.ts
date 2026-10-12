@@ -5268,9 +5268,17 @@ ipcMain.handle('graph:rebuild-preview', async () => {
 ipcMain.handle('graph:add-state', () => graphState)
 
 // Задача 3J.14: граф для вкладки «Граф». Путь документа собирает main, как и у
-// отметки, — окно путей не строит.
+// отметки, — окно путей не строит. `{ view: 'documents' }` — карта документов (3L.9).
 ipcMain.handle('graph:export', async (_event, payload: unknown) => {
   if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if ((payload as { view?: unknown } | null)?.view === 'documents') {
+    try {
+      const { runDocumentMapExport } = await import('./graph-runner')
+      return { map: await runDocumentMapExport(currentProject.vaultPath), ok: true }
+    } catch (error: unknown) {
+      return { error: error instanceof Error ? error.message : String(error), ok: false }
+    }
+  }
   let document: null | string = null
   if (payload !== null && payload !== undefined) {
     const request = markRequest({ ...(payload as object), kind: 'file' })

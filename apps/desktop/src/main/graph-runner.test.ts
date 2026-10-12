@@ -17,7 +17,8 @@ let proc: FakeProc
 const spawn = vi.fn((..._args: unknown[]) => proc)
 vi.mock('node:child_process', () => ({ spawn }))
 
-const { runGraphAdd, runGraphExport, runGraphPreview } = await import('./graph-runner')
+const { runDocumentMapExport, runGraphAdd, runGraphExport, runGraphPreview } =
+  await import('./graph-runner')
 const { RunFailedError } = await import('./ingest-progress-pure')
 
 const failureOf = async (run: Promise<unknown>): Promise<unknown> =>
@@ -101,6 +102,27 @@ describe('«Перестроить граф» (3L.7)', () => {
       '--project',
       'D:/vault',
       '--rebuild'
+    ])
+  })
+})
+
+describe('runDocumentMapExport (3L.9)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('уходит с --view documents, ответ — разобранный JSON', async () => {
+    const run = runDocumentMapExport('D:/vault')
+    proc.stdout.emit('data', Buffer.from('{"view": "documents", "nodes": [], "edges": []}'))
+    proc.emit('close', 0)
+
+    expect(await run).toMatchObject({ view: 'documents' })
+    expect(spawn.mock.calls.at(-1)?.[1]).toEqual([
+      'graph-export',
+      '--project',
+      'D:/vault',
+      '--view',
+      'documents'
     ])
   })
 })

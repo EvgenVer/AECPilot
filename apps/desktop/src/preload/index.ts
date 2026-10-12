@@ -245,6 +245,7 @@ const api: AecpilotApi = {
   getIndexStatus: () => ipcRenderer.invoke('index:status'),
   getIndexInventory: () => ipcRenderer.invoke('index:inventory'),
   exportGraph: (document) => ipcRenderer.invoke('graph:export', document ?? null),
+  exportDocumentMap: () => ipcRenderer.invoke('graph:export', { view: 'documents' }),
   checkQuotes: (answer) => ipcRenderer.invoke('quotes:check', answer),
   startIngest: (full, rebuild, target) =>
     ipcRenderer.invoke('index:ingest', { full, rebuild, target }),

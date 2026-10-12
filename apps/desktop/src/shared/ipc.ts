@@ -590,6 +590,52 @@ export interface GraphExport {
   truncated: boolean
 }
 
+/** Task 3L.8: a place of a document a link of the map points at. */
+export interface GraphDocumentPlace {
+  chunk_id: string
+  locator: { heading?: string; page?: number; range?: string; sheet?: string }
+  rel_path: string
+  source_id: string
+}
+
+/** A document of the graph — a node of the map. `code` is from the file name. */
+export interface GraphDocumentNode {
+  code: null | string
+  entities: number
+  /** `<source>/<rel path>`. */
+  id: string
+  label: string
+  rel_path: string
+  source_id: string
+}
+
+/** `shared` — entities both documents hold (the best-connected first);
+ *  `refers` — `source` mentions the code of `target`. */
+export type GraphDocumentEdge =
+  | {
+      entities: { label: string; places: GraphDocumentPlace[]; type: string }[]
+      kind: 'shared'
+      source: string
+      target: string
+      weight: number
+    }
+  | {
+      code: string
+      kind: 'refers'
+      places: GraphDocumentPlace[]
+      source: string
+      target: string
+      weight: number
+    }
+
+/** `aec-rag graph-export --view documents` (task 3L.8). */
+export interface GraphDocumentMap {
+  edges: GraphDocumentEdge[]
+  graph_exists: boolean
+  nodes: GraphDocumentNode[]
+  view: 'documents'
+}
+
 /** Task 3J.11: why a run ended without its report, as a code the catalog
  *  words in the interface language — `silent` (went quiet and was ended),
  *  `no_report`, `exit`, `spawn`, or a code of `aec_rag/errors.py` from the
@@ -1508,6 +1554,8 @@ export interface AecpilotApi {
     rel: string
     sourceId: string
   }): Promise<{ graph: GraphExport; ok: true } | { error: string; ok: false }>
+  /** Task 3L.9: the graph as a map of documents and what links them. */
+  exportDocumentMap(): Promise<{ map: GraphDocumentMap; ok: true } | { error: string; ok: false }>
   /** Task 3J.10: every file of the project with its index, scan and graph state. */
   getIndexInventory(): Promise<
     { inventory: IndexInventory; ok: true } | { error: string; ok: false }
