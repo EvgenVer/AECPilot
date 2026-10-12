@@ -43,15 +43,24 @@ export const DEFAULT_PREVIEW_TIMEOUT_MS = 60 * 1000
 // 1,97 с на фрагмент (замер 2.9a) и параллельных вызовах модели.
 export const DEFAULT_GRAPH_SILENCE_MS = 30 * 60 * 1000
 
-function args(command: string, vaultPath: string, path: string, kind: GraphScopeKind): string[] {
-  return [command, '--project', vaultPath, '--path', path, '--kind', kind]
+/** `path` null — «Перестроить граф» (задача 3L.7): новых отметок нет, вся
+ *  отмеченная область извлекается заново. */
+function args(
+  command: string,
+  vaultPath: string,
+  path: null | string,
+  kind: GraphScopeKind
+): string[] {
+  return path === null
+    ? [command, '--project', vaultPath, '--rebuild']
+    : [command, '--project', vaultPath, '--path', path, '--kind', kind]
 }
 
 /** Сколько работы будет, если отметить `path`. Ничего не пишет — это свойство
  *  самой команды (`run_graph_preview`), а не обещание вызывающего. */
 export function runGraphPreview(
   vaultPath: string,
-  path: string,
+  path: null | string,
   kind: GraphScopeKind,
   timeoutMs = DEFAULT_PREVIEW_TIMEOUT_MS
 ): Promise<GraphPreview> {
@@ -107,7 +116,7 @@ export function runGraphPreview(
  *  ТОЛЬКО после согласия человека: деньги тратит именно эта функция. */
 export function runGraphAdd(
   vaultPath: string,
-  path: string,
+  path: null | string,
   kind: GraphScopeKind,
   onProgress: (progress: IngestProgressEvent) => void,
   extraEnv: Record<string, string> = {},

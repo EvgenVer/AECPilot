@@ -73,6 +73,46 @@ def _no_provider(detail: str) -> RagIndexError:
 # language" work in our favour instead of against it.
 EXTRACTION_LANGUAGE = "Russian"
 
+# Task 3L.7, owner decision 2026-10-12: entity types of a structural-design
+# (КР) project instead of LightRAG's general ones — `Person`, `Creature`,
+# `Event` and the like name nothing in a set of drawings and calculations, and
+# the graph filled up with `Other`. LightRAG 1.5.6 takes the types as ONE
+# STRING, `addon_params["entity_types_guidance"]`, injected into the extraction
+# prompt as is; the older list form (`ENTITY_TYPES`) now stops LightRAG at
+# start. Each type is one word: LightRAG drops spaces and lowercases the type
+# the model returns.
+#
+# This edits the extraction prompt. By the owner's decision there is no eval
+# for it (waiver, AGENTS.md §9); the check is a live build on a КР sample. The
+# changed prompt also misses LightRAG's extraction cache, so a graph built with
+# the old types keeps them until «Перестроить граф» (`graph-add --rebuild`).
+ENTITY_TYPES_GUIDANCE = "\n".join(
+    (
+        "Отнеси каждую сущность к одному из типов ниже. Если ни один не подходит — `Прочее`.",
+        "",
+        "- Документ: проектный документ, раздел, том, чертёж, лист, ведомость "
+        "(шифр «…-КР», «…-АР», «…-ИГИ»)",
+        "- Норматив: нормативный документ или его пункт (СП 63.13330, ГОСТ 27751, СНиП, п. 8.3.12)",
+        "- Конструкция: элемент здания или сооружения (фундамент, свая, ростверк, плита, "
+        "колонна, балка, стена, перекрытие, лестница)",
+        "- Узел: соединение или сопряжение элементов (узел опирания, стык, анкеровка, "
+        "закладная деталь)",
+        "- Материал: материал и его класс или марка (бетон B25 F150 W6, арматура А500С, "
+        "сталь С255)",
+        "- Нагрузка: нагрузка или воздействие (постоянная, снеговая, ветровая, полезная, "
+        "сейсмическая)",
+        "- Параметр: величина с единицей измерения (толщина, пролёт, отметка, защитный слой, "
+        "прогиб, несущая способность)",
+        "- Расчёт: расчёт, проверка или их результат (по прочности, по прогибу, "
+        "на продавливание, по трещиностойкости)",
+        "- Грунт: инженерно-геологический элемент, грунт, грунтовые воды (ИГЭ-2, суглинок, УГВ)",
+        "- Место: часть здания или участка (этаж, секция, ось, отметка, помещение, участок)",
+        "- Организация: заказчик, проектировщик, экспертиза, изыскатель, подрядчик",
+        "- Работа: работа или требование к её производству (бетонирование, гидроизоляция, "
+        "обследование, испытание)",
+    )
+)
+
 # How patiently an embedding call waits out a rate limit. Seven attempts
 # starting at 5 s and doubling to 120 s spans about eight minutes — long
 # enough for a per-minute quota to refill several times over.
@@ -431,7 +471,10 @@ async def open_index(
         # по-английски (`DEFAULT_SUMMARY_LANGUAGE`), и на русских документах
         # одна сущность попадала в граф дважды: переводом и транслитерацией.
         # Подробности и замер — у константы `EXTRACTION_LANGUAGE`.
-        addon_params={"language": settings.extraction_language},
+        addon_params={
+            "language": settings.extraction_language,
+            "entity_types_guidance": ENTITY_TYPES_GUIDANCE,
+        },
     )
     rag.aec_chunk_registry = registry
     await rag.initialize_storages()

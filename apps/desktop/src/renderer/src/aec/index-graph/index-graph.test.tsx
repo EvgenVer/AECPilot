@@ -73,7 +73,12 @@ beforeEach(() => {
   window.localStorage.clear()
   drawnOrder = -1
   exportGraph.mockResolvedValue({ graph: graph(), ok: true })
-  window.aecpilot = { exportGraph } as unknown as typeof window.aecpilot
+  window.aecpilot = {
+    exportGraph,
+    // «Перестроить граф» (3L.7) читает состояние графового прогона.
+    getGraphAddState: () => Promise.resolve({ running: false }),
+    onGraphAddState: () => () => {}
+  } as unknown as typeof window.aecpilot
 })
 
 afterEach(() => {

@@ -172,7 +172,12 @@ export const aecLocales: PluginLocaleBundles = {
         hint: 'Click an entity to see which documents it comes from.',
         documents: 'From the documents',
         noDocuments:
-          'No indexed document — the entity came from text that is no longer in the index.'
+          'No indexed document — the entity came from text that is no longer in the index.',
+        rebuild: 'Rebuild the graph',
+        rebuildWhat:
+          'Every marked document is extracted again, with the structural-design (КР) entity types — the ones already in the graph too.',
+        rebuildNothing: 'Nothing to rebuild: nothing is marked for the graph.',
+        rebuildConfirm: 'Rebuild'
       },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} fragments`,
@@ -906,7 +911,12 @@ export const aecLocales: PluginLocaleBundles = {
         hint: 'Щёлкните сущность — покажу, из каких документов она взята.',
         documents: 'Из документов',
         noDocuments:
-          'Нет проиндексированного документа — сущность взята из текста, которого в индексе уже нет.'
+          'Нет проиндексированного документа — сущность взята из текста, которого в индексе уже нет.',
+        rebuild: 'Перестроить граф',
+        rebuildWhat:
+          'Все отмеченные документы извлекаются заново, с типами сущностей под КР — и те, что уже в графе.',
+        rebuildNothing: 'Перестраивать нечего: в граф ничего не отмечено.',
+        rebuildConfirm: 'Перестроить'
       },
       summary: (indexed: number, total: number) => `${indexed} / ${total}`,
       chunks: (chunks: number) => `${chunks} фрагментов`,

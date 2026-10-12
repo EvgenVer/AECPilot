@@ -377,3 +377,66 @@ async def test_a_cyrillic_vault_path_survives_a_full_write_and_read(tmp_path):
     )
 
     assert keys[0] in {chunk["chunk_id"] for chunk in result["data"]["chunks"]}
+
+
+@pytest.mark.anyio
+async def test_the_kr_entity_types_reach_the_extraction_prompt(tmp_path):
+    """Task 3L.7: the types are a setting only if the model is shown them — the
+    КР list, not LightRAG's general one."""
+    from rag_stubs import extracting_llm
+
+    answer = extracting_llm([])
+    prompts: list[str] = []
+
+    async def recording(prompt, system_prompt=None, **kwargs):
+        prompts.append(f"{system_prompt or ''}\n{prompt}")
+        return await answer(prompt, system_prompt=system_prompt, **kwargs)
+
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault, llm_func=recording)
+    entries = indexed([Chunk(text="Плита перекрытия 200 мм, бетон B25.", locator={"page": 1})])
+
+    await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries, build_graph=True
+    )
+
+    assert any("- Конструкция:" in prompt for prompt in prompts)
+    assert not any("- Creature:" in prompt for prompt in prompts)
+
+
+@pytest.mark.anyio
+async def test_a_forced_re_insert_extracts_the_graph_again(tmp_path):
+    """Task 3L.7 «Перестроить граф»: the same text in the same mode is skipped —
+    unless asked, because what changed is the extraction prompt."""
+    from rag_stubs import extracting_llm
+
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault, llm_func=extracting_llm([]))
+    entries = indexed([Chunk(text="Колонна К-1 сечением 400×400.", locator={"page": 1})])
+    await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries, build_graph=True
+    )
+
+    calls = 0
+    original = rag.apipeline_enqueue_documents
+
+    async def counting(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    rag.apipeline_enqueue_documents = counting
+    await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries, build_graph=True
+    )
+    assert calls == 0
+
+    await insert_document(
+        rag,
+        source_id="tasks",
+        rel_path="задание.pdf",
+        chunks=entries,
+        build_graph=True,
+        force=True,
+    )
+    assert calls == 1

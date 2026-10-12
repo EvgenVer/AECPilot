@@ -601,13 +601,7 @@ export interface RunFailure {
 
 /** Task 3J.8: a file's place in the index, as `aec-rag inventory` reports it.
  *  `partial` (task 3L.4) — the text is in, some scanned pages are not yet. */
-export type InventoryIndexState =
-  | 'failed'
-  | 'indexed'
-  | 'missing'
-  | 'partial'
-  | 'skipped'
-  | 'stale'
+export type InventoryIndexState = 'failed' | 'indexed' | 'missing' | 'partial' | 'skipped' | 'stale'
 export type InventoryGraphState = 'in' | 'marked' | 'none' | 'stale'
 
 /** The last failure of a file at one stage. `code` is from `aec_rag/errors.py`
@@ -763,7 +757,8 @@ export interface GraphAddState {
   /** Task 3J.11: the same failure as `error`, as a code. */
   failure: null | RunFailure
   lastReport: GraphRunReport | null
-  /** Что добавляют прямо сейчас. `null` — ничего не идёт. */
+  /** Что добавляют прямо сейчас. `null` — ничего не идёт или перестраивается
+   *  вся отмеченная область (3L.7). */
   path: null | string
   progress: IngestProgressEvent | null
   running: boolean
@@ -1583,6 +1578,12 @@ export interface AecpilotApi {
     rel: string,
     kind: GraphScopeKind
   ): Promise<{ error?: string; started: boolean }>
+  /** Задача 3L.7: цена «Перестроить граф» — всё, что покрывают отметки, в графе
+   *  или нет. Ничего не пишет. */
+  previewGraphRebuild(): Promise<{ error: string; ok: false } | { ok: true; preview: GraphPreview }>
+  /** «Перестроить граф» после согласия: новых отметок нет, всё под ними
+   *  извлекается заново. Ход — через `onGraphAddState`. */
+  startGraphRebuild(): Promise<{ error?: string; started: boolean }>
   /** Чего не хватает доступу к Microsoft Graph (задача 3E.9а). Только чтение:
    *  учётные данные пишутся через `saveProviderKey` — наше шифрованное
    *  хранилище, — а три из четырёх мест живут в профиле ядра. */

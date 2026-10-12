@@ -17,7 +17,7 @@ let proc: FakeProc
 const spawn = vi.fn((..._args: unknown[]) => proc)
 vi.mock('node:child_process', () => ({ spawn }))
 
-const { runGraphAdd, runGraphExport } = await import('./graph-runner')
+const { runGraphAdd, runGraphExport, runGraphPreview } = await import('./graph-runner')
 const { RunFailedError } = await import('./ingest-progress-pure')
 
 const failureOf = async (run: Promise<unknown>): Promise<unknown> =>
@@ -78,6 +78,29 @@ describe('runGraphExport (3J.14)', () => {
       'D:/vault',
       '--document',
       'tasks/ИГИ/отчёт.pdf'
+    ])
+  })
+})
+
+describe('«Перестроить граф» (3L.7)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('без пути обе команды уходят с --rebuild и без --path', () => {
+    void runGraphPreview('D:/vault', null, 'folder')
+    expect(spawn.mock.calls.at(-1)?.[1]).toEqual([
+      'graph-preview',
+      '--project',
+      'D:/vault',
+      '--rebuild'
+    ])
+    void runGraphAdd('D:/vault', null, 'folder', () => undefined).catch(() => undefined)
+    expect(spawn.mock.calls.at(-1)?.[1]).toEqual([
+      'graph-add',
+      '--project',
+      'D:/vault',
+      '--rebuild'
     ])
   })
 })

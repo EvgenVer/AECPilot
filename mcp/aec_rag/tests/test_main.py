@@ -408,6 +408,44 @@ def test_graph_preview_on_an_empty_index_marks_nothing(tmp_path, capsys):
     assert project_json.read_bytes() == before
 
 
+def test_graph_commands_take_a_path_or_a_rebuild_not_both(tmp_path):
+    """Задача 3L.7: «Перестроить граф» отметок не добавляет, поэтому путь к
+    нему — ошибка вызова, как и команда без пути и без перестройки."""
+    vault = make_vault(tmp_path, [])
+    for argv in (
+        ["graph-preview", "--project", str(vault)],
+        ["graph-add", "--project", str(vault), "--rebuild", "--path", "src-1"],
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(argv)
+        assert exit_info.value.code == 2
+
+
+def test_graph_preview_rebuild_prices_what_is_already_marked(tmp_path, capsys):
+    """Задача 3L.7: цена перестройки — вся отмеченная область, и предпросмотр
+    по-прежнему ничего не пишет."""
+    from aec_rag.graph_scope import add_to_scope
+
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "задание.csv").write_text("узел;мощность;250", encoding="utf-8")
+    vault = make_vault(tmp_path, [{"id": "src-1", "root_path": str(source_dir), "added_at": "x"}])
+    assert main(["scan", "--project", str(vault)]) == 0
+    capsys.readouterr()
+    project_json = vault / ".aecpilot" / "project.json"
+    add_to_scope(project_json, ["src-1"], {})
+    before = project_json.read_bytes()
+
+    code = main(["graph-preview", "--project", str(vault), "--rebuild"])
+
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["documents"] == 1
+    assert report["adds"] == []
+    assert [entry["path"] for entry in report["entries"]] == ["src-1"]
+    assert project_json.read_bytes() == before
+
+
 def test_ingest_path_names_a_source_and_a_place_inside_it():
     """`ingest --path` (task 3H.18) takes `<source>/<rel path>`, the shape the
     graph commands take — the tree's two menu items name a place alike."""

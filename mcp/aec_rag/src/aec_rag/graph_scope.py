@@ -259,6 +259,21 @@ def graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def scope_files(conn: sqlite3.Connection, entries: list[ScopeEntry]) -> list[PendingFile]:
+    """Every readable file the marked scope covers, in the graph or not.
+
+    The extent of «Перестроить граф» (task 3L.7): the same marks, all of it
+    extracted again.
+    """
+    if not entries:
+        return []
+    return [
+        file
+        for file in indexable_files(conn)
+        if any(covers(entry, file.source_id, file.rel_path) for entry in entries)
+    ]
+
+
 def pending_for_scope(conn: sqlite3.Connection, entries: list[ScopeEntry]) -> list[PendingFile]:
     """Files inside a marked folder that the graph does not hold at this content.
 
@@ -266,19 +281,14 @@ def pending_for_scope(conn: sqlite3.Connection, entries: list[ScopeEntry]) -> li
     than acted on: new documents in a folder someone marked months ago are new
     spending, and spending is not something to discover afterwards.
     """
-    if not entries:
-        return []
     in_graph = {
         (row["source_id"], row["rel_path"]): row["sha256"] for row in documents_in_graph(conn)
     }
-    pending: list[PendingFile] = []
-    for file in indexable_files(conn):
-        if not any(covers(entry, file.source_id, file.rel_path) for entry in entries):
-            continue
-        if in_graph.get((file.source_id, file.rel_path)) == file.sha256:
-            continue
-        pending.append(file)
-    return pending
+    return [
+        file
+        for file in scope_files(conn, entries)
+        if in_graph.get((file.source_id, file.rel_path)) != file.sha256
+    ]
 
 
 async def add_documents_to_graph(
@@ -287,6 +297,7 @@ async def add_documents_to_graph(
     files: list[PendingFile],
     *,
     on_progress=None,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Tier 2: extract entities and relations from documents already indexed.
 
@@ -295,6 +306,8 @@ async def add_documents_to_graph(
     can point back at — and a document whose chunks are missing is reported as
     such rather than quietly skipped, because «added to the graph» must never be
     said about something that was not.
+
+    ``force`` extracts a document the graph already holds again (task 3L.7).
     """
     from aec_rag.errors import GRAPH_FAILED, NOT_INDEXED, classify
     from aec_rag.lightrag_bridge import IndexedChunk, insert_document
@@ -327,6 +340,7 @@ async def add_documents_to_graph(
                 rel_path=file.rel_path,
                 chunks=[IndexedChunk(chunk_id=c.chunk_id, text=c.text) for c in stored],
                 build_graph=True,
+                force=force,
             )
         except Exception as exc:  # noqa: BLE001 — one document must not stop the rest
             code, detail = classify(exc, default=GRAPH_FAILED)
@@ -407,5 +421,19 @@ def preview_add(
     return {
         **estimate(conn, pending),
         "adds": [entry.as_dict() for entry in added],
+        "entries": [entry.as_dict() for entry in entries],
+    }
+
+
+def preview_rebuild(conn: sqlite3.Connection, project_json: Path | str) -> dict[str, Any]:
+    """What «Перестроить граф» would cost (task 3L.7) — nothing is written.
+
+    The same marks, every document they cover extracted again, the ones already
+    in the graph included: that is the bill, and UR24 wants it shown first.
+    """
+    entries = read_scope(project_json)
+    return {
+        **estimate(conn, scope_files(conn, entries)),
+        "adds": [],
         "entries": [entry.as_dict() for entry in entries],
     }

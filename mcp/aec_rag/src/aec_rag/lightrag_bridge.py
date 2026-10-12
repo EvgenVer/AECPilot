@@ -219,6 +219,7 @@ async def insert_document(
     rel_path: str,
     chunks: Sequence[IndexedChunk],
     build_graph: bool = False,
+    force: bool = False,
 ) -> list[str]:
     """Put one document's chunks into the index; return their LightRAG keys.
 
@@ -232,12 +233,15 @@ async def insert_document(
     goes in: re-ingest happens because the file changed, and adding to it would
     leave the previous edition's paragraphs to be retrieved and cited as
     current.
+
+    ``force`` replaces it even then (task 3L.7, «Перестроить граф»): the text
+    is the same, the extraction prompt is not, and the graph is what changes.
     """
     doc_id = document_id(source_id, rel_path)
     options = "" if build_graph else SKIP_KG
     keys = [chunk_key(doc_id, chunk.chunk_id) for chunk in chunks]
 
-    if await _already_holds(rag, doc_id, keys, options):
+    if not force and await _already_holds(rag, doc_id, keys, options):
         return keys
 
     registry = registry_of(rag)

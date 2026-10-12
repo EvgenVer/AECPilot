@@ -15,6 +15,7 @@ import type { GraphExportNode } from '../../../../shared/ipc'
 import { PROJECT_SOURCE_ID } from '../../../../shared/source-name'
 import { openDocument } from '../viewers/viewer-store'
 import { toGraphology } from './graph-model'
+import { RebuildGraph } from './RebuildGraph'
 
 type DocumentKey = { rel: string; sourceId: string }
 
@@ -73,6 +74,7 @@ export function IndexGraph(): React.JSX.Element {
           ? t('index.graph.shownPart', data.nodes.length, data.matched_nodes, data.total_nodes)
           : t('index.graph.shownAll', data.nodes.length, data.edges.length)}
       </div>
+      <RebuildGraph />
       <label className="flex items-center gap-2 text-xs">
         {t('index.graph.document')}
         <select

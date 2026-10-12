@@ -160,6 +160,7 @@ import type {
   DataProvidersState,
   GraphAccessState,
   GraphAddState,
+  GraphScopeKind,
   IngestState,
   LearningGraph,
   McpLiveStatus,
@@ -5251,6 +5252,19 @@ ipcMain.handle('graph:preview', async (_event, payload: unknown) => {
   }
 })
 
+// Задача 3L.7 «Перестроить граф»: те же отметки, всё под ними извлекается
+// заново (типы сущностей в промпте сменились). Порядок тот же, что у отметки:
+// сначала цена, прогон — только по согласию.
+ipcMain.handle('graph:rebuild-preview', async () => {
+  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  try {
+    const { runGraphPreview } = await import('./graph-runner')
+    return { ok: true, preview: await runGraphPreview(currentProject.vaultPath, null, 'folder') }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
 ipcMain.handle('graph:add-state', () => graphState)
 
 // Задача 3J.14: граф для вкладки «Граф». Путь документа собирает main, как и у
@@ -5274,6 +5288,19 @@ ipcMain.handle('graph:export', async (_event, payload: unknown) => {
 ipcMain.handle('graph:add', async (_event, payload: unknown) => {
   const request = markRequest(payload)
   if (!request.ok) return { error: request.error, started: false }
+  return startGraphRun(request.path, request.kind)
+})
+
+ipcMain.handle('graph:rebuild', async () => {
+  if (!currentProject) return { error: 'Нет открытого проекта', started: false }
+  return startGraphRun(null, 'folder')
+})
+
+/** `path` null — перестройка всей отмеченной области (3L.7). */
+async function startGraphRun(
+  path: null | string,
+  kind: GraphScopeKind
+): Promise<{ error?: string; started: boolean }> {
   if (graphState.running) return { error: 'Граф уже строится', started: false }
   // Один процесс на индекс: ingest и граф пишут одни и те же таблицы и один и
   // тот же векторный стор (находка D-49 — та же причина, только там граница
@@ -5288,15 +5315,15 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
   publishGraphState({
     error: null,
     failure: null,
-    path: request.path,
+    path,
     progress: null,
     running: true
   })
 
   void runGraphAdd(
     vaultPath,
-    request.path,
-    request.kind,
+    path,
+    kind,
     (progress) => {
       if (currentProject?.vaultPath !== vaultPath) return
       publishGraphState({ progress })
@@ -5321,7 +5348,7 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
     })
 
   return { started: true }
-})
+}
 
 // --- Список фактов памяти проекта (задачи 5.16, 3H.20, 3H.21) -------------
 //

@@ -304,15 +304,20 @@ def _narrow(roots: dict[str, str], paths: list[str]) -> tuple[list[str], list[st
     return sorted(set(source_ids)), rel_paths
 
 
-def run_graph_preview(project_arg: Path, paths: list[str], kind: str) -> dict:
+def run_graph_preview(
+    project_arg: Path, paths: list[str], kind: str, *, rebuild: bool = False
+) -> dict:
     """What adding ``paths`` to the graph would cost, writing nothing (task 5.15).
 
     The app asks this from the explorer's context menu, before showing the
     confirmation UR24 requires. The one thing this command must never do is mark
     anything: a person who answers «нет» has to find the project exactly as it
     was, index included.
+
+    ``rebuild`` prices «Перестроить граф» instead (task 3L.7): no new marks,
+    everything the marks cover extracted again.
     """
-    from aec_rag.graph_scope import preview_add
+    from aec_rag.graph_scope import preview_add, preview_rebuild
 
     project_path = _resolve_project_json(project_arg)
     index_db_path = project_path.parent / "index.db"
@@ -331,13 +336,16 @@ def run_graph_preview(project_arg: Path, paths: list[str], kind: str) -> dict:
 
     conn = open_index(index_db_path)
     try:
-        preview = preview_add(conn, project_path, paths, dict.fromkeys(paths, kind))
+        if rebuild:
+            preview = preview_rebuild(conn, project_path)
+        else:
+            preview = preview_add(conn, project_path, paths, dict.fromkeys(paths, kind))
     finally:
         conn.close()
     return {**preview, "index_missing": False}
 
 
-def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
+def run_graph_add(project_arg: Path, paths: list[str], kind: str, *, rebuild: bool = False) -> dict:
     """Mark ``paths`` and build the graph over what is pending (task 5.15, UR24).
 
     Tier 2: one model call per chunk. Spawned only after the person agreed to the
@@ -351,6 +359,10 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
     The choice is written down FIRST, the way the `rag_graph_add` tool writes it:
     the scope is what the interface shows as «что входит в граф», and documents in
     the graph that nobody marked would make that answer a lie.
+
+    ``rebuild`` is «Перестроить граф» (task 3L.7): nothing new is marked, and
+    every document the marks cover is extracted again — the ones already in the
+    graph too, with the entity types the prompt carries now.
     """
     import asyncio
 
@@ -359,6 +371,8 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
         add_to_scope,
         estimate,
         pending_for_scope,
+        read_scope,
+        scope_files,
     )
     from aec_rag.ingest import Progress
     from aec_rag.rag_index import load_settings
@@ -374,8 +388,11 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
     async def run() -> dict:
         conn = open_index(project_path.parent / "index.db")
         try:
-            entries = add_to_scope(project_path, paths, dict.fromkeys(paths, kind))
-            pending = pending_for_scope(conn, entries)
+            if rebuild:
+                pending = scope_files(conn, read_scope(project_path))
+            else:
+                entries = add_to_scope(project_path, paths, dict.fromkeys(paths, kind))
+                pending = pending_for_scope(conn, entries)
             forecast = estimate(conn, pending)
             # Said before the model is even opened: the total is what the person
             # agreed to, and the app shows «0 из N» while extraction starts.
@@ -395,7 +412,9 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str) -> dict:
                     )
                 )
 
-            report = await add_documents_to_graph(conn, rag, pending, on_progress=note)
+            report = await add_documents_to_graph(
+                conn, rag, pending, on_progress=note, force=rebuild
+            )
             return {**report, "forecast": forecast}
         finally:
             conn.close()
@@ -764,12 +783,17 @@ def main(argv: list[str] | None = None) -> int:
         graph_parser.add_argument("--project", required=True, type=Path)
         graph_parser.add_argument(
             "--path",
-            required=True,
             action="append",
             dest="paths",
+            default=[],
             help="'<source_id>/<relative path>', or a bare source id for its root; repeatable",
         )
         graph_parser.add_argument("--kind", choices=("folder", "file"), default="folder")
+        graph_parser.add_argument(
+            "--rebuild",
+            action="store_true",
+            help="No new marks: extract everything already marked again (3L.7)",
+        )
 
     for name, help_text in (
         ("project-include", "Mark project files for the index and scan them (UR45)"),
@@ -813,6 +837,8 @@ def main(argv: list[str] | None = None) -> int:
     wiki_parser.add_argument("--project", required=True, type=Path)
 
     args = parser.parse_args(argv)
+    if args.command in ("graph-preview", "graph-add") and bool(args.paths) == args.rebuild:
+        parser.error("give --path, or --rebuild without --path")
 
     try:
         if args.command == "check-quotes":
@@ -831,9 +857,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "graph-export":
             report = run_graph_export(args.project, args.limit, args.document)
         elif args.command == "graph-preview":
-            report = run_graph_preview(args.project, args.paths, args.kind)
+            report = run_graph_preview(args.project, args.paths, args.kind, rebuild=args.rebuild)
         elif args.command == "graph-add":
-            report = run_graph_add(args.project, args.paths, args.kind)
+            report = run_graph_add(args.project, args.paths, args.kind, rebuild=args.rebuild)
         elif args.command == "project-include":
             report = run_project_include(args.project, args.paths)
         elif args.command == "project-exclude":

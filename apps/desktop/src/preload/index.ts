@@ -266,6 +266,8 @@ const api: AecpilotApi = {
   previewGraphAdd: (sourceId, rel, kind) =>
     ipcRenderer.invoke('graph:preview', { kind, rel, sourceId }),
   startGraphAdd: (sourceId, rel, kind) => ipcRenderer.invoke('graph:add', { kind, rel, sourceId }),
+  previewGraphRebuild: () => ipcRenderer.invoke('graph:rebuild-preview'),
+  startGraphRebuild: () => ipcRenderer.invoke('graph:rebuild'),
   getGraphAddState: () => ipcRenderer.invoke('graph:add-state'),
   getGraphAccess: () => ipcRenderer.invoke('graph:access'),
   getDataProviders: () => ipcRenderer.invoke('data-providers:get'),

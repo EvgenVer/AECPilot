@@ -14,9 +14,13 @@ from aec_rag.db import open_index
 from aec_rag.graph_scope import (
     ScopeEntry,
     add_to_scope,
+    mark_in_graph,
     merge_scope,
+    pending_for_scope,
     preview_add,
+    preview_rebuild,
     read_scope,
+    scope_files,
 )
 
 
@@ -107,5 +111,36 @@ def test_preview_says_nothing_is_new_when_the_scope_already_covers_it(tmp_path):
     finally:
         conn.close()
 
+    assert preview["adds"] == []
+    assert [entry["path"] for entry in preview["entries"]] == ["tasks/ЭОМ"]
+
+
+def test_a_rebuild_covers_what_is_already_in_the_graph_and_writes_nothing(tmp_path):
+    """Task 3L.7 «Перестроить граф»: the same marks, every document under them
+    extracted again — the one already in the graph is the point, not skipped."""
+    import hashlib
+
+    from rag_stubs import add_scanned
+
+    project_json = make_vault(tmp_path)
+    source = tmp_path / "источник"
+    text = "Плита перекрытия 200 мм."
+    add_scanned(project_json, source, "ЭОМ/задание.pdf", text)
+    add_to_scope(project_json, ["tasks/ЭОМ"], {})
+    conn = open_index(project_json.parent / "index.db")
+    try:
+        sha = hashlib.sha256(text.encode()).hexdigest()
+        mark_in_graph(conn, "tasks", "ЭОМ/задание.pdf", sha, 1)
+        entries = read_scope(project_json)
+        before = project_json.read_bytes()
+
+        assert pending_for_scope(conn, entries) == []
+        assert [file.rel_path for file in scope_files(conn, entries)] == ["ЭОМ/задание.pdf"]
+        preview = preview_rebuild(conn, project_json)
+    finally:
+        conn.close()
+
+    assert project_json.read_bytes() == before
+    assert preview["documents"] == 1
     assert preview["adds"] == []
     assert [entry["path"] for entry in preview["entries"]] == ["tasks/ЭОМ"]

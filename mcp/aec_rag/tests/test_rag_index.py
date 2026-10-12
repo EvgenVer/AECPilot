@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from aec_rag.project_config import ProjectConfigError
 from aec_rag.rag_index import (
+    ENTITY_TYPES_GUIDANCE,
     EXTRACTION_LANGUAGE,
     RagIndexError,
     RagSettings,
@@ -259,7 +260,10 @@ async def test_the_extraction_language_reaches_lightrag(tmp_path, monkeypatch):
     monkeypatch.setattr(lightrag, "LightRAG", spy)
     await open_index(vault, settings, embedding_func=stub_embedding(settings), llm_func=stub_llm)
 
-    assert seen["addon_params"] == {"language": EXTRACTION_LANGUAGE}
+    assert seen["addon_params"] == {
+        "language": EXTRACTION_LANGUAGE,
+        "entity_types_guidance": ENTITY_TYPES_GUIDANCE,
+    }
 
 
 @pytest.mark.anyio
