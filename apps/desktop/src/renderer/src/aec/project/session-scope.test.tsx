@@ -178,6 +178,22 @@ describe('проект ядра на папку проекта (3L.1)', () => {
     expect(requestFreshSession).not.toHaveBeenCalled()
   })
 
+  it('смена проекта со страницы «Проект» не уводит с неё в новый чат (3L.10)', async () => {
+    request.mockResolvedValue({
+      active_id: null,
+      projects: [coreProject('p_a', 'D:\\Мост'), coreProject('p_b', 'D:\\Тоннель')]
+    })
+    $gatewayState.set('open')
+    const open = await openedWith({ name: 'Мост', vaultPath: 'D:\\Мост' })
+    window.location.hash = '#/aec-project'
+
+    open({ name: 'Тоннель', vaultPath: 'D:\\Тоннель' })
+    await vi.waitFor(() => expect(goToProject).toHaveBeenLastCalledWith('p_b'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(requestFreshSession).not.toHaveBeenCalled()
+    window.location.hash = ''
+  })
+
   it('без связи с ядром смена проекта всё равно закрывает сеанс прежнего', async () => {
     const open = await openedWith({ name: 'Мост', vaultPath: 'D:\\Мост' })
 

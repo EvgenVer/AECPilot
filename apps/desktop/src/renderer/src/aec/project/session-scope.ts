@@ -67,14 +67,25 @@ export async function scopeSessionsToProject(project: OpenProject): Promise<void
  *  (`requestFreshSession`, тем же, чем он отвечает на удаление проекта
  *  открытого сеанса). Иначе следующее сообщение ушло бы в сеанс прежнего
  *  проекта, в его папку. Черновик просится ПОСЛЕ входа в проект ядра: новый
- *  сеанс донор начинает в папке входа. */
+ *  сеанс донор начинает в папке входа.
+ *
+ *  Кроме случая, когда вместо чата открыта наша страница («Проект», «Индекс»,
+ *  «Память»): черновик донора уводит на маршрут нового чата и закрыл бы
+ *  страницу, с которой человек проект и сменил (3L.10, приёмка 2.3.2). Чата
+ *  перед ним нет, а уйдёт он со страницы сам — в сеанс нового проекта из
+ *  списка или в новый чат; сеансов прежнего в списке уже нет. */
+/** Начало маршрутов наших страниц (`workspace-pages.ts`; модуль не берём —
+ *  он тянет роутер донора). */
+const WORKSPACE_PAGE_HASH = '#/aec-'
+
 export function followOpenProjectSessions(): void {
   let current: null | OpenProject = null
   let queue: Promise<void> = Promise.resolve()
 
-  const sync = (fresh = false): void => {
+  const sync = (switched = false): void => {
     const project = current
     if (!project) return
+    const fresh = switched && !window.location.hash.startsWith(WORKSPACE_PAGE_HASH)
     if ($gatewayState.get() !== 'open') {
       if (fresh) requestFreshSession()
       return
