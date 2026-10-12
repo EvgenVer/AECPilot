@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/contrib/layout-presets.ts
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the 'terminal-deck' preset and its tree — SPEC HX7-прим. (owner decision 2026-10-12)
+ * (no other edits)
  */
 import { group, mirrorTreeHorizontal, split } from '@/components/pane-shell/tree/model'
 import { registerBundledPresets } from '@/components/pane-shell/tree/presets'
@@ -72,14 +74,7 @@ export const BASIC_TREE = split(
 
 const BASIC_RESTING = ['terminal', 'files', 'review'] as const
 
-const TERMINAL_TREE = split(
-  'column',
-  [
-    split('row', [group(['sessions']), group(['workspace']), group(['files', 'review'])], [1, 3.2, 1.2]),
-    group(['terminal'])
-  ],
-  [3, 1]
-)
+// EDIT [3]: TERMINAL_TREE (the «Terminal deck» preset) — SPEC HX7-прим. (owner decision 2026-10-12).
 
 const QUAD_TREE = split(
   'column',
@@ -106,7 +101,7 @@ export function registerLayoutPresets() {
     { id: 'default', title: 'Default', order: 0, tree: DEFAULT_TREE, tier: 'advanced' },
     { id: 'basic', title: 'Basic', order: 5, tree: BASIC_TREE, resting: BASIC_RESTING, tier: 'advanced' },
     { id: 'focus', title: 'Focus', order: 10, tree: FOCUS_TREE, resting: ['terminal'], tier: 'advanced' },
-    { id: 'terminal-deck', title: 'Terminal deck', order: 20, tree: TERMINAL_TREE, tier: 'advanced' },
+    // EDIT [3]: 'terminal-deck' — SPEC HX7-прим. (owner decision 2026-10-12).
     { id: 'quad', title: 'Quad', order: 30, tree: QUAD_TREE, tier: 'advanced' }
   ])
 }

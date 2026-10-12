@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/shell/hooks/use-statusbar-items.tsx
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the 'terminal' statusbar toggle — SPEC HX7-прим. (owner decision 2026-10-12)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { useMemo } from 'react'
@@ -33,7 +35,6 @@ import {
   Hash,
   Layers3,
   Loader2,
-  Terminal,
   Zap
 } from '@/lib/icons'
 import { runtimeReadinessDisplay, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
@@ -123,10 +124,6 @@ export function useStatusbarItems({
   const fileMenu = t.fileMenu
   const primaryActiveSessionId = useStore($activeSessionId)
   const activeGatewayProfile = useStore($activeGatewayProfile)
-  // What the button paints and flips is whether the terminal is ON SCREEN —
-  // the takeover store alone stays true behind a stacked sibling tab or a
-  // minimized zone, which lit the button for a pane the user couldn't see.
-  const terminalShowing = useStore($paneVisible('terminal'))
   const sessionsShowing = useStore($paneVisible('sessions'))
   const profileRailVisible = useStore($profileRailVisible)
   const botsShowing = useStore($paneVisible('hermes-bots:pane'))
@@ -709,17 +706,7 @@ export function useStatusbarItems({
         hidden: gatewayState !== 'open',
         toggleLabel: copy.toggleApprovalMode
       },
-      {
-        actionId: 'view.showTerminal',
-        className: `w-7 justify-center px-0${terminalShowing ? ' bg-accent/55 text-foreground' : ''}`,
-        hidden: !chatOpen,
-        icon: <Terminal className="size-3.5" />,
-        id: 'terminal',
-        onSelect: () => togglePaneVisible('terminal'),
-        title: terminalShowing ? copy.hideTerminal : copy.showTerminal,
-        toggleLabel: copy.toggleTerminal,
-        variant: 'action'
-      },
+      // EDIT [3]: the 'terminal' toggle — SPEC HX7-прим. (owner decision 2026-10-12).
       clientVersionItem,
       ...(backendVersionItem ? [backendVersionItem] : [])
     ],
@@ -739,7 +726,6 @@ export function useStatusbarItems({
       sessionStartedAt,
       gatewayState,
       systemResourcesItem,
-      terminalShowing,
       tokensPerSecond,
       turnStartedAt
     ]

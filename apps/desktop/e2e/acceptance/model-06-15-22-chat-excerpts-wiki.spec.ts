@@ -8,7 +8,6 @@ import {
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
-  openTerminalPane,
   send,
   standFixture
 } from '../lib/app'
@@ -192,7 +191,8 @@ test('6.3.1 прерывание срабатывает; следующее со
 })
 
 // Поток вывода у донора — у ФОНОВЫХ процессов агента: ядро шлёт куски
-// `agent.terminal.output`, а правая панель показывает их во вкладке терминала.
+// `agent.terminal.output`. Панель, которая показывала их вкладкой, снята
+// (задача 3L.2, SPEC HX7-прим.); проверяется сам поток ядра.
 // Обычный вызов терминала отдаёт вывод одним куском в конце — так устроено ядро.
 test('6.4.1 вывод долгой команды идёт потоком, форматирование сохранено', async () => {
   const page = await ui()
@@ -219,14 +219,6 @@ test('6.4.1 вывод долгой команды идёт потоком, фо
     chunks.map((event) => event.payload?.chunk ?? '').join(''),
     'строки вывода разделены переводами строк'
   ).toMatch(/шаг 1\n(.*\n)*шаг 2\n/)
-  // Правая панель: вывод фонового процесса — отдельная вкладка терминала. С
-  // 0.21.5 вкладки процессов живут в списке «Терминалы» и названы командой.
-  await openTerminalPane(page)
-  await expect(
-    page
-      .getByRole('tablist', { name: /^(Терминалы|Terminals)$/ })
-      .getByRole('tab', { name: /шаг/ })
-  ).toBeVisible()
   await record(test.info(), page, { transcript: result.transcript })
 })
 

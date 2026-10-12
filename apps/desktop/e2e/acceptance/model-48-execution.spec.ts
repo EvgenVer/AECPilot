@@ -12,7 +12,6 @@ import {
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
-  openTerminalPane,
   send,
   standFixture
 } from '../lib/app'
@@ -50,40 +49,8 @@ async function ui(): Promise<Page> {
   return page
 }
 
-test('48.1.1 живая оболочка: команда вводится и отвечает', async () => {
-  const page = await ui()
-  // xterm рисует текст не в DOM — вывод оболочки снимается в главном процессе,
-  // на том же канале, по которому он уходит в окно.
-  await stand.get().app.evaluate(({ BrowserWindow }) => {
-    const g = globalThis as unknown as { __termOut?: string[] }
-    g.__termOut = []
-    for (const win of BrowserWindow.getAllWindows()) {
-      const original = win.webContents.send.bind(win.webContents)
-      win.webContents.send = (channel: string, ...args: unknown[]) => {
-        if (channel === 'terminal:data') g.__termOut?.push((args[0] as { chunk: string }).chunk)
-        original(channel, ...args)
-      }
-    }
-  })
-  await openTerminalPane(page)
-  const xterm = page.locator('.xterm').last()
-  await expect(xterm).toBeVisible({ timeout: 30000 })
-  await xterm.click()
-  await page.keyboard.type('echo aec-e2e-shell-ok')
-  await page.keyboard.press('Enter')
-  await expect
-    .poll(
-      () =>
-        stand
-          .get()
-          .app.evaluate(() =>
-            ((globalThis as unknown as { __termOut?: string[] }).__termOut ?? []).join('')
-          ),
-      { timeout: 30000 }
-    )
-    .toMatch(/aec-e2e-shell-ok[\s\S]*\n[\s\S]*aec-e2e-shell-ok/)
-  await record(test.info(), page)
-})
+// 48.1.1 «живая оболочка» снята: панели оболочки для человека нет (задача
+// 3L.2, SPEC HX7-прим.); её отсутствие проверяет блок 46 (`blocks-46-workspace`).
 
 test('48.2.1 счёт по данным проекта с графиком; видно, что исполнялось', async () => {
   const page = await ui()

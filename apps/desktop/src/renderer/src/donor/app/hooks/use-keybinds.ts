@@ -8,6 +8,7 @@
  *       conversation it toggled is SPEC HX19 (owner decision 2026-09-08)
  *   [3] dropped the 'composer.dictate' handler — all voice is SPEC HX19 (owner
  *       decision 2026-10-07)
+ *   [3] dropped the five terminal handlers ('view.showTerminal' …) — SPEC HX7-прим. (owner decision 2026-10-12)
  * (no other edits)
  */
 import { useEffect, useRef } from 'react'
@@ -16,7 +17,6 @@ import { useLocation, useNavigate } from 'react-router'
 import { closeActiveTab } from '@/app/chat/close-tab'
 import { hudTargetSessionId } from '@/app/hud/handoff'
 import { setTerminalTakeover } from '@/app/right-sidebar/store'
-import { closeActiveTerminal, createTerminal, cycleTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { appViewForPath, isOverlayView } from '@/app/routes'
 import {
   activateTreeTabSlot,
@@ -277,19 +277,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.showFiles': showFiles,
     'view.showBrowser': openBrowserTab,
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
-    'view.showTerminal': () => togglePaneVisible('terminal'),
-    // Create first so the pane's open-effect ensure sees a non-empty set and
-    // doesn't also spawn one — net effect is exactly one fresh terminal.
-    'view.newTerminal': () => {
-      createTerminal()
-      setTerminalTakeover(true)
-    },
-    // Switch / close only act while the terminal is actually ON SCREEN — ask
-    // the tree, not the toggle store (which stays true behind a stacked
-    // sibling tab or a minimized zone).
-    'view.nextTerminal': () => isPaneVisible('terminal') && cycleTerminal(1),
-    'view.prevTerminal': () => isPaneVisible('terminal') && cycleTerminal(-1),
-    'view.closeTerminal': () => isPaneVisible('terminal') && closeActiveTerminal(),
+    // EDIT [3]: the five terminal handlers (Ctrl+` family) — SPEC HX7-прим. (owner decision 2026-10-12).
     'view.flipPanes': togglePanesFlipped,
     // ⌘W: close the focused tab (terminal / preview target / zone tree tab).
     // On the main tab with session tabs stacked, it shifts the next one in —

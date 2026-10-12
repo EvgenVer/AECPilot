@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/app/contrib/controller.tsx
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the 'terminal' pane, its tool-panel binding and the
+ *   [3]        'view.showTerminal' ⌘K toggle — the human's live shell is SPEC HX7-прим. (owner decision 2026-10-12)
+ * (no other edits)
  */
 import { useStore } from '@nanostores/react'
 import { atom, computed } from 'nanostores'
@@ -56,7 +59,6 @@ import {
   PanelBottom,
   PanelTop,
   SlidersHorizontal,
-  Terminal,
   Upload,
   Users,
   Zap
@@ -112,7 +114,6 @@ import {
 } from '../chat/session-tile'
 import { AppContextMenu } from '../context-menu/app-context-menu'
 import { HudShell } from '../hud/hud-shell'
-import { $terminalTakeover, setTerminalTakeover } from '../right-sidebar/store'
 import { $workspaceIsPage, WORKSPACE_PAGE_HEADER_AREA } from '../routes'
 
 import { BASIC_TREE, DEFAULT_TREE, registerLayoutPresets } from './layout-presets'
@@ -219,28 +220,7 @@ registry.registerMany([
     },
     render: renderWorkspacePane
   },
-  {
-    id: 'terminal',
-    area: 'panes',
-    // Register-time sample; the tab renders `tabTitle` (see sessions).
-    title: translateNow('sidebar.terminal'),
-    // height sizes the fixed track (a single-pane zone declaring a height is a
-    // fixed track — the preset weight is moot): a short deck, not a third of
-    // the window.
-    //
-    // NO minHeight: a tool panel drags all the way down to its collapsed
-    // header (the sash floors it at COLLAPSED_ZONE_PX and folds the zone to
-    // its rail there). A real floor left a sliver of unusable terminal.
-    data: {
-      placement: 'bottom',
-      height: '20vh',
-      maxHeight: '80vh',
-      lifecycleKeepAlive: true,
-      tabTitle: () => <LocalizedTabTitle select={t => t.sidebar.terminal} />,
-      tabTitleText: () => translateNow('sidebar.terminal')
-    },
-    render: () => <WiredPane part="terminal" />
-  },
+  // EDIT [3]: the 'terminal' pane (the human's live shell) — SPEC HX7-прим. (owner decision 2026-10-12).
   {
     id: 'files',
     area: 'panes',
@@ -590,36 +570,11 @@ bindPaneVisibility(
   closeReview,
   () => openReview($reviewScopeCwd.get(), $reviewScopeTarget.get())
 )
-// ⌃` / statusbar toggle — the terminal COLLAPSES to a rail (tab stays), not
-// hides; PTYs stay alive while collapsed (see PersistentTerminal). Simple has
-// no terminal: where chrome is off a closed one hides, rail and all, and ⌃`
-// is the door for the session.
-bindToolPaneCollapse(
-  'terminal',
-  $terminalTakeover,
-  () => setTerminalTakeover(false),
-  () => setTerminalTakeover(true),
-  $showsAdvancedChrome
-)
+// EDIT [3]: bindToolPaneCollapse('terminal', …) — the pane is gone, SPEC HX7-прим. (owner decision 2026-10-12).
 // Without the statusbar, the rail is the only way to switch profiles or gateways.
 $profiles.subscribe(profiles => setModeContext({ profileCount: profiles.length }))
 $connectionsRegistry.subscribe(registry => setModeContext({ connectionCount: registry?.connections.length ?? 0 }))
-// ⌘K door onto the same pane the keybind and statusbar pill flip — was a
-// one-way "open" row under Go to, so it never showed on/off and couldn't hide.
-// Reads the TREE like every other pane toggle: `$terminalTakeover` stays true
-// behind a stacked sibling tab or a minimized zone, which would light the row
-// "on" for a terminal that isn't on screen.
-registry.register(
-  paletteToggle({
-    id: 'view.showTerminal',
-    label: 'Toggle terminal',
-    action: 'view.showTerminal',
-    icon: Terminal,
-    keywords: ['terminal', 'shell', 'console', 'pty'],
-    get: () => isPaneVisible('terminal'),
-    set: () => togglePaneVisible('terminal')
-  })
-)
+// EDIT [3]: the 'view.showTerminal' ⌘K toggle — SPEC HX7-прим. (owner decision 2026-10-12).
 
 // Logs are ⌘K-ONLY chrome: the pane contribution EXISTS only while $logsOpen
 // is on. Off (the default) keeps logs out of the registry and the tree

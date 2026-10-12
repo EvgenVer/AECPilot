@@ -8,6 +8,8 @@
  *       conversation is SPEC HX19 (owner decision 2026-09-08)
  *   [3] dropped the 'composer.dictate' action — all voice is SPEC HX19 (owner
  *       decision 2026-10-07)
+ *   [3] dropped the 'view.showTerminal', 'view.newTerminal', 'view.nextTerminal',
+ *   [3]        'view.prevTerminal' and 'view.closeTerminal' actions — SPEC HX7-прим. (owner decision 2026-10-12)
  * (no other edits)
  */
 // The single source of truth for rebindable desktop hotkeys.
@@ -160,18 +162,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // user is working in. Ships bound because the whole point is leaving the app
   // without reaching for it — but the titlebar button is the discoverable door.
   { id: 'view.toggleHud', category: 'view', defaults: ['mod+shift+h'] },
-  // Control+` everywhere (literal `ctrl`, NOT `mod`): ⌘` is macOS-reserved for
-  // cycling app windows, so VS Code/Cursor/Zed bind the terminal to Ctrl+` on
-  // every platform. Off macOS `ctrl` folds to `mod` (= Ctrl), so it's unchanged.
-  // Toggle reveals the terminal (opening one if none exist); Shift spawns a new one.
-  { id: 'view.showTerminal', category: 'view', defaults: ['ctrl+`'] },
-  { id: 'view.newTerminal', category: 'view', defaults: ['ctrl+shift+`'] },
-  // Same Ctrl(+Shift) terminal family: arrows walk the (vertical) tab rail, W
-  // kills the active one. ⌘W is taken (close preview tab) and ⌘⇧[ ] are profiles,
-  // so these stay on `ctrl` — distinct on macOS, folding to Ctrl elsewhere.
-  { id: 'view.nextTerminal', category: 'view', defaults: ['ctrl+shift+down'] },
-  { id: 'view.prevTerminal', category: 'view', defaults: ['ctrl+shift+up'] },
-  { id: 'view.closeTerminal', category: 'view', defaults: ['ctrl+shift+w'] },
+  // EDIT [3]: the five terminal actions (Ctrl+` family) — SPEC HX7-прим. (owner decision 2026-10-12).
   // ⌘\ — the backslash reads like a mirror line flipping the layout.
   { id: 'view.flipPanes', category: 'view', defaults: ['mod+\\'] },
   // ⌘W closes the focused zone's active tab — its own tab strip (preview) or
