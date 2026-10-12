@@ -253,6 +253,7 @@ export const aecLocales: PluginLocaleBundles = {
         retry: 'Retry',
         state: {
           indexed: 'in the index',
+          partial: 'partly',
           stale: 'changed — the index has an older version',
           missing: 'not indexed yet',
           failed: 'failed',
@@ -977,6 +978,7 @@ export const aecLocales: PluginLocaleBundles = {
         retry: 'Повторить',
         state: {
           indexed: 'в индексе',
+          partial: 'частично',
           stale: 'изменён — в индексе прежняя версия',
           missing: 'ещё не проиндексирован',
           failed: 'ошибка',

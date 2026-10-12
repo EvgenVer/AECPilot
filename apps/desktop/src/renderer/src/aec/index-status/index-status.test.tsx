@@ -77,6 +77,7 @@ function inventory(files: InventoryFile[], exists = true): IndexInventory {
         failed: files.filter((f) => f.index === 'failed').length,
         indexed: files.filter((f) => f.index === 'indexed').length,
         missing: 0,
+        partial: files.filter((f) => f.index === 'partial').length,
         skipped: 0,
         stale: 0
       },
@@ -456,6 +457,24 @@ describe('IndexStatus', () => {
     expect(screen.getByText('отчёт.pdf')).toBeTruthy()
     expect(screen.getByText('ещё не проиндексирован')).toBeTruthy()
     expect(screen.queryByText('задание.pdf')).toBeNull()
+  })
+
+  it('опись: текст в индексе, сканы не все — «частично», сканы N из M, требует внимания (3L.4)', async () => {
+    getIndexInventory.mockResolvedValue({
+      ok: true,
+      inventory: inventory([
+        inventoryFile('альбом КР.pdf', {
+          index: 'partial',
+          scans: { done: 3, error: null, failed: 0, total: 10 }
+        })
+      ])
+    })
+    await renderPage()
+
+    await waitFor(() => expect(screen.getByText('Нагатинская')).toBeTruthy())
+    expect(screen.getByText('Файлов: 1, в индексе: 0, требуют внимания: 1')).toBeTruthy()
+    expect(screen.getByText('частично')).toBeTruthy()
+    expect(screen.getByText('сканы: 3 из 10')).toBeTruthy()
   })
 
   it('опись: проекта ещё не сканировали — сказано прямо', async () => {

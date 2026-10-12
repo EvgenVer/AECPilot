@@ -115,6 +115,43 @@ def test_scans_count_their_pages(tmp_path):
     assert result["summary"]["with_errors"] == 1
 
 
+def test_text_in_the_index_with_scans_left_is_partial(tmp_path):
+    """Task 3L.4: the text layer is in the index, but not every scanned page is
+    — waiting or failed. «In the index» would hide the pages the agent cannot
+    find; the inventory says how many are left instead."""
+    conn = open_index(tmp_path / "index.db")
+    add_file(conn, "ждёт.pdf")
+    ingested(conn, "ждёт.pdf", "new")
+    page(conn, "ждёт.pdf", "new", 1, "done")
+    page(conn, "ждёт.pdf", "new", 2, "pending")
+    add_file(conn, "сбой стр.pdf")
+    ingested(conn, "сбой стр.pdf", "new")
+    page(conn, "сбой стр.pdf", "new", 1, "failed", "rapidocr упал")
+    add_file(conn, "все стр.pdf")
+    ingested(conn, "все стр.pdf", "new")
+    page(conn, "все стр.pdf", "new", 1, "done")
+    add_file(conn, "не прочитан.pdf")
+    page(conn, "не прочитан.pdf", "new", 1, "pending")
+    add_file(conn, "прежняя.pdf")
+    ingested(conn, "прежняя.pdf", "new")
+    page(conn, "прежняя.pdf", "old", 1, "pending")
+
+    result = inventory(conn, [], ["s"])
+    files = by_path(result)
+
+    assert {path: file["index"] for path, file in files.items()} == {
+        "ждёт.pdf": "partial",
+        "сбой стр.pdf": "partial",
+        "все стр.pdf": "indexed",
+        "не прочитан.pdf": "missing",
+        # A page of an older content says nothing about this one.
+        "прежняя.pdf": "indexed",
+    }
+    assert files["ждёт.pdf"]["scans"]["done"] == 1
+    assert files["ждёт.pdf"]["scans"]["total"] == 2
+    assert result["summary"]["index"]["partial"] == 2
+
+
 def test_every_graph_state(tmp_path):
     conn = open_index(tmp_path / "index.db")
     for name in ("в графе.pdf", "устарел.pdf", "отмечен/а.pdf", "вне.pdf", "отмечен/план.dwg"):
@@ -147,6 +184,7 @@ def test_the_summary_counts_states(tmp_path):
     assert summary["files"] == 2
     assert summary["index"] == {
         "indexed": 1,
+        "partial": 0,
         "stale": 0,
         "missing": 1,
         "failed": 0,

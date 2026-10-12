@@ -9,6 +9,8 @@ choice in ``project.json``. It only reads.
 Index state of a file:
 
 - ``indexed`` — its current content is in the index;
+- ``partial`` — its text is, but some scanned pages are not recognised yet
+  or could not be (task 3L.4): ``scans`` says how many;
 - ``stale`` — an older content is, the file changed since;
 - ``missing`` — never indexed yet;
 - ``failed`` — the last attempt at THIS content failed (``error`` says why);
@@ -30,7 +32,7 @@ from aec_rag.errors import UNSUPPORTED
 from aec_rag.graph_scope import ScopeEntry, covers
 from aec_rag.parse import SUPPORTED_SUFFIXES
 
-INDEX_STATES = ("indexed", "stale", "missing", "failed", "skipped")
+INDEX_STATES = ("indexed", "partial", "stale", "missing", "failed", "skipped")
 GRAPH_STATES = ("in", "stale", "marked", "none")
 
 
@@ -84,6 +86,7 @@ def inventory(
         index_error = next((e for e in current_errors if e["stage"] == "index"), None)
         graph_error = next((e for e in current_errors if e["stage"] == "graph"), None)
 
+        scan = scans.get((source_id, rel_path, sha256))
         reason = None
         if sha256 is None:
             state, reason = "skipped", skip_reason or "unreadable"
@@ -92,7 +95,7 @@ def inventory(
         elif index_error is not None:
             state = "failed"
         elif ingested.get(key) == sha256:
-            state = "indexed"
+            state = "partial" if scan and scan["done"] < scan["total"] else "indexed"
         elif key in ingested:
             state = "stale"
         else:
@@ -105,7 +108,6 @@ def inventory(
         else:
             graph = "none"
 
-        scan = scans.get((source_id, rel_path, sha256))
         files.append(
             {
                 "source_id": source_id,

@@ -599,8 +599,15 @@ export interface RunFailure {
   detail: string
 }
 
-/** Task 3J.8: a file's place in the index, as `aec-rag inventory` reports it. */
-export type InventoryIndexState = 'failed' | 'indexed' | 'missing' | 'skipped' | 'stale'
+/** Task 3J.8: a file's place in the index, as `aec-rag inventory` reports it.
+ *  `partial` (task 3L.4) — the text is in, some scanned pages are not yet. */
+export type InventoryIndexState =
+  | 'failed'
+  | 'indexed'
+  | 'missing'
+  | 'partial'
+  | 'skipped'
+  | 'stale'
 export type InventoryGraphState = 'in' | 'marked' | 'none' | 'stale'
 
 /** The last failure of a file at one stage. `code` is from `aec_rag/errors.py`
