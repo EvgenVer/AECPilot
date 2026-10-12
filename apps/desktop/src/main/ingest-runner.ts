@@ -256,6 +256,28 @@ export function runProjectExclude(
   )
 }
 
+/** `aec-rag index-exclude --path <source>/<rel>` (task 3L.3): a source file or
+ *  folder out of the index, the graph and the inventory; the scan skips it from
+ *  now on. Takes the provider env — removing vectors opens the store. */
+export function runIndexExclude(
+  vaultPath: string,
+  place: string,
+  extraEnv: Record<string, string>,
+  timeoutMs = DEFAULT_PROJECT_FILES_TIMEOUT_MS
+): Promise<{ excluded: string[]; removed: string[] }> {
+  return runOneShot('index-exclude', vaultPath, timeoutMs, ['--path', place], extraEnv)
+}
+
+/** `aec-rag index-include --path <source>/<rel>`: off the list and its source
+ *  scanned, so the ingest that follows finds the file again. */
+export function runIndexInclude(
+  vaultPath: string,
+  place: string,
+  timeoutMs = DEFAULT_PROJECT_FILES_TIMEOUT_MS
+): Promise<{ excluded: string[]; returned: string[] }> {
+  return runOneShot('index-include', vaultPath, timeoutMs, ['--path', place])
+}
+
 /** A short `aec-rag <command> --project <vaultPath>` that answers with one
  *  JSON object. Shared with the graph export (3J.14) and the project files
  *  (3K.4). */

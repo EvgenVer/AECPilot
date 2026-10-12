@@ -141,6 +141,41 @@ describe('файлы проекта в индексе (3K.4)', () => {
     expect(options.env.AEC_RAG_EMBEDDING_MODEL).toBe('m')
   })
 
+  it('index-exclude называет место источника и несёт окружение провайдера (3L.5)', async () => {
+    const { spawn } = await import('node:child_process')
+    const { runIndexExclude } = await import('./ingest-runner')
+    const run = runIndexExclude('D:/vault', 's1/КР/Сваи.pdf', { AEC_RAG_EMBEDDING_MODEL: 'm' })
+    proc.stdout.emit(
+      'data',
+      Buffer.from(
+        '{"added":["s1/КР/Сваи.pdf"],"removed":["s1/КР/Сваи.pdf"],"excluded":["s1/КР/Сваи.pdf"]}'
+      )
+    )
+    proc.emit('close', 0)
+
+    expect((await run).removed).toEqual(['s1/КР/Сваи.pdf'])
+    const args = vi.mocked(spawn).mock.lastCall!
+    expect(args[1]).toEqual(['index-exclude', '--project', 'D:/vault', '--path', 's1/КР/Сваи.pdf'])
+    expect((args[2] as { env: Record<string, string> }).env.AEC_RAG_EMBEDDING_MODEL).toBe('m')
+  })
+
+  it('index-include называет место источника (3L.5)', async () => {
+    const { spawn } = await import('node:child_process')
+    const { runIndexInclude } = await import('./ingest-runner')
+    const run = runIndexInclude('D:/vault', 's1/КР')
+    proc.stdout.emit('data', Buffer.from('{"returned":["s1/КР"],"excluded":[],"scan":{}}'))
+    proc.emit('close', 0)
+
+    expect((await run).returned).toEqual(['s1/КР'])
+    expect(vi.mocked(spawn).mock.lastCall![1]).toEqual([
+      'index-include',
+      '--project',
+      'D:/vault',
+      '--path',
+      's1/КР'
+    ])
+  })
+
   it('отказ команды (путь вне проекта) — ошибка с её словами', async () => {
     const { runProjectInclude } = await import('./ingest-runner')
     const run = runProjectInclude('D:/vault', '../чужое')

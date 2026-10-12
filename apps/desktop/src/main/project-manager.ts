@@ -299,6 +299,21 @@ export function listProjectIndex(vaultPath: string): string[] {
     .filter((path): path is string => typeof path === 'string' && path.length > 0)
 }
 
+/** Task 3L.5: source files a person took out of the index — `<source>/<rel>`
+ *  places from `project.json.index_exclude` (written by `aec-rag
+ *  index-exclude`). Empty when there are none or the file cannot be read. */
+export function listIndexExclude(vaultPath: string): string[] {
+  const entries = readRawConfig(join(vaultPath, '.aecpilot', 'project.json')).index_exclude
+  if (!Array.isArray(entries)) return []
+  return entries.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const { path, source_id: sourceId } = entry as { path?: unknown; source_id?: unknown }
+    return typeof sourceId === 'string' && sourceId && typeof path === 'string' && path
+      ? [`${sourceId}/${path}`]
+      : []
+  })
+}
+
 /** Lists a project's connected sources by reading `project.json` (task 1.7,
  * backs the `sources:list` IPC handler). Returns an empty array if the vault
  * or its config can't be read/validated — a renamed or broken vault must

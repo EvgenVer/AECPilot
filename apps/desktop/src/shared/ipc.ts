@@ -1543,6 +1543,24 @@ export interface AecpilotApi {
     kind: GraphScopeKind
     rel: string
   }): Promise<{ files: string[]; ok: true } | { error: string; ok: false }>
+  /** Task 3L.5: source files taken out of the index, as `<source>/<rel>`. */
+  listIndexExclude(): Promise<string[]>
+  /** Task 3L.5 «Убрать из индекса» for any file — of a source or of the
+   *  project. The file stays on disk; the scan does not bring it back. Refused
+   *  while an index or graph run is on. */
+  excludeDocument(target: {
+    kind: GraphScopeKind
+    rel: string
+    sourceId: string
+  }): Promise<{ ok: true } | { error: string; ok: false }>
+  /** Task 3L.5 «Индексировать» for any file: an excluded source file goes back
+   *  first, a project file gets marked; then the run on it. Progress arrives
+   *  through `onIngestState`. */
+  indexDocument(target: {
+    kind: GraphScopeKind
+    rel: string
+    sourceId: string
+  }): Promise<{ ok: true; started: boolean } | { error: string; ok: false }>
   /** Задача 3G.7: провайдер сменил модель эмбеддингов, а индекс построен прежней
    *  (`null` — менять нечего). Только чтение: перестраивает `startIngest(true, true)`
    *  и только после согласия человека. */

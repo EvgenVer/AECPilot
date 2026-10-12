@@ -58,7 +58,9 @@ describe('isProblem / canRetry', () => {
     expect(isProblem(file('a', { index: 'stale' }))).toBe(true)
     // 3L.4: часть сканов ещё не в индексе — тоже «требует внимания».
     expect(
-      isProblem(file('a', { index: 'partial', scans: { done: 1, error: null, failed: 0, total: 3 } }))
+      isProblem(
+        file('a', { index: 'partial', scans: { done: 1, error: null, failed: 0, total: 3 } })
+      )
     ).toBe(true)
     expect(isProblem(file('a', { scans: { done: 4, error: 'x', failed: 1, total: 5 } }))).toBe(true)
     expect(

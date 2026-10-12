@@ -150,6 +150,7 @@ import {
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
 import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
 import { decideGraphMark, PROJECT_SOURCE_ID } from './graph-scope-pure'
+import { decideIndexTarget, includePlan, type IndexTarget } from './index-actions-pure'
 import { applyIngestEvent, failureOf } from './ingest-progress-pure'
 import { readFactsAnswer } from './memory-facts-pure'
 import { GRAPH_ENV_VARS, readGraphReadiness } from './graph-access-pure'
@@ -242,6 +243,7 @@ import {
   updateProjectSettings,
   getSourceStatusResult,
   getSourceTreeResult,
+  listIndexExclude,
   listProjectIndex,
   listProjectSources,
   openProject,
@@ -5132,6 +5134,60 @@ ipcMain.handle('index:project-exclude', async (_event, payload: unknown) => {
     const { runProjectExclude } = await import('./ingest-runner')
     const report = await runProjectExclude(currentProject!.vaultPath, request.rel, buildExtraEnv())
     return { files: report.files, ok: true }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
+// Задача 3L.5 (SPEC UR46): действия по документу для ЛЮБОГО файла — источника
+// или проекта. Файл проекта идёт прежним путём отметки (3K), файл источника —
+// списком `index_exclude` (3L.3). Решает чистый `index-actions-pure.ts`.
+ipcMain.handle('index:excluded-list', () =>
+  currentProject ? listIndexExclude(currentProject.vaultPath) : []
+)
+
+function indexTarget(payload: unknown): IndexTarget {
+  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  return decideIndexTarget(
+    payload,
+    listProjectSources(currentProject.vaultPath).map((source) => source.id),
+    { graph: graphState.running, ingest: ingestState.running }
+  )
+}
+
+// «Убрать из индекса»: фрагменты, векторы, граф и строки описи уходят, файл на
+// диске остаётся, и скан его больше не берёт.
+ipcMain.handle('index:exclude', async (_event, payload: unknown) => {
+  const target = indexTarget(payload)
+  if (!target.ok) return target
+  const vaultPath = currentProject!.vaultPath
+  try {
+    const { runIndexExclude, runProjectExclude } = await import('./ingest-runner')
+    if (target.project) await runProjectExclude(vaultPath, target.rel, buildExtraEnv())
+    else await runIndexExclude(vaultPath, target.place, buildExtraEnv())
+    return { ok: true }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error), ok: false }
+  }
+})
+
+// «Индексировать» — прогон на этот файл или папку. Убранный файл источника
+// сначала возвращается в список скана; файл проекта сначала отмечается.
+ipcMain.handle('index:include', async (_event, payload: unknown) => {
+  const target = indexTarget(payload)
+  if (!target.ok) return target
+  const vaultPath = currentProject!.vaultPath
+  try {
+    const { runIndexInclude, runProjectInclude } = await import('./ingest-runner')
+    if (target.project) {
+      await runProjectInclude(vaultPath, target.rel)
+    } else {
+      const plan = includePlan(target.place, listIndexExclude(vaultPath))
+      if (!plan.ok) return plan
+      if (plan.include) await runIndexInclude(vaultPath, target.place)
+    }
+    const run = await beginIngest(vaultPath, { full: false, paths: [target.place], rebuild: false })
+    return { ok: true, started: run.started }
   } catch (error: unknown) {
     return { error: error instanceof Error ? error.message : String(error), ok: false }
   }

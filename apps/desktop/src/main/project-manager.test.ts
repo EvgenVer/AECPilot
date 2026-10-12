@@ -14,6 +14,7 @@ import {
   getScanIntervalSeconds,
   getSourceStatusResult,
   getSourceTreeResult,
+  listIndexExclude,
   listProjectIndex,
   listProjectSources,
   openProject,
@@ -914,5 +915,45 @@ describe('listProjectIndex (3K.4)', () => {
 
   it('нет проекта — пустой список, а не исключение', () => {
     expect(listProjectIndex(path.join(parent, 'нет'))).toEqual([])
+  })
+})
+
+describe('listIndexExclude (3L.5)', () => {
+  let parent: string
+  let vaultPath: string
+
+  beforeEach(() => {
+    parent = makeTempDir('aecpilot-index-exclude-')
+    vaultPath = path.join(parent, 'vault')
+    generateVault({
+      vaultPath,
+      projectName: 'Объект-X',
+      agentsTemplate: AGENTS_TEMPLATE,
+      nowIso: '2026-10-12T12:00:00.000Z'
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true })
+  })
+
+  it('отдаёт места `<source>/<rel>` и пропускает мусор', () => {
+    const configPath = path.join(vaultPath, '.aecpilot', 'project.json')
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    raw.index_exclude = [
+      { source_id: 's1', path: 'КР/Сваи.pdf', added_at: 't' },
+      { source_id: 's1', path: '' },
+      { path: 'без источника' },
+      'x',
+      null
+    ]
+    fs.writeFileSync(configPath, JSON.stringify(raw))
+
+    expect(listIndexExclude(vaultPath)).toEqual(['s1/КР/Сваи.pdf'])
+  })
+
+  it('ничего не убрано или нет проекта — пустой список', () => {
+    expect(listIndexExclude(vaultPath)).toEqual([])
+    expect(listIndexExclude(path.join(parent, 'нет'))).toEqual([])
   })
 })
