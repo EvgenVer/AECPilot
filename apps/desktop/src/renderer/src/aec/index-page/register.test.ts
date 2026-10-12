@@ -48,4 +48,9 @@ describe('hasRunProblem — значок строки «Индекс» (3J.11)',
     }
     expect(hasRunProblem(ingest({ lastReport: report }), null)).toBe(true)
   })
+
+  it('остановка посреди файла — значок: его текст потерян и будет прочитан заново (D-203)', () => {
+    const interrupted = { rel_path: 'pdf/Отчёт ИГИ.pdf', source_id: 'docs' }
+    expect(hasRunProblem(ingest({ interrupted }), null)).toBe(true)
+  })
 })

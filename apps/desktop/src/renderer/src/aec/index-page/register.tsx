@@ -100,11 +100,14 @@ export function registerIndexPage(): void {
   })
 }
 
-/** The last run of either kind ended without its report, or left files failed. */
+/** The last run of either kind ended without its report, left files failed, or
+ *  was stopped in the middle of a file. */
 export function hasRunProblem(ingest: IngestState | null, graph: GraphAddState | null): boolean {
   if (ingest && !ingest.running) {
     if (ingest.failure || ingest.error) return true
     if ((ingest.lastReport?.files_failed ?? 0) > 0) return true
+    // D-203: the stop cut a file short — its text is lost until it is read again.
+    if (ingest.interrupted) return true
   }
   if (graph && !graph.running) {
     if (graph.failure || graph.error) return true
