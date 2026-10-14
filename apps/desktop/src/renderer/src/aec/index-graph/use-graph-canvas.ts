@@ -6,8 +6,59 @@
 import type Graph from 'graphology'
 import { type RefObject, useEffect, useRef } from 'react'
 import type Sigma from 'sigma'
+import type { NodeHoverDrawingFunction } from 'sigma/rendering'
 
 const DIM = '#d4d4d8'
+
+export interface ThemeColors {
+  background: string
+  text: string
+}
+
+const transparent = (color: string): boolean =>
+  !color || color === 'transparent' || /^rgba\(.*,\s*0\)$/.test(color)
+
+/** The text colour of the canvas and the first solid background around it.
+ *  sigma draws labels black and the hover box white unless told otherwise —
+ *  black on the dark theme could not be read (task 3M.1, acceptance 46.6.1). */
+export function themeColors(element: Element): ThemeColors {
+  const text = getComputedStyle(element).color || '#000'
+  for (let at: Element | null = element; at; at = at.parentElement) {
+    const background = getComputedStyle(at).backgroundColor
+    if (!transparent(background)) return { background, text }
+  }
+  return { background: '#fff', text }
+}
+
+/** sigma's hover — a box under the hovered node and its label — in the theme's
+ *  colours instead of its fixed white. */
+export function drawHover(colors: () => ThemeColors): NodeHoverDrawingFunction {
+  return (context, data, settings) => {
+    const size = settings.labelSize
+    const padding = 2
+    const { background, text } = colors()
+    context.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`
+    context.fillStyle = background
+    context.shadowBlur = 8
+    context.shadowColor = 'rgba(0, 0, 0, 0.5)'
+    context.beginPath()
+    context.arc(data.x, data.y, data.size + padding, 0, Math.PI * 2)
+    context.fill()
+    if (data.label) {
+      const width = context.measureText(data.label).width + 5
+      context.fillRect(
+        data.x + data.size,
+        data.y - size / 2 - padding,
+        width + 3,
+        size + 2 * padding
+      )
+    }
+    context.shadowBlur = 0
+    if (!data.label) return
+    context.fillStyle = text
+    context.fillText(data.label, data.x + data.size + 3, data.y + size / 3)
+  }
+}
 
 export interface CanvasHandlers {
   onClickEdge?: (edge: string) => void
@@ -66,6 +117,7 @@ export function useGraphCanvas(
     if (!graph || graph.order === 0) return
     let renderer: null | Sigma = null
     let stopLayout = (): void => {}
+    let stopTheme = (): void => {}
     let hovered: null | string = null
     let cancelled = false
     // Loaded on first open of the tab: sigma touches WebGL as it loads, and the
@@ -73,10 +125,14 @@ export function useGraphCanvas(
     void Promise.all([import('sigma'), import('d3-force')]).then(
       ([{ default: SigmaRenderer }, d3]) => {
         if (cancelled || !container.current) return
-        renderer = new SigmaRenderer(graph, container.current, {
+        const element = container.current
+        let colors = themeColors(element)
+        renderer = new SigmaRenderer(graph, element, {
+          defaultDrawNodeHover: drawHover(() => colors),
           edgeReducer: (edge, data) =>
             edgeHidden(graph, edge, hovered) ? { ...data, hidden: true } : data,
           enableEdgeEvents: true,
+          labelColor: { color: colors.text },
           labelRenderedSizeThreshold: 6,
           nodeReducer: (node, data) => nodeView(graph, node, data, queryRef.current, hovered),
           renderEdgeLabels: false
@@ -93,6 +149,13 @@ export function useGraphCanvas(
           hovered = null
           renderer?.refresh()
         })
+        // The theme is the `dark` class on <html>; switching it repaints labels.
+        const theme = new MutationObserver(() => {
+          colors = themeColors(element)
+          renderer?.setSetting('labelColor', { color: colors.text })
+        })
+        theme.observe(document.documentElement, { attributeFilter: ['class'], attributes: true })
+        stopTheme = () => theme.disconnect()
 
         const nodes = graph.mapNodes((id, attributes) => ({
           id,
@@ -125,6 +188,7 @@ export function useGraphCanvas(
     return () => {
       cancelled = true
       stopLayout()
+      stopTheme()
       renderer?.kill()
       rendererRef.current = null
     }
