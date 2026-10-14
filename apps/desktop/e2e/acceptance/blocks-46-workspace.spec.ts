@@ -32,7 +32,7 @@ function terminalTab(page: Page) {
   return page.getByText(/^(Терминал|Terminal)$/)
 }
 
-test('46.2.1 вкладки «Терминал» нет, и Ctrl+` её не открывает', async () => {
+test('55.2.1 вкладки «Терминал» нет, и Ctrl+` её не открывает', async () => {
   const page = await ui()
   await expect(page.getByRole('contentinfo')).toBeVisible()
   await expect(terminalTab(page)).toHaveCount(0)
@@ -44,7 +44,7 @@ test('46.2.1 вкладки «Терминал» нет, и Ctrl+` её не о�
   await record(test.info(), page)
 })
 
-test('46.2.2 в строке состояния нет кнопки «Терминал»', async () => {
+test('55.2.2 в строке состояния нет кнопки «Терминал»', async () => {
   const page = await ui()
   const bar = page.locator('[data-slot="statusbar"]')
   await expect(bar.locator('button:has(svg.tabler-icon-terminal-2)')).toHaveCount(0)
@@ -56,7 +56,7 @@ test('46.2.2 в строке состояния нет кнопки «Терми
   await page.keyboard.press('Escape')
 })
 
-test('46.2.3 Ctrl+K не предлагает терминал', async () => {
+test('55.2.3 Ctrl+K не предлагает терминал', async () => {
   const page = await ui()
   await page.keyboard.press('Control+k')
   const palette = page.getByRole('dialog').last()

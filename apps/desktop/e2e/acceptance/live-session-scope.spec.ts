@@ -85,7 +85,7 @@ test.afterAll(() => {
   if (projectB) rmSync(projectB, { force: true, recursive: true })
 })
 
-test('46.1.1 проект A: на его папку заведён проект ядра', async () => {
+test('55.1.1 проект A: на его папку заведён проект ядра', async () => {
   page = await mainWindow(stand.get())
   await hideFirstRunSurfaces(page)
   await openProject(stand.get(), page)
@@ -97,7 +97,7 @@ test('46.1.1 проект A: на его папку заведён проект 
     .toBe(1)
 })
 
-test('46.1.2 сеанс, начатый в A, ядро кладёт в проект A, и панель показывает только его', async () => {
+test('55.1.2 сеанс, начатый в A, ядро кладёт в проект A, и панель показывает только его', async () => {
   await turn(page, 'Ответь одним словом: готово.', { timeoutMs: 180000 })
   await expect
     .poll(async () => (await coreSessions(page, stand.get().projectDir)).length, {
@@ -115,7 +115,7 @@ test('46.1.2 сеанс, начатый в A, ядро кладёт в прое�
   await record(test.info(), page)
 })
 
-test('46.1.3 проект B: свой проект ядра, сеанса A в панели нет', async () => {
+test('55.1.3 проект B: свой проект ядра, сеанса A в панели нет', async () => {
   projectB = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-B-'))
   // Приложение открывает только папку, выбранную в диалоге (4D-11).
   await stand.get().app.evaluate(({ dialog }, dir) => {
@@ -139,7 +139,7 @@ test('46.1.3 проект B: свой проект ядра, сеанса A в �
   await record(test.info(), page)
 })
 
-test('46.1.4 сеанс B — в проекте B; снова A — тот же проект ядра, его сеанс на месте', async () => {
+test('55.1.4 сеанс B — в проекте B; снова A — тот же проект ядра, его сеанс на месте', async () => {
   await turn(page, 'Ответь одним словом: принято.', { timeoutMs: 180000 })
   await expect
     .poll(async () => (await coreSessions(page, projectB)).length, {

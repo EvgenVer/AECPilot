@@ -79,7 +79,9 @@ export function testedPositions() {
   for (const name of fs.readdirSync(SPEC_DIR)) {
     if (!name.endsWith(".spec.ts")) continue;
     const body = fs.readFileSync(path.join(SPEC_DIR, name), "utf-8");
-    for (const match of body.matchAll(/^\s*test\(\s*(['"`])(\d+(?:\.\d+)*)\b/gm)) {
+    // `test.fail` — тоже тест позиции: он идёт и держит известный дефект донора
+    // до подъёма пина (44.2.1). `test.fixme` не идёт вовсе — не считается.
+    for (const match of body.matchAll(/^\s*test(?:\.fail)?\(\s*(['"`])(\d+(?:\.\d+)*)\b/gm)) {
       const id = match[2];
       if (!found.has(id)) found.set(id, []);
       found.get(id).push(name);
