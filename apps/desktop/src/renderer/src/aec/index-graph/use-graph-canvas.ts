@@ -118,6 +118,7 @@ export function useGraphCanvas(
     let renderer: null | Sigma = null
     let stopLayout = (): void => {}
     let stopTheme = (): void => {}
+    let stopResize = (): void => {}
     let hovered: null | string = null
     let cancelled = false
     // Loaded on first open of the tab: sigma touches WebGL as it loads, and the
@@ -128,6 +129,9 @@ export function useGraphCanvas(
         const element = container.current
         let colors = themeColors(element)
         renderer = new SigmaRenderer(graph, element, {
+          // A collapsed panel leaves the box zero-sized for a moment; sigma
+          // would throw instead of waiting for it to come back.
+          allowInvalidContainer: true,
           defaultDrawNodeHover: drawHover(() => colors),
           edgeReducer: (edge, data) =>
             edgeHidden(graph, edge, hovered) ? { ...data, hidden: true } : data,
@@ -156,6 +160,15 @@ export function useGraphCanvas(
         })
         theme.observe(document.documentElement, { attributeFilter: ['class'], attributes: true })
         stopTheme = () => theme.disconnect()
+        // sigma follows the window, not its box: a side panel or «Связаны через»
+        // narrowed the box and the drawing stayed as wide as before, running out
+        // of it (task 3M.2, acceptance 46.6.4).
+        const size = new ResizeObserver(() => {
+          renderer?.resize()
+          renderer?.refresh()
+        })
+        size.observe(element)
+        stopResize = () => size.disconnect()
 
         const nodes = graph.mapNodes((id, attributes) => ({
           id,
@@ -189,6 +202,7 @@ export function useGraphCanvas(
       cancelled = true
       stopLayout()
       stopTheme()
+      stopResize()
       renderer?.kill()
       rendererRef.current = null
     }

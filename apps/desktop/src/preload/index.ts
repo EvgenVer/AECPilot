@@ -74,6 +74,12 @@ const api: AecpilotApi = {
     return () => ipcRenderer.removeListener('hud:changed', listener)
   },
   openAppWindow: () => ipcRenderer.invoke('window:open'),
+  setWindowFullScreen: (on) => ipcRenderer.invoke('window:set-fullscreen', on),
+  onWindowFullScreenLeft: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('window:fullscreen-left', listener)
+    return () => ipcRenderer.removeListener('window:fullscreen-left', listener)
+  },
   claimAmbientCue: (key) => ipcRenderer.invoke('ambient:claim', key),
   contextMenuEdit: (command) => ipcRenderer.invoke('context-menu:edit', command),
   contextMenuCopyImage: () => ipcRenderer.invoke('context-menu:copy-image'),

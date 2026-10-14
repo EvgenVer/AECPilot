@@ -4396,6 +4396,25 @@ ipcMain.handle('window:open', () => {
   return { ok: true }
 })
 
+// Задача 3M.3 (решение владельца 2026-10-14). «На весь экран» у графа — полный
+// экран Windows. Включает его ОКНО по просьбе страницы, а не сама страница:
+// разрешение `fullscreen` для страницы (политика 3.7a) остаётся закрытым. Выход
+// любым путём — кнопкой, Esc или средствами ОС — окно сообщает странице, чтобы
+// та сняла свой слой.
+const fullScreenWatched = new WeakSet<BrowserWindow>()
+ipcMain.handle('window:set-fullscreen', (event, on: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return false
+  if (!fullScreenWatched.has(win)) {
+    fullScreenWatched.add(win)
+    win.on('leave-full-screen', () => {
+      if (!win.isDestroyed()) win.webContents.send('window:fullscreen-left')
+    })
+  }
+  win.setFullScreen(on === true)
+  return true
+})
+
 // Окно одной сессии: открыть или, если оно уже есть, показать.
 ipcMain.handle('window:open-session', (_event, payload: unknown) => {
   const { sessionId, watch } = (payload ?? {}) as { sessionId?: unknown; watch?: unknown }

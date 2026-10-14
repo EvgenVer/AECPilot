@@ -9,7 +9,7 @@
 // and searched by name, and the area goes full screen.
 
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
@@ -28,10 +28,18 @@ export function IndexGraph(): React.JSX.Element {
   const t = useAecT()
   const [view, setView] = useState<View>('documents')
   const [query, setQuery] = useState('')
-  // «На весь экран» — слой поверх всего окна, а не полноэкранный режим ОС:
-  // разрешение `fullscreen` политика 3.7a держит закрытым намеренно
-  // (`media-permission-pure.ts`), а окно приложения и есть экран человека.
+  // «На весь экран» — слой графа поверх всего окна, а окно — во весь монитор
+  // (задача 3M.3, решение владельца 2026-10-14). Окно разворачивает главный
+  // процесс: разрешение `fullscreen` для страницы политика 3.7a держит
+  // закрытым намеренно (`media-permission-pure.ts`).
   const [full, setFull] = useState(false)
+  useEffect(() => window.aecpilot.onWindowFullScreenLeft(() => setFull(false)), [])
+  useEffect(() => {
+    if (!full) return
+    void window.aecpilot.setWindowFullScreen(true)
+    // Выход любым путём, и уход со вкладки тоже, возвращает окно.
+    return () => void window.aecpilot.setWindowFullScreen(false)
+  }, [full])
 
   return (
     <div

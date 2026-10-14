@@ -1298,6 +1298,11 @@ export interface AecpilotApi {
   setHudSession(sessionId: null | string): void
   onHudChanged(cb: (state: { open: boolean; sessionId: null | string }) => void): () => void
   openAppWindow(): Promise<{ ok: boolean; error?: string }>
+  /** Задача 3M.3: полный экран Windows для этого окна («На весь экран» графа).
+   *  Включает окно главный процесс — разрешение `fullscreen` странице не даётся. */
+  setWindowFullScreen(on: boolean): Promise<boolean>
+  /** Окно вышло из полного экрана — кнопкой, Esc или средствами ОС. */
+  onWindowFullScreenLeft(cb: () => void): () => void
   /** Занять разовую подсказку — звук конца хода, чтение ответа вслух (задача
    * 3.14). Отвечает `true` первому окну и `false` остальным: событие ядра одно,
    * и подсказка на него должна быть одна, сколько бы окон ни было открыто. */

@@ -16,6 +16,15 @@ const kill = vi.fn()
 const refresh = vi.fn()
 let drawnOrder = -1
 
+// jsdom has no ResizeObserver (the canvas follows its box, 3M.2).
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe(): void {}
+    disconnect(): void {}
+  }
+)
+
 vi.mock('sigma', () => ({
   default: class {
     constructor(graph: { order: number }) {
@@ -33,6 +42,8 @@ const { IndexGraph } = await import('./IndexGraph')
 
 const exportGraph = vi.fn()
 const exportDocumentMap = vi.fn()
+const setWindowFullScreen = vi.fn()
+let leftFullScreen: () => void = () => {}
 
 const KR = '297-2024-КР Расчёт.pdf'
 const IGI = 'ИГИ/297-1-ИГИ отчёт.pdf'
@@ -133,7 +144,13 @@ beforeEach(() => {
     exportGraph,
     // «Перестроить граф» (3L.7) читает состояние графового прогона.
     getGraphAddState: () => Promise.resolve({ running: false }),
-    onGraphAddState: () => () => {}
+    onGraphAddState: () => () => {},
+    // «На весь экран» (3M.3) — полный экран окна просит главный процесс.
+    onWindowFullScreenLeft: (cb: () => void) => {
+      leftFullScreen = cb
+      return () => {}
+    },
+    setWindowFullScreen
   } as unknown as typeof window.aecpilot
 })
 
@@ -251,7 +268,7 @@ describe('карта документов (3L.9)', () => {
     expect(screen.getByRole('button', { name: '297-2024-КР Расчёт.pdf, с. 2' })).toBeTruthy()
   })
 
-  it('поиск перерисовывает граф; «на весь экран» — слой на всё окно, Esc возвращает', async () => {
+  it('поиск перерисовывает граф; «на весь экран» — окно во весь экран, Esc возвращает', async () => {
     renderTab()
     await waitFor(() => expect(drawnOrder).toBe(2))
     refresh.mockClear()
@@ -264,8 +281,20 @@ describe('карта документов (3L.9)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'На весь экран' }))
     const layer = screen.getByRole('dialog', { name: 'Граф на всё окно' })
     expect(layer.className).toContain('fixed')
+    expect(setWindowFullScreen).toHaveBeenLastCalledWith(true)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Граф на всё окно' })).toBeNull()
+    expect(setWindowFullScreen).toHaveBeenLastCalledWith(false)
     expect(screen.getByRole('button', { name: 'На весь экран' })).toBeTruthy()
+  })
+
+  it('окно вышло из полного экрана средствами ОС — слой графа снимается (3M.3)', async () => {
+    renderTab()
+    await waitFor(() => expect(drawnOrder).toBe(2))
+    fireEvent.click(screen.getByRole('button', { name: 'На весь экран' }))
+    expect(screen.getByRole('dialog', { name: 'Граф на всё окно' })).toBeTruthy()
+
+    act(() => leftFullScreen())
+    expect(screen.queryByRole('dialog', { name: 'Граф на всё окно' })).toBeNull()
   })
 })
