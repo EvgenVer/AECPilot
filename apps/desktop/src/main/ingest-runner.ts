@@ -15,6 +15,7 @@ import {
   type IngestProgress,
   type IngestReport,
   interruptedFile,
+  oneShotFailure,
   readIngestLines,
   RunFailedError,
   watchSilence
@@ -320,13 +321,20 @@ export function runOneShot<T>(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8')
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag ${command} завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        // Задача 3M.6: человеку — причина, журнал целиком — в журнал приложения.
+        console.error(`aec-rag ${command} (код ${code}):\n${stderr}`)
+        reject(
+          new Error(
+            `aec-rag ${command} завершился с ошибкой (код ${code}): ${oneShotFailure(stdout, stderr)}`
+          )
+        )
         return
       }
       try {
-        resolve(JSON.parse(Buffer.concat(stdoutChunks).toString('utf8')) as T)
+        resolve(JSON.parse(stdout) as T)
       } catch (error: unknown) {
         reject(
           new Error(

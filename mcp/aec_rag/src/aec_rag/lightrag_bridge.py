@@ -247,7 +247,7 @@ async def insert_document(
     registry = registry_of(rag)
     content = registry.register(chunks, document_content(source_id, rel_path, chunks))
     try:
-        existing = await rag.adelete_by_doc_id(doc_id)
+        existing = await _delete_by_doc_id(rag, doc_id)
         if existing.status not in ("success", "not_found"):
             raise BridgeError(
                 f"не удалось заменить документ {doc_id} в индексе: {existing.message}"
@@ -264,6 +264,45 @@ async def insert_document(
 
     await _verify_stored(rag, doc_id, keys)
     return keys
+
+
+# Purge phases past which the document's graph and vector contributions are
+# already gone (LightRAG ``constants.KG_PURGE_PHASE_*``).
+_PURGED_PHASES = frozenset({"derived_committed", "anchors_pending", "completed"})
+
+
+async def _stale_purge_journal(rag: LightRAG, doc_id: str) -> bool:
+    """Is the document stuck behind a purge journal that can never resume?
+
+    Found on the owner's index (task 3M.6, acceptance 46.4.2): a deletion got
+    past ``derived_committed`` — graph, vectors and chunks gone — and then the
+    document's ``chunks_list`` was emptied while the journal stayed. LightRAG
+    names a purge by its chunk set, so every later deletion is «a different
+    operation» and is refused, forever: «Убрать из индекса» and re-indexing of
+    that file failed every time. With no chunks left there is nothing for the
+    old purge to resume, which is what makes retiring the journal safe — and
+    only then.
+    """
+    record = await rag.doc_status.get_by_id(doc_id)
+    if not record:
+        return False
+    metadata = _record_field(record, "metadata") or {}
+    journal = metadata.get("kg_purge") if isinstance(metadata, dict) else None
+    if not isinstance(journal, dict) or journal.get("phase") not in _PURGED_PHASES:
+        return False
+    return not (_record_field(record, "chunks_list") or [])
+
+
+async def _delete_by_doc_id(rag: LightRAG, doc_id: str):
+    """``adelete_by_doc_id``, past a stale purge journal (see above)."""
+    result = await rag.adelete_by_doc_id(doc_id)
+    if result.status in ("success", "not_found") or not await _stale_purge_journal(rag, doc_id):
+        return result
+    # LightRAG's own retirement of a purge journal (1.5.6); the pin of the
+    # library is what keeps a private name usable here, and the test of this
+    # path is what notices when it moves.
+    await rag._clear_kg_purge_journal(doc_id)
+    return await rag.adelete_by_doc_id(doc_id)
 
 
 def _record_field(record: Any, name: str, default: Any = None) -> Any:
@@ -330,7 +369,7 @@ async def _verify_stored(rag: LightRAG, doc_id: str, keys: Sequence[str]) -> Non
 
 async def delete_document(rag: LightRAG, doc_id: str) -> bool:
     """Remove a document from the index. ``False`` if it was not there."""
-    result = await rag.adelete_by_doc_id(doc_id)
+    result = await _delete_by_doc_id(rag, doc_id)
     if result.status == "not_found":
         return False
     if result.status != "success":

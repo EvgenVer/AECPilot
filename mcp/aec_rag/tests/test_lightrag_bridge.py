@@ -478,3 +478,66 @@ async def test_a_document_left_processing_by_a_stop_is_extracted_again(tmp_path)
     assert calls == 1
     status = (await again.doc_status.get_by_id(doc_id))["status"]
     assert str(status).lower().rsplit(".", 1)[-1] == "processed"
+
+
+@pytest.mark.anyio
+async def test_a_document_stuck_behind_a_stale_purge_journal_is_still_removed(tmp_path):
+    """Task 3M.6 (acceptance 46.4.2), measured on a copy of the owner's index:
+    a purge got past ``derived_committed`` and the document's chunk list was
+    emptied while the journal stayed. LightRAG refused every later deletion as
+    «a different operation» — «Убрать из индекса» failed on that file every time.
+    """
+    from aec_rag.lightrag_bridge import delete_document, document_id
+
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault)
+    entries = indexed([Chunk(text="Лекции по физике, том первый.", locator={"page": 1})])
+    await insert_document(rag, source_id="tasks", rel_path="лекции.pdf", chunks=entries)
+    doc_id = document_id("tasks", "лекции.pdf")
+    record = await rag.doc_status.get_by_id(doc_id)
+    journal = {
+        "schema_version": 1,
+        "operation_id": "purge-0000000000000000000000000000dead",
+        "phase": "derived_committed",
+        "chunk_count": 641,
+        "updated_at": 1791795328,
+    }
+    stuck = {
+        **record,
+        "status": "failed",
+        "chunks_list": [],
+        "chunks_count": 0,
+        "metadata": {**(record.get("metadata") or {}), "kg_purge": journal},
+    }
+    await rag.doc_status.upsert({doc_id: stuck})
+    refused = await rag.adelete_by_doc_id(doc_id)
+    assert refused.status != "success"
+
+    assert await delete_document(rag, doc_id) is True
+    assert await rag.doc_status.get_by_id(doc_id) is None
+
+
+@pytest.mark.anyio
+async def test_a_purge_journal_with_chunks_left_is_not_retired(tmp_path):
+    """The other side of 3M.6: a journal is retired only when nothing is left
+    for its purge to resume. With chunks still listed the refusal stands."""
+    from aec_rag.lightrag_bridge import delete_document, document_id
+
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault)
+    entries = indexed([Chunk(text="Том второй.", locator={"page": 1})])
+    await insert_document(rag, source_id="tasks", rel_path="лекции.pdf", chunks=entries)
+    doc_id = document_id("tasks", "лекции.pdf")
+    record = await rag.doc_status.get_by_id(doc_id)
+    journal = {
+        "schema_version": 1,
+        "operation_id": "purge-0000000000000000000000000000beef",
+        "phase": "derived_committed",
+        "chunk_count": 1,
+        "updated_at": 1791795328,
+    }
+    metadata = {**(record.get("metadata") or {}), "kg_purge": journal}
+    await rag.doc_status.upsert({doc_id: {**record, "metadata": metadata}})
+
+    with pytest.raises(BridgeError):
+        await delete_document(rag, doc_id)

@@ -88,6 +88,23 @@ export function readFatal(record: Record<string, unknown>): RunFailure | undefin
   return { code, detail: typeof detail === 'string' ? detail : '' }
 }
 
+/** Task 3M.6 (acceptance 46.4.2): what a person reads when a short `aec-rag`
+ *  command fails. The window showed the whole stderr — a page of LightRAG's
+ *  INFO log with the reason below the fold. The `fatal` line names it; failing
+ *  that, the last stderr line that is not a log record. */
+export function oneShotFailure(stdout: string, stderr: string): string {
+  const fatal = readJsonLines(`${stdout}\n`)
+    .records.map(readFatal)
+    .filter((failure): failure is RunFailure => Boolean(failure?.detail))
+    .at(-1)
+  if (fatal) return fatal.detail
+  const lines = stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  return lines.findLast((line) => !/^(DEBUG|INFO|WARNING)\b/.test(line)) ?? lines.at(-1) ?? ''
+}
+
 /** Task 3J.11: a run that ended without its report, carrying the reason as a
  *  code. The message stays the raw text — logs and the tooltip read it. */
 export class RunFailedError extends Error {

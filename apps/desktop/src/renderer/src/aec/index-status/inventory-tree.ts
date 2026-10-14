@@ -96,7 +96,9 @@ export function buildInventoryTree(
   }
 
   for (const root of roots) sortTree(root)
-  return roots
+  // Задача 3M.6 (приёмка 46.4.2): источник, из которого убраны все файлы,
+  // висел пустым корнем «файлов: 0». Пустой корень ничего не говорит об индексе.
+  return roots.filter((root) => root.files > 0)
 }
 
 function sortTree(folder: InventoryFolder): void {

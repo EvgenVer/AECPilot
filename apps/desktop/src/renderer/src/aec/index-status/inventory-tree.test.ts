@@ -50,6 +50,14 @@ describe('buildInventoryTree (3J.10)', () => {
     expect(roots).toHaveLength(1)
     expect(roots[0].files).toBe(4)
   })
+
+  it('источник без единого файла в описи не показан (3M.6)', () => {
+    const roots = buildInventoryTree(files, [
+      { id: 'empty', name: '1' },
+      { id: 's', name: 'Расчеты' }
+    ])
+    expect(roots.map((root) => root.name)).toEqual(['Расчеты'])
+  })
 })
 
 describe('isProblem / canRetry', () => {

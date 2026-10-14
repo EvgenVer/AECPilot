@@ -8,6 +8,7 @@ import {
   failureOf,
   type IngestProgress,
   interruptedFile,
+  oneShotFailure,
   readIngestLines,
   RunFailedError,
   watchSilence
@@ -218,5 +219,26 @@ describe('fatal и failureOf (3J.7, 3J.11)', () => {
       code: 'silent',
       detail: 'молчал'
     })
+  })
+})
+
+describe('oneShotFailure — причина вместо журнала (3M.6, приёмка 46.4.2)', () => {
+  const log = [
+    'INFO: [aec-71ebae2ab55f7df3] Loaded graph from C:\\vault\\graph.graphml with 476 nodes',
+    "INFO:nano-vectordb:Init {'embedding_dim': 3072}",
+    'WARNING: No chunks found for document doc-1'
+  ].join('\n')
+
+  it('строка fatal — её причина, а не страница INFO', () => {
+    const stdout = '{"fatal": {"code": "index_failed", "detail": "документ не удалился"}}'
+    expect(oneShotFailure(stdout, `${log}\naec-rag: BridgeError: документ не удалился`)).toBe(
+      'документ не удалился'
+    )
+  })
+
+  it('без fatal — последняя строка, которая не запись журнала', () => {
+    expect(oneShotFailure('', `${log}\naec-rag: project.json not found\nINFO: done`)).toBe(
+      'aec-rag: project.json not found'
+    )
   })
 })
