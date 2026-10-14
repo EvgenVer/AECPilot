@@ -127,6 +127,8 @@ async function ui(): Promise<Page> {
 }
 
 async function openGraphTab(page: Page): Promise<void> {
+  const sessionsTab = page.getByRole('tab', { name: 'Сеансы' })
+  if ((await sessionsTab.getAttribute('aria-selected')) !== 'true') await sessionsTab.click()
   await page
     .locator('[data-tour="sessions-sidebar"]')
     .getByRole('button', { name: /^Индекс/ })
@@ -206,15 +208,52 @@ test('3L.9 вкладка «Граф» открывается картой до�
   await page.getByRole('searchbox', { name: 'Поиск по имени' }).fill('ИГИ')
   await record(test.info(), page)
 
+  // 3M.2 (приёмка 46.6.4): рамка сузилась без смены окна — как при открытии
+  // боковой панели или «Связаны через»; рисунок обязан уместиться в неё.
+  const canvasBox = page.locator('[data-testid="index-graph-canvas"]')
+  await canvasBox.evaluate((element) => {
+    ;(element as HTMLElement).style.maxWidth = '320px'
+  })
+  await expect
+    .poll(() =>
+      canvasBox.evaluate((element) =>
+        Math.max(
+          ...[...element.querySelectorAll('canvas')].map(
+            (canvas) => canvas.getBoundingClientRect().width
+          )
+        )
+      )
+    )
+    .toBeLessThanOrEqual(322)
+  await canvasBox.evaluate((element) => {
+    ;(element as HTMLElement).style.maxWidth = ''
+  })
+
+  // 3M.1 (приёмка 46.6.1): в тёмной теме подписи — светлые, цветом текста темы.
+  const wasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+  await page.evaluate(() => document.documentElement.classList.add('dark'))
+  const text = await canvasBox.evaluate((element) => getComputedStyle(element).color)
+  const [r, g, b] = (text.match(/\d+/g) ?? ['0', '0', '0']).map(Number)
+  expect(0.299 * r + 0.587 * g + 0.114 * b, text).toBeGreaterThan(150)
+  await page.getByRole('searchbox', { name: 'Поиск по имени' }).fill('')
+  await record(test.info(), page)
+
+  // 3M.3 (решение владельца 2026-10-14): полный экран Windows — его включает окно.
+  const fullScreen = (): Promise<boolean> =>
+    stand
+      .get()
+      .app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((win) => win.isFullScreen())
+      )
   await page.getByRole('button', { name: 'На весь экран' }).click()
-  // Слой на всё окно (полноэкранный режим ОС закрыт политикой разрешений 3.7a).
   const layer = page.getByRole('dialog', { name: 'Граф на всё окно' })
   await expect(layer).toBeVisible()
-  const box = await layer.boundingBox()
-  const viewport = await page.evaluate(() => [window.innerWidth, window.innerHeight])
-  expect([Math.round(box?.width ?? 0), Math.round(box?.height ?? 0)]).toEqual(viewport)
+  await expect.poll(fullScreen, { timeout: 10000 }).toBe(true)
+  await record(test.info(), page)
   await page.keyboard.press('Escape')
   await expect(layer).toBeHidden()
+  await expect.poll(fullScreen, { timeout: 10000 }).toBe(false)
+  if (!wasDark) await page.evaluate(() => document.documentElement.classList.remove('dark'))
 
   await page.getByRole('button', { name: 'Сущности' }).click()
   await expect(page.getByRole('img', { name: 'Граф знаний' })).toBeVisible({ timeout: 30000 })
@@ -257,6 +296,17 @@ test('3L.6 дерево источников: значки, «Убрать из 
   await expect(row.getByRole('img', { name: 'убран из индекса' })).toBeVisible({ timeout: 30000 })
   await record(test.info(), page)
 
+  // 45.6.1 (3M.7): после «Убрать из индекса» фильтр по документам на вкладке
+  // «Граф» принимает щелчок — окно вопроса не оставило страницу глухой.
+  await openGraphTab(page)
+  await page.getByRole('button', { name: 'Сущности' }).click()
+  const filter = page.getByRole('combobox', { name: /Документ/ })
+  await expect(filter).toBeVisible({ timeout: 30000 })
+  await filter.click({ trial: true })
+  expect(await page.evaluate(() => getComputedStyle(document.body).pointerEvents)).not.toBe('none')
+  await page.getByRole('button', { name: 'Документы' }).click()
+
+  await openSourceTree(page)
   await button.click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Индексировать' }).click()
   await expect

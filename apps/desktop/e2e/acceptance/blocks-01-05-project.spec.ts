@@ -29,6 +29,7 @@ import {
   mainWindow,
   standFixture
 } from '../lib/app'
+import { record } from '../lib/evidence'
 import { makeSampleVault, SAMPLE, type SampleVault } from '../lib/vault'
 
 // Последовательно и с остановкой на первом падении. Иначе Playwright после
@@ -469,7 +470,9 @@ test('3.2.1 перед удалением спрашивают подтверж�
   await row(page, victim)
     .getByRole('button', { name: /^(Delete|Удалить)$/ })
     .click()
-  expect(await answerConfirm(page, /^(Cancel|Отмена)$/)).toMatch(/Удалить эту запись|Delete this entry/)
+  expect(await answerConfirm(page, /^(Cancel|Отмена)$/)).toMatch(
+    /Удалить эту запись|Delete this entry/
+  )
   // Отказ — файл на месте.
   expect(existsSync(join(stand.get().projectDir, victim))).toBe(true)
 })
@@ -846,6 +849,38 @@ test('4.7.2 страница «Индекс» на ходу: стадия, ст�
   await page.evaluate(() => {
     location.hash = '#/'
   })
+})
+
+test('44.2.1 строка «Индекс»: остановка посреди файла — «требует внимания» со значком (3M.7)', async () => {
+  const page = await ui()
+  const send = (state: unknown): Promise<void> =>
+    stand.get().app.evaluate(({ BrowserWindow }, next) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('index:ingest-state', next)
+      }
+    }, state)
+  const idle = {
+    error: null,
+    failure: null,
+    files: [],
+    interrupted: null,
+    lastReport: null,
+    progress: null,
+    running: false,
+    stopping: false
+  }
+  const nav = page.locator('[data-tour="sessions-sidebar"]')
+
+  await page.getByRole('tab', { name: 'Сеансы' }).click()
+  await send({ ...idle, interrupted: { rel_path: 'pdf/Отчёт ИГИ.pdf', source_id: 'tasks' } })
+  const row = nav.getByRole('button', { name: /^Индекс · требует внимания/ })
+  await expect(row).toBeVisible()
+  await expect(row.locator('.codicon-warning')).toHaveCount(1)
+  await record(test.info(), page)
+
+  await send(idle)
+  await expect(nav.getByRole('button', { name: /^Индекс$/ })).toBeVisible()
+  await page.getByRole('tab', { name: /^Vault/ }).click()
 })
 
 // ── Блок 5. Детект изменений ────────────────────────────────────────────────
