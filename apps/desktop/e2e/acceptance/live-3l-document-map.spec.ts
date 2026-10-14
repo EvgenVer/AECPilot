@@ -6,7 +6,7 @@
 // Граф строится по двум маленьким документам — вызов модели на фрагмент стоит
 // денег, поэтому только они.
 
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -346,4 +346,25 @@ test('3L.6 дерево источников: значки, «Убрать из 
   await expect(fileRow(page, IGI).row.getByRole('img', { name: 'В индексе' })).toBeVisible({
     timeout: 60000
   })
+})
+
+// D-208: их колонка «Файлы» видна, только когда у сеанса есть рабочая папка
+// (`$hasWorkspace`), — её отдаёт живое ядро, у мока она пуста.
+test('D-208 правая панель — дерево файлов проекта, а не «Недоступно»', async () => {
+  const page = await ui()
+  const panel = page.getByRole('complementary', { name: 'Правая боковая панель' })
+  // Панель монтируется, когда окно простаивает (`idle(...)`), — щёлкнуть
+  // переключатель раньше значит свернуть уже открытую.
+  const shown = await panel
+    .waitFor({ timeout: 10000 })
+    .then(() => true)
+    .catch(() => false)
+  if (!shown) await page.locator('[data-tour="right-pane-toggle"]').click()
+  await expect(panel).toBeVisible({ timeout: 15000 })
+  const folder = readdirSync(stand.get().projectDir, { withFileTypes: true }).find(
+    (entry) => entry.isDirectory() && !entry.name.startsWith('.')
+  )!.name
+  await expect(panel.getByText(folder, { exact: true })).toBeVisible({ timeout: 15000 })
+  await expect(panel.getByText('Недоступно')).toHaveCount(0)
+  await record(test.info(), page)
 })

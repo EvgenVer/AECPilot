@@ -1173,6 +1173,12 @@ export interface AecpilotApi {
       }
     | { ok: false; error: string }
   >
+  /** Содержимое папки для их дерева файлов проекта в правой панели (D-208):
+   * правило то же, что у `readPreviewText`. Как у донора — шумные папки
+   * скрыты, сначала папки, затем файлы по имени; отказ — полем `error`. */
+  readPreviewDir(
+    path: string
+  ): Promise<{ entries: { isDirectory: boolean; name: string; path: string }[]; error?: string }>
   /** Снимок гостя предпросмотра PNG как data-URL (задача 3.B4, SPEC UR4:
    * их аннотации на предпросмотре). `rect` — CSS-пиксели viewport'а гостя,
    * `viewport` — его размер в тех же единицах; без `rect` — видимая область

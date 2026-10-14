@@ -8,6 +8,38 @@
 // (`preview-watch-pure.ts`): файл внутри открытого проекта либо выбранный
 // человеком в нашем диалоге. Здесь — только разбор байтов, без диска.
 
+/** D-208: их дерево файлов проекта в правой панели читает папку `readDir`.
+ *  Шум, который их главный процесс не показывает никогда
+ *  (`electron/fs-read-dir.ts`, `FS_READDIR_HIDDEN`). */
+const DIR_HIDDEN = new Set([
+  '.git',
+  '.hg',
+  '.svn',
+  '.cache',
+  '.next',
+  '.turbo',
+  '.venv',
+  '__pycache__',
+  'build',
+  'dist',
+  'node_modules',
+  'target',
+  'venv'
+])
+
+export interface DirEntry {
+  isDirectory: boolean
+  name: string
+  path: string
+}
+
+/** Как у них: без шума, сначала папки, внутри групп — по имени. */
+export function visibleDirEntries(entries: DirEntry[]): DirEntry[] {
+  return entries
+    .filter((entry) => !DIR_HIDDEN.has(entry.name))
+    .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
+}
+
 /** Их предел превью: больше — показывается начало и признак `truncated`, а
  *  редактор такой файл не открывает (сохранение потеряло бы хвост). */
 export const PREVIEW_TEXT_MAX_BYTES = 512 * 1024

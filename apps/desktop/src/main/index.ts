@@ -264,7 +264,12 @@ import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picke
 import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
 import { decideOpenPreviewExternal } from './preview-external-pure'
 import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
-import { decodePreviewText, PREVIEW_TEXT_MAX_BYTES } from './preview-read-pure'
+import {
+  decodePreviewText,
+  type DirEntry,
+  PREVIEW_TEXT_MAX_BYTES,
+  visibleDirEntries
+} from './preview-read-pure'
 import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
 import { cropCapture } from './preview-capture-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
@@ -1961,6 +1966,41 @@ ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
       ok: false,
       error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
     }
+  }
+})
+
+// D-208: папка для ИХ дерева файлов проекта в правой панели (`readDir`).
+// Правило то же, что у `preview:read-text`; отказ — полем `error`, как у их
+// главного процесса (`electron/fs-read-dir.ts`): дерево показывает его в узле.
+ipcMain.handle('preview:read-dir', async (_event, value: unknown) => {
+  if (filesAreRemote()) return { entries: [], error: FILES_LIVE_ON_CORE_MACHINE }
+
+  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  if (!decided.ok) return { entries: [], error: decided.error }
+
+  try {
+    const realPath = await fs.promises.realpath(decided.absPath)
+    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+      return { entries: [], error: WATCH_OUTSIDE_ERROR }
+    }
+
+    const dirents = await fs.promises.readdir(realPath, { withFileTypes: true })
+    const entries: DirEntry[] = await Promise.all(
+      dirents.map(async (dirent) => {
+        const fullPath = join(realPath, dirent.name)
+        let isDirectory = dirent.isDirectory()
+        if (dirent.isSymbolicLink()) {
+          isDirectory = await fs.promises
+            .stat(fullPath)
+            .then((info) => info.isDirectory())
+            .catch(() => false)
+        }
+        return { isDirectory, name: dirent.name, path: fullPath }
+      })
+    )
+    return { entries: visibleDirEntries(entries) }
+  } catch (error: unknown) {
+    return { entries: [], error: (error as NodeJS.ErrnoException).code ?? 'read-error' }
   }
 })
 

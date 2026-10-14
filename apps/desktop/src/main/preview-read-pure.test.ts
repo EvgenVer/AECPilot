@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest'
 
-import { decodePreviewText } from './preview-read-pure'
+import { decodePreviewText, visibleDirEntries } from './preview-read-pure'
+
+describe('visibleDirEntries (D-208, как их `fs-read-dir.ts`)', () => {
+  const entry = (name: string, isDirectory: boolean) => ({ isDirectory, name, path: `/p/${name}` })
+
+  it('сначала папки, внутри групп — по имени', () => {
+    const out = visibleDirEntries([
+      entry('б.md', false),
+      entry('Расчётки', true),
+      entry('а.md', false),
+      entry('ИД', true)
+    ])
+    expect(out.map((item) => item.name)).toEqual(['ИД', 'Расчётки', 'а.md', 'б.md'])
+  })
+
+  it('шум не показывается — и папкой, и файлом с тем же именем', () => {
+    const out = visibleDirEntries([
+      entry('.git', true),
+      entry('node_modules', true),
+      entry('dist', false),
+      entry('КР', true)
+    ])
+    expect(out.map((item) => item.name)).toEqual(['КР'])
+  })
+})
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 

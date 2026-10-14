@@ -32,6 +32,7 @@ const api: AecpilotApi = {
   stopPreviewWatch: (id) => ipcRenderer.invoke('preview:stop-watch', id),
   writePreviewText: (path, content) => ipcRenderer.invoke('preview:write-text', { content, path }),
   readPreviewText: (path) => ipcRenderer.invoke('preview:read-text', path),
+  readPreviewDir: (path) => ipcRenderer.invoke('preview:read-dir', path),
   capturePreview: (payload) => ipcRenderer.invoke('preview:capture', payload),
   readMemoryNotes: () => ipcRenderer.invoke('memory:read-notes'),
   writeMemoryNote: (target, content) =>
