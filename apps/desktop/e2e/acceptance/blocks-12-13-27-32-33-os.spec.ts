@@ -551,10 +551,16 @@ let focusEmulation: CDPSession | undefined
 
 async function minimizeMain(): Promise<void> {
   const page = await ui()
+  // Windows не всегда снимает активность со свёрнутого окна: 14.10 страница
+  // свёрнутого окна два прогона из двух видела `hasFocus() === true`
+  // (27.2.1, 27.4.1), 12.10 — один из двух. Человек, свернувший окно, ушёл в
+  // другое — `blur()` делает это явно.
   await stand.get().app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()
-      .find((candidate) => !candidate.webContents.getURL().includes('win='))
-      ?.minimize()
+    const win = BrowserWindow.getAllWindows().find(
+      (candidate) => !candidate.webContents.getURL().includes('win=')
+    )
+    win?.minimize()
+    win?.blur()
   })
   await expect.poll(async () => (await mainInfo())?.minimized).toBe(true)
   focusEmulation ??= await page.context().newCDPSession(page)
