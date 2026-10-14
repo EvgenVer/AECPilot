@@ -117,11 +117,20 @@ function projectJson(): { graph_scope?: unknown } {
   return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as { graph_scope?: unknown }) : {}
 }
 
-async function indexPopover(page: Page): Promise<Locator> {
+/** Раздел «Граф знаний» страницы «Индекс» (с 3H страница, а не всплывающее
+ *  окно): открыть её значком строки состояния — проводник слева остаётся. */
+async function indexGraphScope(page: Page): Promise<Locator> {
   await page.locator('button[title="Индекс"]').first().click()
-  const popover = page.locator('[data-radix-popper-content-wrapper]').filter({ hasText: 'Граф знаний' }).last()
-  await expect(popover).toBeVisible({ timeout: 15000 })
-  return popover
+  const region = page.getByRole('region', { name: 'Индекс', exact: true })
+  await expect(region).toBeVisible({ timeout: 15000 })
+  const overview = region.getByRole('tab', { name: 'Обзор' })
+  if ((await overview.getAttribute('aria-selected')) !== 'true') await overview.click()
+  const scope = region
+    .locator('div.border-t')
+    .filter({ has: page.getByText('Граф знаний', { exact: true }) })
+    .last()
+  await expect(scope).toBeVisible({ timeout: 15000 })
+  return scope
 }
 
 test('40.1.1 на источнике в меню есть «Добавить в граф знаний»', async () => {
@@ -166,10 +175,9 @@ test('40.3.1 после «Закрыть» ничего не запустило�
   await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click()
   await expect(dialog).toBeHidden()
   await page.waitForTimeout(3000)
-  const popover = await indexPopover(page)
-  await expect(popover).not.toContainText(/строю граф/i)
-  await expect(popover).toContainText(/Пуст\./)
-  await page.keyboard.press('Escape')
+  const scope = await indexGraphScope(page)
+  await expect(scope).not.toContainText(/строю граф/i)
+  await expect(scope).toContainText(/Пуст\./)
 })
 
 test('40.3.2 в project.json раздела graph_scope с этой папкой нет', async () => {
@@ -204,20 +212,9 @@ test('40.4.1 после «Добавить» видно «Строю граф: N
 
 test('40.4.2 по завершении граф вырос, отмеченная папка — в списке «что входит»', async () => {
   const page = await ui()
-  await expect
-    .poll(
-      async () => {
-        const popover = await indexPopover(page)
-        const text = await popover.innerText()
-        await page.keyboard.press('Escape')
-        return text
-      },
-      { timeout: 600000, intervals: [10000], message: 'граф построен' }
-    )
-    .toMatch(/[1-9]\d* документ\(ов\), \d+ фрагмент/)
-  const popover = await indexPopover(page)
-  await expect(popover.locator('li').filter({ hasText: FOLDER })).toHaveCount(1)
-  await page.keyboard.press('Escape')
+  const scope = await indexGraphScope(page)
+  await expect(scope).toContainText(/[1-9]\d* документ\(ов\), \d+ фрагмент/, { timeout: 600000 })
+  await expect(scope.locator('li').filter({ hasText: FOLDER })).toHaveCount(1)
   expect(JSON.stringify(projectJson().graph_scope ?? null)).toContain(FOLDER)
 })
 
@@ -232,8 +229,7 @@ test('40.5.1 файл внутри отмеченной папки — доба�
 
 test('40.5.2 второй записи на тот же файл в «что входит» не появилось', async () => {
   const page = await ui()
-  const popover = await indexPopover(page)
-  await expect(popover.locator('li').filter({ hasText: FOLDER })).toHaveCount(1)
-  await expect(popover.locator('li').filter({ hasText: 'смета.csv' })).toHaveCount(0)
-  await page.keyboard.press('Escape')
+  const scope = await indexGraphScope(page)
+  await expect(scope.locator('li').filter({ hasText: FOLDER })).toHaveCount(1)
+  await expect(scope.locator('li').filter({ hasText: 'смета.csv' })).toHaveCount(0)
 })
