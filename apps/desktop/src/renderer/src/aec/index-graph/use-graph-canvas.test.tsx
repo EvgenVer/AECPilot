@@ -76,6 +76,19 @@ describe('цвета графа по теме (3M.1)', () => {
     })
   })
 
+  it('под «стеклом» фон вокруг прозрачный — берётся фон темы `bg-background`, а не белый (47.1.2)', () => {
+    const style = document.createElement('style')
+    style.textContent = '.bg-background { background-color: rgb(13, 17, 23); }'
+    document.head.append(style)
+    const canvas = canvasIn('transparent', 'rgb(230, 237, 243)')
+    expect(themeColors(canvas)).toEqual({
+      background: 'rgb(13, 17, 23)',
+      text: 'rgb(230, 237, 243)'
+    })
+    expect(canvas.querySelector('.bg-background')).toBeNull()
+    style.remove()
+  })
+
   it('плашка наведения — фоном темы, подпись — её текстом, а не белым и чёрным', () => {
     const fills: string[] = []
     const context = {

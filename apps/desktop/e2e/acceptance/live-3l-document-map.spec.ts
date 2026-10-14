@@ -230,11 +230,40 @@ test('3L.9 вкладка «Граф» открывается картой до�
   })
 
   // 3M.1 (приёмка 46.6.1): в тёмной теме подписи — светлые, цветом текста темы.
-  const wasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
-  await page.evaluate(() => document.documentElement.classList.add('dark'))
+  // Тема — как у человека: их `applyTheme` ставит и класс `dark`, и палитру
+  // инлайн-стилем на <html>; один класс оставил бы фон темы светлым.
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.hermesMode))
+    .toBe('dark')
   const text = await canvasBox.evaluate((element) => getComputedStyle(element).color)
   const [r, g, b] = (text.match(/\d+/g) ?? ['0', '0', '0']).map(Number)
   expect(0.299 * r + 0.587 * g + 0.114 * b, text).toBeGreaterThan(150)
+  // Приёмка 47.1.2: найденный поиском документ подсвечен рамкой — sigma рисует
+  // её на своём холсте `sigma-hovers`. Её заливка (самый частый непрозрачный
+  // цвет) в тёмной теме тёмная, а не белая.
+  await expect
+    .poll(
+      () =>
+        canvasBox.evaluate((element) => {
+          const canvas = element.querySelector<HTMLCanvasElement>('canvas.sigma-hovers')
+          const context = canvas?.getContext('2d')
+          if (!canvas || !context) return 999
+          const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+          const counts = new Map<number, number>()
+          for (let at = 0; at < data.length; at += 4) {
+            if (data[at + 3] < 250) continue
+            const key = (data[at] << 16) | (data[at + 1] << 8) | data[at + 2]
+            counts.set(key, (counts.get(key) ?? 0) + 1)
+          }
+          const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+          if (!top) return 999
+          const [red, green, blue] = [top[0] >> 16, (top[0] >> 8) & 255, top[0] & 255]
+          return Math.round(0.299 * red + 0.587 * green + 0.114 * blue)
+        }),
+      { message: 'заливка рамки подсвеченного документа', timeout: 10000 }
+    )
+    .toBeLessThan(100)
   await page.getByRole('searchbox', { name: 'Поиск по имени' }).fill('')
   await record(test.info(), page)
 
@@ -253,7 +282,7 @@ test('3L.9 вкладка «Граф» открывается картой до�
   await page.keyboard.press('Escape')
   await expect(layer).toBeHidden()
   await expect.poll(fullScreen, { timeout: 10000 }).toBe(false)
-  if (!wasDark) await page.evaluate(() => document.documentElement.classList.remove('dark'))
+  await page.emulateMedia({ colorScheme: 'light' })
 
   await page.getByRole('button', { name: 'Сущности' }).click()
   await expect(page.getByRole('img', { name: 'Граф знаний' })).toBeVisible({ timeout: 30000 })

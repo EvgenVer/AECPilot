@@ -20,14 +20,24 @@ const transparent = (color: string): boolean =>
 
 /** The text colour of the canvas and the first solid background around it.
  *  sigma draws labels black and the hover box white unless told otherwise —
- *  black on the dark theme could not be read (task 3M.1, acceptance 46.6.1). */
+ *  black on the dark theme could not be read (task 3M.1, acceptance 46.6.1).
+ *
+ *  With their «glass» on — the default — every surface up to `<html>` is
+ *  transparent and the window material shows through; the hover box then fell
+ *  back to white under light text (acceptance 47.1.2). Their `bg-background`
+ *  stays the theme's solid colour under glass, so that is the fallback. */
 export function themeColors(element: Element): ThemeColors {
   const text = getComputedStyle(element).color || '#000'
   for (let at: Element | null = element; at; at = at.parentElement) {
     const background = getComputedStyle(at).backgroundColor
     if (!transparent(background)) return { background, text }
   }
-  return { background: '#fff', text }
+  const probe = document.createElement('span')
+  probe.className = 'bg-background'
+  element.append(probe)
+  const background = getComputedStyle(probe).backgroundColor
+  probe.remove()
+  return { background: transparent(background) ? '#fff' : background, text }
 }
 
 /** sigma's hover — a box under the hovered node and its label — in the theme's
