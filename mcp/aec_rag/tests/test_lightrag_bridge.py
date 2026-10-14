@@ -440,3 +440,41 @@ async def test_a_forced_re_insert_extracts_the_graph_again(tmp_path):
         force=True,
     )
     assert calls == 1
+
+
+@pytest.mark.anyio
+async def test_a_document_left_processing_by_a_stop_is_extracted_again(tmp_path):
+    """Task 3M.5: «Остановить построение» kills the process mid-document, and
+    LightRAG keeps that document as ``processing``. The next run, in a new
+    process, must extract it again rather than take it for done."""
+    from aec_rag.lightrag_bridge import document_id
+    from rag_stubs import extracting_llm
+
+    vault = make_vault(tmp_path)
+    rag = await open_stub_index(vault, llm_func=extracting_llm([]))
+    entries = indexed([Chunk(text="Балка Б-1 из стали С345.", locator={"page": 1})])
+    await insert_document(
+        rag, source_id="tasks", rel_path="задание.pdf", chunks=entries, build_graph=True
+    )
+    doc_id = document_id("tasks", "задание.pdf")
+    record = await rag.doc_status.get_by_id(doc_id)
+    await rag.doc_status.upsert({doc_id: {**record, "status": "processing"}})
+    await rag.doc_status.index_done_callback()
+
+    again = await open_stub_index(vault, llm_func=extracting_llm([]))
+    calls = 0
+    original = again.apipeline_enqueue_documents
+
+    async def counting(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    again.apipeline_enqueue_documents = counting
+    await insert_document(
+        again, source_id="tasks", rel_path="задание.pdf", chunks=entries, build_graph=True
+    )
+
+    assert calls == 1
+    status = (await again.doc_status.get_by_id(doc_id))["status"]
+    assert str(status).lower().rsplit(".", 1)[-1] == "processed"

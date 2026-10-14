@@ -11,6 +11,7 @@ import { RebuildGraph } from './RebuildGraph'
 
 const previewGraphRebuild = vi.fn()
 const startGraphRebuild = vi.fn()
+const stopGraphRun = vi.fn()
 let emit: (state: GraphAddState) => void = () => {}
 
 const IDLE: GraphAddState = {
@@ -42,7 +43,8 @@ beforeEach(() => {
       return () => {}
     },
     previewGraphRebuild,
-    startGraphRebuild
+    startGraphRebuild,
+    stopGraphRun
   } as unknown as typeof window.aecpilot
 })
 
@@ -104,6 +106,34 @@ describe('RebuildGraph (3L.7)', () => {
     const report = { chunks: 120, documents_added: 4, errors: [], failed: 0 } as never
     act(() => emit({ ...IDLE, lastReport: report }))
     expect(screen.getByText(/Готово: добавлено 4 документ/)).toBeTruthy()
+  })
+
+  it('во время прогона «Перестроить» недоступна, «Остановить построение» — рядом (3M.5)', async () => {
+    renderButton()
+    const inside = { chunk: 3, chunks: 9, done: 0, entities: 5, stage: 'extracting', total: 2 }
+    act(() => emit({ ...IDLE, progress: inside as never, running: true }))
+
+    expect(
+      (screen.getByRole('button', { name: 'Перестроить граф' }) as HTMLButtonElement).disabled
+    ).toBe(true)
+    const stop = screen.getByRole('button', { name: 'Остановить построение' })
+    expect(stop.getAttribute('title')).toMatch(/начатый будет построен заново/)
+    fireEvent.click(stop)
+    expect(stopGraphRun).toHaveBeenCalledTimes(1)
+
+    act(() => emit({ ...IDLE, progress: inside as never, running: true, stopping: true }))
+    expect(
+      (screen.getByRole('button', { name: 'Останавливаю…' }) as HTMLButtonElement).disabled
+    ).toBe(true)
+
+    const stopped = { done: 0, interrupted: 'ИГИ/297-1-ИГИ.pdf', total: 2 }
+    act(() => emit({ ...IDLE, stopped }))
+    expect(
+      screen.getByText(
+        'Построение графа остановлено: готово 0 из 2. «297-1-ИГИ.pdf» будет построен заново при следующем запуске.'
+      )
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Перестроить граф' })).toBeTruthy()
   })
 
   it('ничего не отмечено — перестраивать нечего, кнопки согласия нет', async () => {

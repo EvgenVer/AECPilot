@@ -5217,6 +5217,9 @@ let graphState: GraphAddState = {
   running: false
 }
 
+// Задача 3M.5: остановка идущего прогона графа.
+let graphAbort: AbortController | null = null
+
 function publishGraphState(next: Partial<GraphAddState>): void {
   graphState = { ...graphState, ...next }
   for (const win of BrowserWindow.getAllWindows()) {
@@ -5259,6 +5262,14 @@ ipcMain.handle('graph:rebuild-preview', async () => {
 })
 
 ipcMain.handle('graph:add-state', () => graphState)
+
+// Задача 3M.5 (решение владельца 2026-10-14): «Остановить построение» — сразу.
+ipcMain.handle('graph:stop', () => {
+  if (!graphState.running || !graphAbort) return { stopping: false }
+  publishGraphState({ stopping: true })
+  graphAbort.abort()
+  return { stopping: true }
+})
 
 // Задача 3J.14: граф для вкладки «Граф». Путь документа собирает main, как и у
 // отметки, — окно путей не строит. `{ view: 'documents' }` — карта документов (3L.9).
@@ -5318,8 +5329,12 @@ async function startGraphRun(
     failure: null,
     path,
     progress: null,
-    running: true
+    running: true,
+    stopped: null,
+    stopping: false
   })
+  const abort = new AbortController()
+  graphAbort = abort
 
   void runGraphAdd(
     vaultPath,
@@ -5329,7 +5344,9 @@ async function startGraphRun(
       if (currentProject?.vaultPath !== vaultPath) return
       publishGraphState({ progress })
     },
-    buildExtraEnv()
+    buildExtraEnv(),
+    undefined,
+    abort.signal
   )
     .then((report) => {
       if (currentProject?.vaultPath !== vaultPath) {
@@ -5339,13 +5356,35 @@ async function startGraphRun(
       publishGraphState({ lastReport: report, path: null, progress: null, running: false })
     })
     .catch((error: unknown) => {
+      const failure = failureOf(error)
+      if (failure.code === 'stopped') {
+        const last = graphState.progress
+        // Итог прежнего прогона здесь — чужой: окна показали бы его как этот.
+        publishGraphState({
+          lastReport: null,
+          path: null,
+          progress: null,
+          running: false,
+          stopped: {
+            done: last?.done ?? 0,
+            interrupted: last?.stage === 'extracting' ? last.rel_path : null,
+            total: last?.total ?? 0
+          },
+          stopping: false
+        })
+        return
+      }
       publishGraphState({
         error: error instanceof Error ? error.message : String(error),
-        failure: failureOf(error),
+        failure,
         path: null,
         progress: null,
-        running: false
+        running: false,
+        stopping: false
       })
+    })
+    .finally(() => {
+      if (graphAbort === abort) graphAbort = null
     })
 
   return { started: true }

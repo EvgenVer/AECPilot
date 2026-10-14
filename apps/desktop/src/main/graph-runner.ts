@@ -121,7 +121,8 @@ export function runGraphAdd(
   kind: GraphScopeKind,
   onProgress: (progress: IngestProgressEvent) => void,
   extraEnv: Record<string, string> = {},
-  silenceMs = DEFAULT_GRAPH_SILENCE_MS
+  silenceMs = DEFAULT_GRAPH_SILENCE_MS,
+  signal?: AbortSignal
 ): Promise<GraphRunReport> {
   return new Promise((resolve, reject) => {
     const proc = spawn(aecRagBinPath(), args('graph-add', vaultPath, path, kind), {
@@ -150,6 +151,20 @@ export function runGraphAdd(
         )
       )
     })
+
+    // Задача 3M.5 (решение владельца 2026-10-14): «Остановить построение» —
+    // сразу. Лаунчер `aec-rag.exe` уносит с собой свой python (замер 2026-10-07
+    // у индексации). Готовые документы LightRAG уже записал; начатый остаётся у
+    // него «в обработке», и следующий прогон извлекает его заново.
+    const stop = (): void => {
+      if (settled) return
+      settled = true
+      silence.stop()
+      proc.kill()
+      reject(new RunFailedError('stopped', 'Построение графа остановлено'))
+    }
+    if (signal?.aborted) stop()
+    else signal?.addEventListener('abort', stop, { once: true })
 
     proc.stdout.on('data', (chunk: Buffer) => {
       silence.poke()

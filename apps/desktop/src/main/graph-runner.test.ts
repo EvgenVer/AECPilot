@@ -62,6 +62,30 @@ describe('runGraphAdd — сторож тишины и причины кодом
   })
 })
 
+describe('«Остановить построение» (3M.5)', () => {
+  beforeEach(() => {
+    proc = new FakeProc()
+  })
+
+  it('сразу: процесс убит, прогон кончается кодом stopped, а не ошибкой выхода', async () => {
+    const controller = new AbortController()
+    const run = runGraphAdd(
+      'D:/vault',
+      'tasks',
+      'folder',
+      () => undefined,
+      {},
+      60_000,
+      controller.signal
+    )
+    controller.abort()
+
+    expect(proc.kill).toHaveBeenCalledTimes(1)
+    proc.emit('close', 1)
+    expect(await failureOf(run)).toBe('stopped')
+  })
+})
+
 describe('runGraphExport (3J.14)', () => {
   beforeEach(() => {
     proc = new FakeProc()

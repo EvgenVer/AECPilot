@@ -3,7 +3,19 @@
 // hour; inside a document `aec-rag` now reports each chunk and the entities
 // extracted so far.
 
-import type { IngestProgressEvent } from '../../../../shared/ipc'
+import type { GraphRunStopped, IngestProgressEvent } from '../../../../shared/ipc'
+
+/** A run the person stopped (task 3M.5): what is done, and which document
+ *  will be built again. */
+export function graphStoppedText(
+  t: (key: string, ...args: unknown[]) => string,
+  stopped: GraphRunStopped
+): string {
+  const done = t('graphAdd.stopped', stopped.done, stopped.total)
+  if (!stopped.interrupted) return done
+  const name = stopped.interrupted.split('/').pop() ?? stopped.interrupted
+  return `${done} ${t('graphAdd.stoppedDocument', name)}`
+}
 
 export function graphRunText(
   t: (key: string, ...args: unknown[]) => string,

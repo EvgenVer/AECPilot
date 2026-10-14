@@ -178,6 +178,7 @@ export const aecLocales: PluginLocaleBundles = {
           'Every marked document is extracted again, with the structural-design (КР) entity types — the ones already in the graph too.',
         rebuildNothing: 'Nothing to rebuild: nothing is marked for the graph.',
         rebuildConfirm: 'Rebuild',
+        rebuildBusy: 'The graph is being built — rebuild after this run',
         view: 'View',
         viewDocuments: 'Documents',
         viewEntities: 'Entities',
@@ -339,6 +340,13 @@ export const aecLocales: PluginLocaleBundles = {
         'The estimate covers everything waiting in folders already marked — the run adds those too.',
       confirm: 'Add',
       running: (done: number, total: number) => `Building the graph: ${done} of ${total}`,
+      stop: 'Stop building',
+      stopHint:
+        'Stops right away. Documents already built stay in the graph; the one in progress is built again next time.',
+      stopping: 'Stopping…',
+      stopped: (done: number, total: number) =>
+        `Building the graph was stopped: ${done} of ${total} done.`,
+      stoppedDocument: (name: string) => `«${name}» will be built again next time.`,
       runningChunk: (
         document: number,
         documents: number,
@@ -943,6 +951,7 @@ export const aecLocales: PluginLocaleBundles = {
           'Все отмеченные документы извлекаются заново, с типами сущностей под КР — и те, что уже в графе.',
         rebuildNothing: 'Перестраивать нечего: в граф ничего не отмечено.',
         rebuildConfirm: 'Перестроить',
+        rebuildBusy: 'Граф сейчас строится — перестроить можно после этого прогона',
         view: 'Вид',
         viewDocuments: 'Документы',
         viewEntities: 'Сущности',
@@ -1102,6 +1111,13 @@ export const aecLocales: PluginLocaleBundles = {
       pendingNote: 'В оценку входит всё, что ждёт в уже отмеченных папках: прогон добавит и это.',
       confirm: 'Добавить',
       running: (done: number, total: number) => `Строю граф: ${done} из ${total}`,
+      stop: 'Остановить построение',
+      stopHint:
+        'Останавливает сразу. Готовые документы остаются в графе, начатый будет построен заново при следующем запуске.',
+      stopping: 'Останавливаю…',
+      stopped: (done: number, total: number) =>
+        `Построение графа остановлено: готово ${done} из ${total}.`,
+      stoppedDocument: (name: string) => `«${name}» будет построен заново при следующем запуске.`,
       runningChunk: (
         document: number,
         documents: number,

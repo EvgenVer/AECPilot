@@ -11,7 +11,8 @@ import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { GraphAddState, GraphPreview } from '../../../../shared/ipc'
 import { forecastVerdict } from '../explorer/GraphAddDialog'
-import { graphRunText } from './graph-run-text'
+import { graphRunText, graphStoppedText } from './graph-run-text'
+import { StopGraphRun } from './StopGraphRun'
 
 type Step =
   | { kind: 'idle' }
@@ -50,8 +51,18 @@ export function RebuildGraph(): React.JSX.Element {
     setStep(answer.started ? { kind: 'mine' } : { error: answer.error ?? '', kind: 'failed' })
   }
 
+  // Задача 3M.5 (приёмка 46.7.1): во время прогона кнопка не пропадает, а
+  // недоступна, и рядом — ход и «Остановить построение».
   if (run?.running) {
-    return <div className="text-muted-foreground text-xs">{graphRunText(t, run.progress)}</div>
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Button disabled size="sm" title={t('index.graph.rebuildBusy')} variant="outline">
+          {t('index.graph.rebuild')}
+        </Button>
+        <span className="text-muted-foreground">{graphRunText(t, run.progress)}</span>
+        <StopGraphRun stopping={run.stopping === true} />
+      </div>
+    )
   }
 
   if (step.kind === 'mine' && run?.lastReport) {
@@ -116,6 +127,9 @@ export function RebuildGraph(): React.JSX.Element {
       )}
       {step.kind === 'failed' && (
         <span className="text-destructive">{t('graphAdd.failed', step.error)}</span>
+      )}
+      {step.kind === 'idle' && run?.stopped && (
+        <span className="text-muted-foreground">{graphStoppedText(t, run.stopped)}</span>
       )}
     </div>
   )

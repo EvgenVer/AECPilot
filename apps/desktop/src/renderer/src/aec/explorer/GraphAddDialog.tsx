@@ -22,7 +22,8 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import { CloseOnEscape } from '../CloseOnEscape'
-import { graphRunText } from '../index-graph/graph-run-text'
+import { graphRunText, graphStoppedText } from '../index-graph/graph-run-text'
+import { StopGraphRun } from '../index-graph/StopGraphRun'
 import type { GraphAddState } from '../../../../shared/ipc'
 
 import { $graphTarget, closeGraphAdd } from './graph-add-store'
@@ -159,8 +160,15 @@ function Body({
       <div className="flex flex-col gap-1 text-xs">
         <span className="text-(--ui-text-primary)">{graphRunText(t, run.progress)}</span>
         <span className="text-(--ui-text-secondary)">{t('graphAdd.runningHint')}</span>
+        <div>
+          <StopGraphRun stopping={run.stopping === true} />
+        </div>
       </div>
     )
+  }
+
+  if (mine && run.stopped) {
+    return <p className="text-xs text-(--ui-text-primary)">{graphStoppedText(t, run.stopped)}</p>
   }
 
   if (mine && run.lastReport) {

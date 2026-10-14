@@ -804,6 +804,15 @@ export interface DataProvidersState {
 /** Состояние графового прогона. Отдельное от `IngestState` нарочно: уровень 1
  *  бесплатен, уровень 2 стоит вызова модели на каждый фрагмент, и один
  *  индикатор на оба скрыл бы, за что именно идут деньги. */
+/** Задача 3M.5: прогон графа остановлен человеком. `interrupted` — документ,
+ *  который строился в этот миг: LightRAG пишет документ целиком, и он будет
+ *  построен заново при следующем запуске. */
+export interface GraphRunStopped {
+  done: number
+  interrupted: null | string
+  total: number
+}
+
 export interface GraphAddState {
   error: null | string
   /** Task 3J.11: the same failure as `error`, as a code. */
@@ -814,6 +823,10 @@ export interface GraphAddState {
   path: null | string
   progress: IngestProgressEvent | null
   running: boolean
+  /** Задача 3M.5: остановка попрошена, процесс ещё не вышел. */
+  stopping?: boolean
+  /** Задача 3M.5: последний прогон остановлен человеком — не ошибка. */
+  stopped?: GraphRunStopped | null
 }
 
 /** Один факт памяти проекта (слой 2). Форма ЗАМЕРЕНА на живом хранилище
@@ -1624,6 +1637,8 @@ export interface AecpilotApi {
   /** «Перестроить граф» после согласия: новых отметок нет, всё под ними
    *  извлекается заново. Ход — через `onGraphAddState`. */
   startGraphRebuild(): Promise<{ error?: string; started: boolean }>
+  /** Задача 3M.5: «Остановить построение» — сразу; готовое остаётся в графе. */
+  stopGraphRun(): Promise<{ stopping: boolean }>
   /** Чего не хватает доступу к Microsoft Graph (задача 3E.9а). Только чтение:
    *  учётные данные пишутся через `saveProviderKey` — наше шифрованное
    *  хранилище, — а три из четырёх мест живут в профиле ядра. */
