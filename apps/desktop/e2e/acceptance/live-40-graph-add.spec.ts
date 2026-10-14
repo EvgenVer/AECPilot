@@ -184,7 +184,8 @@ test('40.4.1 после «Добавить» видно «Строю граф: N
     w.__graphSeen = []
     new MutationObserver(() => {
       const text = document.body.innerText
-      const match = text.match(/[Сс]трою граф: \d+ из \d+/)
+      // 3M.4: внутри документа — «Строю граф: документ N из M · фрагмент …».
+      const match = text.match(/[Сс]трою граф: (документ )?\d+ из \d+/)
       if (match) w.__graphSeen?.push(match[0])
     }).observe(document.body, { characterData: true, childList: true, subtree: true })
   })
