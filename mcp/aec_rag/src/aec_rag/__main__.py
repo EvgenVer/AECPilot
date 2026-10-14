@@ -412,8 +412,22 @@ def run_graph_add(project_arg: Path, paths: list[str], kind: str, *, rebuild: bo
                     )
                 )
 
+            def chunk(done: int, total: int, file, index: int, chunks: int, entities: int) -> None:
+                # Inside one document (task 3M.4): «документ N из M · фрагмент i
+                # из K · извлечено сущностей S». ``done`` counts finished ones.
+                progress = Progress(
+                    stage="extracting",
+                    done=done - 1,
+                    total=total,
+                    source_id=file.source_id,
+                    rel_path=file.rel_path,
+                    chunks=chunks,
+                ).as_dict()
+                line = {"progress": {**progress, "chunk": index, "entities": entities}}
+                print(json.dumps(line, ensure_ascii=False), flush=True)
+
             report = await add_documents_to_graph(
-                conn, rag, pending, on_progress=note, force=rebuild
+                conn, rag, pending, on_progress=note, on_chunk=chunk, force=rebuild
             )
             return {**report, "forecast": forecast}
         finally:

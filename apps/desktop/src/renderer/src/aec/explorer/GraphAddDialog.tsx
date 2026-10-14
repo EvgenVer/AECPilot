@@ -22,6 +22,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import { CloseOnEscape } from '../CloseOnEscape'
+import { graphRunText } from '../index-graph/graph-run-text'
 import type { GraphAddState } from '../../../../shared/ipc'
 
 import { $graphTarget, closeGraphAdd } from './graph-add-store'
@@ -156,9 +157,7 @@ function Body({
   if (run.running) {
     return (
       <div className="flex flex-col gap-1 text-xs">
-        <span className="text-(--ui-text-primary)">
-          {t('graphAdd.running', run.progress?.done ?? 0, run.progress?.total ?? 0)}
-        </span>
+        <span className="text-(--ui-text-primary)">{graphRunText(t, run.progress)}</span>
         <span className="text-(--ui-text-secondary)">{t('graphAdd.runningHint')}</span>
       </div>
     )

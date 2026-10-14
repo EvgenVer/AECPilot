@@ -710,3 +710,43 @@ async def test_every_file_announces_its_start_before_its_end(project):
         ("reading", "б.pdf", 1),
         ("file", "б.pdf", 2),
     ]
+
+
+@pytest.mark.anyio
+async def test_the_graph_reports_each_chunk_of_a_document(project, monkeypatch, caplog):
+    """3M.4: inside one large document the run said nothing for a quarter of an
+    hour. LightRAG's line per chunk becomes progress; any other line is ignored,
+    and the listener leaves with the document."""
+    import logging
+
+    import aec_rag.lightrag_bridge as bridge
+    from aec_rag.graph_scope import add_documents_to_graph
+
+    vault, source, conn = project
+    sha = add_scanned(conn, source, "задание.pdf")
+    rag = await open_stub_index(vault)
+    await ingest(conn, rag, {"tasks": str(source)}, parser=fake_parser)
+    caplog.set_level(logging.INFO, logger="lightrag")
+    lightrag_log = logging.getLogger("lightrag")
+
+    async def extracting(*args, **kwargs):
+        lightrag_log.info("Chunk 1 of 2 extracted 3 Ent + 1 Rel chunk-a")
+        lightrag_log.info("Merging stage 1/2: задание.pdf")
+        lightrag_log.info("Chunk 2 of 2 extracted 4 Ent + 2 Rel chunk-b")
+
+    monkeypatch.setattr(bridge, "insert_document", extracting)
+    seen: list[tuple] = []
+    before = list(lightrag_log.handlers)
+
+    report = await add_documents_to_graph(
+        conn,
+        rag,
+        [PendingFile("tasks", "задание.pdf", sha)],
+        on_chunk=lambda done, total, file, chunk, chunks, entities: seen.append(
+            (done, total, file.rel_path, chunk, chunks, entities)
+        ),
+    )
+
+    assert report["documents_added"] == 1
+    assert seen == [(1, 1, "задание.pdf", 1, 2, 3), (1, 1, "задание.pdf", 2, 2, 7)]
+    assert lightrag_log.handlers == before

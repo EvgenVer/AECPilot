@@ -23,7 +23,9 @@ confirm rather than being billed for silently.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -33,6 +35,32 @@ from typing import Any
 from aec_rag.parse import SUPPORTED_SUFFIXES
 from aec_rag.project_config import ProjectConfigError
 from aec_rag.store import PendingFile, live_files
+
+# LightRAG says this for every chunk it extracts (``operate.py``, 1.5.6):
+# «Chunk 3 of 495 extracted 12 Ent + 9 Rel chunk-…».
+_CHUNK_LINE = re.compile(r"^Chunk (\d+) of (\d+) extracted (\d+) Ent ")
+
+
+class _ChunkProgress(logging.Handler):
+    """The work inside one document, read off LightRAG's own log (task 3M.4).
+
+    A document of 495 chunks took a quarter of an hour with the progress stuck
+    at «0 из 1» (acceptance 46.7.2). The log line is the only place that work is
+    visible. It is not a contract: a line that does not match is ignored, and
+    the progress simply stays per document.
+    """
+
+    def __init__(self, report) -> None:
+        super().__init__()
+        self.report = report
+        self.entities = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        match = _CHUNK_LINE.match(record.getMessage())
+        if match is None:
+            return
+        self.entities += int(match.group(3))
+        self.report(int(match.group(1)), int(match.group(2)), self.entities)
 
 
 @dataclass(frozen=True)
@@ -297,6 +325,7 @@ async def add_documents_to_graph(
     files: list[PendingFile],
     *,
     on_progress=None,
+    on_chunk=None,
     force: bool = False,
 ) -> dict[str, Any]:
     """Tier 2: extract entities and relations from documents already indexed.
@@ -308,6 +337,11 @@ async def add_documents_to_graph(
     said about something that was not.
 
     ``force`` extracts a document the graph already holds again (task 3L.7).
+
+    ``on_chunk(done, total, file, chunk, chunks, entities)`` reports each chunk
+    of the document being extracted — ``done`` is its number among ``files``,
+    ``entities`` how many were extracted from it so far, before LightRAG merges
+    the repeats (task 3M.4).
     """
     from aec_rag.errors import GRAPH_FAILED, NOT_INDEXED, classify
     from aec_rag.lightrag_bridge import IndexedChunk, insert_document
@@ -333,6 +367,14 @@ async def add_documents_to_graph(
                 conn, file.source_id, file.rel_path, file.sha256, "graph", NOT_INDEXED, detail
             )
             continue
+        watcher = None
+        if on_chunk is not None:
+            watcher = _ChunkProgress(
+                lambda chunk, chunks, entities, done=done, file=file: on_chunk(
+                    done, len(files), file, chunk, chunks, entities
+                )
+            )
+            logging.getLogger("lightrag").addHandler(watcher)
         try:
             await insert_document(
                 rag,
@@ -356,6 +398,9 @@ async def add_documents_to_graph(
                 conn, file.source_id, file.rel_path, file.sha256, "graph", code, detail
             )
             continue
+        finally:
+            if watcher is not None:
+                logging.getLogger("lightrag").removeHandler(watcher)
 
         mark_in_graph(conn, file.source_id, file.rel_path, file.sha256, len(stored))
         clear_file_error(conn, file.source_id, file.rel_path, "graph")

@@ -339,6 +339,14 @@ export const aecLocales: PluginLocaleBundles = {
         'The estimate covers everything waiting in folders already marked — the run adds those too.',
       confirm: 'Add',
       running: (done: number, total: number) => `Building the graph: ${done} of ${total}`,
+      runningChunk: (
+        document: number,
+        documents: number,
+        chunk: number,
+        chunks: number,
+        entities: number
+      ) =>
+        `Building the graph: document ${document} of ${documents} · chunk ${chunk} of ${chunks} · entities extracted: ${entities}`,
       runningHint:
         'You can close this window — the run continues, and its progress stays in the index indicator.',
       done: (documents: number, chunks: number) =>
@@ -1094,6 +1102,14 @@ export const aecLocales: PluginLocaleBundles = {
       pendingNote: 'В оценку входит всё, что ждёт в уже отмеченных папках: прогон добавит и это.',
       confirm: 'Добавить',
       running: (done: number, total: number) => `Строю граф: ${done} из ${total}`,
+      runningChunk: (
+        document: number,
+        documents: number,
+        chunk: number,
+        chunks: number,
+        entities: number
+      ) =>
+        `Строю граф: документ ${document} из ${documents} · фрагмент ${chunk} из ${chunks} · извлечено сущностей: ${entities}`,
       runningHint: 'Окно можно закрыть — прогон продолжится, его ход виден в индикаторе индекса.',
       done: (documents: number, chunks: number) =>
         `Готово: добавлено ${documents} документ(ов), ${chunks} фрагмент(ов).`,

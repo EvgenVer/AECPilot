@@ -11,6 +11,7 @@ import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type { GraphAddState, GraphPreview } from '../../../../shared/ipc'
 import { forecastVerdict } from '../explorer/GraphAddDialog'
+import { graphRunText } from './graph-run-text'
 
 type Step =
   | { kind: 'idle' }
@@ -50,11 +51,7 @@ export function RebuildGraph(): React.JSX.Element {
   }
 
   if (run?.running) {
-    return (
-      <div className="text-muted-foreground text-xs">
-        {t('graphAdd.running', run.progress?.done ?? 0, run.progress?.total ?? 0)}
-      </div>
-    )
+    return <div className="text-muted-foreground text-xs">{graphRunText(t, run.progress)}</div>
   }
 
   if (step.kind === 'mine' && run?.lastReport) {

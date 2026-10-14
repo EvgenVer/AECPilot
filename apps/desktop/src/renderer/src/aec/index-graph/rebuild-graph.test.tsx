@@ -85,6 +85,22 @@ describe('RebuildGraph (3L.7)', () => {
     act(() => emit({ ...IDLE, progress: { done: 1, total: 4 } as never, running: true }))
     expect(screen.getByText('Строю граф: 1 из 4')).toBeTruthy()
 
+    // 3M.4: внутри документа — по фрагментам; документ второй, первый готов.
+    const inside = {
+      chunk: 120,
+      chunks: 495,
+      done: 1,
+      entities: 840,
+      stage: 'extracting',
+      total: 4
+    }
+    act(() => emit({ ...IDLE, progress: inside as never, running: true }))
+    expect(
+      screen.getByText(
+        'Строю граф: документ 2 из 4 · фрагмент 120 из 495 · извлечено сущностей: 840'
+      )
+    ).toBeTruthy()
+
     const report = { chunks: 120, documents_added: 4, errors: [], failed: 0 } as never
     act(() => emit({ ...IDLE, lastReport: report }))
     expect(screen.getByText(/Готово: добавлено 4 документ/)).toBeTruthy()

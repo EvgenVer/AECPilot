@@ -114,6 +114,14 @@ describe('readGraphLines', () => {
     expect(result.report?.forecast.chunks_estimate).toBe(12)
   })
 
+  it('ход внутри документа доезжает с фрагментом и сущностями (3M.4)', () => {
+    const inside =
+      '{"progress":{"stage":"extracting","done":0,"total":1,"source_id":"tasks","rel_path":"ИГИ.pdf","chunks":495,"error":"","phase":"text","page":0,"pages":0,"code":"","chunk":12,"entities":40}}'
+    const [event] = readGraphLines(`${inside}\n`).progress
+
+    expect(event).toMatchObject({ chunk: 12, chunks: 495, entities: 40, stage: 'extracting' })
+  })
+
   it('не принимает отчёт ingest за свой', () => {
     // Обе команды печатают поток одной формы, и спутать итоги значило бы
     // сказать «граф построен» там, где прошла бесплатная индексация.

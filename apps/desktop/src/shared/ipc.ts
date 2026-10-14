@@ -514,10 +514,16 @@ export interface RagStatus {
  * the pass (task 3H.15): `text` — the text layer and every other format, `ocr` —
  * recognition of scanned pages; in it `page` of `pages` are the file's pages. */
 export interface IngestProgressEvent {
+  /** Task 3M.4: stage `extracting` of a graph run — the chunk of the current
+   *  document just extracted; `chunks` is how many it has. */
+  chunk?: number
   chunks: number
   /** Task 3J.7: why, as a code from `aec_rag/errors.py` — worded by the catalog. */
   code?: string
   done: number
+  /** Task 3M.4: entities extracted from the current document so far, before
+   *  LightRAG merges the repeats. */
+  entities?: number
   error: string
   page?: number
   pages?: number
