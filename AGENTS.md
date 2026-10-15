@@ -162,8 +162,8 @@ MIT. Rules — full text in `donor/README.md`, policy in `docs/plan-details.md` 
   §Trust boundaries / §Accepted risks / §Specific notes point to `docs/THREAT_MODEL.md`;
   the generic parts of the former `docs/SECURITY.md` and `docs/EVALS.md` are replaced by
   `.agents/docs/SECURITY.md` and `.agents/docs/EVALS.md` (old text: git history before
-  2026-10-15). The full legacy TASKS and AGENT_RUNS live in `docs/history/` — history,
-  not instructions; AGENT_RUNS is no longer kept (owner decision 2026-10-15), operation
+  2026-10-15). The full legacy TASKS and AGENT_RUNS are in git at commit `61b712f`
+  (`git show 61b712f:TASKS.md`) — history, not instructions; AGENT_RUNS is no longer kept (owner decision 2026-10-15), operation
   reports go with their task.
 - The current course is set by `PLAN.md`; its background is `docs/plan-details.md`
   §«Смена курса 2026-08-05». Anything older that contradicts it is void.
