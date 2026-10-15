@@ -52,16 +52,21 @@ describe("readShortlist", () => {
 });
 
 describe("finding ids", () => {
-  const tasks = ["- [ ] D-81 Транспорт через их коннектор — files: x", "- [x] D-78 Мок — files: y", "проза про D-99"].join(
-    "\n"
-  );
+  // С 2026-10-15 вопрос владельцу — обычная строка таблицы TASKS; прежний номер
+  // `D-81` встречается только в карте переименований и ссылкой не считается.
+  const tasks = [
+    "| T20 | Транспорт через их коннектор | blocked | none | Check: x; Result: pending |",
+    "| T21 | Мок | done | none | Check: y; Result: passed — прогон |",
+    "| D-81 | T20 |",
+    "проза про D-99"
+  ].join("\n");
 
-  it("reads finding ids the task parsers cannot (a hyphen in the number)", () => {
-    expect([...readFindingIds(tasks)].sort()).toEqual(["D-78", "D-81"]);
+  it("reads the task rows a verdict put to the owner can cite", () => {
+    expect([...readFindingIds(tasks)].sort()).toEqual(["T20", "T21"]);
   });
 
   it("separates the ones already answered", () => {
-    expect([...readClosedFindingIds(tasks)]).toEqual(["D-78"]);
+    expect([...readClosedFindingIds(tasks)]).toEqual(["T21"]);
   });
 });
 

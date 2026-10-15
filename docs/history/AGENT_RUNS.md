@@ -1,3 +1,6 @@
+<!-- Archived verbatim on 2026-10-15 (toolkit update; owner decision: no longer kept).
+     Operation results now go with their task in TASKS.md. -->
+
 # AGENT_RUNS — audit trail of non-trivial runs
 <!-- Record a run ONLY for non-trivial / risky / multi-file / dependency / security /
      AI-eval / external-tool work. One terse block per run. Never store secrets. -->

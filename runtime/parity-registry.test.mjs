@@ -11,6 +11,7 @@ import {
   classifySurface,
   formatRegistry,
   readChannelGroups,
+  readClosedTaskIds,
   readDenied,
   readExclusions,
   readTaskIds,
@@ -63,16 +64,22 @@ describe("document parsing", () => {
     expect(readExclusions(spec)).toEqual(["HX1", "HX2"]);
   });
 
-  it("reads task ids including split and phase-prefixed ones", () => {
+  it("reads task ids from the task tables, not from the ID changes map", () => {
     const tasks = [
-      "- [ ] 3.7a Голос — files: x",
-      "- [x] 3.0 Замер — files: y",
-      "- [ ] 3.B0 Подъём — files: z",
-      // Кириллица в номере: так подписана половина списка (`5.1а`, `3.B3д`), а
-      // до задачи 3E.17 парсер такие задачи не видел вовсе.
-      "- [ ] 5.1а Ключи провайдера — files: w"
+      "| ID | Task | Status | After | Verification |",
+      "|---|---|---|---|---|",
+      "| T7 | Голос — files: x | todo | none | Check: y; Result: pending |",
+      "| T7.1 | Замер с `a \\| b` в тексте | done | T7 | Check: z; Result: passed — 4 tests |",
+      "| T8 | Подъём | cancelled | none | Check: w; Result: unverified — снята |",
+      "",
+      // Прежние номера (`5.1а`, `3.B3д`) остались только в карте переименований —
+      // это история, вердикт на них ссылаться не должен.
+      "| Previous reference | Current reference |",
+      "|---|---|",
+      "| 5.1а | T7 |"
     ].join("\n");
-    expect([...readTaskIds(tasks)].sort()).toEqual(["3.0", "3.7a", "3.B0", "5.1а"]);
+    expect([...readTaskIds(tasks)].sort()).toEqual(["T7", "T7.1", "T8"]);
+    expect([...readClosedTaskIds(tasks)].sort()).toEqual(["T7.1", "T8"]);
   });
 
   it("reads the deny list from the module rather than a copy of it", () => {
@@ -170,13 +177,13 @@ describe("buildRegistry integrity", () => {
       // проверяется механизм, но берётся живая таблица, и перенос поверхности
       // роняет такой тест. Так случилось дважды — с `cron` при закрытии D-50 и
       // с `webhooks` при переносе экрана 2026-09-10 (задача 3.11). Поэтому
-      // подопытное взято из ELECTRON_CLASSIFICATION (`updates` → 3.21): в
-      // поверхностях строк с задачей больше НЕ ОСТАЛОСЬ, а эта ждёт упаковки
-      // фазы 6 и переживёт всё, что до неё.
+      // подопытное взято из ELECTRON_CLASSIFICATION (`updates` → T42, бывшая 3.21):
+      // в поверхностях строк с задачей больше НЕ ОСТАЛОСЬ, а эта ждёт упаковки
+      // (фаза 3) и переживёт всё, что до неё.
       surfaces: {},
       channels: { theirs: ["updates"], ours: [] },
     });
-    expect(registry.problems.join()).toContain("3.21");
+    expect(registry.problems.join()).toContain("T42");
   });
 
   it("calls a verdict citing a CLOSED task as stale as one citing a task TASKS lost", () => {
@@ -185,12 +192,12 @@ describe("buildRegistry integrity", () => {
     // подключён — тест держит именно подключение, а не разбор.
     const registry = buildRegistry({
       ...base,
-      taskIds: new Set(["3.21"]),
-      closedTaskIds: new Set(["3.21"]),
+      taskIds: new Set(["T42"]),
+      closedTaskIds: new Set(["T42"]),
       surfaces: {},
       channels: { theirs: ["updates"], ours: [] },
     });
-    expect(registry.problems.join()).toContain("ЗАКРЫТУЮ задачу 3.21");
+    expect(registry.problems.join()).toContain("ЗАКРЫТУЮ задачу T42");
   });
 
   it("reports a «наше, но другой дорогой» whose file the repository no longer has", () => {

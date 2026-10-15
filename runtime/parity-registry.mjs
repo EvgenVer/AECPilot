@@ -127,8 +127,8 @@ export const ELECTRON_CLASSIFICATION = {
   "quick-entry": { ourWay: "apps/desktop/src/preload/quick-entry.ts", note: "своё окно со своим preload — задача 3.15" },
   "keep-awake": { ours: "power", note: "power:keep-awake — задача 3.18" },
   "wake-indicator": { hx: "HX19", note: "голос исключён целиком (3H.3)" },
-  updates: { task: "3.21" },
-  "open-updates": { task: "3.21" },
+  updates: { task: "T42" },
+  "open-updates": { task: "T42" },
   connections: { ours: "connection", note: "реестр подключений — задача 3.12, UR20" },
   connection: { ours: "connection" },
   "connection-config": { ours: "connection" },
@@ -224,7 +224,7 @@ export const ELECTRON_CLASSIFICATION = {
   "power-battery": { ours: "power", note: "power:battery-changed / on-battery" },
   "power-resume": { ours: "power", note: "power:resume" },
   logs: { ours: "log", note: "падение рендерера должно пережить окно — задача 3.29" },
-  uninstall: { task: "6.11" },
+  uninstall: { task: "T30" },
   "active-work": { ours: "active-work", note: "задача 3E.11" },
   ambient: { ours: "ambient", note: "фоновые подсказки — задача 3E.11" },
   devtools: { ours: "devtools", note: "запрет F12 — задача 3E.11" },
@@ -272,7 +272,7 @@ export const ELECTRON_CLASSIFICATION = {
     hx: "HX26",
     note: "факты о машине для их онбординг-чата; вторая роль — подсказка языка ОС при незаданном display.language — у нас недостижима: язык интерфейса задан всегда (shared/i18n/config-client.ts)",
   },
-  app: { task: "3.21", note: "hermes:app:relaunch — перезапуск после подмены бандла их обновлятором; едет с механизмом обновлений" },
+  app: { task: "T42", note: "hermes:app:relaunch — перезапуск после подмены бандла их обновлятором; едет с механизмом обновлений" },
   "pool-limits": {
     hx: "HX27",
     note: "пределы пула бэкендов: пула у нас нет (один hermes serve на все профили) — ряд снят правкой [3], решение владельца 2026-09-15, замечание D-84",
@@ -314,23 +314,40 @@ export function readExclusions(specText) {
   return [...specText.matchAll(/^- \*\*(HX\d+)\./gm)].map((m) => m[1]);
 }
 
-/** Task ids TASKS.md actually carries, so the table cannot cite a task that was
- * renumbered out from under it.
- *
- * КИРИЛЛИЦА В НОМЕРЕ — не экзотика, а половина списка: `5.1а`, `3.B3д`. До
- * 2026-09-08 класс символов был только латинским, и такие задачи парсер не
- * видел ВООБЩЕ — вердикт, сославшийся на живую `5.1а`, получал «в TASKS.md нет
- * задачи». Найдено при перестановке вердикта `memory` (задача 3E.17). */
-export function readTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[[ x]\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.-]+) /gm)].map((m) => m[1]));
+/** Rows of the TASKS task tables — `| T12 | задача | done | After | Verification |`,
+ * the canonical format since the toolkit update of 2026-10-15. Only a row whose
+ * first cell is a task id counts: the §ID changes table maps legacy numbers
+ * (`5.1а`, `3.B3д`, `D-84`) and is lookup history, not work a verdict may cite.
+ * Cells split on unescaped pipes, as the toolkit checker splits them — a task
+ * text may carry a literal `\|`. */
+function taskRows(tasksText) {
+  const rows = [];
+  for (const line of tasksText.split(/\r?\n/)) {
+    if (!/^\| T\d+(?:\.\d+)? \|/.test(line)) continue;
+    const cells = line
+      .split(/(?<!\\)\|/)
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    rows.push({ id: cells[0], status: cells[2] });
+  }
+  return rows;
 }
 
-/** Task ids already ticked off. A verdict citing a CLOSED task is as stale as
- * one citing a task that never existed: it answers «работа впереди» for work
- * that is behind. The id class admits a hyphen since 3.B4: findings (`D-84`)
- * are TASKS entries of the same form and can be cited as a pending decision. */
+/** Task ids TASKS.md actually carries, so the table cannot cite a task that was
+ * renumbered out from under it. */
+export function readTaskIds(tasksText) {
+  return new Set(taskRows(tasksText).map((row) => row.id));
+}
+
+/** Task ids already finished (`done` or `cancelled`). A verdict citing a CLOSED
+ * task is as stale as one citing a task that never existed: it answers «работа
+ * впереди» for work that is behind. */
 export function readClosedTaskIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[x\] ((?:\d+\.)?[\dA-Za-zА-Яа-яЁё.-]+) /gm)].map((m) => m[1]));
+  return new Set(
+    taskRows(tasksText)
+      .filter((row) => row.status === "done" || row.status === "cancelled")
+      .map((row) => row.id)
+  );
 }
 
 /** Methods the renderer may never name, from the deny list itself rather than a

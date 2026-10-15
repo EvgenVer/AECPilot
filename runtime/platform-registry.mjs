@@ -197,14 +197,17 @@ export function readShortlist(sourceText) {
   return block ? [...block[1].matchAll(/'([a-z_0-9]+)'/g)].map((m) => m[1]) : [];
 }
 
-/** Finding ids (`D-81`) TASKS.md still carries, and those already closed. The
- * task parsers cannot read them: a finding id has a hyphen. */
+/** Questions put to the owner, and those already answered. Since the toolkit
+ * update of 2026-10-15 there is no separate findings list (`D-81`): a question
+ * waiting for the owner is a TASKS row like any other (`T20`, usually `blocked`
+ * with its Reason), so an `owner` verdict cites that row and is read by the same
+ * table parser. Legacy `D-` numbers live only in §ID changes. */
 export function readFindingIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[[ x]\] (D-\d+) /gm)].map((m) => m[1]));
+  return readTaskIds(tasksText);
 }
 
 export function readClosedFindingIds(tasksText) {
-  return new Set([...tasksText.matchAll(/^- \[x\] (D-\d+) /gm)].map((m) => m[1]));
+  return readClosedTaskIds(tasksText);
 }
 
 export function buildRegistry({
