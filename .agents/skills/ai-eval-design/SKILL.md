@@ -1,34 +1,36 @@
 ---
 name: ai-eval-design
-description: Design evals for an AI/agentic change — scenarios, rubric, baseline, tolerance, failure examples — when prompts, agent instructions, tool routing, retrieval, or model choice change. Do NOT use for purely deterministic code (use tests) or trivial copy edits.
+description: Design or assess behavioral evals for changed prompts, agent instructions, routing, retrieval, or models. Authorize runs separately.
 ---
 
-# Skill: ai-eval-design
+# Evaluate behavior
 
-Methodology lives in `docs/EVALS.md`. Evals ≠ tests: they check non-deterministic
-behavior (trajectory, tool choice, output quality).
+Use [EVALS](../../../.agents/docs/EVALS.md) for methodology and
+[the case template](assets/eval-case.template.md) when useful.
 
-## Procedure
-1. Define scenarios (incl. edge & adversarial — e.g. injected instructions in external text).
-2. Write a rubric: explicit pass/fail per scenario.
-3. Capture a baseline of current behavior.
-4. Set a tolerance for non-deterministic output.
-5. Add failure examples the eval must catch.
-6. Run with pass^k for action-allowed features; report the pass rate over N runs.
+1. Define representative requests, initial artifacts, expected outcomes, unacceptable
+   actions, and tolerable variation. Include failure, interruption, and adversarial
+   inputs where they affect the change.
+2. Specify observable rubrics and a baseline before treating the candidate as better.
+   For workflow changes cover continuation, dependencies/insertion, document consistency,
+   phase preparation, memory, permissions, and handoff.
+3. Prepare isolated fixtures and planned run bounds. Designing a scenario does not
+   authorize model/provider calls, deployment, or external writes.
+4. Before a live run, make the chosen cases, repetitions, tool/model, resource bounds,
+   and side effects concrete; obtain any missing authorization. Respect existing
+   permission for the same bounded run instead of asking again.
+5. Record actual outcomes, failures, variance, elapsed time/usage when available, and
+   tool coverage. Keep reports under .artifacts/evals and link them from task evidence.
 
-Template: `assets/eval-case.template.md`.
+For a product prompt/instruction edit, choose behavioral evaluation or record an
+explicit waiver with its reason and responsible decision source. Do not silently
+skip because the edit was short. Toolkit-governance changes use the authorized
+review/evaluation process; report missing behavioral coverage rather than claiming
+unit tests establish instruction quality.
 
-For a *product* prompt / agent-instruction edit the choice is mandatory: run an eval
-(this skill) **or** record an explicit waiver — never a silent skip (`AGENTS.md` §9).
+Repeated action-allowed scenarios need reliability evidence across runs; report the
+measured rate and sample size. A pass^k target is not a measured result. Do not weaken
+a rubric after seeing failure. An offline fake/stub checks a runner, not agent behavior.
 
-## Use when (positive triggers)
-- Changing a prompt or agent / system instructions.
-- Changing tool routing, retrieval, or model selection.
-- Adding a new skill / agentic capability (write the eval first — EDD).
-
-## Do NOT use when (negative triggers)
-- Purely deterministic logic (use unit tests).
-- A trivial copy / wording edit to **non-product prose** (docs, comments) — NOT a product
-  prompt or agent-instruction edit, which always takes the mandatory eval-or-waiver fork
-  even when described as "just wording" (`AGENTS.md` §9).
-- Read-only analysis.
+Do not create a run log unless explicitly requested. Return evidence, gaps, and any
+justified correction to the shared workflow.

@@ -1,28 +1,26 @@
 ---
 name: bug-forensics
-description: Evidence-first debugging — reproduce a bug before fixing, isolate the root cause, and leave a regression test. Use when diagnosing or fixing a defect, crash, failing test, or behavior that diverges from expected. Do NOT use for new features, planned refactors, style changes, or general review. A routine low-risk fix uses this skill plus the lightweight final check; do not automatically chain code-review.
+description: Diagnose and fix incorrect behavior, crashes, or failing checks using reproduction and root-cause evidence.
 ---
 
-# Skill: bug-forensics  (Forensic Mode)
+# Diagnose and fix
 
-Fix causes, not symptoms. No fix lands before the bug is reproduced.
+1. Inspect affected code/tests and reproduce the reported behavior with a safe,
+   targeted check. If reproduction fails, gather evidence rather than guessing.
+2. Identify the root cause and add or locate a meaningful regression check when
+   practical. Keep the fix within the agreed behavior; clarify a real contract change.
+3. Apply the smallest coherent fix and run the relevant check. Broaden verification
+   only for integration concerns; do not repeat unchanged successful commands.
+4. Inspect the resulting diff and evidence. Full review is conditional on its own
+   trigger, not automatic for every bugfix.
+5. Record the result with the task and return to the workflow's next ready work.
+   Consider MEMORY only if the reproduced environment finding passes its eligibility
+   rules; no automatic run log.
 
-## Procedure
-Use at most five command/tool rounds after loading this skill. Combine independent
-searches/reads, and combine post-fix targeted/full checks plus final diff where safe.
+Repeated failure calls for a new evidence-based hypothesis, not a fixed tool-call
+budget. Continue justified progress; block only a real missing input/permission or
+when there is no justified safe next step. Avoid unchanged unproductive retries.
 
-1. In one context batch, inspect the target implementation/tests and reproduce once. If
-   it does not reproduce, gather evidence instead of guessing.
-2. Add or identify a failing regression test where practical; isolate the root cause.
-3. Apply the smallest root-cause fix without refactoring unrelated code.
-4. Run the targeted regression check once after the fix. Run one full suite only when
-   blast radius warrants it.
-5. In one final batch, inspect diff/scope and validation evidence. Do not load
-   `code-review` unless its independent large/risky trigger holds.
-6. Record a reusable environment fact in MEMORY only when it is stable and likely to
-   recur. Routine bugfixes do not create `AGENT_RUNS.md`.
-
-Do not repeat a passing check without a subsequent relevant change. Do not load security
-policy/docs unless the defect touches a security/data/auth/external-I/O boundary.
-
-Risk classification of repro steps (e.g. tests touching a DB): `docs/SECURITY.md`.
+Classify reproduction/test side effects under
+[SECURITY](../../../.agents/docs/SECURITY.md). Do not access live data or protected contents merely
+to reproduce an error.

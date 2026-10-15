@@ -1,36 +1,16 @@
 # DESCRIPTION — <project name>
-<!-- Original concept / intent. Bootstrap entry point.
-     Superseded by SPECIFICATION once it is approved. -->
+<!-- Short project idea. Reuse the user's supplied context; replace placeholders. -->
 
-## Idea & intent
-<!-- The core idea and why it matters. -->
+## Purpose
 
-## Target users / audience
+<What the project is for and why it matters.>
 
-## Goals
+## Audience
 
-## Guardrails / Non-Goals
+<Who will use it and in what setting.>
 
-## Domain context
-<!-- Background a newcomer needs that is not derivable from code. -->
+## Context
 
-<!-- ───────── EXAMPLE — delete this whole block before use ─────────
-## Idea & intent
-A CLI that turns a folder of meeting-transcript `.txt` files into one weekly Markdown
-digest, so the team stops re-reading raw transcripts (~3h/week lost skimming).
-
-## Target users / audience
-Internal team leads; comfortable running a CLI, not writing code.
-
-## Goals
-- One command: transcripts in → digest out.
-- Runs fully offline — no transcript ever leaves the machine.
-
-## Guardrails / Non-Goals
-- Not a recorder/transcriber (input is already text).
-- No cloud upload, ever (privacy guardrail).
-
-## Domain context
-Transcripts come from Tool X with speaker labels (`S1:`); the digest groups by decision,
-not by speaker.
-───────────────────────────────────────────────────────────────── -->
+<Essential domain background that explains the idea.>
+<!-- Observable requirements belong in SPECIFICATION, technical decisions in PLAN,
+     and progress in TASKS. Keep this document current when the idea changes. -->

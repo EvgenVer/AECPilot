@@ -1,28 +1,18 @@
 # SPECIFICATION — <project name>
-<!-- Approved top-level requirements: what & why. Authoritative on conflict.
-     Do not duplicate DESCRIPTION. Do not put feature-level behavior here — use specs/<feature>.md. -->
+<!-- Observable requirements. Replace placeholders; distinguish proposals from approval. -->
 
-## Problem statement
-<!-- What problem, for whom. 2–4 sentences. -->
+## Requirements
 
-## Goals
-<!-- Measurable goals. -->
+- <Observable behavior the product must provide.>
+<!-- Reference a separate feature contract only when its explicit creation trigger applies.
+     Ordinary examples and edge cases stay here. Do not repeat DESCRIPTION. -->
 
-## Non-Goals
-<!-- What we deliberately will NOT do. Guards scope. -->
+## Constraints and non-goals
 
-## User-facing requirements
-<!-- What the user sees / does. Feature behavior detail → specs/<feature>.md. -->
+- <Actual boundary, exclusion, or constraint.>
 
-## Constraints
-<!-- Technical / business / legal constraints. -->
+## Acceptance
 
-## Assumptions
-<!-- Stated assumptions; if uncertain, move to Open questions. -->
-
-## Acceptance criteria
-<!-- When the product is considered done (top level). -->
-
-## Risks
-
-## Open questions
+- <Observable condition that establishes the requested behavior.>
+<!-- Architecture/stack belong in PLAN; execution state and evidence in TASKS.
+     Identify material unresolved requirements in place; never assume approval. -->

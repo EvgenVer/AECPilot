@@ -1,20 +1,19 @@
 ---
 name: docs-maintenance
-description: Keep README, CHANGELOG, and usage docs in sync when install/config/run behavior changes. Use after a change that affects how users install, configure, run, or verify the project. Do NOT use to author planning docs (use planning) or to change behavior.
+description: Update user instructions when installation, configuration, usage, or verification commands change.
 ---
 
-# Skill: docs-maintenance  (Author Mode)
+# Maintain user instructions
 
-## Procedure
-1. Identify what user-visible behavior changed (install / config / run / verify).
-2. Update README / CHANGELOG / usage docs to match. Keep it short and practical:
-   prerequisites, commands, inputs, outputs, common failures.
-3. Do not duplicate planning content from the triad into user docs.
+Identify the changed user-visible behavior and update only its relevant instructions:
+prerequisites, commands, expected inputs/outputs, and actionable failure guidance.
+Use a CHANGELOG only when the project already uses one or the user requests it.
 
-## Use when
-- A change alters how users install / configure / run / verify the project.
-- A release needs a CHANGELOG entry.
+Check that documented commands/paths match the implemented interface. Distinguish
+examples from executed results. Explain limitations in the user's terms without
+copying internal implementation ceremony into product flows.
 
-## Do NOT use when
-- Writing SPEC / PLAN / TASKS (use `planning`).
-- Changing code behavior (Builder / `bug-forensics`).
+Keep project idea/requirements/route/progress in their owning documents; do not
+duplicate them in README or reopen planning for an ordinary usage-doc correction.
+Toolkit guides belong in .agents/docs; project documentation remains project-owned.
+Inspect the final diff and return to the shared workflow.

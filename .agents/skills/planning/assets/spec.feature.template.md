@@ -1,23 +1,17 @@
-# specs/<feature> — <feature name>
-<!-- Behavior contract for ONE feature. References SPECIFICATION, never copies it. -->
+# Feature contract — <name>
+<!-- Create only for a separately maintained compatibility API/file format,
+     persisted-schema evolution, permission/state matrix, or versioned AI behavior.
+     Replace placeholders; omit irrelevant optional detail rather than leaving empty sections. -->
 
-## Overview & requirement link
-<!-- Ref: SPECIFICATION.md §<...> -->
+## Scope
 
-## Behavior (BDD / Gherkin)
-Scenario: <short behavior name>
-  Given <initial state>
-  When <action / event>
-  Then <expected observable result>
-<!-- Cover: happy path + edge cases + failure + boundary/permission + AI limits. -->
+- Trigger: <which of the four contract types requires this document>
+- Requirement: <reference to SPECIFICATION; no duplicate requirement text>
 
-## API contracts
-<!-- Endpoints / signatures / request-response shapes, if any. -->
+## Contract
 
-## Data schemas
-<!-- Entities, fields, types, validation rules, if any. -->
+<Observable behavior, relevant interfaces/schema/transitions, error and boundary cases.>
 
-## Edge cases
+## Verification
 
-## Feature-level acceptance & validation
-<!-- How this feature is verified: tests + (for AI behavior) evals. -->
+<Concrete examples/checks establishing the contract; AI evaluations when applicable.>

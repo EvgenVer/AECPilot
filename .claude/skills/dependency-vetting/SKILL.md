@@ -1,25 +1,25 @@
 ---
 name: dependency-vetting
-description: Vet an approved dependency immediately before adding or upgrading it — verify the package exists in the registry (anti-slopsquatting), is necessary, maintained, and the right type. Do NOT run during planning-only work, read-only inspection, for already-vendored code, or when the standard library/an existing dependency is sufficient.
+description: Vet the exact package/version immediately before an authorized dependency add or upgrade.
 ---
 
-# Skill: dependency-vetting
+# Vet an intended dependency
 
-Hallucinated / typosquatted packages are a real supply-chain risk. Never add a package you
-have not confirmed exists.
+Confirm the proposed change and concrete installation permission. Check the exact
+name/version against the official registry; do not trust a remembered package name.
 
-## Procedure
-Confirm the dependency change is planned and approved before doing the work below.
+- Is the dependency necessary, or can existing code/the standard library do the job?
+- Does the package/version exist, match the intended publisher/project, and remain
+  suitably maintained? Investigate relevant critical issues or advisories.
+- Is its runtime/dev/test/build type, license, size, and transitive risk appropriate?
 
-1. **Exists?** — confirm the exact name exists in the real registry (npm / PyPI / etc.).
-   Do not trust a remembered name; verify it.
-2. **Necessary?** — can the standard library or an existing dependency do it instead?
-3. **Healthy?** — maintenance, recent releases, adoption, open critical issues.
-4. **Type & cost** — runtime / dev / test / build; license; size; transitive risk.
-5. **Record** — add to `PLAN.md` "Selected dependencies" with the reason. Never install
-   globally unless the approved setup requires it.
+Put the choice and rationale in PLAN's Technical decisions, without a duplicate
+dependency document. Record vetting and later installation evidence with the task.
+A separate audit log exists only when explicitly requested; link the same evidence.
 
-If planning introduces a dependency, record a pending vetting task in PLAN/TASKS and stop
-with the rest of the plan. Load this skill later, immediately before the approved change.
+Do not install globally unless specifically included in the authorized setup.
+Planning may record pending vetting; it does not activate this skill or authorize
+installation. Reuse unchanged relevant vetting within the same work instead of
+repeating it because another skill was loaded. Return the decision to the workflow.
 
-Threat-model context: `docs/SECURITY.md` (dependency trust).
+Policy: [SECURITY](../../../.agents/docs/SECURITY.md).

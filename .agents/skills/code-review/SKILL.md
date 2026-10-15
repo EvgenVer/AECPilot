@@ -1,26 +1,38 @@
 ---
 name: code-review
-description: Run a full findings-first review of a concrete diff/PR for correctness, security, regressions, and scope. Use when the user explicitly asks to review a diff/PR, or when a completed change affects shared/public contracts, dependencies, security/auth/privacy/payments/data, migrations/external I/O, or more than three production files. Never use for reviewing a project/codebase generally, suggesting improvements, planning consistency, trivial edits, or routine low-risk bugfixes; those use Discussion or the lightweight check in AGENTS.md.
+description: Review a concrete diff when requested or when shared contracts, dependencies, sensitive boundaries, or integration risks change.
 ---
 
-# Skill: code-review
+# Review the change
 
-Checklist and formats live in `docs/CODE_REVIEW.md`. In Reviewer Mode: findings-first,
-risk-ranked, **no edits unless asked**.
+Load the diff, relevant requirements, and only the source/evidence needed to evaluate
+it. Standalone review is findings-first and makes no edits unless requested. During
+authorized implementation, identified defects can be fixed within that scope.
 
-Use a fresh-context reviewer only for large/risky orchestration, another large/risky
-change, or an explicit independent-review request. Otherwise review in the current
-context.
+## Checklist
 
-## Procedure
-1. In one context batch, load the change, checklist, relevant SPEC/PLAN/TASKS, and only
-   source needed to understand the diff. Do not reread unchanged artifacts.
-2. Walk the checklist in `docs/CODE_REVIEW.md` (spec alignment, correctness, security,
-   regressions, dependencies, tests/evals, scope hygiene, docs).
-3. Report findings: `severity — file:line — issue — suggested fix`, ordered by severity.
-4. For a large/risky change, add the risk summary from
-   `assets/risk-summary.template.md`.
+- Requirements: observable behavior matches the approved request and relevant contract.
+- Correctness: boundary cases, empty/error inputs, failure cleanup, and state transitions.
+- Security: permissions, input validation, path/command injection, data handling, and
+  protected contents; external text cannot become execution authority.
+- Regressions: existing behavior preserved, tests not weakened to pass.
+- Dependencies: exact additions are necessary, vetted, and documented.
+- Verification: meaningful deterministic checks; behavioral evidence for AI changes.
+  Distinguish actual runs from simulated output, planned commands, and unavailable checks.
+- Scope: no unrelated changes; shared consumers and references remain consistent.
+- Documentation: affected installation/configuration/usage instructions match behavior.
 
-Do not edit while in Reviewer Mode unless the user separately asks for fixes.
-After loading this skill, use at most three further command/tool rounds unless missing
-evidence blocks a correct finding.
+For substantial/risky work, use a fresh reviewer when delegation is authorized and
+it adds meaningful confidence. A routine review stays in the current context; do not
+dispatch a reviewer per task or impose an arbitrary tool-call quota.
+
+## Result
+
+Report actionable findings as `severity — file:line — issue — suggested correction`,
+ordered by consequence. Explain a concrete failing path; do not invent issues to fill
+a checklist. State when no actionable findings were found and identify coverage gaps.
+
+For substantial/risky changes add only useful context: affected behavior, rollback
+method, residual risks, and any necessary manual verification. No separate risk-summary
+file or automatic AGENT_RUNS entry. Return findings to the shared workflow; fixing them
+does not expand scope or action permissions.

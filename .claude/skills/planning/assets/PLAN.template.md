@@ -1,22 +1,28 @@
 # PLAN — <project name>
-<!-- How we build it. Do not copy requirements from SPECIFICATION; reference them. -->
+<!-- Implementation route, not progress. Replace placeholders before use. -->
 
-## Architecture
-<!-- Chosen architecture, module boundaries. -->
+## Phases
 
-## Stack & package managers
-<!-- Approved stack and tooling. Nothing is assumed before it is approved here. -->
+| Phase | Outcome | After | Completion check |
+|---|---|---|---|
+| 1 | <usable outcome> | none | <observable evidence that establishes the outcome> |
+| 2 | <next usable outcome> | 1 | <observable evidence> |
 
-## Selected dependencies
-<!-- package — why needed — type (runtime/dev/test/build). Vet via the dependency-vetting skill. -->
+<!-- Use whole-number phase IDs. After lists mandatory preceding phases.
+     A later phase with After: none explicitly declares independence.
+     Keep future phases coarse; statuses and task evidence belong to TASKS. -->
 
-## Data / API / integrations
-<!-- Data model, external APIs, integrations. -->
+## Technical decisions
 
-## Validation strategy
-<!-- Tests (deterministic) + evals (AI/agentic behavior) + exact commands to run. -->
+- Architecture: <components and their boundaries; rationale>.
+- Stack: <languages, runtime, package manager; rationale>.
+- Dependencies: <selected package and purpose, or none>.
+<!-- Add only actual decisions, including relevant data/API boundaries and tradeoffs.
+     Add a ### Integrations subsection only when an integration is actually adopted:
+     purpose, operation boundaries, configuration references; no credential values. -->
 
-## Implementation phases
-<!-- Phase: goal — deliverable — how verified. Keep each phase self-contained. -->
+## Verification
 
-## Risks & tradeoffs
+- <Relevant checks and how they establish the phase outcomes; commands when known>.
+<!-- Reuse sufficient task evidence. Add a phase-check task only for a distinct
+     uncovered integration/end-to-end check. Results belong to TASKS. -->
