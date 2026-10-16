@@ -108,7 +108,9 @@ const UNBRIDGED = [
   'resetBootstrap',
   'revealPath',
   'sanitizeWorkspaceCwd',
-  'setSecretStorageEncryption',
+  // `setSecretStorageEncryption` снят задачей T20.8: их переключатель
+  // шифрования секретов (SPEC HX20) убран из `gateway-settings.tsx` правкой [3].
+  // Вернётся вызов — этот гейт упадёт как на новый непроброшенный член.
   'writeClipboard',
   // ── Приехало с пином 0.21.2 (задача 3.B4). У всех контракт — промис, то есть
   // заглушка отказывает честно; булевы и разделы той же версии объявлены

@@ -5,6 +5,8 @@
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the gateway URL placeholder → ours (SPEC C12)
+ *   [3] dropped the OS-keychain encryption switch and its state — SPEC HX20
+ *       (we always encrypt, C10); `ToggleRow` left the import with it
  * (no other edits)
  */
 import { isGatewayReauthRequired } from '@hermes/shared'
@@ -56,7 +58,7 @@ import { cloudTeamChanged, reconnectMovedCloudAgent } from './cloud-team-change'
 import { ConnectionsRegistrySection } from './connections-registry'
 import { CONTROL_TEXT } from './constants'
 import { ManagedUpdatesSection } from './managed-updates-section'
-import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton, ToggleRow } from './primitives'
+import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton } from './primitives'
 import { SETTING_IDS, settingElementId } from './settings-manifest'
 import { enrichSelectedSshHost, selectSshHost } from './ssh-host-selection'
 import { useSettingDeepLink } from './use-setting-deep-link'
@@ -295,45 +297,8 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
     void refreshConnectionsRegistry().catch(err => notifyError(err, g.failedLoad))
   }, [g.failedLoad])
 
-  // Opt-in OS-keychain encryption for stored gateway secrets. Read lazily via
-  // IPC (never touches the keychain); flipping it re-encodes stored secrets
-  // in the main process and can legitimately prompt for keychain access.
-  const [keychainEncryption, setKeychainEncryptionState] = useState(false)
-  const [keychainEncryptionBusy, setKeychainEncryptionBusy] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-
-    void window.hermesDesktop
-      ?.getSecretStorageEncryption?.()
-      .then(res => {
-        if (!cancelled && res) {
-          setKeychainEncryptionState(res.on === true)
-        }
-      })
-      .catch(() => {})
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const setKeychainEncryption = async (on: boolean) => {
-    setKeychainEncryptionBusy(true)
-    // Optimistic paint; the IPC result (or a failure rollback) gets the last word.
-    setKeychainEncryptionState(on)
-
-    try {
-      const res = await window.hermesDesktop.setSecretStorageEncryption(on)
-
-      setKeychainEncryptionState(res?.on === true)
-    } catch (err) {
-      setKeychainEncryptionState(!on)
-      notifyError(err, g.keychainEncryptionFailed)
-    } finally {
-      setKeychainEncryptionBusy(false)
-    }
-  }
+  // EDIT [3]: their opt-in OS-keychain encryption switch (state, read and
+  // flip) stood here — SPEC HX20: we always encrypt (C10).
 
   const acceptSavedConfig = (config: GatewaySettingsState): void => {
     const normalized = normalizeGatewaySettingsState(config)
@@ -1491,14 +1456,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
 
       {embedded ? null : (
         <div className="mt-6 grid gap-1">
-          <ToggleRow
-            checked={keychainEncryption}
-            description={g.keychainEncryptionDesc}
-            disabled={keychainEncryptionBusy}
-            id={settingElementId(SETTING_IDS.gateway.keychainEncryption)}
-            label={g.keychainEncryptionTitle}
-            onChange={on => void setKeychainEncryption(on)}
-          />
+          {/* EDIT [3]: their keychain-encryption <ToggleRow /> stood here — SPEC HX20. */}
           <ListRow
             action={
               <Button onClick={() => void window.hermesDesktop?.revealLogs()} size="sm" variant="textStrong">

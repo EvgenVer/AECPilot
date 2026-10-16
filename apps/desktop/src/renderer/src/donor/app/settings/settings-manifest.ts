@@ -5,6 +5,7 @@
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: dropped the pet setting (HX1)
+ *   [3] registration table: dropped the keychain-encryption setting (HX20)
  * (no other edits)
  */
 import type { Translations } from '@/i18n'
@@ -245,14 +246,7 @@ export const SETTINGS_MANIFEST = {
       keywords: ['gateway', 'connection', 'local', 'cloud', 'remote', 'ssh', 'url', 'token', 'host', 'port', 'key'],
       copy: t => ({ label: t.settings.gateway.modeTitle, description: t.settings.gateway.intro })
     },
-    keychainEncryption: {
-      subpage: 'connection',
-      keywords: ['keychain', 'encrypt', 'secrets', 'secure storage', 'plain text'],
-      copy: t => ({
-        label: t.settings.gateway.keychainEncryptionTitle,
-        description: t.settings.gateway.keychainEncryptionDesc
-      })
-    },
+    // EDIT [3]: the keychain-encryption setting is HX20.
     diagnostics: {
       subpage: 'connection',
       keywords: ['diagnostics', 'logs', 'debug', 'report', 'troubleshoot'],
