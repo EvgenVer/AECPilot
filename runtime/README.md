@@ -11,16 +11,34 @@ Run setup:
 node runtime/setup.mjs
 ```
 
-Creates a venv at `runtime/.hermes-venv` (Python 3.12.13, `hermes-agent[mcp]` 0.20.4
-installed editable from a shallow checkout at `HERMES_SHA` in `runtime/.hermes-src` —
-upstream's build backend refuses to build a wheel, see PLAN.md § Stack) and a dev
-profile dir at `runtime/dev-profile` (set as `HERMES_HOME` when invoking the
-isolated `hermes` binary). Idempotent — safe to re-run. All three dirs are
-gitignored (local artifacts). Paths/pins are defined in
-`runtime/hermes-env.mjs`, reused by task 0.7 to launch `hermes serve`.
+Creates a venv at `runtime/.hermes-venv` (CPython 3.14.6 managed by `uv`,
+`hermes-agent[mcp,ddgs]` 0.22.2 installed editable from a shallow checkout at
+`HERMES_SHA` in `runtime/.hermes-src` — upstream's build backend refuses to build a
+wheel, see PLAN.md § Stack). Versions are constrained to the core's own `uv.lock`
+(`uv export` into `runtime/uv-constraints.txt` on every run). The `ddgs` extra is the
+keyless web search our profile selects; since 0.22 it is no longer a core dependency.
 
-The first `hermes` invocation against the dev profile creates `.update_check`
-(update self-check cache) and `logs/` inside `runtime/dev-profile` — expected.
+The Mem0 memory provider is an external plugin since 0.22: setup keeps its source at
+`MEM0_PLUGIN_SHA` (1.3.0) in `runtime/.mem0-plugin-src` and installs its requirements
+into the same venv; the app copies the plugin into each profile's `plugins/mem0` at
+start (`register-mem0-plugin.mjs`). A profile without that copy makes the core install
+the plugin from its catalog over the network on first use.
+
+Setup also creates the dev profile dir `runtime/dev-profile` (the `HERMES_HOME` of
+`pnpm dev` and of manual acceptance — keep it clean). Automated runs use
+`runtime/e2e-profile` (the stand's provider key lives there), always through a
+temporary copy. Idempotent — safe to re-run. All these dirs are gitignored (local
+artifacts). Paths/pins are defined in `runtime/hermes-env.mjs`.
+
+The first `hermes` invocation against a profile creates `.update_check`
+(update self-check cache) and `logs/` inside it — expected.
+
+**Probes** (`runtime/*-probe.mjs`) start the core directly. Without `AEC_HERMES_HOME`
+they run against `runtime/dev-profile`, so point it at a temporary copy of
+`runtime/e2e-profile` prepared the way the app prepares a profile at start (our
+secret filter and Mem0 plugin, `installSecretFilterEverywhere`; the profile defaults
+in `apps/desktop/src/main/agent-defaults-pure.ts`). `serve.mjs` uses a fixed port, so
+run probes one at a time.
 
 ## serve.mjs
 
@@ -49,9 +67,9 @@ node runtime/gateway-smoke.mjs
 ```
 
 Exit 0 = got a real model reply. Exit 1 = a protocol-level failure. Exit 2 =
-protocol worked but the model call failed on auth (expected until
-`runtime/dev-profile/.env` has a real `OPENAI_API_KEY` — see the placeholder
-there). Exit 3 = protocol worked but the model call failed for a non-auth
+protocol worked but the model call failed on auth (expected on the clean
+`runtime/dev-profile`; run it with `AEC_HERMES_HOME` at a copy of
+`runtime/e2e-profile`, which carries the stand's provider key). Exit 3 = protocol worked but the model call failed for a non-auth
 reason (network, rate limit, 5xx, ...).
 
 ## register-aec-sources.mjs / aec-sources-check.mjs
@@ -90,8 +108,8 @@ Exit 0 = the tool was called and returned the fixture's "demo" source. Exit
 Exit 3 = any other failure (protocol-level failure, non-auth model failure,
 or the model correctly reporting the tool isn't available).
 
-`setup.mjs` installs `hermes-agent[mcp]` at the pinned SHA (0.20.4 since task
-3.B0) — the `mcp` extra (approved, see PLAN.md § Selected dependencies) pulls
+`setup.mjs` installs `hermes-agent[mcp,ddgs]` at the pinned SHA (0.22.2 since task
+T20.3) — the `mcp` extra (approved, see PLAN.md § Selected dependencies) pulls
 in hermes's pinned `mcp==2.0.0` + `starlette==1.3.1` into
 `runtime/.hermes-venv`, which is what lets
 `tools.mcp_tool` act as an MCP *client* and connect to aec-sources (or any

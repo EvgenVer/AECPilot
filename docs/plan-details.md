@@ -1025,14 +1025,14 @@ with v0.22.0» — срез main ради их облака, без куриру
 ## Stack & package managers
 
 - Desktop: TypeScript, React, Electron; сборка electron-builder; пакетный менеджер pnpm.
-- Python-слой: Python 3.12, менеджер uv (venv + lockfile); MCP — официальный python SDK.
+- Python-слой: Python 3.12 (наши серверы, корневой `.venv`) и CPython 3.14.6 у ядра (`runtime/.hermes-venv`, решение владельца 2026-10-15), менеджер uv (venv + lockfile); MCP — официальный python SDK.
 - Тесты: pytest (python), Vitest (UI-юниты и компонентные), Playwright (e2e smoke).
 - Линтеры: ruff (py), eslint + prettier (ts).
 
 | Инструмент | Пин | Основание |
 |---|---|---|
-| hermes-agent | **0.21.5, пин по коммиту** (`HERMES_SHA` в `runtime/hermes-env.mjs` = `f97608f1`; тег `v2026.9.24`; MIT; requires-python `>=3.11,<3.14`) — поднят задачей 3.B6 2026-09-24 с 0.21.3 (`345cd2b0`, `v2026.9.14`, задача 3.B5), до того 0.21.2 (`939e45c9`, `v2026.9.11`, задача 3.B4), до того 0.21.0 (`29112bef`, 3.B3) и 0.20.6 (`5fc308a7`, 3.B2). Ставится без `pillow-heif` (`runtime/uv-overrides.txt`, веттинг 3.B5е: GPL). Цель каждого подъёма — самый свежий тег на момент старта (§«Релиз донора v2026.9.14») | их репозиторий; PyPI-канал закрыт автором |
-| Python | 3.12.13 (проходит их `requires-python`; 3.14 несовместим) | endoflife.date |
+| hermes-agent | **0.22.2, пин по коммиту** (`HERMES_SHA` в `runtime/hermes-env.mjs` = `d923a5eb`; тег `v0.22.2`; MIT; ставится `[mcp,ddgs]` по их `uv.lock`; Mem0 — внешний плагин 1.3.0 на `43849c6e`) — поднят фазой 2 (T20.1–T20.11) 2026-10-15 с 0.21.5 (`f97608f1`, `v2026.9.24`, задача 3.B6), до того 0.21.3 (`345cd2b0`, `v2026.9.14`, задача 3.B5), до того 0.21.2 (`939e45c9`, `v2026.9.11`, задача 3.B4), до того 0.21.0 (`29112bef`, 3.B3) и 0.20.6 (`5fc308a7`, 3.B2). Ставится без `pillow-heif` (`runtime/uv-overrides.txt`, веттинг 3.B5е: GPL). Цель каждого подъёма — самый свежий тег на момент старта (§«Релиз донора v2026.9.14») | их репозиторий; PyPI-канал закрыт автором |
+| Python | 3.12.13 — корневой `.venv`; 3.14.6 — venv ядра 0.22.2 (T20.3) | endoflife.date |
 | uv | 0.11.x, ≥0.11.26 | PyPI |
 | Node.js | 24 LTS для нашей сборки; ядру Node 26 **не нужен** (замер 1.7.3, ниже) | endoflife.date + их `package.json` |
 | Electron | 43.x, ≥43.0.0 | endoflife.date |
