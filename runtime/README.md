@@ -38,7 +38,10 @@ they run against `runtime/dev-profile`, so point it at a temporary copy of
 `runtime/e2e-profile` prepared the way the app prepares a profile at start (our
 secret filter and Mem0 plugin, `installSecretFilterEverywhere`; the profile defaults
 in `apps/desktop/src/main/agent-defaults-pure.ts`). `serve.mjs` uses a fixed port, so
-run probes one at a time.
+run probes one at a time. A probe where the agent may edit skills should also get a
+copy of `skills/` through `AEC_SKILLS_DIR` (the live e2e stand does this itself,
+`apps/desktop/e2e/lib/core.ts`); the profile's `skills.external_dirs` and the secret
+filter's `shipped-skills.json` then point at the copy, not the repository.
 
 ## serve.mjs
 
