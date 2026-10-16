@@ -23,8 +23,12 @@
 import { ru as donorRu } from '../../donor/i18n/ru'
 import type { Translations } from '../../donor/i18n/types'
 
-import { debrandTranslations } from './debrand'
+import { debrandTranslations, mergeOver } from './debrand'
 import { NO_INTRO_LINE } from './en'
+import { RU_FILL } from './ru-fill'
+
+// Их каталог с дописанными строками, которые он оставил английскими (T20.8).
+const base: Translations = mergeOver(donorRu, RU_FILL)
 
 const RU_TIPS: Translations['tips'] = {
   close: 'Больше не показывать эту подсказку',
@@ -116,7 +120,7 @@ const OVERRIDES: Record<string, string> = {
 // 2026-09-24). Ручные замены выше переписывают только уже существующие ключи,
 // поэтому недостающие дописываются к разделу, как `tips`.
 const RU_PREVIEW: Translations['preview'] = {
-  ...donorRu.preview,
+  ...base.preview,
   openInExternal: 'Открыть во внешнем приложении',
   popIn: 'Вернуть в панель',
   popOut: 'Вынести в окно'
@@ -126,7 +130,7 @@ const RU_PREVIEW: Translations['preview'] = {
 // каталоге: строка локальных моделей и ошибки входа по подписке падали на
 // английский (замечание владельца 2026-10-06 к окну выбора провайдера, D-174).
 const RU_ONBOARDING: Translations['onboarding'] = {
-  ...donorRu.onboarding,
+  ...base.onboarding,
   localModelsTitle: 'Запустить модель на этом компьютере',
   localModelsPitch: 'Без учётной записи — скачайте модель и запускайте её здесь',
   signInExpired:
@@ -140,7 +144,7 @@ const RU_ONBOARDING: Translations['onboarding'] = {
 
 export const ru = debrandTranslations(
   {
-    ...donorRu,
+    ...base,
     intro: NO_INTRO_LINE,
     onboarding: RU_ONBOARDING,
     preview: RU_PREVIEW,
