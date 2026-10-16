@@ -407,3 +407,68 @@ describe('hermes-desktop shim: profile.remember', () => {
     expect(useProfile).not.toHaveBeenCalled()
   })
 })
+
+// T20.10. В ядре 0.22.2 картинка вложения в их лупе — адрес `blob:` окна; главный
+// процесс такой адрес не читает и отказывает по схеме. Мост декодирует картинку
+// сам (через `<img>`: `fetch(blob:)` закрыт `connect-src` окна) и передаёт PNG тем
+// же путём, что картинку `data:`.
+function withCanvasImages(decode: () => Promise<void>): { drawn: unknown[] } {
+  const drawn: unknown[] = []
+  class FakeImage {
+    src = ''
+    naturalWidth = 256
+    naturalHeight = 128
+    decode = decode
+  }
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({ drawImage: (image: unknown) => drawn.push(image) }),
+    toDataURL: (type: string) => `data:${type};base64,AAAA`
+  }
+  vi.stubGlobal('Image', FakeImage)
+  vi.stubGlobal('document', { createElement: () => canvas })
+  return { drawn }
+}
+
+describe('hermes-desktop shim: saveImageFromUrl и адрес blob: (T20.10)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    withoutWindow()
+  })
+
+  it('blob: уходит в главный процесс картинкой PNG в data:, а не адресом', async () => {
+    const saveImageOut = vi.fn().mockResolvedValue({ saved: true })
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { saveImageOut } }
+    const { drawn } = withCanvasImages(() => Promise.resolve())
+
+    const saved = await createHermesDesktopBridge().saveImageFromUrl!('blob:null/1f2e')
+
+    expect(saved).toBe(true)
+    expect(drawn, 'картинка нарисована на холсте один раз').toHaveLength(1)
+    expect((drawn[0] as { src: string }).src).toBe('blob:null/1f2e')
+    expect(saveImageOut).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+  })
+
+  it('прочие адреса идут как есть: границу держит главный процесс', async () => {
+    const saveImageOut = vi.fn().mockResolvedValue({ saved: false })
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { saveImageOut } }
+    const { drawn } = withCanvasImages(() => Promise.resolve())
+
+    await createHermesDesktopBridge().saveImageFromUrl!('https://example.com/a.png')
+
+    expect(saveImageOut).toHaveBeenCalledWith('https://example.com/a.png')
+    expect(drawn, 'сетевой адрес рендерер сам не грузит').toEqual([])
+  })
+
+  it('освобождённый blob — ОШИБКА с текстом, а не тихая отмена', async () => {
+    const saveImageOut = vi.fn()
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { saveImageOut } }
+    withCanvasImages(() => Promise.reject(new Error('EncodingError')))
+
+    await expect(createHermesDesktopBridge().saveImageFromUrl!('blob:null/gone')).rejects.toThrow(
+      'окно её уже освободило'
+    )
+    expect(saveImageOut).not.toHaveBeenCalled()
+  })
+})

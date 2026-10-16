@@ -200,6 +200,31 @@ function connectionFailure(message: string | undefined, sshError: string | undef
   return error
 }
 
+/** Картинка по адресу `blob:` этого окна → PNG в `data:` для главного процесса.
+ *
+ * ПОЧЕМУ ЧЕРЕЗ `<img>` И CANVAS, А НЕ `fetch`. `fetch(blob:)` подчиняется
+ * `connect-src`, а он в CSP окна (`index.html`) — `'self'`: чтение отказывает.
+ * Картинке `blob:` открыт `img-src` (D-43), поэтому она декодируется тем же
+ * путём, каким окно её уже показывает, и снимается в PNG. CSP не ослабляется;
+ * цена — исходный формат: сохраняется PNG с теми же пикселями (у вложения в
+ * лупе и так перекодированная миниатюра). */
+async function blobUrlToDataUrl(url: string): Promise<string> {
+  const image = new Image()
+  image.src = url
+  try {
+    await image.decode()
+  } catch {
+    throw new Error('Картинку не удалось прочитать: окно её уже освободило.')
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth
+  canvas.height = image.naturalHeight
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Картинку не удалось прочитать: окно не дало холст.')
+  context.drawImage(image, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
 const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
 /** Путь без запроса и хвостовых косых — чтобы сравнивать с маршрутом. */
@@ -1300,8 +1325,14 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.selectSavePath(options)
   },
 
+  // Ядро 0.22.2 (задача T20.10): картинка вложения в их лупе — адрес `blob:`.
+  // Такой адрес живёт только в этом окне, главный процесс его не прочтёт и
+  // отказывает по схеме (`classifySaveSource`). Поэтому картинку читаем здесь и
+  // отдаём тем же путём, что картинку `data:`; граница главного процесса не
+  // расширяется.
   async saveImageFromUrl(url: string): Promise<boolean> {
-    const result = await window.aecpilot.saveImageOut(url)
+    const source = /^blob:/i.test(url.trim()) ? await blobUrlToDataUrl(url.trim()) : url
+    const result = await window.aecpilot.saveImageOut(source)
     if (result.error !== undefined) throw new Error(result.error)
     return result.saved
   },
