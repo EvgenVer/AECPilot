@@ -143,7 +143,7 @@ def test_чужой_инструмент_не_трогаем() -> None:
 
 
 @pytest.mark.parametrize(
-    "tool", ["browser_vault_fill", "browser_vault_list", "browser_vault_unlock"]
+    "tool", ["browser_vault", "browser_vault_fill", "browser_vault_list", "browser_vault_unlock"]
 )
 def test_сейф_паролей_отклоняется(tool: str) -> None:
     # 3G.10, HX24: инструмент сейфа ядро подключает с браузером, отказ — здесь.
@@ -154,6 +154,8 @@ def test_сейф_паролей_отклоняется(tool: str) -> None:
 
 def test_браузер_не_сейф_проходит() -> None:
     assert _on_pre_tool_call("browser_exec", {"code": "print(1)"}) is None
+    # Имя, лишь начинающееся так же, — не сейф (T20.5: проверка — точное имя или `browser_vault_`).
+    assert _on_pre_tool_call("browser_vaultx", {}) is None
 
 
 def test_обычная_запись_проходит() -> None:

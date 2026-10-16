@@ -113,7 +113,12 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
 
   const proc = spawn(
     HERMES_BIN,
-    ["serve", "--port", String(port), "--host", host, "--skip-build"],
+    // `--isolated` (ядро 0.22, задача T20.5): без него второй serve с живой записью
+    // host-rendezvous в нашем каталоге блокировок — наш же сирота на этом профиле —
+    // «присоединяется» к нему и выходит с кодом 0, не открыв своего порта
+    // (`hermes_cli/main_dashboard.py::_attach_to_host_backend`). Наш процесс владеет
+    // своим сервером сам, как и при 0.21.5.
+    ["serve", "--port", String(port), "--host", host, "--skip-build", "--isolated"],
     hiddenChild({
       env: {
         // D-141: our `hermes` first, so the donor's bot routines run our pin.

@@ -36,6 +36,7 @@ import {
   ensureSectionScalar,
   ensureTopLevelList,
   forceSectionScalar,
+  upgradeNestedList,
   upgradeSectionList
 } from './config-yaml-pure'
 import { isQuickEntryTarget } from './quick-entry-pure'
@@ -226,7 +227,14 @@ import {
   type MemoryProviderSettings,
   type ProfileProvider
 } from './provider-presets-pure'
-import { APPROVAL_DENY, DEFERRED_TOOLS, DISABLED_SKILLS } from './agent-defaults-pure'
+import {
+  APPROVAL_DENY,
+  AUTO_LOAD_SKILLS,
+  CORE_OPT_OUTS,
+  DEFERRED_TOOLS,
+  DISABLED_SKILLS,
+  PREVIOUS_DEFERRED_TOOLS
+} from './agent-defaults-pure'
 import {
   addSourceToProject,
   createProject,
@@ -1171,10 +1179,34 @@ function applyCoreOptOuts(homeDir: string): void {
       ensureNestedScalar(text, 'vault', manager, 'enabled', false)
     )
   }
+  // Задача T20.5: умолчания ядра 0.22 — ленивые установки, чужие логины,
+  // коннекторы Nous, общая телеметрия, проверка обновлений плагинов.
+  for (const { path, value, what } of CORE_OPT_OUTS) {
+    if (path.length === 2) applyConfigDefault(homeDir, path[0], path[1], value, what)
+    else
+      applyConfigMerge(homeDir, path[0], what, (text) =>
+        ensureNestedScalar(text, path[0], path[1], path[2], value)
+      )
+  }
   // Задача 3G.10 (UR42): канбан, браузер и сейф — за поиском инструментов.
-  // Ключ заменяет их умолчание целиком, поэтому оно внутри списка.
+  // Ключ заменяет их умолчание целиком, поэтому оно внутри списка. Наш прежний
+  // список (ядро 0.21.5) заменяется новым, свой список человека — нет (T20.5).
+  applyConfigMerge(homeDir, 'tools', 'the deferred tools upgrade', (text) =>
+    upgradeNestedList(
+      text,
+      'tools',
+      'tool_search',
+      'defer',
+      PREVIOUS_DEFERRED_TOOLS,
+      DEFERRED_TOOLS
+    )
+  )
   applyConfigMerge(homeDir, 'tools', 'the deferred tools', (text) =>
     ensureNestedList(text, 'tools', 'tool_search', 'defer', DEFERRED_TOOLS)
+  )
+  // UR5 (T20.5): навык ответа по источникам загружен в каждой новой сессии.
+  applyConfigMerge(homeDir, 'skills', 'the auto-loaded skills', (text) =>
+    ensureSectionList(text, 'skills', 'auto_load', AUTO_LOAD_SKILLS)
   )
   // Задача 3G.11 (UR42): навыки ядра не про проектирование выключены умолчанием.
   applyConfigMerge(homeDir, 'skills', 'the disabled skills', (text) =>

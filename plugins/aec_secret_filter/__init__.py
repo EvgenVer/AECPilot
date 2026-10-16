@@ -74,13 +74,16 @@ def _texts(args: Any) -> list[str]:
 # браузером (`tools/browser_vault_tool.py::_check_vault_available`), и конфигом по
 # одному инструменту он не снимается. Источники логинов закрыты `vault.*.enabled:
 # false` (3.B6г), инструменты убраны за поиск (`tools.tool_search.defer`); вызов,
-# если модель всё же его найдёт, отклоняется здесь.
+# если модель всё же его найдёт, отклоняется здесь. С ядра 0.22.0 пять
+# `browser_vault_*` слиты в один `browser_vault` (задача T20.5): проверка по одному
+# префиксу пропустила бы его — отклоняются оба вида имени.
+_VAULT_TOOL = "browser_vault"
 _VAULT_PREFIX = "browser_vault_"
 _VAULT_REFUSAL = "Сейф паролей браузера в AECPilot не используется: вход на сайт выполняет человек."
 
 
 def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> dict[str, str] | None:
-    if tool_name.startswith(_VAULT_PREFIX):
+    if tool_name == _VAULT_TOOL or tool_name.startswith(_VAULT_PREFIX):
         return {"action": "block", "message": _VAULT_REFUSAL}
 
     if tool_name not in _MEMORY_TOOLS:

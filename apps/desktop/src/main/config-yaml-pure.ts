@@ -127,7 +127,11 @@ export function forceSectionScalar(
   if (at === -1) {
     // Не `ensureSectionScalar`: тот ищет ключ на любой глубине и, найдя
     // одноимённый ниже (`stt: local: enabled:`), ничего бы не дописал.
-    const inserted = [...lines.slice(0, start + 1), `  ${key}: ${written}`, ...lines.slice(start + 1)]
+    const inserted = [
+      ...lines.slice(0, start + 1),
+      `  ${key}: ${written}`,
+      ...lines.slice(start + 1)
+    ]
     return { text: inserted.join('\n'), changed: true, unexpectedStructure: false }
   }
 
@@ -364,6 +368,62 @@ export function upgradeSectionList(
   }
 
   const written = next.map((value) => `    - ${value}`)
+  const text = [...lines.slice(0, keyIndex + 1), ...written, ...lines.slice(end)].join('\n')
+  return { text, changed: true, unexpectedStructure: false }
+}
+
+/**
+ * Задача T20.5. То же, что `upgradeSectionList`, на третьем уровне
+ * (`tools.tool_search.defer`): список заменяется, ТОЛЬКО если он в точности
+ * равен одному из наших прежних умолчаний — тем видом, каким его пишет
+ * `ensureNestedList`. Список, который человек поменял, не трогается.
+ */
+export function upgradeNestedList(
+  yamlText: string,
+  section: string,
+  sub: string,
+  key: string,
+  previous: readonly (readonly string[])[],
+  next: readonly string[]
+): ConfigScalarResult {
+  const unchanged = { text: yamlText, changed: false, unexpectedStructure: false }
+  const lines = yamlText.split('\n')
+  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#.*)?$`).test(line))
+  if (start === -1) return unchanged
+
+  let subIndex = -1
+  let index = start + 1
+  for (; index < lines.length && !TOP_LEVEL_LINE.test(lines[index]); index += 1) {
+    if (new RegExp(`^  ${sub}:\\s*$`).test(lines[index])) {
+      subIndex = index
+      break
+    }
+  }
+  if (subIndex === -1) return unchanged
+
+  let keyIndex = -1
+  for (index = subIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (TOP_LEVEL_LINE.test(line) || /^ {2}\S/.test(line)) break
+    if (new RegExp(`^    ${key}:\\s*$`).test(line)) {
+      keyIndex = index
+      break
+    }
+  }
+  if (keyIndex === -1) return unchanged
+
+  const items: string[] = []
+  let end = keyIndex + 1
+  while (end < lines.length && /^ {6}- \S+\s*$/.test(lines[end])) {
+    items.push(lines[end].trim().slice(2).trim())
+    end += 1
+  }
+  const matches = previous.some(
+    (list) => list.length === items.length && list.every((item, at) => item === items[at])
+  )
+  if (!matches) return unchanged
+
+  const written = next.map((value) => `      - ${value}`)
   const text = [...lines.slice(0, keyIndex + 1), ...written, ...lines.slice(end)].join('\n')
   return { text, changed: true, unexpectedStructure: false }
 }
