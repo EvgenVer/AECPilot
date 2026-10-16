@@ -1,56 +1,51 @@
-"""Один клиент Mem0 на процесс ядра (задача 3F.D2, D-111, вариант A PLAN).
+"""Бэкенд Mem0 с ключом по имени переменной (задачи 3G.4/D-157, 3F.D2/D-111, T20.6).
 
-ЗАМЕРЕНО 2026-09-23 (приёмка 3F.8) и 2026-09-28 (`runtime/mem0-shared-client-probe.py`):
-их плагин Mem0 заводит `OSSBackend` — а с ним встроенный qdrant — на КАЖДОГО
-агента, то есть на каждую сессию шлюза. Встроенный qdrant держит папку
-исключительно даже внутри одного процесса, и второй агент получает «Storage
-folder … is already accessed by another instance of Qdrant client»: память
-работает у одной сессии из многих. Зонд тем же числом показал, что ОДИН клиент
-выдерживает запись и поиск из четырёх потоков разом без ошибок.
+ЧТО ЗДЕСЬ БЫЛО И ПОЧЕМУ ЧАСТИ ЭТОГО БОЛЬШЕ НЕТ. До ядра 0.22 плагин Mem0 заводил
+`OSSBackend` — а с ним встроенный qdrant — на КАЖДОГО агента, и второй агент
+процесса получал «Storage folder … is already accessed by another instance of
+Qdrant client» (D-111, замерено 2026-09-23 и 2026-09-28). Здесь стояла наша
+фабрика: один клиент на папку, закрытие по счётчику. С плагина `mem0ai/mem0` 1.3.0
+(ядро 0.22, задача T20.6) то же делают они сами: `_backend._LOCAL_QDRANT_MEMORIES`
+держит одного владельца на путь, `users` — счётчик, вызовы идут под его замком
+(замерено `runtime/mem0-shared-client-probe.py`: второй клиент открывается без
+конфликта, 50 записей из потоков без ошибок). Наша фабрика поверх их класса
+ломала его: их код зовёт `OSSBackend._reject_dimension_mismatch` атрибутом
+модуля, а там была функция. Поэтому деления больше нет.
 
-ПОЭТОМУ ЗДЕСЬ ПОДМЕНА ИХ ФАБРИКИ, А НЕ ПРАВКА ИХ ФАЙЛА. `Mem0MemoryProvider.
-_create_backend` берёт `_backend.OSSBackend` атрибутом модуля в момент вызова, и
-мы кладём туда кэш по пути хранилища: первый агент открывает клиента, остальные
-получают его же. Закрытие — по счётчику: клиент закрывается, когда его отпустил
-последний агент, иначе конец одной сессии отнял бы память у всех прочих.
-Клиент без пути (qdrant сервером) не кэшируется — там конфликта нет.
+ЧТО ОСТАЛОСЬ — КЛЮЧ ПО ИМЕНИ ПЕРЕМЕННОЙ. Их LLM и эмбеддер для Mem0 берут ключ
+только из `OPENAI_API_KEY` (`_backend.OSSBackend._provider_block`,
+`_openai_llm.DirectOpenAILLM`), имя переменной не настраивается. Адрес подменить
+можно (`openai_base_url`), ключ — нет. Поэтому `mem0.json` несёт ИМЯ переменной
+(`api_key_env`), а ключ подставляется здесь, в памяти процесса, через их область
+секретов профиля (`agent.secret_scope.get_secret`). Нет ключа — отказ с именем
+переменной: иначе эмбеддер молча взял бы `OPENAI_API_KEY` и отправил ключ OpenAI
+на адрес другого провайдера.
 
-Точка подмены — `plugins.memory.mem0._backend.OSSBackend`: при подъёме ядра её
-сверяют в обязательном диффе контрактов. Не встала — предупреждение в лог, и
-ядро ведёт себя по-своему (как до починки), а не падает.
+Точка подмены — `_backend.OSSBackend`, который их `Mem0MemoryProvider.
+_create_backend` берёт атрибутом модуля в момент вызова. Кладётся туда наследник,
+а не функция: их код внутри модуля обращается к статическим методам класса по
+имени. Точку сверяет `runtime/mem0-shared-client-contract.test.mjs`.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import threading
 from collections.abc import Callable
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_GUARD_FLAG = "_aec_shared_mem0_client"
+_GUARD_FLAG = "_aec_keyed_mem0_backend"
 
 
 def storage_key(oss_config: dict) -> str | None:
-    """Путь папки встроенного qdrant — ключ общего клиента; None — не делить."""
+    """Путь папки встроенного qdrant (нормализованный); None — хранилище сервером."""
     vector_store = (oss_config or {}).get("vector_store") or {}
     path = (vector_store.get("config") or {}).get("path")
     if not path:
         return None
     return os.path.normcase(os.path.abspath(os.path.expanduser(str(path))))
-
-
-# ── КЛЮЧ ПО ИМЕНИ ПЕРЕМЕННОЙ (задача 3G.4, D-157, решение владельца (в)) ──────────
-# Их LLM для Mem0 (`_openai_llm.DirectOpenAILLM`) берёт ключ из `OPENAI_API_KEY`, а
-# эмбеддер библиотеки — тоже из `OPENAI_API_KEY`; имя переменной не настраивается.
-# Адрес подменить можно (`openai_base_url`), ключ — нет. Поэтому `mem0.json` несёт
-# ИМЯ переменной (`api_key_env`), а ключ подставляется здесь, в памяти процесса,
-# через их область секретов профиля (`agent.secret_scope.get_secret` — так читает и
-# их LLM). Оба их класса ключ из конфига принимают (`self.config.api_key or …`), так
-# что наследники не нужны. Нет ключа — отказ с именем переменной: иначе эмбеддер
-# молча взял бы `OPENAI_API_KEY` и отправил ключ OpenAI на адрес другого провайдера.
 
 
 def _secret(name: str) -> str:
@@ -83,71 +78,39 @@ def with_keys_from_env(oss_config: dict, secret: Callable[[str], str] = _secret)
     return out
 
 
-class _Lease:
-    """Доступ агента к общему клиенту: всё — клиенту, кроме `close`."""
+def keyed_backend(original: type) -> type:
+    """Наследник их `OSSBackend`, подставляющий ключ по имени переменной."""
 
-    def __init__(self, backend: Any, release: Callable[[], None]) -> None:
-        self._aec_backend = backend
-        self._aec_release = release
-        self._aec_closed = False
+    class KeyedOSSBackend(original):  # type: ignore[misc, valid-type]
+        def __init__(self, oss_config: dict, *args: Any, **kwargs: Any) -> None:
+            super().__init__(with_keys_from_env(oss_config), *args, **kwargs)
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._aec_backend, name)
-
-    def close(self) -> None:
-        if self._aec_closed:
-            return
-        self._aec_closed = True
-        self._aec_release()
+    KeyedOSSBackend.__name__ = original.__name__
+    KeyedOSSBackend.__qualname__ = original.__qualname__
+    setattr(KeyedOSSBackend, _GUARD_FLAG, True)
+    return KeyedOSSBackend
 
 
-def shared_factory(original: Callable[[dict], Any]) -> Callable[[dict], Any]:
-    """Фабрика на месте их `OSSBackend`: один клиент на папку хранилища."""
-    lock = threading.Lock()
-    shared: dict[str, list] = {}  # ключ -> [клиент, число агентов]
-
-    def factory(oss_config: dict) -> Any:
-        oss_config = with_keys_from_env(oss_config)
-        key = storage_key(oss_config)
-        if key is None:
-            return original(oss_config)
-        with lock:
-            entry = shared.get(key)
-            if entry is None:
-                entry = [original(oss_config), 0]
-                shared[key] = entry
-            entry[1] += 1
-
-        def release() -> None:
-            with lock:
-                entry[1] -= 1
-                if entry[1] > 0 or shared.get(key) is not entry:
-                    return
-                del shared[key]
-            entry[0].close()
-
-        return _Lease(entry[0], release)
-
-    setattr(factory, _GUARD_FLAG, True)
-    return factory
-
-
-def install_shared_mem0_client() -> bool:
-    """Ставит общую фабрику. Возвращает, встала ли она."""
+def install_mem0_backend() -> bool:
+    """Ставит наследника на место их `OSSBackend`. Возвращает, встал ли он."""
     try:
         from plugins.memory import import_provider_module
 
         backend_mod = import_provider_module("mem0", "_backend")
     except Exception as error:
         logger.warning(
-            "aec-secret-filter: нет модуля бэкенда mem0 (%s) — общий клиент не встал", error
+            "aec-secret-filter: нет модуля бэкенда mem0 (%s) — ключ по имени не встал", error
         )
         return False
     original = getattr(backend_mod, "OSSBackend", None)
-    if original is None:
-        logger.warning("aec-secret-filter: у mem0 нет OSSBackend — общий клиент не встал")
+    if not isinstance(original, type):
+        logger.warning("aec-secret-filter: у mem0 нет класса OSSBackend — ключ по имени не встал")
         return False
+    if not hasattr(backend_mod, "_LOCAL_QDRANT_MEMORIES"):
+        # Их общий клиент на папку исчез — D-111 вернётся: вторая сессия процесса
+        # потеряет память. Сверять при подъёме пина плагина.
+        logger.warning("aec-secret-filter: у mem0 нет общего клиента на папку — D-111 вернётся")
     if getattr(original, _GUARD_FLAG, False):
         return True
-    backend_mod.OSSBackend = shared_factory(original)
+    backend_mod.OSSBackend = keyed_backend(original)
     return True

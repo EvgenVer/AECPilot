@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { RUNTIME_DIR } from "./hermes-env.mjs";
+import { installMem0Plugin } from "./register-mem0-plugin.mjs";
 
 const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
 
@@ -184,6 +185,17 @@ export function installSecretFilter(hermesHomeDir) {
       fs.writeFileSync(path.join(target, name), source, "utf-8");
       changed = true;
     }
+  }
+
+  // Задача T20.6. Общий клиент Mem0 (`mem0_shared.py`) и факты памяти держатся
+  // на провайдере Mem0, который с ядра 0.22 — внешний плагин; он ставится сюда же,
+  // чтобы его получал каждый профиль, куда ставится фильтр (главный, специалисты,
+  // пробы). Без исходника (`setup.mjs` не прогнан) фильтр ставится всё равно.
+  const mem0 = installMem0Plugin(hermesHomeDir);
+  if (mem0.missing) {
+    console.error("aecpilot: Mem0 plugin source missing — run `node runtime/setup.mjs`");
+  } else if (mem0.changed) {
+    changed = true;
   }
 
   const configPath = path.join(hermesHomeDir, "config.yaml");

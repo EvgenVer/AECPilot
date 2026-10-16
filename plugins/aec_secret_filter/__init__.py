@@ -36,7 +36,7 @@ import logging
 from typing import Any
 
 from . import key_source, memory_facts
-from .mem0_shared import install_shared_mem0_client
+from .mem0_shared import install_mem0_backend
 from .secrets import find_secrets, redact_secrets, refusal_message
 
 logger = logging.getLogger(__name__)
@@ -285,8 +285,9 @@ _PRODUCT_SECTION = (
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     install_sync_guard()
-    # Задача 3F.D2 (D-111): один клиент Mem0 на процесс — см. `mem0_shared.py`.
-    install_shared_mem0_client()
+    # Задачи 3G.4 (D-157), T20.6: ключ памяти по имени переменной — см. `mem0_shared.py`;
+    # один клиент Mem0 на папку (D-111) с плагина 1.3.0 держат они сами.
+    install_mem0_backend()
     # Задача 3H.20 (D-190): список и удаление фактов без остановки ядра — см.
     # `memory_facts.py`. Не встала — окно скажет, что список недоступен.
     try:

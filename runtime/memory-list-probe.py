@@ -28,6 +28,10 @@ sys.path.insert(0, str(HERMES_SRC))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins"))
 os.environ["MEM0_TELEMETRY"] = "False"
 
+# С ядра 0.22 провайдер Mem0 — внешний плагин в $HERMES_HOME/plugins/mem0 (T20.6).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from probe_mem0_home import install_plugin  # noqa: E402
+
 DIMS = 8
 USER = "aec-project-probe"
 
@@ -59,6 +63,7 @@ def main() -> int:
     home = Path(tempfile.mkdtemp(prefix="aec-mem0-list-probe-"))
     os.environ["HERMES_HOME"] = str(home)
     os.environ["MEM0_DIR"] = str(home / "mem0")
+    install_plugin(home)
     store = str(home / "mem0_qdrant")
     (home / "mem0.json").write_text(
         json.dumps({"mode": "oss", "user_id": USER, "oss": oss(store)}), encoding="utf-8"
@@ -69,16 +74,17 @@ def main() -> int:
     backend_mod = import_provider_module("mem0", "_backend")
     original = backend_mod.OSSBackend
 
-    def with_fake_embed(config: dict):
-        made = original(config)
-        made._memory.embedding_model.embed = fake_embed  # noqa: SLF001 — зонд
-        return made
+    # Наследник, а не функция: их модуль зовёт статические методы `OSSBackend.<имя>` (T20.6).
+    class WithFakeEmbed(original):
+        def __init__(self, config: dict, *args, **kwargs):
+            super().__init__(config, *args, **kwargs)
+            self._memory.embedding_model.embed = fake_embed  # noqa: SLF001 — зонд
 
-    backend_mod.OSSBackend = with_fake_embed
+    backend_mod.OSSBackend = WithFakeEmbed
     from aec_secret_filter import memory_facts
-    from aec_secret_filter.mem0_shared import install_shared_mem0_client
+    from aec_secret_filter.mem0_shared import install_mem0_backend
 
-    print("shared client installed:", install_shared_mem0_client())
+    print("keyed backend installed:", install_mem0_backend())
 
     # «Живая сессия» ядра: провайдер, который держит папку.
     live = memory_facts.open_provider(str(home))

@@ -26,6 +26,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { installMem0Plugin } from "./register-mem0-plugin.mjs";
+
 /** Ключ, которым ядро выбирает плагин памяти (`agent/agent_init.py:1905`). */
 export const MEMORY_PROVIDER = "mem0";
 
@@ -304,6 +306,16 @@ export function applyMemoryProfile({ hermesHomeDir, vaultPath, env = process.env
   const merged = mergeMemoryProviderIntoConfigYaml(yamlText);
   if (merged.changed) {
     fs.writeFileSync(configPath, merged.text, "utf-8");
+    changed = true;
+  }
+
+  // Задача T20.6: с ядра 0.22 `memory.provider: mem0` без провайдера в
+  // `<home>/plugins/mem0` заставляет ядро ставить его само с GitHub. Кто включает
+  // профилю Mem0, тот и кладёт провайдера с нашего пина.
+  const mem0 = installMem0Plugin(hermesHomeDir);
+  if (mem0.missing) {
+    console.error("aecpilot: Mem0 plugin source missing — run `node runtime/setup.mjs`");
+  } else if (mem0.changed) {
     changed = true;
   }
 

@@ -44,12 +44,38 @@ import os from "node:os";
 import path from "node:path";
 
 import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
-import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
+import { applyMemoryProfile, memoryEnv, readMem0Json } from "./memory-config.mjs";
 import { installSecretFilter } from "./register-secret-filter.mjs";
 
 const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
 const HERMES_SRC = path.join(RUNTIME_DIR, ".hermes-src");
-const DEV_ENV = path.join(RUNTIME_DIR, "dev-profile", ".env");
+// Ключи стенда живут в профиле автотестов (`apps/desktop/e2e/lib/core.ts`), профиль
+// разработки — запасной путь (задача T20.6). Значения файл не покидают: их читает
+// `load_env_file` внутри процесса зонда.
+const E2E_ENV = path.join(RUNTIME_DIR, "e2e-profile", ".env");
+const DEV_ENV = fs.existsSync(E2E_ENV) ? E2E_ENV : path.join(RUNTIME_DIR, "dev-profile", ".env");
+
+// Задача T20.6. Провайдер памяти — стенда (Gemini), как его записало приложение
+// (`memoryProviderFromProfile`) в профиль автотестов, а не OpenAI по умолчанию:
+// ключ берётся из `.env` профиля разработки по имени переменной (D-157). С
+// умолчанием зонд требовал `OPENAI_API_KEY`, которого у стенда нет.
+function devMemoryProvider() {
+  for (const profile of ["e2e-profile", "dev-profile"]) {
+    const oss = readMem0Json(path.join(RUNTIME_DIR, profile))?.oss ?? {};
+    const llm = oss.llm?.config ?? {};
+    const embedder = oss.embedder?.config ?? {};
+    if (!llm.api_key_env || !embedder.model) continue;
+    return {
+      llmModel: llm.model,
+      baseUrl: llm.openai_base_url,
+      keyEnvVar: llm.api_key_env,
+      embeddingModel: embedder.model,
+      embeddingDims: embedder.embedding_dims,
+    };
+  }
+  return null;
+}
+const DEV_MEMORY_PROVIDER = devMemoryProvider();
 
 const SECRET = "Qwerty12345!";
 const FACT = "резерв мощности 20 процентов";
@@ -89,6 +115,12 @@ const buildPy = (userText) => [
   // Обёртка ставится при `register()` плагина. Печатаем факт, а не надежду:
   // «секрета нет» без этой строки не отличить от «обёртки нет, просто не нашли».
   "print('GUARD ' + str(getattr(MemoryManager.sync_all, '_aec_secret_filter_installed', False)))",
+  // Задача T20.6: ключ памяти по имени переменной (D-157) подставляет наш плагин, а в
+  // контроле он не включён — без подстановки Mem0 не стартует вовсе, и контроль мерил
+  // бы не фильтр. Ставим только подстановку ключа, фильтр остаётся выключенным.
+  `sys.path.insert(0, r"${path.join(REPO_ROOT, "plugins")}")`,
+  "from aec_secret_filter.mem0_shared import install_mem0_backend",
+  "install_mem0_backend()",
   "from plugins.memory import load_memory_provider",
   "p = load_memory_provider('mem0', register_skills=False)",
   "p.initialize(session_id='autowrite-probe', platform='tui', hermes_home=os.environ['HERMES_HOME'], agent_context='primary')",
@@ -150,7 +182,7 @@ async function measure({ armed, autowrite = true, userText = USER_TEXT }) {
   const vault = fs.mkdtempSync(path.join(os.tmpdir(), "aec-autowrite-vault-"));
   const scriptPath = path.join(home, "probe.py");
 
-  const { key } = applyMemoryProfile({ hermesHomeDir: home, vaultPath: vault });
+  const { key } = applyMemoryProfile({ hermesHomeDir: home, vaultPath: vault, provider: DEV_MEMORY_PROVIDER });
   installSecretFilter(home);
   if (!armed) {
     const configPath = path.join(home, "config.yaml");

@@ -27,6 +27,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins"))
 # Зонд не шлёт телеметрию mem0 наружу — как и продукт.
 os.environ["MEM0_TELEMETRY"] = "False"
 
+# С ядра 0.22 провайдер Mem0 — внешний плагин в $HERMES_HOME/plugins/mem0 (T20.6).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from probe_mem0_home import make_probe_home  # noqa: E402
+
+PROBE_HOME = make_probe_home()
+
 DIMS = 8
 
 
@@ -63,9 +69,9 @@ def main() -> int:
     from plugins.memory import import_provider_module
 
     if "--with-fix" in sys.argv:
-        from aec_secret_filter.mem0_shared import install_shared_mem0_client
+        from aec_secret_filter.mem0_shared import install_mem0_backend
 
-        print("FIX installed:", install_shared_mem0_client())
+        print("FIX installed:", install_mem0_backend())
     backend_mod = import_provider_module("mem0", "_backend")
     home = tempfile.mkdtemp(prefix="aec-mem0-probe-")
     path = str(Path(home) / "mem0_qdrant")

@@ -56,6 +56,9 @@ function runPython() {
       env: {
         ...process.env,
         HERMES_HOME: HERMES_HOME_DIR,
+        // Пустышка для отказа без ключа: плагин Mem0 1.3.0 (T20.6) требует ключ при
+        // создании бэкенда — без неё зонд упал бы раньше, чем дошёл до хранилища.
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "probe-not-a-key",
         ...memoryEnv(HERMES_HOME_DIR),
         PYTHONIOENCODING: "utf-8",
       },

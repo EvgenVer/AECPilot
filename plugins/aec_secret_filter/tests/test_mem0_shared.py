@@ -1,24 +1,18 @@
-"""Задача 3F.D2 (D-111): один клиент Mem0 на папку хранилища, закрытие по счётчику."""
+"""Задачи 3G.4 (D-157) и T20.6: ключ памяти по имени переменной, наследником их OSSBackend."""
 
 from __future__ import annotations
 
 import pytest
-from aec_secret_filter.mem0_shared import shared_factory, storage_key, with_keys_from_env
+from aec_secret_filter.mem0_shared import keyed_backend, storage_key, with_keys_from_env
 
 
 class FakeBackend:
-    opened = 0
-
     def __init__(self, oss_config: dict) -> None:
-        FakeBackend.opened += 1
         self.config = oss_config
-        self.closed = False
 
-    def search(self, query: str) -> str:
-        return f"found {query}"
-
-    def close(self) -> None:
-        self.closed = True
+    @staticmethod
+    def _reject_dimension_mismatch(*_args) -> str:
+        return "static"
 
 
 def cfg(path: str | None) -> dict:
@@ -28,43 +22,6 @@ def cfg(path: str | None) -> dict:
             "config": {"path": path} if path else {"url": "http://x"},
         }
     }
-
-
-def setup_function() -> None:
-    FakeBackend.opened = 0
-
-
-def test_agents_on_one_folder_share_one_client(tmp_path) -> None:
-    factory = shared_factory(FakeBackend)
-    first = factory(cfg(str(tmp_path / "q")))
-    second = factory(cfg(str(tmp_path / "q")))
-    assert FakeBackend.opened == 1
-    assert first.search("x") == "found x"
-    assert second.config is first.config
-
-
-def test_client_closes_only_when_the_last_agent_lets_go(tmp_path) -> None:
-    factory = shared_factory(FakeBackend)
-    first = factory(cfg(str(tmp_path / "q")))
-    second = factory(cfg(str(tmp_path / "q")))
-    backend = first._aec_backend
-    first.close()
-    first.close()  # повторное закрытие того же агента не считается дважды
-    assert backend.closed is False
-    second.close()
-    assert backend.closed is True
-    factory(cfg(str(tmp_path / "q")))
-    assert FakeBackend.opened == 2  # после закрытия — новый клиент
-
-
-def test_different_folders_and_servers_are_not_shared(tmp_path) -> None:
-    factory = shared_factory(FakeBackend)
-    factory(cfg(str(tmp_path / "a")))
-    factory(cfg(str(tmp_path / "b")))
-    server_one = factory(cfg(None))
-    factory(cfg(None))
-    assert FakeBackend.opened == 4
-    assert isinstance(server_one, FakeBackend)  # без пути — их объект как есть
 
 
 def test_storage_key_normalises_the_path(tmp_path) -> None:
@@ -108,3 +65,16 @@ def test_missing_key_is_refused_by_name_not_replaced_with_openai() -> None:
 def test_config_without_a_variable_name_passes_as_is() -> None:
     plain = keyed(None)
     assert with_keys_from_env(plain, secret=lambda _name: "x") == plain
+
+
+# Задача T20.6: на месте их класса — наследник, а не функция. Их модуль зовёт
+# статические методы `OSSBackend.<имя>`; функция на этом месте роняла Mem0.
+def test_keyed_backend_is_a_subclass_with_their_static_methods(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "g-2")
+    keyed_cls = keyed_backend(FakeBackend)
+    assert issubclass(keyed_cls, FakeBackend)
+    assert keyed_cls.__name__ == "FakeBackend"
+    assert keyed_cls._reject_dimension_mismatch() == "static"
+    made = keyed_cls(keyed("GEMINI_API_KEY"))
+    assert made.config["llm"]["config"]["api_key"] == "g-2"
+    assert "api_key_env" not in made.config["embedder"]["config"]

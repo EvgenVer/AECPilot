@@ -58,10 +58,10 @@ def open_provider(home):
     plugins_dir = str(Path(__file__).resolve().parents[1] / "plugins")
     if plugins_dir not in sys.path:
         sys.path.insert(0, plugins_dir)
-    from aec_secret_filter.mem0_shared import install_shared_mem0_client
+    from aec_secret_filter.mem0_shared import install_mem0_backend
     from aec_secret_filter.memory_facts import open_provider as open_mem0
 
-    install_shared_mem0_client()
+    install_mem0_backend()
     return open_mem0(home)
 
 
