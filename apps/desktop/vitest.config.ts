@@ -250,6 +250,8 @@ export default defineConfig({
             './src/renderer/src/donor/vitest.setup.ts',
             './src/renderer/src/shared/donor-test-locale.ts'
           ],
+          // Пин 0.22.2: холодный граф SDK дольше их потолка хука — см. файл.
+          globalSetup: ['./src/renderer/src/shared/donor-heavy-warmup.ts'],
           testTimeout: 15000,
           maxWorkers: 1,
           sequence: { groupOrder: 4 }
