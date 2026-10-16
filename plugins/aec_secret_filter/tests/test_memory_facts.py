@@ -177,4 +177,4 @@ def test_команда_регистрируется_в_ядре(monkeypatch: py
             commands[name] = handler
 
     aec_secret_filter.register(Ctx())
-    assert commands == {"aec-memory-facts": memory_facts.handle}
+    assert commands["aec-memory-facts"] is memory_facts.handle

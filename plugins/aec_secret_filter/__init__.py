@@ -282,6 +282,14 @@ _PRODUCT_SECTION = (
 )
 
 
+STATUS_COMMAND = "aec-filter-status"
+STATUS_LOADED = "aec-secret-filter: loaded"
+
+
+def _status(_raw_args: str) -> str:
+    return STATUS_LOADED
+
+
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     install_sync_guard()
@@ -329,12 +337,29 @@ def register(ctx) -> None:
             "aec-secret-filter: нет register_system_prompt_section — "
             "маршрут факта остался только в AGENTS.md"
         )
-        return
-    for section_id, text in (
-        ("aec-product", _PRODUCT_SECTION),
-        ("aec-memory-routing", _MEMORY_ROUTING_SECTION),
-    ):
-        try:
-            register_section(section_id, text)
-        except Exception as error:
-            logger.warning("aec-secret-filter: секция %s не встала (%s)", section_id, error)
+    else:
+        for section_id, text in (
+            ("aec-product", _PRODUCT_SECTION),
+            ("aec-memory-routing", _MEMORY_ROUTING_SECTION),
+        ):
+            try:
+                register_section(section_id, text)
+            except Exception as error:
+                logger.warning("aec-secret-filter: секция %s не встала (%s)", section_id, error)
+
+    # Задача T20.10 (решение владельца 2026-10-16). ПОСЛЕДНЕЙ строкой: ядро 0.22
+    # молча выбрасывает плагин, чей импорт и `register()` не уложились в
+    # `plugins.load_timeout_seconds`, — вместе со всем, что он успел
+    # зарегистрировать, а поздние регистрации игнорирует. Значит, эта команда
+    # есть у ядра, только если загрузка дошла до конца в срок: по ней главный
+    # процесс проверяет фильтр перед первым ходом и без него ход не начинает.
+    # Не встала — сторож не найдёт команду и ходы не пустит: отказ в закрытую сторону.
+    try:
+        ctx.register_command(
+            STATUS_COMMAND,
+            _status,
+            description="AECPilot: фильтр секретов загружен",
+            args_hint="",
+        )
+    except Exception as error:
+        logger.warning("aec-secret-filter: команда состояния не встала (%s)", error)

@@ -238,6 +238,13 @@ import {
 } from './agent-defaults-pure'
 import { MEM0_DISTRIBUTIONS, distributionsInstalled } from './core-packages-pure'
 import {
+  FILTER_NOT_LOADED,
+  FILTER_STATUS_COMMAND,
+  filterLoaded,
+  startsTurn,
+  turnSessionId
+} from './secret-filter-guard-pure'
+import {
   addSourceToProject,
   createProject,
   getProjectSettings,
@@ -2091,6 +2098,7 @@ ipcMain.handle('chat:submit', async (_event, payload: unknown) => {
   }
   const activeSessionId = await ensureSession()
   if (!gateway) throw new Error('cannot submit prompt — gateway is not connected')
+  await ensureSecretFilter('prompt.submit', { session_id: activeSessionId })
   return gateway.request('prompt.submit', {
     session_id: activeSessionId,
     text,
@@ -2120,6 +2128,7 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
   try {
     if (target === 'new') await newSession()
     const activeSessionId = await ensureSession()
+    await ensureSecretFilter('prompt.submit', { session_id: activeSessionId })
     await gateway.request('prompt.submit', { session_id: activeSessionId, text })
     // The answer arrives in the main window, so bring it forward — otherwise a
     // prompt fired from another app looks like it went nowhere.
@@ -3424,6 +3433,38 @@ ipcMain.handle('gateway:get-state', () => gatewayState)
 // one REST call, so these two handlers replace what would otherwise have been
 // 200 edits to their files. Rules — including the two surfaces rule R2 forbids
 // — live in `gateway-passthrough-pure.ts`; the token and the socket stay here.
+/** Задача T20.10: сессии, в которых фильтр секретов проверен, — для каждого
+ * шлюза свои (новый процесс ядра грузит плагины заново). Проверяется только
+ * своё ядро: на ядро по адресу или через SSH фильтр ставим не мы, а mock-стенд
+ * автотестов (`AEC_GATEWAY_URL`) плагинов не грузит. См. `secret-filter-guard-pure.ts`. */
+let filterChecked: { gateway: unknown; sessions: Set<string> } | null = null
+
+async function ensureSecretFilter(method: string, params: unknown): Promise<void> {
+  if (!gateway || !startsTurn(method, params)) return
+  if (remoteTarget() !== undefined || connectionMode() === 'ssh' || process.env.AEC_GATEWAY_URL)
+    return
+  const sessionId = turnSessionId(params)
+  if (sessionId === null) return
+  if (filterChecked?.gateway !== gateway) filterChecked = { gateway, sessions: new Set() }
+  if (filterChecked.sessions.has(sessionId)) return
+  let result: unknown
+  try {
+    result = await gateway.request('command.dispatch', {
+      name: FILTER_STATUS_COMMAND,
+      arg: '',
+      session_id: sessionId
+    })
+  } catch (error: unknown) {
+    result = undefined
+    console.error('aecpilot: secret filter status check failed', error)
+  }
+  if (!filterLoaded(result)) {
+    console.error('aecpilot: secret filter is NOT loaded in the core — turn refused')
+    throw new Error(FILTER_NOT_LOADED)
+  }
+  filterChecked.sessions.add(sessionId)
+}
+
 ipcMain.handle(
   'gateway:rpc',
   async (
@@ -3451,6 +3492,7 @@ ipcMain.handle(
         currentProject?.vaultPath ?? null
       ) as never
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
+      await ensureSecretFilter(method, params)
       const value = await gateway.request(method as never, params, timeoutMs)
       // D-195: профиль специалиста, созданный их окном, получает плагин до того,
       // как ядро начнёт его обслуживать и загрузит его плагины; 3J.4 — SOUL.

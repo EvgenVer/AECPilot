@@ -328,12 +328,58 @@ def test_выключенная_автозапись_не_доходит_до_п
 class _Ctx:
     def __init__(self) -> None:
         self.sections: dict[str, str] = {}
+        self.calls: list[str] = []
+        self.commands: dict[str, object] = {}
 
     def register_hook(self, name: str, fn) -> None:  # noqa: ANN001
-        pass
+        self.calls.append(f"hook:{name}")
+
+    def register_command(self, name: str, handler, **_kw) -> None:  # noqa: ANN001
+        self.calls.append(f"command:{name}")
+        self.commands[name] = handler
 
     def register_system_prompt_section(self, section_id: str, text: str) -> None:
+        self.calls.append(f"section:{section_id}")
         self.sections[section_id] = text
+
+
+def test_команда_состояния_регистрируется_последней(monkeypatch: pytest.MonkeyPatch) -> None:
+    # T20.10: ядро 0.22 выбрасывает плагин, не уложившийся в срок загрузки, вместе со всем,
+    # что он успел зарегистрировать. Команда состояния — последняя регистрация: есть она у
+    # ядра — значит, загрузка дошла до конца, и фильтр перед вызовами инструментов стоит.
+    import aec_secret_filter
+
+    monkeypatch.setattr(aec_secret_filter, "install_sync_guard", lambda: True)
+    monkeypatch.setattr(aec_secret_filter, "install_mem0_backend", lambda: True)
+    ctx = _Ctx()
+    aec_secret_filter.register(ctx)
+
+    assert ctx.calls[0] == "hook:pre_tool_call"
+    assert ctx.calls[-1] == "command:aec-filter-status"
+    status = ctx.commands["aec-filter-status"]
+    assert callable(status) and status("") == "aec-secret-filter: loaded"
+
+
+def test_команда_состояния_и_без_секций_промпта(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Ядро без `register_system_prompt_section` — секций нет, но сторожу команда нужна всё равно.
+    import aec_secret_filter
+
+    monkeypatch.setattr(aec_secret_filter, "install_sync_guard", lambda: True)
+    monkeypatch.setattr(aec_secret_filter, "install_mem0_backend", lambda: True)
+
+    class Bare:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+
+        def register_hook(self, name: str, fn) -> None:  # noqa: ANN001
+            pass
+
+        def register_command(self, name: str, handler, **_kw) -> None:  # noqa: ANN001
+            self.commands.append(name)
+
+    ctx = Bare()
+    aec_secret_filter.register(ctx)
+    assert ctx.commands[-1] == "aec-filter-status"
 
 
 def test_разделы_промпта_продукт_и_память(monkeypatch: pytest.MonkeyPatch) -> None:
