@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/project-menu.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,7 +29,8 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { useI18n } from '@/i18n'
 import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { cn } from '@/lib/utils'
-import { $panesFlipped, dismissAutoProject } from '@/store/layout'
+import { $panesFlipped, dismissAutoProject, restoreAutoProject } from '@/store/layout'
+import { notify } from '@/store/notifications'
 import {
   copyPath,
   deleteProject,
@@ -66,11 +67,24 @@ function useProjectActions({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const removeAuto = () => {
-    dismissAutoProject(project.id)
+    // Capture the id now: the row unmounts (and, when scoped, the scope exits)
+    // the moment we dismiss, so Undo can't read it back off live menu state.
+    const id = project.id
+
+    dismissAutoProject(id)
 
     if (scoped) {
       onExitScope?.()
     }
+
+    // The hide is persisted and otherwise irreversible — there is no other
+    // restore control — so offer a short undo window (mirrors restoreWorktree).
+    notify({
+      action: { label: p.undoHide, onClick: () => restoreAutoProject(id) },
+      durationMs: 8_000,
+      kind: 'success',
+      message: p.hiddenFromSidebar
+    })
   }
 
   const confirmDelete = async () => {

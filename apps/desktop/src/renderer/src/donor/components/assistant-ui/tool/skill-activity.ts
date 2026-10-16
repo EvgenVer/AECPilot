@@ -1,15 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/skill-activity.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { translateNow } from '@/i18n'
 import { firstStringField } from '@/lib/text'
-import { extractToolErrorMessage } from '@/lib/tool-result-summary'
 
-import { parseMaybeObject } from './fallback-model/format'
+import { parseMaybeObject, toolCallFailed } from './fallback-model/format'
 
 interface SkillCall {
   args?: unknown
@@ -27,13 +26,7 @@ export function skillActivityTitle(part: SkillCall, live = true): string | undef
   }
 
   const args = parseMaybeObject(part.args)
-  const result = parseMaybeObject(part.result)
-
-  const failed =
-    result.success !== true &&
-    result.ok !== true &&
-    Boolean(part.isError || extractToolErrorMessage(part.result) || result.success === false || result.ok === false)
-
+  const failed = toolCallFailed(part)
   const pending = live && part.result === undefined && part.completedAt === undefined
   const missing = !pending && part.result === undefined
   const file = firstStringField(args, ['file_path'])

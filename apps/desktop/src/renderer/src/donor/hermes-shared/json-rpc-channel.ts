@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/json-rpc-channel.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  * (no other edits)
  */
+import type { ClientCapabilitiesResult } from './gateway-contract.generated.js'
 import type { GatewayEvent } from './gateway-events.js'
 
 export type GatewayRequestId = number | string
@@ -49,6 +50,13 @@ export interface ServerRequest<M extends string = string, P extends ServerReques
   /** Answer with a JSON-RPC error (the backend treats it as unanswered). */
   fail: (code: number, message: string) => void
   /**
+   * "No window here shows this session" for a window-owned bridge. Sent only
+   * to a backend that counts it as one client declining rather than as the
+   * answer (`client.capabilities` → `declines_not_shown`); an older backend
+   * settles on the first error, so there this stays silent for the owner.
+   */
+  decline?: (message: string) => void
+  /**
    * Renderer-side tag set by the owner when a request arrives through a
    * replay (`open_requests`) rather than live; handlers that already show the
    * card can skip re-notifying.
@@ -80,6 +88,9 @@ export const JSON_RPC_METHOD_NOT_FOUND = -32601
 
 /** JSON-RPC "internal error" — used when a server→client request handler throws. */
 export const JSON_RPC_INTERNAL_ERROR = -32603
+
+/** A window-owned request's session is not shown by any window of this client (tui_gateway/server_requests.py::NOT_SHOWN_CODE). */
+export const JSON_RPC_SESSION_NOT_SHOWN = 4404
 
 /** Map a raw `error` member of a response frame to the typed error every surface inspects. */
 export function jsonRpcErrorFromFrame(raw: unknown, fallbackMessage = 'AECPilot RPC failed'): JsonRpcGatewayError {
@@ -191,6 +202,8 @@ export class JsonRpcRequestChannel {
   private heartbeatSequence = 0
   private readonly outstandingPings = new Set<string>()
   private lastLivenessAt = 0
+  /** The bound generation's backend counts `decline` as one client abstaining (see `ServerRequest.decline`). */
+  private backendCountsDeclines = false
   private readonly requestHandlers: ServerRequestHandler[] = []
   private readonly options: Required<
     Omit<JsonRpcRequestChannelOptions, 'onEvent' | 'onHeartbeatFailure' | 'onRequestHandlerError' | 'onUnhandledRequest'>
@@ -226,6 +239,7 @@ export class JsonRpcRequestChannel {
     this.stopHeartbeat()
     this.transport = transport
     this.lastLivenessAt = Date.now()
+    this.backendCountsDeclines = false
   }
 
   /** Drop the transport and fail every in-flight call with `error`. */
@@ -367,7 +381,12 @@ export class JsonRpcRequestChannel {
       params,
       replayed,
       respond: result => send({ result }),
-      fail: (code, message) => send({ error: { code, message } })
+      fail: (code, message) => send({ error: { code, message } }),
+      decline: message => {
+        if (this.backendCountsDeclines) {
+          send({ error: { code: JSON_RPC_SESSION_NOT_SHOWN, message } })
+        }
+      }
     }
 
     for (const handler of this.requestHandlers) {
@@ -496,7 +515,15 @@ export class JsonRpcRequestChannel {
    * that is ignored.
    */
   private advertiseCapabilities(): void {
-    this.request('client.capabilities', { server_requests: true }).catch(() => undefined)
+    const transport = this.transport
+
+    this.request<Partial<ClientCapabilitiesResult> | null>('client.capabilities', { server_requests: true })
+      .then(result => {
+        if (this.transport === transport) {
+          this.backendCountsDeclines = result?.declines_not_shown === true
+        }
+      })
+      .catch(() => undefined)
   }
 
   /**
@@ -515,12 +542,20 @@ export class JsonRpcRequestChannel {
       return
     }
 
+    // Silence is judged against the last ping we actually sent. A hidden
+    // Chromium window spaces these ticks 60 s apart (intensive wake-up
+    // throttling), so the previous ping's pong is ~60 s old at every tick;
+    // a deadline on its age alone dropped every idle hidden socket.
+    let lastPingAt = 0
+
     this.heartbeatTimer = setInterval(() => {
       if (this.transport !== transport) {
         return
       }
 
-      if (Date.now() - this.lastLivenessAt >= this.options.heartbeatDeadlineMs) {
+      const now = Date.now()
+
+      if (lastPingAt > this.lastLivenessAt && now - this.lastLivenessAt >= this.options.heartbeatDeadlineMs) {
         this.failHeartbeat(new Error('WebSocket heartbeat acknowledgement timed out'))
 
         return
@@ -535,6 +570,8 @@ export class JsonRpcRequestChannel {
       if (this.outstandingPings.size > MAX_OUTSTANDING_PINGS) {
         this.outstandingPings.delete(this.outstandingPings.values().next().value as string)
       }
+
+      lastPingAt = now
 
       try {
         transport.send(JSON.stringify({ jsonrpc: '2.0', id, method: 'gateway.ping', params: {} }))

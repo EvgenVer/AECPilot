@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-tour.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,7 @@ import driverIife from 'driver.js/dist/driver.js.iife.js?raw'
 
 import { collectTourTargets } from '@/lib/tour/collect-targets'
 import { runTourEngine, type TourAction, type TourResult } from '@/lib/tour/engine'
+import type { PreviewOwner } from '@/store/preview-ownership'
 
 import { activePreviewScriptRunner } from './preview-script-runner'
 
@@ -56,9 +57,10 @@ function buildTourScript(action: TourAction): string {
 })()`
 }
 
-/** Run one tour action in the ACTIVE preview tab's page. */
-export async function runPreviewTour(action: TourAction): Promise<TourResult> {
-  const run = activePreviewScriptRunner()
+/** Run one tour action in the page of the ACTIVE tab among those `owner`
+ *  (the requesting session's stored id; omitted = the focused session) sees. */
+export async function runPreviewTour(action: TourAction, owner?: PreviewOwner): Promise<TourResult> {
+  const run = activePreviewScriptRunner(owner)
 
   if (!run) {
     return { error: 'No live page is open in the preview pane — open one first.', success: false }

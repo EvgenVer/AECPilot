@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/plugins-store.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -116,6 +116,25 @@ export function dropPlugin(id: string): void {
   const { [id]: _dropped, ...rest } = $pluginRecords.get()
   $pluginRecords.set(rest)
   handles.delete(id)
+}
+
+/** Turn on the desktop half of unified package *packageName*. A half ships
+ *  opt-in to match its inert agent half, so turning the package on (the
+ *  install dialog's "Enable after install", the hub's Agent switch) turns the
+ *  half on too instead of leaving a second switch to find. *keepUserChoice*
+ *  leaves a half the user explicitly switched off alone. */
+export async function enablePackageDesktopHalf(packageName: string, { keepUserChoice = false } = {}): Promise<void> {
+  const decisions = $pluginDecisions.get()
+
+  for (const record of Object.values($pluginRecords.get())) {
+    if (record.packageName !== packageName || record.status !== 'disabled') {
+      continue
+    }
+
+    if (!keepUserChoice || !(record.id in decisions)) {
+      await setPluginEnabled(record.id, true)
+    }
+  }
 }
 
 /** Live toggle: deactivate + remember, or forget + reactivate. */

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/sessions-settings.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,6 @@ import { Tip } from '@/components/ui/tooltip'
 import {
   deleteSession,
   getHermesConfigRecord,
-  listAllProfileSessions,
   peekConfigReadOrigin,
   retainConfigReadOrigin,
   saveHermesConfig,
@@ -25,11 +24,13 @@ import { sessionTitle } from '@/lib/chat-runtime'
 import { pathLeaf } from '@/lib/display-path'
 import { triggerHaptic } from '@/lib/haptics'
 import { Archive, ArchiveOff, FolderOpen, Loader2, Trash2 } from '@/lib/icons'
+import { purgeInFlightTurnJournals } from '@/lib/inflight-turn-journal'
 import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import { applyConfiguredDefaultProjectDir, ensureDefaultWorkspaceCwd } from '@/store/session'
 import { untombstoneSessions } from '@/store/session-removal'
 import { forgetSessionUnread } from '@/store/session-unread'
+import { listEveryArchivedSession } from '@/store/sidebar-archive'
 import type { HermesConfigRecord, SessionInfo } from '@/types/hermes'
 
 import { EmptyState, ListRow, SectionHeading, SettingsContent, SettingsSkeleton, ToggleRow } from './primitives'
@@ -38,8 +39,6 @@ import { useDeepLinkHighlight } from './use-deep-link-highlight'
 import { useSettingDeepLink } from './use-setting-deep-link'
 
 const DEFAULT_AUTO_ARCHIVE_DAYS = 3
-
-const ARCHIVED_FETCH_LIMIT = 200
 
 interface SessionsSettingsProps {
   subpage?: string
@@ -70,8 +69,7 @@ function ArchivedSessionsSettings({ includeDefaultDirectory }: { includeDefaultD
     setLoading(true)
 
     try {
-      const result = await listAllProfileSessions(ARCHIVED_FETCH_LIMIT, 0, 'only')
-      setLocalSessions(result.sessions)
+      setLocalSessions(await listEveryArchivedSession())
     } catch (err) {
       notifyError(err, s.failedLoad)
     } finally {
@@ -124,6 +122,12 @@ function ArchivedSessionsSettings({ includeDefaultDirectory }: { includeDefaultD
         // Permanent delete bypasses removeSession, so retire the persisted
         // unread state here too rather than leaving it to rot.
         forgetSessionUnread([session.id, session._lineage_root_id], session.profile)
+        // Same for the journaled in-flight tail: it holds this session's
+        // prompt and tool calls in localStorage, and a deleted session must
+        // not leave that copy behind to age out on its own. Both ids — the
+        // stored tip and the durable lineage root — the journal keys on the
+        // stored id and the row may carry either.
+        purgeInFlightTurnJournals([session.id, session._lineage_root_id])
         setLocalSessions(prev => prev.filter(s => s.id !== session.id))
         triggerHaptic('warning')
       } catch (err) {

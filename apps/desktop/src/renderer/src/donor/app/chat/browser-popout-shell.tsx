@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/browser-popout-shell.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import type { CSSProperties } from 'react'
+import { type CSSProperties, useEffect } from 'react'
 
 import { PanelEmpty } from '@/app/overlays/panel'
 import { TITLEBAR_HEIGHT } from '@/app/shell/titlebar'
@@ -13,6 +13,7 @@ import { useI18n } from '@/i18n'
 import { windowBrowserTabId } from '@/store/windows'
 
 import { PreviewTilePane } from './right-rail/preview'
+import { installPopoutPreviewResponder } from './right-rail/preview-popout-bridge'
 
 /**
  * Dedicated shell for `?win=browser`: the in-app Browser, full-window, no
@@ -22,6 +23,10 @@ import { PreviewTilePane } from './right-rail/preview'
 export function BrowserPopoutShell() {
   const { t } = useI18n()
   const tabId = windowBrowserTabId()
+
+  // Serve drive_preview / read_preview for the chat window that still owns the
+  // active-session gate after this pane left the main renderer.
+  useEffect(() => installPopoutPreviewResponder(), [])
 
   return (
     <div

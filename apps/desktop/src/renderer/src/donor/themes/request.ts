@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/request.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,7 +17,10 @@
  * exactly like a manual pick — one policy, one owner.
  */
 
+import { atom } from 'nanostores'
+
 import { $pendingSkinApply } from './backend-sync'
+import type { ThemeMode } from './context'
 import { resolveTheme } from './user-themes'
 
 /**
@@ -38,4 +41,12 @@ export function requestTheme(name: string): boolean {
   $pendingSkinApply.set(name)
 
   return true
+}
+
+/** One-shot light/dark/system switch the ThemeProvider drains through `setMode` (it clears this). */
+export const $pendingModeApply = atom<null | ThemeMode>(null)
+
+/** Ask for a mode switch from outside React; persisted per profile like a manual pick. */
+export function requestMode(mode: ThemeMode): void {
+  $pendingModeApply.set(mode)
 }

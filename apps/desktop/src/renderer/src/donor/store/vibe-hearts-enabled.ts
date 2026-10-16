@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/vibe-hearts-enabled.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,8 @@ import { atom } from 'nanostores'
 
 import { persistString, storedString } from '@/lib/storage'
 
+import { recordFeatureToggle } from './desktop-metrics'
+
 const KEY = 'hermes.desktop.vibeHearts.v1'
 
 // Absent key and anything other than "off" keep hearts on, matching the
@@ -25,6 +27,7 @@ const KEY = 'hermes.desktop.vibeHearts.v1'
 export const $vibeHeartsEnabled = atom<boolean>(typeof window === 'undefined' ? true : storedString(KEY) !== 'off')
 
 export function setVibeHeartsEnabled(enabled: boolean): void {
+  recordFeatureToggle('vibe_hearts', $vibeHeartsEnabled.get(), enabled)
   $vibeHeartsEnabled.set(enabled)
 }
 

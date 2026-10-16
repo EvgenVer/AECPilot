@@ -104,7 +104,8 @@ import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quic
 import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
 import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
 import { createdProfileByRest, inheritMainSoul } from './soul-inherit-pure'
-import { loadKeepAwake, releaseKeepAwake, restoreKeepAwake, setKeepAwake } from './keep-awake'
+import { noteWorking, releaseKeepAwake, restoreKeepAwake, setKeepAwakeMode } from './keep-awake'
+import { parseKeepAwakeMode } from './keep-awake-pure'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
 import { levelForPercent } from './zoom-pure'
 import {
@@ -1663,6 +1664,7 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
   const contentsId = win.webContents.id
   win.webContents.once('destroyed', () => {
     activeWorkByWindow.delete(contentsId)
+    noteWorking(mergeActiveWork(activeWorkByWindow.values()).count > 0)
     f12ShortcutWindows.delete(contentsId)
   })
 
@@ -2154,10 +2156,13 @@ ipcMain.handle('agent-language:set', (_event, language: unknown) => ({
   language: saveAgentLanguage(language)
 }))
 
-ipcMain.handle('power:keep-awake', (_event, on: unknown) => {
-  if (typeof on !== 'boolean') return { enabled: loadKeepAwake() }
+// С 0.22.2 (задача T20.7) окно шлёт режим ('off' | 'while-working' | 'always');
+// прежнее булево принимается как раньше. Не режим — не трогаем ничего.
+ipcMain.handle('power:keep-awake', (_event, value: unknown) => {
+  const mode = parseKeepAwakeMode(value)
+  if (mode === null) return { enabled: false }
 
-  return { enabled: setKeepAwake(on) }
+  return { enabled: setKeepAwakeMode(mode) }
 })
 
 // Slash-command completions for the composer (task 1.6.8). Read-only and
@@ -3345,6 +3350,8 @@ ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
 
 ipcMain.on('active-work:set', (event, payload: unknown) => {
   activeWorkByWindow.set(event.sender.id, normalizeActiveWork(payload))
+  // Режим «пока агент работает» (T20.7) едет на этой же сводке, как у них.
+  noteWorking(mergeActiveWork(activeWorkByWindow.values()).count > 0)
 })
 
 ipcMain.on('devtools:disable-f12', (_event, blocked: unknown) => {

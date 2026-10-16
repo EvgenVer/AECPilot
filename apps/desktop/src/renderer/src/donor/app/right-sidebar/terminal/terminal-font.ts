@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/terminal-font.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -135,7 +135,12 @@ export async function applyTerminalFontFamily({
 
   term.options.fontFamily = fontFamily
   fit()
-  clearTextureAtlas()
+
+  try {
+    clearTextureAtlas()
+  } catch {
+    // WebGL context lost or uninitialized — the DOM fallback has no atlas.
+  }
 
   if (term.rows > 0) {
     term.refresh(0, term.rows - 1)

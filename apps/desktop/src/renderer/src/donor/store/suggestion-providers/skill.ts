@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/suggestion-providers/skill.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -69,6 +69,15 @@ export function skillHit(pattern: RegExp, haystack: string): boolean {
   }
 
   return false
+}
+
+/** Strip whitespace-bounded /<token> slash commands the user authored, so a
+ *  skill name inside a command ("run /github-auth") does not self-trigger the
+ *  prose suggestion pill (#91626). Whitespace-bounded on purpose: a URL like
+ *  /api/v1 mid-prose has no leading whitespace and is left intact. Exported so
+ *  the provider and its tests exercise the same sanitizer instead of a copy. */
+export function stripSlashTokens(text: string): string {
+  return text.replace(/\s\/[\w-]+/g, ' ')
 }
 
 /** Workspace homonym guard, exported for tests: a skill named like the
@@ -226,7 +235,7 @@ registerDraftProvider('skill', async ({ sessionId, text }) => {
     return []
   }
 
-  const haystack = text.toLowerCase()
+  const haystack = stripSlashTokens(text).toLowerCase()
   const cwd = $currentCwd.get()
   const skills = await loadIndex()
   const matched = skills.filter(skill => skillHit(skill.pattern, haystack) && !collidesWithWorkspace(skill.name, cwd))

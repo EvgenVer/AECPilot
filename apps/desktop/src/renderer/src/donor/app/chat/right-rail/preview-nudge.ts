@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-nudge.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,12 +22,14 @@
  */
 
 import type { WatchStage } from '@/lib/preview-act/watch-in-page'
+import type { PreviewOwner } from '@/store/preview-ownership'
 
 import { activePreviewScriptRunner } from './preview-script-runner'
 
-/** Run one stage against the active pane's overlay, if it has one. */
-export function nudgeOverlay(stage: WatchStage): void {
-  const run = activePreviewScriptRunner()
+/** Run one stage against the overlay of the active pane `owner` (omitted =
+ *  the focused session) sees, if it has one. */
+export function nudgeOverlay(stage: WatchStage, owner?: PreviewOwner): void {
+  const run = activePreviewScriptRunner(owner)
 
   if (!run) {
     return

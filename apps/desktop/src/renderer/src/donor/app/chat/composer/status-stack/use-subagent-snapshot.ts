@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/use-subagent-snapshot.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -43,12 +43,10 @@ export function useSubagentSnapshot(sessionId: string | null, poll = true) {
       const owner = JSON.stringify(knownOwnerForSession(sessionId))
 
       try {
-        const snapshot = await requestForOwnedSession<{ subagents: SubagentPayload[] }>(
-          sessionId,
-          rejectUnownedSubagentRequest,
-          'subagent.list',
-          { session_id: sessionId }
-        )
+        const snapshot = await requestForOwnedSession<{
+          delegations?: SubagentPayload[]
+          subagents: SubagentPayload[]
+        }>(sessionId, rejectUnownedSubagentRequest, 'subagent.list', { session_id: sessionId })
 
         if (
           !cancelled &&
@@ -56,7 +54,7 @@ export function useSubagentSnapshot(sessionId: string | null, poll = true) {
           before === $subagentsBySession.get()[sessionId] &&
           Array.isArray(snapshot.subagents)
         ) {
-          reconcileSubagentSnapshot(sessionId, snapshot.subagents)
+          reconcileSubagentSnapshot(sessionId, snapshot.subagents, snapshot.delegations ?? [])
         }
 
         failures = 0

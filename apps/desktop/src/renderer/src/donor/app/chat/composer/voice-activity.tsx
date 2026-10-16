@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/voice-activity.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -199,8 +199,10 @@ export function VoiceActivity({ state }: { state: VoiceActivityState }) {
       </div>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate font-medium text-foreground/85">{title}</span>
-        <span className="font-mono text-[0.6875rem] text-muted-foreground/85">
+        <span className="truncate font-medium text-foreground/85" title={state.partial || undefined}>
+          {state.partial || title}
+        </span>
+        <span aria-hidden="true" className="font-mono text-[0.6875rem] text-muted-foreground/85">
           {formatElapsed(state.elapsedSeconds)}
         </span>
       </div>

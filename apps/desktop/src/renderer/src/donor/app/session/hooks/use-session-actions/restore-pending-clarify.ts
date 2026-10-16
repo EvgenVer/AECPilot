@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-actions/restore-pending-clarify.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import type { GatewayEventPayload } from '@/lib/chat-messages'
+import { type GatewayEventPayload, QUESTION_CARD_TOOLS } from '@/lib/chat-messages'
 import { $clarifyRequests, type ClarifyRequest, clearClarifyRequest } from '@/store/clarify'
 import type { SessionResumeResult } from '@/types/hermes'
 
@@ -33,7 +33,7 @@ export function restorePendingClarifyFromSnapshot(
   resumeStartedAt: number,
   requestIdAtStart?: string
 ): PendingClarifyResumeState {
-  const pending = (response.open_requests ?? []).find(entry => entry.method === 'clarify')
+  const pending = (response.open_requests ?? []).find(entry => QUESTION_CARD_TOOLS.has(entry.method))
 
   if (!pending) {
     const current = $clarifyRequests.get()[sessionId]
@@ -61,19 +61,13 @@ export function restorePendingClarifyFromSnapshot(
 
 export function pendingClarifyToolPayload(request: ClarifyRequest): GatewayEventPayload {
   return {
-    args: request.questions?.length
-      ? {
-          questions: request.questions.map(question => ({
-            choices: question.choices ?? undefined,
-            multi_select: question.multiSelect || undefined,
-            question: question.question
-          }))
-        }
-      : {
-          choices: request.choices ?? [],
-          ...(request.multiSelect ? { multi_select: true } : {}),
-          question: request.question
-        },
+    args: {
+      questions: request.questions.map(question => ({
+        choices: question.choices ?? undefined,
+        multi_select: question.multiSelect || undefined,
+        question: question.question
+      }))
+    },
     tool_id: request.requestId
   }
 }

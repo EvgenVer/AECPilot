@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/models.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,11 +18,17 @@ import type {
 
 import { capabilityScoped, hermesApi, type ProfileScope, profileScoped, STARTUP_REQUEST_TIMEOUT_MS } from './client'
 
+// /api/model/info resolves the live context window, which probes the configured
+// provider's /models endpoint. An unreachable provider must not hold the Model
+// Settings page hostage (the backend bounds the same probe; this is the client
+// side of that budget).
+const MODEL_INFO_REQUEST_TIMEOUT_MS = 5_000
+
 export function getGlobalModelInfo(profile?: null | string): Promise<ModelInfoResponse> {
   return hermesApi<ModelInfoResponse>({
     ...profileScoped(profile),
     path: '/api/model/info',
-    timeoutMs: STARTUP_REQUEST_TIMEOUT_MS
+    timeoutMs: MODEL_INFO_REQUEST_TIMEOUT_MS
   })
 }
 

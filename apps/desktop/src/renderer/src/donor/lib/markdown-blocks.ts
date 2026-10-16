@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/markdown-blocks.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -122,6 +122,22 @@ function lexIncrementally(text: string): null | string[] {
 }
 
 export function parseMarkdownIntoBlocksCached(markdown: string): string[] {
+  try {
+    return parseMarkdownIntoBlocksCachedUnsafe(markdown)
+  } catch {
+    // A message that the markdown lexer cannot parse must never take the whole
+    // thread down: MessageRenderBoundary re-throws non-transient errors to the
+    // root boundary, which blanks the entire transcript. Fall back to the raw
+    // text as a single block so the message stays visible (join(blocks) ===
+    // markdown still holds). Drop any partial cache entry the failed lex may
+    // have left behind so a retry is not served stale data. See #80621.
+    exactCache.delete(markdown)
+
+    return [markdown]
+  }
+}
+
+function parseMarkdownIntoBlocksCachedUnsafe(markdown: string): string[] {
   const hit = exactCache.get(markdown)
 
   if (hit) {

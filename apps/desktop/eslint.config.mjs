@@ -10,7 +10,8 @@ export default tseslint.config(
     // so the finding would be noise. What still guards that code: the
     // provenance header, the four allowed edits (AGENTS §14), the renderer
     // socket guard (SPEC C9), and the tests that come with the file.
-    ignores: ['out/**', 'src/renderer/src/donor/**/*.{ts,tsx}']
+    // `.cjs`/`.d.cts` joined with 0.22.2 (T20.7): their update-feed contract.
+    ignores: ['out/**', 'src/renderer/src/donor/**/*.{ts,tsx,cjs,cts}']
   },
   js.configs.recommended,
   tseslint.configs.recommended,

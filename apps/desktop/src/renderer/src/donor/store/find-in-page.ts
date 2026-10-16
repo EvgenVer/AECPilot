@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/find-in-page.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,9 +14,12 @@ export interface FindInPageState {
   query: string
   matchOrdinal: number
   matchCount: number
+  /** Bumped when openFindBar() is called while the bar is already visible, so
+   *  FindBar can refocus without treating the chord as a fresh open. */
+  focusRequest: number
 }
 
-const EMPTY: FindInPageState = { active: false, query: '', matchOrdinal: 0, matchCount: 0 }
+const EMPTY: FindInPageState = { active: false, query: '', matchOrdinal: 0, matchCount: 0, focusRequest: 0 }
 
 export const $findInPage = atom<FindInPageState>({ ...EMPTY })
 
@@ -32,6 +35,17 @@ export const $findInPage = atom<FindInPageState>({ ...EMPTY })
  * "current view" predicate (#81726).
  */
 export function openFindBar(): void {
+  const prev = $findInPage.get()
+
+  if (prev.active) {
+    // Already visible: keep the typed query and the captured scope. A fresh
+    // EMPTY write would clear the query, and captureFindScope() would tear
+    // down the highlight observer.
+    $findInPage.set({ ...prev, focusRequest: prev.focusRequest + 1 })
+
+    return
+  }
+
   $findInPage.set({ ...EMPTY, active: true })
   captureFindScope()
 }

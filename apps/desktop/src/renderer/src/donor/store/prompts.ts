@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/prompts.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -91,7 +91,7 @@ function keyedPromptStore<T extends KeyedPrompt>(): PromptStore<T> {
 // card answers that request when it is still open and falls back to the
 // `approval.respond` RPC when the prompt was restored from `approval.pending`.
 export interface ApprovalRequest extends KeyedPrompt {
-  // false when the backend won't honor a permanent allow (tirith warning) → hide "Always allow".
+  // false when the backend won't honor a permanent allow → hide "Always allow".
   allowPermanent?: boolean
   choices?: string[]
   command: string
@@ -353,6 +353,22 @@ export async function replayPendingApproval(gateway: ApprovalGateway | null, ses
  * was restored from `approval.pending` or is being answered from another
  * surface. Returns after the backend has the decision.
  */
+
+// #55433: the backend honors an answer for the whole `approvals.timeout` window
+// (default 300s), but `approval.respond` otherwise rides the generic 30s RPC
+// deadline. During a long LLM stream the gateway's WS writes can stall well past
+// 30s while the turn is still live and the approval is still pending — the
+// client gives up with "request timed out: approval.respond" long before the
+// backend would. Give the RPC a deadline that covers the backend window (300s
+// plus margin for the write to drain), and retry once on a deadline failure:
+// `resolve_gateway_approval` pops the queue entry before committing, so a
+// duplicate resolve is a harmless `resolved: 0`.
+export const APPROVAL_RESPOND_REQUEST_TIMEOUT_MS = 330_000
+
+function isRequestTimeoutError(error: unknown): boolean {
+  return error instanceof Error && /request timed out/i.test(error.message)
+}
+
 export async function answerApproval(
   gateway: ApprovalGateway | null,
   request: Pick<ApprovalRequest, 'requestId' | 'serverRequestId' | 'sessionId'>,
@@ -367,12 +383,36 @@ export async function answerApproval(
     throw new Error('AECPilot gateway is not connected')
   }
 
-  await requestForOwnedSession(request.sessionId, ambientRequestFor(gateway), 'approval.respond', {
+  const params = {
     all,
     choice,
     ...(request.requestId ? { request_id: request.requestId } : {}),
     session_id: request.sessionId ?? undefined
-  })
+  }
+
+  try {
+    await requestForOwnedSession(
+      request.sessionId,
+      ambientRequestFor(gateway),
+      'approval.respond',
+      params,
+      APPROVAL_RESPOND_REQUEST_TIMEOUT_MS
+    )
+  } catch (error) {
+    if (!isRequestTimeoutError(error)) {
+      throw error
+    }
+
+    // The deadline fired while the approval may still be pending server-side
+    // (WS stall behind a long LLM stream). Resolve is idempotent: re-send once.
+    await requestForOwnedSession(
+      request.sessionId,
+      ambientRequestFor(gateway),
+      'approval.respond',
+      params,
+      APPROVAL_RESPOND_REQUEST_TIMEOUT_MS
+    )
+  }
 }
 
 /** The prompt request for one specific session — the tile counterpart of the
@@ -441,10 +481,10 @@ export const $activeSessionAwaitingInput = computed(
 )
 
 /** True when `sessionId` is parked on a blocking prompt that typing cannot
- *  answer (approval / sudo / secret). Clarify is deliberately excluded: typing
- *  a real message IS an answer to a clarify ("none of these" — the composer
- *  skips it and routes the words), but no message text can approve a command
- *  or supply a password. Imperative read — the composer checks this on Enter,
+ *  answer (approval / sudo / secret). Clarify is deliberately excluded: typed
+ *  text answers a clarify's next question (the composer locks it through
+ *  `answerParkedCard`), but no message text can approve a command or supply a
+ *  password. Imperative read — the composer checks this on Enter,
  *  not on every render. */
 export const hasBlockingPromptRequest = (sessionId: string | null | undefined): boolean => {
   const key = keyFor(sessionId)

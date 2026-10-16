@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/screen-install.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,12 +16,18 @@
  * a fresh status the caller uses to flip the pane to "Start screen".
  */
 
-import { Button, Codicon, GlyphSpinner, host } from '@hermes/plugin-sdk'
+import { Button, Codicon, EmptyState, GlyphSpinner, host } from '@hermes/plugin-sdk'
 import type { RpcEvent } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useBots } from './i18n'
-import { displayRequest, type DisplayStatus, isEventForBotScreen, retainBotScreen } from './screen-connection'
+import {
+  displayRequest,
+  type DisplayStatus,
+  isEventForBotScreen,
+  isManagedBackend,
+  retainBotScreen
+} from './screen-connection'
 import type { RosterRow } from './types'
 
 const LOG_KEEP = 200
@@ -30,6 +36,21 @@ interface ScreenInstallCardProps {
   bot: RosterRow
   status: DisplayStatus
   onInstalled: (status: DisplayStatus) => void
+}
+
+/**
+ * The pane for a host without the screen packages. Hermes Cloud ships Screen in the image of
+ * its larger sizes; a smaller bot's image leaves it out, and packages installed by hand would
+ * not survive the next update, so only a self-managed host is offered the install.
+ */
+export function ScreenNotInstalled(props: ScreenInstallCardProps) {
+  const t = useBots()
+
+  if (isManagedBackend(props.bot)) {
+    return <EmptyState description={t.screen.managedNotIncludedBody} title={t.screen.managedNotIncludedTitle} />
+  }
+
+  return <ScreenInstallCard {...props} />
 }
 
 export function ScreenInstallCard({ bot, status, onInstalled }: ScreenInstallCardProps) {

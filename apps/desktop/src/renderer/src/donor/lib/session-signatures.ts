@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-signatures.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,6 +31,11 @@ export function sameCronSignature(a: SessionInfo[], b: SessionInfo[]): boolean {
       session.message_count === other.message_count &&
       session.last_active === other.last_active &&
       session.ended_at === other.ended_at &&
+      // A workspace move need not change activity or message counts. Let its
+      // authoritative row reach the project overlays and move-target menu.
+      session.cwd === other.cwd &&
+      session.git_repo_root === other.git_repo_root &&
+      session.git_branch === other.git_branch &&
       // Row STATE, not just row content: session-pin-sync reconciles the
       // sidebar's pins against `pinned` on the rows in this atom, so a page
       // whose only delta is a flag has to swap in or the reconciler reads a
@@ -52,6 +57,16 @@ function hashString(hash: number, value: string): number {
   }
 
   return next >>> 0
+}
+
+/** Cheap sidebar-row fingerprint. Used to skip a 120-row transcript fetch
+ *  when message_count, last_active, and preview have not moved (#95767). */
+export function sessionListFingerprint(session: {
+  last_active?: number
+  message_count?: number
+  preview?: null | string
+}): string {
+  return `${session.message_count ?? 0}:${session.last_active ?? 0}:${session.preview ?? ''}`
 }
 
 /** Transcript fingerprint for the active-messaging-session poll. */

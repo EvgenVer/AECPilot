@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/queue-panel.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { useState } from 'react'
+
 import { StatusRow } from '@/components/chat/status-row'
 import { StatusSection } from '@/components/chat/status-section'
 import { Button } from '@/components/ui/button'
@@ -36,6 +38,10 @@ const entryPreview = (entry: QueuedPromptEntry, c: Translations['composer']) =>
     ? c.hiddenQueued
     : (entry.displayText ?? entry.text).trim() || (entry.attachments.length > 0 ? c.attachmentOnly : c.emptyTurn)
 
+/** A preview long enough (or multiline enough) that two lines may still hide
+ *  part of it — the entry gets an in-place expand/collapse toggle (#45664). */
+const shouldOfferExpandedPreview = (preview: string) => preview.length > 140 || preview.includes('\n')
+
 export function QueuePanel({
   busy,
   editingId,
@@ -49,6 +55,21 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const { t } = useI18n()
   const c = t.composer
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(current => {
+      const next = new Set(current)
+
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+
+      return next
+    })
+  }
 
   if (entries.length === 0) {
     return null
@@ -80,6 +101,9 @@ export function QueuePanel({
         // Steer only surfaces where it can actually deliver: a live turn to
         // redirect and an entry the redirect can carry (text-only, no slash).
         const canSteer = busy && Boolean(onSteerNow) && isSteerableEntry(entry)
+        const preview = entryPreview(entry, c)
+        const canExpand = shouldOfferExpandedPreview(preview)
+        const isExpanded = expandedIds.has(entry.id)
 
         return (
           <StatusRow
@@ -92,6 +116,25 @@ export function QueuePanel({
             leading={<Codicon className="text-muted-foreground/70" name="comment" size="0.8rem" />}
             trailing={
               <>
+                {canExpand && (
+                  <Tip label={isExpanded ? c.queueCollapse : c.queueExpand}>
+                    <Button
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? c.queueCollapse : c.queueExpand}
+                      className="size-5 rounded-md"
+                      onClick={() => toggleExpanded(entry.id)}
+                      size="icon-xs"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Codicon
+                        className={cn('transition-transform', isExpanded && 'rotate-180')}
+                        name="chevron-down"
+                        size={iconSize.xs}
+                      />
+                    </Button>
+                  </Tip>
+                )}
                 <Tip label={c.queueEdit}>
                   <Button
                     aria-label={c.queueEdit}
@@ -138,7 +181,14 @@ export function QueuePanel({
             trailingVisible={isEditing}
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[0.73rem] leading-4 text-foreground/92">{entryPreview(entry, c)}</p>
+              <p
+                className={cn(
+                  'text-[0.73rem] leading-4 text-foreground/92',
+                  isExpanded ? 'max-h-40 overflow-y-auto whitespace-pre-wrap pr-1' : 'line-clamp-2 break-words'
+                )}
+              >
+                {preview}
+              </p>
               {(attachmentsCount > 0 || isEditing) && (
                 <div className="mt-0.5 flex items-center gap-1.5 text-[0.64rem] text-muted-foreground/75">
                   {attachmentsCount > 0 && <span>{c.attachments(attachmentsCount)}</span>}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/project-filter.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,4 +26,18 @@ export function resolveLiveProjectFilter(
   const liveIds = new Set(tree.map(project => project.id))
 
   return projectFilter.filter(id => liveIds.has(id))
+}
+
+/**
+ * The sidebar overview is a session history, not a disk browser (#53004): an
+ * auto-promoted repo with no sessions yet stays out of the sidebar until work
+ * lands there (it reappears the moment it owns a session). Explicit projects
+ * and the Home bucket always render — the user created or kept those. Session
+ * counts come from the backend `projects.tree`, so this stays live without
+ * client-side re-derivation.
+ */
+export function filterToSessionBearingProjects<
+  T extends { isAuto?: boolean; isNoProject?: boolean; sessionCount?: number }
+>(projects: readonly T[]): T[] {
+  return projects.filter(project => !project.isAuto || project.isNoProject || (project.sessionCount ?? 0) > 0)
 }

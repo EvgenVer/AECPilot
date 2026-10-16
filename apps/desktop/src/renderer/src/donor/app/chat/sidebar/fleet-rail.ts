@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/fleet-rail.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,6 +29,8 @@ export interface FleetGroup {
   kind: DesktopConnectionKind
   label: string
   reachable: boolean
+  error?: string
+  needsSignIn?: boolean
   /** The gateway's default profile — every Hermes home has one, so a group
    *  always carries it even before the roster has been enumerated. */
   defaultAgent: FleetAgent
@@ -101,6 +103,8 @@ export function buildRestGroups({
       kind: connection.kind,
       label: connection.label,
       reachable: source?.reachable ?? true,
+      ...(source?.error && source.error !== 'connect-on-demand' ? { error: source.error } : {}),
+      ...(source?.needsSignIn ? { needsSignIn: true } : {}),
       defaultAgent: toAgent(DEFAULT_PROFILE, defaultRow?.handle),
       named
     })

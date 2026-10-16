@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/model-visibility-dialog.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { HighlightMatches } from '@/components/ui/highlight-matches'
+import { RowButton } from '@/components/ui/row-button'
 import { Switch } from '@/components/ui/switch'
 import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
@@ -23,12 +24,14 @@ import { Plus, Search, X } from '@/lib/icons'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
 import { foldIncludes, normalize } from '@/lib/text'
+import { confirm } from '@/store/confirm'
 import {
   $customModels,
   addCustomModel,
   customModelCandidate,
   isCustomModel,
   removeCustomModel,
+  resetModelVisibilityKeepingCustoms,
   withCustomModels
 } from '@/store/custom-models'
 import {
@@ -96,6 +99,19 @@ export function ModelVisibilityDialog({
     setVisibleModels(setProviderVisibility($visibleModels.get(), providers, provider.slug, next), providers)
   }
 
+  const resetToDefaults = async () => {
+    const ok = await confirm({
+      confirmLabel: copy.resetAction,
+      description: copy.resetDescription,
+      destructive: true,
+      title: copy.resetConfirm
+    })
+
+    if (ok) {
+      resetModelVisibilityKeepingCustoms(providers)
+    }
+  }
+
   const q = normalize(search)
 
   const matches = (provider: ModelOptionProvider, model: string) =>
@@ -156,7 +172,7 @@ export function ModelVisibilityDialog({
                 <div className="py-0.5" key={provider.slug}>
                   <div className="flex items-center gap-2 px-3 pb-0.5 pt-1">
                     <button
-                      className="group/label flex w-full items-center gap-1 pb-0.5 pt-0.5 text-left text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-tertiary) hover:bg-transparent"
+                      className="group/label flex w-full items-center gap-1 pb-0.5 pt-0.5 text-left text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-secondary) hover:bg-transparent"
                       onClick={() => toggleCollapsedProvider(provider.slug)}
                       type="button"
                     >
@@ -221,27 +237,26 @@ export function ModelVisibilityDialog({
                 {copy.addCustomModel}
               </div>
               {providers.map(provider => (
-                <button
-                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-1 text-left text-xs hover:bg-(--ui-control-active-background)"
+                <RowButton
+                  className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-(--ui-control-active-background)"
                   key={`custom:${provider.slug}`}
                   onClick={() => {
                     addCustomModel(provider.slug, customSlug, provider)
                     setSearch('')
                   }}
-                  type="button"
                 >
                   <span className="min-w-0 flex-1 truncate">
                     {customSlug}
                     <span className="text-(--ui-text-tertiary)"> {provider.name}</span>
                   </span>
                   <Plus className="size-3 shrink-0 text-(--ui-text-tertiary)" />
-                </button>
+                </RowButton>
               ))}
             </div>
           )}
         </div>
 
-        <div className="px-3 py-2">
+        <div className="flex items-center justify-between px-3 py-2">
           <Button
             className="-ml-2 text-(--ui-text-tertiary)"
             onClick={() => {
@@ -254,6 +269,12 @@ export function ModelVisibilityDialog({
           >
             {copy.addProvider}
           </Button>
+          {/* Only once there is something to undo, like the sidebar view reset. */}
+          {stored !== null && modelOptions.isSuccess && (
+            <Button className="-mr-2" onClick={() => void resetToDefaults()} size="xs" type="button" variant="text">
+              {copy.resetToDefaults}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

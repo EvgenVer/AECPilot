@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/files/remote-picker.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { FieldHint } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { useI18n } from '@/i18n'
 import { createRemoteDir, readDesktopDir, setDesktopFsRemotePicker } from '@/lib/desktop-fs'
@@ -252,7 +253,11 @@ export function RemoteFolderPicker() {
                     <Codicon name={creating ? 'loading' : 'check'} size="0.875rem" spinning={creating} />
                   </Button>
                 </div>
-                {newFolderError && <div className="mt-1 pl-6 text-xs text-destructive">{newFolderError}</div>}
+                {newFolderError && (
+                  <div className="mt-1 pl-6">
+                    <FieldHint error>{newFolderError}</FieldHint>
+                  </div>
+                )}
               </div>
             )}
             {loading ? (

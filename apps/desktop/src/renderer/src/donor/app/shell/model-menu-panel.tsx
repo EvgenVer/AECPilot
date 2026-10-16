@@ -1,37 +1,51 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/model-menu-panel.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ModelOptionsResult } from '@hermes/shared'
+import { useStore } from '@nanostores/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { useSessionView } from '@/app/chat/session-view'
 import { Codicon } from '@/components/ui/codicon'
 import { DropdownMenuItem, dropdownMenuRow } from '@/components/ui/dropdown-menu'
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { cn } from '@/lib/utils'
+import { $currentModelSource } from '@/store/session'
 
+import { LocalSetupMenuRow } from './local-setup-menu-row'
 import { ModelCatalogMenu } from './model-catalog-menu'
 import { type ModelMenuHostProps, useModelMenuController } from './use-model-menu-controller'
 
 export { ModelMenuCloseContext } from './model-catalog-menu'
 export type { ModelSelection } from './use-model-menu-controller'
 
+interface ModelMenuPanelProps extends ModelMenuHostProps {
+  /** Drop the sticky composer pick so new chats follow Settings → Model. */
+  onFollowDefaultModel?: () => void
+}
+
 /**
  * The composer's model menu: `ModelCatalogMenu` (the shared renderer) plus the
  * controller that gives a selection its meaning HERE (`useModelMenuController`).
  */
-export function ModelMenuPanel(props: ModelMenuHostProps) {
+export function ModelMenuPanel({ onFollowDefaultModel, ...props }: ModelMenuPanelProps) {
   const { gateway, ownerConnectionId, profile = 'default', requestGateway } = props
   const { t } = useI18n()
   const copy = t.shell.modelMenu
   const [refreshing, setRefreshing] = useState(false)
   const queryClient = useQueryClient()
+  const view = useSessionView()
+  const modelSource = useStore($currentModelSource)
   const { activeSessionId, controller } = useModelMenuController(props)
+  // Same condition as the pill's pin dot: a draft whose next session.create
+  // ships the manual pick instead of the Settings default (#107410).
+  const pinnedDraft = view.kind === 'primary' && !activeSessionId && modelSource === 'manual'
 
   // Explicit "Refresh Models": re-fetch the catalog with refresh:true so the
   // backend busts its 1h provider-model disk cache and re-pulls each provider's
@@ -71,19 +85,31 @@ export function ModelMenuPanel(props: ModelMenuHostProps) {
     <ModelCatalogMenu
       controller={controller}
       footer={
-        <DropdownMenuItem
-          className={cn(dropdownMenuRow, 'text-(--ui-text-tertiary)')}
-          disabled={refreshing}
-          onSelect={event => {
-            event.preventDefault()
-            void refreshModels()
-          }}
-        >
-          <Codicon className={cn(refreshing && 'animate-spin')} name="sync" size="0.75rem" />
-          {copy.refreshModels}
-        </DropdownMenuItem>
+        <>
+          {pinnedDraft && onFollowDefaultModel && (
+            <DropdownMenuItem
+              className={cn(dropdownMenuRow, 'text-(--ui-text-tertiary)')}
+              onSelect={onFollowDefaultModel}
+            >
+              <Codicon name="discard" size="0.75rem" />
+              {copy.followDefault}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            className={cn(dropdownMenuRow, 'text-(--ui-text-tertiary)')}
+            disabled={refreshing}
+            onSelect={event => {
+              event.preventDefault()
+              void refreshModels()
+            }}
+          >
+            <Codicon name="sync" size="0.75rem" spinning={refreshing} />
+            {copy.refreshModels}
+          </DropdownMenuItem>
+        </>
       }
       gateway={gateway}
+      header={<LocalSetupMenuRow />}
       includeMoa
       ownerConnectionId={ownerConnectionId}
       profile={profile}

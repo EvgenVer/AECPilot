@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/connect-element.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,10 +15,14 @@ import { type AccountOperation, syncAccountOperation } from './data/account-oper
 
 export interface ConnectElementProps {
   operation: AccountOperation
+  /** Restarts the failed sign-in of the account the operation is for; absent while one is still waiting. */
+  onRetry?: () => void
   onStopWaiting: () => void
+  /** A start for this app is in flight; a second Try again would mint a second replacement sign-in. */
+  retrying?: boolean
 }
 
-export function ConnectElement({ operation, onStopWaiting }: ConnectElementProps) {
+export function ConnectElement({ operation, onRetry, onStopWaiting, retrying = false }: ConnectElementProps) {
   const { t } = useI18n()
   const copy = t.connectorsPage
   const link = operation.targets.find(target => target.connectUrl)?.connectUrl ?? null
@@ -44,6 +48,12 @@ export function ConnectElement({ operation, onStopWaiting }: ConnectElementProps
         {link ? (
           <Button onClick={() => void window.hermesDesktop?.openExternal?.(link)} size="xs" variant="secondary">
             {copy.dialog.connectOpenAgain}
+          </Button>
+        ) : null}
+
+        {onRetry ? (
+          <Button disabled={retrying} onClick={onRetry} size="xs" variant="secondary">
+            {copy.card.verb.tryAgain}
           </Button>
         ) : null}
 

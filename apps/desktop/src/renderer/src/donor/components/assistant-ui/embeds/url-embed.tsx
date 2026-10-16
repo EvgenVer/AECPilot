@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/url-embed.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ import { PrettyLink } from '@/lib/external-link'
 import { $embedAllowed, $embedMode } from '@/store/embed-consent'
 
 import { EmbedFacade } from './embed-consent'
-import { EMBED_MAX_H } from './embed-size'
+import { EMBED_DEFAULT_H, EMBED_MAX_H } from './embed-size'
 import { EmbedFail } from './fail'
 import type { EmbedDescriptor } from './providers/types'
 import { RichBoundary } from './rich-boundary'
@@ -29,14 +29,15 @@ function intrinsicHeight(descriptor: EmbedDescriptor): number {
     return Math.round((descriptor.maxWidth ?? 640) / descriptor.aspectRatio)
   }
 
-  return descriptor.height ?? 320
+  return descriptor.height ?? EMBED_DEFAULT_H
 }
 
 function LazyRenderer({ descriptor }: { descriptor: EmbedDescriptor }) {
-  // X and Instagram load their official blockquote script in-document. The tweet
-  // check also narrows the union to FrameEmbed for the iframe renderers below.
+  // X and Instagram get a sandboxed iframe that sizes itself from the embed
+  // page's height messages. The tweet check also narrows the union to
+  // FrameEmbed for the iframe renderers below.
   if (descriptor.renderer === 'tweet' || descriptor.provider === 'instagram') {
-    return <SocialEmbedRenderer descriptor={descriptor} />
+    return <SocialEmbedRenderer descriptor={descriptor} key={descriptor.id} />
   }
 
   if (descriptor.provider === 'youtube') {

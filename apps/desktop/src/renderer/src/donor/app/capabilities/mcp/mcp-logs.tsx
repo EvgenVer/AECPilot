@@ -1,21 +1,21 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/mcp/mcp-logs.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { useEffect, useState } from 'react'
 
-import { LogTail } from '@/components/chat/log-tail'
 import { getLogs } from '@/hermes'
 import { startCompletionPoll } from '@/lib/completion-poll'
 import { $activeGatewayProfile } from '@/store/profile'
 
 export const LOG_POLL_MS = 2000
 
-const STDIO_MARKER_RE = /^===== \[.*\] starting MCP server '(.+)' =====$/
+// Current banner: `<asctime> ===== starting …`; files written before it use `===== [<time>] starting …`.
+const STDIO_MARKER_RE = /^(?:\d{4}-\d{2}-\d{2} [\d:,]+ )?===== (?:\[.*\] )?starting MCP server '(.+)' =====$/
 
 export function filterStdioSections(lines: string[], server: string): string[] {
   const out: string[] = []
@@ -38,15 +38,7 @@ export function filterStdioSections(lines: string[], server: string): string[] {
 
 export type McpLogSource = 'agent' | 'stdio'
 
-export function McpLogs({
-  emptyLabel,
-  server,
-  source
-}: {
-  emptyLabel: string
-  server: null | string
-  source: McpLogSource
-}) {
+export function useMcpLogLines(server: null | string, source: McpLogSource): null | string[] {
   const [lines, setLines] = useState<null | string[]>(null)
   const activeProfile = useStore($activeGatewayProfile)
 
@@ -67,5 +59,5 @@ export function McpLogs({
     })
   }, [server, source, activeProfile])
 
-  return <LogTail emptyLabel={emptyLabel} lines={lines} />
+  return lines
 }

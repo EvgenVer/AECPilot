@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/contrib.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -69,6 +69,12 @@ export interface ComposerAtCompletionItem {
   meta?: string
   /** Icon slug understood by the completion popover; defaults to 'simple'. */
   icon?: string
+  /** Other `@handle` texts that resolve to the SAME target as `insert` —
+   *  e.g. a bot's raw profile name alongside the title slug it is listed
+   *  under. The `@` popover drops a gateway row whose handle is claimed
+   *  here, so one routable identity is never offered twice under two
+   *  labels. Only claim handles this row really owns. */
+  handles?: string[]
 }
 
 /** Payload of a `composer.atCompletions` data contribution — an extra source

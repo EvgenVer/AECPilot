@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-owner-stamp.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,9 +20,12 @@ import type { SessionInfo } from '@/types/hermes'
  * an active NON-local source get stamped: the gateway's HTTP APIs correctly
  * know nothing about Desktop-local registry ids, and an untagged remote row
  * would let a later resume fall back to a same-named local profile
- * ("session not found" on turn two). `local` is never stamped — a bare local
- * row already routes correctly and a `local` tag would only pin it against
- * the fail-closed owner resolution for no benefit.
+ * ("session not found" on turn two). `local` is never stamped here — a bare
+ * local row already routes correctly while local is the primary, and a `local`
+ * tag would only pin it against the fail-closed owner resolution. The one
+ * exception, `local` serving as a registry SECONDARY, is stamped by its caller
+ * (`stampProjectSessions` in store/projects), because there a bare row would
+ * route to the remote primary.
  */
 export function stampRowsWithOwningConnection(
   sessions: SessionInfo[],

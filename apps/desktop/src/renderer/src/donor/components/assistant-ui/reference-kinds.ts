@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/reference-kinds.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -177,4 +177,54 @@ export function textWithoutReferenceLines(text: string): string {
     .filter(line => !REFERENCE_LINE_RE.test(line.trimEnd()))
     .join('\n')
     .trim()
+}
+
+/** A composer attachment ref (`@file:`/`@folder:`), which renders as a chip, not a thumbnail. */
+export const isAttachmentRef = (ref: string): boolean => /^@(?:file|folder):/.test(ref)
+
+/**
+ * Peel the attachment block off the top of a stored user prompt.
+ *
+ * The composer sends attachments as one `@file:`/`@folder:` line each, ahead
+ * of the typed text, and keeps them out of the bubble as `attachmentRefs`. A
+ * persisted turn carries that block inline, so without this a reloaded (or
+ * reconciled) bubble opens with a raw path and a blank line where the live one
+ * showed a chip under the prompt. Only the leading run moves: a ref typed
+ * mid-prose stays where the user put it.
+ */
+export function splitLeadingAttachmentRefs(text: string): { refs: string[]; text: string } {
+  const lines = text.split('\n')
+  const refs: string[] = []
+
+  while (lines.length && isAttachmentRef(lines[0]) && REFERENCE_LINE_RE.test(lines[0].trimEnd())) {
+    refs.push(lines.shift()!.trimEnd())
+  }
+
+  return refs.length ? { refs, text: lines.join('\n').trim() } : { refs, text }
+}
+
+/** Remove optional wire-format quotes while preserving every character in the value. */
+export function unquoteReferenceValue(raw: string): string {
+  if (raw.length < 2) {
+    return raw
+  }
+
+  const head = raw[0]
+  const tail = raw[raw.length - 1]
+
+  return (head === '`' && tail === '`') || (head === '"' && tail === '"') || (head === "'" && tail === "'")
+    ? raw.slice(1, -1)
+    : raw
+}
+
+/**
+ * Remove wire-format quotes; bare directives also shed terminal prose punctuation.
+ *
+ * Punctuation inside a quoted value is part of that value, while a bare
+ * `@file:report!` retains the historical sentence-boundary behavior.
+ */
+export function unwrapReferenceValue(raw: string): string {
+  const value = unquoteReferenceValue(raw)
+
+  return value === raw ? value.replace(/[,.;!?]+$/, '') : value
 }

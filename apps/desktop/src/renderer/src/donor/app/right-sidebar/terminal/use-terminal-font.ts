@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-font.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
 import { $terminalFontFamily, applyTerminalFontFamily, resolveTerminalFontFamily } from './terminal-font'
+import { redrawAllTerminals } from './terminals'
 
 interface TerminalFontControllerOptions {
   fitRef: RefObject<((visible: boolean) => void) | null>
@@ -50,6 +51,11 @@ export function useTerminalFontController({ fitRef, termRef, webglRef }: Termina
       isCurrent: () => !cancelled && generationRef.current === generation,
       term
     })
+    // Font is an atlas-share key: changing one terminal's font rebuilds the
+    // shared glyph set, so siblings sharing the atlas must rebuild their
+    // models too (see redrawAllTerminals). The caller clears itself inline
+    // (applyTerminalFontFamily), so skip it in the fan-out.
+    redrawAllTerminals(term)
 
     return () => {
       cancelled = true

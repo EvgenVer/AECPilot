@@ -1,11 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/language-switcher.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +20,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { type Locale, LOCALE_META, useI18n } from '@/i18n'
+import { $appLocaleVersion, type LanguageOption, languageOptions, type Locale, localeMeta, useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { ChevronDown, Globe } from '@/lib/icons'
 import { normalize } from '@/lib/text'
@@ -33,7 +34,7 @@ export interface LanguageSwitcherProps {
 }
 
 interface LanguageCommandProps {
-  allLocales: Array<[Locale, (typeof LOCALE_META)[Locale]]>
+  allLocales: LanguageOption[]
   autoFocus?: boolean
   disabled?: boolean
   locale: Locale
@@ -49,8 +50,12 @@ export function LanguageSwitcher({ className, collapsed = false, dropUp = false 
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
   const useMobileSheet = Boolean(dropUp && isMobile)
-  const current = LOCALE_META[locale]
-  const allLocales = Object.entries(LOCALE_META) as Array<[Locale, typeof current]>
+  // Bundled ∪ plugin-registered ∪ backend `i18n.languages`; the registry
+  // version re-lists when a pack lands after first paint.
+  const registryVersion = useStore($appLocaleVersion)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- registryVersion is the registry's change token
+  const allLocales = useMemo(() => languageOptions(), [registryVersion])
+  const current = allLocales.find(option => option.id === locale) ?? { id: locale, ...localeMeta(locale) }
   const title = t.language.switchTo
 
   const selectLocale = async (code: Locale) => {
@@ -87,7 +92,7 @@ export function LanguageSwitcher({ className, collapsed = false, dropUp = false 
     >
       <span className="inline-flex min-w-0 items-center gap-2">
         <Globe className="size-3.5 shrink-0" />
-        {!collapsed && <span className="truncate">{current.name}</span>}
+        {!collapsed && <span className="truncate">{current.endonym}</span>}
       </span>
       {!collapsed && <ChevronDown className="size-3 shrink-0 opacity-70" />}
     </Button>
@@ -155,11 +160,11 @@ function LanguageCommand({
   const q = normalize(search)
 
   const filtered = allLocales.filter(
-    ([code, meta]) =>
+    option =>
       !q ||
-      meta.name.toLowerCase().includes(q) ||
-      meta.englishName.toLowerCase().includes(q) ||
-      code.toLowerCase().includes(q)
+      option.endonym.toLowerCase().includes(q) ||
+      (option.englishName?.toLowerCase().includes(q) ?? false) ||
+      option.id.toLowerCase().includes(q)
   )
 
   return (
@@ -167,19 +172,19 @@ function LanguageCommand({
       <CommandInput autoFocus={autoFocus} onValueChange={setSearch} placeholder={searchPlaceholder} value={search} />
       <CommandList className={variant === 'menu' ? undefined : 'max-h-80 p-1'}>
         <CommandEmpty>{noResults}</CommandEmpty>
-        {filtered.map(([code, meta]) => {
-          const selected = code === locale
+        {filtered.map(option => {
+          const selected = option.id === locale
 
           return (
             <CommandItem
               className={cn(selected && 'font-medium')}
               disabled={disabled}
-              key={code}
-              onSelect={() => onSelect(code)}
-              value={code}
+              key={option.id}
+              onSelect={() => onSelect(option.id)}
+              value={option.id}
             >
-              <span className="min-w-0 flex-1 truncate">{meta.name}</span>
-              <span className="font-mono text-[0.65rem] uppercase text-(--ui-text-tertiary)">{code}</span>
+              <span className="min-w-0 flex-1 truncate">{option.endonym}</span>
+              <span className="font-mono text-[0.65rem] uppercase text-(--ui-text-tertiary)">{option.id}</span>
               <CommandItemCheck checked={selected} />
             </CommandItem>
           )

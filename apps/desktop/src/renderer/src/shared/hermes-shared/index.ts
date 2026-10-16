@@ -52,6 +52,7 @@ export {
   DEFAULT_HEARTBEAT_DEADLINE_MS,
   DEFAULT_HEARTBEAT_INTERVAL_MS,
   type GatewayRequestId,
+  JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_METHOD_NOT_FOUND,
   jsonRpcErrorFromFrame,
   type JsonRpcErrorPayload,
@@ -103,6 +104,12 @@ export {
   DATA_URL_READ_MIN_MAX_MB
 } from '../../donor/hermes-shared/data-url-read-max'
 export { skillInvocationText } from '../../donor/hermes-shared/skill-scaffold'
+export {
+  type UpdateDebt,
+  updateDebt,
+  type UpdateDebtReceipt,
+  type UpdateDebtStep
+} from '../../donor/hermes-shared/update-debt'
 export {
   buildHermesWebSocketUrl,
   type GatewayAuthMode,
@@ -163,6 +170,12 @@ export {
 // The definition lives there because that is what throws it; re-exported here so
 // `@hermes/shared` keeps resolving for their files.
 export { JsonRpcGatewayError } from '../gateway-bridge'
+
+// Kind 3 (0.22.2, task T20.7): a constant that lives in their un-vendored
+// `json-rpc-gateway.ts` — the client-side deadline for answering an approval,
+// matched to the backend's own default so the window never gives up before the
+// core does (#60654). Copied verbatim; the SDK re-exports it to plugins.
+export const APPROVAL_RESPOND_TIMEOUT_MS = 300_000
 
 // Kind 3 again (0.21.2, task 3.B4): a URL predicate that lives beside their
 // socket client — `use-gateway-boot` narrows a remote connection's address on

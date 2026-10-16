@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/model.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -245,6 +245,19 @@ export function removePane(node: LayoutNode, paneId: string): LayoutNode | null 
   }
 
   return normalize(walk(node))
+}
+
+/**
+ * Order panes for one adoption pass so a pane docked against another pane in
+ * the SAME pass comes after it. Adopted first, its anchor isn't in the tree yet
+ * and it would fall back into main's zone (a session's preview tabs returning
+ * stacked behind the chat). Stable: everything else keeps its order.
+ */
+export function anchorsFirst<T extends { id: string }>(panes: T[], anchorOf: (id: string) => string | undefined): T[] {
+  const ids = new Set(panes.map(pane => pane.id))
+  const waits = (pane: T) => Number(ids.has(anchorOf(pane.id) ?? ''))
+
+  return [...panes].sort((a, b) => waits(a) - waits(b))
 }
 
 /**

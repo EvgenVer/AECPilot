@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/files/use-project-tree.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -301,7 +301,15 @@ async function revalidateTree(
 ): Promise<void> {
   const state = $projectTree.get()
 
-  if (!cwd || state.cwd !== cwd || !state.loaded || desktopFsCacheKey() !== connectionKey) {
+  // The workspace effect runs before the connection-change root effect. Do
+  // not start a new backend's read using the previous backend's loaded tree.
+  if (
+    !cwd ||
+    state.cwd !== cwd ||
+    !state.loaded ||
+    lastConnectionKey !== connectionKey ||
+    desktopFsCacheKey() !== connectionKey
+  ) {
     return
   }
 
@@ -326,6 +334,7 @@ async function revalidateTree(
     setProjectTree(latest => {
       if (
         latest.cwd !== cwd ||
+        latest.requestId !== state.requestId ||
         !latest.loaded ||
         desktopFsCacheKey() !== connectionKey ||
         showsIgnoredFiles(rootPath) !== filterAtRead
@@ -382,6 +391,7 @@ async function revalidateTree(
 
   setProjectTree(latest =>
     latest.cwd === cwd &&
+    latest.requestId === state.requestId &&
     latest.loaded &&
     desktopFsCacheKey() === connectionKey &&
     showsIgnoredFiles(rootPath) === filterAtRead
@@ -463,7 +473,10 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
 
   const loadChildren = useCallback(
     async (id: string) => {
-      const inflightKey = `${connectionKey}:${id}`
+      const requestId = $projectTree.get().requestId
+      // A root refresh can start a new read of this same folder. Its pending
+      // entry and result must not be released or replaced by the old read.
+      const inflightKey = `${connectionKey}:${requestId}:${id}`
 
       if (!cwd || inflight.has(inflightKey)) {
         return
@@ -500,6 +513,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
         // show-ignored toggle must not land after it.
         if (
           current.cwd !== cwd ||
+          current.requestId !== requestId ||
           desktopFsCacheKey() !== connectionKey ||
           showsIgnoredFiles(rootPath) !== filterAtRead
         ) {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/keybinds.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -50,7 +50,9 @@ function loadBindings(): KeybindBindings {
   const base = defaultBindings()
 
   for (const id of Object.keys(base)) {
-    if (storedOverrides[id]) {
+    // Empty combos are a cleared binding, not a missing one. Object.hasOwn
+    // keeps a stored [] (sidebar unbound) from falling back to the shipped default.
+    if (Object.hasOwn(storedOverrides, id)) {
       base[id] = storedOverrides[id]
     }
   }
@@ -96,19 +98,23 @@ export function bindingsFor(id: string, bindings: KeybindBindings = $bindings.ge
   return bindings[id] ?? storedOverrides[id] ?? [...(keybindAction(id)?.defaults ?? [])]
 }
 
-// Reverse lookup combo → actionId for dispatch. First action wins on conflict;
-// the panel/edit overlay surface conflicts so users can resolve them. Keys go
-// through `canonicalizeCombo` so a `ctrl+…` binding resolves everywhere.
-// Recomputes on registry mutations so contributed actions dispatch live.
+// Reverse lookup combo → action ids for dispatch, in KEYBIND_ACTIONS order.
+// The first action runs; a `passthrough` action that declines hands the chord
+// to the next one. Keys go through `canonicalizeCombo` so a `ctrl+…` binding
+// resolves everywhere. Recomputes on registry mutations so contributed
+// actions dispatch live.
 export const $comboIndex = computed([$bindings, $registryVersion], bindings => {
-  const index = new Map<string, string>()
+  const index = new Map<string, string[]>()
 
   for (const action of allKeybindActions()) {
     for (const combo of bindingsFor(action.id, bindings)) {
       const key = canonicalizeCombo(combo)
+      const ids = index.get(key)
 
-      if (!index.has(key)) {
-        index.set(key, action.id)
+      if (ids) {
+        ids.push(action.id)
+      } else {
+        index.set(key, [action.id])
       }
     }
   }
@@ -122,6 +128,11 @@ export function setBinding(actionId: string, combos: string[]): void {
   }
 
   $bindings.set({ ...$bindings.get(), [actionId]: [...combos] })
+}
+
+/** Drop every combo. Empty is persisted, so a shipped default stays unbound. */
+export function clearBinding(actionId: string): void {
+  setBinding(actionId, [])
 }
 
 export function resetBinding(actionId: string): void {
@@ -138,13 +149,25 @@ export function resetAllBindings(): void {
   $bindings.set(defaultBindings())
 }
 
-// Other actions that already use `combo` (excluding `actionId` itself).
+// Other actions that already use `combo` (excluding `actionId` itself). A
+// `passthrough` action layered over a later one shares the chord by design,
+// so that pair is not reported from either side.
 export function conflictsFor(actionId: string, combo: string): string[] {
   const bindings = $bindings.get()
+  const actions = allKeybindActions()
+  const self = actions.findIndex(action => action.id === actionId)
 
-  return allKeybindActions()
+  return actions
+    .filter((action, index) => {
+      if (index === self || !bindingsFor(action.id, bindings).includes(combo)) {
+        return false
+      }
+
+      const earlier = index < self ? action : actions[self]
+
+      return !earlier?.passthrough
+    })
     .map(action => action.id)
-    .filter(id => id !== actionId && bindingsFor(id, bindings).includes(combo))
 }
 
 // ── Capture ─────────────────────────────────────────────────────────────────
@@ -159,4 +182,25 @@ export function beginCapture(actionId: string): void {
 
 export function endCapture(): void {
   $capture.set(null)
+}
+
+export type CaptureStep = { type: 'cancel' } | { type: 'set'; combos: string[] } | { type: 'wait' }
+
+// Capture-mode keydown. Backspace/Delete record an empty combo so a shipped
+// chord (sidebar mod+b) can be unbound. Escape cancels. A modifier-only press
+// (`combo == null`) keeps waiting for a real key.
+export function captureStep(key: string, combo: string | null): CaptureStep {
+  if (key === 'Escape') {
+    return { type: 'cancel' }
+  }
+
+  if (key === 'Backspace' || key === 'Delete') {
+    return { type: 'set', combos: [] }
+  }
+
+  if (!combo) {
+    return { type: 'wait' }
+  }
+
+  return { type: 'set', combos: [combo] }
 }

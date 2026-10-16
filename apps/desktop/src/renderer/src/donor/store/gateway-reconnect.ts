@@ -1,13 +1,27 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/gateway-reconnect.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { translateNow } from '@/i18n'
 
-type GatewayReconnectHandler = () => Promise<void> | void
+export type GatewayReconnectSource = 'manual' | 'restart-followthrough'
+
+export interface GatewayReconnectOptions {
+  /**
+   * Why the reconnect is running. `'manual'` (default) is an explicit user
+   * recovery — the handler may unconditionally re-dial, including retrying a
+   * credential that requires sign-in. `'restart-followthrough'` is the
+   * automatic hand-off after a gateway restart: the socket often SURVIVED
+   * (the restart targets the messaging gateway, not this client's backend),
+   * so the handler probes first instead of force-closing a healthy socket.
+   */
+  source?: GatewayReconnectSource
+}
+
+type GatewayReconnectHandler = (options?: GatewayReconnectOptions) => Promise<void> | void
 
 let activeHandler: GatewayReconnectHandler | null = null
 let inFlight: Promise<void> | null = null
@@ -22,7 +36,7 @@ export function registerGatewayReconnect(handler: GatewayReconnectHandler): () =
   }
 }
 
-export function reconnectGateway(): Promise<void> {
+export function reconnectGateway(options?: GatewayReconnectOptions): Promise<void> {
   if (inFlight) {
     return inFlight
   }
@@ -34,7 +48,7 @@ export function reconnectGateway(): Promise<void> {
   }
 
   inFlight = Promise.resolve()
-    .then(handler)
+    .then(() => handler(options))
     .finally(() => {
       inFlight = null
     })

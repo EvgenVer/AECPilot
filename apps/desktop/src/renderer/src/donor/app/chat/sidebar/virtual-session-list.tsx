@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/virtual-session-list.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,7 @@ import { $sessionListDensity } from '@/store/session-list-density'
 
 import { SidebarDateDivider } from './chrome'
 import { SidebarSessionRow } from './session-row'
-import { sessionRowEstimate } from './session-row-details'
+import { SESSION_CARD_ROW_ESTIMATE_PX, sessionRowEstimate } from './session-row-details'
 
 interface SessionRowCommonProps {
   branchStem?: string
@@ -67,8 +67,8 @@ export interface VirtualSessionListProps {
 
 // Matches the card's typical rendered height (four lines when a preview
 // exists) so long card lists don't jump under the scroll thumb before
-// self-measurement catches up.
-const CARD_ROW_ESTIMATE_PX = 74
+// self-measurement catches up. Kept at/above the wrapped-title worst case —
+// see SESSION_CARD_ROW_ESTIMATE_PX (#88473).
 const DIVIDER_ESTIMATE_PX = 28
 const OVERSCAN_ROWS = 12
 
@@ -103,7 +103,7 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
         return DIVIDER_ESTIMATE_PX
       }
 
-      return card ? CARD_ROW_ESTIMATE_PX : sessionRowEstimate(density)
+      return card ? SESSION_CARD_ROW_ESTIMATE_PX : sessionRowEstimate(density)
     },
     getItemKey: index => {
       const row = listRows[index]
@@ -116,9 +116,10 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
     overscan: OVERSCAN_ROWS
   })
 
-  // Rows are measured after paint, so changing density must invalidate cached
-  // measurements from the previous mode before off-screen rows re-enter.
-  useEffect(() => virtualizer.measure(), [density, virtualizer])
+  // Rows are measured after paint, so changing density OR toggling Inbox
+  // cards must invalidate cached measurements from the previous mode before
+  // off-screen rows re-enter (#88473).
+  useEffect(() => virtualizer.measure(), [card, density, virtualizer])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()

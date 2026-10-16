@@ -1,23 +1,18 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/vitest.setup.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-/* ЛЕЖИТ НЕ В ЗЕРКАЛЕ, И ЭТО НАМЕРЕННО. Правило зоны отражает их `src/**`, а
-   этот файл лежит у них КОРНЕМ приложения (`apps/desktop/vitest.setup.ts`) —
-   слота в зеркале у него нет. Кладём рядом с зоной, чтобы он обновлялся тем же
-   повторным копированием, что и всё остальное: его содержимое — их знание об их
-   же тестах (Node 26 и localStorage, act-окружение React 19, потолок ожидания),
-   и переписывать его своими словами значило бы взять на себя чужой опыт. */
 import { configure } from '@testing-library/react'
 
-import { stubResizeObserver } from './src/test/jsdom'
+import { InertResizeObserver } from './src/test/jsdom'
 
-// Shared tooltips now measure their arrow through Radix's useSize hook.
-// Geometry assertions still belong in a real browser, not this inert observer.
-stubResizeObserver()
+// Shared tooltips measure their arrow through Radix's useSize hook.
+// Geometry assertions still belong in a real browser, not this inert observer. Assigned,
+// not `vi.stubGlobal`, so a test's `vi.unstubAllGlobals()` cannot strip it.
+globalThis.ResizeObserver ??= InertResizeObserver as unknown as typeof ResizeObserver
 
 // Node 26 defines its own `localStorage` accessor on the global object, which
 // returns `undefined` unless the process was started with --localstorage-file
@@ -37,14 +32,14 @@ if (typeof (globalThis as any).localStorage === 'undefined') {
     getItem: (k: string) => store.get(String(k)) ?? null,
     setItem: (k: string, v: string) => void store.set(String(k), String(v)),
     removeItem: (k: string) => void store.delete(String(k)),
-    clear: () => store.clear(),
+    clear: () => store.clear()
   }
 
   for (const target of [globalThis, (globalThis as any).window].filter(Boolean)) {
     Object.defineProperty(target, 'localStorage', {
       value: storage,
       configurable: true,
-      writable: true,
+      writable: true
     })
   }
 }
@@ -58,12 +53,25 @@ globalThis.IntersectionObserver = class {
   observe() {}
   unobserve() {}
   disconnect() {}
-  takeRecords(): IntersectionObserverEntry[] { return [] }
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
 } as typeof IntersectionObserver
 
-// React 19 + Testing Library 16: opt into the act environment so render(),
-// fireEvent(), and findBy* queries automatically flush state updates without
-// spurious "not wrapped in act(...)" warnings.
+// Idle prefetches and feature queries (`CSS.supports`) run on mount.
+// jsdom has neither API; idle work never fires and every feature reads as absent.
+globalThis.requestIdleCallback ??= () => 0
+globalThis.cancelIdleCallback ??= () => undefined
+globalThis.CSS ??= { escape: (value: string) => value, supports: () => false } as unknown as typeof CSS
+
+if ('Element' in globalThis) {
+  Element.prototype.scrollTo ??= () => undefined
+
+  // React 19 + Testing Library 16: opt into the act environment so render(),
+  // fireEvent(), and findBy* queries automatically flush state updates without
+  // spurious "not wrapped in act(...)" warnings.
+}
+
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 // findBy*/waitFor default to a 1000ms deadline — too tight for async-heavy

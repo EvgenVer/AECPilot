@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/index.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,11 +19,13 @@ import { composerDockCard } from '@/components/chat/composer-dock'
 import { StatusSection } from '@/components/chat/status-section'
 import { FreeTierNoticeStrip, useFreeTierNoticeOwner } from '@/components/free-tier/notice-strip'
 import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
+import { SharedMetricsConsentStrip } from '@/components/shared-metrics/consent-strip'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
 import { type Translations, useI18n } from '@/i18n'
+import { todoTree } from '@/lib/todos'
 import { useSessionSlice, useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { $billingBlock } from '@/store/billing-block'
@@ -40,7 +42,9 @@ import { $freeTierRoute, $freeTierStatus, freeTierStripPending } from '@/store/f
 import { $interfaceMode, shownInMode, type Tiered } from '@/store/interface-mode'
 import { $previewStatusBySession, dismissPreviewArtifact } from '@/store/preview-status'
 import { $sessionControlBySession, refreshSessionControl } from '@/store/session-control'
+import { $sharedMetricsConsent, sharedMetricsOfferPending } from '@/store/shared-metrics'
 import { $threadScrolledUpBySession } from '@/store/thread-scroll'
+import { $retainedTodosBySession } from '@/store/todos'
 import { openSessionInNewWindow } from '@/store/windows'
 
 import { PreviewStatusRow } from './preview-row'
@@ -128,6 +132,8 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
   // across unrelated writes, so the slice hook bails out unless OUR session's
   // items actually changed.
   const items = useSessionSlice($statusItemsBySession, sessionId)
+  const retainedTodos = useSessionSlice($retainedTodosBySession, sessionId)
+  const busy = useStore(useSessionView().$busy)
   const previews = useSessionSlice($previewStatusBySession, sessionId)
   const controlEntry = useSessionValue($sessionControlBySession, sessionId)
 
@@ -145,6 +151,9 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
   // notice once — and a non-owning stack adds no empty row to its card.
   const ownsFreeTierNotice = useFreeTierNoticeOwner()
   const freeTierNotice = ownsFreeTierNotice && freeTierStripPending(freeTierStatus, freeTierRoute)
+  // Same single owner, one offer at a time: the metrics question waits for the free-tier notice.
+  const sharedMetricsConsent = useStore($sharedMetricsConsent)
+  const sharedMetricsOffer = ownsFreeTierNotice && !freeTierNotice && sharedMetricsOfferPending(sharedMetricsConsent)
 
   const isStructuredSupported = controlEntry?.capability === 'supported'
 
@@ -203,7 +212,9 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
   const openAgents = () => navigate(AGENTS_ROUTE)
 
   const openSubagent = (item: ComposerStatusItem) =>
-    item.sessionId ? void openSessionInNewWindow(item.sessionId, { watch: true }) : openAgents()
+    item.sessionId
+      ? void openSessionInNewWindow(item.sessionId, { watch: true, parentSessionId: storedSessionId ?? sessionId })
+      : openAgents()
 
   const previewRows =
     visiblePreviews.length > 0 && sessionId
@@ -230,6 +241,10 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
   // actions acks the notice.
   if (freeTierNotice) {
     sections.push({ key: 'free-tier', node: <FreeTierNoticeStrip /> })
+  }
+
+  if (sharedMetricsOffer) {
+    sections.push({ key: 'shared-metrics', node: <SharedMetricsConsentStrip /> })
   }
 
   const hasControlContent = Boolean(
@@ -300,6 +315,37 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
     })
   }
 
+  // A settled snapshot is reviewable but never re-enters the live progress
+  // feed. Only show this disclosure once the live Todo section has retired.
+  if (!busy && retainedTodos.length > 0 && !groups.some(group => group.type === 'todo')) {
+    const done = retainedTodos.filter(todo => todo.status === 'completed').length
+    sections.push({
+      key: 'retained-todo',
+      node: (
+        <StatusSection
+          defaultCollapsed
+          icon={<Codicon className="text-muted-foreground/70" name="checklist" size="0.8rem" />}
+          label={t.statusStack.previousTodos(done, retainedTodos.length)}
+        >
+          {todoTree(retainedTodos).map(([todo, depth]) => (
+            <StatusItemRow
+              historical
+              item={{
+                depth,
+                id: `retained-todo:${todo.id}`,
+                state: 'done',
+                title: todo.content,
+                todoStatus: todo.status,
+                type: 'todo'
+              }}
+              key={todo.id}
+            />
+          ))}
+        </StatusSection>
+      )
+    })
+  }
+
   if (queue) {
     sections.push({ key: 'queue', node: queue })
   }
@@ -352,7 +398,9 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
             <div
               className={cn(
                 'transition-opacity duration-200 ease-out',
-                scrolledUp ? 'opacity-30 group-hover/composer:opacity-100' : 'opacity-100'
+                scrolledUp
+                  ? 'opacity-30 group-hover/composer-dock:opacity-100 group-focus-within/composer-dock:opacity-100'
+                  : 'opacity-100'
               )}
               data-slot="status-stack-content"
             >

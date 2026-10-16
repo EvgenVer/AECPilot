@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/controls.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the wake-word fallback → ours (SPEC C12)
@@ -23,6 +23,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Ear, EarOff, iconSize, Layers3, Loader2, Square } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { recordAction } from '@/store/desktop-metrics'
 import { $hudMode, closeHud, resetHudLayout } from '@/store/hud'
 import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
@@ -41,6 +42,7 @@ export function ComposerControls({
   busy,
   busyAction,
   canSubmit,
+  cardWaiting = false,
   compactModelPill = false,
   disabled,
   foldVoice = false,
@@ -55,6 +57,8 @@ export function ComposerControls({
   busy: boolean
   busyAction: 'steer' | 'queue' | 'stop'
   canSubmit: boolean
+  /** A card parked on the session takes typed text as its answer, so queueing that text would leave the card waiting. */
+  cardWaiting?: boolean
   compactModelPill?: boolean
   disabled: boolean
   foldVoice?: boolean
@@ -74,10 +78,10 @@ export function ComposerControls({
   // главной кнопкой пустого композера, на месте «отправить». Разговор снят
   // (HX19), поэтому главная кнопка всегда одна и та же: отправить или
   // остановить.
-  // Steer is just send: a payload keeps the Send affordance mid-turn. Stop
-  // only when the composer is empty and a turn is running.
+  // Steer is just send: a payload keeps the Send affordance mid-turn (it answers
+  // a waiting card). Stop only when the composer is empty and a turn is running.
   const showStop = busy && !hasComposerPayload
-  const showQueueButton = busyAction !== 'stop' && hasComposerPayload
+  const showQueueButton = busy && busyAction !== 'stop' && hasComposerPayload && !cardWaiting
   // The HUD is a Spotlight bar a few hundred pixels wide, so the four separate
   // voice toggles fold into one menu there and leave the row to the input. A
   // narrow tile hits the same wall from the other direction and folds for the

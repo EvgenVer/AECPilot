@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-browser-bar.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,6 +41,8 @@ interface PreviewBrowserBarProps {
   devToolsOpen: boolean
   loading: boolean
   onBack: () => void
+  /** The pane's Close — the one visible way out of a full-width Browser. */
+  onClose?: () => void
   onFlushComments?: () => void
   onForward: () => void
   onNavigate: (url: string) => void
@@ -110,6 +112,7 @@ export function PreviewBrowserBar({
   devToolsOpen,
   loading,
   onBack,
+  onClose,
   onFlushComments,
   onForward,
   onNavigate,
@@ -281,6 +284,12 @@ export function PreviewBrowserBar({
         label={devToolsOpen ? copy.hideDevTools : copy.openDevTools}
         onSelect={onToggleDevTools}
       />
+      {/* The last glyph is the way OUT: a Browser that filled the layout has
+          no strip ✕ in reach, and the only other close is asking the agent
+          (#92500). Same verb the tab carries — the pane routes it. */}
+      {onClose && (
+        <PaneStripGlyph icon={<Codicon name="close" size="0.8125rem" />} label={t.common.close} onSelect={onClose} />
+      )}
     </div>
   )
 }

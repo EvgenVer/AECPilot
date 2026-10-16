@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/steering-session.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,7 @@ import type { MutableRefObject } from 'react'
 
 import { findStoredIdForRuntimeId } from '@/app/contrib/wiring-routing'
 import type { ClientSessionState } from '@/app/types'
-import { $sessions, idsShareLineage, setActiveSessionId } from '@/store/session'
+import { $activeSessionStoredIdRotation, $sessions, idsShareLineage, setActiveSessionId } from '@/store/session'
 import { requestForSessionProfile } from '@/store/session-request-router'
 import { knownOwnerForSession } from '@/store/session-states'
 
@@ -44,9 +44,24 @@ export function captureSteeringSession(deps: SteeringSessionDeps) {
   const bindings = runtimeIdByStoredSessionIdRef.current
   const boundStoredSessionId = findStoredIdForRuntimeId(bindings, sessionId)
   const sessions = $sessions.get()
+  const storedIdRotation = $activeSessionStoredIdRotation.get()
+
+  // A compression event can update the runtime binding before the sessions
+  // refresh exposes the new tip's lineage. The rotation records the exact
+  // runtime and old/new stored ids, so it is enough proof for that brief gap.
+  const rotationBridgesUnloadedTip = Boolean(
+    storedIdRotation &&
+    storedIdRotation.runtimeSessionId === sessionId &&
+    storedIdRotation.previousStoredSessionId === selectedStoredSessionId &&
+    storedIdRotation.nextStoredSessionId === boundStoredSessionId
+  )
 
   const matchesSelection = (id: string) =>
-    Boolean(selectedStoredSessionId && idsShareLineage(id, selectedStoredSessionId, sessions))
+    Boolean(
+      selectedStoredSessionId &&
+      (idsShareLineage(id, selectedStoredSessionId, sessions) ||
+        (rotationBridgesUnloadedTip && id === boundStoredSessionId))
+    )
 
   // Navigation publishes route, selection and runtime independently. Unlike an
   // ordinary Send, a mid-turn correction must never resolve another target and
@@ -71,7 +86,12 @@ export function captureSteeringSession(deps: SteeringSessionDeps) {
   // A rebuilt runtime can bind the tip while selection/route keep the root.
   // Use its proven stored id for writes; reapplying the root would rotate it back.
   const storedSessionId = boundStoredSessionId ?? selectedStoredSessionId
-  const owner = knownOwnerForSession(sessionId) ?? knownOwnerForSession(storedSessionId)
+
+  const owner =
+    knownOwnerForSession(sessionId) ??
+    knownOwnerForSession(storedSessionId) ??
+    (rotationBridgesUnloadedTip ? knownOwnerForSession(storedIdRotation?.previousStoredSessionId) : undefined)
+
   let adoptedSessionId = sessionId
 
   const requestGateway: GatewayRequest = (method, params, timeoutMs) =>

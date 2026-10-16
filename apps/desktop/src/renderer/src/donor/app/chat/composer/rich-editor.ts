@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/rich-editor.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,7 @@ import {
   type SlashChipKind,
   slashIconElement
 } from '@/components/assistant-ui/directive-text'
-import { referenceKind, referenceRe } from '@/components/assistant-ui/reference-kinds'
+import { referenceKind, referenceRe, unwrapReferenceValue } from '@/components/assistant-ui/reference-kinds'
 
 import { slashCommandMatches, type SlashCommandScanOptions } from './slash-refs'
 
@@ -113,11 +113,7 @@ export function escapeHtml(value: string) {
 }
 
 export function unquoteRef(raw: string) {
-  const head = raw[0]
-  const tail = raw[raw.length - 1]
-  const quoted = (head === '`' && tail === '`') || (head === '"' && tail === '"') || (head === "'" && tail === "'")
-
-  return quoted ? raw.slice(1, -1) : raw.replace(/[,.;!?]+$/, '')
+  return unwrapReferenceValue(raw)
 }
 
 /** Always-quote variant of formatRefValue — chips need a fence even for safe values. */

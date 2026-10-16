@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/tips/use-tip-rotation.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -36,20 +36,20 @@ import { resolveTipAnchor } from '@/lib/tips/anchor'
 import { TIP_CATALOG } from '@/lib/tips/catalog'
 import { nextTip } from '@/lib/tips/rotation'
 import { $localModelsEnabled } from '@/store/local-models-flag'
+import { onboardingSurfaceActive } from '@/store/onboarding-presence'
 import { $awaitingResponse, $busy } from '@/store/session'
 import { $activeTip, $lastTipId, $nextTipAt, $retiredTips, $tipsEnabled, $tipShownAt, showTip } from '@/store/tips'
 import { checkTutorialLifetime } from '@/store/tutorial-lifetime'
 
 import { offerLocalRuntimeUpdateTip } from './local-runtime-update-offer'
-import { offerLocalSetupTip } from './local-setup-offer'
 
-const TICK_MS = 30_000
+export const TICK_MS = 30_000
 const UPDATE_TICK_MS = 1_000
 /** Nothing in the first stretch of a launch, however long the cooldown says
  *  it's been: you opened the app to do a thing, and the tip can wait until
  *  you've done it. Jittered so it isn't the same beat every time. */
-const SETTLE_MIN_MS = 5 * 60_000
-const SETTLE_SPREAD_MS = 5 * 60_000
+export const SETTLE_MIN_MS = 5 * 60_000
+export const SETTLE_SPREAD_MS = 5 * 60_000
 /** Typing is the clearest "I'm busy" signal the renderer gets for free. */
 const TYPING_GRACE_MS = 5_000
 
@@ -58,12 +58,14 @@ const TYPING_GRACE_MS = 5_000
 const BLOCKING_SURFACES =
   '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"],[data-overlay-surface],.driver-popover'
 
-function appIsQuiet(lastTypedAt: number): boolean {
+/** Nothing streaming, no surface open, the window focused and the user not typing: a tip or offer may show. */
+export function appIsQuiet(lastTypedAt: number): boolean {
   if (document.visibilityState !== 'visible' || !document.hasFocus()) {
     return false
   }
 
-  if ($busy.get() || $awaitingResponse.get()) {
+  // First-run onboarding is never a quiet moment.
+  if ($busy.get() || $awaitingResponse.get() || onboardingSurfaceActive()) {
     return false
   }
 
@@ -124,11 +126,10 @@ export function useTipRotation(copy: Translations['tips']) {
         return
       }
 
-      // Campaigns outrank the walk: a conditional, actionable tip that is
-      // live right now (the local-setup CTA) says something about THIS
-      // machine, which beats the catalog's standing introduction. It shares
-      // the cooldown, so taking the moment still costs it the usual hours.
-      if (offerUpdate() || offerLocalSetupTip(copy, openLocalModels)) {
+      // The engine-update campaign outranks the walk: it says something about
+      // THIS machine. It shares the cooldown, so taking the moment still costs
+      // it the usual hours.
+      if (offerUpdate()) {
         return
       }
 

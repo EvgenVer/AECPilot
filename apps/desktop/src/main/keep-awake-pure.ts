@@ -3,8 +3,18 @@
 // the bookkeeping around them: starting a second blocker while the first is
 // still running leaks it, and the machine then stays awake after the toggle is
 // off, with nothing on screen saying why.
+//
+// С ядра 0.22.2 (задача T20.7) у донора не переключатель, а РЕЖИМ: «никогда»,
+// «пока агент работает» и «всегда». Их окно шлёт строку режима туда, куда
+// раньше слало булево, — и строка `'off'` истинна: без этого файла машина
+// перестала бы засыпать ровно тогда, когда человек это запретил.
 
 export type PowerSaveAction = 'start' | 'stop' | 'none'
+
+/** Their three modes (`electron/power-save.ts`), the same strings on the wire. */
+export type KeepAwakeMode = 'always' | 'off' | 'while-working'
+
+const KEEP_AWAKE_MODES: readonly KeepAwakeMode[] = ['off', 'while-working', 'always']
 
 /** `blockerId` is what Electron handed back for the blocker we already hold, or
  * null when we hold none. Idempotent on purpose: this runs on every toggle, on
@@ -15,23 +25,42 @@ export function decidePowerSave(on: boolean, blockerId: null | number): PowerSav
   return blockerId === null ? 'none' : 'stop'
 }
 
-/** The stored preference is device-local and boolean; anything else in the file
- * (hand-edited, half-written, an older shape) reads as "off", because the safe
- * default for "should this machine refuse to sleep" is no. */
-export function parseKeepAwakeJson(text: string): boolean {
+/** A mode from the window, or the boolean the pre-mode toggle sent (`true` was
+ * "always on"). Anything else is not a mode, and the caller keeps what it had. */
+export function parseKeepAwakeMode(value: unknown): KeepAwakeMode | null {
+  if (value === true) return 'always'
+  if (value === false) return 'off'
+
+  return typeof value === 'string' && (KEEP_AWAKE_MODES as readonly string[]).includes(value)
+    ? (value as KeepAwakeMode)
+    : null
+}
+
+/** Whether the blocker should be held right now. Their rule, verbatim. */
+export function keepAwakeWanted(mode: KeepAwakeMode, working: boolean): boolean {
+  return mode === 'always' || (mode === 'while-working' && working)
+}
+
+/** The stored preference is device-local. Anything unreadable (hand-edited,
+ * half-written) reads as "off", because the safe default for "should this
+ * machine refuse to sleep" is no. The pre-0.22 file (`{"keepAwake": true}`)
+ * still reads as the mode it meant. */
+export function parseKeepAwakeJson(text: string): KeepAwakeMode {
   try {
     const parsed: unknown = JSON.parse(text)
 
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      (parsed as { keepAwake?: unknown }).keepAwake === true
-    )
+    if (typeof parsed !== 'object' || parsed === null) return 'off'
+
+    const record = parsed as { keepAwake?: unknown; mode?: unknown }
+    const mode = parseKeepAwakeMode(record.mode)
+    if (mode) return mode
+
+    return record.keepAwake === true ? 'always' : 'off'
   } catch {
-    return false
+    return 'off'
   }
 }
 
-export function serializeKeepAwake(on: boolean): string {
-  return `${JSON.stringify({ keepAwake: on }, null, 2)}\n`
+export function serializeKeepAwake(mode: KeepAwakeMode): string {
+  return `${JSON.stringify({ mode }, null, 2)}\n`
 }

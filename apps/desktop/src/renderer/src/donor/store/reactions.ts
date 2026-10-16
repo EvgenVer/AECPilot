@@ -1,14 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/reactions.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ChatMessage } from '@/lib/chat-messages'
 import { $gateway } from '@/store/gateway'
 import { notifyError } from '@/store/notifications'
-import { $activeSessionId, $messages, setMessages } from '@/store/session'
+import { $activeSessionId, $messages, $selectedStoredSessionId, setMessages } from '@/store/session'
 import { requestForOwnedSession } from '@/store/session-states'
 import type { MessageReaction } from '@/types/hermes'
 
@@ -59,14 +59,23 @@ function writeReactions(messageId: string, reactions: MessageReaction[], rowId?:
 export async function toggleMessageReaction(
   message: ChatMessage,
   emoji: null | string,
-  author: MessageReaction['author'] = 'user'
+  author: MessageReaction['author'] = 'user',
+  sessionIdOverride?: null | string
 ): Promise<void> {
   // A live message hasn't round-tripped through a resume yet, so it carries no
   // rowId. Rather than disable the affordance (which made reactions invisible
   // in any active conversation), let the backend resolve the newest row of
   // this role — which is exactly the message being reacted to.
   const rowId = message.rowId
-  const sessionId = $activeSessionId.get()
+
+  // The runtime id is unavailable while a stored conversation is being
+  // resumed (and can briefly be cleared during a profile/context switch), but
+  // the mounted transcript is still owned by the selected stored session.
+  // Use that durable identity as the routing fallback instead of treating a
+  // visible conversation as a draft. A genuinely new draft has neither id.
+  const sessionId =
+    sessionIdOverride === undefined ? ($activeSessionId.get() ?? $selectedStoredSessionId.get()) : sessionIdOverride
+
   const gateway = $gateway.get()
 
   if (!sessionId || !gateway) {
@@ -92,7 +101,9 @@ export async function toggleMessageReaction(
     // even though the row exists in the owning profile's state DB (#80670).
     // requestForOwnedSession resolves the exact owner route and fails closed;
     // the ambient request stays the fallback for legacy single-profile
-    // setups where the owner cannot be named.
+    // setups where the owner cannot be named. The selected stored-id fallback
+    // above matters here too: owner lookup can resolve the stored id even
+    // while the runtime binding is still being rebuilt.
     const result = await requestForOwnedSession<MessageReactResponse>(sessionId, ambientRequest, 'message.react', {
       session_id: sessionId,
       ...(rowId === undefined ? { newest_role: message.role } : { row_id: rowId }),

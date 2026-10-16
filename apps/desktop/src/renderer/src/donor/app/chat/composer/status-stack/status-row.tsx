@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/status-row.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,7 +30,7 @@ const TODO_GLYPHS: Record<Exclude<TodoStatus, 'in_progress' | 'pending'>, { icon
 
 // Left slot: braille spinner while running, otherwise a small status dot
 // (green = done, red = failed) so the slot is always filled and rows align.
-function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']): ReactNode {
+function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack'], historical = false): ReactNode {
   if (item.type === 'goal') {
     if (item.goalStatus === 'paused') {
       return <Codicon className="text-muted-foreground/60" name="debug-pause" size="0.8rem" />
@@ -49,7 +49,7 @@ function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']):
     )
   }
 
-  if (item.todoStatus === 'pending') {
+  if (item.todoStatus === 'pending' || (historical && item.todoStatus === 'in_progress')) {
     return <StatusPendingIcon />
   }
 
@@ -79,6 +79,8 @@ function leadingGlyph(item: ComposerStatusItem, s: Translations['statusStack']):
 
 interface StatusItemRowProps {
   item: ComposerStatusItem
+  /** Render a retained, non-running task snapshot. */
+  historical?: boolean
   /** Clear a finished background task from the stack. */
   onDismiss?: (id: string) => void
   /** Open the subagent's own session window, livestreamed by the gateway's
@@ -93,7 +95,13 @@ interface StatusItemRowProps {
  * Memoised + keyed by id so parent re-renders never remount it (the spinner
  * keeps ticking instead of resetting).
  */
-export const StatusItemRow = memo(function StatusItemRow({ item, onDismiss, onOpen, onStop }: StatusItemRowProps) {
+export const StatusItemRow = memo(function StatusItemRow({
+  historical = false,
+  item,
+  onDismiss,
+  onOpen,
+  onStop
+}: StatusItemRowProps) {
   const { t } = useI18n()
   const s = t.statusStack
   const failed = item.state === 'failed'
@@ -117,7 +125,7 @@ export const StatusItemRow = memo(function StatusItemRow({ item, onDismiss, onOp
       <StatusRow
         depth={Math.min(item.depth ?? 0, 4)}
         dismiss={action ? { label: action.label, onDismiss: action.onClick } : undefined}
-        leading={leadingGlyph(item, s)}
+        leading={leadingGlyph(item, s, historical)}
         onActivate={onActivate}
         trailing={
           canOpen ? (

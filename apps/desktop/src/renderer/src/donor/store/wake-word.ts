@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/wake-word.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -68,7 +68,24 @@ async function maybeStartClientCapture(result: WakeStartResponse | null | undefi
   try {
     clientCapture = await startClientWakeCapture({
       frameLength: result.frame_length,
-      request: gatewayRequester
+      request: gatewayRequester,
+      // The continuous PCM chain can die after arming (dead track, stalled
+      // graph, sustained silence, refused feeds — #119089). A "listening" ear
+      // that can never fire is worse than an honest off state, so mirror the
+      // start-failure path: drop the capture, show the reason, release the lease.
+      onError: error => {
+        stopClientCapture()
+        const failed = $wakeWord.get()
+        $wakeWord.set({
+          ...failed,
+          listening: false,
+          notice: error.message,
+          pending: false
+        })
+
+        // Best-effort: release server lease if client mic failed.
+        void gatewayRequester('wake.stop', {}).catch(() => undefined)
+      }
     })
   } catch (error) {
     const current = $wakeWord.get()

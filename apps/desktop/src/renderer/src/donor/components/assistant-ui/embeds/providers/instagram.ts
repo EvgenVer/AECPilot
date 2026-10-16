@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/providers/instagram.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@ export const instagram: EmbedMatcher = url => {
 
   return {
     embedUrl: `https://www.instagram.com/${type}/${code}/embed`,
-    // Placeholder height for content-visibility; embed.js self-sizes in-document.
+    // Placeholder height until the embed page reports its own (social-embed.tsx).
     height: 450,
     id: `instagram:${code}`,
     label: 'Instagram',

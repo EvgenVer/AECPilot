@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/skills/skill-detail.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,7 @@ import { asText, prettyName } from '../../settings/helpers'
 import { DetailHeader } from '../primitives'
 
 import { parseFrontmatter } from './frontmatter'
+import { isEditableProvenance } from './skill-provenance'
 import { categoryFor } from './skills-data'
 
 export function SkillDetail({
@@ -33,9 +34,9 @@ export function SkillDetail({
   skill: SkillInfo
 }) {
   const { t } = useI18n()
-  // Only learned/local skills are the user's to rewrite or archive — bundled
-  // and hub skills are managed by their sources.
-  const editable = skill.provenance === 'agent'
+  // Origin only, never mutability: external mounts stay editable in place —
+  // see ./skill-provenance (commit 8c8fc6c1ec).
+  const editable = isEditableProvenance(skill.provenance)
 
   // The FULL skill — frontmatter metadata + complete SKILL.md body — for any
   // provenance, scoped to the Capabilities profile selector. The row list only
@@ -58,7 +59,7 @@ export function SkillDetail({
         pills={
           <>
             <PanelPill>{prettyName(categoryFor(skill))}</PanelPill>
-            {skill.provenance && skill.provenance !== 'bundled' && (
+            {(skill.provenance === 'agent' || skill.provenance === 'hub') && (
               <PanelPill tone={skill.provenance === 'agent' ? 'good' : 'muted'}>
                 {t.skills.provenance[skill.provenance]}
               </PanelPill>

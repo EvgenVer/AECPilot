@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/panel-titlebar.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -50,7 +50,11 @@ export function usePanelTitlebar(ref: RefObject<HTMLElement | null>, enabled: bo
     }
 
     const left = Math.min(rect.width, Math.max(0, leftControls.right + 12 - rect.left))
-    const right = Math.min(rect.width - left, Math.max(0, rect.right - rightControls.left + 24))
+    // No extra pad on the right: a +N here is a dead strip (the spacer has no
+    // app-region) flush against Settings. The 48px data-window-drag-handle is
+    // already the gutter (#131729). Do not mark this spacer drag — it sits
+    // under the z-70 cluster, and Electron app-region ignores stacking.
+    const right = Math.min(rect.width - left, Math.max(0, rect.right - rightControls.left))
     element.style.setProperty('--panel-titlebar-left', `${left}px`)
     element.style.setProperty('--panel-titlebar-right', `${right}px`)
     setBelowControls(minimized || rect.width - left - right < 120)

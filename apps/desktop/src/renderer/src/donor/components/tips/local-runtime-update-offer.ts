@@ -1,21 +1,17 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/tips/local-runtime-update-offer.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { getLocalModelsJobs, getLocalModelsStatus } from '@/hermes'
 import type { Translations } from '@/i18n/types'
-import { localSetupDue } from '@/lib/tips/local-cta'
+import { queryClient } from '@/lib/query-client'
+import { localTipDue } from '@/lib/tips/local-cta'
 import { $activeGatewayRoute } from '@/store/gateway'
 import { $localModelsEnabled } from '@/store/local-models-flag'
-import {
-  $localRuntimeInstallStarting,
-  $localRuntimeJobs,
-  localRuntimeInstallBusy,
-  startLocalRuntimeInstall
-} from '@/store/local-runtime-jobs'
+import { localRuntimeInstallBusy, startLocalRuntimeInstall } from '@/store/local-runtime-jobs'
 import { $connection } from '@/store/session'
 import { $activeTip, $retiredTips, $tipsEnabled, $tipShownAt, dismissTip, showTip } from '@/store/tips'
 import type { LocalModelsStatus, LocalRuntimeJob } from '@/types/hermes'
@@ -44,16 +40,15 @@ $tipsEnabled.listen(enabled => {
     reset()
   }
 })
-$localRuntimeJobs.listen(() => {
+
+const closeWhenBusy = (): void => {
   if (localRuntimeInstallBusy()) {
     reset()
   }
-})
-$localRuntimeInstallStarting.listen(starting => {
-  if (starting) {
-    reset()
-  }
-})
+}
+
+queryClient.getQueryCache().subscribe(closeWhenBusy)
+queryClient.getMutationCache().subscribe(closeWhenBusy)
 
 export function offerLocalRuntimeUpdateTip(copy: Translations['tips'], openLocalModels: () => void): boolean {
   if (
@@ -109,7 +104,7 @@ export function offerLocalRuntimeUpdateTip(copy: Translations['tips'], openLocal
 
   const tipId = `local-runtime-update:${status.configured_tag}`
 
-  if ($retiredTips.get().includes(tipId) || !localSetupDue(Date.now(), $tipShownAt.get()[tipId])) {
+  if ($retiredTips.get().includes(tipId) || !localTipDue(Date.now(), $tipShownAt.get()[tipId])) {
     return false
   }
 

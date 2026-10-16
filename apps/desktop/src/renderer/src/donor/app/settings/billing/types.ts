@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/billing/types.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,13 +25,13 @@ import type {
 
 /**
  * The gateway's `billing.state` payload as THIS app reads it: the shared shape
- * plus the free-tier fields newer gateways add. When `free_tier` is true there
+ * plus the free-tier fields newer gateways add. When `free_tier_account` is true there
  * is no account behind the call — `logged_in` is false and there is no balance,
  * card or usage — so the free-tier branch must be read before the logged-out
  * one. Both fields are absent on older gateways.
  */
 export type BillingStateResponse = SharedBillingStateResponse & {
-  free_tier?: boolean
+  free_tier_account?: boolean
   free_tier_model?: null | string
 }
 

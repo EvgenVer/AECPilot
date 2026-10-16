@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/session-context-drift.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,6 +29,17 @@ export function routeTargetFromToken(token: string): RouteTarget {
   const pathname = separator === -1 ? token : token.slice(0, separator)
 
   return routeSessionId(pathname) ?? (isNewChatRoute(pathname) ? '__new__' : null)
+}
+
+/**
+ * Whether a resume begun under `startRouteToken` still owns the view. The route
+ * arriving at the resumed session itself is not a switch: create/branch call
+ * navigate(target) and then resume(target) before the token re-renders, so the
+ * token captured at entry can still name the previous chat. Reading that commit
+ * as drift abandoned the branch child's resume and left its pane on the loader.
+ */
+export function resumeRouteStillCurrent(startRouteToken: string, nowRouteToken: string, storedSessionId: string) {
+  return nowRouteToken === startRouteToken || routeTargetFromToken(nowRouteToken) === storedSessionId
 }
 
 interface SessionContextDriftArgs {
@@ -63,6 +74,45 @@ interface SessionContextDriftArgs {
    * session that has ever compressed.
    */
   submitTargetComposerScope?: string | null
+  /**
+   * The owner token of the request this check belongs to. Only pins created by
+   * the SAME owner are honored; omit to ignore pins entirely.
+   */
+  pinOwner?: string
+}
+
+// Pins are OWNED (#85590 review): a drift check honors only pins created by the
+// SAME owner token — the submit/route generation that created them — so an
+// overlapping request can never suppress another request's drift detection.
+const pinnedByOwner = new Map<string, Set<string>>()
+
+/** Shared empty set: a non-owning caller allocates nothing. */
+const NO_PINS: ReadonlySet<string> = new Set()
+
+/** Mark `storedSessionId` as re-homed by `owner` until its terminal release. */
+export function pinStoredSessionForOwner(owner: string, storedSessionId: string): void {
+  const pinned = pinnedByOwner.get(owner)
+
+  if (pinned) {
+    pinned.add(storedSessionId)
+  } else {
+    pinnedByOwner.set(owner, new Set([storedSessionId]))
+  }
+}
+
+/** Terminal release: the owner's request settled (accepted, failed, cancelled).
+ *  Route settlement is evidence, not a tick budget. */
+export function releaseStoredSessionPins(owner: string): void {
+  pinnedByOwner.delete(owner)
+}
+
+export function pinnedStoredSessionIdsForOwner(owner: string): ReadonlySet<string> {
+  return pinnedByOwner.get(owner) ?? NO_PINS
+}
+
+/** Owners still holding a pin. Observability + tests. */
+export function pinnedOwnerCount(): number {
+  return pinnedByOwner.size
 }
 
 /**
@@ -84,8 +134,11 @@ export function sessionContextDrift({
   nowSelectedStoredId,
   submitTargetStoredId,
   composerScope,
-  submitTargetComposerScope
+  submitTargetComposerScope,
+  pinOwner
 }: SessionContextDriftArgs): string | null {
+  const activePins = pinOwner ? pinnedStoredSessionIdsForOwner(pinOwner) : NO_PINS
+
   // Composer prong: the composer's loaded scope disagrees with the resolved
   // submit target. Not a start/now comparison like the two prongs below — the
   // composer only hands us one snapshot per submit — but it belongs in the
@@ -104,7 +157,12 @@ export function sessionContextDrift({
   // (navigated to settings / a non-chat overlay route) or a search/hash-only
   // change (same target) is not drift, and neither is landing on the submit's
   // own target.
-  if (targetNow !== targetStart && targetNow !== null && targetNow !== submitTargetStoredId) {
+  if (
+    targetNow !== targetStart &&
+    targetNow !== null &&
+    targetNow !== submitTargetStoredId &&
+    !(targetNow !== '__new__' && activePins.has(targetNow))
+  ) {
     return `route:${targetStart}->${targetNow}`
   }
 
@@ -114,7 +172,8 @@ export function sessionContextDrift({
   if (
     nowSelectedStoredId !== null &&
     nowSelectedStoredId !== startSelectedStoredId &&
-    nowSelectedStoredId !== submitTargetStoredId
+    nowSelectedStoredId !== submitTargetStoredId &&
+    !activePins.has(nowSelectedStoredId)
   ) {
     return `selection:${startSelectedStoredId}->${nowSelectedStoredId}`
   }

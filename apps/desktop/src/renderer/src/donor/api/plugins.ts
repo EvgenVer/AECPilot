@@ -9,8 +9,6 @@
  *       now-unused `reconnectBackoffDelayMs` import it was the only caller of
  * (no other edits)
  */
-import { reconnectBackoffDelayMs } from '@hermes/shared'
-
 import type { HermesConnection } from '@/global'
 import { RECONNECT_ATTEMPT_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
 

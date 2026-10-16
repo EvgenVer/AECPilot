@@ -1,13 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/youtube-embed.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { FrameEmbed } from './providers/types'
 import { useIsDark } from './use-is-dark'
@@ -15,27 +15,67 @@ import { useIsDark } from './use-is-dark'
 const YOUTUBE_ALLOW =
   'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen'
 
+const hasHttpOrigin = () =>
+  typeof window !== 'undefined' &&
+  (window.location.protocol === 'http:' || window.location.protocol === 'https:') &&
+  Boolean(window.location.origin) &&
+  window.location.origin !== 'null'
+
 function youtubeSrc(embedUrl: string): string {
   const url = new URL(embedUrl)
 
   // Only pass origin when it is an HTTP(S) origin; custom schemes (app://,
   // file://) can make the player reject otherwise embeddable videos.
-  if (
-    typeof window !== 'undefined' &&
-    (window.location.protocol === 'http:' || window.location.protocol === 'https:') &&
-    window.location.origin &&
-    window.location.origin !== 'null'
-  ) {
+  if (hasHttpOrigin()) {
     url.searchParams.set('origin', window.location.origin)
   }
 
   return url.toString()
 }
 
+/** The same video and params, served through the Desktop loopback wrapper. */
+export function wrappedYoutubeSrc(embedUrl: string, hostOrigin: string): string {
+  const url = new URL(embedUrl)
+  const id = url.pathname.split('/').pop() ?? ''
+
+  return `${hostOrigin}/youtube/${encodeURIComponent(id)}${url.search}`
+}
+
+// The packaged renderer is a file:// page, which YouTube rejects (error 153), so
+// there the player is hosted by a loopback wrapper page (electron/embed-host.ts).
+// Dev and web renderers already have an http origin and embed directly.
+function usePlayerSrc(embedUrl: string): null | string {
+  const direct = useMemo(() => youtubeSrc(embedUrl), [embedUrl])
+  const getHostOrigin = hasHttpOrigin() ? undefined : window.hermesDesktop?.getEmbedHostOrigin
+  const [wrapped, setWrapped] = useState<null | string>(null)
+
+  useEffect(() => {
+    if (!getHostOrigin) {
+      return
+    }
+
+    let live = true
+
+    getHostOrigin()
+      .then(origin => live && setWrapped(wrappedYoutubeSrc(embedUrl, origin)))
+      .catch(() => live && setWrapped(direct))
+
+    return () => {
+      live = false
+    }
+  }, [direct, embedUrl, getHostOrigin])
+
+  return getHostOrigin ? wrapped : direct
+}
+
 // Keep this as a plain iframe and let YouTube render its native player/error UI.
 export default function YouTubeEmbedRenderer({ descriptor }: { descriptor: FrameEmbed }) {
   const isDark = useIsDark()
-  const src = useMemo(() => youtubeSrc(descriptor.embedUrl), [descriptor.embedUrl])
+  const src = usePlayerSrc(descriptor.embedUrl)
+
+  if (!src) {
+    return <div className="block aspect-video w-full" />
+  }
 
   // Width is capped to the ratio by UrlEmbed, so aspect-video sizes height ≤ cap.
   return (

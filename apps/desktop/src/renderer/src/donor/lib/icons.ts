@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/icons.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,8 @@ import {
   IconAppWindow as AppWindow,
   IconArchive as Archive,
   IconArchiveOff as ArchiveOff,
+  IconArrowBarToDown as ArrowBarToDown,
+  IconArrowBarToUp as ArrowBarToUp,
   IconArrowUp as ArrowUp,
   IconArrowUpRight as ArrowUpRight,
   IconAt as AtSign,
@@ -33,6 +35,7 @@ import {
   IconChevronLeft as ChevronLeftIcon,
   IconChevronRight as ChevronRight,
   IconChevronRight as ChevronRightIcon,
+  IconChevronUp as ChevronUp,
   IconCircle as CircleIcon,
   IconCircleLetterA as CircleLetterA,
   IconClipboard as Clipboard,
@@ -147,6 +150,8 @@ export {
   AppWindow,
   Archive,
   ArchiveOff,
+  ArrowBarToDown,
+  ArrowBarToUp,
   ArrowUp,
   ArrowUpRight,
   AtSign,
@@ -168,6 +173,7 @@ export {
   ChevronLeftIcon,
   ChevronRight,
   ChevronRightIcon,
+  ChevronUp,
   CircleIcon,
   CircleLetterA,
   Clipboard,

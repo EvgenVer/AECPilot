@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useEffect, useRef, useState } from 'react'
+
+import { closeMeterContext, meterContextsClosed } from '@/lib/mic-meter-context'
 
 type BrowserAudioContext = typeof AudioContext
 
@@ -13,15 +15,25 @@ export interface MicRecorderOptions {
   onLevel?: (level: number) => void
   onError?: (error: Error) => void
   onSilence?: () => void
+  /** The level meter died (AudioContext device/renderer error). Recording
+   *  goes on, but silence detection and `heardSpeech` are blind from here. */
+  onMeterFailure?: () => void
   silenceLevel?: number
   silenceMs?: number
   idleSilenceMs?: number
+  /** Live PCM tap (streaming dictation): mono s16le chunks at the meter context's rate, which
+   *  `onPcmRate` reports once before the first chunk. The MediaRecorder blob is unaffected. */
+  onPcm?: (chunk: ArrayBuffer) => void
+  onPcmRate?: (sampleRate: number) => void
 }
 
 export interface MicRecording {
   audio: Blob
   durationMs: number
   heardSpeech: boolean
+  /** The level meter failed during this take, so `heardSpeech` is unknown
+   *  rather than false. */
+  meterFailed?: boolean
 }
 
 export interface MicRecorderErrorCopy {
@@ -86,9 +98,11 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const audioContextRef = useRef<AudioContext | null>(null)
+  const pcmTapRef = useRef<ScriptProcessorNode | null>(null)
   const animationRef = useRef<number | null>(null)
   const startedAtRef = useRef(0)
   const heardSpeechRef = useRef(false)
+  const meterFailedRef = useRef(false)
   const silenceTriggeredRef = useRef(false)
   const silenceStartedAtRef = useRef<number | null>(null)
   const stopResolverRef = useRef<((recording: MicRecording | null) => void) | null>(null)
@@ -99,8 +113,13 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
       animationRef.current = null
     }
 
-    void audioContextRef.current?.close()
+    pcmTapRef.current?.disconnect()
+    pcmTapRef.current = null
+    // Null the ref before closing so the context's own 'closed' statechange
+    // isn't mistaken for a meter failure.
+    const audioContext = audioContextRef.current
     audioContextRef.current = null
+    closeMeterContext(audioContext)
     streamRef.current?.getTracks().forEach(track => track.stop())
     streamRef.current = null
     recorderRef.current = null
@@ -119,6 +138,28 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
       return
     }
 
+    const failMeter = () => {
+      if (meterFailedRef.current || !recorderRef.current) {
+        return
+      }
+
+      meterFailedRef.current = true
+
+      if (animationRef.current) {
+        window.cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+
+      setLevel(0)
+      // Deferred: a meter that fails while start() is still running must not
+      // re-enter the caller before start() has resolved.
+      window.setTimeout(() => {
+        if (recorderRef.current) {
+          options.onMeterFailure?.()
+        }
+      }, 0)
+    }
+
     try {
       const audioContext = new AudioContextCtor()
       const analyser = audioContext.createAnalyser()
@@ -129,6 +170,29 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
 
       source.connect(analyser)
       audioContextRef.current = audioContext
+
+      if (options.onPcm) {
+        startPcmTap(audioContext, source, options)
+      }
+
+      // A device or renderer error kills the context without throwing
+      // anywhere we'd see it; the analyser just goes flat. Watch for it.
+      const failIfCurrent = () => {
+        if (audioContextRef.current === audioContext) {
+          failMeter()
+        }
+      }
+
+      audioContext.addEventListener('error', failIfCurrent)
+      audioContext.addEventListener('statechange', () => {
+        if (audioContext.state === 'closed') {
+          failIfCurrent()
+        }
+      })
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(failIfCurrent)
+      }
 
       const tick = () => {
         analyser.getByteTimeDomainData(data)
@@ -177,8 +241,32 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
 
       tick()
     } catch {
-      setLevel(0)
+      failMeter()
     }
+  }
+
+  // ScriptProcessor: deprecated but universal, and it needs no worklet module URL in the Electron
+  // renderer. The host resamples, so chunks go out at the context's own rate.
+  const startPcmTap = (audioContext: AudioContext, source: MediaStreamAudioSourceNode, options: MicRecorderOptions) => {
+    const tap = audioContext.createScriptProcessor(4096, 1, 1)
+    pcmTapRef.current = tap
+    options.onPcmRate?.(audioContext.sampleRate)
+
+    tap.onaudioprocess = event => {
+      const input = event.inputBuffer.getChannelData(0)
+      const pcm = new Int16Array(input.length)
+
+      for (let i = 0; i < input.length; i += 1) {
+        const sample = Math.max(-1, Math.min(1, input[i]))
+        pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+      }
+
+      options.onPcm?.(pcm.buffer)
+    }
+
+    // A tap only fires while connected through to the destination; its output buffer stays silent.
+    source.connect(tap)
+    tap.connect(audioContext.destination)
   }
 
   const start: MicRecorderHandle['start'] = async (options = {}) => {
@@ -195,6 +283,11 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
     if (permitted === false) {
       throw new Error(copy.microphoneAccessDenied)
     }
+
+    // The previous take's meter (or the barge monitor's) may still be
+    // closing; opening another context on top of it is what trips the
+    // AudioContext device error (#75329).
+    await meterContextsClosed()
 
     let stream: MediaStream
 
@@ -224,6 +317,7 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
     streamRef.current = stream
     recorderRef.current = recorder
     heardSpeechRef.current = false
+    meterFailedRef.current = false
     silenceTriggeredRef.current = false
     silenceStartedAtRef.current = null
     startedAtRef.current = Date.now()
@@ -239,6 +333,7 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
       const recordingType = recorder.mimeType || mimeType || 'audio/webm'
       const durationMs = Date.now() - startedAtRef.current
       const heardSpeech = heardSpeechRef.current
+      const meterFailed = meterFailedRef.current
 
       chunksRef.current = []
       cleanup()
@@ -255,7 +350,8 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): {
       resolver?.({
         audio: new Blob(chunks, { type: recordingType }),
         durationMs,
-        heardSpeech
+        heardSpeech,
+        meterFailed
       })
     }
 

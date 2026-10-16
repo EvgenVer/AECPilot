@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped applyAutoSpeakFromConfig — auto-speak of replies is SPEC HX19
@@ -17,6 +17,7 @@ import { type MutableRefObject, useCallback, useRef, useState } from 'react'
 import { setTerminalFontFamilyFromConfig } from '@/app/right-sidebar/terminal/terminal-font'
 import { getHermesConfig, getHermesConfigDefaults } from '@/hermes'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '@/lib/chat-runtime'
+import { composerServiceTier } from '@/lib/model-status-label'
 import { normalize } from '@/lib/text'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
 import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
@@ -31,15 +32,17 @@ import {
   setDefaultReasoningEffort,
   setIntroPersonality
 } from '@/store/session'
+import { setShowToolActivityFromConfig } from '@/store/tool-activity'
 import {
+  applyBargeInEnabledFromConfig,
   applyBargeInThresholdFromConfig,
   applyThinkingSoundFromConfig,
+  applyVoiceSilenceMsFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
 import { setChatFontFamilyFromConfig } from '@/themes/chat-font'
 
 const DEFAULT_VOICE_SECONDS = 120
-const FAST_TIERS = new Set(['fast', 'priority', 'on'])
 
 function recordingLimit(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_SECONDS
@@ -110,7 +113,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         ])
 
         const reasoning = normalizeConfigEffort(config.agent?.reasoning_effort)
-        const tier = (config.agent?.service_tier ?? '').trim()
+        const tier = composerServiceTier(config.agent?.service_tier)
 
         // Publish the profile default regardless of whether the composer is
         // reseeded below: picker rows and preset application resolve "the
@@ -133,14 +136,13 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           }
 
           setCurrentReasoningEffort(reasoning)
-          setCurrentFastMode(FAST_TIERS.has(tier.toLowerCase()))
+          setCurrentFastMode(tier === 'priority' || tier === 'ultrafast')
+          setCurrentServiceTier(tier)
         }
 
         if (!canPublish()) {
           return
         }
-
-        setCurrentServiceTier(prev => (activeSessionIdRef.current ? prev : tier))
 
         if (!canPublish()) {
           return
@@ -155,6 +157,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
         setDisplayTimestampsFromConfig(config.display?.timestamps)
         setShowReasoningFromConfig(config.display?.show_reasoning)
+        setShowToolActivityFromConfig(config.display?.tool_progress)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
         setChatFontFamilyFromConfig(config.desktop?.font_family)
 
@@ -165,8 +168,10 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         // EDIT [3]: `voice.auto_tts` из их конфига включал авточтение всех
         // ответов БЕЗ единого нажатия в окне — SPEC HX19 (owner decision 2026-09-08).
         applyVoiceStopPhraseFromConfig(config, defaults)
+        applyBargeInEnabledFromConfig(config)
         applyBargeInThresholdFromConfig(config)
         applyThinkingSoundFromConfig(config)
+        applyVoiceSilenceMsFromConfig(config, defaults)
         // EDIT [3]: their `refreshVoiceLiveStatus()` (live voice, HX19) stood here.
       } catch {
         // Config is nice-to-have; chat still works without it.

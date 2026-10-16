@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/runtime-readiness.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,7 +11,8 @@ export interface SetupStatusSnapshot {
    *  ones). Carried for consumers that read the record — readiness itself
    *  still keys on `provider_configured` + `setup.runtime_check`. */
   ready?: boolean
-  free_tier?: boolean
+  free_tier_account?: boolean
+  free_tier_route?: boolean
   other_providers?: boolean
   inference_provider?: string
   /** Present only when the boot bootstrap could not create the free-tier
@@ -27,7 +28,7 @@ export interface RuntimeCheckSnapshot {
   error?: string
   /** True when the resolved route is the free tier rather than a credential of
    *  the user's own. Absent on older backends. */
-  free_tier?: boolean
+  free_tier_route?: boolean
   model?: string
   ok?: boolean
   provider?: string
@@ -137,7 +138,7 @@ export function interpretRuntimeReadiness(
   // (free-tier chrome) don't have to re-issue setup.runtime_check. Left
   // undefined when the check said nothing — "absent" and "false" differ.
   const route = {
-    freeTier: typeof signals.runtime?.free_tier === 'boolean' ? signals.runtime.free_tier : undefined,
+    freeTier: typeof signals.runtime?.free_tier_route === 'boolean' ? signals.runtime.free_tier_route : undefined,
     model: normalizeMessage(signals.runtime?.model) ?? undefined
   }
 

@@ -1,6 +1,8 @@
 // Задача 3.4б. Проверяется ровно то, что обещано в задаче: директива абзацем
-// становится блоком, та же строка в середине текста остаётся текстом, чужое имя
-// остаётся абзацем, а бросок при отрисовке даёт значок ВНУТРИ сообщения.
+// становится блоком, чужое имя остаётся абзацем, а бросок при отрисовке даёт
+// значок ВНУТРИ сообщения. С ядра 0.22.2 (задача T20.7) директива может стоять
+// и посреди абзаца — их `segmentTranscriptDirectives` режет его на текст и
+// блоки; прежнее «в середине текста остаётся текстом» у донора снято.
 //
 // Три из четырёх свойств принадлежат их механизму, а не нашим блокам, — и
 // проверяются именно поэтому: мы на них опираемся, а вендорный код приезжает
@@ -13,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registry } from '../../donor/contrib/registry'
 import { TranscriptDirectiveLeaf } from '../../donor/components/assistant-ui/transcript-directive'
 import {
-  parseTranscriptDirective,
+  segmentTranscriptDirectives,
   TRANSCRIPT_DIRECTIVE_AREA
 } from '../../donor/lib/transcript-directives'
 import { AecI18nProvider } from '../../shared/i18n'
@@ -117,12 +119,25 @@ describe('директива как абзац', () => {
 })
 
 describe('границы механизма (донорские, но мы на них стоим)', () => {
-  it('та же строка в середине текста остаётся текстом', () => {
+  it('директива посреди текста режется на текст и блок, а `std::vector` — не директива', () => {
     expect(
-      parseTranscriptDirective('Смотрите ::aec-conflict{left="1" right="2"} в таблице')
-    ).toBeNull()
-    // И многострочный абзац тоже: директива — это одна строка целиком.
-    expect(parseTranscriptDirective('::aec-conflict{left="1"}\nи ещё строка')).toBeNull()
+      segmentTranscriptDirectives('Смотрите ::aec-conflict{left="1" right="2"} в таблице')
+    ).toEqual([
+      { kind: 'prose', text: 'Смотрите ' },
+      {
+        kind: 'directive',
+        directive: {
+          name: 'aec-conflict',
+          attrs: { left: '1', right: '2' },
+          source: '::aec-conflict{left="1" right="2"}'
+        }
+      },
+      { kind: 'prose', text: ' в таблице' }
+    ])
+    // Имя, приклеенное к слову, — не директива.
+    expect(segmentTranscriptDirectives('std::vector<int> v')).toBeNull()
+    // Недочитанные атрибуты — тоже: полблока с молча потерянными полями не рисуется.
+    expect(segmentTranscriptDirectives('::aec-conflict{left="1"')).toBeNull()
   })
 
   it('незанятое имя остаётся абзацем — блок не подставляется', () => {

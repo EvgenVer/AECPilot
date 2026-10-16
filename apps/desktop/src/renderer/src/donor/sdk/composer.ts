@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/sdk/composer.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ import {
   requestComposerSetDraft,
   requestComposerSubmit
 } from '@/app/chat/composer/focus'
-import { NEW_SESSION_DRAFT_KEY, takeSessionDraft } from '@/store/composer'
+import { freshDraftScope, takeSessionDraft } from '@/store/composer'
 import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
 
@@ -44,7 +44,7 @@ const resolveComposerAddress = (
   if (id === 'new') {
     const primaryIsNewDraft = !$activeSessionId.get() && !$selectedStoredSessionId.get()
 
-    return { ids: [NEW_SESSION_DRAFT_KEY], stored: NEW_SESSION_DRAFT_KEY, target: primaryIsNewDraft ? 'main' : null }
+    return { ids: [freshDraftScope()], stored: freshDraftScope(), target: primaryIsNewDraft ? 'main' : null }
   }
 
   const stored = $sessionStates.get()[id]?.storedSessionId ?? id

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/data/prefetch.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,15 +16,19 @@ import { connectorToolsQueryOptions } from './queries'
 
 const PREFETCH_LIMIT = 3
 
-export function prefetchConnectorTools(scope: ProfileScope, slug: string): void {
-  void queryClient.prefetchQuery(connectorToolsQueryOptions(scope, slug))
+// Only a connected hosted account has tools to list; an unconnected card's read is a wasted gateway call.
+export function hasConnectedTools(card: ConnectorCardModel): boolean {
+  return card.ways.hosted?.state === 'connected'
+}
+
+export function prefetchConnectorTools(scope: ProfileScope, card: ConnectorCardModel): void {
+  if (hasConnectedTools(card)) {
+    void queryClient.prefetchQuery(connectorToolsQueryOptions(scope, card.slug))
+  }
 }
 
 export function usePrefetchConnectedTools(scope: ProfileScope, cards: readonly ConnectorCardModel[]): void {
-  const slugs = useMemo(
-    () => cards.filter(card => card.ways.hosted?.state === 'connected').map(card => card.slug),
-    [cards]
-  )
+  const slugs = useMemo(() => cards.filter(hasConnectedTools).map(card => card.slug), [cards])
 
   useEffect(() => {
     let stopped = false

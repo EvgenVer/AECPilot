@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/composer-popout.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,6 +9,8 @@ import { atom } from 'nanostores'
 
 import { chatSurfaceRoot } from '@/app/chat/surface-vars'
 import { persistBoolean, persistString, storedBoolean, storedString } from '@/lib/storage'
+
+import { recordFeatureToggle } from './desktop-metrics'
 
 const POPOUT_STORAGE_KEY = 'hermes.desktop.composerPopout.window.v1'
 const POPOUT_GESTURES_ENABLED_STORAGE_KEY = 'hermes.desktop.composerPopout.gesturesEnabled'
@@ -31,7 +33,6 @@ export const POPOUT_WIDTH_REM = 19.5
 export const POPOUT_ESTIMATED_HEIGHT = 56
 const DEFAULT_POSITION: PopoutPosition = { bottom: 24, right: 24 }
 const EDGE_MARGIN = 8
-const gesturesEnabledAtLoad = storedBoolean(POPOUT_GESTURES_ENABLED_STORAGE_KEY, true)
 
 const isPosition = (value: unknown): value is PopoutPosition => {
   const position = value as Partial<PopoutPosition> | null
@@ -53,11 +54,12 @@ function isState(value: unknown): value is ComposerPopoutState {
   return typeof state?.poppedOut === 'boolean' && isPosition(state.position)
 }
 
-function load(): ComposerPopoutState {
+/** The persisted placement, before the gesture preference gates it. */
+function loadSaved(): ComposerPopoutState {
   const saved = readState(POPOUT_STORAGE_KEY)
 
   if (isState(saved)) {
-    return { ...saved, poppedOut: gesturesEnabledAtLoad && saved.poppedOut }
+    return saved
   }
 
   // Upgrade existing floats without resurrecting a stale singleton preference
@@ -69,7 +71,7 @@ function load(): ComposerPopoutState {
     const state = states.find(zone => zone.poppedOut) ?? states[0]
 
     return {
-      poppedOut: gesturesEnabledAtLoad && Boolean(state?.poppedOut),
+      poppedOut: Boolean(state?.poppedOut),
       position: state?.position ?? DEFAULT_POSITION
     }
   }
@@ -77,13 +79,24 @@ function load(): ComposerPopoutState {
   const position = readState(LEGACY_POSITION_KEY)
 
   return {
-    poppedOut: gesturesEnabledAtLoad && storedBoolean(LEGACY_ENABLED_KEY, false),
+    poppedOut: storedBoolean(LEGACY_ENABLED_KEY, false),
     position: isPosition(position) ? position : DEFAULT_POSITION
   }
 }
 
+const saved = loadSaved()
+
+// Locked to the dock by default: a short upward brush on the docked composer
+// used to peel it into a float nobody asked for (#101318). A composer that is
+// already floating from before the default flipped keeps its gestures — that
+// user chose the float, and docking it on update would read as a regression.
+const gesturesEnabledAtLoad = storedBoolean(POPOUT_GESTURES_ENABLED_STORAGE_KEY, saved.poppedOut)
+
 /** One floating placement per window; drafts and runtimes remain session-owned. */
-export const $composerPopout = atom<ComposerPopoutState>(load())
+export const $composerPopout = atom<ComposerPopoutState>({
+  ...saved,
+  poppedOut: gesturesEnabledAtLoad && saved.poppedOut
+})
 export const $composerPopoutGesturesEnabled = atom(gesturesEnabledAtLoad)
 
 const persist = () => persistString(POPOUT_STORAGE_KEY, JSON.stringify($composerPopout.get()))
@@ -99,6 +112,7 @@ export function setComposerPoppedOut(poppedOut: boolean) {
 }
 
 export function setComposerPopoutGesturesEnabled(value: boolean) {
+  recordFeatureToggle('composer_popout_gestures', $composerPopoutGesturesEnabled.get(), value)
   $composerPopoutGesturesEnabled.set(value)
   persistBoolean(POPOUT_GESTURES_ENABLED_STORAGE_KEY, value)
 

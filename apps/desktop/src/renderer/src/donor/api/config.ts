@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/config.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed `revealEnvVar` — plaintext credential read-back (R2)
@@ -218,12 +218,19 @@ export function getEnvVars(profile?: null | string): Promise<Record<string, EnvV
   })
 }
 
-export function setEnvVar(key: string, value: string, profile?: ProfileScope): Promise<{ ok: boolean }> {
+// `providerSetup`: the caller is connecting a model provider, so shared metrics count the save as a
+// provider setup even when a tool panel uses the same key (Gemini, xAI...).
+export function setEnvVar(
+  key: string,
+  value: string,
+  profile?: ProfileScope,
+  { providerSetup = false }: { providerSetup?: boolean } = {}
+): Promise<{ ok: boolean }> {
   return window.hermesDesktop.api<{ ok: boolean }>({
     ...capabilityScoped(profile),
     path: '/api/env',
     method: 'PUT',
-    body: { key, value }
+    body: providerSetup ? { key, provider_setup: true, value } : { key, value }
   })
 }
 

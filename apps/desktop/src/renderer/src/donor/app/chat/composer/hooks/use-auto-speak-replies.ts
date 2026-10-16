@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-auto-speak-replies.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
+import { releaseUnplayedSpokenReply, spokenReplyOf } from '@/lib/spoken-reply'
 import { playSpeechText } from '@/lib/voice-playback'
 import { ownsAmbientCue } from '@/store/ambient'
 import { notifyError } from '@/store/notifications'
@@ -20,6 +21,8 @@ interface AutoSpeakReply {
   id: string
   pending: boolean
   text: string
+  /** Survives the live-id rewrite. Absent callers still speak; they just cannot join an in-flight play. */
+  turnKey?: string
 }
 
 interface UseAutoSpeakReplies {
@@ -63,6 +66,8 @@ export function useAutoSpeakReplies({
     // on (or a chat opens) — consume it so only later replies are spoken.
     latest.current.markSpoken()
 
+    let attemptSeq = 0
+
     const speakLatest = () => {
       const { connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile } = latest.current
 
@@ -76,16 +81,37 @@ export function useAutoSpeakReplies({
         return
       }
 
+      const attempt = ++attemptSeq
+
       markSpoken()
+      const marked = spokenReplyOf(sessionId)
       // Only one window voices a given reply when the same chat is open in
-      // several (reply.id is the shared backend message id). markSpoken already
-      // ran in every window, so peers just stay quiet.
-      void ownsAmbientCue(`speak:${reply.id}`).then(owns => {
-        if (owns) {
-          void playSpeechText(reply.text, { connectionId, messageId: reply.id, profile, source: 'read-aloud' }).catch(
-            error => notifyError(error, failureLabel)
-          )
+      // several. The claim key is the turn, not the row id: hydration rewrites
+      // the row id, and a second claim would start a second clip.
+      void ownsAmbientCue(`speak:${reply.turnKey ?? reply.id}`).then(owns => {
+        if (!owns || attempt !== attemptSeq) {
+          return
         }
+
+        void playSpeechText(reply.text, {
+          connectionId,
+          messageId: reply.id,
+          profile,
+          source: 'read-aloud',
+          ...(reply.turnKey ? { turnKey: reply.turnKey } : {})
+        }).then(
+          started => {
+            if (!started && attempt === attemptSeq) {
+              releaseUnplayedSpokenReply(sessionId, marked)
+            }
+          },
+          error => {
+            if (attempt === attemptSeq) {
+              releaseUnplayedSpokenReply(sessionId, marked)
+              notifyError(error, failureLabel)
+            }
+          }
+        )
       })
     }
 
@@ -93,6 +119,9 @@ export function useAutoSpeakReplies({
     // ($voicePlayback → idle), which frees us to read the next held reply.
     const stops = [$messages.subscribe(speakLatest), $voicePlayback.listen(speakLatest)]
 
-    return () => stops.forEach(f => f())
+    return () => {
+      attemptSeq += 1
+      stops.forEach(f => f())
+    }
   }, [$messages, enabled, sessionId])
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/data/queries.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,6 +68,8 @@ const read = (of: keyof typeof CONNECTOR_LIFETIMES) => ({
 
 export interface HostedConnectorsView {
   accounts: readonly ConnectorAccountRow[]
+  /** The account list has answered and no read is in flight, so an account missing from it is gone. */
+  accountsLoaded: boolean
   listSlugs: ReadonlySet<string>
   phase: HostedPhase
   policy: ConnectorPolicyView
@@ -157,6 +159,7 @@ export function useHostedConnectors(scope: ProfileScope): HostedConnectorsView {
 
   return {
     accounts: accounts.data?.accounts ?? [],
+    accountsLoaded: accounts.data !== undefined && !accounts.isFetching,
     listSlugs,
     phase,
     policy: policyView,

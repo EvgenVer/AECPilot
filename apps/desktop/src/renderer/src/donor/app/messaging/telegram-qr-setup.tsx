@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/messaging/telegram-qr-setup.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -79,6 +79,8 @@ export function TelegramQrSetup({ onApplied, platform, scopeProfile }: TelegramQ
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
   const [botUsername, setBotUsername] = useState<null | string>(null)
+  // The bot a successful apply just saved; outlives reset() so the card still says which bot is connected.
+  const [connectedBot, setConnectedBot] = useState<null | string>(null)
   const [allowedIds, setAllowedIds] = useState<string[]>([])
   const [detectedOwnerId, setDetectedOwnerId] = useState<null | string>(null)
   const [newAllowedId, setNewAllowedId] = useState('')
@@ -184,6 +186,7 @@ export function TelegramQrSetup({ onApplied, platform, scopeProfile }: TelegramQ
     setPhase('starting')
     setError('')
     setBotUsername(null)
+    setConnectedBot(null)
     setAllowedIds([])
     setDetectedOwnerId(null)
     setNewAllowedId('')
@@ -243,6 +246,7 @@ export function TelegramQrSetup({ onApplied, platform, scopeProfile }: TelegramQ
     try {
       const result = await applyTelegramOnboarding(setup.pairing_id, allowedIds, scopeProfile)
       reset()
+      setConnectedBot(result.bot_username || botUsername)
       onApplied(result)
     } catch (applyError) {
       setPhase('ready')
@@ -275,7 +279,14 @@ export function TelegramQrSetup({ onApplied, platform, scopeProfile }: TelegramQ
         )}
       </div>
 
-      {platform.configured && phase === 'idle' && (
+      {phase === 'idle' && connectedBot && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Badge variant="success">{t.messaging.states.connected}</Badge>
+          <span className="font-mono text-xs text-muted-foreground">@{connectedBot}</span>
+        </div>
+      )}
+
+      {platform.configured && phase === 'idle' && !connectedBot && (
         <p className="mt-2 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-muted-foreground">
           {q.replaceWarning}
         </p>

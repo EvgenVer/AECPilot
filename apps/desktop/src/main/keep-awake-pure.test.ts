@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { decidePowerSave, parseKeepAwakeJson, serializeKeepAwake } from './keep-awake-pure'
+import {
+  decidePowerSave,
+  keepAwakeWanted,
+  parseKeepAwakeJson,
+  parseKeepAwakeMode,
+  serializeKeepAwake
+} from './keep-awake-pure'
 
 /**
  * Task 3.18. The failure mode worth pinning is not "it did not work" but "it
@@ -33,8 +39,13 @@ describe('decidePowerSave', () => {
 })
 
 describe('parseKeepAwakeJson', () => {
-  test('сохранённое «включено» читается', () => {
-    expect(parseKeepAwakeJson('{"keepAwake": true}')).toBe(true)
+  test('файл до 0.22 со «включено» читается как «всегда»', () => {
+    expect(parseKeepAwakeJson('{"keepAwake": true}')).toBe('always')
+  })
+
+  test('сохранённый режим читается', () => {
+    expect(parseKeepAwakeJson('{"mode": "while-working"}')).toBe('while-working')
+    expect(parseKeepAwakeJson('{"mode": "off"}')).toBe('off')
   })
 
   test('всё остальное читается как «выключено»', () => {
@@ -42,18 +53,48 @@ describe('parseKeepAwakeJson', () => {
       '{"keepAwake": false}',
       '{"keepAwake": "true"}',
       '{"keepAwake": 1}',
+      '{"mode": "sometimes"}',
       '{}',
       '[]',
       'null',
       'не json',
       ''
     ]) {
-      expect(parseKeepAwakeJson(text), text).toBe(false)
+      expect(parseKeepAwakeJson(text), text).toBe('off')
     }
   })
 
-  test('запись и чтение сходятся', () => {
-    expect(parseKeepAwakeJson(serializeKeepAwake(true))).toBe(true)
-    expect(parseKeepAwakeJson(serializeKeepAwake(false))).toBe(false)
+  test('запись и чтение сходятся для каждого режима', () => {
+    for (const mode of ['off', 'while-working', 'always'] as const) {
+      expect(parseKeepAwakeJson(serializeKeepAwake(mode))).toBe(mode)
+    }
+  })
+})
+
+// Задача T20.7: их окно с 0.22.2 шлёт строку режима туда, где мы ждали булево.
+describe('parseKeepAwakeMode', () => {
+  test('строка «off» — это выключено, а не истинное значение', () => {
+    expect(parseKeepAwakeMode('off')).toBe('off')
+  })
+
+  test('прежнее булево переводится в режим', () => {
+    expect(parseKeepAwakeMode(true)).toBe('always')
+    expect(parseKeepAwakeMode(false)).toBe('off')
+  })
+
+  test('не режим — null, и прежнее состояние не трогается', () => {
+    for (const value of ['on', 1, null, undefined, {}]) expect(parseKeepAwakeMode(value)).toBeNull()
+  })
+})
+
+describe('keepAwakeWanted', () => {
+  test('«пока работает» держит машину только во время хода', () => {
+    expect(keepAwakeWanted('while-working', true)).toBe(true)
+    expect(keepAwakeWanted('while-working', false)).toBe(false)
+  })
+
+  test('«всегда» и «никогда» от хода не зависят', () => {
+    expect(keepAwakeWanted('always', false)).toBe(true)
+    expect(keepAwakeWanted('off', true)).toBe(false)
   })
 })

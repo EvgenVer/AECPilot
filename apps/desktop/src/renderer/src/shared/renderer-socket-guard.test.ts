@@ -36,17 +36,80 @@ const UNREACHABLE_SOCKETS: Record<string, string> = {
     "throw new Error('The bot screen viewer (noVNC) is not installed in this build')"
 }
 
+// A file whose socket is unreachable because NOTHING CALLS IT: every caller of
+// each link's entry point is another link of the same chain, so no call from
+// outside the chain can reach the socket. Checked below by CALLS, not imports —
+// an import that is never called (their composer keeps one) opens nothing —
+// and a re-copy that calls any link from outside fails here.
+//
+// `voice-stream.ts` (0.22.2, task T20.7): live dictation streams the mic to
+// `/api/audio/transcribe-stream`. Voice is SPEC HX19 — composer/index.tsx calls
+// neither `useComposerVoice` nor `useVoiceRecorder` (edit [3]). If voice ever
+// comes back, this socket must move to main first (SPEC C9).
+interface DeadLink {
+  file: string
+  /** The export whose call would bring the link to life. */
+  entry: string
+}
+
+const UNREACHABLE_BY_CALLS: Record<string, readonly DeadLink[]> = {
+  [path.join('donor', 'lib', 'voice-stream.ts')]: [
+    { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' },
+    {
+      file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-voice-recorder.ts'),
+      entry: 'useVoiceRecorder'
+    },
+    {
+      file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-composer-voice.ts'),
+      entry: 'useComposerVoice'
+    }
+  ]
+}
+
+/** Source without comments: a sentence about a hook is not a call of it. */
+function code(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+}
+
+/** Non-test renderer files that call `entry(` — the definition counts too. */
+function callersOf(entry: string, files: readonly string[]): string[] {
+  const call = new RegExp(`\\b${entry}\\s*\\(`)
+
+  return files
+    .filter((file) => !/\.test\.tsx?$/.test(file) && call.test(code(readFileSync(file, 'utf8'))))
+    .map((file) => path.relative(RENDERER_DIR, file))
+}
+
 describe('renderer socket guard (SPEC C9)', () => {
+  const files = [...walk(RENDERER_DIR)].filter((file) => file !== fileURLToPath(import.meta.url))
+
   it('opens no WebSocket anywhere in the renderer', () => {
-    const offenders = [...walk(RENDERER_DIR)]
-      .filter((file) => file !== fileURLToPath(import.meta.url))
+    const offenders = files
       .filter((file) => {
         const text = readFileSync(file, 'utf8')
-        const unreachableBy = UNREACHABLE_SOCKETS[path.relative(RENDERER_DIR, file)]
-        return /new\s+WebSocket\s*\(/.test(text) && !(unreachableBy && text.includes(unreachableBy))
+        const rel = path.relative(RENDERER_DIR, file)
+        const unreachableBy = UNREACHABLE_SOCKETS[rel]
+        return (
+          /new\s+WebSocket\s*\(/.test(text) &&
+          !(unreachableBy && text.includes(unreachableBy)) &&
+          !(rel in UNREACHABLE_BY_CALLS)
+        )
       })
       .map((file) => path.relative(RENDERER_DIR, file))
 
     expect(offenders).toEqual([])
+  })
+
+  it('a socket exempted by its call chain is still unreachable', () => {
+    for (const [socketFile, chain] of Object.entries(UNREACHABLE_BY_CALLS)) {
+      const inChain = new Set(chain.map((link) => link.file))
+
+      for (const link of chain) {
+        const outside = callersOf(link.entry, files).filter((caller) => !inChain.has(caller))
+        expect(outside, `${link.entry} is called from outside the chain of ${socketFile}`).toEqual(
+          []
+        )
+      }
+    }
   })
 })

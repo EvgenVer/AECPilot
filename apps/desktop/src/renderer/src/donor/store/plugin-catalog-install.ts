@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/plugin-catalog-install.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,7 @@ import { lookupPluginCatalogEntry, type PluginCatalogEntry, type PluginCatalogLo
 
 import { $agentPlugins } from './agent-plugins'
 import { notify } from './notifications'
-import { openPluginInstallRequest } from './plugin-install-request'
+import { openPluginInstallRequest, type PluginInstallRequest } from './plugin-install-request'
 
 /**
  * THE way a curated-catalog pick reaches the Install Plugin dialog. The
@@ -19,7 +19,11 @@ import { openPluginInstallRequest } from './plugin-install-request'
  * dialog an in-app pick does: `catalogName` makes the backend resolve the
  * pinned SHA and record provenance; `repo#subdir` is what the dialog inspects.
  */
-export function openCatalogPluginInstall(entry: PluginCatalogEntry, profile: null | string): void {
+export function openCatalogPluginInstall(
+  entry: PluginCatalogEntry,
+  profile: null | string,
+  options: Pick<PluginInstallRequest, 'stayAfterInstall' | 'title'> = {}
+): void {
   const existing = $agentPlugins.get().find(row => row.catalog_name === entry.name || row.name === entry.name)
 
   if (existing && !existing.update_available) {
@@ -32,7 +36,9 @@ export function openCatalogPluginInstall(entry: PluginCatalogEntry, profile: nul
     catalogName: entry.name,
     profile,
     repo: entry.subdir ? `${entry.repo}#${entry.subdir}` : entry.repo,
-    sha: entry.sha
+    sha: entry.sha,
+    summary: entry.summary,
+    ...options
   })
 }
 

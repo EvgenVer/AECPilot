@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/desktop-install-overlay.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,8 @@ import { AlertCircle, ChevronDown, ChevronRight, Globe, iconSize, Loader2, Monit
 import { capitalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 
-import { FirstRunRemoteForm } from './first-run-remote-form'
+import { localCardPresentation } from './desktop-install-local-card'
+import { FirstRunRemoteSetup } from './remote-setup/first-run'
 
 /**
  * DesktopInstallOverlay
@@ -196,7 +197,8 @@ const EMPTY_STATE: DesktopBootstrapState = {
   startedAt: null,
   completedAt: null,
   setupChoice: null,
-  unsupportedPlatform: null
+  unsupportedPlatform: null,
+  bundled: false
 }
 
 function applyEvent(state: DesktopBootstrapState, ev: DesktopBootstrapEvent): DesktopBootstrapState {
@@ -214,10 +216,13 @@ function applyEvent(state: DesktopBootstrapState, ev: DesktopBootstrapEvent): De
       setupChoice: ev.active
         ? {
             platform: ev.platform || state.setupChoice?.platform || 'unknown',
-            activeRoot: ev.activeRoot || state.setupChoice?.activeRoot || ''
+            activeRoot: ev.activeRoot || state.setupChoice?.activeRoot || '',
+            local: ev.local || state.setupChoice?.local || 'none',
+            bundled: Boolean(ev.bundled)
           }
         : null,
-      unsupportedPlatform: null
+      unsupportedPlatform: null,
+      bundled: Boolean(ev.bundled)
     }
   }
 
@@ -369,6 +374,26 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
     }
   }, [state.error])
 
+  // Escape dismisses a failed install the same way the footer's Close button
+  // does -- local-only, no resetBootstrap + reload. Scoped to the failed
+  // state so a running install is still only cancellable via its own button.
+  useEffect(() => {
+    if (!state.error) {
+      return
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setState(EMPTY_STATE)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the failed/not-failed transition matters, not error text changes
+  }, [Boolean(state.error)])
+
   // The choice remains mounted while main hands off to local bootstrap. Once
   // a manifest/failure takes ownership (or a later repair presents a fresh
   // choice), this transient button state must not leak across phases — so it
@@ -419,10 +444,13 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
   }
 
   if (remoteOpen) {
-    return <FirstRunRemoteForm onBack={() => setRemoteOpen(false)} />
+    return <FirstRunRemoteSetup onBack={() => setRemoteOpen(false)} />
   }
 
   if (state.setupChoice) {
+    const localState = state.setupChoice.local
+    const localPres = localCardPresentation(localState)
+
     return (
       <div className="fixed inset-0 z-(--z-setup) flex items-center justify-center bg-background/90 p-4 backdrop-blur-md">
         <div className="w-full max-w-2xl rounded-xl border border-(--stroke-nous) bg-card p-8 shadow-nous">
@@ -430,7 +458,9 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
             <BrandMark className="size-11 shrink-0" />
             <div className="min-w-0">
               <h2 className="text-xl font-semibold tracking-tight">{copy.setupChoiceTitle}</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground">{copy.setupChoiceDesc}</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                {localState === 'none' ? copy.setupChoiceDesc : copy.setupChoiceDescLocal}
+              </p>
             </div>
           </div>
 
@@ -448,7 +478,7 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
             </button>
 
             <button
-              className="rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-4 text-left transition hover:bg-(--chrome-action-hover) disabled:cursor-wait disabled:opacity-60"
+              className="rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-4 text-left transition hover:bg-(--chrome-action-hover) disabled:cursor-not-allowed disabled:opacity-60"
               disabled={localStarting}
               onClick={async () => {
                 setLocalStart({ root: activeRoot, starting: true, error: null })
@@ -473,9 +503,9 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
                 ) : (
                   <Monitor className="size-4 text-muted-foreground" />
                 )}
-                <span>{copy.installLocalTitle}</span>
+                <span>{copy[localPres.title]}</span>
               </div>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">{copy.installLocalDesc}</p>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">{copy[localPres.desc]}</p>
             </button>
           </div>
 
@@ -486,10 +516,12 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
             </div>
           ) : null}
 
-          <div className="mt-6 text-xs text-muted-foreground">
-            {copy.installTo}{' '}
-            <code className="font-mono text-(--ui-text-secondary)">{state.setupChoice.activeRoot}</code>
-          </div>
+          {localPres.showInstallTo ? (
+            <div className="mt-6 text-xs text-muted-foreground">
+              {copy.installTo}{' '}
+              <code className="font-mono text-(--ui-text-secondary)">{state.setupChoice.activeRoot}</code>
+            </div>
+          ) : null}
         </div>
       </div>
     )
@@ -707,6 +739,9 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
                 <code className="font-mono text-(--ui-text-secondary)">%LOCALAPPDATA%\hermes\logs\</code>
               </span>
               <div className="flex gap-2">
+                <Button onClick={() => setState(EMPTY_STATE)} size="sm" variant="ghost">
+                  {t.common.close}
+                </Button>
                 <Button
                   onClick={() => void window.hermesDesktop?.revealLogs?.().catch(() => undefined)}
                   size="sm"

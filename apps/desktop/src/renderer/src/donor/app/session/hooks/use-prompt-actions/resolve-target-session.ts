@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/resolve-target-session.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -111,6 +111,12 @@ export async function resolveTargetSessionId(deps: ResolveTargetSessionDeps): Pr
         return requestGateway<{ session_id?: string }>('session.resume', {
           session_id: storedTarget,
           source: 'desktop',
+          // Same contract as every other desktop resume: the response must
+          // not inline a full compression lineage (deep ones exceed
+          // max_resume_messages and fail assert_resume_safe). Only the
+          // resolved tip session_id is consumed here; the gateway follows
+          // mid → tip itself (#125041).
+          omit_messages: true,
           ...(profile ? { profile } : {})
         })
       })

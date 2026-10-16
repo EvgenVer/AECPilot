@@ -1,18 +1,25 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/runtime.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { isRecord } from '@hermes/shared/i18n'
 import { atom } from 'nanostores'
 
-import { TRANSLATIONS } from './catalog'
 import { DEFAULT_LOCALE } from './languages'
-import type { Locale } from './types'
+import { resolveTranslations } from './registry'
+import type { Locale, Translations } from './types'
 
 const $runtimeLocale = atom<Locale>(DEFAULT_LOCALE)
+
+/** The language `display.language` asked for, normalized but NOT yet checked
+ *  against what the app can render. A pack-only language (`pl`) lands here
+ *  before its pack is fetched; the backend-pack sync reads it to know which
+ *  `i18n.catalog` to pull, and the provider promotes it to the active locale
+ *  once the registry knows it. `null` = nothing saved (OS inference). */
+export const $requestedLocale = atom<null | string>(null)
 
 /** Walk a dot-path (`a.b.c`) into a nested message tree. */
 function resolvePath(source: unknown, key: string): unknown {
@@ -70,6 +77,13 @@ export function getRuntimeI18nLocale(): Locale {
   return $runtimeLocale.get()
 }
 
+/** The merged catalog for the active runtime locale (bundled + registered
+ *  packs) — for module-level code that reads whole copy blocks rather than
+ *  one key. React should keep using `useI18n().t`. */
+export function runtimeTranslations(): Translations {
+  return resolveTranslations($runtimeLocale.get())
+}
+
 export function translateNow(key: string, ...args: unknown[]): string {
-  return translateFrom(locale => TRANSLATIONS[locale], $runtimeLocale.get(), key, args)
+  return translateFrom(resolveTranslations, $runtimeLocale.get(), key, args)
 }

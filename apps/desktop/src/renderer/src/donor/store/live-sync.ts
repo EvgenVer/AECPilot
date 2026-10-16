@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/live-sync.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,6 +26,7 @@ export const $changeEventsAvailable = atom(false)
 export const $cronChangeTick = atom(0)
 export const $sessionsChangeTick = atom(0)
 export const $platformsChangeTick = atom(0)
+export const $projectsChangeTick = atom(0)
 export const $pairingChangeTick = atom(0)
 
 /** `pet.info.meta`-shaped payload carried on `pet.changed` — lets the pet skip
@@ -45,6 +46,22 @@ export const $petChange = atom<{ meta?: PetChangeMeta; tick: number }>({ tick: 0
  *  changed. One-shot: the status snapshot re-reads both legs once instead of
  *  waiting for its next ambient tick. */
 export const $setupReadyTick = atom(0)
+
+/** Monotonic clock for "how fresh is this backend boot?" — bumped on every
+ *  `setup.ready` from the active source and on every gateway switch/wipe, so
+ *  onboarding can tell a round that answered inside the boot window (secrets
+ *  may still be hydrating; a `runtime_check` ok:false is not yet evidence)
+ *  from a steady-state one. Kept here, beside the tick, so both come from the
+ *  same lifecycle seam. */
+export const $gatewayBootGeneration = atom(0)
+
+/** When the active source's socket last said `gateway.ready` (the backend dispatches requests from
+ *  then on); null before the first. The onboarding due check counts its way-out budget from it. */
+export const $gatewayReadyAt = atom<null | number>(null)
+
+export function noteGatewayReady(): void {
+  $gatewayReadyAt.set(Date.now())
+}
 
 export function setChangeEventsAvailable(available: boolean): void {
   $changeEventsAvailable.set(available)
@@ -66,12 +83,17 @@ export function notifyPlatformsChanged(): void {
   $platformsChangeTick.set($platformsChangeTick.get() + 1)
 }
 
+export function notifyProjectsChanged(): void {
+  $projectsChangeTick.set($projectsChangeTick.get() + 1)
+}
+
 export function notifyPairingChanged(): void {
   $pairingChangeTick.set($pairingChangeTick.get() + 1)
 }
 
 export function notifySetupReady(): void {
   $setupReadyTick.set($setupReadyTick.get() + 1)
+  $gatewayBootGeneration.set($gatewayBootGeneration.get() + 1)
 }
 
 /** Reset on gateway wipe/reconnect — a new backend re-advertises capability on
@@ -79,4 +101,5 @@ export function notifySetupReady(): void {
  *  the wipe just cleared. */
 export function resetLiveSync(): void {
   $changeEventsAvailable.set(false)
+  $gatewayBootGeneration.set($gatewayBootGeneration.get() + 1)
 }

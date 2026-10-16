@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { extractToolErrorMessage } from '@/lib/tool-result-summary'
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -108,6 +110,18 @@ export function parseMaybeObject(value: unknown): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+/** A call that reported failure, from the part's flag or its result body.
+ *  Explicit success beats stale envelope errors, as in individual rows. */
+export function toolCallFailed(part: { isError?: boolean; result?: unknown }): boolean {
+  const result = parseMaybeObject(part.result)
+
+  return (
+    result.success !== true &&
+    result.ok !== true &&
+    Boolean(part.isError || result.success === false || result.ok === false || extractToolErrorMessage(part.result))
+  )
 }
 
 export function unwrapToolPayload(value: unknown): unknown {

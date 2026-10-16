@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/types.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,8 @@
  * "ghost" twin), and older gateways omit whole fields. Widening a field to
  * required is a claim that every one of those paths supplies it.
  */
+
+import type { ProfileSessionPreview } from '@hermes/plugin-sdk'
 
 /**
  * The compact age suffixes the sidebar's session rows render ("now", "m", "h",
@@ -32,6 +34,8 @@ export interface SidebarRowLabels {
 export interface ProfileRoute {
   connectionId: string
   mode: 'local' | 'remote'
+  /** Electron's authoritative registry primary. Absent on older shells. */
+  primary?: true
   profile: string
   targetProfile: string
 }
@@ -58,6 +62,7 @@ export interface SessionPreview {
   /** Unix seconds, not milliseconds. */
   last_active?: number
   message_count?: number
+  live_message_count?: ProfileSessionPreview['live_message_count']
   preview?: string
   title?: string
 }
@@ -113,6 +118,9 @@ export interface RosterRow {
   installId?: string
   last_session?: SessionPreview | null
   remoteSource?: boolean
+  /** Kept from an earlier paint because its source did not answer this
+   *  fetch: shown, but never evidence of what the backend holds now. */
+  retained?: boolean
   route?: ProfileRoute
   sourceError?: null | string
   sourceMissing?: boolean
@@ -244,39 +252,42 @@ export interface GroupChat {
   watermarks: Record<string, number>
 }
 
-export type GroupPromptKind = 'approval' | 'clarify'
-
 /**
  * One sub-question of a batch clarify, straight off the wire. `choices` and
- * `question` stay unknown because the card re-validates them; the two id
- * spellings are the keys it maps drafts and answers by.
+ * `question` stay unknown because the card re-validates them.
  */
 export interface GroupPromptQuestion {
   choices?: unknown
-  id?: string
   multi_select?: boolean
-  multiSelect?: boolean
-  qid?: string
+  qid: string
   question?: unknown
 }
 
-export interface GroupPrompt {
+interface GroupPromptBase {
   at: number
-  choices: string[]
-  command?: string
   group: string
-  kind: GroupPromptKind
   member: string
   memberKey: string
-  multiSelect: boolean
-  question: string
-  questions?: GroupPromptQuestion[] | null
   requestId: string
   sessionId?: null | string
   /** The thread the blocking question belongs to — part of the mirror key,
    *  since a member can be blocked in two threads at once. */
   thread?: string
 }
+
+interface GroupApprovalPrompt extends GroupPromptBase {
+  choices: string[]
+  command?: string
+  kind: 'approval'
+  question: string
+}
+
+interface GroupClarifyPrompt extends GroupPromptBase {
+  kind: 'clarify'
+  questions: GroupPromptQuestion[]
+}
+
+export type GroupPrompt = GroupApprovalPrompt | GroupClarifyPrompt
 
 export type GroupActivityKind =
   | 'cancelled'

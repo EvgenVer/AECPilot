@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/free-tier/notice-strip.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import { StatusRow } from '@/components/chat/status-row'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { useI18n } from '@/i18n'
+import { recordFriction } from '@/store/desktop-metrics'
 import { ackFreeTierNotice, claimFreeTierNotice, freeTierNoticeClaim, releaseFreeTierNotice } from '@/store/free-tier'
 import { openFreeTierSignIn } from '@/store/free-tier-sign-in'
 import { setModelPickerOpen } from '@/store/session'
@@ -89,7 +90,10 @@ export function FreeTierNoticeStrip() {
           </Button>
           <Button
             className="text-muted-foreground/75 hover:text-foreground/90"
-            onClick={() => consume()}
+            onClick={() => {
+              recordFriction('notice_dismissed', 'free_tier_notice')
+              consume()
+            }}
             size="micro"
             type="button"
             variant="text"

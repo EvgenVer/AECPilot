@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/timeline-index.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { capabilityScoped, hermesApi, type ProfileScope } from '@/api/client'
+import { capabilityScoped, hermesApi, type ProfileScope, sessionReadOwnerPin } from '@/api/client'
 
 import type { TimelineEntry } from './timeline-data'
 
@@ -60,7 +60,10 @@ export function fetchTimelineIndex(id: string, scope: ProfileScope, beyondRowId?
 
   const route = {
     ...capabilityScoped(scope),
-    ...(typeof scope === 'object' && scope?.connectionId === 'local' ? { connectionId: 'local' } : {})
+    ...(typeof scope === 'object' && scope?.connectionId === 'local' ? { connectionId: 'local' } : {}),
+    // Owner connection pin (#125372) — a timeline jump for a session owned by
+    // another registry connection must read THAT host, not the ambient one.
+    ...sessionReadOwnerPin(id, scope)
   }
 
   const query = new URLSearchParams({ limit: '500' })

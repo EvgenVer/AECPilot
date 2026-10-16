@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/connector-row-card.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -117,6 +117,8 @@ export function ConnectorRowCard({
 
           {showsCatalogMark(card) ? <CatalogMark /> : null}
 
+          <AccountSummary card={card} />
+
           {twin ? (
             <Badge className="shrink-0" size="xs" variant="muted">
               {twin === 'hostedTwin' ? copy.hostedTwin : copy.alsoLocal}
@@ -194,6 +196,22 @@ function CardLane({
       ) : null}
     </div>
   )
+}
+
+/** The connected account's name, or how many accounts the app has when there are several. */
+function AccountSummary({ card }: { card: ConnectorCardModel }) {
+  const { t } = useI18n()
+  const accounts = card.ways.hosted?.accounts ?? []
+  const summary = accounts.length > 1 ? t.connectorsPage.accounts.count(accounts.length) : accounts[0]?.alias
+
+  return summary ? (
+    <span
+      className="min-w-0 truncate text-[0.6875rem] text-(--ui-text-secondary)"
+      data-slot="connector-account-summary"
+    >
+      {summary}
+    </span>
+  ) : null
 }
 
 function SecondLine({ card, reason }: { card: ConnectorCardModel; reason?: string }) {

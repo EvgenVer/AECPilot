@@ -7,32 +7,44 @@
 // all night for that is a second, unasked-for change to the machine. This is
 // also exactly what the task's acceptance says — the machine does not sleep,
 // the display may go dark.
+//
+// Режим «пока агент работает» (0.22.2, задача T20.7) едет на том же сигнале,
+// что их главный процесс: окно сообщает число идущих ходов (`active-work:set`),
+// и `noteWorking` сверяет держатель с режимом. Своего таймера или слушателя нет.
 
 import { app, powerSaveBlocker } from 'electron'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { decidePowerSave, parseKeepAwakeJson, serializeKeepAwake } from './keep-awake-pure'
+import {
+  decidePowerSave,
+  keepAwakeWanted,
+  type KeepAwakeMode,
+  parseKeepAwakeJson,
+  serializeKeepAwake
+} from './keep-awake-pure'
 
 let blockerId: null | number = null
+let mode: KeepAwakeMode = 'off'
+let working = false
 
 function statePath(): string {
   return join(app.getPath('userData'), 'keep-awake.json')
 }
 
-export function loadKeepAwake(): boolean {
+export function loadKeepAwake(): KeepAwakeMode {
   try {
     return parseKeepAwakeJson(readFileSync(statePath(), 'utf-8'))
   } catch {
-    return false
+    return 'off'
   }
 }
 
-function persist(on: boolean): void {
+function persist(next: KeepAwakeMode): void {
   try {
     const path = statePath()
     mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, serializeKeepAwake(on), 'utf-8')
+    writeFileSync(path, serializeKeepAwake(next), 'utf-8')
   } catch (error: unknown) {
     // A preference that could not be written is not worth failing the toggle
     // over — the blocker itself is already in the state the user asked for.
@@ -40,11 +52,11 @@ function persist(on: boolean): void {
   }
 }
 
-/** Returns the state actually in force, which is what the renderer mirrors. A
- * platform without a blocker (some Linux setups) reports `false` rather than
- * pretending. */
-export function setKeepAwake(on: boolean, { save = true } = {}): boolean {
-  const action = decidePowerSave(on, blockerId)
+/** Reconciles the one blocker with the mode and the live turn picture. Returns
+ * the state actually in force; a platform without a blocker (some Linux setups)
+ * reports `false` rather than pretending. */
+function apply(): boolean {
+  const action = decidePowerSave(keepAwakeWanted(mode, working), blockerId)
 
   if (action === 'start') {
     try {
@@ -62,18 +74,31 @@ export function setKeepAwake(on: boolean, { save = true } = {}): boolean {
     blockerId = null
   }
 
-  const inForce = blockerId !== null
-  if (save) persist(inForce)
+  return blockerId !== null
+}
 
-  return inForce
+/** The mode from the window. Returns whether the blocker is held right now —
+ * for 'while-working' that is "a turn is running", not "the mode is on". */
+export function setKeepAwakeMode(next: KeepAwakeMode, { save = true } = {}): boolean {
+  mode = next
+  if (save) persist(next)
+
+  return apply()
+}
+
+/** The window's running-turn count changed (any window, merged by the caller). */
+export function noteWorking(next: boolean): void {
+  if (working === next) return
+  working = next
+  apply()
 }
 
 /** Restores the preference at startup — the whole reason main owns a copy: an
  * overnight run must not depend on someone opening Settings first. */
 export function restoreKeepAwake(): boolean {
-  return setKeepAwake(loadKeepAwake(), { save: false })
+  return setKeepAwakeMode(loadKeepAwake(), { save: false })
 }
 
 export function releaseKeepAwake(): void {
-  setKeepAwake(false, { save: false })
+  setKeepAwakeMode('off', { save: false })
 }

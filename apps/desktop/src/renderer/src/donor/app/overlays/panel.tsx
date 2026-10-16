@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/overlays/panel.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -411,16 +411,19 @@ export function PanelAction({
   disabled,
   icon,
   onClick,
-  primary
+  primary,
+  spinning
 }: {
   children: ReactNode
   disabled?: boolean
   icon: string
   onClick: () => void
   primary?: boolean
+  spinning?: boolean
 }) {
   return (
     <Button
+      aria-busy={spinning || undefined}
       className={cn(
         'gap-1.5',
         !primary && 'text-muted-foreground hover:bg-(--ui-row-hover-background) hover:text-foreground'
@@ -430,7 +433,7 @@ export function PanelAction({
       size="sm"
       variant={primary ? 'default' : 'ghost'}
     >
-      <Codicon name={icon} size="0.875rem" />
+      <Codicon name={icon} size="0.875rem" spinning={spinning} />
       {children}
     </Button>
   )

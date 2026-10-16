@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/workspace-session-target.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,7 +68,13 @@ export function startWorkspaceSession({
   const workspaceGeneration = $newChatWorkspaceTargetGeneration.get()
 
   setCurrentCwd(target)
-  void requestGateway<{ branch?: string; cwd?: string }>('config.get', { key: 'project', cwd: target })
+  void requestGateway<{ branch?: string; cwd?: string }>('config.get', {
+    key: 'project',
+    cwd: target,
+    // The project's profile decides its terminal backend: an ssh project dir is not on this host, and
+    // resolving it under the launch profile would normalize it away to the launch cwd.
+    ...(profile ? { profile } : {})
+  })
     .then(info => {
       if ($newChatWorkspaceTargetGeneration.get() !== workspaceGeneration || activeSessionIdRef.current) {
         return

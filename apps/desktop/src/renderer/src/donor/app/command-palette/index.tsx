@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-palette/index.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet page and the two pet commands (HX1)
+ *   [3] removed the "Import sessions" command — SPEC HX30 (owner decision
+ *       2026-10-15), with its now-unused route import
  * (no other edits)
  */
 
@@ -23,7 +25,7 @@ import {
   HUD_SURFACE,
   HUD_TEXT
 } from '@/app/floating-hud'
-import { SESSION_IMPORT_ROUTE } from '@/app/routes'
+import { leaveIntro } from '@/components/onboarding/first-run/intro'
 import { codiconIcon } from '@/components/ui/codicon'
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { HighlightMatches } from '@/components/ui/highlight-matches'
@@ -70,6 +72,7 @@ import {
 } from '@/lib/icons'
 import { getServers } from '@/lib/mcp-servers'
 import { normalize } from '@/lib/text'
+import { rollbackSentence } from '@/lib/update-copy'
 import { cn } from '@/lib/utils'
 import { resolveVersionStatus } from '@/lib/version-status'
 import { $repoWorktrees } from '@/store/coding-status'
@@ -80,9 +83,10 @@ import {
   closeCommandPalette,
   setCommandPaletteOpen
 } from '@/store/command-palette'
+import { completeFlow, recordAction } from '@/store/desktop-metrics'
 import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, $pinnedSessionIds, filterVisibleProjects } from '@/store/layout'
-import { openBrowserTab } from '@/store/preview'
+import { toggleBrowserTab } from '@/store/preview'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
 import { $connection, $cronSessions, $messagingSessions, $sessions } from '@/store/session'
 import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
@@ -413,7 +417,15 @@ const sessionKeywords = (session: SessionEntry, ...tags: string[]): string[] =>
   [...tags, 'chat', 'session', session.preview, session.git_branch].filter((word): word is string => !!word)
 
 type NonConfigSettingsLabel =
-  'about' | 'archivedChats' | 'gateway' | 'keysSettings' | 'keysTools' | 'mcp' | 'providerAccounts' | 'providerApiKeys'
+  | 'about'
+  | 'archivedChats'
+  | 'gateway'
+  | 'keysSettings'
+  | 'keysTools'
+  | 'mcp'
+  | 'plugins'
+  | 'providerAccounts'
+  | 'providerApiKeys'
 
 const NON_CONFIG_SETTINGS: ReadonlyArray<{
   icon: IconComponent
@@ -464,6 +476,12 @@ const NON_CONFIG_SETTINGS: ReadonlyArray<{
     tab: 'keys&kview=settings'
   },
   { icon: Archive, keywords: ['history', 'archived'], labelKey: 'archivedChats', tab: 'sessions' },
+  {
+    icon: codiconIcon('extensions'),
+    keywords: ['plugins', 'plugin settings', 'plugin options', 'addons', 'add-ons', 'extensions'],
+    labelKey: 'plugins',
+    tab: 'plugins'
+  },
   { icon: Info, keywords: ['version', 'about'], labelKey: 'about', tab: 'about' }
 ]
 
@@ -600,8 +618,11 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     return resolveVersionStatus({
       applying: apply.applying || apply.stage === 'restart',
       behind: status?.behind ?? 0,
+      channel: status?.channel === 'stable' ? 'stable' : 'main',
       copy: t.shell.statusbar,
+      latestTag: status?.latestTag,
       remote: backend,
+      rollback: rollbackSentence(status, t.settings.about.channel.rollbackBody),
       restarting: apply.stage === 'restart',
       sha: status?.currentSha?.slice(0, 7) ?? null,
       target: backend ? 'backend' : 'client',
@@ -948,13 +969,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             label: cc.sections.sessions,
             run: go(`${COMMAND_CENTER_ROUTE}?section=sessions`)
           },
-          {
-            icon: Download,
-            id: 'session-import',
-            keywords: ['import', 'claude', 'codex', 'conversation'],
-            label: t.sessionImport.action,
-            run: go(SESSION_IMPORT_ROUTE)
-          },
+          // EDIT [3]: "Import sessions" — SPEC HX30 (owner decision 2026-10-15).
           {
             icon: Activity,
             id: 'cc-system',
@@ -995,9 +1010,9 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             action: 'view.showBrowser',
             icon: codiconIcon('globe'),
             id: 'cc-open-browser',
-            keywords: ['browser', 'web', 'url', 'address', 'open', 'navigate', 'internet', 'site'],
-            label: cc.openBrowser,
-            run: () => openBrowserTab()
+            keywords: ['browser', 'web', 'url', 'address', 'open', 'toggle', 'close', 'navigate', 'internet', 'site'],
+            label: cc.toggleBrowser,
+            run: () => toggleBrowserTab()
           }
         ]
       },
@@ -1560,6 +1575,11 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
 
       return
     }
+
+    completeFlow('command_palette')
+    recordAction(item.action ?? 'other', 'palette')
+    // A Cmd-K command or layout is a way out of the first-run intro.
+    leaveIntro()
 
     if (item.runWithEvent) {
       item.runWithEvent(lastSelectMods.current)

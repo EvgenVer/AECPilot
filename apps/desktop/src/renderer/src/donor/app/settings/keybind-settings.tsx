@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/keybind-settings.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { useContext, useMemo, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 import { Kbd, KbdCombo } from '@/components/ui/kbd'
@@ -31,6 +32,7 @@ import {
   $capture,
   beginCapture,
   bindingsFor,
+  clearBinding,
   conflictsFor,
   endCapture,
   resetAllBindings,
@@ -279,20 +281,35 @@ function KeybindRow({ action }: { action: KeybindActionMeta }) {
         </button>
       </Tip>
 
-      {/* Reset only shows once a binding diverges from its default; the spacer
-          holds the column otherwise so rows stay aligned. */}
+      {/* Reset shows once a binding diverges from its default. A shipped chord
+          (sidebar mod+b) has no reset, so that same slot clears it instead. */}
       {isDefault ? (
-        <span aria-hidden className="size-6 shrink-0" />
+        combos.length > 0 ? (
+          <Tip label={k.clear}>
+            <Button
+              aria-label={k.clear}
+              className="shrink-0 text-(--ui-text-tertiary) opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+              onClick={() => clearBinding(action.id)}
+              size="icon-xs"
+              variant="ghost"
+            >
+              <Codicon name="close" size="0.8125rem" />
+            </Button>
+          </Tip>
+        ) : (
+          <span aria-hidden className="size-6 shrink-0" />
+        )
       ) : (
         <Tip label={k.reset}>
-          <button
+          <Button
             aria-label={k.reset}
-            className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground/70 opacity-0 transition-all hover:bg-(--ui-control-active-background) hover:text-foreground group-hover:opacity-100"
+            className="shrink-0 text-(--ui-text-tertiary) opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
             onClick={() => resetBinding(action.id)}
-            type="button"
+            size="icon-xs"
+            variant="ghost"
           >
             <Codicon name="discard" size="0.8125rem" />
-          </button>
+          </Button>
         </Tip>
       )}
     </div>

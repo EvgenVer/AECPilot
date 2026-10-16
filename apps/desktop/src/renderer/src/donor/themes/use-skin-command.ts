@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/use-skin-command.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,12 +9,15 @@ import { useCallback } from 'react'
 
 import { useTheme } from './context'
 
-// Retired skin names land on the canonical Nous skin so old muscle memory works.
+// Old names land on a shipped theme so muscle memory works. `gold`/`hermes`
+// only ever meant the classic gold look, so they reach Classic Hermes; `default`
+// stays Nous because it is also the stock config value, which Desktop reads as
+// "the Desktop default" everywhere else (boot, backend sync, setTheme).
 const ALIASES: Record<string, string> = {
   ares: 'ember',
   default: 'nous',
-  gold: 'nous',
-  hermes: 'nous',
+  gold: 'classic',
+  hermes: 'classic',
   'nous-light': 'nous'
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/zoomable.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ import { Tip } from '@/components/ui/tooltip'
 import { Check, Copy, Maximize, RefreshCw, X, ZoomIn, ZoomOut } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
-import { useZoomPan } from './use-zoom-pan'
+import { FIT_MIN_SCALE, useZoomPan } from './use-zoom-pan'
 
 interface ZoomableProps {
   /** Inline content; also the default full-view content. */
@@ -76,7 +76,12 @@ function ZoomPanViewer({
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
-  const { panning, reset, stageProps, style, zoomIn, zoomOut } = useZoomPan()
+  // minScale: a wide diagram's fitted view can shrink far below the default
+  // zoom-out floor; the fit (not the clamp) owns how small the view gets.
+  const { panning, ref, reset, setContentEl, stageProps, style, zoomIn, zoomOut } = useZoomPan<HTMLDivElement>({
+    enabled: open,
+    minScale: FIT_MIN_SCALE
+  })
 
   useEffect(() => {
     if (open) {
@@ -96,10 +101,11 @@ function ZoomPanViewer({
             'relative flex-1 touch-none select-none overflow-hidden',
             panning ? 'cursor-grabbing' : 'cursor-grab'
           )}
+          ref={ref}
           {...stageProps}
         >
           <div className="absolute inset-0 grid place-items-center">
-            <div className="origin-center" style={style}>
+            <div className="origin-center" ref={setContentEl} style={style}>
               {children}
             </div>
           </div>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/skin.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -114,4 +114,8 @@ export interface HermesSkin {
   banner_hero?: string
   tool_prefix?: string
   help_header?: string
+  /** Raw CSS injected as a scoped <style> tag on theme apply.
+   *  Persists across updates because it lives in ~/.hermes/skins/,
+   *  not inside app.asar.  Clipped to 32 KiB by the Python normaliser. */
+  customCSS?: string
 }

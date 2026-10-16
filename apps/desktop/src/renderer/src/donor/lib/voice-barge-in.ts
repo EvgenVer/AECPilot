@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/voice-barge-in.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,6 +30,9 @@
 // - Detection is a windowed majority (>=80% of the last SUSTAINED_MS above
 //   trigger) so intra-word energy dips don't reset progress.
 
+import { closeMeterContext, meterContextsClosed } from '@/lib/mic-meter-context'
+import { $voiceSilenceMs } from '@/store/voice-prefs'
+
 const CALIBRATION_MS = 400
 const SUSTAINED_MS = 300
 const SUSTAINED_MAJORITY = 0.8
@@ -46,7 +49,10 @@ const PLAYBACK_GRACE_MS = 500
 const PLAYBACK_GAP_FOR_GRACE_MS = 1_000
 const FLOOR_SAMPLE_CAP = 200 // ~3s of quiet-phase levels at rAF cadence
 const PRE_ROLL_RESTART_MS = 5_000 // cap pre-roll: restart the recorder while quiet
-const UTTERANCE_SILENCE_MS = 1_250 // matches the voice loop's silenceMs
+// The utterance endpoint shares the voice loop's `silenceMs` ($voiceSilenceMs,
+// seeded from `voice.silence_duration`) so barge-in capture ends on the same
+// silence window the loop uses; read live per frame so a config refresh
+// mid-turn keeps the two matched.
 const UTTERANCE_MAX_MS = 30_000
 
 export interface BargeMonitorCallbacks {
@@ -120,7 +126,7 @@ export function monitorSpeechDuringPlayback(callbacks: BargeMonitorCallbacks): (
 
     recorder = null
     chunks = []
-    void context?.close().catch(() => undefined)
+    closeMeterContext(context)
     context = null
     stream?.getTracks().forEach(track => track.stop())
     stream = null
@@ -195,6 +201,14 @@ export function monitorSpeechDuringPlayback(callbacks: BargeMonitorCallbacks): (
   }
   void (async () => {
     try {
+      // Don't open a second capture context while the recorder's is still
+      // closing (#75329).
+      await meterContextsClosed()
+
+      if (disposed) {
+        return
+      }
+
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true }
       })
@@ -344,7 +358,7 @@ export function monitorSpeechDuringPlayback(callbacks: BargeMonitorCallbacks): (
             quietSince ??= now
           }
 
-          if ((quietSince && now - quietSince >= UTTERANCE_SILENCE_MS) || now - trippedAt >= UTTERANCE_MAX_MS) {
+          if ((quietSince && now - quietSince >= $voiceSilenceMs.get()) || now - trippedAt >= UTTERANCE_MAX_MS) {
             finishCapture()
 
             return

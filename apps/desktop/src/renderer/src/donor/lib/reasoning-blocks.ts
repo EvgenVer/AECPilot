@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/reasoning-blocks.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,7 +31,13 @@
 // Emphasis that legitimately follows whitespace is left alone, and a heading
 // must close on its own line to count as a summary part.
 const GLUED_HEADING_RUN = /(?<!\*)\*{4}(?!\*)/g
-const GLUED_AFTER_PROSE = /(?<=[^\s*])(\*\*(?=[^\s*])[^\n]*?\*\*)/g
+// A `[^*` + newline + `]*` body never crosses a bold delimiter, so a match is
+// one complete pair; `(?=\s*$)` (with `m`) honors the line-final contract
+// above — an inline bold followed by more sentence (`**A**（text）…`) is left
+// alone. The previous lazy any-character body spanned pair boundaries and,
+// because CJK sets no inter-word spaces, fired on practically every CJK
+// inline bold, splitting prose mid-sentence (#107813).
+const GLUED_AFTER_PROSE = /(?<=[^\s*])(\*\*(?=[^\s*])[^*\n]*\*\*)(?=\s*$)/gm
 
 export function separateGluedReasoningBlocks(text: string): string {
   return text.replace(GLUED_HEADING_RUN, '**\n\n**').replace(GLUED_AFTER_PROSE, '\n\n$1')

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/themes/types.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,9 +11,11 @@
  *   colors      — Tailwind color tokens written directly to CSS vars.
  *   darkColors  — optional hand-tuned dark variant (else `colors` is reused
  *                 unchanged for dark, and a synth pass generates light).
- *   typography  — font families + optional stylesheet URL.
+ *   typography  — font families + optional stylesheet URL + optional
+ *                 baseSize/lineHeight/letterSpacing overrides.
  *
- * Everything else (layout, sizing, radius, line-height) lives in styles.css.
+ * Everything else (layout, sizing, radius, line-height) lives in styles.css —
+ * except the three typography knobs above, which themes may override.
  * Add new themes in `presets.ts` — no other code changes needed.
  */
 
@@ -59,6 +61,12 @@ export interface DesktopThemeTypography {
   fontMono: string
   /** Google/Bunny/self-hosted font stylesheet URL. */
   fontUrl?: string
+  /** Root base font size, painted as `--dt-base-size`. Mirrors the dashboard theme system. */
+  baseSize?: string
+  /** Root line height, painted as `--dt-line-height`. */
+  lineHeight?: string
+  /** Root letter spacing, painted as `--dt-letter-spacing`. */
+  letterSpacing?: string
 }
 
 /**
@@ -105,6 +113,12 @@ export interface DesktopTheme {
   terminal?: DesktopTerminalPalette
   /** Dark-variant terminal ANSI palette. Falls back to `terminal`. */
   darkTerminal?: DesktopTerminalPalette
+  /** Raw CSS injected as a scoped <style> tag on theme apply.
+   *  Persists across updates because it lives in ~/.hermes/skins/,
+   *  not inside app.asar. */
+  customCSS?: string
+  /** On a saved accent retint (`<base>-accent-<hex>`): the theme it was retinted from. */
+  accentOf?: string
 }
 
 // The minimal set of color keys a stored theme must carry to be usable. We keep

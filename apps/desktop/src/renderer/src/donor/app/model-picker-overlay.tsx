@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/model-picker-overlay.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,7 @@ import { ModelPickerDialog } from '@/components/model-picker'
 import type { HermesGateway } from '@/hermes'
 import { resolveModelPickerOwner } from '@/lib/model-picker-owner'
 import { useStoreSelector } from '@/lib/use-session-slice'
+import { completeFlow } from '@/store/desktop-metrics'
 import {
   $activeSessionId,
   $currentModel,
@@ -24,8 +25,9 @@ import {
   $selectedStoredSessionId,
   setModelPickerOpen
 } from '@/store/session'
+import { $focusedStoredSessionId } from '@/store/session-focus'
 import { requestForSessionProfile } from '@/store/session-request-router'
-import { $focusedRuntimeId, $focusedSessionState, $focusedStoredSessionId, $sessionTiles } from '@/store/session-states'
+import { $focusedRuntimeId, $focusedSessionState, $sessionTiles } from '@/store/session-states'
 
 interface ModelPickerOverlayProps {
   gateway?: HermesGateway
@@ -98,7 +100,10 @@ export function ModelPickerOverlay({
       currentProvider={currentProvider}
       gw={gateway}
       onOpenChange={setModelPickerOpen}
-      onSelect={selection => (pickerOwner.route ? selectFocusedModel : onSelect)({ ...selection, sessionId })}
+      onSelect={selection => {
+        completeFlow('model_picker')
+        ;(pickerOwner.route ? selectFocusedModel : onSelect)({ ...selection, sessionId })
+      }}
       open={open}
       ownerConnectionId={pickerOwner.connectionId}
       profile={pickerOwner.profile}

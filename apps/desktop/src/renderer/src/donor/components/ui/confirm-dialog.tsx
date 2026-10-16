@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/confirm-dialog.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,6 +28,7 @@ interface ConfirmDialogProps {
   onConfirm: () => Promise<void> | void
   title: ReactNode
   description?: ReactNode
+  children?: ReactNode
   confirmLabel?: string
   busyLabel?: string
   doneLabel?: string
@@ -55,6 +56,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description,
+  children,
   confirmLabel,
   busyLabel,
   doneLabel,
@@ -160,6 +162,7 @@ export function ConfirmDialog({
           {description ? <DialogDescription className="whitespace-pre-line">{description}</DialogDescription> : null}
         </DialogHeader>
 
+        {children}
         {error && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/model-override.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -76,6 +76,7 @@ export function ModelOverrideField({
   const [open, setOpen] = useState(false)
 
   const controller: ModelMenuController = {
+    allowSpeed: false,
     // Picking a model seeds the depth from what the user last used for it, so
     // the board behaves like the composer. We only READ presets — a per-task
     // choice must never rewrite what the composer opens at.

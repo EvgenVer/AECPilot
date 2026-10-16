@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/svg-image.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,33 @@ function viewBoxSize(el: Element): { height: number; width: number } | null {
   return vbW > 0 && vbH > 0 ? { height: vbH, width: vbW } : null
 }
 
+// `mermaid.render()` returns the HTML serialisation of the diagram, aimed at
+// inline HTML. Its label islands (XHTML inside <foreignObject>) therefore carry
+// HTML-only syntax: a `<br/>` in the source comes back as an open `<br>`, and a
+// non-breaking space (`&nbsp;`, mermaid's `#nbsp;`, or a literal U+00A0) comes
+// back as the `&nbsp;` entity, which XML does not define. Everything below
+// parses that string as strict XML (`image/svg+xml`) — and so does Blink when
+// the same string reaches an <img> as a data: URI — so either one turns the
+// document into a parsererror page and the diagram silently stops rendering.
+// Parse it with the HTML parser it was serialised for and re-serialise as XML,
+// which fixes every such construct at once rather than one tag at a time.
+export function xmlWellFormedSvg(svg: string): string {
+  const el = new DOMParser().parseFromString(svg, 'text/html').querySelector('svg')
+
+  if (!el) {
+    return svg
+  }
+
+  // The HTML parser keeps a label's `xmlns="…/xhtml"` as a plain attribute. The
+  // serializer declares that namespace itself, and a spec-conformant one (jsdom)
+  // also writes the plain attribute — a duplicate `xmlns`, malformed again.
+  for (const node of el.querySelectorAll('[xmlns]')) {
+    node.removeAttribute('xmlns')
+  }
+
+  return new XMLSerializer().serializeToString(el)
+}
+
 export function normalizeSvgSize(svg: string): string {
   const el = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement
 
@@ -37,6 +64,16 @@ export function normalizeSvgSize(svg: string): string {
 
   if (!widthPct && !heightPct) {
     return svg
+  }
+
+  // Mermaid pins the intrinsic width with an inline max-width in pixels. An
+  // inline style beats the container's width caps (max-w-full and friends),
+  // so a wide diagram renders at full intrinsic width in the inline preview
+  // instead of shrinking to the pane. Relative values stay untouched.
+  const maxWidth = el.style.getPropertyValue('max-width')
+
+  if (maxWidth && !isPercentLength(maxWidth) && !maxWidth.trim().endsWith('vw')) {
+    el.style.setProperty('max-width', '100%')
   }
 
   const box = viewBoxSize(el)

@@ -1,17 +1,24 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/cron/cron-job-model.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { CronJob, CronJobUpdates } from '@/types/hermes'
+
+import { truncateText } from './job-state'
 
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 /** Script-only cron jobs run a shell script on schedule with no LLM prompt. */
 export function jobIsScriptOnly(job: Pick<CronJob, 'no_agent' | 'script'>): boolean {
   return Boolean(job.no_agent) && Boolean(asText(job.script).trim())
+}
+
+/** Description shown for a cron job: the prompt, or the script when script-only. */
+export function jobDescription(job: Pick<CronJob, 'prompt' | 'script'>): string {
+  return asText(job.prompt) || asText(job.script)
 }
 
 export type CronEditorValidationError = 'prompt' | 'prompt_and_schedule' | 'schedule'
@@ -125,7 +132,10 @@ export function lastErrorSummary(lastError: string | null | undefined): string {
   const sentenceEnd = text.search(/\. |\n/)
   const sentence = (sentenceEnd === -1 ? text : text.slice(0, sentenceEnd + 1)).trim()
 
-  return sentence.length > ERROR_SUMMARY_MAX ? `${sentence.slice(0, ERROR_SUMMARY_MAX - 1).trimEnd()}…` : sentence
+  // Grapheme-aware cap (review follow-up): slice()'s UTF-16 unit limit could split a surrogate
+  // pair in astral error text. truncateText appends the ellipsis itself, so the old form's
+  // reserved slot (`max - 1`) is expressed by the max passed here.
+  return sentence.length > ERROR_SUMMARY_MAX ? truncateText(sentence, ERROR_SUMMARY_MAX - 1) : sentence
 }
 
 /** Build the API update payload, preserving an empty prompt on script-only jobs. */

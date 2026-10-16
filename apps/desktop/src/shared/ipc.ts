@@ -1243,7 +1243,9 @@ export interface AecpilotApi {
    * этого члена (`hermesDesktop.zoom.factor`) и их же путь контекстного меню
    * внутри гостя на него рассчитывает. */
   zoomFactor(): number
-  setKeepAwake(on: boolean): Promise<{ enabled: boolean }>
+  /** Режим их окна (0.22.2, T20.7) или прежнее булево. `enabled` — держится
+   * ли блокировка сна прямо сейчас. */
+  setKeepAwake(mode: 'always' | 'off' | 'while-working' | boolean): Promise<{ enabled: boolean }>
   /** Язык, на котором агент отвечает человеку — третий уровень SPEC G7
    * (задача 5.14). Пустая строка — «не задан», и тогда в SOUL нового
    * специалиста не дописывается ничего: умолчание, поставленное молча, было

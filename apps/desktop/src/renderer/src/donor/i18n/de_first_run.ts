@@ -1,0 +1,55 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/i18n/de_first_run.ts
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits: none
+ */
+import type { FirstRunCopy } from './types_first_run'
+
+export const deFirstRun: FirstRunCopy = {
+  beats: {
+    name: 'Name',
+    theme: 'Akzentfarbe',
+    layout: 'Layout',
+    connectors: 'Apps',
+    plugins: 'Plugins',
+    tour: 'Tour',
+    build: 'Erste Aufgabe'
+  },
+  namePlaceholder: 'Dein Name',
+  useName: name => `„${name}“ verwenden`,
+  install: 'Installieren',
+  installed: 'Installiert',
+  loading: 'Wird geladen…',
+  noPlugins: 'Gerade keine Plugins verfügbar.',
+  noneChosen: 'Keine',
+  noAnswer: 'Keine Antwort',
+  answerRefused: 'Antwort nicht angenommen',
+  tours: {
+    quick: 'Kurze Tour',
+    full: 'Zeig mir alles',
+    skip: 'Überspringen, lass uns etwas bauen'
+  },
+  skippedAll: 'Einrichtung übersprungen',
+  skip: 'Einrichtung überspringen',
+  skipTip: 'Beendet die geführte Einrichtung und öffnet einen neuen Chat.',
+  skipFailed: 'Einrichtung konnte nicht übersprungen werden',
+  localModel: {
+    title: 'Dieser Computer kann ein Modell lokal ausführen',
+    text: (model, size) =>
+      `${model} (${size}) passt zu deiner Hardware. Es läuft kostenlos, und deine Chats bleiben auf diesem Computer.`,
+    setUp: 'Einrichten',
+    notNow: 'Nicht jetzt'
+  },
+  intro: {
+    greeting: 'Hallo, ich bin Hermes.',
+    plan: 'Richten wir alles für Sie ein. Danach machen wir etwas Cooles.'
+  },
+  rerun: {
+    title: 'Onboarding erneut starten',
+    description: 'Öffnet einen neuen Einrichtungs-Chat, der die ersten Schritte mit deinem aktuellen Modell durchgeht.',
+    action: 'Erneut starten',
+    failed: 'Onboarding konnte nicht gestartet werden'
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/desktop-fs.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -11,6 +11,7 @@ import { hermesApi } from '@/api/client'
 import type {
   HermesConnection,
   HermesReadDirResult,
+  HermesReadFileErrorResult,
   HermesReadFileTextResult,
   HermesSelectPathsOptions
 } from '@/global'
@@ -81,6 +82,34 @@ function remoteFsApi<T>(path: string, body?: Record<string, unknown>): Promise<T
   )
 }
 
+/** True when a bridge read returned the main process's structured "file is not
+ *  on disk" answer (the main process returns this instead of rejecting, so a
+ *  restored preview tab or transcript reference to a deleted/moved file does
+ *  not spam Electron's console with a stack trace per probe). Callers that
+ *  already try/catch their read get the same behavior as a rejection: throw
+ *  with the original message. */
+export function isReadFileErrorResult(value: unknown): value is HermesReadFileErrorResult {
+  return !!value && typeof value === 'object' && (value as { ok?: unknown }).ok === false
+}
+
+function throwForReadErrorResult(result: HermesReadFileErrorResult): never {
+  throw new DesktopFileMissingError(result)
+}
+
+/** Thrown by the facade when the main process answered that the file is simply
+ *  not on disk (the structured `{ ok:false }` result). Callers that need to
+ *  tell expected absence apart from real failures check `instanceof`; everyone
+ *  else sees an ordinary error whose message matches the old rejection. */
+export class DesktopFileMissingError extends Error {
+  readonly code: string
+
+  constructor(result: HermesReadFileErrorResult) {
+    super(result.message || `File read failed: ${result.error}`)
+    this.name = 'DesktopFileMissingError'
+    this.code = result.error
+  }
+}
+
 export async function readDesktopDir(path: string): Promise<HermesReadDirResult> {
   if (!isDesktopFsRemoteMode()) {
     return bridge().readDir(path)
@@ -91,7 +120,13 @@ export async function readDesktopDir(path: string): Promise<HermesReadDirResult>
 
 export async function readDesktopFileText(path: string): Promise<HermesReadFileTextResult> {
   if (!isDesktopFsRemoteMode()) {
-    return bridge().readFileText(path)
+    const result = await bridge().readFileText(path)
+
+    if (isReadFileErrorResult(result)) {
+      throwForReadErrorResult(result)
+    }
+
+    return result
   }
 
   return remoteFsApi<HermesReadFileTextResult>(fsPath('read-text', path))
@@ -127,7 +162,13 @@ export async function createRemoteDir(path: string): Promise<string> {
 
 export async function readDesktopFileDataUrl(path: string): Promise<string> {
   if (!isDesktopFsRemoteMode()) {
-    return bridge().readFileDataUrl(path)
+    const result = await bridge().readFileDataUrl(path)
+
+    if (isReadFileErrorResult(result)) {
+      throwForReadErrorResult(result)
+    }
+
+    return result
   }
 
   const result = await remoteFsApi<string | { dataUrl?: string }>(fsPath('read-data-url', path))
@@ -144,9 +185,13 @@ export async function readDesktopFileDataUrlLocalFirst(path: string): Promise<st
   try {
     const local = await window.hermesDesktop?.readFileDataUrl?.(path)
 
-    if (local) {
+    if (local && !isReadFileErrorResult(local)) {
       return local
     }
+
+    // A structured missing-file result from local is the same outcome as a
+    // rejection: fall through to the remote fallback below (or throw in local
+    // mode via readDesktopFileDataUrl's own guard).
   } catch (error) {
     if (!isDesktopFsRemoteMode()) {
       throw error

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-switcher.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,6 +9,7 @@ import { atom } from 'nanostores'
 
 import type { SessionInfo } from '@/types/hermes'
 
+import { completeFlow } from './desktop-metrics'
 import { $selectedStoredSessionId, $sessions } from './session'
 
 // Mac-style session switcher (^Tab). Quick tap jumps on keydown; the HUD opens
@@ -124,6 +125,11 @@ export function commitOnCtrlUp(): string | null {
   }
 
   const target = highlightedSessionId()
+
+  if (target) {
+    completeFlow('session_switcher')
+  }
+
   closeSwitcher()
 
   return target

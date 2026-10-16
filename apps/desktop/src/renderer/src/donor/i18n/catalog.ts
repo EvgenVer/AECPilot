@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/catalog.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: 'en' and 'ru' point at OUR catalogs — their strings
@@ -17,11 +17,14 @@ import { de } from './de'
 import { es } from './es'
 import { fr } from './fr'
 import { ja } from './ja'
-import type { Locale, Translations } from './types'
+import type { BundledLocale, Translations } from './types'
 import { zh } from './zh'
 import { zhHant } from './zh-hant'
 
-export const TRANSLATIONS: Record<Locale, Translations> = {
+/** The catalogs compiled into the app. Runtime-registered languages (plugin
+ *  packs, backend `.desktop.yaml` packs) are NOT here — resolve through
+ *  `resolveTranslations()` in `./registry`, which layers them over these. */
+export const TRANSLATIONS: Record<BundledLocale, Translations> = {
   en,
   zh,
   'zh-hant': zhHant,
@@ -31,4 +34,10 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
   fr,
   de,
   es
+}
+
+export const BUNDLED_LOCALES = Object.keys(TRANSLATIONS) as readonly BundledLocale[]
+
+export function isBundledLocale(value: unknown): value is BundledLocale {
+  return typeof value === 'string' && Object.hasOwn(TRANSLATIONS, value)
 }

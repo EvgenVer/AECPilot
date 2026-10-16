@@ -1,12 +1,16 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/config-settings.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the pool-limits row (`<PoolLimitsSetting />`) — SPEC HX27, owner
  *       decision 2026-09-15 (finding D-84): the product runs ONE core process for
  *       every profile, so there is no backend pool for the row to bound
+ *   [3] dropped the "Run onboarding again" row (`<OnboardingSettings />`) — it
+ *       opens their onboarding chat, SPEC HX26
+ *   [3] dropped the shared-metrics opt-ins (`<SharedMetricsSettings />`) — usage
+ *       telemetry for Nous is SPEC HX31; the profile pins it off
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -17,6 +21,7 @@ import { useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { getElevenLabsVoices, getHermesConfigSchema, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
@@ -31,9 +36,10 @@ import {
   refreshDataUrlReadMaxMb,
   setDataUrlReadMaxMb
 } from '@/store/data-url-read-max'
+import { recordSettingsSaved } from '@/store/desktop-metrics'
 import { $disableF12, setDisableF12 } from '@/store/disable-f12'
 import { $alwaysExternalLinks, setAlwaysExternalLinks } from '@/store/external-links'
-import { $keepAwake, setKeepAwake } from '@/store/keep-awake'
+import { $keepAwakeMode, type KeepAwakeMode, setKeepAwakeMode } from '@/store/keep-awake'
 import { notify, notifyError } from '@/store/notifications'
 import { normalizeProfileKey } from '@/store/profile'
 import { repoDiscoveryPolicyFromConfig, repoDiscoveryPolicySignature, scanAndRecordRepos } from '@/store/projects'
@@ -110,7 +116,14 @@ function ConfigSettingsInner({
 }: ConfigSettingsProps & { scopeProfile: string | undefined }) {
   const { t } = useI18n()
   const c = t.settings.config
-  const keepAwake = useStore($keepAwake)
+  const keepAwakeMode = useStore($keepAwakeMode)
+
+  const keepAwakeOptions = [
+    { id: 'off', label: c.keepAwakeOff },
+    { id: 'while-working', label: c.keepAwakeWhileWorking },
+    { id: 'always', label: c.keepAwakeAlways }
+  ] as const satisfies readonly { id: KeepAwakeMode; label: string }[]
+
   const disableF12 = useStore($disableF12)
   const alwaysExternalLinks = useStore($alwaysExternalLinks)
   // The editable draft is local (debounced autosave watches it), but it's seeded
@@ -241,6 +254,9 @@ function ConfigSettingsInner({
           // Mirror the saved record into the shared cache so MCP/model surfaces
           // reflect the edit without their own refetch.
           writeConfigCache(snapshot)
+          const savedScope = writeScope ?? scopeProfile
+
+          recordSettingsSaved(patch, schema ?? {}, typeof savedScope === 'string' ? savedScope : savedScope?.profile)
 
           if (saveVersionRef.current === v) {
             // The repo-discovery scan reads the ACTIVE profile's workspace
@@ -310,6 +326,7 @@ function ConfigSettingsInner({
 
   const showDesktopSettings = activeSectionId === 'advanced' && (subpage === undefined || subpage === 'desktop')
   const showAttachments = activeSectionId === 'chat' && (subpage === undefined || subpage === 'attachments')
+  const showSharedMetrics = activeSectionId === 'safety' && subpage === 'privacy'
 
   // Deep-link target from the command palette (?field=<key>): scroll the row
   // into view and flash it, then drop the param so it doesn't re-fire.
@@ -442,7 +459,7 @@ function ConfigSettingsInner({
     visibleFields.length === 0 &&
     (subpage === undefined
       ? activeSectionId !== 'chat'
-      : !showModelSettings && !showDesktopSettings && !showAttachments)
+      : !showModelSettings && !showDesktopSettings && !showAttachments && !showSharedMetrics)
 
   return renderPage(
     <>
@@ -451,12 +468,20 @@ function ConfigSettingsInner({
           power-user, this-computer-only knobs. */}
       {showDesktopSettings && (
         <>
-          <ToggleRow
-            checked={keepAwake}
+          <ListRow
+            action={
+              <SegmentedControl
+                onChange={mode => {
+                  triggerHaptic('selection')
+                  setKeepAwakeMode(mode)
+                }}
+                options={keepAwakeOptions}
+                value={keepAwakeMode}
+              />
+            }
             description={c.keepAwakeDesc}
             id={settingElementId(SETTING_IDS.advanced.keepAwake)}
-            label={c.keepAwakeTitle}
-            onChange={setKeepAwake}
+            title={c.keepAwakeTitle}
           />
           <ToggleRow
             checked={disableF12}
@@ -473,12 +498,16 @@ function ConfigSettingsInner({
           />
           {/* EDIT [3]: their <PoolLimitsSetting /> stood here — SPEC HX27. */}
           <QuickEntrySettings />
+          {/* EDIT [3]: their <OnboardingSettings /> stood here — SPEC HX26. */}
         </>
       )}
       {/* Device-local attach/preview byte cap (main-process IPC guard). Chat is
           where image-attachment behavior already lives, so this sits above the
           schema fields for that section. */}
       {showAttachments ? <AttachmentSizeSetting /> : null}
+      {/* Shared metrics are two coupled opt-ins with a consent side effect, so they
+          go through their own RPC rather than the generic field autosave. */}
+      {/* EDIT [3]: their <SharedMetricsSettings /> stood here — SPEC HX31. */}
       {activeSectionId === 'voice' ? (
         <ListRow description={c.voiceShortcutHintDesc} title={c.voiceShortcutHintTitle} />
       ) : null}

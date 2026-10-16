@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/use-timeline-history.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useCallback, useEffect, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
+import { sessionCreatedThisRun } from '@/app/session/hooks/use-session-actions/created-this-run'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { $activeGatewayProfile } from '@/store/profile'
 import { $connection, getSessionOwnerHint } from '@/store/session'
@@ -43,6 +44,13 @@ export function useTimelineHistory() {
   const loadMore = useCallback(
     async (beyondRowId?: number) => {
       if (!storedId) {
+        return
+      }
+
+      // A freshly minted draft has no state.db row until the first prompt persists
+      // it (#123622) — fetching its timeline before then only ever 404s, since an
+      // empty local view already IS the correct (empty) render.
+      if (sessionCreatedThisRun(storedId) && view.$messages.get().length === 0) {
         return
       }
 

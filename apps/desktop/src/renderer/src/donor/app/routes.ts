@@ -3,7 +3,11 @@
  * Source:  apps/desktop/src/app/routes.ts
  * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] registration table: the 'session-import' route is not registered —
+ *       importing another coding agent's sessions is SPEC HX30 (owner decision
+ *       2026-10-15); the view id and path constant stay for their other files
+ * (no other edits)
  */
 import { atom, onMount } from 'nanostores'
 import type { ReactNode } from 'react'
@@ -69,7 +73,7 @@ export interface AppRoute {
 }
 
 export const APP_ROUTES = [
-  { id: 'session-import', path: SESSION_IMPORT_ROUTE, view: 'session-import' },
+  // EDIT [3]: the 'session-import' route — SPEC HX30 (owner decision 2026-10-15).
   { id: 'new', path: NEW_CHAT_ROUTE, view: 'chat' },
   { id: 'settings', path: SETTINGS_ROUTE, view: 'settings' },
   { id: 'command-center', path: COMMAND_CENTER_ROUTE, view: 'command-center' },

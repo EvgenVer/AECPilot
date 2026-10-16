@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/keep-alive-panes.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -131,6 +131,18 @@ const KeepAlivePaneHost = memo(function KeepAlivePaneHost({ pane, placement, epo
   )
 
   useResizeObserver(rememberSize, ref)
+
+  // A host going hidden gives up focus. `inert` alone leaves the focused
+  // element (a webview guest) as activeElement, so keystrokes would keep
+  // landing in a page the user can no longer see — a hidden session's kept
+  // Browser. Blurring hands focus back to the document.
+  useLayoutEffect(() => {
+    const active = document.activeElement
+
+    if (!placement.visible && active instanceof HTMLElement && ref.current?.contains(active)) {
+      active.blur()
+    }
+  }, [placement.visible])
 
   return (
     <div

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-popout-drag.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,8 @@ import {
 const LONG_PRESS_MS = 360
 const LONG_PRESS_MOVE_TOLERANCE = 10
 // Upward drag distance from the docked composer that peels it off into a float.
-const PEEL_OUT_PX = 16
+// Deliberate, not a brush: 16px undocked it on stray click-drags (#101318).
+const PEEL_OUT_PX = 48
 const DOCK_ZONE_BOTTOM_PX = 72
 // How close the composer's center must be to the viewport center (px) to count as
 // "over the dock". Kept tight so the bottom-left/right corners stay free.

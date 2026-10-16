@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-view.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@ import {
   $currentProvider,
   $currentReasoningEffort,
   $currentReasoningEffortWire,
+  $currentServiceTier,
   $messages,
   $selectedStoredSessionId,
   $turnStartedAt
@@ -65,6 +66,7 @@ export interface SessionView {
   $model: ReadableAtom<string>
   $provider: ReadableAtom<string>
   $fast: ReadableAtom<boolean>
+  $serviceTier?: ReadableAtom<string>
   $reasoningEffort: ReadableAtom<string>
   /** The session's effort is not known yet (a resume in flight, or its agent
    *  still building), so an empty `$reasoningEffort` must not render as the
@@ -127,6 +129,7 @@ export const PRIMARY_SESSION_VIEW: SessionView = {
   $busy: $primaryBusy,
   $cwd: primaryField<string>(state => state.cwd, $currentCwd),
   $fast: primaryField<boolean>(state => state.fast, $currentFastMode),
+  $serviceTier: primaryField<string>(state => state.serviceTier, $currentServiceTier),
   $lastVisibleIsUser: computed($primaryMessages, lastVisibleMessageIsUser),
   $messages: $primaryMessages,
   $messagesEmpty: computed($primaryMessages, messages => messages.length === 0),

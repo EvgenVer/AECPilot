@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/composer-utils.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -75,6 +75,19 @@ export function shouldDisableComposerInput(disabled: boolean, gatewayState: Conn
 
 export const pickPlaceholder = (pool: readonly string[]) => pool[Math.floor(Math.random() * pool.length)]
 
+/**
+ * Width classes for the unstacked vs stacked composer editor.
+ *
+ * The inline (unstacked) editor lives in a CSS-grid `1fr` column — not a flex
+ * row — so `flex-1` never grows it. Pairing that with
+ * `--composer-input-inline-min-width` (8rem) pinned the field to the ~129pt
+ * sliver measured in #99728 while mid-run controls kept their intrinsic width.
+ * `w-full min-w-0` fills the grid track and lets the column shrink cleanly.
+ */
+export function composerInputWidthClass(stacked: boolean): string {
+  return stacked ? 'w-full' : 'w-full min-w-0'
+}
+
 /** Completion items can carry an `action` (set in use-slash-completions) that
  *  runs a side effect on pick instead of inserting a chip — e.g. the session
  *  picker's "Browse all…" entry opens the overlay. Table-driven so new action
@@ -125,14 +138,18 @@ export function implicitSlashAcceptIndex(
   activeIndex: number,
   activeExplicit: boolean
 ): number | null {
+  // A deliberately arrowed highlight ALWAYS wins — "Enter means I want this
+  // one", even on a bare `/` query where no command name has been typed yet.
+  // This must be checked before the `!typed` early-return so an explicit pick
+  // is never suppressed on a bare `/` (#98535).
+  if (activeExplicit && itemTexts[activeIndex] != null) {
+    return activeIndex
+  }
+
   const typed = slashCompletionToken(query)
 
   if (!typed) {
     return null
-  }
-
-  if (activeExplicit && itemTexts[activeIndex] != null) {
-    return activeIndex
   }
 
   const exact = itemTexts.findIndex(text => slashCompletionToken(text) === typed)

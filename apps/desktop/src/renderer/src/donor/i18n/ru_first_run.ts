@@ -1,0 +1,55 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/i18n/ru_first_run.ts
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits: none
+ */
+import type { FirstRunCopy } from './types_first_run'
+
+export const ruFirstRun: FirstRunCopy = {
+  beats: {
+    name: 'Имя',
+    theme: 'Акцентный цвет',
+    layout: 'Макет',
+    connectors: 'Приложения',
+    plugins: 'Плагины',
+    tour: 'Обзор',
+    build: 'Первая задача'
+  },
+  namePlaceholder: 'Ваше имя',
+  useName: name => `Использовать «${name}»`,
+  install: 'Установить',
+  installed: 'Установлено',
+  loading: 'Загрузка…',
+  noPlugins: 'Сейчас нет плагинов для показа.',
+  noneChosen: 'Нет',
+  noAnswer: 'Нет ответа',
+  answerRefused: 'Ответ не принят',
+  tours: {
+    quick: 'Быстрый тур',
+    full: 'Покажи всё',
+    skip: 'Пропустить, давай что-нибудь сделаем'
+  },
+  skippedAll: 'Настройка пропущена',
+  skip: 'Пропустить настройку',
+  skipTip: 'Завершить пошаговую настройку и открыть новый чат.',
+  skipFailed: 'Не удалось пропустить настройку',
+  localModel: {
+    title: 'Этот компьютер может запускать модель локально',
+    text: (model, size) =>
+      `${model} (${size}) подходит для вашего оборудования. Она работает бесплатно, а ваши чаты остаются на этом компьютере.`,
+    setUp: 'Настроить',
+    notNow: 'Не сейчас'
+  },
+  intro: {
+    greeting: 'Привет, я Hermes.',
+    plan: 'Давайте всё настроим под вас. А потом сделаем что-нибудь классное.'
+  },
+  rerun: {
+    title: 'Пройти знакомство заново',
+    description: 'Открывает новый чат настройки, который проводит по первым шагам с вашей текущей моделью.',
+    action: 'Запустить снова',
+    failed: 'Не удалось начать знакомство'
+  }
+}

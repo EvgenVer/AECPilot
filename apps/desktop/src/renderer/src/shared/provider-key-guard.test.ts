@@ -37,6 +37,9 @@ const ENV_WRITE_ALLOWED: Record<string, string> = {
   // 0.21.5 (3.B6): the capabilities screen's plugin settings save a plugin's
   // declared secrets the same way — same boundary, same capture.
   'app/capabilities/plugins/plugins-tab.tsx': 'writes go through main’s credential capture (3E.2)',
+  // 0.22.2 (T20.7): their plugin settings moved into Settings ▸ Plugins and took
+  // the same secret write with them — same boundary, same capture.
+  'app/settings/plugin-settings.tsx': 'writes go through main’s credential capture (3E.2)',
   'store/onboarding.ts': 'import kept for the non-provider branches; the key branch uses our bridge'
 }
 

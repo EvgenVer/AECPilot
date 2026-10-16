@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/segmented-control.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -50,7 +50,7 @@ export function SegmentedControl<T extends string>({
           <button
             aria-pressed={active}
             className={cn(
-              'flex items-center justify-center gap-1 rounded-[3px] px-2.5 py-0.5 text-[0.6875rem] font-medium transition-colors disabled:cursor-default',
+              'flex min-w-0 items-center justify-center gap-1 rounded-[3px] px-2.5 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap transition-colors disabled:cursor-default',
               active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
             disabled={disabled}
@@ -58,8 +58,10 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(id)}
             type="button"
           >
-            {Icon && <Icon className="size-3" />}
-            {label}
+            {Icon && <Icon className="size-3 shrink-0" />}
+            {/* A squeezed track ellipsizes a label inside its own cell; it never
+                wraps or paints across the neighbouring option. */}
+            <span className="min-w-0 truncate">{label}</span>
           </button>
         )
       })}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-draft.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,7 +25,8 @@ import {
   adoptNewSessionDraft,
   type ComposerAttachment,
   type ComposerDraftSyncMode,
-  NEW_SESSION_DRAFT_KEY,
+  freshDraftScope,
+  isFreshDraftScope,
   onComposerDraftSyncRequest,
   reloadPersistedDrafts,
   stashSessionDraft,
@@ -55,8 +56,10 @@ import {
 } from '../focus'
 import { type InlineRefInput, insertInlineRefsIntoEditor } from '../inline-refs'
 import {
+  caretOffsetInEditor,
   composerPlainText,
   normalizeComposerEditorDom,
+  placeCaretAtOffset,
   placeCaretEnd,
   REF_RE,
   renderComposerContents
@@ -164,21 +167,38 @@ export function useComposerDraft({
   // restores run mid-focus, and the runtime sync only repaints an unfocused
   // editor — so the visible text never lags the store.
   const paintDraft = useCallback(
-    (next: string, focus = true) => {
+    (next: string, focus = true, preserveFocusedCaret = false) => {
       draftRef.current = next
       setComposerText(next)
 
       const editor = editorRef.current
 
       if (editor) {
+        // A durable-scope rekey can repaint the SAME unsent draft while this
+        // editor remains the browser's active element and another composer
+        // temporarily owns the focus-routing bus. Preserve that native caret
+        // across the text-node replacement, but only for an unchanged draft:
+        // programmatic inserts/restores keep their existing "caret to end"
+        // semantics.
+        const caretOffset =
+          preserveFocusedCaret &&
+          visibleRef.current &&
+          document.activeElement === editor &&
+          !isElementInHiddenPane(editor) &&
+          composerPlainText(editor) === next
+            ? caretOffsetInEditor(editor)
+            : null
+
         renderComposerContents(editor, next, { trailingCommitted: true })
 
-        // Selection is document-global: a keep-alive composer in a hidden tab
-        // may repaint when its background session updates, but moving its caret
-        // here steals the selection from the visible composer without changing
-        // document.activeElement. The foreground then still looks focused while
-        // printable keydowns produce no input.
-        if (visibleRef.current && getActiveComposer() === target && !isElementInHiddenPane(editor)) {
+        if (caretOffset !== null) {
+          placeCaretAtOffset(editor, Math.min(caretOffset, composerPlainText(editor).length))
+        } else if (visibleRef.current && getActiveComposer() === target && !isElementInHiddenPane(editor)) {
+          // Selection is document-global: a keep-alive composer in a hidden tab
+          // may repaint when its background session updates, but moving its caret
+          // here steals the selection from the visible composer without changing
+          // document.activeElement. The foreground then still looks focused while
+          // printable keydowns produce no input.
           placeCaretEnd(editor)
         }
       }
@@ -307,8 +327,9 @@ export function useComposerDraft({
           const ids = [sessionIdRef.current, activeQueueSessionKeyRef.current].filter((id): id is string => Boolean(id))
 
           // A surface with no session yet IS the new-chat draft (the stash keys
-          // it '__new__'); once one opens, the new-chat draft belongs elsewhere.
-          return ids.length ? ids : [NEW_SESSION_DRAFT_KEY]
+          // it by the fresh-draft key); once one opens, the new-chat draft
+          // belongs elsewhere.
+          return ids.length ? ids : [freshDraftScope()]
         },
         isActive: () => getActiveComposer() === target
       },
@@ -336,7 +357,7 @@ export function useComposerDraft({
     )
   }, [inputDisabled, paintDraft, target])
 
-  const loadIntoComposer = (text: string, attachments: ComposerAttachment[]) => {
+  const loadIntoComposer = (text: string, attachments: ComposerAttachment[], preserveFocusedCaret = false) => {
     // Diagnostic breadcrumb for #59305-class reports: identifies WHAT kind of
     // state got restored into the composer (session switch, queue-edit
     // restore, history browse) without logging any raw content. REF_RE has the
@@ -353,7 +374,7 @@ export function useComposerDraft({
     }
 
     attachmentScope.$attachments.set(cloneAttachments(attachments))
-    paintDraft(text, false)
+    paintDraft(text, false, preserveFocusedCaret)
   }
 
   const clearDraft = useCallback(() => {
@@ -517,14 +538,14 @@ export function useComposerDraft({
     window.clearTimeout(draftPersistTimerRef.current)
     pendingDraftPersistRef.current = null
 
-    // A new chat writes to the shared pre-session bucket until its stored id
-    // arrives; the assigning site announces that id (store/composer.ts). Move
-    // the bucket at this handoff — after the outgoing cleanup stashed the live
-    // editor text under it, before the incoming scope is restored — so the
-    // text the user kept typing follows the chat instead of vanishing.
-    // Keyed on the scope alone: the runtime id can land a resume later than
-    // the route flips the scope, so it is not a usable signal here.
-    if (!draftScopeRef.current && activeQueueSessionKey) {
+    // A new chat writes to its own pre-session bucket (the per-lifecycle fresh
+    // key) until its stored id arrives; the assigning site announces that id
+    // (store/composer.ts). Move the bucket at this handoff — after the outgoing
+    // cleanup stashed the live editor text under it, before the incoming scope
+    // is restored — so the text the user kept typing follows the chat instead
+    // of vanishing. Keyed on the scope alone: the runtime id can land a resume
+    // later than the route flips the scope, so it is not a usable signal here.
+    if ((isFreshDraftScope(draftScopeRef.current) || !draftScopeRef.current) && activeQueueSessionKey) {
       adoptNewSessionDraft(activeQueueSessionKey)
     } else if (!activeQueueSessionKey) {
       // The reverse handoff: a session the user was typing into turned out
@@ -539,7 +560,7 @@ export function useComposerDraft({
     draftScopeRef.current = activeQueueSessionKey
 
     const { attachments, text } = takeSessionDraft(activeQueueSessionKey)
-    loadIntoComposer(text, attachments)
+    loadIntoComposer(text, attachments, true)
 
     return () => {
       const latestText = syncDraftFromEditor()
@@ -619,6 +640,7 @@ export function useComposerDraft({
   return {
     activeQueueSessionKeyRef,
     clearDraft,
+    draftScopeRef,
     draftRef,
     editorRef,
     focusInput,

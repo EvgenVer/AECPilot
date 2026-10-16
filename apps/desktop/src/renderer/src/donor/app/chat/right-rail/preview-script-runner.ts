@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-script-runner.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,14 +11,15 @@
  * registry.
  *
  * A live browser pane registers its webview's `executeJavaScript` here, keyed
- * by tab id; `activePreviewScriptRunner` resolves the ACTIVE tab from the
- * store. Both guest-page features ride it — the tour tool (preview-tour.ts)
+ * by tab id; `activePreviewScriptRunner` resolves the ACTIVE tab among the
+ * requesting session's tabs. Both guest-page features ride it — the tour tool (preview-tour.ts)
  * and the interaction tool (preview-act.ts) — so their heavy payloads stay out
  * of the pane component's static import graph and only load when used.
  */
 
-import { $rightRailActiveTabId } from '@/store/layout'
-import { $previewTabs } from '@/store/preview'
+import type { PreviewOwner } from '@/store/preview-ownership'
+
+import { activePreviewTabFor } from './preview-active-tab'
 
 /** Runs JS source in the pane's guest page, resolving its completion value. */
 export type PreviewScriptRunner = (code: string) => Promise<unknown>
@@ -36,10 +37,11 @@ export function registerPreviewScriptRunner(tabId: string, runner: PreviewScript
   }
 }
 
-/** The ACTIVE preview tab's script runner. Null = no live page behind it. */
-export function activePreviewScriptRunner(): PreviewScriptRunner | null {
-  const tabs = $previewTabs.get()
-  const tab = tabs.find(t => t.id === $rightRailActiveTabId.get()) ?? tabs[0]
+/** The script runner of the ACTIVE tab among those `owner` (the requesting
+ *  session's stored id; omitted = the focused session) may see. Null = no live
+ *  page behind it. */
+export function activePreviewScriptRunner(owner?: PreviewOwner): PreviewScriptRunner | null {
+  const tab = activePreviewTabFor(owner)
 
   return (tab && runners.get(tab.id)) || null
 }

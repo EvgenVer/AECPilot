@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/session-rpc-dispatcher.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,14 +44,10 @@ import { resolveSessionOwner } from '@/app/session/hooks/use-session-actions/uti
 import type { ClientSessionState } from '@/app/types'
 import { isSessionGoneForBackgroundPolling } from '@/store/runtime-gone'
 import { getSessionOwnerHint, knownSessionOwner, ownerLookupSessionRows, requestSessionResume } from '@/store/session'
+import { $focusedStoredSessionId } from '@/store/session-focus'
 import { assertSessionOwnerResolved } from '@/store/session-owner-resolution'
 import { requestForSessionProfile, type SessionOwnerScope } from '@/store/session-request-router'
-import {
-  $focusedStoredSessionId,
-  runtimeSessionOwner,
-  sessionTileOwnerRoute,
-  storedSessionIdForRuntimeId
-} from '@/store/session-states'
+import { runtimeSessionOwner, sessionTileOwnerRoute, storedSessionIdForRuntimeId } from '@/store/session-states'
 
 import { findStoredIdForRuntimeId, resolveRoutingSessionId, resolveSessionRpcOwner } from './wiring-routing'
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/billing/use-billing-state.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -225,7 +225,7 @@ export function deriveBillingView(
   // Read BEFORE the logged-out branch: a free-tier install has no account, so
   // `logged_in` is false and the generic "connect your account" notice would
   // otherwise win and tell the user to go to the portal.
-  if (billing.free_tier) {
+  if (billing.free_tier_account) {
     return freeTierView(billing, b)
   }
 
@@ -426,7 +426,7 @@ function creditsPerMonthDisplay(
 ): string | undefined {
   const credits = Number((monthlyCredits ?? '').replace(/,/g, ''))
 
-  return Number.isFinite(credits) && credits > 0 ? b.creditsPerMonth(`$${credits.toLocaleString('en-US')}`) : undefined
+  return Number.isFinite(credits) && credits > 0 ? b.creditsPerMonth(formatMoney(credits)) : undefined
 }
 
 /**

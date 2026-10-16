@@ -168,7 +168,11 @@ describe('строки-приметы принадлежат ядру', () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const source = readFileSync(
-      join(__dirname, '../../../../../../../runtime/.hermes-src/plugins/memory/mem0/__init__.py'),
+      // С ядра 0.22 Mem0 — внешний плагин, вытянутый по пину (T20.6).
+      join(
+        __dirname,
+        '../../../../../../../runtime/.mem0-plugin-src/integrations/hermes-plugin-mem0/__init__.py'
+      ),
       'utf-8'
     )
 

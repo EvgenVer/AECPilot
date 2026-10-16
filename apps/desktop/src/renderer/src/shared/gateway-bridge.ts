@@ -164,6 +164,11 @@ export interface DonorServerRequest {
   params: Record<string, unknown> & { session_id?: string }
   respond: (result: Record<string, unknown>) => void
   fail: (code: number, message: string) => void
+  /** Their "this window is not showing the session" abstention (0.22.2). Ours
+   * never sets it: there is one window, and leaving it unset keeps the old
+   * behaviour — the core waits for the owner's answer — which their handlers
+   * already treat as the fallback (`request.decline?.(…)`). */
+  decline?: (message: string) => void
   replayed?: boolean
 }
 

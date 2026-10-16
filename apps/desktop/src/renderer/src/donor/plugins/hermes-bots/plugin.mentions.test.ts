@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/plugin.mentions.test.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,6 +34,7 @@ interface MentionCompletionItem {
   display: string
   insert: string
   meta: string
+  handles?: string[]
 }
 
 interface ComposerDraft {
@@ -372,6 +373,49 @@ describe('@-mention completions', () => {
 
     const result = await handler({ text: '@cos-bot status?' })
     expect(result.text).toMatch(/message_agent target: "default@vps"/)
+  })
+
+  it('claims the raw profile name of a local row so the popover drops its gateway twin', async () => {
+    // `john-2` titled `John ♥` tags as @john; the live gateway lists the same
+    // backend profile by raw name (@john-2). The contributed row claims that
+    // name — one row per bot, under the tag the user actually typed.
+    const { provide } = await contributions({
+      focused: 'default',
+      profiles: [
+        { name: 'default' },
+        { name: 'john-2', ui_meta: { 'hermes-bots': { title: 'John ♥' } } },
+        { name: 'eva-2', ui_meta: { 'hermes-bots': { title: 'Eva 🌥' } } }
+      ]
+    })
+
+    const john = provide('john').find(item => item.insert === '@john')
+    const eva = provide('eva').find(item => item.insert === '@eva')
+
+    expect(john?.handles).toEqual(['@john-2'])
+    expect(eva?.handles).toEqual(['@eva-2'])
+  })
+
+  it('claims its own text when a bot tags as its raw profile name', async () => {
+    // No title on the profile, so the mention tag IS the profile name. The
+    // picker still needs the claim (it retires the gateway's twin row for
+    // that name), and the merge treats a handle matching the row's own text
+    // as naming no alias — so this shape must keep offering the bot.
+    const { provide } = await contributions({
+      focused: 'default',
+      profiles: [{ name: 'curio' }, { name: 'default' }]
+    })
+
+    const curio = provide('cur').find(item => item.insert === '@curio')
+
+    expect(curio?.handles).toEqual(['@curio'])
+  })
+
+  it("never claims a remote row's name — the local gateway's twin is a different bot", async () => {
+    const { provide } = await contributions({ profiles: [{ name: 'default' }, REMOTE_DEFAULTS[0]] })
+
+    const contributed = provide('cos').find(item => item.insert === '@cos-bot')
+
+    expect(contributed?.handles).toBeUndefined()
   })
 })
 

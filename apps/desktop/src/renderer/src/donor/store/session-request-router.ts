@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-request-router.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { ProfileScope } from '@/hermes'
 import { requestGatewayForAgent, requestGatewayForProfile, retainGatewayForSessionTurn } from '@/store/gateway'
 
 import { resetBackgroundPollingGuardAfterRebind } from './session-gone-latch'
@@ -34,6 +35,22 @@ export interface SessionOwnerRoute {
 export type SessionProfileRoute = SessionOwnerRoute
 
 export type SessionOwnerScope = undefined | null | string | SessionOwnerRoute
+
+/** REST scope for a session owner. Undefined when the owner is unknown. */
+export function profileScopeForSessionOwner(owner: SessionOwnerScope): ProfileScope {
+  if (!owner) {
+    return undefined
+  }
+
+  if (typeof owner === 'string') {
+    return owner
+  }
+
+  return {
+    connectionId: owner.connectionId,
+    profile: owner.targetProfile ?? owner.profile
+  }
+}
 
 /** Exact owner reconstructed from a CONNECTION-TAGGED session row (the
  *  Electron unified-list splice tags foreign registry rows; an optimistic row

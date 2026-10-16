@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/hidden-bots.test.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -88,7 +88,10 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  request.mockResolvedValue({ applied: { ui_meta: true } })
+  // A save reads the bot's server namespace (profiles.list) before writing it.
+  request.mockImplementation(async (method: string) =>
+    method === 'profiles.list' ? { profiles: [{ name: 'default' }, { name: 'ghost' }] } : { applied: { ui_meta: true } }
+  )
 })
 
 describe('hiding persists locally and cross-machine', () => {

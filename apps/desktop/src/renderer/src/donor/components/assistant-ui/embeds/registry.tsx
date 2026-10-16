@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/registry.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,8 +13,9 @@ import { RichBoundary } from './rich-boundary'
 import type { RichFenceProps } from './types'
 
 // Root renderer for fenced code blocks: a language → lazy-renderer table. Each
-// renderer is its own split chunk (mermaid pulls in the mermaid lib, svg pulls
-// in DOMPurify), loaded only when a block of that language actually appears.
+// renderer is split and loaded only when a block of that language appears. The
+// Mermaid renderer defers its heavier runtime import until after its source
+// fallback has had a chance to paint.
 const LAZY_FENCE: Record<string, LazyExoticComponent<ComponentType<RichFenceProps>>> = {
   listing: lazy(() => import('./listing-embed')),
   mermaid: lazy(() => import('./mermaid-embed')),

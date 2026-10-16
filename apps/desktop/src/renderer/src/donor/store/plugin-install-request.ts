@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/plugin-install-request.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,9 +22,15 @@ export interface PluginInstallRequest {
   catalogName?: string
   /** The catalog pin (display only — the backend resolves it itself). */
   sha?: string
+  /** Display name for the dialog heading (the catalog card's title); falls back to the catalog name. */
+  title?: string
+  /** One line on what the plugin does (the catalog description's first sentence). */
+  summary?: string
   /** Capabilities profile scope the pick was made under; the agent half
    *  installs into THIS profile (null/undefined = active profile). */
   profile?: string | null
+  /** The caller keeps the user where they are after a successful install (the setup chat's plugins card). */
+  stayAfterInstall?: boolean
 }
 
 export const $pluginInstallRequest = atom<PluginInstallRequest | null>(null)

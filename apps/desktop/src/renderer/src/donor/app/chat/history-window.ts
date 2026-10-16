@@ -1,13 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/history-window.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { capabilityScoped, hermesApi, type ProfileScope } from '@/api/client'
+import { capabilityScoped, hermesApi, type ProfileScope, sessionReadOwnerPin } from '@/api/client'
 import {
   cachedTimelineIndex,
   previousPromptRowId,
@@ -43,7 +43,15 @@ export async function fetchHistoryWindow(
   signal: AbortSignal
 ): Promise<HistoryPage> {
   signal.throwIfAborted()
-  const route = capabilityScoped(scope)
+
+  // Owner connection pin (#125372): an around-read for a session owned by
+  // another registry connection must read THAT host, not the ambient one.
+  const route = {
+    ...capabilityScoped(scope),
+    ...(typeof scope === 'object' && scope?.connectionId === 'local' ? { connectionId: 'local' } : {}),
+    ...sessionReadOwnerPin(storedId, scope)
+  }
+
   const query = new URLSearchParams({ row_id: String(rowId), limit: String(HISTORY_WINDOW_LIMIT) })
 
   if (route.profile) {
@@ -55,7 +63,6 @@ export async function fetchHistoryWindow(
   // it does not pretend to cancel backend I/O or fall back to a full transcript.
   const response = await hermesApi<HistoryWindowResponse>({
     ...route,
-    ...(typeof scope === 'object' && scope?.connectionId === 'local' ? { connectionId: 'local' } : {}),
     method: 'GET',
     path: `/api/sessions/${encodeURIComponent(storedId)}/messages/around?${query}`
   })

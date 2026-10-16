@@ -1,13 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/boot.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
 
-import type { DesktopBootProgress } from '@/global'
+import type { DesktopBootProgress, UpdateHoldWire } from '@/global'
 import { translateNow } from '@/i18n'
 
 export interface DesktopBootState extends DesktopBootProgress {
@@ -51,6 +51,11 @@ export function applyDesktopBootProgress(progress: DesktopBootProgress) {
     progress: mergedProgress,
     visible: progress.running || mergedProgress < 100 || Boolean(error)
   })
+}
+
+/** The blocked-update screen's hold alone, outside the boot steps (R8 M6). */
+export function applyDesktopUpdateHold(hold: UpdateHoldWire | null) {
+  $desktopBoot.set({ ...$desktopBoot.get(), updateHold: hold })
 }
 
 export function setDesktopBootStep(step: {

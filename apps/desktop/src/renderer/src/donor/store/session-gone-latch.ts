@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-gone-latch.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -127,11 +127,20 @@ export function resetBackgroundPollingGuardAfterRebind(
 }
 
 /** Adapt a store-level gateway handle (`$gateway.get()` or the narrower
- *  `ApprovalGateway` shape) to the ambient-request callback
- *  `requestForOwnedSession` expects. The pollers never pass a deadline, so the
- *  2-arg call shape is kept exactly (gateway.request callers assert on it). */
+ * `ApprovalGateway` shape) to the ambient-request callback
+ * `requestForOwnedSession` expects. Callers that never pass a deadline keep the
+ * 2-arg call shape exactly (gateway.request callers assert on it); one that
+ * does (approval.respond, #55433) has the deadline forwarded. */
 export function ambientRequestFor(gateway: {
-  request: (method: string, params: Record<string, unknown>) => Promise<unknown>
-}): <R>(method: string, params?: Record<string, unknown>) => Promise<R> {
-  return <R>(method: string, params?: Record<string, unknown>) => gateway.request(method, params ?? {}) as Promise<R>
+  request: (
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs?: number,
+    signal?: AbortSignal
+  ) => Promise<unknown>
+}): <R>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal) => Promise<R> {
+  return <R>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal) =>
+    (timeoutMs === undefined && signal === undefined
+      ? gateway.request(method, params ?? {})
+      : gateway.request(method, params ?? {}, timeoutMs, signal)) as Promise<R>
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/files/tree.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -251,7 +251,20 @@ function ProjectTreeRowContainer({ attrs, children, innerRef, node }: RowRendere
   return (
     <div
       {...attrs}
-      onClick={node.handleClick}
+      onClick={e => {
+        // Portal-originated clicks (Radix renders the context menu in
+        // document.body) bubble through the React fiber tree into this row
+        // container even though their DOM target lives outside it. They are
+        // not clicks on this row — arborist's handleClick must not run for
+        // them, or every context-menu item ("Copy path", "Delete…" …) also
+        // activates the row and opens the file preview. Real clicks land
+        // inside the row's DOM and pass the containment check.
+        if (!e.currentTarget.contains(e.target as Node)) {
+          return
+        }
+
+        node.handleClick(e)
+      }}
       onFocus={e => e.stopPropagation()}
       ref={innerRef}
       style={{ ...attrs.style, minWidth: 0, width: '100%' }}

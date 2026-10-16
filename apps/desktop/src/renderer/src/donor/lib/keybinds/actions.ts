@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/keybinds/actions.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the 'composer.voice' action — the continuous voice
@@ -21,8 +21,7 @@
 
 import { registry } from '@/contrib/registry'
 import type { Contribution } from '@/contrib/types'
-
-import { IS_MAC } from './combo'
+import { isMacPlatform } from '@/lib/platform'
 
 export type KeybindCategory = 'composer' | 'profiles' | 'session' | 'navigation' | 'view'
 
@@ -41,6 +40,17 @@ export interface KeybindActionMeta {
   defaults: readonly string[]
   /** Display label for CONTRIBUTED actions (built-ins use i18n). */
   label?: string
+  /**
+   * The handler may decline (return `false`) when its context does not
+   * apply, handing the chord to the next action bound to it. Sharing a combo
+   * with a later action is then layering, not a conflict.
+   */
+  passthrough?: true
+  /** `modified`: a combo carrying a non-Shift modifier may fire while an
+   *  editable target (the composer) has focus, beyond the global combo-safety
+   *  policy in `actionAllowedInInput`. Bare/shift-only rebinds never qualify,
+   *  so a text key stays typing-safe (#71627). */
+  editableTargetPolicy?: 'modified'
 }
 
 // Positional switch slots for *named* profiles: ⌘1…⌘9 for profiles 1-9, then
@@ -56,6 +66,21 @@ const PROFILE_SWITCH_ACTIONS: KeybindActionMeta[] = Array.from({ length: PROFILE
   id: `profile.switch.${i + 1}`,
   category: 'profiles' as const,
   defaults: [comboForSlot(i + 1)]
+}))
+
+// Positional tab-slot jumps — activate the Nth visible tab of the zone under
+// the pointer (else the focused zone, else the workspace's). They share
+// ⌘1…⌘9 with the profile switchers and pass through when no eligible tab
+// strip exists, so the same chord is "tab N" over a strip and "profile N"
+// anywhere else (#92569: the two are separate actions, so rebinding either
+// changes only that one).
+export const TAB_SLOT_COUNT = 9
+
+const TAB_SLOT_ACTIONS: KeybindActionMeta[] = Array.from({ length: TAB_SLOT_COUNT }, (_, i) => ({
+  id: `view.tabSlot.${i + 1}`,
+  category: 'view' as const,
+  defaults: [comboForSlot(i + 1)],
+  passthrough: true
 }))
 
 // Positional jumps — ^1…^9, mirroring profiles' ⌘1…⌘9.
@@ -81,8 +106,18 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // «начать / остановить голосовой разговор», которую нечем исполнить.
   // EDIT [3]: 'composer.dictate' снято — диктовки больше нет, голос исключён
   // целиком (SPEC HX19, решение владельца 2026-10-07).
+  // Reasoning level up/down — one notch through off → minimal → … → xhigh,
+  // clamped at the ends (#71627). Unbound like dictate: the chords a user
+  // picks (Alt+., Ctrl+Alt+↑, Numpad +/- …) are too personal to claim by
+  // default. `editableTargetPolicy` lets a MODIFIED combo fire while the
+  // composer has focus; bare/shift-only rebinds stay typing-safe.
+  { id: 'composer.reasoningUp', category: 'composer', defaults: [], editableTargetPolicy: 'modified' },
+  { id: 'composer.reasoningDown', category: 'composer', defaults: [], editableTargetPolicy: 'modified' },
 
   // ── Profiles ─────────────────────────────────────────────────────────────
+  // Tab-slot actions BEFORE profile switchers: they claim ⌘1…⌘9 first and
+  // pass through to the profile switch when no tab strip is eligible.
+  ...TAB_SLOT_ACTIONS,
   { id: 'profile.default', category: 'profiles', defaults: ['mod+d'] },
   ...PROFILE_SWITCH_ACTIONS,
   { id: 'profile.next', category: 'profiles', defaults: ['mod+shift+]'] },
@@ -105,6 +140,8 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   ...SESSION_SLOT_ACTIONS,
   { id: 'session.focusSearch', category: 'session', defaults: ['mod+shift+f'] },
   { id: 'session.togglePin', category: 'session', defaults: [] },
+  { id: 'conversation.scrollPageUp', category: 'session', defaults: ['pageup'] },
+  { id: 'conversation.scrollPageDown', category: 'session', defaults: ['pagedown'] },
   // Archive the active session. Ships unbound (like `session.togglePin`) so an
   // irreversible-feeling, mouse-only action doesn't silently claim a chord for
   // every user — surfaced in the panel for opt-in binding (the issue suggests
@@ -191,6 +228,39 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
 
 export const KEYBIND_ACTION_IDS: readonly string[] = KEYBIND_ACTIONS.map(action => action.id)
 
+// The built-in actions a plugin may run by id (`ctx.runAction`, see
+// plugin-actions.ts): view / navigation only. Nothing destructive, nothing
+// that switches profile / model, spawns a shell, or opens native dialogs.
+export const PLUGIN_APP_ACTIONS = [
+  // Panels and layout
+  'view.showBrowser',
+  'view.showFiles',
+  'view.toggleSidebar',
+  'view.toggleRightSidebar',
+  'view.toggleReview',
+  'view.toggleStatusbar',
+  'view.findInPage',
+  // Composer and chat
+  'composer.focus',
+  'session.new',
+  'session.focusSearch',
+  'conversation.scrollPageUp',
+  'conversation.scrollPageDown',
+  // Navigation
+  'nav.commandPalette',
+  'nav.settings',
+  'nav.profiles',
+  'nav.capabilities',
+  'nav.messaging',
+  'nav.artifacts',
+  'nav.cron',
+  'nav.agents',
+  'keybinds.openPanel'
+] as const
+
+/** An app action id a plugin may run with `ctx.runAction`. */
+export type PluginAppActionId = (typeof PLUGIN_APP_ACTIONS)[number]
+
 const ACTION_BY_ID = new Map(KEYBIND_ACTIONS.map(action => [action.id, action]))
 
 // ── Contributed actions — the `keybinds` registry area ──────────────────────
@@ -240,6 +310,21 @@ export function keybindAction(id: string): KeybindActionMeta | undefined {
   return ACTION_BY_ID.get(id) ?? allKeybindActions().find(action => action.id === id)
 }
 
+/** True when `combo` carries a modifier beyond Shift (mod, ctrl, or alt). */
+function comboHasNonShiftModifier(combo: string): boolean {
+  const parts = combo.split('+')
+
+  return parts.slice(0, -1).some(part => part !== 'shift')
+}
+
+/** An action's own allowance for firing inside an editable target: the
+ *  `editableTargetPolicy` gate that `actionAllowedInInput` consults. Only a
+ *  combo with a real modifier qualifies — a bare or shift-only rebind stays
+ *  with the input so it can never hijack typing. */
+export function keybindActionAllowedInEditableTarget(id: string, combo: string): boolean {
+  return keybindAction(id)?.editableTargetPolicy === 'modified' && comboHasNonShiftModifier(combo)
+}
+
 /** The contributed handler for an action id (built-ins wire theirs in use-keybinds). */
 export function contributedKeybindHandler(id: string): (() => void) | undefined {
   return contributedKeybinds().find(k => k.id === id)?.run
@@ -287,8 +372,8 @@ export const KEYBIND_READONLY: readonly KeybindReadonly[] = [
   // Terminal clipboard. ⌘C/⌘V on macOS, Ctrl+Shift+C/V elsewhere — matching VS
   // Code. Plain Ctrl+C also copies when text is selected (Windows Terminal /
   // Tabby behavior); with no selection it stays SIGINT, so it isn't listed.
-  { id: 'view.terminalCopy', category: 'view', keys: IS_MAC ? ['mod+c'] : ['mod+shift+c'] },
-  { id: 'view.terminalPaste', category: 'view', keys: IS_MAC ? ['mod+v'] : ['mod+shift+v'] },
+  { id: 'view.terminalCopy', category: 'view', keys: isMacPlatform() ? ['mod+c'] : ['mod+shift+c'] },
+  { id: 'view.terminalPaste', category: 'view', keys: isMacPlatform() ? ['mod+v'] : ['mod+shift+v'] },
   // Global OS chord registered in main while HUD mode is up.
   { id: 'hud.snapToPointer', category: 'view', keys: ['mod+shift+g'] }
 ]

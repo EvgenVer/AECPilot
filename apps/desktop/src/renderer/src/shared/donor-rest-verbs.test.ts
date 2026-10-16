@@ -31,7 +31,12 @@ const PASSTHROUGH = join(__dirname, '..', '..', '..', 'main', 'gateway-passthrou
 /** Глагол, которым донор никогда не ходит и который мост принимать не обязан.
  * Пусто — все, что он пишет, мы пропускаем. Запись сюда означала бы решение
  * «этот глагол мы намеренно не поддерживаем», и его пришлось бы обосновать. */
-const DELIBERATELY_UNSUPPORTED: readonly string[] = []
+const DELIBERATELY_UNSUPPORTED: readonly string[] = [
+  // 0.22.2 (T20.7): `plugins/hermes-bots/skills-hub.tsx` probes THEIR skills hub
+  // with a plain browser `fetch(…, { method: 'HEAD' })` — a request to their
+  // website, not a call through our bridge, so the bridge has nothing to pass.
+  'HEAD'
+]
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

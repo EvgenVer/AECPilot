@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/reactions-enabled.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,11 +22,14 @@ import { atom } from 'nanostores'
 import { persistString, storedString } from '@/lib/storage'
 import { mirrorDisplayToggle } from '@/store/display-toggles'
 
+import { recordFeatureToggle } from './desktop-metrics'
+
 const KEY = 'hermes.desktop.reactions.v1'
 
 export const $reactionsEnabled = atom<boolean>(typeof window === 'undefined' ? false : storedString(KEY) === 'on')
 
 export function setReactionsEnabled(enabled: boolean): void {
+  recordFeatureToggle('reactions', $reactionsEnabled.get(), enabled)
   $reactionsEnabled.set(enabled)
 }
 

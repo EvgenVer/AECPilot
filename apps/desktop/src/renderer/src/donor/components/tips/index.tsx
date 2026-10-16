@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/tips/index.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,7 @@ import { useEffect, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { resolveTipAnchor } from '@/lib/tips/anchor'
+import { recordFriction } from '@/store/desktop-metrics'
 import { $activeTip, dismissTip, retireActiveTip } from '@/store/tips'
 
 import { TipBubble } from './tip-bubble'
@@ -108,7 +109,10 @@ export function TipHost() {
       action={tip.action}
       anchor={anchor}
       keybind={tip.keybind}
-      onClose={retireActiveTip}
+      onClose={() => {
+        recordFriction('notice_dismissed', 'tip')
+        retireActiveTip()
+      }}
       side={tip.side}
       text={tip.text}
       title={tip.title}

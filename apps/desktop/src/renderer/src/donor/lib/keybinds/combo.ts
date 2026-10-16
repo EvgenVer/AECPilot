@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/keybinds/combo.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped 'composer.voice' from the input-safe set — the action itself
@@ -10,6 +10,8 @@
  *       decision 2026-10-07)
  * (no other edits)
  */
+import { keybindActionAllowedInEditableTarget } from './actions'
+
 // Keybind combo normalization + display.
 //
 // A combo is a canonical lowercase string like "mod+k", "mod+shift+]", "shift+x",
@@ -69,7 +71,14 @@ const MODIFIER_CODES = new Set([
 // Modifier names as reported by `event.key` on a bare modifier keydown.
 const MODIFIER_KEYS = new Set(['Alt', 'Control', 'Meta', 'Shift'])
 
-function baseKeyFromCode(code: string): string | null {
+function baseKeyFromCode(code: unknown): string | null {
+  // event.code is typed string, but synthetic/IME keydowns can arrive without
+  // one (packaged-renderer TypeError reproductions in #91611); treat a
+  // non-string or empty code as "no physical key" instead of throwing.
+  if (typeof code !== 'string' || !code) {
+    return null
+  }
+
   if (code.startsWith('Key')) {
     return code.slice(3).toLowerCase()
   }
@@ -315,6 +324,14 @@ export function actionAllowedInInput(actionId: string, combo: string): boolean {
   }
 
   if (/^(?:mod|ctrl)(?:\+|$)/.test(combo)) {
+    return true
+  }
+
+  // An action that opts in (reasoning up/down) fires from an editable target
+  // on any modified combo — including Alt/Numpad chords without a primary
+  // modifier (#71627). Bare/shift-only combos never qualify, so typing is
+  // never hijacked.
+  if (keybindActionAllowedInEditableTarget(actionId, combo)) {
     return true
   }
 

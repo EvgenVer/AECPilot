@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/sdk/settings.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ReadableAtom } from 'nanostores'
 
 import { $backdrop, setBackdrop } from '@/store/backdrop'
+import { $chatTextScale, CHAT_TEXT_SCALE_PRESETS, type ChatTextScale, setChatTextScale } from '@/store/chat-text-scale'
 import { $composerPopoutGesturesEnabled, setComposerPopoutGesturesEnabled } from '@/store/composer-popout'
 import { $introSplash, setIntroSplash } from '@/store/intro-splash'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
@@ -16,6 +17,7 @@ import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/st
 
 export interface DesktopSettingValues {
   'backdrop.v1': boolean
+  chatTextScale: ChatTextScale
   'composerPopout.gesturesEnabled': boolean
   'intro-splash.v1': boolean
   'reasoning.collapsedByDefault': boolean
@@ -45,6 +47,11 @@ const bindSetting = <T>(
 
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean'
 
+// Exact presets only: the store snaps an off-preset number to the default,
+// which would turn a plugin's typo into a silent reset of the user's size.
+const isChatTextScale = (value: unknown): value is ChatTextScale =>
+  CHAT_TEXT_SCALE_PRESETS.some(preset => preset === value)
+
 const isSessionListDensity = (value: unknown): value is SessionListDensity =>
   value === 'compact' || value === 'comfortable' || value === 'detailed'
 
@@ -53,6 +60,7 @@ const isTabStripDefault = (value: unknown): value is TabStripDefault =>
 
 const settingBindings = {
   'backdrop.v1': bindSetting($backdrop, setBackdrop, isBoolean),
+  chatTextScale: bindSetting($chatTextScale, setChatTextScale, isChatTextScale),
   'composerPopout.gesturesEnabled': bindSetting(
     $composerPopoutGesturesEnabled,
     setComposerPopoutGesturesEnabled,

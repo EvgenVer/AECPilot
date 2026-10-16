@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/boot-failure-cause.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,7 +28,7 @@ const CAUSE_PATTERNS: readonly [LocalBootCause, RegExp][] = [
   ['portInUse', /address already in use|\bEADDRINUSE\b|port .* (?:is )?(?:already )?in use/i],
   [
     'installMissing',
-    /installation is missing|is missing or incomplete|venv missing|no module named|modulenotfounderror/i
+    /installation is missing|is missing or incomplete|missing or damaged|venv missing|no module named|modulenotfounderror/i
   ],
   ['timedOut', /timed out|timeout/i],
   ['exitedEarly', /exited before|exited \(|process exited|exited with|traceback \(most recent call last\)/i]

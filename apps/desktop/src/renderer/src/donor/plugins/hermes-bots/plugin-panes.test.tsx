@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/plugin-panes.test.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -309,6 +309,26 @@ describe('the Scheduled jobs pane', () => {
     store(`hermes-bots:pane`).set(true)
 
     expect(harness.find('routines')).toBeUndefined()
+  })
+})
+
+describe('returning to Sessions', () => {
+  it('drops a cold bot open still pending (#120277)', async () => {
+    const store = paneStores()
+    const harness = recordingContext()
+    const { $pendingBotOpen } = await import('./shared')
+
+    plugin.register(harness.ctx)
+    await settle()
+    store(`hermes-bots:pane`).set(true)
+    $pendingBotOpen.set({ generation: 1, key: 'local::bravo' })
+
+    store(`hermes-bots:pane`).set(false)
+
+    expect($pendingBotOpen.get()).toBeNull()
+    expect(mocks.setWorkspaceScope).toHaveBeenCalledWith('sessions')
+
+    harness.dispose()
   })
 })
 

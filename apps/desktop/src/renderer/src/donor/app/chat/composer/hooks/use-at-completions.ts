@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-at-completions.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,7 +46,11 @@ function starterEntries(query: string): CompletionEntry[] {
   }))
 }
 
-function mergeCompletionEntries(preferred: CompletionEntry[], fallback: CompletionEntry[]): CompletionEntry[] {
+function mergeCompletionEntries(
+  preferred: CompletionEntry[],
+  fallback: CompletionEntry[],
+  claimedHandles?: Set<string>
+): CompletionEntry[] {
   const seenHandles = new Set<string>()
 
   return [...preferred, ...fallback].filter(entry => {
@@ -54,6 +58,14 @@ function mergeCompletionEntries(preferred: CompletionEntry[], fallback: Completi
 
     if (!/^@[^:\s]+$/.test(key) || SIMPLE_CONTEXT_REFS.has(key)) {
       return true
+    }
+
+    // A contributed row claimed this handle as another label for a target it
+    // already lists (a bot's raw profile name under its title slug). The
+    // gateway's own row for that name is the same routable identity offered
+    // a second time — keep the contributed row, drop this one.
+    if (claimedHandles?.has(key)) {
+      return false
     }
 
     if (seenHandles.has(key)) {
@@ -132,8 +144,9 @@ export function useAtCompletions(options: {
   // one classify/toItem path renders every row. Provider errors are isolated:
   // a throwing source drops ITS rows, never the popover.
   const contributedEntries = useCallback(
-    (query: string): CompletionEntry[] => {
+    (query: string): { entries: CompletionEntry[]; claimedHandles: Set<string> } => {
       const out: CompletionEntry[] = []
+      const claimedHandles = new Set<string>()
 
       for (const contribution of contributed) {
         const source = contribution.data as ComposerAtCompletionSource | undefined
@@ -148,6 +161,28 @@ export function useAtCompletions(options: {
               continue
             }
 
+            // Handles a source declares as aliases of its own row are the
+            // identity it owns: the gateway lists the same target under one
+            // of them (the raw profile name), and that twin gets dropped in
+            // the merge below.
+            //
+            // A handle that is the row's own text names no alias and claims
+            // nothing. Taken at face value it deleted the row that declared
+            // it, so a bot whose mention tag equals its profile name never
+            // reached the popover — it was listed in the Bots pane and absent
+            // from the one picker that could insert it. The roster emits such
+            // a handle for every local profile, and which rows hit it depends
+            // on the user's naming, so it read as "only the default bot works".
+            const own = normalize(item.insert)
+
+            for (const handle of item.handles || []) {
+              const claimed = normalize(handle)
+
+              if (claimed && claimed !== own) {
+                claimedHandles.add(claimed)
+              }
+            }
+
             out.push({
               text: item.insert,
               display: item.display || item.insert,
@@ -160,7 +195,7 @@ export function useAtCompletions(options: {
         }
       }
 
-      return out
+      return { entries: out, claimedHandles }
     },
     [contributed]
   )
@@ -173,10 +208,10 @@ export function useAtCompletions(options: {
   const fetcher = useCallback(
     async (query: string): Promise<CompletionPayload> => {
       const starters = starterEntries(query)
-      const extras = contributedEntries(query)
+      const { entries: extras, claimedHandles } = contributedEntries(query)
 
       if (!gateway) {
-        return { items: mergeCompletionEntries(extras, starters), query }
+        return { items: mergeCompletionEntries(extras, starters, claimedHandles), query }
       }
 
       const word = REF_STARTERS.has(query) ? `@${query}:` : `@${query}`
@@ -203,9 +238,9 @@ export function useAtCompletions(options: {
         const items = result.items ?? []
         const base = items.length > 0 ? items : starters
 
-        return { items: mergeCompletionEntries(extras, base), query }
+        return { items: mergeCompletionEntries(extras, base, claimedHandles), query }
       } catch {
-        return { items: mergeCompletionEntries(extras, starters), query }
+        return { items: mergeCompletionEntries(extras, starters, claimedHandles), query }
       }
     },
     [cacheKey, contributedEntries, gateway, sessionId, cwd]

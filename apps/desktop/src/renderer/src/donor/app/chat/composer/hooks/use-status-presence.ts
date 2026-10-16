@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-status-presence.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { $composerActionsBySession } from '@/store/composer-actions'
 import { $statusItemsBySession } from '@/store/composer-status'
 import { $previewStatusBySession } from '@/store/preview-status'
 import { $sessionControlBySession } from '@/store/session-control'
+import { $retainedTodosBySession } from '@/store/todos'
 
 /** Structural view of the per-session feeds — they hold different item
  *  types, and all this hook needs from each is "does this key have rows". */
@@ -22,7 +23,11 @@ interface PresenceFeed {
 const FEEDS: PresenceFeed[] = [$statusItemsBySession, $composerActionsBySession, $previewStatusBySession]
 
 const subscribe = (onChange: () => void) => {
-  const offs = [...FEEDS.map(feed => feed.listen(onChange)), $sessionControlBySession.listen(onChange)]
+  const offs = [
+    ...FEEDS.map(feed => feed.listen(onChange)),
+    $sessionControlBySession.listen(onChange),
+    $retainedTodosBySession.listen(onChange)
+  ]
 
   return () => {
     for (const off of offs) {
@@ -42,13 +47,17 @@ const subscribe = (onChange: () => void) => {
  * OTHER sessions. The boolean snapshot bails out of all of that, re-rendering
  * only on the actual show/hide transition.
  */
-export function useSessionStatusPresence(sessionId: string | null): boolean {
+export function useSessionStatusPresence(sessionId: string | null, busy = false): boolean {
   return useSyncExternalStore(subscribe, () => {
     if (!sessionId) {
       return false
     }
 
     if (FEEDS.some(feed => (feed.get()[sessionId]?.length ?? 0) > 0)) {
+      return true
+    }
+
+    if (!busy && ($retainedTodosBySession.get()[sessionId]?.length ?? 0) > 0) {
       return true
     }
 

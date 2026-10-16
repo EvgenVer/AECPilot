@@ -1,16 +1,23 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/types.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import type { ConnectorAccountRow } from '@hermes/shared'
+
 export type ConnectorResidency = 'hosted' | 'local'
 
 export type LocalServerStatus = 'error' | 'needs-auth' | 'off' | 'ok' | 'probing' | 'unknown'
 
+/** One hosted account; `disabled` marks an account a reconnect replaced. */
+export type AccountRow = ConnectorAccountRow
+
 export interface HostedConnectorInput {
   accountLabel?: string
+  /** The app's live accounts, active first, then newest. */
+  accounts?: readonly AccountRow[]
   connected: boolean
   connectedAt?: string
   connectionStatus?: string
@@ -19,6 +26,8 @@ export interface HostedConnectorInput {
   enabled: boolean
   inCatalog?: boolean
   orgLocked?: boolean
+  /** Accounts a reconnect replaced: listed, never counted, never offered for reconnect. */
+  retiredAccounts?: readonly AccountRow[]
   slug: string
   statusReason?: string
   toolsOff?: number
@@ -98,12 +107,14 @@ export type ConnectorVerb =
 
 export interface ConnectorWayHosted {
   accountLabel?: string
+  accounts: readonly AccountRow[]
   connected: boolean
   connectedAt?: string
   disabledTools?: readonly string[]
   fact?: ConnectorFact
   offBy?: ConnectorOffBy
   reason?: ConnectorReason
+  retiredAccounts: readonly AccountRow[]
   state: ConnectorState
   verb?: ConnectorVerb
 }

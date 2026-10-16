@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/searchable-select.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -92,6 +92,12 @@ export function SearchableSelect({
           className={cn(
             controlVariants(),
             'flex items-center justify-between gap-2 whitespace-nowrap',
+            // Width floor: the settings action cell shrink-wraps to content
+            // (flex + justify-self-end), so a blank value collapses `w-full`
+            // to the "Search…" placeholder (~70px) and the popover, which
+            // floors at the trigger width, inherits the squish (#99751).
+            // Same min-width-floor convention as the model-settings selects.
+            'min-w-44',
             !value && 'text-muted-foreground'
           )}
           data-slot="searchable-select-trigger"

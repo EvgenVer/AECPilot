@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/profiles/index.tsx
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -279,6 +279,7 @@ function SoulEditor({ profileName }: { profileName: string }) {
   const p = t.profiles
   const [content, setContent] = useState('')
   const [original, setOriginal] = useState('')
+  const [missing, setMissing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<null | string>(null)
@@ -291,6 +292,7 @@ function SoulEditor({ profileName }: { profileName: string }) {
     setError(null)
     setContent('')
     setOriginal('')
+    setMissing(false)
 
     void (async () => {
       try {
@@ -299,6 +301,7 @@ function SoulEditor({ profileName }: { profileName: string }) {
         if (requestRef.current === profileName) {
           setContent(soul.content)
           setOriginal(soul.content)
+          setMissing(soul.exists === false)
         }
       } catch (err) {
         if (requestRef.current === profileName) {
@@ -321,6 +324,7 @@ function SoulEditor({ profileName }: { profileName: string }) {
     try {
       await updateProfileSoul(profileName, content)
       setOriginal(content)
+      setMissing(false)
       notify({ kind: 'success', title: p.soulSaved, message: profileName })
     } catch (err) {
       setError(err instanceof Error ? err.message : p.failedSaveSoul)
@@ -334,7 +338,7 @@ function SoulEditor({ profileName }: { profileName: string }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <PanelSectionLabel className="text-[0.7rem] tracking-[0.14em]">SOUL.md</PanelSectionLabel>
-          <p className="text-xs text-muted-foreground">{p.soulDesc}</p>
+          <p className="text-xs text-muted-foreground">{missing ? p.soulMissing : p.soulDesc}</p>
         </div>
         {dirty && <span className="text-[0.65rem] text-muted-foreground">{p.unsavedChanges}</span>}
       </div>

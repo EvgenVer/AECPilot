@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-row-details.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,16 @@ const oneLine = (value: null | string) => value?.replace(/\s+/g, ' ').trim() || 
 
 export const sessionRowEstimate = (density: SessionListDensity) =>
   ({ compact: 28, comfortable: 45, detailed: 63 })[density]
+
+/** Virtual-list placement estimate for the Inbox-style card. A full card
+ *  stacks four text lines (header, title, preview, model/size) where the
+ *  tallest inline density stacks three, plus the card's own padding — and a
+ *  title that wraps to two lines on a narrow sidebar adds one more title
+ *  line (#88473). Deliberately at or ABOVE that worst case: an oversized
+ *  estimate paints a brief gap that self-measurement closes, while an
+ *  undersized one paints rows over their neighbours (and the divider below)
+ *  on a cold start, before any measurement can correct it. */
+export const SESSION_CARD_ROW_ESTIMATE_PX = 96
 
 export function sessionRowDetails(session: SessionInfo, fmt: SessionRowFormatters): SessionRowDetails {
   const preview = oneLine(session.preview)

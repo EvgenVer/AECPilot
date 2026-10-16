@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/layout-presets.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the 'terminal-deck' preset and its tree — SPEC HX7-прим. (owner decision 2026-10-12)
@@ -76,6 +76,19 @@ const BASIC_RESTING = ['terminal', 'files', 'review'] as const
 
 // EDIT [3]: TERMINAL_TREE (the «Terminal deck» preset) — SPEC HX7-прим. (owner decision 2026-10-12).
 
+// Terminal deck places the tooling without opening it: the terminal rests as
+// its bottom rail and files/review as a closed right column, so ⌃` and ⌘J open
+// each one in its deck slot. Review rests with files: closing the file tree
+// collapses their shared column, and an open review there would leave ⌘G
+// reading open while nothing shows.
+const TERMINAL_RESTING = ['terminal', 'files', 'review'] as const
+
+// The first-run intro's borrowed layout: the chat alone, no tab strip. Unlisted,
+// and applied while layout persistence is held (onboarding/first-run/assembly.ts).
+export const DEMO_LAYOUT_ID = 'demo'
+
+export const DEMO_TREE = group(['workspace'], { tabStrip: 'never' })
+
 const QUAD_TREE = split(
   'column',
   [
@@ -102,6 +115,7 @@ export function registerLayoutPresets() {
     { id: 'basic', title: 'Basic', order: 5, tree: BASIC_TREE, resting: BASIC_RESTING, tier: 'advanced' },
     { id: 'focus', title: 'Focus', order: 10, tree: FOCUS_TREE, resting: ['terminal'], tier: 'advanced' },
     // EDIT [3]: 'terminal-deck' — SPEC HX7-прим. (owner decision 2026-10-12).
-    { id: 'quad', title: 'Quad', order: 30, tree: QUAD_TREE, tier: 'advanced' }
+    { id: 'quad', title: 'Quad', order: 30, tree: QUAD_TREE, tier: 'advanced' },
+    { id: DEMO_LAYOUT_ID, listed: false, title: 'Demo', order: 40, tree: DEMO_TREE }
   ])
 }

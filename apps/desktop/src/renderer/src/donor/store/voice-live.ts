@@ -1,14 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/voice-live.ts
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
 
 import { fetchVoiceLiveStatus, type VoiceLiveStatus } from '@/lib/voice-live'
-import { activeGateway } from '@/store/gateway'
+import { activeGatewayProfileKey, requestGatewayForProfile } from '@/store/gateway'
 
 /**
  * `voice.voice_chat_mode` as the backend resolves it, plus whether GPT-Live can
@@ -48,15 +48,13 @@ export function selectedVoiceChatMode(status: null | VoiceLiveStatus = $voiceLiv
  * the app is talking to) and re-read the resolved status, so the menu shows
  * what the backend will actually mount next. Takes effect on the NEXT
  * conversation; an active one keeps its engine.
+ *
+ * Routed by profile, not by socket: `config.set` is `@_profile_scoped`, so on
+ * the shared-primary route an unscoped write lands in the LAUNCH profile's
+ * config.yaml, not the viewed one (#125969 class).
  */
 export async function setVoiceChatMode(mode: 'chained' | 'gpt-live'): Promise<null | VoiceLiveStatus> {
-  const gateway = activeGateway()
-
-  if (!gateway) {
-    throw new Error('gateway not connected')
-  }
-
-  await gateway.request('config.set', { key: 'voice.voice_chat_mode', value: mode })
+  await requestGatewayForProfile(activeGatewayProfileKey(), 'config.set', { key: 'voice.voice_chat_mode', value: mode })
 
   return refreshVoiceLiveStatus()
 }

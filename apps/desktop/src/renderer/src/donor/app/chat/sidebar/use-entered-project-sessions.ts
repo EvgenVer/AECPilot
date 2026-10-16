@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/use-entered-project-sessions.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { replaceEqualDeep } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { fetchProjectSessions } from '@/store/projects'
@@ -23,6 +24,12 @@ export function useEnteredProjectSessions(
   const [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [retryToken, setRetryToken] = useState(0)
+
+  // Refetch when the entered project's own overview node changes, not on every
+  // tree refresh: each `projects.project_sessions` call hydrates the whole tree
+  // on the backend, which takes seconds over a remote gateway (#77591). The
+  // tree keeps unchanged nodes by reference, so this is stable across no-ops.
+  const enteredNode = projectId ? treeRevision.find(node => node.id === projectId) : undefined
 
   useEffect(() => {
     setProject(null)
@@ -43,7 +50,8 @@ export function useEnteredProjectSessions(
     void fetchProjectSessions(projectId)
       .then(next => {
         if (!cancelled) {
-          setProject(next)
+          // An unchanged answer keeps its reference, so the lanes don't rebuild.
+          setProject(current => replaceEqualDeep(current, next))
         }
       })
       .catch(() => {
@@ -60,7 +68,9 @@ export function useEnteredProjectSessions(
     return () => {
       cancelled = true
     }
-  }, [projectId, ready, treeRevision, scope, retryToken])
+  }, [projectId, ready, enteredNode, scope, retryToken])
 
-  return { project, failed, loading, retry: () => setRetryToken(token => token + 1) }
+  // A background refetch keeps painting the rows it has; only a drill-in with
+  // nothing loaded yet reports loading (the sidebar shows skeletons for it).
+  return { project, failed, loading: loading && !project, retry: () => setRetryToken(token => token + 1) }
 }

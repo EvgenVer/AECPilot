@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] the default profile's display name -> ours (SPEC C12)
@@ -1487,7 +1487,9 @@ export function groupSpeakerLabel(name?: null | string, group?: null | string) {
   if (boundary !== -1) {
     const connection = trimmed.slice(0, boundary)
     const profile = trimmed.slice(boundary + 2)
-    const title = String(meta?.[trimmed]?.title || meta?.[profile]?.title || '').trim()
+    // Exact key only: the bare `profile` key is a single-source record and
+    // names whichever machine wrote it, never this connection's bot.
+    const title = String(meta?.[trimmed]?.title || '').trim()
     const label = title || (profile.toLowerCase() === 'default' ? 'AECPilot' : profile)
 
     // Another connection still exposes this name: keep them tellable apart.
@@ -1504,8 +1506,11 @@ export function groupSpeakerLabel(name?: null | string, group?: null | string) {
   }
 
   // Legacy rungs for names the roster cannot place: a bare-keyed Bot Mode
-  // title, then the local row's display_name, then default → Hermes.
-  const title = String(meta?.[trimmed]?.title || '').trim()
+  // title (single-source rosters only — once rows are connection-scoped the
+  // bare key cannot say which machine it named), then the local row's
+  // display_name, then default → Hermes.
+  const scoped = rows.some(bot => bot.sourceScoped || bot.remoteSource)
+  const title = scoped ? '' : String(meta?.[trimmed]?.title || '').trim()
 
   if (title) {
     return title

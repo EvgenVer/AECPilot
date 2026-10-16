@@ -603,6 +603,32 @@ const IMPLEMENTED: Record<string, unknown> = {
   hudModifier: undefined,
   screenshot: undefined,
   windowControls: undefined,
+  // Члены, приехавшие с пином 0.22.2 (задача T20.7). Объявлены отсутствующими,
+  // потому что их код проверяет НАЛИЧИЕ члена, а заглушка ответила бы «есть»:
+  //   поверхности, которых в продукте нет: `assumeFreshInstall` (их онбординг,
+  //     HX26), `freeTierChallenge` (вход в их облако, HX3), `desktopMetrics`
+  //     (телеметрия для Nous, HX31), `updateHold` (их обновлятор, HX4),
+  //     `localSkin` (оформление из их `display.skin` до подключения шлюза —
+  //     у нас тема своя);
+  //   их второе окно предпросмотра и окно комнаты специалистов (`windowRelay`)
+  //     — их ветка на отсутствие оставляет всё в одном окне;
+  //   `probeLocalBackend` — переключатель «эта машина / удалённый шлюз» в
+  //     боковой панели: шлюз у нас один, свой, и пункт без члена не рисуется;
+  //   `getEmbedHostOrigin` — их локальный http-источник для встроенного
+  //     YouTube; без члена их код встраивает со своего источника, как раньше;
+  //   `logLine` и `setPreviewGuestHidden` объявлены `=> void` (см. ниже,
+  //     D-42): строки в их журнал и скрытие гостя предпросмотра за кадром
+  //     их код зовёт через `?.`, и отсутствие — их же ветка.
+  assumeFreshInstall: undefined,
+  desktopMetrics: undefined,
+  freeTierChallenge: undefined,
+  getEmbedHostOrigin: undefined,
+  localSkin: undefined,
+  logLine: undefined,
+  probeLocalBackend: undefined,
+  setPreviewGuestHidden: undefined,
+  updateHold: undefined,
+  windowRelay: undefined,
 
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main
@@ -1035,8 +1061,10 @@ const IMPLEMENTED: Record<string, unknown> = {
   // терминале» показывался бы и не работал.
   openSessionInTerminal: undefined,
 
-  setKeepAwake(on: boolean): void {
-    void window.aecpilot.setKeepAwake(on)
+  // С 0.22.2 их окно шлёт РЕЖИМ, а не булево (задача T20.7): строка `'off'`
+  // истинна, и прежняя подпись держала бы машину бодрствующей вопреки выбору.
+  setKeepAwake(mode: 'always' | 'off' | 'while-working' | boolean): void {
+    void window.aecpilot.setKeepAwake(mode)
   },
 
   // ЧЛЕН, ОБЪЯВЛЕННЫЙ `=> void`, ОБЯЗАН ВОЗВРАЩАТЬ `void`.

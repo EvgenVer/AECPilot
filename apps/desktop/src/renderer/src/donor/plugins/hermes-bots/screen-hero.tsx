@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/screen-hero.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { botSelectionKey } from './data'
 import { useBots } from './i18n'
-import { displayRequest, type DisplayThumbnail } from './screen-connection'
+import { displayRequest, type DisplayThumbnail, isManagedBackend } from './screen-connection'
 import { openBotScreen } from './screen-open'
 import { type PortalTone, useScreenPortalState } from './screen-portal'
 import type { BotMeta, RosterRow } from './types'
@@ -138,7 +138,7 @@ function ScreenHeroContent({ bot, meta }: { bot: RosterRow; meta?: BotMeta | nul
           off: t.screen.heroStopped,
           missing: t.screen.heroNotInstalled,
           unsupported: t.screen.portalUnsupported,
-          unavailable: t.screen.portalUnavailable,
+          unavailable: isManagedBackend(bot) ? t.screen.portalUnavailableManaged : t.screen.portalUnavailable,
           unknown: t.screen.heroConnecting
         }[tone]
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/recent-session.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,7 +23,7 @@ import * as sdk from '@hermes/plugin-sdk'
 import { haptic, host } from '@hermes/plugin-sdk'
 
 import { saveSelectedRosterBot } from './bot-state'
-import { prepareBotSource } from './canonical-chat'
+import { prepareBotSource, resolveExpectHistory } from './canonical-chat'
 import { openRosterBot } from './roster-actions'
 import { botConnectionRoute, botWorkspaceOwnerKey, setBotsWorkspaceOwner } from './routing'
 import type { RosterRow } from './types'
@@ -62,7 +62,7 @@ export async function openBotRecentSession(bot: RosterRow): Promise<boolean> {
       // stays where the row click expects it (same shape as `+` side threads).
       intent: 'tab',
       awaitHydration: true,
-      expectHistory: (bot.last_session?.message_count ?? 1) > 0,
+      expectHistory: resolveExpectHistory(bot.last_session),
       forceResume: true,
       hydrationTimeoutMs: Number.isFinite(sdk.BOT_CHAT_SESSION_HYDRATION_TIMEOUT_MS)
         ? sdk.BOT_CHAT_SESSION_HYDRATION_TIMEOUT_MS

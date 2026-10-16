@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/index.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -187,7 +187,10 @@ export const Thread = memo(function Thread({
 
   return (
     <ThreadEditContext.Provider value={editContext}>
-      <div className="relative grid h-full min-h-0 max-w-full grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent contain-[layout_paint]">
+      <div
+        className="relative grid h-full min-h-0 max-w-full grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent contain-[layout_paint]"
+        data-slot="thread"
+      >
         <ThreadMessageList
           clampToComposer={clampToComposer}
           components={messageComponents}
@@ -196,6 +199,7 @@ export const Thread = memo(function Thread({
           scrollProfile={scrollProfile}
           sessionId={sessionId}
           sessionKey={sessionKey}
+          sessionLoading={loading === 'session'}
         />
         {loading === 'session' && <CenteredThreadSpinner />}
         <ThreadTimeline />

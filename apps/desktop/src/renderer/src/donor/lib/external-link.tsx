@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/external-link.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -111,10 +111,19 @@ export function urlSlugTitleLabel(value: string): string {
       continue
     }
 
-    const titled = cleaned.replace(/\b[a-z]/g, c => c.toUpperCase())
+    // Title-case word slugs (`some-guide` → `Some Guide`), but keep the
+    // exact casing of a separator-less token that looks like a
+    // case-sensitive identifier — it carries a digit, a dot, or mixed case,
+    // as in a release tag (`v1.0.1`) or a filename (`README.md`) — so the
+    // link never invents a different identifier. A plain lowercase word
+    // (`quantumcomputing` → `Quantumcomputing`) still title-cases. (#121321)
+    const looksLikeIdentifier = /\d/.test(cleaned) || /[A-Z]/.test(cleaned) || cleaned.includes('.')
 
-    if (titled.length >= 4) {
-      return titled
+    const label =
+      looksLikeIdentifier && !cleaned.includes(' ') ? cleaned : cleaned.replace(/\b[a-z]/g, c => c.toUpperCase())
+
+    if (label.length >= 4) {
+      return label
     }
   }
 

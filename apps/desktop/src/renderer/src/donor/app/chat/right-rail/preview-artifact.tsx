@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-artifact.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -179,7 +179,7 @@ function VersionStepper({
  * The target only carries the artifact id — content is read live from the
  * registry, so an open tab picks up new versions as the model iterates.
  */
-export function ArtifactPreview({ target }: { target: PreviewTarget }) {
+export function ArtifactPreview({ onClose, target }: { onClose?: () => void; target: PreviewTarget }) {
   const { t } = useI18n()
   const copy = t.artifactPreview
   const artifactId = target.url
@@ -195,7 +195,13 @@ export function ArtifactPreview({ target }: { target: PreviewTarget }) {
   const record = useMemo(() => findArtifact(registry, artifactId), [artifactId, registry])
 
   if (!record) {
-    return <PreviewEmptyState body={copy.missingBody} title={copy.missingTitle} />
+    return (
+      <PreviewEmptyState
+        body={copy.missingBody}
+        primaryAction={onClose ? { label: t.common.close, onClick: onClose } : undefined}
+        title={copy.missingTitle}
+      />
+    )
   }
 
   const renderable = record.kind === 'html' || record.kind === 'svg'

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/ui.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -150,7 +150,9 @@ export function arcState(task: KanbanTask, fallbackAssignee: string): ArcState |
 /** Ticking "working · 34s" line for running cards (elapsed since claim). */
 export function RunClock({ task }: { task: KanbanTask }) {
   const k = useKanban()
-  const elapsed = useTicking(task.started_at)
+  // Current run's start; a retried task's started_at is its first-ever start,
+  // so tick from the fresh run. Older backends omit the field — fall back.
+  const elapsed = useTicking(task.current_run_started_at ?? task.started_at)
 
   if (!elapsed) {
     return null

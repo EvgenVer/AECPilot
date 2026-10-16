@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/preview-act/types.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -85,6 +85,9 @@ export interface PreviewActAction {
   selector?: string
   /** type: press Enter (and submit the owning form) after entering text. */
   submit?: boolean
+  /** press: send a printable key even when the located target is body/html.
+   *  Off by default — that key would otherwise be a page shortcut. */
+  allowShortcut?: boolean
   text?: string
   to?: 'bottom' | 'top'
 }
@@ -103,6 +106,9 @@ export interface PreviewActResult {
   /** Viewport centre of a located target, for aiming real pointer input at it. */
   point?: { x: number; y: number }
   success: boolean
+  /** locate: the target's tag, so a press can refuse body/html without another
+   *  round trip. */
+  tag?: string
   title?: string
   /** locate: whether the target actually takes typed text. */
   typable?: boolean

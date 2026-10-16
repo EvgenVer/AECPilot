@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/shared.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@
  * `setPluginCtx`, and every reader goes through `getPluginCtx()`.
  */
 
-import type { PluginContext } from '@hermes/plugin-sdk'
+import { atom, type PluginContext } from '@hermes/plugin-sdk'
 
 export const ID = 'hermes-bots'
 
@@ -35,11 +35,19 @@ export function setPluginCtx(ctx: PluginContext | null) {
  *  live in the same module. */
 let botOpenGeneration = 0
 
+/** Cold open still in flight. Published after the fronted-tab miss and before
+ *  source prep. Not chat ownership — never route or highlight from this key.
+ *  The generation guards the clear: a superseded flight never releases its
+ *  successor's mark. A bump (another open, a group, or Sessions) drops it. */
+export const $pendingBotOpen = atom<null | { generation: number; key: string }>(null)
+
 export function getBotOpenGeneration() {
   return botOpenGeneration
 }
 
 /** Invalidate every in-flight open; returns the generation that now owns it. */
 export function bumpBotOpenGeneration() {
+  $pendingBotOpen.set(null)
+
   return ++botOpenGeneration
 }

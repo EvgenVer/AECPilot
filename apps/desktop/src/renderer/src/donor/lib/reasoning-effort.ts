@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/reasoning-effort.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,7 +24,8 @@ const SHORT_LABELS: Record<string, string> = {
 
 /**
  * A pick the route does not send verbatim: `ultra` is a Hermes-internal step
- * that every route clamps to its strongest level (`max` on OpenAI-compatible wires), and the
+ * that routes clamp to their strongest level (`max` on OpenAI-compatible wires; the Codex
+ * app-server sends it verbatim as codex's own mode), and the
  * CLI's `/reasoning` says so ("ultra (sends max on this route)"). The wire
  * level comes from the gateway's `session.info.reasoning_effort_wire`; nothing
  * is inferred client-side, so an unknown ('' — not yet stamped, or an

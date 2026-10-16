@@ -65,13 +65,21 @@ const SKIP_FILES = new Set([
  * задача 3.B5ж): реплики, которые он ПРОИЗНОСИТ. Что его никто не зовёт,
  * держит `voice-by-human-decision.test.ts`. */
 const DEAD_SURFACE_FILES = new Set([
-  join('components', 'onboarding-chat', 'setup-profile.ts'),
-  join('store', 'onboarding-script.ts'),
+  // 0.22.2 (T20.7): их онбординг-чат ушёл из их дерева вместе со своими
+  // промптами (`onboarding-chat/*`, `onboarding-script.ts`) — три прежние
+  // строки этого списка сняты вместе с файлами.
   join('app', 'chat', 'composer', 'hooks', 'use-voice-live-conversation.ts'),
-  // Выбор раскладки их онбординг-чата (пин 0.21.5): его зовут только файлы
-  // того же чата — `cards/setup.tsx` и `setup-profile.ts` выше.
-  join('components', 'onboarding-chat', 'options.tsx')
+  // Окно проверки их бесплатного тарифа (SPEC HX3) — файл ИХ главного
+  // процесса, в зоне ради типов `global.d.ts`; наш главный процесс его не
+  // открывает, и заголовок окна никто не увидит.
+  join('hermes-electron', 'challenge-window.ts')
 ])
+
+/** Их каталоги, разрезанные по разделам (0.22.2, T20.7): `ar_boot.ts`,
+ * `en_settings.ts`, `types_billing.ts` … — части тех же каталогов, что
+ * пропускаются выше целиком, и судьба у них та же: английский и русский
+ * переписывает `debrand.ts`, остальные языки не предлагаются (C7). */
+const SPLIT_CATALOG = /^(ar|de|en|es|fr|ja|ru|zh|zh-hant|types)_[a-z_]+\.ts$/
 
 const TECHNICAL = new RegExp(
   [
@@ -162,7 +170,14 @@ const TECHNICAL = new RegExp(
     // Пополнение при подъёме донора на 0.21.5 (задача 3.B6) — все технические:
     'hermes\\.connectors\\.', // ключи их локального хранилища коннекторов
     '\\.restartHermes', // ключ каталога, как `notifications.updateHermes`
-    'hermes_tool_labels' // имя аргумента строки инструмента, которое модель не видит
+    'hermes_tool_labels', // имя аргумента строки инструмента, которое модель не видит
+    // Пополнение при подъёме донора на 0.22.2 (задача T20.7) — все технические:
+    '__hermesPrintGuard', // флаг, который предпросмотр вписывает в ЧУЖУЮ страницу
+    '\\[Hermes\\] Printing is disabled', // строка консоли той страницы, не экрана
+    "^'hermes-root'$", // имя корня в их типах моста
+    '^`hermes`$', // имя исполняемого файла ядра в их типах
+    'hermes_not_connected', // код ошибки, а не текст
+    'hermes_connection_op' // имя операции в их журнале подключений
   ].join('|')
 )
 
@@ -176,6 +191,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
       continue
     }
     if (!/\.tsx?$/.test(entry) || SKIP_FILES.has(entry)) continue
+    if (SPLIT_CATALOG.test(entry) && dir.endsWith('i18n')) continue
     if (/\.test\.tsx?$/.test(entry)) continue // тесты зоны — не интерфейс, см. шапку
     if (DEAD_SURFACE_FILES.has(path.slice(ZONE.length + 1))) continue
     out.push(path)

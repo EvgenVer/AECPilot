@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/tool-view.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { atom, computed, type ReadableAtom } from 'nanostores'
+import { atom, computed, onStop, type ReadableAtom } from 'nanostores'
 
 import { persistBoolean, storedBoolean } from '@/lib/storage'
 import { modeBound } from '@/store/interface-mode'
@@ -50,6 +50,11 @@ export function $toolDisclosureOpen(id: string): ReadableAtom<boolean | undefine
 
   if (!cached) {
     cached = computed($toolDisclosureStates, states => states[id])
+    onStop(cached, () => {
+      if (disclosureOpenCache.get(id) === cached) {
+        disclosureOpenCache.delete(id)
+      }
+    })
     disclosureOpenCache.set(id, cached)
   }
 
@@ -68,6 +73,11 @@ export function $anyToolDisclosureOpen(ids: readonly string[]): ReadableAtom<boo
 
   if (!cached) {
     cached = computed($toolDisclosureStates, states => ids.some(id => Boolean(states[id])))
+    onStop(cached, () => {
+      if (anyDisclosureOpenCache.get(key) === cached) {
+        anyDisclosureOpenCache.delete(key)
+      }
+    })
     anyDisclosureOpenCache.set(key, cached)
   }
 

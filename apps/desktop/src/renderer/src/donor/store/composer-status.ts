@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/composer-status.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -342,8 +342,22 @@ export function reconcileBackgroundProcesses(sid: string, procs: GatewayProcessE
 
   for (const [id, item] of fresh) {
     if (item.state !== 'running' && prevState.get(id) === 'running') {
+      let body = item.title
+
+      if (item.exitCode !== undefined) {
+        body += ` (exit ${item.exitCode})`
+      }
+
+      if (item.output) {
+        const tailLines = item.output.trim().split('\n').slice(-3)
+
+        if (tailLines.length > 0) {
+          body += '\n' + tailLines.join('\n')
+        }
+      }
+
       dispatchNativeNotification({
-        body: item.title,
+        body,
         kind: 'backgroundDone',
         sessionId: sid,
         title: translateNow(

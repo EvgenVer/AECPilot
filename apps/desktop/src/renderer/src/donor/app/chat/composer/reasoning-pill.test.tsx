@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/reasoning-pill.test.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -134,6 +134,49 @@ describe('ReasoningPill', () => {
       publishSessionState('rt-1', applySessionInfoStatePatch(state, sessionInfoStatePatch({ reasoning_effort: 'max' })))
     })
     expect(label()).toBe('Max')
+  })
+
+  it('re-stamps the wire level when a new pick is confirmed, so an old clamp never sticks', () => {
+    $selectedStoredSessionId.set('stored-1')
+
+    act(() => {
+      // Ultra on the direct Responses route was confirmed as "sends max".
+      publishSessionState('rt-1', {
+        ...createClientSessionState('stored-1'),
+        reasoningEffort: 'ultra',
+        reasoningEffortWire: 'max'
+      })
+      $activeSessionId.set('rt-1')
+    })
+
+    render(
+      <SessionViewProvider value={PRIMARY_SESSION_VIEW}>
+        <ReasoningPill disabled={false} model={modelState()} />
+      </SessionViewProvider>
+    )
+
+    const label = () => screen.getByTestId('reasoning-pill').textContent
+
+    expect(label()).toBe('Ultra→Max')
+
+    // The menu wrote Medium optimistically before this patch existed (old wire kept),
+    // then the gateway confirmed medium/medium: only the wire differs from the state.
+    act(() => {
+      const state = $sessionStates.get()['rt-1']!
+      publishSessionState('rt-1', { ...state, reasoningEffort: 'medium' })
+    })
+    act(() => {
+      const state = $sessionStates.get()['rt-1']!
+
+      publishSessionState(
+        'rt-1',
+        applySessionInfoStatePatch(
+          state,
+          sessionInfoStatePatch({ reasoning_effort: 'medium', reasoning_effort_wire: 'medium' })
+        )
+      )
+    })
+    expect(label()).toBe('Med')
   })
 
   it('falls back to the profile default once the runtime reports the session has no pin of its own', () => {

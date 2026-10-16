@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/tool-render-class.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,21 +32,32 @@ export function isFileEditTool(toolName: string): boolean {
 //     render their own markup: a question the user has to answer, an image
 //     they asked for, the several agents a fan-out is running.
 //   - `manage_connections` and `manage_catalog` are consent cards; their controls must stay visible.
+//   - `set_theme` shows a picker card while it waits for the user, then a one-line receipt.
+//   - `setup_beat` is the onboarding chat's card for one beat, then a one-line receipt.
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
 // what a run summarizes and what the live ticker cycles through.
-const CARD_TOOL_NAMES = new Set(['clarify', 'delegate_task', 'image_generate', 'manage_catalog'])
+const CARD_TOOL_NAMES = [
+  'clarify',
+  'delegate_task',
+  'image_generate',
+  'manage_catalog',
+  'manage_connections',
+  'set_theme',
+  'setup_beat'
+] as const
+
+export type CardToolName = (typeof CARD_TOOL_NAMES)[number]
+
+export function isCardToolName(toolName: string): toolName is CardToolName {
+  return (CARD_TOOL_NAMES as readonly string[]).includes(toolName)
+}
 
 // Name the run splitter uses for a manage_connections part it has classified as a card.
 export const CONNECTION_CARD_KEY = 'manage_connections:card'
 
 export function isCardTool(toolName: string): boolean {
-  return (
-    CARD_TOOL_NAMES.has(toolName) ||
-    toolName === CONNECTION_CARD_KEY ||
-    isFileEditTool(toolName) ||
-    toolName === 'manage_connections'
-  )
+  return isCardToolName(toolName) || toolName === CONNECTION_CARD_KEY || isFileEditTool(toolName)
 }
 
 // Activity tools that render nothing at all: `todo` parts are hoisted to a
