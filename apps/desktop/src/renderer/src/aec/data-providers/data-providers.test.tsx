@@ -50,6 +50,7 @@ function state(patch: Partial<DataProvidersState> = {}): DataProvidersState {
     ],
     rag: { ok: true },
     memory: { ok: true },
+    memoryPackages: true,
     ...patch
   }
 }

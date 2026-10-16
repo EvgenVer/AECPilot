@@ -54,6 +54,8 @@ export type MemoryLayerVerdict =
 interface ProviderRow {
   name?: unknown
   status?: unknown
+  available?: unknown
+  configured?: unknown
   setup?: { dependencies_installed?: unknown } | null
 }
 
@@ -67,8 +69,17 @@ function rows(payload: unknown): ProviderRow[] {
  * говорит о провайдере до первого хода.
  *
  * Форма ответа снята с их кода, а значения — с живого прогона (см. шапку).
+ *
+ * `packagesInstalled` — ответ главного процесса, стоят ли пакеты Mem0 в venv ядра
+ * (задача T20.10). С ядра 0.22 их «зависимости не установлены» значит «не
+ * поставлены ИХ менеджером пакетов», а наши стоят мимо него по пину (T20.12):
+ * ядро отвечает `unavailable` при работающей памяти. Когда пакеты на месте,
+ * приговор выносится по тому, что ядро сказало помимо этого.
  */
-export function memoryLayerVerdict(payload: unknown): MemoryLayerVerdict {
+export function memoryLayerVerdict(
+  payload: unknown,
+  packagesInstalled: boolean | null = null
+): MemoryLayerVerdict {
   const active = (payload as { active?: unknown } | null)?.active
   if (typeof active !== 'string' || active.trim() === '') return { kind: 'off' }
 
@@ -87,10 +98,11 @@ export function memoryLayerVerdict(payload: unknown): MemoryLayerVerdict {
     case 'unavailable':
       // Их правило: `unavailable` + невыполненные зависимости = не установлен
       // пакет; `unavailable` без этого — всё остальное, чего мы не знаем.
-      return {
-        kind: 'down',
-        reason: row.setup?.dependencies_installed === false ? 'package' : 'unknown'
-      }
+      if (row.setup?.dependencies_installed !== false) return { kind: 'down', reason: 'unknown' }
+      if (packagesInstalled !== true) return { kind: 'down', reason: 'package' }
+      // Пакеты стоят (наша проверка) — их «не установлено» про учёт их менеджера.
+      if (row.configured === false) return { kind: 'down', reason: 'config' }
+      return row.available === true ? { kind: 'ok' } : { kind: 'down', reason: 'unknown' }
     default:
       return { kind: 'down', reason: 'unknown' }
   }

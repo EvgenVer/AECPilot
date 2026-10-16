@@ -799,6 +799,10 @@ export interface DataProvidersState {
   keys: { envOverrides: boolean; envVar: string; hasKey: boolean }[]
   rag: { ok: boolean; reason?: string }
   memory: { ok: boolean; reason?: string }
+  /** Стоят ли пакеты Mem0 в venv ядра (T20.10): с ядра 0.22 их `/api/memory`
+   *  считает установленным только поставленное их менеджером пакетов. `null` —
+   *  не проверить (venv не прочитан). */
+  memoryPackages: boolean | null
 }
 
 /** Состояние графового прогона. Отдельное от `IngestState` нарочно: уровень 1

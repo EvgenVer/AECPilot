@@ -15,7 +15,8 @@ export const EMPTY_STATE: DataProvidersState = {
   presets: [],
   keys: [],
   rag: { ok: false },
-  memory: { ok: false }
+  memory: { ok: false },
+  memoryPackages: null
 }
 
 /** Агент по подписке (их OAuth-провайдеры, например `openai-codex`): у входа нет

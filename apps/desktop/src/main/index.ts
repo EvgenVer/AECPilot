@@ -12,7 +12,7 @@ import {
 } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -236,6 +236,7 @@ import {
   DISABLED_SKILLS,
   PREVIOUS_DEFERRED_TOOLS
 } from './agent-defaults-pure'
+import { MEM0_DISTRIBUTIONS, distributionsInstalled } from './core-packages-pure'
 import {
   addSourceToProject,
   createProject,
@@ -432,6 +433,7 @@ async function loadMemoryConfigModule(): Promise<MemoryConfigModule> {
 interface HermesEnvModule {
   HERMES_SRC_DIR: string
   PYTHON_BIN: string
+  VENV_DIR: string
 }
 
 // Задача 5.16: читателю фактов памяти нужен python ЯДРА (mem0 стоит в его venv)
@@ -3941,9 +3943,27 @@ ipcMain.handle('data-providers:get', async (): Promise<DataProvidersState> => {
       envOverrides: profileDir ? keyEnvVarStatus(profileDir, envVar) : false
     })),
     rag: rag.ok ? { ok: true } : { ok: false, reason: rag.reason },
-    memory: memory.ok ? { ok: true } : { ok: false, reason: memory.reason }
+    memory: memory.ok ? { ok: true } : { ok: false, reason: memory.reason },
+    memoryPackages: await mem0PackagesInstalled()
   }
 })
+
+/** Задача T20.10: см. `core-packages-pure.ts`. На Windows venv кладёт пакеты в
+ * `Lib/site-packages`, в остальных системах — в `lib/python3.N/site-packages`. */
+async function mem0PackagesInstalled(): Promise<boolean | null> {
+  try {
+    const { VENV_DIR } = await loadHermesEnvModule()
+    let site = join(VENV_DIR, 'Lib', 'site-packages')
+    if (!existsSync(site)) {
+      const python = readdirSync(join(VENV_DIR, 'lib')).find((name) => name.startsWith('python'))
+      if (!python) return null
+      site = join(VENV_DIR, 'lib', python, 'site-packages')
+    }
+    return distributionsInstalled(readdirSync(site), MEM0_DISTRIBUTIONS)
+  } catch {
+    return null
+  }
+}
 
 /** Задача 3G.52: один запрос к провайдеру его ключом. Ключ берётся из нашего
  *  хранилища (или окружения запуска) и уходит только в заголовок; в тексте отказа

@@ -96,6 +96,46 @@ describe('причина 1: не установлен пакет', () => {
   })
 })
 
+// T20.10. Ядро 0.22: «зависимости не установлены» = не поставлены ИХ менеджером
+// пакетов. Замер на копии профиля автотестов с нашими пакетами в venv ядра:
+// `available: true`, `configured: true`, `unavailable`, `dependencies_installed: false`.
+const PM_BOOKKEEPING = {
+  name: 'mem0',
+  available: true,
+  configured: true,
+  status: 'unavailable',
+  setup: { dependencies_installed: false }
+}
+
+describe('ядро 0.22: «не установлено» их менеджером при наших пакетах (T20.10)', () => {
+  it('пакеты стоят — памяти ничего не мешает, уведомления нет', () => {
+    expect(memoryLayerVerdict(payload(PM_BOOKKEEPING), true)).toEqual({ kind: 'ok' })
+  })
+
+  it('пакетов нет или не проверить — прежний приговор «не установлен пакет»', () => {
+    expect(memoryLayerVerdict(payload(PM_BOOKKEEPING), false)).toEqual({
+      kind: 'down',
+      reason: 'package'
+    })
+    expect(memoryLayerVerdict(payload(PM_BOOKKEEPING), null)).toEqual({
+      kind: 'down',
+      reason: 'package'
+    })
+  })
+
+  it('пакеты стоят, но провайдер не настроен — причина «настройка», а не тишина', () => {
+    const row = { ...PM_BOOKKEEPING, configured: false }
+    expect(memoryLayerVerdict(payload(row), true)).toEqual({ kind: 'down', reason: 'config' })
+  })
+
+  it('пакеты стоят, а провайдер себя недоступным называет — причина не известна', () => {
+    expect(memoryLayerVerdict(payload(NO_PACKAGE), true)).toEqual({
+      kind: 'down',
+      reason: 'unknown'
+    })
+  })
+})
+
 describe('причина 2: нет ключа / не настроено', () => {
   it('пустой профиль с выбранным провайдером — отказ по настройке', () => {
     expect(memoryLayerVerdict(payload(NEEDS_CONFIG))).toEqual({ kind: 'down', reason: 'config' })
