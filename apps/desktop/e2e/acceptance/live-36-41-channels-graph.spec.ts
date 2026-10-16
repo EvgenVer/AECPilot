@@ -393,10 +393,14 @@ test('41.4.1 в списке каналов есть карточки «Microsof
   const shown = (await shownChannels(page)).map((row) => row.id)
   expect(shown).toContain('teams')
   expect(shown).toContain('msgraph_webhook')
-  await expect(page.getByRole('button', { name: 'Microsoft Teams', exact: true })).toBeVisible()
+  // Список у ядра (выше) и карточки на странице — разные моменты: с донором
+  // 0.22.2 страница дольше держит «Загрузка платформ сообщений…».
+  await expect(page.getByRole('button', { name: 'Microsoft Teams', exact: true })).toBeVisible({
+    timeout: 30000
+  })
   await expect(
     page.getByRole('button', { name: 'Microsoft Graph Webhook', exact: true })
-  ).toBeVisible()
+  ).toBeVisible({ timeout: 30000 })
 })
 
 test('41.5.1 тумблер «Microsoft Graph Webhook»: порт 8646, звонит сам Microsoft, права на тенант', async () => {

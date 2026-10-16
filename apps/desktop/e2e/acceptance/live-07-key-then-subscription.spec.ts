@@ -46,7 +46,9 @@ test('D-193 ключ OpenAI-API в первом запуске: «Изменит
   await expect(change).toBeVisible({ timeout: 120000 })
   await change.click()
   const picker = page.getByRole('dialog').last()
-  await expect(picker.getByText('openai-api · 20', { exact: false })).toBeVisible({
+  // Число — каталог ядра (0.21.5 — 20 моделей, 0.22.2 — 22): позиция про то, что
+  // моделей OpenAI не ноль, а не про их счёт на текущем пине.
+  await expect(picker.getByText(/openai-api · [1-9]\d*/)).toBeVisible({
     timeout: 30000
   })
   await page.keyboard.press('Escape')

@@ -459,8 +459,10 @@ test('30.6.1 «Расписания: работают» вернулось са�
   let page = await ui()
 
   // Включить обратно — через палитру, тем же выключателем, что у человека.
+  // С донором 0.22.2 на «расписан» первым встаёт переход на их страницу
+  // «Расписания» — набирается начало нашей команды.
   await page.keyboard.press('Control+k')
-  await page.keyboard.type('расписан')
+  await page.keyboard.type('запускать или нет')
   await page.waitForTimeout(400)
   await page.keyboard.press('Enter')
   await expect(cronBadge(page)).toBeVisible({ timeout: 30000 })
