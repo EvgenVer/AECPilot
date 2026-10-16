@@ -20,6 +20,7 @@ import {
   PLUGIN_SOURCE_DIR,
   specialistHomes,
 } from "./register-secret-filter.mjs";
+import { SKILLS_DIR } from "./register-aec-rag.mjs";
 
 const home = () => fs.mkdtempSync(path.join(os.tmpdir(), "aec-secret-home-"));
 
@@ -78,6 +79,17 @@ describe("установка в профиль", () => {
     }
 
     expect(fs.readFileSync(path.join(dir, "config.yaml"), "utf-8")).toContain(`- ${PLUGIN_ID}`);
+  });
+
+  it("плагин знает, где поставляемые навыки (T20.11)", () => {
+    const dir = home();
+    installSecretFilter(dir);
+
+    const marker = JSON.parse(
+      fs.readFileSync(path.join(dir, "plugins", PLUGIN_ID, "shipped-skills.json"), "utf-8"),
+    );
+    expect(marker.dir).toBe(SKILLS_DIR);
+    expect(PLUGIN_FILES).toContain("shipped_skills.py");
   });
 
   it("тесты плагина в профиль НЕ уезжают — там нет pytest", () => {

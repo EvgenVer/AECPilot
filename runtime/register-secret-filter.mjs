@@ -18,6 +18,7 @@ import path from "node:path";
 
 import { RUNTIME_DIR } from "./hermes-env.mjs";
 import { installMem0Plugin } from "./register-mem0-plugin.mjs";
+import { SKILLS_DIR } from "./register-aec-rag.mjs";
 
 const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
 
@@ -36,6 +37,8 @@ export const PLUGIN_FILES = [
   "mem0_turns.py",
   // Задача 3I.2 (D-195): ключи провайдеров — внешним источником секретов.
   "key_source.py",
+  // Задача T20.11: правка поставляемого навыка — в копию в профиле.
+  "shipped_skills.py",
 ];
 
 /** Имя источника ключей в плагине (`key_source.py::NAME`) — ключ раздела
@@ -185,6 +188,22 @@ export function installSecretFilter(hermesHomeDir) {
       fs.writeFileSync(path.join(target, name), source, "utf-8");
       changed = true;
     }
+  }
+
+  // Задача T20.11: где лежат поставляемые навыки — плагин перенаправляет их правку
+  // в копию в профиле (`shipped_skills.py`). Тот же путь, что `skills.external_dirs`
+  // (`register-aec-rag.mjs::SKILLS_DIR`, в автотестах — копия по `AEC_SKILLS_DIR`).
+  const shipped = `${JSON.stringify({ dir: SKILLS_DIR })}\n`;
+  const shippedPath = path.join(target, "shipped-skills.json");
+  let shippedExisting = null;
+  try {
+    shippedExisting = fs.readFileSync(shippedPath, "utf-8");
+  } catch {
+    // файла ещё нет
+  }
+  if (shippedExisting !== shipped) {
+    fs.writeFileSync(shippedPath, shipped, "utf-8");
+    changed = true;
   }
 
   // Задача T20.6. Общий клиент Mem0 (`mem0_shared.py`) и факты памяти держатся

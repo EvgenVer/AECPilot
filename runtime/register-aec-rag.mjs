@@ -31,7 +31,9 @@ export const AEC_RAG_BIN = isWindows
   ? path.join(REPO_ROOT, ".venv", "Scripts", "aec-rag.exe")
   : path.join(REPO_ROOT, ".venv", "bin", "aec-rag");
 
-export const SKILLS_DIR = path.join(REPO_ROOT, "skills");
+// `AEC_SKILLS_DIR` — копия навыков для живых автотестов (задача T20.11): агент
+// стенда не должен иметь доступа к файлам навыков в репозитории.
+export const SKILLS_DIR = process.env.AEC_SKILLS_DIR || path.join(REPO_ROOT, "skills");
 export const CONFIG_PATH = path.join(HERMES_HOME_DIR, "config.yaml");
 
 const EXTERNAL_DIRS_SECTION_RE = /^skills:\s*(#.*)?$/;

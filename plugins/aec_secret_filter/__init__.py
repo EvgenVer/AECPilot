@@ -35,7 +35,7 @@ import json
 import logging
 from typing import Any
 
-from . import key_source, memory_facts
+from . import key_source, memory_facts, shipped_skills
 from .mem0_shared import install_mem0_backend
 from .secrets import find_secrets, redact_secrets, refusal_message
 
@@ -85,6 +85,12 @@ _VAULT_REFUSAL = "Сейф паролей браузера в AECPilot не ис
 def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> dict[str, str] | None:
     if tool_name == _VAULT_TOOL or tool_name.startswith(_VAULT_PREFIX):
         return {"action": "block", "message": _VAULT_REFUSAL}
+
+    # Задача T20.11: правка поставляемого навыка — в копию в профиле (`shipped_skills.py`).
+    if tool_name == "skill_manage":
+        from hermes_constants import get_hermes_home
+
+        return shipped_skills.before_skill_write(args, get_hermes_home())
 
     if tool_name not in _MEMORY_TOOLS:
         return None

@@ -9,9 +9,9 @@
 // `pnpm dev` (решение владельца 2026-10-06): ручная приёмка начинается с чистого
 // старта и не видит ничего, что накопили прогоны, а прогоны — её данных.
 
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
 const repoRoot = join(__dirname, '..', '..', '..', '..')
 export const e2eProfileDir = join(repoRoot, 'runtime', 'e2e-profile')
@@ -45,7 +45,32 @@ export function prepareProfile(options: { withoutProviderKey?: boolean } = {}): 
     recursive: true,
     filter: (source) => !skip(source) && !(options.withoutProviderKey && source === envFile)
   })
+  copyShippedSkills(dir)
   return dir
+}
+
+/** Задача T20.11 (решение владельца 2026-10-16, п. 16). Навыки поставки агент
+ *  стенда видит КОПИЕЙ внутри временного профиля, а не папкой `skills/`
+ *  репозитория: 2026-10-16 тестовая модель переписала `skills/aec-wiki/SKILL.md`
+ *  прямо в git. Копия уходит вместе с профилем; приложению тот же путь
+ *  передаётся через `AEC_SKILLS_DIR` (`app.ts`, `register-aec-rag.mjs`). */
+export const SHIPPED_SKILLS_COPY = 'aec-shipped-skills'
+const repoSkillsDir = join(repoRoot, 'skills')
+
+function copyShippedSkills(profile: string): void {
+  const copy = join(profile, SHIPPED_SKILLS_COPY)
+  cpSync(repoSkillsDir, copy, { recursive: true, filter: (s) => basename(s) !== '__pycache__' })
+  const configPath = join(profile, 'config.yaml')
+  const same = (value: string): boolean =>
+    resolve(value).toLowerCase() === resolve(repoSkillsDir).toLowerCase()
+  const lines = readFileSync(configPath, 'utf-8').split(/\r?\n/)
+  const rewritten = lines.map((line) => {
+    const item = /^(\s*-\s+)(["']?)(.+?)\2\s*$/.exec(line)
+    if (!item) return line
+    const value = item[2] === '"' ? item[3].replace(/\\\\/g, '\\') : item[3]
+    return same(value) ? `${item[1]}${copy}` : line
+  })
+  writeFileSync(configPath, rewritten.join('\n'), 'utf-8')
 }
 
 /** Удалить временный профиль. Базы ядра могут отпускаться с задержкой после

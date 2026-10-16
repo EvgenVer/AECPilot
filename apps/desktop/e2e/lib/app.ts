@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { prepareProfile, removeProfile } from './core'
+import { SHIPPED_SKILLS_COPY, prepareProfile, removeProfile } from './core'
 import { record } from './evidence'
 
 export const desktopDir = join(__dirname, '..', '..')
@@ -255,6 +255,9 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
     servePort = await getFreePort()
     env.AEC_HERMES_HOME = profileDir
     env.AEC_SERVE_PORT = String(servePort)
+    // T20.11: навыки поставки — копия в профиле стенда (см. `core.ts`).
+    const skillsCopy = join(profileDir, SHIPPED_SKILLS_COPY)
+    if (existsSync(skillsCopy)) env.AEC_SKILLS_DIR = skillsCopy
     delete env.AEC_GATEWAY_URL
     delete env.AEC_GATEWAY_REST_URL
   }
