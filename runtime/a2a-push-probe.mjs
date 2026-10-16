@@ -69,8 +69,13 @@ async function sendFromCore(callbackUrl) {
     'import urllib.request',
     'callback_url = sys.argv[1]',
     'payload = protocol.status_update(sys.argv[2], "ctx-1", "completed", sys.argv[3])',
-    'assert security.is_safe_callback_url(callback_url), "ядро сочло адрес небезопасным"',
-    'signature = security.sign_push_payload(payload)',
+    // 0.22 (задача T20.9): адаптер держит снимок настроек профиля
+    // (`A2ASecurityContext`) и подписывает его методом; режим «только петля»
+    // передаётся проверке адреса явно — так стоит в `_send_push_notification`.
+    'ctx = security.A2ASecurityContext.capture() if hasattr(security, "A2ASecurityContext") else None',
+    'safe = security.is_safe_callback_url(callback_url, localhost_mode=ctx.localhost_only()) if ctx else security.is_safe_callback_url(callback_url)',
+    'assert safe, "ядро сочло адрес небезопасным"',
+    'signature = ctx.sign_push_payload(payload) if ctx else security.sign_push_payload(payload)',
     'headers = {"Content-Type": "application/json"}',
     'if signature:',
     '    headers["X-A2A-Signature"] = signature',

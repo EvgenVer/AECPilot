@@ -14,7 +14,9 @@
 // ПОЧЕМУ БЕЗ СЕТИ. Ядро НАРОЧНО запрещает адреса обратного вызова на петлю и в
 // частные сети (SSRF-защита в том же файле), поэтому «настоящий получатель» на
 // 127.0.0.1 невозможен by design. Проба это тоже замеряет — чтобы никто не
-// искал ошибку там, где стоит защита.
+// искал ошибку там, где стоит защита. Уточнение T20.9 (то же в 0.21.5 и 0.22.2):
+// петля разрешена, пока A2A слушает только петлю (нет `A2A_BEARER_TOKEN` и
+// `A2A_PEER_TOKENS`, `localhost_only()`); частные сети запрещены всегда.
 
 import { createHmac } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
@@ -42,8 +44,12 @@ function fromCore() {
     // его же `tools.py` (циклический импорт) — поэтому импорт пакетом, как у ядра.
     'from plugins.platforms.a2a import security',
     'payload = json.loads(sys.argv[1])',
+    // 0.22 (задача T20.9): подпись стала методом снимка настроек профиля
+    // `A2ASecurityContext` — его ловят при старте адаптера, секрет тот же
+    // `A2A_PUSH_SECRET`. Модульная функция 0.21 оставлена запасным путём.
+    'sign = security.A2ASecurityContext.capture().sign_push_payload if hasattr(security, "A2ASecurityContext") else security.sign_push_payload',
     'print(json.dumps({',
-    '  "signature": security.sign_push_payload(payload),',
+    '  "signature": sign(payload),',
     '  "body": json.dumps(payload, sort_keys=True, ensure_ascii=False),',
     '  "blocked_loopback": security.is_safe_callback_url("http://127.0.0.1:9000/hook") if hasattr(security, "is_safe_callback_url") else None,',
     '  "blocked_private": security.is_safe_callback_url("http://192.168.1.10/hook") if hasattr(security, "is_safe_callback_url") else None,',

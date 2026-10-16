@@ -66,11 +66,25 @@ async function main() {
   fs.writeFileSync(path.join(PROJECT_SKILL_DIR, "SKILL.md"), skillBody("PROEKTNYJ"), "utf-8");
 
   const externalDir = path.join(PROJECT_DIR, ".agents", "skills").replace(/\\/g, "/");
-  fs.writeFileSync(
-    CONFIG_PATH,
-    `${originalConfig.trimEnd()}\nskills:\n  external_dirs:\n    - ${JSON.stringify(externalDir)}\n`,
-    "utf-8"
-  );
+  const item = `    - ${JSON.stringify(externalDir)}`;
+  // В профиле уже есть раздел `skills:` (с T20.5 — `auto_load: [aec-qa]`), часто и
+  // `external_dirs` в нём, а ядро 0.22 на повторе ключа не стартует (код 2).
+  // Поэтому папка дописывается элементом в существующий список, а не вторым
+  // `skills:` в конец файла.
+  const lines = originalConfig.replace(/\r\n/g, "\n").trimEnd().split("\n");
+  const section = lines.findIndex((line) => /^skills:\s*$/.test(line));
+  let end = lines.length;
+  for (let i = section + 1; section !== -1 && i < lines.length; i += 1) {
+    if (/^\S/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const list = section === -1 ? -1 : lines.findIndex((l, i) => i > section && i < end && /^  external_dirs:\s*$/.test(l));
+  if (section === -1) lines.push("skills:", "  external_dirs:", item);
+  else if (list === -1) lines.splice(section + 1, 0, "  external_dirs:", item);
+  else lines.splice(list + 1, 0, item);
+  fs.writeFileSync(CONFIG_PATH, `${lines.join("\n")}\n`, "utf-8");
 
   const handle = await startServe();
 
