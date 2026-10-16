@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import os
 import re
 import sys
 from pathlib import Path
@@ -26,7 +27,13 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 CHAT_MODEL = "gemini-3.5-flash-lite"
 EMBED_MODEL = "gemini-embedding-2"
 IMAGE_MODEL = "gemini-3.1-flash-image"
-ENV_FILE = Path(__file__).resolve().parent / "dev-profile" / ".env"
+# The stand key lives in the autotest profile since the 2026-10-06 split (dev-profile stays
+# clean for manual acceptance); AEC_HERMES_HOME points at a temporary copy of it.
+ENV_FILE = (
+    Path(os.environ["AEC_HERMES_HOME"])
+    if os.environ.get("AEC_HERMES_HOME")
+    else Path(__file__).resolve().parent / "e2e-profile"
+) / ".env"
 
 
 def read_key() -> str | None:
