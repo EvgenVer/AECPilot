@@ -6,7 +6,9 @@ import { forecastVerdict } from './GraphAddDialog'
 // это, и соглашаться не на что — кнопки «Добавить» нет.
 describe('forecastVerdict', () => {
   it('индекса нет вовсе — «не проиндексировано»', () => {
-    expect(forecastVerdict({ documents: 3, index_missing: true, not_indexed: 0 })).toBe('index-missing')
+    expect(forecastVerdict({ documents: 3, index_missing: true, not_indexed: 0 })).toBe(
+      'index-missing'
+    )
   })
 
   it('ни один выбранный документ не проиндексирован — тоже «не проиндексировано»', () => {

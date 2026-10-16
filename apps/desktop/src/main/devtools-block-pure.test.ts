@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { f12Payload, parseDevtoolsBlocked, serializeDevtoolsBlocked, shouldBlockDevtoolsKey, shouldForwardF12 } from './devtools-block-pure'
+import {
+  f12Payload,
+  parseDevtoolsBlocked,
+  serializeDevtoolsBlocked,
+  shouldBlockDevtoolsKey,
+  shouldForwardF12
+} from './devtools-block-pure'
 
 describe('shouldBlockDevtoolsKey', () => {
   it('выключенная настройка не гасит ничего', () => {

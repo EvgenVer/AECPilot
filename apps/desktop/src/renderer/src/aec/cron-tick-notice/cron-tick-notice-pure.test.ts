@@ -51,9 +51,13 @@ describe('cronWriteKind: какой вызов заслуживает преду
 
 describe('cronRpcWriteKind: тот же вопрос для записи через RPC ядра', () => {
   it('рутина специалиста (`cron.manage add`) — создание', () => {
-    expect(cronRpcWriteKind('cron.manage', { action: 'add', name: '[bot:smeta] Отметка', profile: 'smeta' })).toBe(
-      'create'
-    )
+    expect(
+      cronRpcWriteKind('cron.manage', {
+        action: 'add',
+        name: '[bot:smeta] Отметка',
+        profile: 'smeta'
+      })
+    ).toBe('create')
   })
 
   it('включение обратно — resume', () => {
@@ -71,7 +75,9 @@ describe('cronRpcWriteKind: тот же вопрос для записи чер�
 
 describe('cronBotChatAdd: рутина, результат которой придёт в чат специалиста (D-163)', () => {
   it('добавление с доставкой в чат специалиста — да', () => {
-    expect(cronBotChatAdd('cron.manage', { action: 'add', deliver: 'bot-chat', profile: 'smeta' })).toBe(true)
+    expect(
+      cronBotChatAdd('cron.manage', { action: 'add', deliver: 'bot-chat', profile: 'smeta' })
+    ).toBe(true)
   })
 
   it('без доставки в чат, не добавление или чужой метод — нет', () => {

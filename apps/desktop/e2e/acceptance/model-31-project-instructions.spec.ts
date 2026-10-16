@@ -63,7 +63,9 @@ function notice(page: Page, text: RegExp) {
 }
 
 function trustDialog(page: Page) {
-  return page.getByRole('dialog').filter({ hasText: /Доверять инструкциям этого проекта|Инструкции проекта изменились/ })
+  return page
+    .getByRole('dialog')
+    .filter({ hasText: /Доверять инструкциям этого проекта|Инструкции проекта изменились/ })
 }
 
 async function openScratchProject(page: Page): Promise<string> {
@@ -72,7 +74,10 @@ async function openScratchProject(page: Page): Promise<string> {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as never
   }, dir)
   expect(await page.evaluate(() => window.aecpilot.pickProjectDirectory())).toBe(dir)
-  const created = await page.evaluate((path) => window.aecpilot.createProject(path, 'e2e-другой', true), dir)
+  const created = await page.evaluate(
+    (path) => window.aecpilot.createProject(path, 'e2e-другой', true),
+    dir
+  )
   expect(created).toMatchObject({ ok: true })
   await page.waitForTimeout(2000)
   return dir
@@ -81,7 +86,9 @@ async function openScratchProject(page: Page): Promise<string> {
 /** «Закрыть и снова открыть проект»: уход в пустой проект и возврат. */
 async function reopenProject(page: Page, dir: string): Promise<void> {
   await openScratchProject(page)
-  expect(await page.evaluate((path) => window.aecpilot.openProject(path), dir)).toMatchObject({ ok: true })
+  expect(await page.evaluate((path) => window.aecpilot.openProject(path), dir)).toMatchObject({
+    ok: true
+  })
   await page.waitForTimeout(2000)
 }
 
@@ -91,8 +98,13 @@ async function askFresh(page: Page): Promise<string> {
 }
 
 async function askFreshTurn(page: Page): Promise<{ text: string; transcript: string }> {
-  await page.getByRole('button', { name: /^(Новый сеанс|New session)/ }).first().click()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^(Новый сеанс|New session)/ })
+    .first()
+    .click()
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 30000
+  })
   const result = await turn(page, QUESTION)
   console.log('31 ' + result.transcript.replace(/\n/g, ' ⏎ '))
   return result
@@ -114,7 +126,8 @@ async function expectUntrusted(page: Page, why: string): Promise<void> {
   )
   const views = events.filter(
     (event) =>
-      event.type === 'tool.complete' && (viewIds.has(event.payload?.tool_id) || event.payload?.name === 'skill_view')
+      event.type === 'tool.complete' &&
+      (viewIds.has(event.payload?.tool_id) || event.payload?.name === 'skill_view')
   )
   expect(JSON.stringify(views), `${why}: скил не отдан ядром`).not.toContain(RULE_LINE)
   if (text.includes(RULE_LINE)) {
@@ -145,24 +158,40 @@ function toolNames(events: ChatEvent[]): string[] {
 async function askUntrustedTurn(
   page: Page
 ): Promise<{ events: ChatEvent[]; text: string; transcript: string }> {
-  await page.getByRole('button', { name: /^(Новый сеанс|New session)/ }).first().click()
-  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^(Новый сеанс|New session)/ })
+    .first()
+    .click()
+  await expect(page.getByRole('textbox', { name: /Message|Сообщение/ })).toBeVisible({
+    timeout: 30000
+  })
   const mark = await eventCount(page)
   try {
     // В поиске агент просит и команды — 30.09.2026 это был скрипт, читающий базу
     // mem0 профиля. Подтверждение ядро спрашивает; осторожный человек отклоняет.
     const result = await turn(page, QUESTION, { declineForeign: true })
     console.log('31 ' + result.transcript.replace(/\n/g, ' ⏎ '))
-    return { events: await eventsSince(page, mark), text: result.text, transcript: result.transcript }
+    return {
+      events: await eventsSince(page, mark),
+      text: result.text,
+      transcript: result.transcript
+    }
   } catch (error) {
     if (!String(error).includes('ход закончился (message.complete)')) throw error
   }
-  await page.getByRole('button', { name: /^(Стоп|Stop)$/ }).first().click()
+  await page
+    .getByRole('button', { name: /^(Стоп|Stop)$/ })
+    .first()
+    .click()
   await expect
-    .poll(async () => (await eventsSince(page, mark)).some((event) => event.type === 'message.complete'), {
-      timeout: 60000,
-      message: 'ход остановлен «Стопом»'
-    })
+    .poll(
+      async () =>
+        (await eventsSince(page, mark)).some((event) => event.type === 'message.complete'),
+      {
+        timeout: 60000,
+        message: 'ход остановлен «Стопом»'
+      }
+    )
     .toBe(true)
   const events = await eventsSince(page, mark)
   const text = events.find((event) => event.type === 'message.complete')?.payload?.text ?? ''
@@ -182,7 +211,9 @@ test('31.5.1 после «Доверять» агент правило выпо�
   await reopenProject(page, stand.get().projectDir)
 
   // Шаг 4: «Не сейчас» — правило не действует.
-  await notice(page, /Проект несёт инструкции для агента/).getByRole('button', { name: 'Посмотреть' }).click()
+  await notice(page, /Проект несёт инструкции для агента/)
+    .getByRole('button', { name: 'Посмотреть' })
+    .click()
   await expect(trustDialog(page)).toBeVisible({ timeout: 15000 })
   await trustDialog(page).getByRole('button', { name: 'Не сейчас' }).click()
   await expectUntrusted(page, 'без доверия')
@@ -191,7 +222,9 @@ test('31.5.1 после «Доверять» агент правило выпо�
   await page.getByRole('button', { name: 'Инструкции проекта: 1, без доверия' }).click()
   await expect(trustDialog(page)).toBeVisible({ timeout: 15000 })
   await trustDialog(page).getByRole('button', { name: 'Доверять', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Инструкции проекта: 1', exact: true })).toBeVisible({ timeout: 30000 })
+  await expect(
+    page.getByRole('button', { name: 'Инструкции проекта: 1', exact: true })
+  ).toBeVisible({ timeout: 30000 })
   expect(await askFresh(page), 'после доверия правило выполняется').toContain(RULE_LINE)
   await record(test.info(), page)
 })
@@ -213,7 +246,9 @@ test('31.7.2 в другом проекте агент правило перво
   await page.getByRole('button', { name: /^Инструкции проекта/ }).click()
   await expect(trustDialog(page)).toBeVisible({ timeout: 15000 })
   await trustDialog(page).getByRole('button', { name: 'Доверять', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Инструкции проекта: 1', exact: true })).toBeVisible({ timeout: 30000 })
+  await expect(
+    page.getByRole('button', { name: 'Инструкции проекта: 1', exact: true })
+  ).toBeVisible({ timeout: 30000 })
   expect(await askFresh(page), 'в своём проекте правило снова действует').toContain(RULE_LINE)
 
   await openScratchProject(page)

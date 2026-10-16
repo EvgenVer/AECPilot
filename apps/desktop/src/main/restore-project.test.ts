@@ -45,10 +45,7 @@ describe('restoreLastProject', () => {
   it('stays on the chooser silently when the folder is gone', async () => {
     const activate = vi.fn(async () => {})
 
-    const outcome = await restoreLastProject(
-      [recent(path.join(tempDir(), 'нет-такой'))],
-      activate
-    )
+    const outcome = await restoreLastProject([recent(path.join(tempDir(), 'нет-такой'))], activate)
 
     expect(outcome).toBe('unavailable')
     expect(activate).not.toHaveBeenCalled()

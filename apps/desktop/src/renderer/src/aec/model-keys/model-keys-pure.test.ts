@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-  markProvidersWithoutKey,
-  providerBeingSaved,
-  providersWithoutKey
-} from './model-keys-pure'
+import { markProvidersWithoutKey, providerBeingSaved, providersWithoutKey } from './model-keys-pure'
 
 const ENV = {
   GEMINI_API_KEY: { provider: 'gemini', is_password: true, is_set: true },

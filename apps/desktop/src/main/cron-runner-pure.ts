@@ -52,10 +52,7 @@ export function serializeCronRunnerPref(enabled: boolean): string {
  * их операторское переопределение (`gateway/config.py`), в конфиг человека мы не
  * пишем.
  */
-export function cronRunnerSpawnEnv(
-  base: NodeJS.ProcessEnv,
-  homeDir: string
-): NodeJS.ProcessEnv {
+export function cronRunnerSpawnEnv(base: NodeJS.ProcessEnv, homeDir: string): NodeJS.ProcessEnv {
   return {
     ...base,
     HERMES_HOME: homeDir,

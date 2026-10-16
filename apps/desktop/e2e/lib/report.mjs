@@ -19,7 +19,11 @@ import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { CHECKLIST, parseChecklist, testedPositions } from '../../../../runtime/checklist-coverage.mjs'
+import {
+  CHECKLIST,
+  parseChecklist,
+  testedPositions
+} from '../../../../runtime/checklist-coverage.mjs'
 
 const DESKTOP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const ROOT = path.resolve(DESKTOP, '..', '..')
@@ -113,13 +117,16 @@ export function fixmePositions(specDir) {
   for (const name of fs.readdirSync(specDir)) {
     if (!name.endsWith('.spec.ts')) continue
     const body = fs.readFileSync(path.join(specDir, name), 'utf8')
-    for (const match of body.matchAll(/^\s*test\.fixme\(\s*(['"`])(\d+(?:\.\d+)*)\b/gm)) found.add(match[2])
+    for (const match of body.matchAll(/^\s*test\.fixme\(\s*(['"`])(\d+(?:\.\d+)*)\b/gm))
+      found.add(match[2])
   }
   return found
 }
 
 function escapeCell(text) {
-  return String(text ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
+  return String(text ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ')
 }
 
 function git(args) {
@@ -154,13 +161,25 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
 
   out.push(`# Отчёт приёмки ${date}`, '')
   out.push(`Сборка: \`${build.commit || '—'}\`, ядро: \`${build.core || '—'}\`.`)
-  if (run) out.push(`Прогон: ${run.startTime ?? '—'}, длительность ${Math.round((run.duration ?? 0) / 60000)} мин.`)
-  out.push('', 'Вердикты: ✅ пройдена · ❌ красная · 🟡 владельцу (позиция качества или пропуск с причиной) · ⏸ fixme (ждёт решения) · ⬜ не прогнана.', '')
+  if (run)
+    out.push(
+      `Прогон: ${run.startTime ?? '—'}, длительность ${Math.round((run.duration ?? 0) / 60000)} мин.`
+    )
+  out.push(
+    '',
+    'Вердикты: ✅ пройдена · ❌ красная · 🟡 владельцу (позиция качества или пропуск с причиной) · ⏸ fixme (ждёт решения) · ⬜ не прогнана.',
+    ''
+  )
 
   out.push('## Итоги по меткам', '')
-  out.push('| Метка | Позиций | ✅ | ❌ | 🟡 | ⏸ fixme | ⬜ не прогнано |', '|---|---|---|---|---|---|---|')
+  out.push(
+    '| Метка | Позиций | ✅ | ❌ | 🟡 | ⏸ fixme | ⬜ не прогнано |',
+    '|---|---|---|---|---|---|---|'
+  )
   for (const [label, row] of byLabel) {
-    out.push(`| ${label} | ${row.total} | ${row.pass} | ${row.fail} | ${row.note} | ${row.fixme} | ${row.notRun} |`)
+    out.push(
+      `| ${label} | ${row.total} | ${row.pass} | ${row.fail} | ${row.note} | ${row.fixme} | ${row.notRun} |`
+    )
   }
   out.push('')
   const totals = Object.entries(usage.total)
@@ -175,7 +194,10 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
       out.push('Нет.', '')
       return
     }
-    out.push('| Позиция | Метка | Вердикт | Что проверено | Заметка | Снимок |', '|---|---|---|---|---|---|')
+    out.push(
+      '| Позиция | Метка | Вердикт | Что проверено | Заметка | Снимок |',
+      '|---|---|---|---|---|---|'
+    )
     for (const position of rows) {
       const evidence = merged.get(position.id)
       const verdict = evidence
@@ -185,8 +207,12 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
           : tested.has(position.id)
             ? '⬜ не прогнана'
             : '—'
-      const shot = evidence?.shots.length ? evidence.shots.map((name) => `[${name}](shots/${name})`).join(' ') : ''
-      const transcript = evidence?.transcripts.length ? ` · [стенограмма](#t-${position.id.replace(/\./g, '-')})` : ''
+      const shot = evidence?.shots.length
+        ? evidence.shots.map((name) => `[${name}](shots/${name})`).join(' ')
+        : ''
+      const transcript = evidence?.transcripts.length
+        ? ` · [стенограмма](#t-${position.id.replace(/\./g, '-')})`
+        : ''
       out.push(
         `| ${position.id} | ${position.label || '—'} | ${verdict} | ${escapeCell(position.text)} | ${escapeCell(evidence?.notes.join('; ') ?? '')} | ${shot}${transcript} |`
       )
@@ -195,9 +221,14 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
   }
 
   // R21 и R22 — доказательство, а не декларация (3E.15): строки 48.3 и 45.2.
-  section('R21 / R22 — доказательства (48.3, 45.2)', (position) => /^(48\.3|45\.2)\./.test(position.id))
+  section('R21 / R22 — доказательства (48.3, 45.2)', (position) =>
+    /^(48\.3|45\.2)\./.test(position.id)
+  )
   section('Красные позиции', (position) => merged.get(position.id)?.verdict === 'fail')
-  section('Владельцу — позиции качества и пропуски', (position) => merged.get(position.id)?.verdict === 'note')
+  section(
+    'Владельцу — позиции качества и пропуски',
+    (position) => merged.get(position.id)?.verdict === 'note'
+  )
   section(
     'Не прогнаны или ждут решения',
     (position) => ['[e2e]', '[live]'].includes(position.label) && !merged.has(position.id)
@@ -217,12 +248,15 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
   }
   out.push('')
 
-  const withTranscripts = positions.filter((position) => merged.get(position.id)?.transcripts.length)
+  const withTranscripts = positions.filter(
+    (position) => merged.get(position.id)?.transcripts.length
+  )
   if (withTranscripts.length) {
     out.push('## Стенограммы', '')
     for (const position of withTranscripts) {
       out.push(`<a id="t-${position.id.replace(/\./g, '-')}"></a>`, `### ${position.id}`, '')
-      for (const transcript of merged.get(position.id).transcripts) out.push('```text', transcript, '```', '')
+      for (const transcript of merged.get(position.id).transcripts)
+        out.push('```text', transcript, '```', '')
     }
   }
   return out.join('\n')
@@ -237,7 +271,9 @@ function main() {
   const merged = mergeEvidence(readJsonl(path.join(EVIDENCE_DIR, 'evidence.jsonl')))
   const usage = sumUsage(readJsonl(path.join(EVIDENCE_DIR, 'usage.jsonl')))
   const resultsFile = path.join(EVIDENCE_DIR, 'results.json')
-  const run = fs.existsSync(resultsFile) ? JSON.parse(fs.readFileSync(resultsFile, 'utf8')).stats : null
+  const run = fs.existsSync(resultsFile)
+    ? JSON.parse(fs.readFileSync(resultsFile, 'utf8')).stats
+    : null
   const specDir = path.join(DESKTOP, 'e2e', 'acceptance')
   const report = buildReport({
     date,
@@ -262,7 +298,8 @@ function main() {
     }
   }
   fs.writeFileSync(path.join(target, 'report.md'), report, 'utf8')
-  process.stdout.write(`Отчёт: ${path.relative(ROOT, path.join(target, 'report.md'))}; позиций со свидетельством: ${merged.size}; снимков: ${copied}
+  process.stdout
+    .write(`Отчёт: ${path.relative(ROOT, path.join(target, 'report.md'))}; позиций со свидетельством: ${merged.size}; снимков: ${copied}
 `)
 }
 

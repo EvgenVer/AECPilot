@@ -102,7 +102,10 @@ def main(paths: list[str]) -> None:
             bad = [i + 1 for i, (n, s) in enumerate(stats) if n < minimum or s < share]
             print(f"  порог {minimum} букв/цифр и доля ≥ {share}: без годного слоя {len(bad)} стр.")
         counts = sorted(n for n, _ in stats)
-        print(f"  букв/цифр на страницу: медиана {counts[len(counts) // 2]}, мин {counts[0]}, макс {counts[-1]}")
+        print(
+            f"  букв/цифр на страницу: медиана {counts[len(counts) // 2]}, "
+            f"мин {counts[0]}, макс {counts[-1]}"
+        )
 
         weakest = sorted(range(len(stats)), key=lambda i: stats[i][0])[:SAMPLE_PAGES]
         if reader is None:
@@ -121,7 +124,8 @@ def main(paths: list[str]) -> None:
             b_n, _ = letters_share(b_text)
             print(
                 f"  стр. {page_no} (слой {stats[index][0]} букв): "
-                f"A RapidOCR {a_seconds:.1f} с / {a_n} букв · B Docling {b_seconds:.1f} с / {b_n} букв"
+                f"A RapidOCR {a_seconds:.1f} с / {a_n} букв · "
+                f"B Docling {b_seconds:.1f} с / {b_n} букв"
             )
             print("    A: " + " ".join(a_text.split())[:160])
             print("    B: " + " ".join(b_text.split())[:160])

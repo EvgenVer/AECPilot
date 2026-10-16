@@ -489,9 +489,9 @@ test('36.8.2 цена перезапуска названа ДО нажатия,
   // Отказ: запрос не ушёл, приёмник остался выключен.
   await dialog.getByRole('button', { name: 'Отмена' }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByText('Приёмник не включён — вы отменили перезапуск ядра.').first()).toBeVisible(
-    { timeout: 15000 }
-  )
+  await expect(
+    page.getByText('Приёмник не включён — вы отменили перезапуск ядра.').first()
+  ).toBeVisible({ timeout: 15000 })
   await expect(enable).toBeVisible()
 })
 

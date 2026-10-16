@@ -4,13 +4,7 @@
 
 import { expect, test, type Page } from '@playwright/test'
 
-import {
-  hideFirstRunSurfaces,
-  mainWindow,
-  openProject,
-  send,
-  standFixture
-} from '../lib/app'
+import { hideFirstRunSurfaces, mainWindow, openProject, send, standFixture } from '../lib/app'
 import { record } from '../lib/evidence'
 import { eventCount, eventsSince, recordChatEvents, turn, waitTurnEnd } from '../lib/turn'
 
@@ -103,7 +97,10 @@ test('6.1.1 код подсвечен', async () => {
   const page = await ui()
   const code = lastAnswer(page).locator('pre.aui-shiki').first()
   await expect
-    .poll(() => code.locator('span[style*="color"]').count(), { timeout: 30000, message: 'код раскрашен' })
+    .poll(() => code.locator('span[style*="color"]').count(), {
+      timeout: 30000,
+      message: 'код раскрашен'
+    })
     .toBeGreaterThan(0)
 })
 
@@ -113,7 +110,10 @@ test('6.1.1 код подсвечен', async () => {
 test('6.1.2 пока ответ печатается, недописанный блок кода не мигает ```', async () => {
   expect(streamed.length, 'ответ печатался по частям').toBeGreaterThan(3)
   const raw = streamed.filter((text) => text.includes('```'))
-  expect(raw.map((text) => text.slice(-300)), 'ни в одном снимке нет сырых ```').toEqual([])
+  expect(
+    raw.map((text) => text.slice(-300)),
+    'ни в одном снимке нет сырых ```'
+  ).toEqual([])
 })
 
 test('6.2.1 видны карточки вызовов; рассуждения сворачиваются и разворачиваются', async () => {
@@ -123,9 +123,15 @@ test('6.2.1 видны карточки вызовов; рассуждения �
   // (`reasoning_effort` пуст), хотя пилюля показывает «Среднее» — поэтому
   // выбирается «Высокое», а не то, что уже показано.
   await page.getByTestId('reasoning-pill').first().click()
-  await page.getByRole('menuitemradio', { name: /^Высокое/ }).or(page.getByRole('menuitem', { name: /^Высокое/ })).first().click()
+  await page
+    .getByRole('menuitemradio', { name: /^Высокое/ })
+    .or(page.getByRole('menuitem', { name: /^Высокое/ }))
+    .first()
+    .click()
   // Подпись пилюли — их английская («High»), пункт меню — русский.
-  await expect(page.getByTestId('reasoning-pill').first()).toContainText(/Высокое|High/, { timeout: 15000 })
+  await expect(page.getByTestId('reasoning-pill').first()).toContainText(/Высокое|High/, {
+    timeout: 15000
+  })
   // Меню уровней остаётся открытым, а открытое меню Radix прячет остальную
   // страницу (`aria-hidden`) — поле ввода тогда не находится.
   await page.keyboard.press('Escape')
@@ -246,5 +252,7 @@ test('6.4.2 агент спросил ввод — ответ из окна до
   const complete = events.find((event) => event.type === 'message.complete')
   expect(complete?.payload?.text ?? '', 'агент назвал выбор из окна').toMatch(/син/i)
   expect(Date.now() - answered, 'ответ дошёл, а не истёк таймаут уточнения').toBeLessThan(30000)
-  await record(test.info(), page, { transcript: `[clarify → синий]\n${complete?.payload?.text ?? ''}` })
+  await record(test.info(), page, {
+    transcript: `[clarify → синий]\n${complete?.payload?.text ?? ''}`
+  })
 })

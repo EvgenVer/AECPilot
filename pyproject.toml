@@ -48,6 +48,9 @@ addopts = ["--strict-markers"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# The agent toolkit (.agents/, its .claude/ mirror) ships as its authors format it;
+# reformatting it would turn every toolkit update into a merge.
+extend-exclude = [".agents", ".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

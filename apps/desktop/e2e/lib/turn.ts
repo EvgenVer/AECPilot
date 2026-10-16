@@ -154,7 +154,8 @@ export async function waitTurnEnd(
       { intervals: [500], timeout: timeoutMs, message: 'ход закончился (message.complete)' }
     )
     .toBe(true)
-  if (foreign) console.log(`[e2e] подтверждение на чужую команду:
+  if (foreign)
+    console.log(`[e2e] подтверждение на чужую команду:
 ${foreign}`)
   expect(foreign, 'ход ждёт подтверждения на команду, которую позиция не просила').toBe('')
   return events
@@ -196,17 +197,37 @@ function summarize(question: string, events: ChatEvent[], retried: boolean): Tur
 export async function turn(
   page: Page,
   question: string,
-  options: { approve?: RegExp; clarify?: RegExp; declineForeign?: boolean; expectTool?: RegExp; timeoutMs?: number } = {}
+  options: {
+    approve?: RegExp
+    clarify?: RegExp
+    declineForeign?: boolean
+    expectTool?: RegExp
+    timeoutMs?: number
+  } = {}
 ): Promise<TurnResult> {
   await recordChatEvents(page)
   let mark = await eventCount(page)
   await send(page, question)
-  let events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve, options.clarify, options.declineForeign)
+  let events = await waitTurnEnd(
+    page,
+    mark,
+    options.timeoutMs,
+    options.approve,
+    options.clarify,
+    options.declineForeign
+  )
   let result = summarize(question, events, false)
   if (options.expectTool && !result.tools.some((name) => options.expectTool!.test(name))) {
     mark = await eventCount(page)
     await send(page, question)
-    events = await waitTurnEnd(page, mark, options.timeoutMs, options.approve, options.clarify, options.declineForeign)
+    events = await waitTurnEnd(
+      page,
+      mark,
+      options.timeoutMs,
+      options.approve,
+      options.clarify,
+      options.declineForeign
+    )
     result = summarize(question, events, true)
   }
   recordUsage(result)
@@ -219,7 +240,11 @@ function recordUsage(result: TurnResult): void {
   try {
     mkdirSync(evidenceDir, { recursive: true })
     const title = test.info().title
-    appendFileSync(join(evidenceDir, 'usage.jsonl'), JSON.stringify({ title, retried: result.retried, usage: result.usage ?? null }) + '\n', 'utf-8')
+    appendFileSync(
+      join(evidenceDir, 'usage.jsonl'),
+      JSON.stringify({ title, retried: result.retried, usage: result.usage ?? null }) + '\n',
+      'utf-8'
+    )
   } catch {
     // Вне теста (`test.info()` бросает) или диск недоступен — отчёт без этой строки.
   }

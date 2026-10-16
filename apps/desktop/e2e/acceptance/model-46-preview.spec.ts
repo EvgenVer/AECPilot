@@ -30,7 +30,7 @@ async function ui(): Promise<Page> {
     writeFileSync(
       join(dir, 'form.html'),
       '<h1>Zayavka na zamer</h1><input id="code" placeholder="Шифр"><button id="ok" ' +
-        'onclick="document.getElementById(\'echo\').textContent=\'PRINYATO: \'+document.getElementById(\'code\').value">Принять</button>' +
+        "onclick=\"document.getElementById('echo').textContent='PRINYATO: '+document.getElementById('code').value\">Принять</button>" +
         '<p id="echo"></p>',
       'utf8'
     )
@@ -121,16 +121,25 @@ test('46.2.1 «Открыть в браузере» у html-артефакта �
   const card = page.locator('[data-slot="aui_artifact-card"]').last()
   await expect(card, 'карточка артефакта в ленте').toBeVisible({ timeout: 60000 })
   await card.click()
-  await page.getByRole('button', { name: /Open in browser|Открыть в браузере/ }).first().click()
+  await page
+    .getByRole('button', { name: /Open in browser|Открыть в браузере/ })
+    .first()
+    .click()
   const opened = async (): Promise<string[]> =>
-    (await app.evaluate(() => (globalThis as unknown as { openedExternally?: string[] }).openedExternally ?? [])) as string[]
+    (await app.evaluate(
+      () => (globalThis as unknown as { openedExternally?: string[] }).openedExternally ?? []
+    )) as string[]
   await expect.poll(opened, { timeout: 30000 }).toHaveLength(1)
   ;[openedUrl] = await opened()
   console.log('46.2 url ' + openedUrl)
   expect(openedUrl.startsWith('file:///'), 'содержимое уходит файлом').toBe(true)
-  expect(readFileSync(fileURLToPath(openedUrl), 'utf8'), 'в файле то самое содержимое').toContain(ARTIFACT_MARK)
+  expect(readFileSync(fileURLToPath(openedUrl), 'utf8'), 'в файле то самое содержимое').toContain(
+    ARTIFACT_MARK
+  )
   // Человеку сказано, что страница ушла за песочницу (решение владельца 2026-09-08).
-  await expect(page.getByText(/Страница открыта вне приложения|The page opened outside the app/)).toBeVisible({
+  await expect(
+    page.getByText(/Страница открыта вне приложения|The page opened outside the app/)
+  ).toBeVisible({
     timeout: 15000
   })
   await record(test.info(), page, { transcript: result.transcript })
@@ -140,7 +149,10 @@ test('46.2.2 файл ушёл из нашей папки, а не откуда 
   expect(openedUrl, 'в 46.2.1 файл отдан ОС').not.toBe('')
   const staged = fileURLToPath(openedUrl)
   const attachments = join(stand.get().userDataDir, 'attachments')
-  expect(staged.toLowerCase().startsWith((attachments + sep).toLowerCase()), `${staged} обязан лежать в ${attachments}`).toBe(true)
+  expect(
+    staged.toLowerCase().startsWith((attachments + sep).toLowerCase()),
+    `${staged} обязан лежать в ${attachments}`
+  ).toBe(true)
 })
 
 test('46.3.1 правка в их редакторе доезжает на диск по показанному пути', async () => {
@@ -154,9 +166,14 @@ test('46.3.1 правка в их редакторе доезжает на ди�
   await editor.click()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('VTORAYA STROKA')
-  await page.getByRole('button', { name: /^(Сохранить|Save)$/ }).last().click()
+  await page
+    .getByRole('button', { name: /^(Сохранить|Save)$/ })
+    .last()
+    .click()
   await expect
-    .poll(() => readFileSync(join(stand.get().projectDir, 'zametka.md'), 'utf8'), { timeout: 20000 })
+    .poll(() => readFileSync(join(stand.get().projectDir, 'zametka.md'), 'utf8'), {
+      timeout: 20000
+    })
     .toContain('VTORAYA STROKA')
   await record(test.info(), page)
 })
@@ -171,7 +188,9 @@ test('46.4.1 при масштабе 125 % нажатие агента попа�
   expect(applied?.percent, 'масштаб применился').toBe(125)
   try {
     await openInPreview(page, 'form.html')
-    await expect.poll(() => guestText(app, 'form.html'), { timeout: 60000 }).toContain('Zayavka na zamer')
+    await expect
+      .poll(() => guestText(app, 'form.html'), { timeout: 60000 })
+      .toContain('Zayavka na zamer')
     const result = await turn(
       page,
       'В открытой странице предпросмотра form.html впиши в поле «Шифр» значение AR-12 и нажми кнопку «Принять» — инструментом drive_preview (он отложен, вызови через tool_call). Ответь одним словом «готово».',

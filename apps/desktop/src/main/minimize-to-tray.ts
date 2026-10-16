@@ -92,7 +92,9 @@ export function createMinimizeToTray(options: Options) {
       } catch (error) {
         restoreHidden()
         destroyTray()
-        options.log(`aecpilot: tray unavailable; ordinary window behavior retained: ${String(error)}`)
+        options.log(
+          `aecpilot: tray unavailable; ordinary window behavior retained: ${String(error)}`
+        )
       }
     }
     broadcast()
@@ -126,7 +128,9 @@ export function createMinimizeToTray(options: Options) {
   function start(): Promise<MinimizeToTrayStatus> {
     let on = false
     try {
-      on = (JSON.parse(readFileSync(options.preferencesPath, 'utf8')) as { enabled?: unknown }).enabled === true
+      on =
+        (JSON.parse(readFileSync(options.preferencesPath, 'utf8')) as { enabled?: unknown })
+          .enabled === true
     } catch {
       // Нет файла или он испорчен — обычное поведение окна.
     }

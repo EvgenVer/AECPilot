@@ -1160,9 +1160,7 @@ const IMPLEMENTED: Record<string, unknown> = {
   setF12ShortcutActive(active: boolean): void {
     window.aecpilot.setF12ShortcutActive(active)
   },
-  onF12Shortcut(
-    cb: Parameters<Window['aecpilot']['onF12Shortcut']>[0]
-  ): () => void {
+  onF12Shortcut(cb: Parameters<Window['aecpilot']['onF12Shortcut']>[0]): () => void {
     return window.aecpilot.onF12Shortcut(cb)
   },
   minimizeToTray: {

@@ -63,14 +63,18 @@ test.fixme('47.2.1 картинка сгенерирована и видна в 
   console.log('47.2 ' + result.transcript)
   console.log(
     '47.2 RAW ' +
-      JSON.stringify((await eventsSince(page, mark)).filter((e) => e.type === 'tool.complete')).slice(0, 1200)
+      JSON.stringify(
+        (await eventsSince(page, mark)).filter((e) => e.type === 'tool.complete')
+      ).slice(0, 1200)
   )
   expect(result.tools.join(','), 'вызвана генерация').toMatch(/image_generate/)
   // Лента показывает картинку одним из двух способов, и выбирает модель: встроенной
   // в ответ или карточкой вызова «Открыть изображение: <файл>» (замерено 24.09.2026,
   // 1 из 4 прогонов встроил). Оба — их отрисовка сгенерированного файла.
   const answer = page.locator('[data-slot="aui_assistant-message-root"]').last()
-  const shown = answer.locator('img').or(answer.getByText(/^(Открыть изображение|Open image): .*\.(png|jpe?g|webp)$/i))
+  const shown = answer
+    .locator('img')
+    .or(answer.getByText(/^(Открыть изображение|Open image): .*\.(png|jpe?g|webp)$/i))
   await expect(shown.first(), 'картинка видна в ленте').toBeVisible({ timeout: 30000 })
   await record(test.info(), page, { transcript: result.transcript })
 })

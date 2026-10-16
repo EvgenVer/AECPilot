@@ -7,7 +7,14 @@ import { cpSync } from 'node:fs'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { addSourceAsUser, clearNotifications, hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import {
+  addSourceAsUser,
+  clearNotifications,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 import { recordChatEvents, turn, type TurnResult } from '../lib/turn'
 import { addPdf, makeSampleVault, SAMPLE, type SampleVault } from '../lib/vault'
@@ -105,7 +112,8 @@ test('15.2.1 щелчок по фишке открывает документ н
   await clearNotifications(page)
   // Вьюер живёт в правой панели на вкладке Vault — как в блоках 16–21.
   const vaultTab = page.getByRole('tab', { name: /Vault/ })
-  if ((await vaultTab.count()) > 0 && (await vaultTab.getAttribute('aria-selected')) !== 'true') await vaultTab.click()
+  if ((await vaultTab.count()) > 0 && (await vaultTab.getAttribute('aria-selected')) !== 'true')
+    await vaultTab.click()
   const showRight = page.getByRole('button', { name: /Показать правую панель|Show right sidebar/ })
   if ((await showRight.count()) > 0) await showRight.click()
   await chip.click()
@@ -113,7 +121,9 @@ test('15.2.1 щелчок по фишке открывает документ н
   // страниц — сосед кнопки «Предыдущая страница» (как 16.1.1). Полосы вкладок с
   // «Закрыть <файл>» у единственного документа нет — она со второго (16.2.1).
   expect(file).toBe(SAMPLE.pdf)
-  const counter = page.getByRole('button', { name: /Предыдущая страница|Previous page/ }).locator('xpath=following-sibling::span[1]')
+  const counter = page
+    .getByRole('button', { name: /Предыдущая страница|Previous page/ })
+    .locator('xpath=following-sibling::span[1]')
   await expect(counter).toHaveText(`7 / ${SAMPLE.pdfPages}`, { timeout: 60000 })
   await record(test.info(), page)
 })
@@ -144,7 +154,9 @@ test('15.4.1 выдержка, которой нет в источнике: жё
   // Просьбу «приведи такую выдержку» агент отклоняет как выдумку (замер
   // 24.09.2026) — и правильно. Поэтому строку составляет тест, а агент её
   // повторяет: проверяется пометка приложения, а не честность агента.
-  const sourceId = (await page.evaluate(() => window.aecpilot.listSources())).find((s) => s.root_path === sample.sourceA)!.id
+  const sourceId = (await page.evaluate(() => window.aecpilot.listSources())).find(
+    (s) => s.root_path === sample.sourceA
+  )!.id
   const line = `[src: ${sourceId}/${SAMPLE.pdf}#p7](#cite) «${FAKE_QUOTE}»`
   fake = await turn(
     page,
@@ -162,7 +174,9 @@ test('15.4.1 выдержка, которой нет в источнике: жё
     )
   }
   console.log('15.4 ' + fake.transcript)
-  const flagged = lastAnswer(page).locator('button[title^="[src:"]').filter({ has: page.locator('.codicon-warning') })
+  const flagged = lastAnswer(page)
+    .locator('button[title^="[src:"]')
+    .filter({ has: page.locator('.codicon-warning') })
   await expect(flagged.first(), 'фишка помечена').toBeVisible({ timeout: 60000 })
   expect(await flagged.first().getAttribute('title')).toContain(FAKE_QUOTE)
   await record(test.info(), page, { transcript: fake.transcript })

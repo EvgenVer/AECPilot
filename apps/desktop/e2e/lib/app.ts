@@ -366,11 +366,16 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
 
   if (options.providerKeyInStore && profileDir) {
     const keys = profileProviderKeys(profileDir)
-    if (keys.length === 0) throw new Error('providerKeyInStore: в .env профиля нет ключей провайдера')
+    if (keys.length === 0)
+      throw new Error('providerKeyInStore: в .env профиля нет ключей провайдера')
     const first = await mainWindow(stand)
-    await first.waitForFunction(() => Boolean(window.aecpilot?.saveProviderKey), undefined, { timeout: 60000 })
+    await first.waitForFunction(() => Boolean(window.aecpilot?.saveProviderKey), undefined, {
+      timeout: 60000
+    })
     for (const entry of keys) {
-      const saved = (await first.evaluate((e) => window.aecpilot.saveProviderKey(e), entry)) as { ok?: boolean }
+      const saved = (await first.evaluate((e) => window.aecpilot.saveProviderKey(e), entry)) as {
+        ok?: boolean
+      }
       if (saved?.ok === false) throw new Error(`providerKeyInStore: ${entry.envVar} не сохранён`)
     }
   }
@@ -516,7 +521,9 @@ function tail(text: string, count: number): string {
 /** Процесс приложения, или undefined, если приложение уже вышло само: у
  *  вышедшего `ElectronApplication.process()` бросает, а не возвращает пустое.
  *  Позиция 38.20.2 закрывает приложение внутри теста. */
-function appProcess(app: ElectronApplication): ReturnType<ElectronApplication['process']> | undefined {
+function appProcess(
+  app: ElectronApplication
+): ReturnType<ElectronApplication['process']> | undefined {
   try {
     return app.process()
   } catch {

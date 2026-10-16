@@ -135,7 +135,9 @@ describe('имя канала в вопросе', () => {
 
     renderDialog()
 
-    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe('Открыть канал Microsoft Graph?')
+    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe(
+      'Открыть канал Microsoft Graph?'
+    )
   })
 
   test('без списка — идентификатор, как раньше', async () => {
@@ -145,6 +147,8 @@ describe('имя канала в вопросе', () => {
 
     renderDialog()
 
-    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe('Открыть канал unknown_channel?')
+    expect(screen.getAllByRole('dialog').at(-1)?.getAttribute('aria-label')).toBe(
+      'Открыть канал unknown_channel?'
+    )
   })
 })

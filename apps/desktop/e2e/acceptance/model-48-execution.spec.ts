@@ -8,13 +8,7 @@ import { join } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
-import {
-  hideFirstRunSurfaces,
-  mainWindow,
-  openProject,
-  send,
-  standFixture
-} from '../lib/app'
+import { hideFirstRunSurfaces, mainWindow, openProject, send, standFixture } from '../lib/app'
 import { record } from '../lib/evidence'
 import {
   approvalCommand,
@@ -69,7 +63,11 @@ test('48.2.1 счёт по данным проекта с графиком; ви
   expect(result.text, 'сумма посчитана верно').toMatch(/1\s?865/)
   expect(existsSync(join(stand.get().projectDir, 'нагрузки.png')), 'график построен').toBe(true)
   await expect(
-    page.locator('[data-slot="aui_assistant-message-root"]').last().locator('[data-slot="tool-block"]').first()
+    page
+      .locator('[data-slot="aui_assistant-message-root"]')
+      .last()
+      .locator('[data-slot="tool-block"]')
+      .first()
   ).toBeVisible()
   await record(test.info(), page, { transcript: result.transcript })
 })
@@ -118,7 +116,9 @@ async function stoppedOn(
 async function decline(page: Page, mark: number): Promise<string> {
   const command = await approvalCommand(page)
   console.log('R21 COMMAND ' + command)
-  await approvalStrip(page).getByRole('button', { name: /^Отклонить/ }).click()
+  await approvalStrip(page)
+    .getByRole('button', { name: /^Отклонить/ })
+    .click()
   await waitTurnEnd(page, mark, 120000, undefined, undefined, true)
   return command
 }
@@ -198,8 +198,12 @@ test('48.4.1 чтение вне рабочей папки видно в лен�
     // прочитать этот файл… доступ к системным файлам вне проекта запрещён». Не
     // прочёл вовсе — значит, и скрытно не прочёл; содержимое до модели не дошло.
     // Слова отказа не проверяются: формулировок у модели много («…не осуществляется»).
-    expect(result.text, 'содержимого win.ini в ответе нет').not.toMatch(/16-bit|\[fonts\]|\[extensions\]/i)
-    const raw = JSON.stringify((await eventsSince(page, mark)).filter((e) => e.type === 'tool.complete'))
+    expect(result.text, 'содержимого win.ini в ответе нет').not.toMatch(
+      /16-bit|\[fonts\]|\[extensions\]/i
+    )
+    const raw = JSON.stringify(
+      (await eventsSince(page, mark)).filter((e) => e.type === 'tool.complete')
+    )
     expect(raw, 'содержимое win.ini не прочитано').not.toMatch(/16-bit|\[fonts\]/i)
     await record(test.info(), page, { transcript: result.transcript })
     return
@@ -210,7 +214,10 @@ test('48.4.1 чтение вне рабочей папки видно в лен�
   // (`tool/run-summary.ts`) — человек раскрывает её щелчком, так и тест.
   const group = message.getByRole('button', { name: /^Explored \d+ files?/ }).first()
   if (await group.isVisible()) await group.click()
-  await expect(message.getByText(/^(Чтение|Read) .*win\.ini/i).first(), 'карточка вызова называет путь вне проекта').toBeVisible()
+  await expect(
+    message.getByText(/^(Чтение|Read) .*win\.ini/i).first(),
+    'карточка вызова называет путь вне проекта'
+  ).toBeVisible()
   await record(test.info(), page, { transcript: result.transcript })
 })
 

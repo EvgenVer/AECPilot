@@ -9,7 +9,11 @@ import { citationFromLink } from './citation-link-plugin'
 describe('ссылка на источник в редакторе', () => {
   test('текст ссылки `src: …` и адрес #cite — цитата с файлом и местом', () => {
     const citation = citationFromLink('#cite', 'src: 6c746b66/отчёт.pdf#p7')
-    expect(citation).toMatchObject({ relPath: 'отчёт.pdf', sourceId: '6c746b66', locator: { page: 7 } })
+    expect(citation).toMatchObject({
+      relPath: 'отчёт.pdf',
+      sourceId: '6c746b66',
+      locator: { page: 7 }
+    })
   })
 
   test('ссылка без места — цитата на файл целиком', () => {

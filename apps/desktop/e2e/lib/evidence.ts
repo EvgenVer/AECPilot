@@ -86,11 +86,16 @@ export async function record(
   const skipped = finished && testInfo.status === 'skipped'
   const verdict: Verdict =
     extra.verdict ??
-    (skipped ? 'note' : knownDefect || (finished && testInfo.status !== testInfo.expectedStatus) ? 'fail' : 'pass')
+    (skipped
+      ? 'note'
+      : knownDefect || (finished && testInfo.status !== testInfo.expectedStatus)
+        ? 'fail'
+        : 'pass')
   const note =
     extra.note ??
     (skipped
-      ? testInfo.annotations.find((annotation) => annotation.type === 'skip')?.description ?? 'позиция пропущена'
+      ? (testInfo.annotations.find((annotation) => annotation.type === 'skip')?.description ??
+        'позиция пропущена')
       : knownDefect
         ? `ожидаемое падение: ${
             testInfo.annotations.find((annotation) => annotation.type === 'fail')?.description ??

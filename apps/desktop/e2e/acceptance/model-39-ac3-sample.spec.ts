@@ -7,13 +7,29 @@
 // Индексации и графу нужен ключ провайдера в хранилище приложения (D-117).
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { addSourceAsUser, clearNotifications, hideFirstRunSurfaces, mainWindow, openProject, rootPython, standFixture } from '../lib/app'
+import {
+  addSourceAsUser,
+  clearNotifications,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  rootPython,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 import { eventCount, eventsSince, recordChatEvents, turn, type TurnResult } from '../lib/turn'
 
@@ -41,7 +57,11 @@ const DOCS: Record<string, string> = {
     'Письмо № 17 от 02.09.2026. Заказчик просит предусмотреть резерв мощности 10 %',
     'на щите ЩС-1 и согласовать трассу кабеля от ТП-1 до склада.'
   ].join('\n'),
-  'Кабельный журнал.csv': ['Кабель;Откуда;Куда;Длина, м', 'ВВГнг-LS 5х25;ТП-1;ЩС-1;120', 'ВВГнг-LS 3х2,5;ЩС-1;Освещение;60'].join('\n'),
+  'Кабельный журнал.csv': [
+    'Кабель;Откуда;Куда;Длина, м',
+    'ВВГнг-LS 5х25;ТП-1;ЩС-1;120',
+    'ВВГнг-LS 3х2,5;ЩС-1;Освещение;60'
+  ].join('\n'),
   // Файл, который не разбирается: ошибка по нему должна быть названа поимённо
   // и не остановить остальные.
   'битый.docx': 'это не docx, а текст с чужим расширением'
@@ -95,7 +115,12 @@ const docsBefore = tree(docs)
 interface IngestState {
   running: boolean
   progress?: { done: number; total: number } | null
-  lastReport?: { files_total: number; files_failed: number; files_ingested: number; errors: { rel_path: string; error: string }[] } | null
+  lastReport?: {
+    files_total: number
+    files_failed: number
+    files_ingested: number
+    errors: { rel_path: string; error: string }[]
+  } | null
 }
 
 let prepared = false
@@ -122,8 +147,12 @@ async function ui(): Promise<Page> {
       )
       .toBe(true)
     // Граф — по всему источнику: вики строится по сущностям и связям графа.
-    const sourceId = (await page.evaluate(() => window.aecpilot.listSources())).find((s) => s.root_path === docs)!.id
-    expect(await page.evaluate(([id]) => window.aecpilot.startGraphAdd(id, '', 'folder'), [sourceId])).toMatchObject({
+    const sourceId = (await page.evaluate(() => window.aecpilot.listSources())).find(
+      (s) => s.root_path === docs
+    )!.id
+    expect(
+      await page.evaluate(([id]) => window.aecpilot.startGraphAdd(id, '', 'folder'), [sourceId])
+    ).toMatchObject({
       started: true
     })
     await expect
@@ -179,7 +208,11 @@ test('22.1.1 в wiki/ появились entities, concepts, comparisons, querie
   test.setTimeout(3600000)
   const page = await ui()
   const mark = await eventCount(page)
-  build = await turn(page, 'построй вики проекта', { timeoutMs: 1800000, clarify: ANY_CHOICE, declineForeign: true })
+  build = await turn(page, 'построй вики проекта', {
+    timeoutMs: 1800000,
+    clarify: ANY_CHOICE,
+    declineForeign: true
+  })
   console.log('22.1 ' + build.transcript.slice(0, 3000))
   // Навык сначала называет покрытие вслух и спрашивает, как быть (`aec-wiki`,
   // шаг 1: «это надо сказать вслух до начала»). Человек ответил бы — отвечаем.
@@ -188,25 +221,47 @@ test('22.1.1 в wiki/ появились entities, concepts, comparisons, querie
   // Готово — это снимки в raw/ и страницы, а не только папки: каркас модель
   // однажды сложила файловым `write_file` в обход `wiki_init` и остановилась.
   const complete = (): boolean =>
-    ['entities', 'concepts', 'comparisons', 'queries', 'raw', 'SCHEMA.md', 'index.md', 'log.md'].every((name) =>
-      existsSync(join(wiki(), name))
-    ) &&
+    [
+      'entities',
+      'concepts',
+      'comparisons',
+      'queries',
+      'raw',
+      'SCHEMA.md',
+      'index.md',
+      'log.md'
+    ].every((name) => existsSync(join(wiki(), name))) &&
     readdirSync(join(wiki(), 'raw')).some((name) => name.endsWith('.md') && name !== 'README.md') &&
     wikiPages().length >= 2
   for (let round = 0; round < 3 && !complete(); round++) {
     const reply = existsSync(join(wiki(), 'entities'))
       ? 'Продолжай до конца: все страницы, проверка вики и контрольная точка. Больше не спрашивай.'
       : '1 — строй сейчас по тому, что есть.'
-    build = await turn(page, reply, { timeoutMs: 1800000, clarify: ANY_CHOICE, declineForeign: true })
+    build = await turn(page, reply, {
+      timeoutMs: 1800000,
+      clarify: ANY_CHOICE,
+      declineForeign: true
+    })
     console.log(`22.1 (ответ ${round + 1}) ` + build.transcript.slice(0, 3000))
   }
   // Замер 24.09.2026: из семи `wiki_write_page` записалась одна, агент сказал
   // «сервер временно отклонил запросы» — сырые ответы инструмента в журнал.
   const writes = (await eventsSince(page, mark)).filter(
-    (event) => event.type === 'tool.complete' && JSON.stringify(event.payload ?? {}).includes('wiki_write_page')
+    (event) =>
+      event.type === 'tool.complete' &&
+      JSON.stringify(event.payload ?? {}).includes('wiki_write_page')
   )
   console.log('22.1 RAW wiki_write_page ' + JSON.stringify(writes).slice(0, 6000))
-  for (const name of ['entities', 'concepts', 'comparisons', 'queries', 'raw', 'SCHEMA.md', 'index.md', 'log.md']) {
+  for (const name of [
+    'entities',
+    'concepts',
+    'comparisons',
+    'queries',
+    'raw',
+    'SCHEMA.md',
+    'index.md',
+    'log.md'
+  ]) {
     expect(existsSync(join(wiki(), name)), name).toBe(true)
   }
   console.log('39 страницы вики: ' + wikiPages().join(', '))
@@ -214,7 +269,9 @@ test('22.1.1 в wiki/ появились entities, concepts, comparisons, querie
 })
 
 test('22.1.2 в raw/ — снимки документов, у каждого сверху source_id и sha256', async () => {
-  const snapshots = readdirSync(join(wiki(), 'raw')).filter((name) => name.endsWith('.md') && name !== 'README.md')
+  const snapshots = readdirSync(join(wiki(), 'raw')).filter(
+    (name) => name.endsWith('.md') && name !== 'README.md'
+  )
   expect(snapshots.length, 'снимки есть').toBeGreaterThanOrEqual(3)
   for (const name of snapshots) {
     const head = readFileSync(join(wiki(), 'raw', name), 'utf8').split('---')[1] ?? ''
@@ -269,11 +326,17 @@ test('22.1.5 (замер) каталог и журнал после постро
   // Индекс называет страницу ссылкой `[[…]]`, по заголовку `title` или по имени
   // файла — сравниваем без регистра и без разницы между пробелом и `_`.
   const norm = (text: string): string => text.toLowerCase().replace(/[\s_]+/g, ' ')
-  const title = (rel: string): string => read(rel).match(/^title:\s*(.+)$/m)?.[1].trim() ?? ''
+  const title = (rel: string): string =>
+    read(rel)
+      .match(/^title:\s*(.+)$/m)?.[1]
+      .trim() ?? ''
   const listed = wikiPages().filter((rel) =>
-    [rel.split(/[\\/]/).pop()!.replace(/\.md$/, ''), title(rel)].some((name) => name && norm(index).includes(norm(name)))
+    [rel.split(/[\\/]/).pop()!.replace(/\.md$/, ''), title(rel)].some(
+      (name) => name && norm(index).includes(norm(name))
+    )
   )
-  if (listed.length < Math.min(2, wikiPages().length)) indexDefects.push(`в index.md страниц: ${listed.length} из ${wikiPages().length}`)
+  if (listed.length < Math.min(2, wikiPages().length))
+    indexDefects.push(`в index.md страниц: ${listed.length} из ${wikiPages().length}`)
   if (!/build|постро/i.test(read('log.md'))) indexDefects.push('в log.md нет записи о построении')
   console.log('22.1.5 замечания: ' + JSON.stringify(indexDefects))
 })
@@ -282,7 +345,9 @@ test('22.1.5 (замер) каталог и журнал после постро
 
 function treeRow(page: Page, title: string): Locator {
   // Строка дерева Vault — пункт списка с кнопкой-именем (снимок 24.09.2026).
-  return page.getByRole('listitem').filter({ has: page.getByRole('button', { name: title, exact: true }) })
+  return page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: title, exact: true }) })
 }
 
 // Открытый документ в правой панели «Document»: строка с именем файла, за ней
@@ -310,13 +375,19 @@ function richestPage(): string {
 
 async function openWikiPage(page: Page, rel: string): Promise<void> {
   const vaultTab = page.getByRole('tab', { name: /Vault/ })
-  if ((await vaultTab.count()) > 0 && (await vaultTab.getAttribute('aria-selected')) !== 'true') await vaultTab.click()
+  if ((await vaultTab.count()) > 0 && (await vaultTab.getAttribute('aria-selected')) !== 'true')
+    await vaultTab.click()
   const parts = rel.split(/[\\/]/)
   // Папку раскрываем, только если её содержимое не видно: щелчок по раскрытой
   // папке её сворачивает.
   const path = ['wiki', ...parts]
   for (let i = 0; i < path.length - 1; i++) {
-    if (await treeRow(page, path[i + 1]).first().isVisible()) continue
+    if (
+      await treeRow(page, path[i + 1])
+        .first()
+        .isVisible()
+    )
+      continue
     const folderRow = treeRow(page, path[i]).first()
     await expect(folderRow).toBeVisible({ timeout: 30000 })
     await folderRow.getByRole('button', { name: path[i], exact: true }).click()
@@ -338,10 +409,13 @@ const citeDefects: string[] = []
 
 test('22.1.4 (замер) ссылки [src: …] на страницах', () => {
   const bad = wikiPages().flatMap((rel) =>
-    (read(rel).match(/\[src:[^\]]*\]/g) ?? []).filter((raw) => !raw.match(VALID_SRC)).map((raw) => `${rel}: ${raw}`)
+    (read(rel).match(/\[src:[^\]]*\]/g) ?? [])
+      .filter((raw) => !raw.match(VALID_SRC))
+      .map((raw) => `${rel}: ${raw}`)
   )
   if (bad.length) citeDefects.push(`ссылки без источника: ${bad.slice(0, 5).join('; ')}`)
-  if (!wikiPages().some((rel) => new RegExp(VALID_SRC.source).test(read(rel)))) citeDefects.push('ни одной правильной ссылки [src: источник/путь]')
+  if (!wikiPages().some((rel) => new RegExp(VALID_SRC.source).test(read(rel))))
+    citeDefects.push('ни одной правильной ссылки [src: источник/путь]')
   console.log('22.1.4 замечания: ' + JSON.stringify(citeDefects))
 })
 
@@ -352,7 +426,10 @@ test('22.1.4 (щелчок) правильная ссылка [src: …] кли�
   test.skip(!rel || valid(rel) === 0, 'правильных ссылок нет — замечание в 22.1.4 (замер)')
   await openWikiPage(page, rel)
   // Первая ссылка, у которой есть источник: `src: <источник>/<путь>`.
-  const chip = docBody(page).locator('a[href*="cite"]').filter({ hasText: /^src:\s*[^/\s]+\/.+/ }).first()
+  const chip = docBody(page)
+    .locator('a[href*="cite"]')
+    .filter({ hasText: /^src:\s*[^/\s]+\/.+/ })
+    .first()
   await expect(chip, 'ссылка на источник видна на странице').toBeVisible({ timeout: 30000 })
   await chip.click()
   // Документ-источник: либо он встал на место страницы, либо рядом появилась
@@ -374,7 +451,9 @@ test('22.2.1 ссылка [[…]] на странице переходит на 
   const rel = richestPage()
   await openWikiPage(page, rel)
   const link = page.locator('[data-wikilink]').first()
-  await expect(link, 'ссылка [[…]] на странице — ссылка, а не текст').toBeVisible({ timeout: 30000 })
+  await expect(link, 'ссылка [[…]] на странице — ссылка, а не текст').toBeVisible({
+    timeout: 30000
+  })
   const from = (await docName(page).innerText()).trim()
   await link.click()
   // Имя файла цели и текст ссылки не обязаны совпадать (`[[ТП-1]]` → `tp-1.md`):
@@ -399,9 +478,14 @@ test('22.4.1 после изменения источника в уведомл�
   mtimesBeforeUpdate = new Map(wikiPages().map((rel) => [rel, statSync(join(wiki(), rel)).mtimeMs]))
   // Шаг 4: значение в источнике изменилось.
   await clearNotifications(page)
-  writeDoc('ТУ сетевой организации.docx', DOCS['ТУ сетевой организации.docx'].replace('42 кВт', '48 кВт'))
+  writeDoc(
+    'ТУ сетевой организации.docx',
+    DOCS['ТУ сетевой организации.docx'].replace('42 кВт', '48 кВт')
+  )
   await page.evaluate(() => window.aecpilot.triggerScan())
-  await expect(page.getByRole('button', { name: 'Обновить вики' }).first()).toBeVisible({ timeout: 180000 })
+  await expect(page.getByRole('button', { name: 'Обновить вики' }).first()).toBeVisible({
+    timeout: 180000
+  })
   await record(test.info(), page)
 })
 
@@ -409,9 +493,13 @@ test('22.4.2 клик кладёт команду в поле ввода, а н�
   const page = await ui()
   const before = await page.locator('[data-slot="aui_user-message-root"]').count()
   await page.getByRole('button', { name: 'Обновить вики' }).first().click()
-  await expect(page.getByText('Обнови вики проекта по изменениям').first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('Обнови вики проекта по изменениям').first()).toBeVisible({
+    timeout: 15000
+  })
   await page.waitForTimeout(3000)
-  expect(await page.locator('[data-slot="aui_user-message-root"]').count(), 'не отправлено').toBe(before)
+  expect(await page.locator('[data-slot="aui_user-message-root"]').count(), 'не отправлено').toBe(
+    before
+  )
 })
 
 let update: TurnResult
@@ -424,12 +512,17 @@ test('22.5.1 (замер) обновление по изменениям', async
   // Индекс должен увидеть новую редакцию до обновления вики.
   await page.evaluate(() => window.aecpilot.startIngest(true))
   await expect
-    .poll(async () => (await page.evaluate(() => window.aecpilot.getIngestState())).running, { timeout: 300000, intervals: [2000] })
+    .poll(async () => (await page.evaluate(() => window.aecpilot.getIngestState())).running, {
+      timeout: 300000,
+      intervals: [2000]
+    })
     .toBe(false)
   const mark = await eventCount(page)
   const changed = (): { touched: string[]; added: string[] } => ({
     touched: [...mtimesBeforeUpdate]
-      .filter(([rel, at]) => existsSync(join(wiki(), rel)) && statSync(join(wiki(), rel)).mtimeMs !== at)
+      .filter(
+        ([rel, at]) => existsSync(join(wiki(), rel)) && statSync(join(wiki(), rel)).mtimeMs !== at
+      )
       .map(([rel]) => rel),
     // Новая страница — тоже обновление: навык кладёт сводку противоречия в
     // comparisons/ (замер 24.09.2026: противоречие 42/48 легло новой страницей).
@@ -446,7 +539,11 @@ test('22.5.1 (замер) обновление по изменениям', async
     if (now.touched.length + now.added.length > 0) break
     console.log(`22.5 (ответ ${round + 1}) ` + update.transcript.slice(0, 2000))
     if (/отклоняет|недоступ|unreachable|пауз/i.test(update.text)) await page.waitForTimeout(65000)
-    update = await turn(page, 'Да, выполни обновление вики сейчас, до конца. Больше не спрашивай.', options)
+    update = await turn(
+      page,
+      'Да, выполни обновление вики сейчас, до конца. Больше не спрашивай.',
+      options
+    )
   }
   console.log('22.5 ' + update.transcript.slice(0, 3000))
   const refusals = (await eventsSince(page, mark)).filter(
@@ -457,9 +554,14 @@ test('22.5.1 (замер) обновление по изменениям', async
   )
   console.log('22.5 RAW отказы aec_rag ' + JSON.stringify(refusals).slice(0, 4000))
   const { touched, added } = changed()
-  console.log('22.5 затронуты: ' + touched.join(', ') + ` из ${mtimesBeforeUpdate.size}; новые: ${added.join(', ')}`)
+  console.log(
+    '22.5 затронуты: ' +
+      touched.join(', ') +
+      ` из ${mtimesBeforeUpdate.size}; новые: ${added.join(', ')}`
+  )
   if (touched.length + added.length === 0) updateScope.push('ничего не обновлено')
-  if (touched.length === mtimesBeforeUpdate.size) updateScope.push(`переписаны все ${touched.length} страниц, а не затронутые`)
+  if (touched.length === mtimesBeforeUpdate.size)
+    updateScope.push(`переписаны все ${touched.length} страниц, а не затронутые`)
   await record(test.info(), page, { transcript: update.transcript })
 })
 
@@ -478,9 +580,11 @@ test('22.5.3 (замер) противоречие и журнал после о
   if (at < 0) updateDefects['22.5.3'].push('блока «Противоречие» нет ни на одной странице')
   else {
     const block = all.slice(at, at + 1500)
-    if (!/42/.test(block) || !/48/.test(block)) updateDefects['22.5.3'].push('в блоке противоречия нет обеих версий (42 и 48 кВт)')
+    if (!/42/.test(block) || !/48/.test(block))
+      updateDefects['22.5.3'].push('в блоке противоречия нет обеих версий (42 и 48 кВт)')
   }
-  if (!/update|обнов/i.test(read('log.md'))) updateDefects['22.5.4'].push('в log.md нет записи об обновлении')
+  if (!/update|обнов/i.test(read('log.md')))
+    updateDefects['22.5.4'].push('в log.md нет записи об обновлении')
   console.log('22.5 замечания: ' + JSON.stringify(updateDefects))
 })
 
@@ -497,17 +601,27 @@ const lintDefects: Record<string, string[]> = { '22.6.1': [], '22.6.2': [], '22.
 
 test('Замер 22.6: «проверь вики»', async () => {
   const page = await ui()
-  writeFileSync(join(wiki(), editedPage), read(editedPage).trimEnd() + `\nСм. также [[${BROKEN}]].\n`, 'utf8')
+  writeFileSync(
+    join(wiki(), editedPage),
+    read(editedPage).trimEnd() + `\nСм. также [[${BROKEN}]].\n`,
+    'utf8'
+  )
   pagesBeforeLint = new Map(wikiPages().map((rel) => [rel, read(rel)]))
-  lint = await turn(page, 'проверь вики', { timeoutMs: 900000, clarify: NO_FIX_CHOICE, declineForeign: true })
+  lint = await turn(page, 'проверь вики', {
+    timeoutMs: 900000,
+    clarify: NO_FIX_CHOICE,
+    declineForeign: true
+  })
   console.log('22.6 ' + lint.transcript.slice(0, 3000))
-  if (!lint.tools.some((name) => /wiki_lint/.test(name))) lintDefects['22.6.1'].push('wiki_lint не вызван')
+  if (!lint.tools.some((name) => /wiki_lint/.test(name)))
+    lintDefects['22.6.1'].push('wiki_lint не вызван')
   const groups = [/ошибк/i, /предупрежд/i, /замечани/i].filter((re) => re.test(lint.text)).length
   if (groups < 2) lintDefects['22.6.1'].push(`групп по серьёзности: ${groups}`)
   if (!lint.text.includes(BROKEN) || !/бит|не существ|нет такой|отсутств/i.test(lint.text)) {
     lintDefects['22.6.2'].push(`ссылка [[${BROKEN}]] не названа битой`)
   }
-  for (const [rel, text] of pagesBeforeLint) if (read(rel) !== text) lintDefects['22.6.3'].push(`${rel} изменена при проверке`)
+  for (const [rel, text] of pagesBeforeLint)
+    if (read(rel) !== text) lintDefects['22.6.3'].push(`${rel} изменена при проверке`)
   console.log('22.6 замечания: ' + JSON.stringify(lintDefects))
   await record(test.info(), page, { transcript: lint.transcript })
 })
@@ -520,14 +634,21 @@ const overviewDefects: string[] = []
 
 test('22.7.1 (замер) обзорный ответ по вики', async () => {
   const page = await ui()
-  const answer = await turn(page, 'что известно про электроснабжение объекта?', { timeoutMs: 600000, clarify: ANY_CHOICE, declineForeign: true })
+  const answer = await turn(page, 'что известно про электроснабжение объекта?', {
+    timeoutMs: 600000,
+    clarify: ANY_CHOICE,
+    declineForeign: true
+  })
   console.log('22.7 ' + answer.transcript.slice(0, 3000))
-  if (!/\[\[[^\]]+\]\]|wiki\/(entities|concepts)/.test(answer.text)) overviewDefects.push('в ответе нет ссылок на страницы вики')
+  if (!/\[\[[^\]]+\]\]|wiki\/(entities|concepts)/.test(answer.text))
+    overviewDefects.push('в ответе нет ссылок на страницы вики')
   if (!/ТП-1|ТП‑1/.test(answer.text)) overviewDefects.push('в ответе нет ТП-1')
   // 39.7: того, чего в документах нет, в ответе тоже нет — ни одной мощности,
   // кроме названных в образце.
   const powers = (answer.text.match(/\d+\s*кВт/g) ?? []).map((value) => value.replace(/\s/g, ''))
-  for (const value of powers) if (!['42кВт', '48кВт', '150кВт'].includes(value)) overviewDefects.push(`выдуманная мощность ${value}`)
+  for (const value of powers)
+    if (!['42кВт', '48кВт', '150кВт'].includes(value))
+      overviewDefects.push(`выдуманная мощность ${value}`)
   console.log('22.7.1 замечания: ' + JSON.stringify(overviewDefects))
   await record(test.info(), page, { transcript: answer.transcript })
 })
@@ -542,9 +663,16 @@ test('22.7.2 (замер) ответ по устаревшей вики', async 
   await page.evaluate(() => window.aecpilot.triggerScan())
   await page.evaluate(() => window.aecpilot.startIngest(true))
   await expect
-    .poll(async () => (await page.evaluate(() => window.aecpilot.getIngestState())).running, { timeout: 300000, intervals: [2000] })
+    .poll(async () => (await page.evaluate(() => window.aecpilot.getIngestState())).running, {
+      timeout: 300000,
+      intervals: [2000]
+    })
     .toBe(false)
-  const answer = await turn(page, 'Какой резерв мощности просит заказчик на щите ЩС-1? Ответь по вики.', { timeoutMs: 600000, clarify: ANY_CHOICE, declineForeign: true })
+  const answer = await turn(
+    page,
+    'Какой резерв мощности просит заказчик на щите ЩС-1? Ответь по вики.',
+    { timeoutMs: 600000, clarify: ANY_CHOICE, declineForeign: true }
+  )
   console.log('22.7.2 ' + answer.transcript.slice(0, 2000))
   staleAnswer = answer.text
 })
@@ -555,7 +683,8 @@ test('AC3 образец: ни один файл образца не трону�
   const after = tree(docs)
   const changedByTest = new Set(['ТУ сетевой организации.docx', 'Письмо заказчика.docx'])
   expect([...after.keys()].sort()).toEqual([...docsBefore.keys()].sort())
-  for (const [rel, stamp] of docsBefore) if (!changedByTest.has(rel)) expect(after.get(rel), rel).toBe(stamp)
+  for (const [rel, stamp] of docsBefore)
+    if (!changedByTest.has(rel)) expect(after.get(rel), rel).toBe(stamp)
 })
 
 test('22.1.3 страницы содержательные, у каждой заголовок title/type/tags/sources/updated', () => {
@@ -575,7 +704,11 @@ test('22.5.4 в log.md появилась запись об обновлении
 })
 
 test('22.7.2 если вики устарела — об этом сказано', () => {
-  verdict(/устар|не обновл|изменил|новая редакц|обновить вики/i.test(staleAnswer) ? [] : [`не сказано, что вики устарела: «${staleAnswer.slice(0, 200)}»`])
+  verdict(
+    /устар|не обновл|изменил|новая редакц|обновить вики/i.test(staleAnswer)
+      ? []
+      : [`не сказано, что вики устарела: «${staleAnswer.slice(0, 200)}»`]
+  )
 })
 
 test('22.1.4 у фактов ссылки [src: …], и они кликаются — открывают документ', () => {

@@ -51,7 +51,9 @@ describe('cronRunnerSpawnEnv (3F.D1, D-136)', () => {
 
   // D-164: общий с отдельным Hermes каталог блокировок гасил наш планировщик.
   it('keeps gateway locks inside the profile, the same dir serve uses', async () => {
-    const specifier = pathToFileURL(join(__dirname, '..', '..', '..', '..', 'runtime', 'hermes-env.mjs'))
+    const specifier = pathToFileURL(
+      join(__dirname, '..', '..', '..', '..', 'runtime', 'hermes-env.mjs')
+    )
     const { gatewayLockDir } = (await import(/* @vite-ignore */ specifier.href)) as {
       gatewayLockDir: (home: string) => string
     }

@@ -87,7 +87,9 @@ describe('hermesRest transport', () => {
       const target = await serve((_req, res) => {
         setTimeout(() => res.end('{"ok":true}'), 310_000)
       })
-      await expect(hermesRest(target, '/api/x', { method: 'POST', timeoutMs: 600_000 })).resolves.toEqual({
+      await expect(
+        hermesRest(target, '/api/x', { method: 'POST', timeoutMs: 600_000 })
+      ).resolves.toEqual({
         ok: true
       })
     },

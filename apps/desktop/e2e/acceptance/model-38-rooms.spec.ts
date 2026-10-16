@@ -125,7 +125,15 @@ function speakers(page: Page, title: string): Locator {
  *  позиции не просят — отвечаем отказом, как осторожный человек. */
 async function denyPendingCommands(page: Page): Promise<void> {
   const deny = room(page).getByRole('button', { name: /^deny$/ })
-  for (let tries = 0; tries < 5 && (await deny.first().isVisible().catch(() => false)); tries++) {
+  for (
+    let tries = 0;
+    tries < 5 &&
+    (await deny
+      .first()
+      .isVisible()
+      .catch(() => false));
+    tries++
+  ) {
     if (needsYouSeen === undefined) needsYouSeen = await needsYouBadge(page).isVisible()
     console.log('[e2e] комната: отклонена команда специалиста')
     await deny.first().click()
@@ -143,7 +151,9 @@ function needsYouBadge(page: Page): Locator {
 
 /** Раскрыть «Что происходит» и вернуть текст ленты событий комнаты. */
 async function activityText(page: Page): Promise<string> {
-  const toggle = room(page).getByRole('button', { name: /^Что происходит/ }).first()
+  const toggle = room(page)
+    .getByRole('button', { name: /^Что происходит/ })
+    .first()
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
   const panel = page.locator(`[id="group-activity:${ROOM}"]`)
   await expect(panel).toBeVisible({ timeout: 15000 })
@@ -156,14 +166,17 @@ let needsYouSeen: boolean | undefined
 /** Дождаться, пока комната закончит ход: «Комната работает…» и «… думает…» ушли. */
 async function roundDone(page: Page, timeout = 420000): Promise<void> {
   await expect
-    .poll(async () => {
-      await denyPendingCommands(page)
-      return /Комната работает…|думает…|Ждём вашего ответа/.test(await roomText(page))
-    }, {
-      timeout,
-      intervals: [5000],
-      message: 'ход комнаты закончился'
-    })
+    .poll(
+      async () => {
+        await denyPendingCommands(page)
+        return /Комната работает…|думает…|Ждём вашего ответа/.test(await roomText(page))
+      },
+      {
+        timeout,
+        intervals: [5000],
+        message: 'ход комнаты закончился'
+      }
+    )
     .toBe(false)
 }
 

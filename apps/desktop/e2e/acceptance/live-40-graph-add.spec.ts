@@ -9,7 +9,13 @@ import { join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { addSourceAsUser, hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import {
+  addSourceAsUser,
+  hideFirstRunSurfaces,
+  mainWindow,
+  openProject,
+  standFixture
+} from '../lib/app'
 import { record } from '../lib/evidence'
 
 test.describe.configure({ mode: 'serial' })
@@ -28,7 +34,9 @@ const fresh = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-graph-new-'))
 mkdirSync(join(indexed, FOLDER))
 writeFileSync(
   join(indexed, FILE),
-  ['Позиция;Количество;Цена, руб', 'Кабель ВВГнг-LS 3х2,5;120 м;96', 'Щит ЩР-1;1 шт;18400'].join('\n') + '\n',
+  ['Позиция;Количество;Цена, руб', 'Кабель ВВГнг-LS 3х2,5;120 м;96', 'Щит ЩР-1;1 шт;18400'].join(
+    '\n'
+  ) + '\n',
   'utf8'
 )
 mkdirSync(join(fresh, NEW_FOLDER))
@@ -114,7 +122,9 @@ async function openDialog(page: Page, target: Locator): Promise<Locator> {
 
 function projectJson(): { graph_scope?: unknown } {
   const file = join(stand.get().projectDir, '.aecpilot', 'project.json')
-  return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as { graph_scope?: unknown }) : {}
+  return existsSync(file)
+    ? (JSON.parse(readFileSync(file, 'utf8')) as { graph_scope?: unknown })
+    : {}
 }
 
 /** Раздел «Граф знаний» страницы «Индекс» (с 3H страница, а не всплывающее
@@ -199,10 +209,14 @@ test('40.4.1 после «Добавить» видно «Строю граф: N
   })
   await dialog.getByRole('button', { name: 'Добавить', exact: true }).click()
   await expect
-    .poll(() => page.evaluate(() => (window as unknown as { __graphSeen?: string[] }).__graphSeen ?? []), {
-      timeout: 60000,
-      message: 'ход «строю граф: N из M» показан'
-    })
+    .poll(
+      () =>
+        page.evaluate(() => (window as unknown as { __graphSeen?: string[] }).__graphSeen ?? []),
+      {
+        timeout: 60000,
+        message: 'ход «строю граф: N из M» показан'
+      }
+    )
     .not.toEqual([])
   // Окно закрывается, прогон идёт дальше — его ход в индикаторе индекса.
   await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click()

@@ -7,6 +7,7 @@ test-results/
 # (README, this zone's docs) stay formatted normally.
 src/renderer/src/donor/**/*.ts
 src/renderer/src/donor/**/*.tsx
+src/renderer/src/donor/**/*.cjs
 src/renderer/src/donor/**/*.css
 src/renderer/src/donor/**/*.jsonl
 # Their own docs, copied alongside their code (e.g. debug/README.md). Our own

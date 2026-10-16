@@ -39,7 +39,9 @@ def allowed(args: list[str]) -> bool:
 def core_binary() -> str:
     venv = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, ".hermes-venv")
     windows = os.path.join(venv, "Scripts", "hermes.exe")
-    return os.path.normpath(windows if os.path.exists(windows) else os.path.join(venv, "bin", "hermes"))
+    return os.path.normpath(
+        windows if os.path.exists(windows) else os.path.join(venv, "bin", "hermes")
+    )
 
 
 def main() -> int:
@@ -50,7 +52,11 @@ def main() -> int:
         sys.stderr.buffer.write(REFUSAL.encode("utf-8"))
         sys.stderr.flush()
         return 2
-    if "chat" in args and ("-c" in args or "--continue" in args) and "--create-if-missing" not in args:
+    if (
+        "chat" in args
+        and ("-c" in args or "--continue" in args)
+        and "--create-if-missing" not in args
+    ):
         args.append("--create-if-missing")
     return subprocess.call([core_binary(), *args])
 

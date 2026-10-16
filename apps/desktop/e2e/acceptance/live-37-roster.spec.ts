@@ -433,7 +433,9 @@ test('38.2.2 специалиста с провайдером без ключа 
     if ((await card.getByRole('combobox').count()) >= 2) picked = label
   }
   expect(picked, 'нашёлся провайдер без ключа со списком моделей').not.toBe('')
-  console.log(`38.2.2: выбран «${picked}», модель «${await card.getByRole('combobox').nth(1).innerText()}»`)
+  console.log(
+    `38.2.2: выбран «${picked}», модель «${await card.getByRole('combobox').nth(1).innerText()}»`
+  )
   await card.getByRole('button', { name: /^Сохранить$/ }).click()
 
   await expect(

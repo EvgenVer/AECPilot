@@ -34,7 +34,9 @@ async function ui(): Promise<Page> {
 
 /** Раздел `mcp_servers` профиля — что реально установлено. */
 function mcpServersSection(): string {
-  const lines = readFileSync(join(String(stand.get().profileDir), 'config.yaml'), 'utf8').split('\n')
+  const lines = readFileSync(join(String(stand.get().profileDir), 'config.yaml'), 'utf8').split(
+    '\n'
+  )
   const at = lines.findIndex((line) => line.startsWith('mcp_servers:'))
   if (at === -1) return ''
   const end = lines.findIndex((line, index) => index > at && /^\S/.test(line))
@@ -59,7 +61,9 @@ test('29.5.1 агент не ставит сервер сам и говорит,
   expect(answer.tools, 'инструмента установки у агента нет').not.toContainEqual(
     expect.stringMatching(/setup_mcp|manage_catalog|manage_connections/)
   )
-  expect(answer.text, 'не говорит, что установил').not.toMatch(/(^|\s)(установил|поставил|installed)\b/i)
+  expect(answer.text, 'не говорит, что установил').not.toMatch(
+    /(^|\s)(установил|поставил|installed)\b/i
+  )
   await record(test.info(), page)
 })
 

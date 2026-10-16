@@ -32,7 +32,11 @@ export function citationLinkPlugin() {
             if (!node?.text || !mark) return false
             const citation = citationFromLink(mark.attrs.href as string | undefined, node.text)
             if (!citation) return false
-            openDocument({ locator: citation.locator, relPath: citation.relPath, sourceId: citation.sourceId })
+            openDocument({
+              locator: citation.locator,
+              relPath: citation.relPath,
+              sourceId: citation.sourceId
+            })
             // Клик съеден: иначе рядом с переходом встал бы ещё и курсор.
             return true
           }
