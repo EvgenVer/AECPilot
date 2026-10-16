@@ -9,16 +9,36 @@ packages:
 # waiting for streamdown to bump its own range.
 overrides:
   mermaid: '>=11.16.1'
-  dompurify: '>=3.4.13'
+  # Task T20.13 (owner decision 2026-10-16, item 18): two IN_PLACE DOM XSS
+  # advisories fixed in 3.4.16. Capped at the major mermaid already asks for.
+  dompurify: '^3.4.16'
   # Task 4D-17. Both are patch bumps inside the major their parents already
   # depend on, so nobody's range is being forced open. `brace-expansion` rides
   # in on exceljs (three separate majors: archiver's glob chain, readdir-glob,
   # and typescript-eslint's minimatch) and `nanoid` on postcss under vue —
   # every advisory is the same unbounded-expansion DoS class.
-  brace-expansion@1: '^1.1.18'
-  brace-expansion@2: '^2.1.4'
+  # T20.13 raised both lines again: three more DoS advisories (1.1.21 / 2.1.7).
+  brace-expansion@1: '^1.1.21'
+  brace-expansion@2: '^2.1.7'
   brace-expansion@5: '^5.0.9'
   nanoid@3: '^3.3.18'
+  # Task T20.13. Same rule as above — patch/minor bumps inside the major each
+  # parent already asks for, nobody's range forced open (registry checked
+  # 2026-10-16: same maintainers, licenses unchanged).
+  #   vue — @milkdown/components; vue pins every @vue/* exactly, so raising vue
+  #     moves @vue/server-renderer (attribute XSS) and the compiler together.
+  #   prosemirror-view — paste-handling XSS, in the shipped editor. Its newer
+  #     patches ask for prosemirror-model ^1.25.12 while milkdown resolves
+  #     1.25.11: two model copies and typing in the .md editor silently does
+  #     nothing (e2e 20.2.1, 2026-10-16) — so the model is raised with it.
+  #   source-map-js — vue's compiler; event-loop DoS.
+  #   http-cache-semantics, ip-address — get-windows' node-gyp build toolchain.
+  vue@3: '^3.5.42'
+  prosemirror-view@1: '^1.42.3'
+  prosemirror-model@1: '^1.25.12'
+  source-map-js@1: '^1.2.2'
+  http-cache-semantics@4: '^4.3.0'
+  ip-address@10: '^10.7.1'
   # Same task, dev half: patch/minor bumps inside the major each parent already
   # asks for. postcss and js-yaml ride in on vite and eslint, undici on electron
   # and jsdom. None of the three reaches the shipped bundle, but a finding
@@ -100,9 +120,21 @@ overrides:
 # 12 активных записей (1 критическая, 8 высоких, 3 средних) плюс одна уже
 # игнорируемая выше — вместе те самые «13 vulnerabilities found», которые
 # печатает pnpm.
+# Задача T20.13 (решение владельца 2026-10-16, п. 18) — GHSA-238p-pmpm-9mq7,
+# katex@0.16.47, низкая. Обход ограничений `trust` возможен ТОЛЬКО при уже
+# существующем загрязнении прототипа — сама по себе уязвимость его не создаёт.
+# Исправление есть лишь в 0.18.2+, а 0.17/0.18 — ломающие линии (0.x): mermaid
+# просит `^0.16.45`, micromark-extension-math — `^0.16.0`, и донор на ядре
+# 0.22.2 сам закрепляет `katex: 0.16.47` (`runtime/.hermes-src/apps/desktop/
+# package.json`). Обновление = форсированная мажорная версия под тремя
+# родителями ради уязвимости, которой нужна вторая.
+# КОГДА СНИМАТЬ: донор поднимает katex при подъёме пина, или mermaid расширяет
+# диапазон до 0.18 — проверять при каждом из этих событий.
 auditConfig:
   ignoreGhsas:
     - GHSA-w5hq-g745-h8pq
+    # katex@0.16.47 — см. блок выше (T20.13)
+    - GHSA-238p-pmpm-9mq7
     # tar@6.2.1 — сборочный тулчейн get-windows, см. блок выше
     - GHSA-23hp-3jrh-7fpw
     - GHSA-34x7-hfp2-rc4v
