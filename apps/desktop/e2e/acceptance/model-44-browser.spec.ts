@@ -101,11 +101,9 @@ test('44.1.1 страница открывается в окне; адресна
   await record(test.info(), page)
 })
 
-// ИЗВЕСТНЫЙ ДЕФЕКТ ДОНОРА до следующего подъёма пина (D-150/D-159, решение
-// владельца 2026-09-28 — ждать пина): их `store/preview.ts` 0.21.5 стирает
-// вкладки при загрузке окна и не находит свою в хранилище по профилям;
-// апстрим исправил это коммитом `71b7912`. Снять `fail` после подъёма.
-test.fail('44.2.1 вкладка выносится в отдельное окно и возвращается', async () => {
+// D-150/D-159: на 0.21.5 донор стирал вкладки при загрузке окна. Исправлено
+// апстримом (`71b7912`, вошёл в пин 0.22.2) — с подъёмом (T20.14) тест обычный.
+test('44.2.1 вкладка выносится в отдельное окно и возвращается', async () => {
   const page = await ui()
   const app = stand.get().app
   // Гости `<webview>` Playwright тоже считает окнами — окно-оболочка
@@ -122,11 +120,16 @@ test.fail('44.2.1 вкладка выносится в отдельное окн
   await expect
     .poll(() => guestUrls(app), { timeout: 30000 })
     .toContainEqual(expect.stringContaining('example.org'))
-  // Их предложение «Stay signed in to your sites» (профиль браузера) ложится
-  // поверх окна — отказываемся, как отказался бы человек.
-  const notNow = popped.getByRole('button', { name: /^(Not now|Не сейчас)$/ })
-  if (await notNow.isVisible({ timeout: 5000 }).catch(() => false)) await notNow.click()
-  await popped.getByRole('button', { name: /^(Pop in|Вернуть)$/ }).click()
+  // Их предложение взять профиль браузера ложится поверх окна — отказываемся,
+  // как отказался бы человек. Появляется не сразу: `isVisible` не ждёт (его
+  // `timeout` Playwright игнорирует), поэтому — `waitFor`. Только по-русски:
+  // английская кнопка значит, что раздел выпал из каталога (2026-10-16).
+  const notNow = popped.getByRole('button', { name: 'Не сейчас', exact: true })
+  await notNow.waitFor({ state: 'visible', timeout: 10000 }).then(
+    () => notNow.click(),
+    () => undefined
+  )
+  await popped.getByRole('button', { name: /^(Pop in|Вернуть в панель)$/ }).click()
   await expect.poll(() => shells().length, { timeout: 30000 }).toBe(0)
   // Вкладка вернулась в панель главного окна (дефект D-128) — с тем же адресом.
   await expect

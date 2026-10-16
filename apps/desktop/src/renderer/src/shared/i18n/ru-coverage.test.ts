@@ -68,7 +68,7 @@ const PENDING: Record<string, string> = {
 
 // Сколько строк сейчас ждёт перевода в PENDING. Число может только падать:
 // выросло — подъём принёс новые английские строки на эти страницы.
-const PENDING_CEILING = 533
+const PENDING_CEILING = 518
 
 const NAMES = new Set([
   'webhooks.deliverOptions.telegram',
