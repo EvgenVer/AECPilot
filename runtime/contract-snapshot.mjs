@@ -325,7 +325,9 @@ def pins():
             # A dep that already carries a marker (platform_system == ...) joins it with
             # the extra marker the way the wheel metadata does.
             marker = f'({req.marker}) and extra == "{extra}"' if req.marker else f'extra == "{extra}"'
-            out.append(str(Requirement(f"{str(req).split(';')[0].strip()}; {marker}")))
+            # " ; " with the space: a URL requirement (\`kittentts @ https://…\`, 0.22.0)
+            # needs whitespace before the marker or packaging rejects it.
+            out.append(str(Requirement(f"{str(req).split(';')[0].strip()} ; {marker}")))
     return sorted(out)
 
 def flatten(prefix, value, out):
