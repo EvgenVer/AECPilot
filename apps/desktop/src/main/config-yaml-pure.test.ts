@@ -363,7 +363,8 @@ describe('список на глубине три (tools.tool_search.defer, за
 // умолчание.
 describe('поле, которое ставится всегда (wake_word.enabled, stt.enabled)', () => {
   it('ключ задан другим значением — переписан, соседи и комментарии секции целы', () => {
-    const before = '# мой конфиг\nwake_word:\n  # фраза\n  phrase: "эй пилот"\n  enabled: true  # включил сам\nstt:\n  provider: local\n'
+    const before =
+      '# мой конфиг\nwake_word:\n  # фраза\n  phrase: "эй пилот"\n  enabled: true  # включил сам\nstt:\n  provider: local\n'
     const result = forceSectionScalar(before, 'wake_word', 'enabled', false)
 
     expect(result.changed).toBe(true)
@@ -400,5 +401,38 @@ describe('поле, которое ставится всегда (wake_word.enab
 
   it('секция записана скаляром — файл оставлен как есть', () => {
     expect(forceSectionScalar('stt: off\n', 'stt', 'enabled', false).unexpectedStructure).toBe(true)
+  })
+
+  // T20.6: файл с CRLF (так пишет ядро на Windows) — ключ не дописывается вторым;
+  // ядро 0.22 со строгим ruamel не стартует на повторе ключа.
+  it('CRLF: ключ на месте — файл не меняется', () => {
+    const crlf = 'stt:\r\n  enabled: false\r\nx: 1\r\n'
+    expect(forceSectionScalar(crlf, 'stt', 'enabled', false)).toEqual({
+      text: crlf,
+      changed: false,
+      unexpectedStructure: false
+    })
+  })
+
+  it('CRLF: значение меняется на месте, конец строки сохраняется', () => {
+    const crlf = 'stt:\r\n  enabled: true\r\nx: 1\r\n'
+    expect(forceSectionScalar(crlf, 'stt', 'enabled', false).text).toBe(
+      'stt:\r\n  enabled: false\r\nx: 1\r\n'
+    )
+  })
+
+  it('повтор ключа, оставленный прежней сборкой, убирается', () => {
+    const broken =
+      'stt:\r\n  enabled: false\n  enabled: false\r\n  provider: local\r\nwake_word:\r\n'
+    const fixed = forceSectionScalar(broken, 'stt', 'enabled', false)
+    expect(fixed.changed).toBe(true)
+    expect(fixed.text).toBe('stt:\r\n  enabled: false\r\n  provider: local\r\nwake_word:\r\n')
+  })
+
+  it('CRLF и комментарий у заголовка: секция узнаётся, вторая не заводится', () => {
+    const crlf = 'stt: # голос\r\n  provider: local\r\n'
+    expect(forceSectionScalar(crlf, 'stt', 'enabled', false).text).toBe(
+      'stt: # голос\r\n  enabled: false\r\n  provider: local\r\n'
+    )
   })
 })

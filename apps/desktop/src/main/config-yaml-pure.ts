@@ -43,7 +43,7 @@ export function ensureSectionScalar(
   key: string,
   value: boolean | number | string
 ): ConfigScalarResult {
-  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const sectionLine = new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
   const keyLine = new RegExp(`^\\s+${key}:`)
 
@@ -94,6 +94,13 @@ export function ensureSectionScalar(
  * Трогается только прямой потомок секции (два пробела отступа): одноимённый
  * ключ глубже — чужое поле. Комментарий в конце строки ключа уходит вместе со
  * старым значением — он описывал его.
+ *
+ * Задача T20.6. Файл с концами строк CRLF (так `config.yaml` пишет ядро на
+ * Windows) прежде не распознавался — `(.*)$` не проходит через `\r`, — и ключ
+ * дописывался вторым: `stt: enabled: false` дважды. Ядро 0.21 такой файл читало,
+ * 0.22 (строгий ruamel) отказывается стартовать. Теперь `\r` учитывается, а
+ * лишние копии ключа в секции удаляются — испорченный прежней сборкой профиль
+ * чинится при следующем открытии.
  */
 export function forceSectionScalar(
   yamlText: string,
@@ -102,8 +109,8 @@ export function forceSectionScalar(
   value: boolean | number | string
 ): ConfigScalarResult {
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
-  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
-  const keyLine = new RegExp(`^  ${key}:(.*)$`)
+  const sectionLine = new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`)
+  const keyLine = new RegExp(`^  ${key}:([^\\r]*)\\r?$`)
 
   const written = typeof value === 'string' ? JSON.stringify(value) : String(value)
   const lines = yamlText.split('\n')
@@ -123,25 +130,36 @@ export function forceSectionScalar(
     }
   }
 
-  const at = lines.slice(start + 1, end).findIndex((line) => keyLine.test(line))
-  if (at === -1) {
+  const eol = lines[start].endsWith('\r') ? '\r' : ''
+  const found: number[] = []
+  for (let index = start + 1; index < end; index += 1) {
+    if (keyLine.test(lines[index])) found.push(index)
+  }
+  if (found.length === 0) {
     // Не `ensureSectionScalar`: тот ищет ключ на любой глубине и, найдя
     // одноимённый ниже (`stt: local: enabled:`), ничего бы не дописал.
     const inserted = [
       ...lines.slice(0, start + 1),
-      `  ${key}: ${written}`,
+      `  ${key}: ${written}${eol}`,
       ...lines.slice(start + 1)
     ]
     return { text: inserted.join('\n'), changed: true, unexpectedStructure: false }
   }
 
-  const index = start + 1 + at
+  const [index, ...duplicates] = found
   const current = (keyLine.exec(lines[index])?.[1] ?? '').replace(/#.*$/, '').trim()
-  if (current === written) return { text: yamlText, changed: false, unexpectedStructure: false }
+  if (current === written && duplicates.length === 0) {
+    return { text: yamlText, changed: false, unexpectedStructure: false }
+  }
 
   const next = [...lines]
-  next[index] = `  ${key}: ${written}`
-  return { text: next.join('\n'), changed: true, unexpectedStructure: false }
+  next[index] = `  ${key}: ${written}${eol}`
+  const dropped = new Set(duplicates)
+  return {
+    text: next.filter((_line, at) => !dropped.has(at)).join('\n'),
+    changed: true,
+    unexpectedStructure: false
+  }
 }
 
 /**
@@ -190,9 +208,9 @@ function ensureNestedKey(
   keyLines: readonly string[]
 ): ConfigScalarResult {
   const lines = yamlText.split('\n')
-  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const sectionLine = new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
-  const subLine = new RegExp(`^  ${sub}:\\s*(#.*)?$`)
+  const subLine = new RegExp(`^  ${sub}:\\s*(#[^\\r]*)?\\r?$`)
   const subScalar = new RegExp(`^  ${sub}:\\s*[^#\\s]`)
   const keyLine = new RegExp(`^    ${key}:`)
 
@@ -289,7 +307,7 @@ export function ensureSectionList(
   key: string,
   values: readonly string[]
 ): ConfigScalarResult {
-  const sectionLine = new RegExp(`^${section}:\\s*(#.*)?$`)
+  const sectionLine = new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`)
   const sectionScalar = new RegExp(`^${section}:\\s*[^#\\s]`)
   const keyLine = new RegExp(`^\\s+${key}:`)
 
@@ -341,7 +359,7 @@ export function upgradeSectionList(
 ): ConfigScalarResult {
   const unchanged = { text: yamlText, changed: false, unexpectedStructure: false }
   const lines = yamlText.split('\n')
-  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#.*)?$`).test(line))
+  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`).test(line))
   if (start === -1) return unchanged
 
   let keyIndex = -1
@@ -388,7 +406,7 @@ export function upgradeNestedList(
 ): ConfigScalarResult {
   const unchanged = { text: yamlText, changed: false, unexpectedStructure: false }
   const lines = yamlText.split('\n')
-  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#.*)?$`).test(line))
+  const start = lines.findIndex((line) => new RegExp(`^${section}:\\s*(#[^\\r]*)?\\r?$`).test(line))
   if (start === -1) return unchanged
 
   let subIndex = -1
