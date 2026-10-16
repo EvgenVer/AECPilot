@@ -1873,15 +1873,20 @@ test('the session list separates days, archives over PATCH, and knows what is un
   // Позиция 5: непрочитанное. Проверяется отметка В САМОЙ СТРОКЕ, а не пункт
   // меню: строка — то, что человек видит, не открывая ничего, и такая проверка
   // не зависит от попадания мышью по прокручиваемому списку.
+  // С 0.22.2 у сортируемой строки точка стоит в ручке перетаскивания
+  // (`SidebarRowGrab`), соседке кнопки строки, — поэтому ищется в их общем
+  // предке, а не внутри самой кнопки.
+  const rowShell = (line: typeof week) =>
+    line.locator('xpath=ancestor::*[.//*[@data-reorder-handle]][1]')
   await expect(
-    yesterday.getByRole('status'),
+    rowShell(yesterday).getByRole('status'),
     'у строки с непрочитанным ответом обязана быть отметка'
   ).toHaveAccessibleName(/unread|не прочитан/i)
   // У прочитанной строки отметки НЕТ ВООБЩЕ — проверяется отсутствие элемента,
   // а не его имя: `not.toHaveAccessibleName` на несуществующем элементе ждёт
   // его появления и падает по таймауту, то есть красит тест там, где всё верно.
   await expect(
-    week.getByRole('status'),
+    rowShell(week).getByRole('status'),
     'у прочитанной строки отметки непрочитанного быть не должно'
   ).toHaveCount(0)
 

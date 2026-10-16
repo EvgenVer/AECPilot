@@ -432,14 +432,29 @@ function powerRequests(): { available: boolean; text: string } {
   }
 }
 
-const KEEP_AWAKE = /Не давать компьютеру засыпать|Keep computer awake/
+/** Режим «не давать засыпать». С 0.22.2 у донора это не переключатель, а выбор
+ *  из трёх (`Выкл` / `Во время работы` / `Всегда`, задача T20.10): кнопки с
+ *  `aria-pressed` в строке настройки `advanced.keep-awake`. */
+const KEEP_AWAKE_MODE = {
+  off: /^(Выкл|Off)$/,
+  working: /^(Во время работы|While working)$/,
+  always: /^(Всегда|Always)$/
+}
 
-test('13.2.1 переключатель включён: блокировщик сна стоит (SYSTEM)', async () => {
+async function setKeepAwake(page: Page, mode: keyof typeof KEEP_AWAKE_MODE): Promise<void> {
+  const row = page.locator('[id="setting-field-advanced.keep-awake"]')
+  const choice = row.getByRole('button', { name: KEEP_AWAKE_MODE[mode] })
+  await expect(choice).toBeVisible({ timeout: 15000 })
+  if ((await choice.getAttribute('aria-pressed')) !== 'true') await choice.click()
+  await expect(choice).toHaveAttribute('aria-pressed', 'true')
+}
+
+test('13.2.1 режим «Всегда»: блокировщик сна стоит (SYSTEM)', async () => {
   const page = await ui()
   await openSettings(page, 'tab=config:advanced')
-  await setSwitch(page, KEEP_AWAKE, true)
+  await setKeepAwake(page, 'always')
   await expect.poll(blockerStarted, { timeout: 10000 }).toBe(true)
-  expect(readFileSync(join(stand.get().userDataDir, 'keep-awake.json'), 'utf8')).toContain('true')
+  expect(readFileSync(join(stand.get().userDataDir, 'keep-awake.json'), 'utf8')).toContain('always')
 
   const requests = powerRequests()
   if (requests.available) {
@@ -480,18 +495,23 @@ test('13.2.2 экран гаснуть может: блокировщик не �
   }
 })
 
-test('13.3.1 переключатель выключен: записи больше нет', async () => {
+test('13.3.1 режим «Выкл»: записи больше нет', async () => {
   const page = await ui()
   await openSettings(page, 'tab=config:advanced')
-  await setSwitch(page, KEEP_AWAKE, false)
+  // «Во время работы» без идущего хода блокировщик тоже снимает: держит он только
+  // пока ход идёт (`main/keep-awake.ts::noteWorking`).
+  await setKeepAwake(page, 'working')
   await expect.poll(blockerStarted, { timeout: 10000 }).toBe(false)
+  await setKeepAwake(page, 'off')
+  await expect.poll(blockerStarted, { timeout: 10000 }).toBe(false)
+  expect(readFileSync(join(stand.get().userDataDir, 'keep-awake.json'), 'utf8')).toContain('off')
   await closeSettings(page)
 })
 
-test('13.4.1 включён, приложение перезапущено: блокировщик снова стоит', async () => {
+test('13.4.1 режим «Всегда», приложение перезапущено: блокировщик снова стоит', async () => {
   let page = await ui()
   await openSettings(page, 'tab=config:advanced')
-  await setSwitch(page, KEEP_AWAKE, true)
+  await setKeepAwake(page, 'always')
   await expect.poll(blockerStarted, { timeout: 10000 }).toBe(true)
   await closeSettings(page)
 
@@ -501,7 +521,7 @@ test('13.4.1 включён, приложение перезапущено: бл
   expect(stand.get().mainOutput()).toContain('keep-awake restored')
   // Прибрать за собой: ночной прогон этому стенду не нужен.
   await openSettings(page, 'tab=config:advanced')
-  await setSwitch(page, KEEP_AWAKE, false)
+  await setKeepAwake(page, 'off')
   await closeSettings(page)
 })
 

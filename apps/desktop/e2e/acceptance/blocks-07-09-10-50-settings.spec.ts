@@ -529,8 +529,12 @@ test('10.3.1 две сессии: переключение, история ка�
   await send(page, 'say: два')
   await expect(page.getByText('два', { exact: true }).last()).toBeVisible({ timeout: 30000 })
 
-  const rowOne = page.getByRole('button', { name: /^Reorder say: один say: один$/ })
-  const rowTwo = page.getByRole('button', { name: /^Reorder say: два say: два$/ })
+  // С 0.22.2 ручка перетаскивания («Reorder …») и сама строка — две кнопки, а не
+  // одна с составным именем; сеанс открывает строка (`data-slot="row-button"`).
+  const row = (title: string) =>
+    page.locator('button[data-slot="row-button"]').filter({ hasText: new RegExp(`^${title}$`) })
+  const rowOne = row('say: один')
+  const rowTwo = row('say: два')
   await expect(rowOne).toBeVisible()
   await expect(rowTwo).toBeVisible()
   await rowOne.click()

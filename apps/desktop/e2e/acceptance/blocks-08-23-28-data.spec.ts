@@ -35,9 +35,11 @@ const stand = standFixture({ mode: 'mock', label: 'blocks-08-23-28' })
  *  профиля. */
 const outsideDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-outside-'))
 
-/** Красный квадрат 64×64 — картинка «из буфера обмена» (позиция 26.1.1). */
+/** Красный квадрат 256×256 — картинка «из буфера обмена» (позиция 26.1.1). С 0.22.2
+ *  лупа размером с картинку, а её панель масштаба стоит у нижнего края лупы: у
+ *  квадрата 64×64 панель ложилась на кнопку «Скачать изображение» в углу. */
 const PNG =
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAT0lEQVR42u3PQQkAAAgEsItz/VMYywi+hcEKLNO+FgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGBywLvDoEAVSaz4wAAAABJRU5ErkJggg=='
+  'iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAACAElEQVR42u3TQQ0AAAgDscmZfxXI4o0GmlTBJZdp4a1IgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAADKACBgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAHAAGAAMAAYAAwABgADgAEwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADIABVMAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwABgADAAGAAOAAcAAYAAwAAYAA4ABwABgADAAGAAMAAYAA4ABwABgADAAGAAMAAYAA4ABwABgADAAGAAMAAYAA4ABwABgADAAGAAMAAYAA4ABwABgADAAGAAMAAYAA4ABwABgADAAGAAMANcCsDgQaUHe6qcAAAAASUVORK5CYII='
 
 /** Файл, который правит агент, и его текст до правки. */
 const EDITED_FILE = 'wiki/zapiska.md'
@@ -752,7 +754,7 @@ test('26.3.1 сохранённый файл — та самая картинк�
   expect(bytes.subarray(0, 8)).toEqual(
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   )
-  expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], 'IHDR: 64×64').toEqual([64, 64])
+  expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], 'IHDR: 256×256').toEqual([256, 256])
   // «Показывает то, что копировали»: картинка по пути к лупе перекодируется
   // (миниатюра вложения), байты не те же — сверяется содержимое: оба файла
   // декодируются, и пиксели сохранённого совпадают с пикселями вставленного.
