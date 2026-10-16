@@ -3,7 +3,7 @@
 // Наш плагин (`plugins/aec_secret_filter/mem0_shared.py`) кладёт общую фабрику на
 // место их `OSSBackend`, и держится это на трёх фактах их кода. Сменится любой —
 // подмена молча перестанет действовать, и память снова заработает у одной сессии
-// из многих. Этот тест читает исходник ядра по пину и падает при подъёме, если
+// из многих. Этот тест читает их исходник по пину и падает при подъёме, если
 // факт изменился: тогда подмену сверяют заново, а не узнают о ней из приёмки.
 
 import { readFileSync } from "node:fs";
@@ -11,12 +11,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { RUNTIME_DIR } from "./hermes-env.mjs";
+import { MEM0_PLUGIN_DIR, RUNTIME_DIR } from "./hermes-env.mjs";
 
+// С 0.22.0 провайдер Mem0 — внешний плагин по своему пину (задача T20.3): его код
+// читается из `runtime/.mem0-plugin-src`, загрузчик — по-прежнему из ядра.
 const memoryDir = join(RUNTIME_DIR, ".hermes-src", "plugins", "memory");
-const provider = readFileSync(join(memoryDir, "mem0", "__init__.py"), "utf8");
+const provider = readFileSync(join(MEM0_PLUGIN_DIR, "__init__.py"), "utf8");
 const loader = readFileSync(join(memoryDir, "__init__.py"), "utf8");
-const backend = readFileSync(join(memoryDir, "mem0", "_backend.py"), "utf8");
+const backend = readFileSync(join(MEM0_PLUGIN_DIR, "_backend.py"), "utf8");
 
 describe("точка подмены общего клиента Mem0", () => {
   it("их провайдер берёт OSSBackend атрибутом модуля в момент создания", () => {

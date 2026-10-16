@@ -8,8 +8,11 @@ import path from "node:path";
 export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // Pins — must match PLAN.md § Stack & package managers.
-export const HERMES_VERSION = "0.21.5";
-export const PYTHON_VERSION = "3.12.13";
+// 0.22.0 made Python 3.14 mandatory: every core dependency carries the marker
+// `python_version >= '3.14'` and `[tool.uv] environments` is >=3.14 — on 3.12 the
+// core installs with no dependencies at all. Owner permission 2026-10-15 (task T20.3).
+export const HERMES_VERSION = "0.22.2";
+export const PYTHON_VERSION = "3.14.6";
 
 // The core is installed from git, not from PyPI: the author stopped publishing
 // wheels (PLAN.md, decision D1). A git tag can be moved; a commit id cannot, so
@@ -30,6 +33,17 @@ export const PYTHON_VERSION = "3.12.13";
 // донора) is unchanged and is what got us here: the pin goes to the LAST
 // AVAILABLE TAG, never to an expected release number.
 //
+// 0.22.0 changed the release scheme (task T20, 2026-10-15): stable releases are
+// `vX.Y.Z`, next to them stand `rc.N-vX.Y.Z`, `abandoned-rc.*` and daily
+// `vX.Y.Z+canary.<date>`. The pin goes to the last STABLE `vX.Y.Z` only (owner
+// decision 2026-10-15). The version also left the tree: `pyproject.toml` reads
+// `0.0.0` and `hermes_cli.__version__` comes from `install-stamp.json`, which an
+// editable install does not write — so the tag name is now the version record.
+// 0.22.1 was cut from the wrong commit (upstream calls 0.22.2 "what 0.22.1 should
+// have been") and is skipped. `git ls-remote --tags` on 2026-10-15:
+//   7b77e29eedd85a8497ce2821448dac7964dc46f6  refs/tags/v0.22.2     (tag object)
+//   d923a5eb487a17c0a68801bba9ef0f56c81040a8  refs/tags/v0.22.2^{}  (the commit)
+//
 // Previous pins:
 //   v2026.8.3  = 0.20.0, commit 3c27eb6234bf91b8ceee9e9071591b31e9b148cb
 //   v2026.8.18 = 0.20.4, commit e624e9fde561e1add9388384012b295fde669ade (task 3.B0)
@@ -37,9 +51,25 @@ export const PYTHON_VERSION = "3.12.13";
 //   v2026.8.27 = 0.20.6, commit 5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (task 3.B2)
 //   v2026.8.31 = 0.21.0, commit 29112bef099274229cadff79cdff7bf7b99c4b77 (task 3.B3)
 //   v2026.9.11 = 0.21.2, commit 939e45c91d751fadd94dcd1b873ac3cb44846213 (task 3.B4)
+//   v2026.9.24 = 0.21.5, commit f97608f178d1ffeca59860195ab7da295f7c8e5f (task 3.B6),
+//                Python 3.12.13
 export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
-export const HERMES_TAG = "v2026.9.24";
-export const HERMES_SHA = "f97608f178d1ffeca59860195ab7da295f7c8e5f";
+export const HERMES_TAG = "v0.22.2";
+export const HERMES_SHA = "d923a5eb487a17c0a68801bba9ef0f56c81040a8";
+
+// Mem0 left the core in 0.22.0: `plugins/memory/mem0` and the `mem0` extra are gone,
+// the provider is the catalog plugin `mem0ai/mem0`, subdirectory below, at the pin
+// their catalog reviewed. Left alone, the core installs it by itself from GitHub on
+// agent start (`hermes_cli/memory_provider_migration.py`) — so we install it
+// ourselves, by commit, like the core (owner decision 2026-10-15, task T20.3).
+// It is a directory plugin (no build system, no entry point): the core finds it only
+// under `$HERMES_HOME/plugins/mem0/`, so setup fetches it here and the app copies it
+// into the profile; its Python requirements go into the core venv
+// (`mem0-plugin-requirements.txt`, one resolution with the core).
+export const MEM0_PLUGIN_REPO = "https://github.com/mem0ai/mem0";
+export const MEM0_PLUGIN_SHA = "43849c6e9d4d773b83a8144b6373aedc67241a5d";
+export const MEM0_PLUGIN_SUBDIR = "integrations/hermes-plugin-mem0";
+export const MEM0_PLUGIN_VERSION = "1.3.0";
 
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.
@@ -52,6 +82,11 @@ export const VENV_DIR = path.join(RUNTIME_DIR, ".hermes-venv");
 // venv to keep working. Not a working copy: detached at the pinned commit, never
 // edited, gitignored.
 export const HERMES_SRC_DIR = path.join(RUNTIME_DIR, ".hermes-src");
+
+// Sparse checkout of the Mem0 plugin repository at MEM0_PLUGIN_SHA — only
+// MEM0_PLUGIN_SUBDIR is populated. Detached, never edited, gitignored.
+export const MEM0_PLUGIN_CHECKOUT_DIR = path.join(RUNTIME_DIR, ".mem0-plugin-src");
+export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGIN_SUBDIR.split("/"));
 
 // Isolated HERMES_HOME: keeps the dev profile out of the user's home
 // directory, so it never touches an existing personal Hermes install/profile.

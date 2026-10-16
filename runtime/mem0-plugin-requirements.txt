@@ -1,0 +1,18 @@
+# Python requirements of the Mem0 memory-provider plugin, installed into the core
+# venv by runtime/setup.mjs in ONE resolution with the core (task T20.3).
+#
+# Mirrors `[project] dependencies` + the `qdrant` extra of
+# `integrations/hermes-plugin-mem0/pyproject.toml` at MEM0_PLUGIN_SHA
+# (runtime/hermes-env.mjs). The plugin's own ranges are kept; the two direct
+# packages are pinned to the versions vetted 2026-10-15 (docs/plan-details.md
+# § Selected dependencies), and two transitive ones stay on the versions the
+# 0.21.5 venv ran Mem0 with (a free resolution picks newer minors —
+# sqlalchemy 2.1, posthog 7.70 — that nothing here has run yet).
+#
+# One resolution, not two: `qdrant-client` caps `portalocker<4`, and a second
+# install after the core can downgrade or break what the core resolved.
+mem0ai==2.0.10
+httpx>=0.27,<1
+qdrant-client==1.19.0
+sqlalchemy==2.0.52
+posthog==7.47.2
