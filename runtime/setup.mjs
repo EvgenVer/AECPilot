@@ -144,6 +144,11 @@ function writeConstraints() {
       "--frozen",
       "--extra",
       "mcp",
+      // `ddgs` — бесключевой веб-поиск по умолчанию в нашем профиле. До 0.22 он
+      // стоял в основных зависимостях ядра, с 0.22 — необязательный extra
+      // (задача T20.9: `web-search-probe` показал «ddgs package is not installed»).
+      "--extra",
+      "ddgs",
       "--no-dev",
       "--no-hashes",
       "--no-emit-project",
@@ -176,7 +181,7 @@ console.log(
 fetchMem0Plugin();
 writeConstraints();
 
-console.log(`== 4/5: installing hermes-agent[mcp] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
+console.log(`== 4/5: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
 // Editable is not a preference — upstream's build backend raises on any wheel or
 // sdist build ("Hermes is distributed via the shell installer, Docker image, or
 // Nix"; setup.py) and names `uv pip install -e .` as the developer path. So the
@@ -224,7 +229,7 @@ run(
     "-r",
     "mem0-plugin-requirements.txt",
     "-e",
-    `${HERMES_SRC_DIR}[mcp]`,
+    `${HERMES_SRC_DIR}[mcp,ddgs]`,
   ],
   RUNTIME_DIR,
 );

@@ -151,6 +151,17 @@ export const CORE_OPT_OUTS: readonly CoreOptOut[] = [
     path: ['plugins', 'auto_update_check_hours'],
     value: 0,
     what: 'the plugin update-check opt-out'
+  },
+  // Предел ядра 0.22 на импорт + `register()` плагина — 10 с, и не уложившийся
+  // плагин МОЛЧА пропускается. Наш фильтр секретов в `register()` ставит ключ
+  // Mem0 по имени, а импорт их бэкенда Mem0 занимает ~12,7 с (замер T20.9): с
+  // пределом по умолчанию первая загрузка фильтра в процессе ядра срывается, и
+  // ход идёт без проверки секретов. 120 с — запас, а не «без предела» (`0`):
+  // зависший чужой плагин не должен держать старт ядра вечно.
+  {
+    path: ['plugins', 'load_timeout_seconds'],
+    value: 120,
+    what: 'the plugin load deadline our secret filter needs'
   }
 ]
 

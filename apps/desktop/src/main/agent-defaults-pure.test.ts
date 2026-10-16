@@ -181,7 +181,7 @@ describe('APPROVAL_DENY', () => {
 })
 
 describe('умолчания ядра 0.22, закрытые в профиле (T20.5)', () => {
-  it('ленивые установки, чужие логины, коннекторы, телеметрия и проверка обновлений плагинов', () => {
+  it('ленивые установки, чужие логины, коннекторы, телеметрия, обновления плагинов и предел их загрузки', () => {
     const byPath = Object.fromEntries(CORE_OPT_OUTS.map((o) => [o.path.join('.'), o.value]))
     expect(byPath).toEqual({
       'security.allow_lazy_installs': false,
@@ -189,7 +189,9 @@ describe('умолчания ядра 0.22, закрытые в профиле (
       'tools.connectors.enabled': false,
       'telemetry.shared_metrics.enabled': false,
       'telemetry.shared_metrics.send': false,
-      'plugins.auto_update_check_hours': 0
+      'plugins.auto_update_check_hours': 0,
+      // T20.9: предел загрузки плагина выше импорта бэкенда Mem0 (~12,7 с)
+      'plugins.load_timeout_seconds': 120
     })
   })
 
