@@ -27,8 +27,9 @@ function tell(message: string, action?: { label: string; onClick: () => void }):
   if (told) return
   told = true
   // `warning` у них висит до закрытия рукой, а не тает: сообщение о том, что
-  // разговор не запоминается, человек должен успеть прочитать.
-  notify({ kind: 'warning', title: t('memoryNotice.title'), message, action })
+  // разговор не запоминается, человек должен успеть прочитать. `persistent`
+  // (донор 0.22.2) — оно про окно, и смена сессии его не снимает.
+  notify({ kind: 'warning', persistent: true, title: t('memoryNotice.title'), message, action })
 }
 
 /** Спросить ядро, поднялся ли слой. Ответ приходит до первого хода — раньше,
@@ -43,13 +44,20 @@ async function askCore(): Promise<void> {
     return
   }
 
-  const verdict = memoryLayerVerdict(payload)
+  let providers: Awaited<ReturnType<typeof window.aecpilot.getDataProviders>> | null = null
+  try {
+    providers = await window.aecpilot.getDataProviders()
+  } catch {
+    // Профиль не прочитан — остаётся ответ ядра.
+  }
+
+  const verdict = memoryLayerVerdict(payload, providers?.memoryPackages ?? null)
   if (verdict.kind === 'off') return
 
   // Задача 3G.49: нет провайдера — причина конкретнее любого ответа ядра, и у неё
   // есть действие: окно выбора.
-  try {
-    const gap = memoryProviderGap(await window.aecpilot.getDataProviders())
+  if (providers) {
+    const gap = memoryProviderGap(providers)
     if (gap !== null) {
       tell(t('memoryNotice.provider', gap), {
         label: t('memoryNotice.choose'),
@@ -57,8 +65,6 @@ async function askCore(): Promise<void> {
       })
       return
     }
-  } catch {
-    // Профиль не прочитан — остаётся ответ ядра.
   }
 
   if (verdict.kind !== 'down') return
