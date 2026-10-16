@@ -457,11 +457,20 @@ export async function reviveStrandedSession(page: Page): Promise<Locator> {
 }
 
 /** Напечатать в их композер и отправить их же кнопкой (Enter после первого
- *  хода попадает в «Queue message»). */
+ *  хода попадает в «Queue message»).
+ *
+ *  Перевод строки в тексте — Shift+Enter, как у человека: `keyboard.type`
+ *  печатает `\n` как Enter, а их композер по Enter отправляет. Многострочный
+ *  вопрос уходил ДВУМЯ сообщениями — агент получал «повтори строку» без самой
+ *  строки и минутами искал её по файлам (15.4.1, 2026-10-16). */
 export async function send(page: Page, text: string): Promise<void> {
   const composer = await reviveStrandedSession(page)
   await composer.click()
-  await page.keyboard.type(text)
+  const lines = text.split('\n')
+  for (const [index, line] of lines.entries()) {
+    if (index > 0) await page.keyboard.press('Shift+Enter')
+    if (line) await page.keyboard.type(line)
+  }
   await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
 }
 

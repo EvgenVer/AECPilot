@@ -119,6 +119,13 @@ switch ($Action) {
       if (-not $byParent.ContainsKey($key)) { $byParent[$key] = @() }
       $byParent[$key] += $proc
     }
+    # Windows отдаёт номер умершего процесса заново, а `ParentProcessId` у
+    # потомков не чистит: системная ветка (wininit → services → svchost)
+    # «усыновлялась» нашим процессом, получившим номер её давно умершего
+    # родителя, и 38.20.1 считал порт 135 нашим (2026-10-16). Потомок не
+    # может быть старше родителя — такие связи отбрасываются.
+    $born = @{}
+    foreach ($proc in $all) { $born[[int64]$proc.ProcessId] = $proc.CreationDate }
     $rows = @()
     $queue = New-Object System.Collections.Queue
     $queue.Enqueue([int64]$Pid2)
@@ -126,6 +133,7 @@ switch ($Action) {
       $parent = $queue.Dequeue()
       foreach ($proc in @($byParent[$parent])) {
         if ($null -eq $proc) { continue }
+        if ($born.ContainsKey($parent) -and $proc.CreationDate -lt $born[$parent]) { continue }
         $rows += $proc
         $queue.Enqueue([int64]$proc.ProcessId)
       }
