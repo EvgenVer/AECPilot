@@ -21,15 +21,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RUNTIME_DIR, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { RUNTIME_DIR, HERMES_HOME_DIR, mcpServerCommand } from "./hermes-env.mjs";
 import { mergeMcpServerIntoConfigYaml } from "./register-aec-sources.mjs";
 
 const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
-const isWindows = process.platform === "win32";
 
-export const AEC_RAG_BIN = isWindows
-  ? path.join(REPO_ROOT, ".venv", "Scripts", "aec-rag.exe")
-  : path.join(REPO_ROOT, ".venv", "bin", "aec-rag");
+// Development: the workspace's console script; installed: `python -m aec_rag` with
+// our staged interpreter (hermes-env.mjs::mcpServerCommand, task T22).
+const AEC_RAG_COMMAND = mcpServerCommand("aec-rag");
+export const AEC_RAG_BIN = AEC_RAG_COMMAND.command;
+export const AEC_RAG_ARGS = AEC_RAG_COMMAND.args;
 
 // `AEC_SKILLS_DIR` — копия навыков для живых автотестов (задача T20.11): агент
 // стенда не должен иметь доступа к файлам навыков в репозитории.
@@ -150,7 +151,7 @@ export function registerAecRag({ projectJsonPath, ragEnv = {} } = {}) {
 
   const server = mergeMcpServerIntoConfigYaml(existing, "aec-rag", {
     command: AEC_RAG_BIN,
-    args: ["serve", "--project", resolved],
+    args: [...AEC_RAG_ARGS, "serve", "--project", resolved],
     // A reference, not a value. Hermes strips its own environment before
     // spawning an MCP child (`tools/mcp_tool._build_safe_env`), so without this
     // line the server has no provider key and every query fails; with the value

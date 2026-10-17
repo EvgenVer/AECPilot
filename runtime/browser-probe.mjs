@@ -42,7 +42,7 @@
 
 import { execFileSync } from "node:child_process";
 
-import { PYTHON_BIN, HERMES_SRC_DIR, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { PYTHON_ARGS, PYTHON_BIN, HERMES_SRC_DIR, HERMES_HOME_DIR } from "./hermes-env.mjs";
 
 /** Страница из интернета для сетевой ноги пробы: без скриптов, без вёрстки,
  * которая переедет. */
@@ -184,7 +184,7 @@ print("PROBE_JSON " + json.dumps(out, ensure_ascii=False))
 
 let raw;
 try {
-  raw = execFileSync(PYTHON_BIN, ["-c", PY], {
+  raw = execFileSync(PYTHON_BIN, [...PYTHON_ARGS, "-c", PY], {
     cwd: HERMES_SRC_DIR,
     encoding: "utf-8",
     maxBuffer: 32 * 1024 * 1024,

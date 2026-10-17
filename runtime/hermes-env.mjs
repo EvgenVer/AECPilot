@@ -71,17 +71,59 @@ export const MEM0_PLUGIN_SHA = "43849c6e9d4d773b83a8144b6373aedc67241a5d";
 export const MEM0_PLUGIN_SUBDIR = "integrations/hermes-plugin-mem0";
 export const MEM0_PLUGIN_VERSION = "1.3.0";
 
+/**
+ * Two layouts, one set of names (tasks T21, T40; SPEC UR40).
+ *
+ * - **Development** — this repository: the core in `runtime/.hermes-venv` +
+ *   `runtime/.hermes-src` (setup.mjs), our MCP servers in `<repo>/.venv`, the
+ *   profile in `runtime/dev-profile`.
+ * - **Installed** — the folder the person chose in the installer (`<root>`):
+ *   `runtime/` (this file and its neighbours) sits at `<root>/runtime/`, next to it
+ *   the core payload `runtime/core/` (staged by `runtime/payload/stage_core.py`,
+ *   their PM's contained layout with `manifest.json`) and our Python
+ *   `runtime/mcp/python/` (`runtime/payload/stage-mcp.mjs`); everything the product
+ *   writes lives under `<root>/data/` — the profile is `<root>/data/profile`.
+ *
+ * The layout is read off the disk, not passed in: the core payload's manifest is
+ * the proof of an installed tree, and a development checkout never has one there
+ * (staging goes to `runtime/.payload/`).
+ */
+export const INSTALL_ROOT = path.resolve(RUNTIME_DIR, "..");
+export const CORE_PAYLOAD_DIR = path.join(RUNTIME_DIR, "core");
+export const MCP_PAYLOAD_DIR = path.join(RUNTIME_DIR, "mcp");
+export const DATA_DIR = path.join(INSTALL_ROOT, "data");
+
+/** The launch contract their assembler wrote (`scripts/build/agent.py::assemble`):
+ *  relative paths of the interpreter, the source tree, the dependency site and the
+ *  launchers. `null` outside an installed tree. */
+export function readCoreManifest(dir = CORE_PAYLOAD_DIR) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf-8"));
+    return manifest && manifest.runtime ? manifest : null;
+  } catch {
+    return null;
+  }
+}
+
+const coreManifest = readCoreManifest();
+export const IS_INSTALLED_LAYOUT = coreManifest !== null;
+
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.
-export const VENV_DIR = path.join(RUNTIME_DIR, ".hermes-venv");
+// Installed: the payload's dependency environment.
+export const VENV_DIR = IS_INSTALLED_LAYOUT
+  ? path.join(CORE_PAYLOAD_DIR, coreManifest.venv)
+  : path.join(RUNTIME_DIR, ".hermes-venv");
 
 // Source checkout of the core at HERMES_SHA. It exists because upstream's build
 // backend refuses to build a wheel or sdist at all ("Hermes is distributed via
 // the shell installer, Docker image, or Nix") and offers only an editable
 // install — so the install is `-e <this dir>` and this dir must stay put for the
 // venv to keep working. Not a working copy: detached at the pinned commit, never
-// edited, gitignored.
-export const HERMES_SRC_DIR = path.join(RUNTIME_DIR, ".hermes-src");
+// edited, gitignored. Installed: the payload's snapshot of the same commit.
+export const HERMES_SRC_DIR = IS_INSTALLED_LAYOUT
+  ? path.join(CORE_PAYLOAD_DIR, coreManifest.runtime.repoDir)
+  : path.join(RUNTIME_DIR, ".hermes-src");
 
 // Sparse checkout of the Mem0 plugin repository at MEM0_PLUGIN_SHA — only
 // MEM0_PLUGIN_SUBDIR is populated. Detached, never edited, gitignored.
@@ -94,20 +136,75 @@ export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGI
 // and `serve.mjs` alike — at another profile: the acceptance run copies
 // dev-profile into a temporary folder and lets the app own its own core there,
 // exactly as it does for a person. Unset in normal use.
+// Installed (UR40): the profile lives under the install root, never in the
+// person's home — `<root>/data/profile`.
 export const HERMES_HOME_DIR = process.env.AEC_HERMES_HOME
   ? path.resolve(process.env.AEC_HERMES_HOME)
-  : path.join(RUNTIME_DIR, "dev-profile");
+  : IS_INSTALLED_LAYOUT
+    ? path.join(DATA_DIR, "profile")
+    : path.join(RUNTIME_DIR, "dev-profile");
 
 // POSIX branch untested in Phase 0 (dev target = Windows)
 const isWindows = process.platform === "win32";
 
-export const HERMES_BIN = isWindows
-  ? path.join(VENV_DIR, "Scripts", "hermes.exe")
-  : path.join(VENV_DIR, "bin", "hermes");
+/** A path of the payload's manifest made absolute (`.exe` is already part of it). */
+function payloadPath(relative) {
+  return path.join(CORE_PAYLOAD_DIR, ...relative.split("/"));
+}
 
-export const PYTHON_BIN = isWindows
-  ? path.join(VENV_DIR, "Scripts", "python.exe")
-  : path.join(VENV_DIR, "bin", "python");
+export const HERMES_BIN = IS_INSTALLED_LAYOUT
+  ? payloadPath(coreManifest.runtime.commands.hermes)
+  : isWindows
+    ? path.join(VENV_DIR, "Scripts", "hermes.exe")
+    : path.join(VENV_DIR, "bin", "hermes");
+
+/** The core's interpreter. Installed, it is the payload's own CPython; their launchers
+ *  put the source tree and the dependency site on `sys.path` (PYTHONPATH below), and
+ *  so must every script of ours that imports the core or mem0 (`memory-facts.py`). */
+export const PYTHON_BIN = IS_INSTALLED_LAYOUT
+  ? payloadPath(coreManifest.runtime.storePython)
+  : isWindows
+    ? path.join(VENV_DIR, "Scripts", "python.exe")
+    : path.join(VENV_DIR, "bin", "python");
+
+/** Arguments that go between {@link PYTHON_BIN} and a script (or `-c`) of ours that
+ *  imports the core or mem0. Installed: `bin/core_python.py` puts the payload's source
+ *  tree and dependency site on `sys.path` the way their launchers do and drops an
+ *  inherited `PYTHONPATH`; `-s` keeps the person's user site out. Not `-E`: it would
+ *  also drop the `PYTHONIOENCODING` our callers set. Development: none. */
+export const PYTHON_ARGS = IS_INSTALLED_LAYOUT
+  ? ["-s", path.join(RUNTIME_DIR, "bin", "core_python.py")]
+  : [];
+
+/** Our Python for the MCP servers (3.12, Docling/LightRAG). Installed: the staged
+ *  standalone interpreter; development: the uv workspace's `.venv`. */
+export const MCP_PYTHON_BIN = mcpPython(IS_INSTALLED_LAYOUT);
+
+function mcpPython(installed) {
+  return installed
+    ? path.join(MCP_PAYLOAD_DIR, "python", isWindows ? "python.exe" : "bin/python3")
+    : path.join(INSTALL_ROOT, ".venv", isWindows ? "Scripts/python.exe" : "bin/python");
+}
+
+/**
+ * How to start one of our MCP servers (`aec-sources`, `aec-rag`, `aec-roster`).
+ * Development: the workspace's console script. Installed: `python -m <module>` with
+ * the staged interpreter — a console-script exe carries the build machine's absolute
+ * path to its python, the module form carries nothing (task T22). `-s`: the person's
+ * user site cannot leak into ours; their environment does not reach the server at all —
+ * the core starts MCP children with a filtered one (`tools/mcp_tool._build_safe_env`).
+ */
+export function mcpServerCommand(name, installed = IS_INSTALLED_LAYOUT) {
+  if (installed) {
+    return { command: mcpPython(true), args: ["-s", "-m", name.replaceAll("-", "_")] };
+  }
+  return {
+    command: isWindows
+      ? path.join(INSTALL_ROOT, ".venv", "Scripts", `${name}.exe`)
+      : path.join(INSTALL_ROOT, ".venv", "bin", name),
+    args: [],
+  };
+}
 
 /** Task 3G.18 (D-141). A folder holding only OUR `hermes` (`hermes` for the core's
  *  bash terminal, `hermes.cmd` for Windows lookups) — not the venv's Scripts, which

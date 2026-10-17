@@ -65,3 +65,8 @@ eval/.wiki-vault/
 # командой build_docs.py. В git только исходники: .docx пересобирается
 # побайтово другим при каждом запуске, и его версии — чистый шум в истории.
 eval/fixtures/wiki-project/*.docx
+
+# Installer payload staging and build caches (phase 3, T21/T22)
+runtime/.payload/
+runtime/core/
+runtime/mcp/

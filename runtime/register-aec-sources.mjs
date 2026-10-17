@@ -34,14 +34,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RUNTIME_DIR, HERMES_HOME_DIR } from "./hermes-env.mjs";
+import { RUNTIME_DIR, HERMES_HOME_DIR, mcpServerCommand } from "./hermes-env.mjs";
 
-const REPO_ROOT = path.resolve(RUNTIME_DIR, "..");
-const isWindows = process.platform === "win32"; // POSIX branch untested in Phase 0 (dev target = Windows)
 
-export const AEC_SOURCES_BIN = isWindows
-  ? path.join(REPO_ROOT, ".venv", "Scripts", "aec-sources.exe")
-  : path.join(REPO_ROOT, ".venv", "bin", "aec-sources");
+// Development: the workspace's console script; installed: `python -m aec_sources`
+// with our staged interpreter (hermes-env.mjs::mcpServerCommand, task T22).
+const AEC_SOURCES_COMMAND = mcpServerCommand("aec-sources");
+export const AEC_SOURCES_BIN = AEC_SOURCES_COMMAND.command;
+export const AEC_SOURCES_ARGS = AEC_SOURCES_COMMAND.args;
 
 export const DEMO_SOURCE_DIR = path.join(RUNTIME_DIR, "fixtures", "demo-source");
 
@@ -222,7 +222,7 @@ export function registerAecSources({ projectJsonPath } = {}) {
   const existing = fs.existsSync(CONFIG_PATH) ? fs.readFileSync(CONFIG_PATH, "utf-8") : "";
   const { text, changed } = mergeAecSourcesIntoConfigYaml(existing, {
     command: AEC_SOURCES_BIN,
-    args: ["--project", resolvedProjectJsonPath],
+    args: [...AEC_SOURCES_ARGS, "--project", resolvedProjectJsonPath],
     enabled: true,
   });
 

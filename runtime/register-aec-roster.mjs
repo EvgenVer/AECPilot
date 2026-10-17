@@ -34,15 +34,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RUNTIME_DIR, HERMES_HOME_DIR, HERMES_BIN } from './hermes-env.mjs'
+import { RUNTIME_DIR, HERMES_HOME_DIR, HERMES_BIN, mcpServerCommand } from './hermes-env.mjs'
 import { mergeMcpServerIntoConfigYaml } from './register-aec-sources.mjs'
 
-const REPO_ROOT = path.resolve(RUNTIME_DIR, '..')
-const isWindows = process.platform === 'win32'
 
-export const AEC_ROSTER_BIN = isWindows
-  ? path.join(REPO_ROOT, '.venv', 'Scripts', 'aec-roster.exe')
-  : path.join(REPO_ROOT, '.venv', 'bin', 'aec-roster')
+// Development: the workspace's console script; installed: `python -m aec_roster`
+// with our staged interpreter (hermes-env.mjs::mcpServerCommand, task T22).
+const AEC_ROSTER_COMMAND = mcpServerCommand('aec-roster')
+export const AEC_ROSTER_BIN = AEC_ROSTER_COMMAND.command
+export const AEC_ROSTER_ARGS = AEC_ROSTER_COMMAND.args
 
 /** The roster snapshot the app maintains, read by the tool at every call.
  * Lives next to the core's own settings because that is where the core
@@ -92,7 +92,7 @@ export function registerAecRoster({ homeDir = HERMES_HOME_DIR, hermesBin = HERME
     const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : ''
     const merged = mergeMcpServerIntoConfigYaml(existing, 'aec-roster', {
       command: AEC_ROSTER_BIN,
-      args: ['--roster', ROSTER_SNAPSHOT_PATH, '--hermes', hermesBin, '--home', homeDir],
+      args: [...AEC_ROSTER_ARGS, '--roster', ROSTER_SNAPSHOT_PATH, '--hermes', hermesBin, '--home', homeDir],
       enabled: true
     })
     if (!merged.changed) continue
