@@ -29,7 +29,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
+import { HERMES_SHA, HERMES_SRC_DIR, HERMES_VERSION, PYTHON_ARGS, PYTHON_BIN } from "./hermes-env.mjs";
 
 const REPO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUR_MAIN = path.join(REPO_DIR, "apps/desktop/src/main/index.ts");
@@ -91,7 +91,7 @@ export function askCore(commands) {
   // вызов, как в contract-snapshot.mjs.
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "aecpilot-boundary-home-"));
   try {
-    const raw = execFileSync(PYTHON_BIN, ["-c", PROBE, HERMES_SRC_DIR, JSON.stringify(commands)], {
+    const raw = execFileSync(PYTHON_BIN, [...PYTHON_ARGS, "-c", PROBE, HERMES_SRC_DIR, JSON.stringify(commands)], {
       encoding: "utf8",
       cwd: HERMES_SRC_DIR,
       env: { ...process.env, HERMES_HOME: home },

@@ -17,6 +17,13 @@ let proc: FakeProc
 const spawn = vi.fn((..._args: unknown[]) => proc)
 vi.mock('node:child_process', () => ({ spawn }))
 
+// The development layout whatever lies on disk (task T21.2): a staged `runtime/mcp`
+// adds the `-s -m aec_rag` prefix — `aec-rag-command.test.ts` covers that form.
+vi.mock('./aec-rag-command', () => ({
+  aecRagCommand: () => 'aec-rag',
+  aecRagArgs: (rest: string[]) => rest
+}))
+
 const { runDocumentMapExport, runGraphAdd, runGraphExport, runGraphPreview } =
   await import('./graph-runner')
 const { RunFailedError } = await import('./ingest-progress-pure')

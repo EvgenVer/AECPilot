@@ -21,7 +21,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
+import { PYTHON_ARGS, PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
 import { memoryEnv } from "./memory-config.mjs";
 import { installSecretFilter, PLUGIN_ID } from "./register-secret-filter.mjs";
 
@@ -55,7 +55,7 @@ const PY = [
 
 function runPython(scriptPath, home) {
   return new Promise((resolve) => {
-    const child = spawn(PYTHON_BIN, [scriptPath], {
+    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, scriptPath], {
       env: { ...process.env, HERMES_HOME: home, ...memoryEnv(home), PYTHONIOENCODING: "utf-8" },
     });
 

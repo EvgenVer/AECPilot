@@ -11,7 +11,7 @@
 // символов, и командная строка Windows на них кончается.
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { aecRagArgs, aecRagCommand } from './aec-rag-command'
 
 export type QuoteVerdict = {
   text: string
@@ -24,18 +24,9 @@ export type QuoteVerdict = {
 export type QuoteCheckResult =
   { available: true; quotes: QuoteVerdict[] } | { available: false; reason: string; quotes: [] }
 
-// TODO(Phase 6 / task 6.2): тот же вопрос об упакованном приложении, что и у
-// scan-runner/ingest-runner.
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
 const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
-
-function aecRagBinPath(): string {
-  const repoRoot = join(__dirname, '../../../../')
-  return process.platform === 'win32'
-    ? join(repoRoot, '.venv', 'Scripts', 'aec-rag.exe')
-    : join(repoRoot, '.venv', 'bin', 'aec-rag')
-}
 
 /** Один процесс на ответ, а не на выдержку. */
 export const DEFAULT_CHECK_TIMEOUT_MS = 30 * 1000
@@ -51,7 +42,7 @@ export function runQuoteCheck(
   timeoutMs = DEFAULT_CHECK_TIMEOUT_MS
 ): Promise<QuoteCheckResult> {
   return new Promise((resolve) => {
-    const proc = spawn(aecRagBinPath(), ['check-quotes', '--project', vaultPath], {
+    const proc = spawn(aecRagCommand(), aecRagArgs(['check-quotes', '--project', vaultPath]), {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
       env: { ...process.env, AEC_HERMES_HOME: hermesHome, ...AEC_RAG_UTF8 }

@@ -7,7 +7,6 @@
 // минутами. Между ними стоит человек — одной командой их звать нельзя.
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
 
 import type {
   GraphDocumentMap,
@@ -21,19 +20,11 @@ import type {
 import { readGraphLines, readGraphPreview } from './graph-scope-pure'
 import { RunFailedError, watchSilence } from './ingest-progress-pure'
 import { runOneShot } from './ingest-runner'
+import { aecRagArgs, aecRagCommand } from './aec-rag-command'
 
-// TODO(Phase 6 / task 6.2): та же оговорка про упакованное приложение, что у
-// scan-runner и ingest-runner — путь к venv репозитория.
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
 const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
-
-function aecRagBinPath(): string {
-  const repoRoot = join(__dirname, '../../../../')
-  return process.platform === 'win32'
-    ? join(repoRoot, '.venv', 'Scripts', 'aec-rag.exe')
-    : join(repoRoot, '.venv', 'bin', 'aec-rag')
-}
 
 export const DEFAULT_PREVIEW_TIMEOUT_MS = 60 * 1000
 
@@ -66,7 +57,7 @@ export function runGraphPreview(
   timeoutMs = DEFAULT_PREVIEW_TIMEOUT_MS
 ): Promise<GraphPreview> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), args('graph-preview', vaultPath, path, kind), {
+    const proc = spawn(aecRagCommand(), aecRagArgs(args('graph-preview', vaultPath, path, kind)), {
       env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -125,7 +116,7 @@ export function runGraphAdd(
   signal?: AbortSignal
 ): Promise<GraphRunReport> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), args('graph-add', vaultPath, path, kind), {
+    const proc = spawn(aecRagCommand(), aecRagArgs(args('graph-add', vaultPath, path, kind)), {
       // D-115: граф строится моделью и эмбеддингами провайдера — ключ человека
       // из нашего хранилища, как у индексации.
       env: { ...process.env, ...extraEnv, ...AEC_RAG_UTF8 },

@@ -32,7 +32,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { HERMES_HOME_DIR, PYTHON_BIN } from "./hermes-env.mjs";
+import { HERMES_HOME_DIR, PYTHON_ARGS, PYTHON_BIN } from "./hermes-env.mjs";
 import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 
 // Снимок берётся ИХ ЖЕ методом: `hermes checkpoints` не умеет снять состояние
@@ -49,7 +49,7 @@ function forceCheckpoint(dir, reason) {
   const helper = path.join(tmpdir(), `aec-force-${process.pid}.py`);
   writeFileSync(helper, FORCE_PY, "utf-8");
   try {
-    const result = spawnSync(PYTHON_BIN, [helper, dir, reason], {
+    const result = spawnSync(PYTHON_BIN, [...PYTHON_ARGS, helper, dir, reason], {
       env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR },
       encoding: "utf8"
     });

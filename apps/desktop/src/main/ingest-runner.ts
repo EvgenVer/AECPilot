@@ -9,7 +9,6 @@
 // `ingest-progress-pure.ts`, where it can be tested without a python process.
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
 
 import {
   type IngestProgress,
@@ -21,18 +20,11 @@ import {
   watchSilence
 } from './ingest-progress-pure'
 import type { IndexInventory, RagStatus } from '../shared/ipc'
+import { aecRagArgs, aecRagCommand } from './aec-rag-command'
 
-// TODO(Phase 6 / task 6.2): same packaged-app caveat as scan-runner's.
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
 const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
-
-function aecRagBinPath(): string {
-  const repoRoot = join(__dirname, '../../../../')
-  return process.platform === 'win32'
-    ? join(repoRoot, '.venv', 'Scripts', 'aec-rag.exe')
-    : join(repoRoot, '.venv', 'bin', 'aec-rag')
-}
 
 // D-183, task 3H.17: the run ends when it goes quiet, not when it gets long. The
 // hour that stood here cut off a folder of scanned reports in the middle of its
@@ -93,7 +85,7 @@ export function runIngest(
   for (const path of options.paths ?? []) args.push('--path', path)
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), args, {
+    const proc = spawn(aecRagCommand(), aecRagArgs(args), {
       // D-115: эмбеддинги берут ключ провайдера из окружения процесса, а ключ
       // человека лежит в нашем зашифрованном хранилище — без него каждый файл
       // падает с «чанки есть, а векторов нет».
@@ -290,11 +282,15 @@ export function runOneShot<T>(
   extraEnv: Record<string, string> = {}
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), [command, '--project', vaultPath, ...extraArgs], {
-      env: { ...process.env, ...extraEnv, ...AEC_RAG_UTF8 },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    })
+    const proc = spawn(
+      aecRagCommand(),
+      aecRagArgs([command, '--project', vaultPath, ...extraArgs]),
+      {
+        env: { ...process.env, ...extraEnv, ...AEC_RAG_UTF8 },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      }
+    )
 
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []

@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { connectWs, rpcCall } from "./gateway-client.mjs";
-import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
+import { PYTHON_ARGS, PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
 import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 import { HERMES_HOME_DIR, startServe, stopServe, waitHealthy } from "./serve.mjs";
 
@@ -52,7 +52,7 @@ function runPython() {
   const file = path.join(os.tmpdir(), `aec-access-${Date.now()}.py`);
   fs.writeFileSync(file, PY, "utf-8");
   return new Promise((resolve) => {
-    const child = spawn(PYTHON_BIN, [file], {
+    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, file], {
       env: {
         ...process.env,
         HERMES_HOME: HERMES_HOME_DIR,

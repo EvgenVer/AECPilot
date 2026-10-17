@@ -35,22 +35,29 @@ export function runMemoryFacts(
     hermesHome: string
     hermesSrc: string
     python: string
+    /** Between the interpreter and the script: `runtime/bin/core_python.py` in an
+     *  installed tree (`hermes-env.mjs::PYTHON_ARGS`, task T21.2), nothing in development. */
+    pythonArgs?: string[]
   },
   timeoutMs = DEFAULT_FACTS_TIMEOUT_MS
 ): Promise<MemoryFactsAnswer> {
   return new Promise((resolve) => {
-    const proc = spawn(options.python, [scriptPath(), ...options.args], {
-      env: {
-        ...process.env,
-        ...options.extraEnv,
-        AEC_HERMES_SRC: options.hermesSrc,
-        HERMES_HOME: options.hermesHome,
-        MEM0_TELEMETRY: 'false',
-        PYTHONIOENCODING: 'utf-8'
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    })
+    const proc = spawn(
+      options.python,
+      [...(options.pythonArgs ?? []), scriptPath(), ...options.args],
+      {
+        env: {
+          ...process.env,
+          ...options.extraEnv,
+          AEC_HERMES_SRC: options.hermesSrc,
+          HERMES_HOME: options.hermesHome,
+          MEM0_TELEMETRY: 'false',
+          PYTHONIOENCODING: 'utf-8'
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      }
+    )
 
     const stdoutChunks: Buffer[] = []
     let settled = false

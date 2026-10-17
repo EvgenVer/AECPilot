@@ -27,7 +27,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { PYTHON_BIN, HERMES_SRC_DIR, HERMES_HOME_DIR } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_ARGS, PYTHON_BIN } from './hermes-env.mjs'
 
 /** Запрос нарочно из предметной области продукта: русский, про нормы. Ответ на
  * нём показывает не только «сеть жива», но и что провайдер годится для того,
@@ -118,7 +118,7 @@ const noKeylessHome = homeWith('web:\n  keyless_fallback: false\n')
 
 let raw
 try {
-  raw = execFileSync(PYTHON_BIN, ['-c', PY], {
+  raw = execFileSync(PYTHON_BIN, [...PYTHON_ARGS, '-c', PY], {
     cwd: HERMES_SRC_DIR,
     encoding: 'utf-8',
     env: {

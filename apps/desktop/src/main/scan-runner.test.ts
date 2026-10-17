@@ -10,6 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const spawnMock = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 
+// The development layout whatever lies on disk (task T21.2): a staged `runtime/mcp`
+// adds the `-s -m aec_rag` prefix — `aec-rag-command.test.ts` covers that form.
+vi.mock('./aec-rag-command', () => ({
+  aecRagCommand: () => 'aec-rag',
+  aecRagArgs: (rest: string[]) => rest
+}))
+
 import {
   DEFAULT_DETACH_TIMEOUT_MS,
   DEFAULT_SCAN_TIMEOUT_MS,

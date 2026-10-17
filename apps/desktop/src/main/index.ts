@@ -439,6 +439,7 @@ async function loadMemoryConfigModule(): Promise<MemoryConfigModule> {
 
 interface HermesEnvModule {
   HERMES_SRC_DIR: string
+  PYTHON_ARGS: string[]
   PYTHON_BIN: string
   VENV_DIR: string
 }
@@ -5564,14 +5565,15 @@ async function memoryFactsCall(args: string[]): Promise<MemoryFactsAnswer> {
   }
 
   const { HERMES_HOME_DIR } = await loadServeModule()
-  const { HERMES_SRC_DIR, PYTHON_BIN } = await loadHermesEnvModule()
+  const { HERMES_SRC_DIR, PYTHON_ARGS, PYTHON_BIN } = await loadHermesEnvModule()
   const { runMemoryFacts } = await import('./memory-facts-runner')
   return runMemoryFacts({
     args,
     extraEnv: buildExtraEnv(),
     hermesHome: HERMES_HOME_DIR,
     hermesSrc: HERMES_SRC_DIR,
-    python: PYTHON_BIN
+    python: PYTHON_BIN,
+    pythonArgs: PYTHON_ARGS
   })
 }
 

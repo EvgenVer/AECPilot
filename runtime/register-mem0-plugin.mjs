@@ -16,50 +16,81 @@
 //
 // Тесты, README и pyproject плагина в профиль не едут; LICENSE едет — Apache-2.0
 // и MIT требуют сохранять уведомление вместе с кодом.
+//
+// `plugin.yaml` едет БЕЗ `pip_dependencies` (задача T21.2). Объявленные зависимости
+// делают плагин «участником» PM ядра: штамп его venv включает путь и содержимое
+// плагина, и собранный payload, где `mem0ai` уже стоит, ядро объявляет
+// рассинхронизированным — «install out of sync … run `hermes pm install`» в каждом
+// ответе `hermes` (замер 2026-10-17, приёмка 29.5), а `pm install` пересобрал бы
+// окружение без Mem0. Зависимости плагина ставим мы сами, на пине и в одном
+// разрешении с ядром (`mem0-plugin-requirements.txt`, setup.mjs и
+// payload/stage_core.py), так что объявлять их PM нечего.
 
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs'
+import path from 'node:path'
 
-import { MEM0_PLUGIN_DIR } from "./hermes-env.mjs";
+import { MEM0_PLUGIN_DIR } from './hermes-env.mjs'
 
 /** Имя провайдера = имя папки в профиле = `memory.provider`. */
-export const MEM0_PROVIDER_ID = "mem0";
+export const MEM0_PROVIDER_ID = 'mem0'
 
 /** Что составляет плагин на пине 1.3.0 (`MEM0_PLUGIN_SHA`). Список явный: при
  *  смене раскладки на новом пине установка падает, а не копирует молча часть. */
 export const MEM0_PLUGIN_FILES = [
-  "plugin.yaml",
-  "__init__.py",
-  "_backend.py",
-  "_openai_llm.py",
-  "_oss_providers.py",
-  "_setup.py",
-  "LICENSE",
-];
+  'plugin.yaml',
+  '__init__.py',
+  '_backend.py',
+  '_openai_llm.py',
+  '_oss_providers.py',
+  '_setup.py',
+  'LICENSE'
+]
 
 /**
  * Ставит провайдер Mem0 в профиль. Идемпотентно; `{ changed, missing }`.
  * `missing: true` — исходника нет (не прогнан `node runtime/setup.mjs`): тогда
  * профиль не трогается, а решать, что делать, — вызывающему.
  */
-export function installMem0Plugin(hermesHomeDir, sourceDir = MEM0_PLUGIN_DIR) {
-  if (!fs.existsSync(path.join(sourceDir, "plugin.yaml"))) return { changed: false, missing: true };
+/** `plugin.yaml` без блока `pip_dependencies:` / `python_dependencies:` (оба
+ *  написания PM читает одинаково, `pm/plugin_declarations.py`). */
+export function withoutPipDependencies(manifest) {
+  const lines = manifest.split(/(?<=\n)/)
+  const kept = []
+  let skipping = false
+  for (const line of lines) {
+    if (/^(pip|python)_dependencies:/.test(line)) {
+      skipping = true
+      continue
+    }
+    if (skipping && /^(\s|-)/.test(line) && line.trim() !== '') continue
+    skipping = false
+    kept.push(line)
+  }
+  return kept.join('')
+}
 
-  const target = path.join(hermesHomeDir, "plugins", MEM0_PROVIDER_ID);
-  fs.mkdirSync(target, { recursive: true });
-  let changed = false;
+export function installMem0Plugin(hermesHomeDir, sourceDir = MEM0_PLUGIN_DIR) {
+  if (!fs.existsSync(path.join(sourceDir, 'plugin.yaml'))) return { changed: false, missing: true }
+
+  const target = path.join(hermesHomeDir, 'plugins', MEM0_PROVIDER_ID)
+  fs.mkdirSync(target, { recursive: true })
+  let changed = false
   for (const name of MEM0_PLUGIN_FILES) {
-    const source = fs.readFileSync(path.join(sourceDir, name));
-    let existing = null;
+    const raw = fs.readFileSync(path.join(sourceDir, name))
+    const source =
+      name === 'plugin.yaml'
+        ? Buffer.from(withoutPipDependencies(raw.toString('utf-8')), 'utf-8')
+        : raw
+    let existing = null
     try {
-      existing = fs.readFileSync(path.join(target, name));
+      existing = fs.readFileSync(path.join(target, name))
     } catch {
       // файла ещё нет
     }
     if (existing === null || !existing.equals(source)) {
-      fs.writeFileSync(path.join(target, name), source);
-      changed = true;
+      fs.writeFileSync(path.join(target, name), source)
+      changed = true
     }
   }
-  return { changed, missing: false };
+  return { changed, missing: false }
 }

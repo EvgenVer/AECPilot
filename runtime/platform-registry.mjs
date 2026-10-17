@@ -43,7 +43,11 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN, HERMES_VERSION, HERMES_SHA } from "./hermes-env.mjs";
+import { HERMES_HOME_DIR, HERMES_SHA, DEV_HERMES_SRC_DIR as HERMES_SRC_DIR, HERMES_VERSION, DEV_VENV_DIR } from "./hermes-env.mjs";
+
+// Parity tooling reads the pinned SOURCE with the development venv (task T21.2):
+// the payload's snapshot leaves tests and docs out, its interpreter needs core_python.py.
+const PYTHON_BIN = path.join(DEV_VENV_DIR, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
 import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));

@@ -24,7 +24,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 
-import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_ARGS, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-outbound-4b3c2d1e'
 const NOTE = 'Смета пересчитана: 3 позиции изменены.'
@@ -75,7 +75,7 @@ async function sendFromCore(url) {
     'print(json.dumps({"targets": len(targets), "flushed": bool(flushed)}))'
   ].join('\n')
 
-  const child = spawn(PYTHON_BIN, ['-c', script, url, SECRET, NOTE], {
+  const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, '-c', script, url, SECRET, NOTE], {
     cwd: HERMES_SRC_DIR,
     // Иначе Windows отдаёт stdout в кодировке консоли и кириллица в отчёте
     // превращается в мусор, а сравнивать надо ровно те же байты.

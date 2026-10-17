@@ -20,7 +20,7 @@ import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 
-import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_BIN } from './hermes-env.mjs'
+import { HERMES_HOME_DIR, HERMES_SRC_DIR, PYTHON_ARGS, PYTHON_BIN } from './hermes-env.mjs'
 
 const SECRET = 'проба-secret-9f8e7d6c'
 
@@ -91,7 +91,7 @@ async function sendFromCore(callbackUrl) {
     '}, ensure_ascii=False))'
   ].join('\n')
 
-  const child = spawn(PYTHON_BIN, ['-c', script, callbackUrl, 'task-42', REPLY], {
+  const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, '-c', script, callbackUrl, 'task-42', REPLY], {
     cwd: HERMES_SRC_DIR,
     // Без этого Windows отдаёт stdout в кодировке консоли, и кириллица в
     // отчёте превращается в мусор — а сравнивать надо ровно те же байты.

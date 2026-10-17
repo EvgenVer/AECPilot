@@ -32,10 +32,16 @@ def configure() -> None:
     site_dir = os.path.join(CORE, *runtime["sitePackages"].split("/"))
     # An inherited PYTHONPATH (another Python of the person's) must not shadow the
     # payload — their launchers drop it the same way.
-    inherited = {os.path.normcase(os.path.abspath(entry))
-                 for entry in os.environ.get("PYTHONPATH", "").split(os.pathsep) if entry}
-    sys.path[:] = [entry for entry in sys.path
-                   if os.path.normcase(os.path.abspath(entry or os.curdir)) not in inherited]
+    inherited = {
+        os.path.normcase(os.path.abspath(entry))
+        for entry in os.environ.get("PYTHONPATH", "").split(os.pathsep)
+        if entry
+    }
+    sys.path[:] = [
+        entry
+        for entry in sys.path
+        if os.path.normcase(os.path.abspath(entry or os.curdir)) not in inherited
+    ]
     site.addsitedir(site_dir)
     # Repo first: the payload's own hermes_cli wins over anything in site-packages.
     sys.path[:] = [repo] + [entry for entry in sys.path if entry != repo]

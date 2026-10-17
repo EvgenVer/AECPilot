@@ -1,27 +1,14 @@
-// Spawns the aec-rag CLI's `scan` command (task 1.14) against a vault —
-// mirrors main/index.ts's dynamic-import-relative-to-__dirname convention
-// for runtime/serve.mjs and the AGENTS.md template (see agentsTemplatePath),
-// and runtime/register-aec-sources.mjs's AEC_SOURCES_BIN resolution: the uv
-// workspace's compiled console-script binary at `<repo root>/.venv`.
+// Spawns the aec-rag CLI's `scan` command (task 1.14) against a vault — the
+// command comes from `aec-rag-command.ts` (task T21.2): the staged MCP Python in
+// an installed tree, the uv workspace's console script in development.
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
 import type { ScanReport } from '../shared/ipc'
+import { aecRagArgs, aecRagCommand } from './aec-rag-command'
 
-// TODO(Phase 5 / task 5.1): __dirname will live inside app.asar in the
-// packaged app — this relative path to the repo-root .venv must be revisited
-// for the bundled layout (same caveat as index.ts's loadServeModule/
-// agentsTemplatePath).
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
 const AEC_RAG_UTF8 = { PYTHONIOENCODING: 'utf-8' }
-
-function aecRagBinPath(): string {
-  const repoRoot = join(__dirname, '../../../../')
-  return process.platform === 'win32'
-    ? join(repoRoot, '.venv', 'Scripts', 'aec-rag.exe')
-    : join(repoRoot, '.venv', 'bin', 'aec-rag')
-}
 
 // Review fix (major 1): generous enough not to kill a legitimate first scan
 // of a large tree (a fresh source with many thousands of files can take a
@@ -42,7 +29,7 @@ export function runScan(
   timeoutMs = DEFAULT_SCAN_TIMEOUT_MS
 ): Promise<ScanReport> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), ['scan', '--project', vaultPath], {
+    const proc = spawn(aecRagCommand(), aecRagArgs(['scan', '--project', vaultPath]), {
       env: { ...process.env, ...AEC_RAG_UTF8 },
       stdio: ['ignore', 'pipe', 'pipe'],
       // Review fix (minor 5): without this, spawning a console-subsystem
@@ -140,11 +127,15 @@ export function runDetach(
   timeoutMs = DEFAULT_DETACH_TIMEOUT_MS
 ): Promise<DetachReport> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aecRagBinPath(), ['detach', '--project', vaultPath, '--source', sourceId], {
-      env: { ...process.env, ...AEC_RAG_UTF8 },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    })
+    const proc = spawn(
+      aecRagCommand(),
+      aecRagArgs(['detach', '--project', vaultPath, '--source', sourceId]),
+      {
+        env: { ...process.env, ...AEC_RAG_UTF8 },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      }
+    )
 
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []

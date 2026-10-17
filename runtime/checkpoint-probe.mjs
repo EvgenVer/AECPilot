@@ -40,7 +40,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HERMES_HOME_DIR, PYTHON_BIN } from "./hermes-env.mjs";
+import { HERMES_HOME_DIR, PYTHON_ARGS, PYTHON_BIN } from "./hermes-env.mjs";
 import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 
 // Small standalone helper run with the venv's own python.exe. Kept as a
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 `;
 
 function runPythonHelper(helperPath, args) {
-  const result = spawnSync(PYTHON_BIN, [helperPath, ...args], {
+  const result = spawnSync(PYTHON_BIN, [...PYTHON_ARGS, helperPath, ...args], {
     env: { ...process.env, HERMES_HOME: HERMES_HOME_DIR },
     encoding: "utf8",
   });

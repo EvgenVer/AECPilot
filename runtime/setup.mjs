@@ -2,8 +2,15 @@
 // prepares an isolated HERMES_HOME dev profile — both outside the repo's
 // root uv workspace and outside any user-level Hermes install/profile.
 //
-// Usage: node runtime/setup.mjs
+// Usage: node runtime/setup.mjs [--no-payload]
 // Idempotent: safe to re-run; re-installs the same pinned version in place.
+//
+// Since phase 3 (task T21.2) setup also stages the two runtimes the installer ships —
+// the core payload built by their PM (`runtime/core`, payload/stage_core.py) and our
+// Python 3.12 for the MCP servers (`runtime/mcp`, payload/stage-mcp.mjs) — so a working
+// copy runs on exactly what an engineer gets (plugin switches and the agent's fallback
+// browser need the PM payload, T21). The editable venv stays: it hosts the staging and
+// the pin-raise tooling. `--no-payload` skips the staging (it takes minutes).
 //
 // Moving the pin to another Python version (0.21.5 on 3.12 → 0.22.2 on 3.14,
 // task T20.3): move the old `.hermes-venv` aside first (`.hermes-venv-<version>`,
@@ -15,11 +22,11 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  HERMES_BIN,
+  DEV_HERMES_SRC_DIR as HERMES_SRC_DIR,
+  DEV_VENV_DIR as VENV_DIR,
   HERMES_HOME_DIR,
   HERMES_REPO,
   HERMES_SHA,
-  HERMES_SRC_DIR,
   HERMES_VERSION,
   MEM0_PLUGIN_CHECKOUT_DIR,
   MEM0_PLUGIN_DIR,
@@ -29,8 +36,14 @@ import {
   MEM0_PLUGIN_VERSION,
   PYTHON_VERSION,
   RUNTIME_DIR,
-  VENV_DIR,
 } from "./hermes-env.mjs";
+
+// The development paths on purpose (task T21.2): once a payload is staged, `VENV_DIR`,
+// `HERMES_SRC_DIR` and `HERMES_BIN` of hermes-env name the payload — re-running setup
+// must never create a venv or fetch git inside `runtime/core`.
+const isWindowsHost = process.platform === "win32";
+const HERMES_BIN = path.join(VENV_DIR, isWindowsHost ? "Scripts/hermes.exe" : "bin/hermes");
+const DEV_PYTHON_BIN = path.join(VENV_DIR, isWindowsHost ? "Scripts/python.exe" : "bin/python");
 
 function run(command, args, cwd) {
   console.log(`+ ${command} ${args.join(" ")}`);
@@ -159,7 +172,10 @@ function writeConstraints() {
   );
 }
 
-console.log(`== 1/5: creating isolated venv at ${VENV_DIR}`);
+const STAGE_PAYLOAD = !process.argv.includes("--no-payload");
+const STEPS = STAGE_PAYLOAD ? 7 : 5;
+
+console.log(`== 1/${STEPS}: creating isolated venv at ${VENV_DIR}`);
 run("uv", [
   "venv",
   VENV_DIR,
@@ -168,7 +184,7 @@ run("uv", [
   "--allow-existing", // idempotent: keep re-running without clearing/erroring
 ]);
 
-console.log(`== 2/5: fetching hermes-agent source at ${HERMES_SHA.slice(0, 12)}`);
+console.log(`== 2/${STEPS}: fetching hermes-agent source at ${HERMES_SHA.slice(0, 12)}`);
 // Pinned to a commit id, never to the tag: the author dropped PyPI and Homebrew,
 // and a tag can be moved after the fact. See hermes-env.mjs for how the commit
 // was resolved from tag v2026.8.3.
@@ -176,12 +192,12 @@ requireGit();
 fetchCore();
 
 console.log(
-  `== 3/5: fetching Mem0 plugin ${MEM0_PLUGIN_VERSION} at ${MEM0_PLUGIN_SHA.slice(0, 12)}`,
+  `== 3/${STEPS}: fetching Mem0 plugin ${MEM0_PLUGIN_VERSION} at ${MEM0_PLUGIN_SHA.slice(0, 12)}`,
 );
 fetchMem0Plugin();
 writeConstraints();
 
-console.log(`== 4/5: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
+console.log(`== 4/${STEPS}: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
 // Editable is not a preference — upstream's build backend raises on any wheel or
 // sdist build ("Hermes is distributed via the shell installer, Docker image, or
 // Nix"; setup.py) and names `uv pip install -e .` as the developer path. So the
@@ -234,8 +250,23 @@ run(
   RUNTIME_DIR,
 );
 
-console.log(`== 5/5: preparing isolated HERMES_HOME at ${HERMES_HOME_DIR}`);
+console.log(`== 5/${STEPS}: preparing isolated HERMES_HOME at ${HERMES_HOME_DIR}`);
 fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });
+
+if (STAGE_PAYLOAD) {
+  console.log(`== 6/${STEPS}: staging the core payload (their PM) at runtime/core`);
+  run(
+    DEV_PYTHON_BIN,
+    [path.join(RUNTIME_DIR, "payload", "stage_core.py"), "--out", path.join(RUNTIME_DIR, "core")],
+    RUNTIME_DIR,
+  );
+  console.log(`== 7/${STEPS}: staging our Python for the MCP servers at runtime/mcp`);
+  run(
+    process.execPath,
+    [path.join(RUNTIME_DIR, "payload", "stage-mcp.mjs"), "--out", path.join(RUNTIME_DIR, "mcp")],
+    RUNTIME_DIR,
+  );
+}
 
 console.log("\nDone.");
 console.log(`HERMES_BIN=${HERMES_BIN}`);

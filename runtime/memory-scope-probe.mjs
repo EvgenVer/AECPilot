@@ -31,7 +31,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
+import { PYTHON_ARGS, PYTHON_BIN, RUNTIME_DIR } from "./hermes-env.mjs";
 import { applyMemoryProfile, memoryEnv } from "./memory-config.mjs";
 
 const HERMES_SRC = path.join(RUNTIME_DIR, ".hermes-src");
@@ -120,7 +120,7 @@ function decode(result) {
  *  два раза на попытку. Сервер и его клиент не могут делить один поток. */
 function runPython(scriptPath, action, home) {
   return new Promise((resolve) => {
-    const child = spawn(PYTHON_BIN, [scriptPath, action], {
+    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, scriptPath, action], {
       env: {
         ...process.env,
         HERMES_HOME: home,

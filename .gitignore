@@ -69,4 +69,7 @@ eval/fixtures/wiki-project/*.docx
 # Installer payload staging and build caches (phase 3, T21/T22)
 runtime/.payload/
 runtime/core/
+# Their PM builder's preparation lock and record, next to the payload (stage_core.py).
+runtime/core.prepare.lock
+runtime/core.prepared.json
 runtime/mcp/

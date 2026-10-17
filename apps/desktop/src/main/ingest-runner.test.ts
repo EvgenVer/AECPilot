@@ -22,6 +22,13 @@ vi.mock('node:child_process', () => ({
   spawn: vi.fn(() => proc)
 }))
 
+// The development layout whatever lies on disk (task T21.2): a staged `runtime/mcp`
+// adds the `-s -m aec_rag` prefix — `aec-rag-command.test.ts` covers that form.
+vi.mock('./aec-rag-command', () => ({
+  aecRagCommand: () => 'aec-rag',
+  aecRagArgs: (rest: string[]) => rest
+}))
+
 const { IngestStoppedError, STOP_GRACE_MS, runIngest } = await import('./ingest-runner')
 const { RunFailedError } = await import('./ingest-progress-pure')
 
