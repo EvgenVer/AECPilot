@@ -32,7 +32,7 @@ commit in `runtime/.hermes-src` (SPEC C1).
 
 Usage (from the repository root, with the core venv's Python — any 3.11+ works,
 PM bootstraps its own):
-    runtime/.hermes-venv/Scripts/python.exe runtime/payload/stage_core.py --out runtime/.payload/core
+    runtime/.hermes-venv/Scripts/python.exe runtime/payload/stage_core.py --out runtime/core
 """
 from __future__ import annotations
 

@@ -105,8 +105,19 @@ export function readCoreManifest(dir = CORE_PAYLOAD_DIR) {
   }
 }
 
+/** The development runtime (setup.mjs), whatever the layout: the editable venv and the
+ *  git checkout at the pin. Pin-raise tooling (donor copy, contract snapshot) and the
+ *  staging itself need these — the payload's snapshot carries no `apps/` and no `.git`. */
+export const DEV_VENV_DIR = path.join(RUNTIME_DIR, ".hermes-venv");
+export const DEV_HERMES_SRC_DIR = path.join(RUNTIME_DIR, ".hermes-src");
+
 const coreManifest = readCoreManifest();
 export const IS_INSTALLED_LAYOUT = coreManifest !== null;
+
+/** A development checkout can run on the staged payload too (`setup.mjs` puts it in
+ *  `runtime/core`, task T21.2) — it stays a working copy, recognised by its `.git`, and
+ *  keeps the development profile. */
+export const IS_WORKING_COPY = fs.existsSync(path.join(INSTALL_ROOT, ".git"));
 
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.
@@ -137,10 +148,11 @@ export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGI
 // dev-profile into a temporary folder and lets the app own its own core there,
 // exactly as it does for a person. Unset in normal use.
 // Installed (UR40): the profile lives under the install root, never in the
-// person's home — `<root>/data/profile`.
+// person's home — `<root>/data/profile`. A working copy keeps `dev-profile` whatever
+// runtime it runs on.
 export const HERMES_HOME_DIR = process.env.AEC_HERMES_HOME
   ? path.resolve(process.env.AEC_HERMES_HOME)
-  : IS_INSTALLED_LAYOUT
+  : IS_INSTALLED_LAYOUT && !IS_WORKING_COPY
     ? path.join(DATA_DIR, "profile")
     : path.join(RUNTIME_DIR, "dev-profile");
 

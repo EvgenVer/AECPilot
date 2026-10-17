@@ -37,7 +37,17 @@ def allowed(args: list[str]) -> bool:
 
 
 def core_binary() -> str:
-    venv = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, ".hermes-venv")
+    runtime = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+    # The staged core payload (installed tree, or a working copy after setup.mjs,
+    # task T21.2): its launcher, as its manifest names it.
+    manifest = os.path.join(runtime, "core", "manifest.json")
+    if os.path.exists(manifest):
+        import json
+
+        with open(manifest, encoding="utf-8-sig") as handle:
+            relative = json.load(handle)["runtime"]["commands"]["hermes"]
+        return os.path.normpath(os.path.join(runtime, "core", *relative.split("/")))
+    venv = os.path.join(runtime, ".hermes-venv")
     windows = os.path.join(venv, "Scripts", "hermes.exe")
     return os.path.normpath(
         windows if os.path.exists(windows) else os.path.join(venv, "bin", "hermes")

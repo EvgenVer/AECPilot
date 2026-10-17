@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 
-import { HERMES_SHA, HERMES_SRC_DIR } from "./hermes-env.mjs";
+import { DEV_HERMES_SRC_DIR, HERMES_SHA } from "./hermes-env.mjs";
 
 // The donor desktop lives in the same repository as the core, so the snapshot
 // point is the core pin: components ported from it are written against exactly
@@ -33,7 +33,7 @@ export const DONOR_DESKTOP_VERSION = "0.0.0";
 // workspace and the core install already checks the same repository out at
 // exactly DONOR_SHA (runtime/.hermes-src, detached, gitignored). So we read from
 // the in-workspace tree and leave the external clone untouched.
-export const DONOR_ROOT = HERMES_SRC_DIR;
+export const DONOR_ROOT = DEV_HERMES_SRC_DIR;
 export const DONOR_DESKTOP_DIR = path.join(DONOR_ROOT, "apps", "desktop");
 export const DONOR_SRC_DIR = path.join(DONOR_DESKTOP_DIR, "src");
 export const DONOR_LICENSE_FILE = path.join(DONOR_ROOT, "LICENSE");

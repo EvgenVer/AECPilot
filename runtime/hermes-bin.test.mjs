@@ -79,9 +79,16 @@ describe("the wrappers", () => {
     const gate = fs.readFileSync(path.join(AEC_BIN_DIR, "hermes_gate.py"), "utf-8");
 
     expect(sh.startsWith("#!/bin/sh\n")).toBe(true);
-    expect(sh).toContain('venv="$here/../.hermes-venv"');
+    // Task T21.2: the staged core payload's own Python first, the development venv after.
+    expect(sh).toContain('"$here"/../core/tools/python-*/python.exe');
+    expect(sh.indexOf("/../core/tools/python-")).toBeLessThan(sh.indexOf('venv="$here/../.hermes-venv"'));
     expect(sh).toContain('"$here/hermes_gate.py" "$@"');
-    expect(cmd).toContain('"%~dp0..\\.hermes-venv\\Scripts\\python.exe" "%~dp0hermes_gate.py" %*');
+    expect(cmd).toContain('set "AEC_GATE_PY=%~dp0..\\.hermes-venv\\Scripts\\python.exe"');
+    expect(cmd).toContain('for /d %%P in ("%~dp0..\\core\\tools\\python-*")');
+    expect(cmd).toContain('"%AEC_GATE_PY%" -s "%~dp0hermes_gate.py" %*');
+    expect(cmd).toContain("exit /b %ERRORLEVEL%");
+    // …and the gate runs the launcher the payload's manifest names, else the venv's.
+    expect(gate).toContain('json.load(handle)["runtime"]["commands"]["hermes"]');
     expect(gate).toContain('os.path.join(venv, "Scripts", "hermes.exe")');
     expect(path.dirname(AEC_BIN_DIR)).toBe(RUNTIME_DIR);
   });

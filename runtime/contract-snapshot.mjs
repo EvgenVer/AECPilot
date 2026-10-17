@@ -27,7 +27,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { HERMES_SHA, HERMES_SRC_DIR, HERMES_VERSION, PYTHON_BIN, VENV_DIR } from "./hermes-env.mjs";
+import {
+  DEV_HERMES_SRC_DIR as HERMES_SRC_DIR,
+  DEV_VENV_DIR as VENV_DIR,
+  HERMES_SHA,
+  HERMES_VERSION,
+} from "./hermes-env.mjs";
+
+// The development venv (pin-raise tooling, task T21.2): its interpreter imports the core
+// directly, the payload's would need `core_python.py`.
+const PYTHON_BIN = path.join(VENV_DIR, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = path.resolve(RUNTIME_DIR, "..");

@@ -6,6 +6,13 @@
 # D-165: through hermes_gate.py - only `chat`, `--version`, `--help` pass; the rest
 # of the CLI changes the core's configuration past the app's consent cards.
 here="$(cd "$(dirname "$0")" && (pwd -W 2>/dev/null || pwd))"
+# Task T21.2: the staged core payload's own Python first (installed tree, or a working
+# copy after setup.mjs), else the development venv.
+for py in "$here"/../core/tools/python-*/python.exe "$here"/../core/tools/python-*/bin/python3; do
+  if [ -x "$py" ]; then
+    exec "$py" -s "$here/hermes_gate.py" "$@"
+  fi
+done
 venv="$here/../.hermes-venv"
 if [ -x "$venv/Scripts/python.exe" ]; then
   exec "$venv/Scripts/python.exe" "$here/hermes_gate.py" "$@"

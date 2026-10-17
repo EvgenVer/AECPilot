@@ -17,7 +17,7 @@
 // staging runs that first use here, so the models ship and the installed product
 // needs no network to read a scan.
 //
-// Usage: node runtime/payload/stage-mcp.mjs [--out runtime/.payload/mcp]
+// Usage: node runtime/payload/stage-mcp.mjs [--out runtime/mcp]
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -106,7 +106,7 @@ export function stageMcp(out) {
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMain) {
-  const out = path.resolve(argValue("--out", path.join(RUNTIME_DIR, ".payload", "mcp")));
+  const out = path.resolve(argValue("--out", path.join(RUNTIME_DIR, "mcp")));
   const { python } = stageMcp(out);
   console.log(`\nDone. MCP_PYTHON=${python}`);
 }
