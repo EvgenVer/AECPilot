@@ -20,7 +20,7 @@ overrides:
   # T20.13 raised both lines again: three more DoS advisories (1.1.21 / 2.1.7).
   brace-expansion@1: '^1.1.21'
   brace-expansion@2: '^2.1.7'
-  brace-expansion@5: '^5.0.9'
+  brace-expansion@5: '^5.0.12'
   nanoid@3: '^3.3.18'
   # Task T20.13. Same rule as above — patch/minor bumps inside the major each
   # parent already asks for, nobody's range forced open (registry checked
@@ -45,7 +45,14 @@ overrides:
   # nobody looks at is a finding nobody sees change.
   postcss@8: '^8.5.23'
   undici@7: '^7.29.0'
-  js-yaml@4: '^4.3.1'
+  js-yaml@4: '^4.3.2'
+  # Task T22 (electron-builder 26.17.0, build-time only): its tree brought undici 6
+  # (node-gyp under @electron/rebuild) with three advisories fixed in 6.28.1, and
+  # the newer brace-expansion/js-yaml advisories above reached it too. sprintf-js
+  # 1.1.3 (GHSA-hp3w-g68c-fv3c, @electron/get > global-agent > roarr) has no fixed
+  # release at all (latest is 1.1.3, the fix is promised for >=1.1.4): recorded,
+  # nothing to bump to; it never reaches the shipped bundle (T37 rechecks).
+  undici@6: '^6.28.1'
 
 # `unicode-animations` ships a postinstall that prints a spinner demo to
 # /dev/tty for three seconds. Harmless (read the script: no network, no writes)
@@ -156,7 +163,11 @@ auditConfig:
 #   get-windows 9.3.0 (MIT, sindresorhus) — перечисление окон ОС. Версия
 #     названа в SPEC HX12 дословно. Контракт приватности там же: только
 #     метаданные, никогда пиксели.
+#   electron-winstaller 5.4.0 — arrives with electron-builder (task T22) for
+#     the Squirrel.Windows target; we build NSIS and zip (T38), so its install
+#     script (it copies Squirrel's vendor binaries) has nothing to do.
 allowBuilds:
+  electron-winstaller: false
   get-windows: true
   unicode-animations: false
 

@@ -20,7 +20,7 @@ import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:c
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { SHIPPED_SKILLS_COPY, prepareProfile, removeProfile } from './core'
 import { record } from './evidence'
 
@@ -93,12 +93,18 @@ function profileProviderKeys(profileDir: string): Array<{ envVar: string; key: s
   return keys
 }
 
+/** The image our app runs as: this checkout's Electron, or the installed exe
+ *  (`AEC_E2E_EXECUTABLE`, T22/T24) — orphan checks and cleanup look for it. */
+const APP_IMAGE = process.env.AEC_E2E_EXECUTABLE
+  ? basename(process.env.AEC_E2E_EXECUTABLE)
+  : 'electron.exe'
+
 function listElectronPids(): Set<number> {
   if (process.platform !== 'win32') return new Set()
   try {
     const output = execFileSync(
       'tasklist',
-      ['/fi', 'IMAGENAME eq electron.exe', '/fo', 'csv', '/nh'],
+      ['/fi', `IMAGENAME eq ${APP_IMAGE}`, '/fo', 'csv', '/nh'],
       { encoding: 'utf8' }
     )
     const pids = new Set<number>()
@@ -121,7 +127,7 @@ export function listE2eLeftovers(exceptProfile?: string): number[] {
       [
         '-NoProfile',
         '-Command',
-        'Get-CimInstance Win32_Process -Filter "Name=\'electron.exe\'" | ' +
+        `Get-CimInstance Win32_Process -Filter "Name='${APP_IMAGE}'" | ` +
           'Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress'
       ],
       { encoding: 'utf8' }
@@ -266,14 +272,51 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
     console.warn(`[e2e] live профиль: ${profileDir} порт: ${servePort}`)
   }
 
+  // Clean-machine imitation (owner decision 2026-10-16, phase 3 interview item 1):
+  // the app sees an empty user and only Windows on its PATH — no Node, Python, Git or
+  // uv of the developer's. Everything stays under the folder named here.
+  const cleanHome = process.env.AEC_E2E_CLEAN_HOME
+  if (cleanHome) {
+    const roaming = join(cleanHome, 'AppData', 'Roaming')
+    const local = join(cleanHome, 'AppData', 'Local')
+    const temp = join(local, 'Temp')
+    for (const dir of [roaming, temp]) mkdirSync(dir, { recursive: true })
+    const windows = env.SystemRoot ?? 'C:\\Windows'
+    for (const key of Object.keys(env)) if (key.toUpperCase() === 'PATH') delete env[key]
+    Object.assign(env, {
+      USERPROFILE: cleanHome,
+      HOME: cleanHome,
+      HOMEDRIVE: cleanHome.slice(0, 2),
+      HOMEPATH: cleanHome.slice(2),
+      APPDATA: roaming,
+      LOCALAPPDATA: local,
+      TEMP: temp,
+      TMP: temp,
+      Path: [
+        join(windows, 'System32'),
+        windows,
+        join(windows, 'System32', 'Wbem'),
+        join(windows, 'System32', 'WindowsPowerShell', 'v1.0')
+      ].join(';')
+    })
+  }
+
   /** Поднять процесс приложения на тех же папках. Отдельной функцией, потому
    *  что `relaunch()` делает ровно это второй раз. */
   async function spawnApp(): Promise<ElectronApplication> {
-    const started = await _electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`],
-      cwd: desktopDir,
-      env
-    })
+    // T22/T24: `AEC_E2E_EXECUTABLE` — the installed `AECPilot.exe` instead of this
+    // checkout's Electron; same profile, same folders, same assertions.
+    const packaged = process.env.AEC_E2E_EXECUTABLE
+    const started = await _electron.launch(
+      packaged
+        ? {
+            executablePath: packaged,
+            args: [`--user-data-dir=${userDataDir}`],
+            cwd: dirname(packaged),
+            env
+          }
+        : { args: ['.', `--user-data-dir=${userDataDir}`], cwd: desktopDir, env }
+    )
     // Окно рабочего размера: в низком окне нижние строки боковой панели
     // перехватывает прокручиваемый контейнер (замер smoke, 3D.3).
     // Изредка (замер 24.09.2026, 2 из ~10 запусков) вызов попадает в момент

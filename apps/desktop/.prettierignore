@@ -1,5 +1,7 @@
 out/
 test-results/
+# electron-builder's output (task T22).
+release/
 
 # Vendored donor code keeps THEIR formatting (printWidth 120, arrowParens
 # avoid). Reformatting it to ours would be a SIXTH kind of edit — one AGENTS §14

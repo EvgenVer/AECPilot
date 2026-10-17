@@ -302,6 +302,7 @@ def child(args) -> int:
     if code:
         return code
     gate_launcher(out)
+    drop_set_aside(out)
     return settle(out)
 
 
@@ -323,6 +324,25 @@ def gate_launcher(out: Path) -> Path:
     script.write_bytes(GATE_LAUNCHER.encode("utf-8"))
     script.chmod(0o755)
     return script
+
+
+def drop_set_aside(out: Path) -> None:
+    """Delete the trees their PM set aside (`tools/.reclaim-*`) during this build.
+
+    PM renames a store entry it cannot delete — a running process still maps its
+    DLLs — and leaves it for the next install or `hermes pm gc`
+    (`pm/install.py::_discard_entry`). A restage while a dev app runs left a whole
+    old Git for Windows there (380 MB, measured 2026-10-17, T22); it must not ship.
+    """
+    import shutil
+
+    for entry in sorted((out / "tools").glob(".reclaim-*")):
+        try:
+            shutil.rmtree(entry)
+        except OSError as error:
+            raise SystemExit(
+                f"{entry} is still in use ({error}); close the app and the core, then restage"
+            ) from error
 
 
 def settle(out: Path) -> int:

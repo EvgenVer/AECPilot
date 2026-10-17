@@ -11,7 +11,8 @@ export default tseslint.config(
     // provenance header, the four allowed edits (AGENTS §14), the renderer
     // socket guard (SPEC C9), and the tests that come with the file.
     // `.cjs`/`.d.cts` joined with 0.22.2 (T20.7): their update-feed contract.
-    ignores: ['out/**', 'src/renderer/src/donor/**/*.{ts,tsx,cjs,cts}']
+    // `release/**`: electron-builder's output (task T22).
+    ignores: ['out/**', 'release/**', 'src/renderer/src/donor/**/*.{ts,tsx,cjs,cts}']
   },
   js.configs.recommended,
   tseslint.configs.recommended,
@@ -25,5 +26,15 @@ export default tseslint.config(
       // not allowed to use, and dropping the parameter would break the call.
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
+  },
+  {
+    // The build configuration (`electron-builder.config.cjs`, task T22) is a Node
+    // CommonJS module: electron-builder `require`s it.
+    files: ['*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { require: 'readonly', module: 'writable', __dirname: 'readonly' }
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' }
   }
 )
