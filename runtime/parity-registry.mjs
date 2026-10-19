@@ -121,7 +121,10 @@ export const ELECTRON_CLASSIFICATION = {
   cloud: { hx: "HX3", note: "вход в их облако" },
   "pet-overlay": { hx: "HX1" },
   git: { hx: "HX6", note: "голый git-UI; diff-вьюер приходит отдельно, задача 3.3" },
-  terminal: { ours: "terminal", note: "живая оболочка — задача 3E.8, отменённый HX7, UR30" },
+  terminal: {
+    ourWay: "apps/desktop/src/renderer/src/shared/hermes-desktop-shim.ts",
+    note: "панель живой оболочки снята задачей 3L.11 (HX7-прим., 2026-10-12): в shim `terminal: undefined`, терминал агента — инструмент ядра",
+  },
   // — запланировано
   hud: { ours: "hud", note: "плавающая лента — задача 3.24" },
   "quick-entry": { ourWay: "apps/desktop/src/preload/quick-entry.ts", note: "своё окно со своим preload — задача 3.15" },
@@ -199,7 +202,7 @@ export const ELECTRON_CLASSIFICATION = {
   // запрещает нарочно, и расширить её значило бы раздать «открой любой файл»
   // каждому месту, которое её зовёт (`preview-external-pure.ts`).
   openPreviewInBrowser: { ours: "preview", note: "preview:open-external, 3E.26" },
-  requestMicrophoneAccess: { ours: "media", note: "3.7a: media:request-microphone, UR21" },
+  requestMicrophoneAccess: { hx: "HX19", note: "голос снят целиком (3H.3, 2026-10-07): канала media нет" },
   // Решение владельца 2026-09-08 (задача 3E.27): HX21 распространён на
   // заголовки ссылок и переформулирован в общее правило — «украшения, за которые
   // платят исходящим запросом в интернет». Вставленная ссылка становится
@@ -266,8 +269,6 @@ export const ELECTRON_CLASSIFICATION = {
     ours: "preview",
     note: "preview:capture — снимок гостя для их аннотаций на предпросмотре (пакет 9.7, берём)",
   },
-  "intro-reveal": { hx: "HX26", note: "3D-заставка первого запуска" },
-  "chat-onboarding": { hx: "HX26", note: "сборка окна вокруг их онбординг-чата" },
   machine: {
     hx: "HX26",
     note: "факты о машине для их онбординг-чата; вторая роль — подсказка языка ОС при незаданном display.language — у нас недостижима: язык интерфейса задан всегда (shared/i18n/config-client.ts)",
@@ -292,7 +293,23 @@ export const ELECTRON_CLASSIFICATION = {
   "mcp-oauth": {
     ours: "gateway",
     note: "OAuth к удалённому MCP-серверу идёт по REST через gateway:rest; редирект ловит САМО ядро (GET /api/mcp/oauth/callback/{server}) — замерено 01.09.2026",
-  },
+  },  // — пин 0.22.2 (предрелизная сверка T37, 2026-10-19): решения записаны в SPEC и в
+  //   контракте `runtime/contracts/donor-move-0.22.2.md` §4, решения владельца 2026-10-19.
+  "desktop-metrics": { hx: "HX31", note: "телеметрия для Nous" },
+  "startup-latency": { hx: "HX31", note: "замер старта для той же телеметрии" },
+  freeTierChallenge: { hx: "HX3", note: "вход в бесплатный тариф их облака" },
+  "update-hold": { hx: "HX4", note: "их обновлятор; у нас — уведомление о версии (T42)" },
+  "hud-modifier": { hx: "HX29", note: "жест Ctrl+Alt для плавающей панели — не берётся (дополнение 2026-09-28)" },
+  screenshot: { hx: "HX29", note: "снимок окна жестом двух Command — только macOS" },
+  "window-control": { hx: "HX29", note: "кнопки окна под WSLg — только Linux" },
+  "f12-shortcut": { ours: "f12-shortcut", note: "F12 как назначаемая клавиша — 3G.23" },
+  f12ShortcutActive: { ours: "f12-shortcut", note: "F12 как назначаемая клавиша — 3G.23" },
+  "minimize-to-tray": { ours: "minimize-to-tray", note: "сворачивание в трей — 3G.23" },
+  "embed-host": { hx: "HX32", note: "YouTube внутри чата через локальный http — не берём" },
+  "local-backend": { task: "T35", note: "«эта машина / удалённый шлюз» — наш экран подключения" },
+  "keep-awake-offer": { task: "T50", note: "предложение не спать после сна посреди хода" },
+  "external-open-failed": { task: "T51", note: "сообщение «ссылку открыть не удалось»" },
+  "preview-guest-hidden": { task: "T52", note: "скрытый гость предпросмотра не рисует кадры" },
 };
 
 /** RPC prefixes §Non-Goals excludes, for the reachability note. Each cites the

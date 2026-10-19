@@ -129,7 +129,6 @@ export const VERDICTS = {
 
   // ── исключено номером SPEC ──────────────────────────────────────────────
   discord: { status: "excluded", hx: "HX11", where: "Discord" },
-  homeassistant: { status: "excluded", hx: "HX11", where: "Home Assistant" },
   feishu: { status: "excluded", hx: "HX11", where: "Feishu" },
   yuanbao: { status: "excluded", hx: "HX11", where: "Yuanbao" },
   api_server: { status: "excluded", hx: "HX10", where: "OpenAI-совместимый API-сервер" },

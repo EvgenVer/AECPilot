@@ -184,8 +184,11 @@ export const VERDICTS = {
   // (`tools/kanban_tools.py`). Дверь открывается записью `kanban` в
   // `toolsets` — её пишет `applyKanbanToolset` (задача 3E.13).
   "kanban_*": { status: "ours", where: "UR38 — задача 3E.13; проверено живым прогоном (`node runtime/kanban-probe.mjs`): ход агента вызвал `kanban_create`, задача появилась на доске по REST" },
-  "spotify_*": { status: "excluded", hx: "HX11", where: "Spotify" },
-  "ha_*": { status: "excluded", hx: "HX11", where: "Home Assistant" },
+  // Пин 0.22.2 (предрелизная сверка T37, 2026-10-19). `spotify_*` и `ha_*` ядро больше не
+  // отдаёт — их вердикты сняты вместе с инструментами.
+  set_theme: { status: "ours", where: "контракт 0.22.2 §4 «берём»; обработчики theme.apply/theme.pick в донорском gateway-event/server-requests.ts; отложенный инструмент (main/agent-defaults-pure.ts)" },
+  setup_beat: { status: "excluded", hx: "HX26", where: "карточки их онбординг-чата; набор подмешивается только в онбординг-чат" },
+  manage_catalog: { status: "ours", where: "UR23 и HX29 «берётся»; решение владельца 2026-10-15 №6 — только через наш гейт доверия; карточка согласия донора components/assistant-ui/catalog-install-tool.tsx; ядро выдаёт инструмент только профилю с ролью setup (plan-details §3H, D-146)" },
   "yb_*": { status: "excluded", hx: "HX11", where: "Yuanbao" },
   "feishu_drive_*": { status: "excluded", hx: "HX11", where: "Feishu" }
 };
