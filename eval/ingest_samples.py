@@ -33,7 +33,10 @@ SAMPLES = REPO_ROOT / "eval" / "samples" / "project"
 FIXTURES = REPO_ROOT / "eval" / "fixtures"
 VAULT = REPO_ROOT / "eval" / ".eval-vault"
 DEFAULT_ENV_FILE = REPO_ROOT / "runtime" / "dev-profile" / ".env"
-SOURCE_ID = "project"
+# Not "project": since 3K.2 that id is reserved for the project folder's own files
+# (`aec_rag.project_scope.PROJECT_SOURCE_ID`), and a scan of the vault marked every
+# sample as deleted — 0 files indexed (measured on T26, 2026-10-19).
+SOURCE_ID = "samples"
 
 
 def ensure_vault() -> Path:

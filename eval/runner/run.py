@@ -57,8 +57,36 @@ VAULT = REPO_ROOT / "eval" / ".eval-vault"
 REPORTS = REPO_ROOT / "eval" / "reports"
 DEFAULT_ENV_FILE = REPO_ROOT / "runtime" / "dev-profile" / ".env"
 
-ANSWER_MODEL = "gpt-5.4-mini-2026-03-17"
-JUDGE_MODEL = "gpt-5.4-mini-2026-03-17"
+# Провайдер раннера. По умолчанию — OpenAI, как в baseline 2026-08-15. Для стенда на
+# Gemini (T26) задаётся окружением, код не меняется: адрес OpenAI-совместимого API,
+# ИМЯ переменной с ключом и обе модели.
+BASE_URL = os.environ.get("AEC_EVAL_BASE_URL") or None
+KEY_ENV = os.environ.get("AEC_EVAL_KEY_ENV") or "OPENAI_API_KEY"
+ANSWER_MODEL = os.environ.get("AEC_EVAL_ANSWER_MODEL") or "gpt-5.4-mini-2026-03-17"
+JUDGE_MODEL = os.environ.get("AEC_EVAL_JUDGE_MODEL") or "gpt-5.4-mini-2026-03-17"
+
+# Расход токенов за прогон и потолок. Цена за миллион токенов — из окружения: раннер
+# её не знает, а выдумывать не должен. Без цен потолок не действует, только счёт.
+USAGE: dict[str, int] = {"calls": 0, "input": 0, "output": 0}
+PRICE_IN = float(os.environ.get("AEC_EVAL_PRICE_IN_PER_M") or 0)
+PRICE_OUT = float(os.environ.get("AEC_EVAL_PRICE_OUT_PER_M") or 0)
+BUDGET_USD = float(os.environ.get("AEC_EVAL_BUDGET_USD") or 0)
+
+
+def spent_usd() -> float:
+    return (USAGE["input"] * PRICE_IN + USAGE["output"] * PRICE_OUT) / 1_000_000
+
+
+def record_usage(response) -> None:
+    usage = getattr(response, "usage", None)
+    USAGE["calls"] += 1
+    if usage is not None:
+        USAGE["input"] += int(getattr(usage, "prompt_tokens", 0) or 0)
+        USAGE["output"] += int(getattr(usage, "completion_tokens", 0) or 0)
+    if BUDGET_USD and spent_usd() > BUDGET_USD:
+        raise SystemExit(
+            f"qa-eval: потолок ${BUDGET_USD:.2f} превышен (~${spent_usd():.2f}, {USAGE}) — стоп"
+        )
 
 QUESTION_TYPES = {"factual", "table", "scan", "negative", "injection", "overview"}
 PROVENANCE = {"derived", "needs_owner_check"}
@@ -231,10 +259,19 @@ def render_context(material: dict[str, Any]) -> str:
     return "\n\n".join(lines) if lines else "(поиск ничего не вернул)"
 
 
-def client():
-    from openai import AsyncOpenAI
+_CLIENT = None
 
-    return AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+def client():
+    global _CLIENT
+    if _CLIENT is None:
+        from openai import AsyncOpenAI
+
+        # max_retries выше умолчания: у Gemini упор в минутную квоту — штатное событие.
+        _CLIENT = AsyncOpenAI(
+            api_key=os.environ[KEY_ENV], base_url=BASE_URL, max_retries=8, timeout=180
+        )
+    return _CLIENT
 
 
 async def ask(model: str, system: str, user: str, json_mode: bool = False) -> str:
@@ -245,6 +282,7 @@ async def ask(model: str, system: str, user: str, json_mode: bool = False) -> st
     if json_mode:
         request["response_format"] = {"type": "json_object"}
     response = await client().chat.completions.create(**request)
+    record_usage(response)
     return response.choices[0].message.content or ""
 
 
@@ -292,6 +330,7 @@ async def ask_with_check(conn, system: str, user: str) -> tuple[str, list[dict[s
         response = await client().chat.completions.create(
             model=ANSWER_MODEL, messages=messages, tools=[CHECK_QUOTE_TOOL]
         )
+        record_usage(response)
         message = response.choices[0].message
         if not message.tool_calls:
             return message.content or "", log
@@ -610,6 +649,8 @@ async def main_async(args) -> int:
         "answer_model": ANSWER_MODEL,
         "judge_model": JUDGE_MODEL,
         "dataset": str(Path(args.dataset).name),
+        "base_url": BASE_URL,
+        "usage": {**USAGE, "estimated_usd": round(spent_usd(), 4) if PRICE_IN else None},
         "summary": summary,
         "outcomes": [outcome.as_dict() for outcome in outcomes],
     }
@@ -619,6 +660,7 @@ async def main_async(args) -> int:
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(f"== расход: {USAGE}")
     print(f"== отчёт: {out}")
     return 0
 
@@ -657,8 +699,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     load_env_file(Path(args.env_file))
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("qa-eval: OPENAI_API_KEY не задан", file=sys.stderr)
+    if not os.environ.get(KEY_ENV):
+        print(f"qa-eval: {KEY_ENV} не задан", file=sys.stderr)
         return 1
     return asyncio.run(main_async(args))
 
