@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { decideOpenPreviewExternal, PREVIEW_EXTERNAL_ERROR } from './preview-external-pure'
+import { decideOpenPreviewExternal, previewExternalError } from './preview-external-pure'
 
 const win = process.platform === 'win32'
 const PROJECT = win ? 'D:\\проект' : '/проект'
@@ -41,7 +41,7 @@ describe('decideOpenPreviewExternal', () => {
   it('ЧУЖОЙ ФАЙЛ — ОТКАЗ, и это главное правило задачи', () => {
     expect(decideOpenPreviewExternal(SECRET, scope, nothingPicked)).toEqual({
       ok: false,
-      error: PREVIEW_EXTERNAL_ERROR
+      error: previewExternalError()
     })
   })
 

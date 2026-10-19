@@ -8,6 +8,7 @@
 // а редактора ячейки у нас нет — см. PLAN §зависимости.
 
 import type { SheetData, SheetReadResult } from '../shared/ipc'
+import { mainT } from './i18n'
 
 /** Потолок на лист. Ведомость на сто тысяч строк существует, но переслать её в
  *  окно одним куском значит подвесить и мост, и отрисовку; а показать первые
@@ -105,6 +106,6 @@ async function readWorkbook(
     })
   })
 
-  if (sheets.length === 0) return { error: 'В книге нет листов', ok: false }
+  if (sheets.length === 0) return { error: mainT('sheet.noSheets'), ok: false }
   return { ok: true, sheets }
 }

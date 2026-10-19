@@ -14,6 +14,8 @@
 // ОТКАЗ — ОШИБКОЙ, а не пустой картинкой: пустой PNG выглядел бы как удачный
 // снимок ничего, и агент отвечал бы про него.
 
+import { mainT } from './i18n'
+
 export interface CaptureRect {
   height: number
   width: number
@@ -73,7 +75,7 @@ export function mapViewportRectToImage(
 }
 
 function toDataUrl(image: CaptureImage): string {
-  if (image.isEmpty()) throw new Error('Снимок предпросмотра пуст')
+  if (image.isEmpty()) throw new Error(mainT('preview.captureEmpty'))
 
   return `data:image/png;base64,${image.toPNG().toString('base64')}`
 }

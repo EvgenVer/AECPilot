@@ -8,11 +8,14 @@
 //
 // Здесь только разбор и слова; сами обращения — в `remote-files.ts`.
 
+import { mainT } from './i18n'
+
 /** Что человек читает, когда файла нет на ЭТОЙ машине по существу задачи, а не
  * по ошибке. Один текст на все поверхности: одинаковая причина не должна
  * объясняться шестью разными способами. */
-export const FILES_LIVE_ON_CORE_MACHINE =
-  'Ядро работает на другой машине — у этого файла нет пути на вашем компьютере.'
+export function filesLiveOnCoreMachine(): string {
+  return mainT('files.liveOnCoreMachine')
+}
 
 export interface DataUrlParts {
   mime: string
@@ -59,16 +62,16 @@ export function describeRemoteFileError(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error)
   const lower = text.toLowerCase()
 
-  if (lower.includes('too large')) return 'Файл слишком велик для просмотра'
-  if (lower.includes('not readable') || lower.includes('403')) return 'Нет доступа к файлу'
+  if (lower.includes('too large')) return mainT('common.fileTooLargeToView')
+  if (lower.includes('not readable') || lower.includes('403')) return mainT('common.fileNoAccess')
   if (lower.includes('not a regular file') || lower.includes('directory')) {
-    return 'Это папка, а не документ'
+    return mainT('common.folderNotDocument')
   }
   if (lower.includes('404') || lower.includes('not found') || lower.includes('enoent')) {
-    return 'Файл не найден на машине ядра'
+    return mainT('files.notFoundOnCore')
   }
 
-  return `Не удалось прочитать файл на машине ядра: ${text}`
+  return mainT('files.readFailedOnCore', text)
 }
 
 /** Имя файла из пути, каким его видит ядро. Разделитель может быть чужим: ядро

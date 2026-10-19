@@ -20,6 +20,7 @@ import {
   type SaveDialogPlan,
   type SaveDialogRequest
 } from './save-out-pure'
+import { mainT } from './i18n'
 
 export interface SaveOutcome {
   saved: boolean
@@ -29,9 +30,9 @@ export interface SaveOutcome {
   error?: string
 }
 
-export const SAVE_OUTSIDE_PROJECT =
-  'Сохранять можно только файлы внутри рабочей папки проекта. Этот файл лежит ' +
-  'за её пределами — откройте его в проводнике.'
+export function saveOutsideProject(): string {
+  return mainT('saveOut.outsideProject')
+}
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -70,7 +71,7 @@ async function writeWhereChosen(
     await write(target)
     return { saved: true, path: target }
   } catch (error: unknown) {
-    return { saved: false, error: `Не удалось записать файл: ${messageOf(error)}` }
+    return { saved: false, error: mainT('saveOut.writeFailed', messageOf(error)) }
   }
 }
 
@@ -85,18 +86,18 @@ async function resolveInsideProject(
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const resolved = resolveArtifactPath(projectRoot, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
-  if (!resolved.insideProject) return { ok: false, error: SAVE_OUTSIDE_PROJECT }
+  if (!resolved.insideProject) return { ok: false, error: saveOutsideProject() }
 
   try {
     const realPath = await fs.realpath(resolved.absPath)
-    if (!isInside(projectRoot, realPath)) return { ok: false, error: SAVE_OUTSIDE_PROJECT }
+    if (!isInside(projectRoot, realPath)) return { ok: false, error: saveOutsideProject() }
 
     const info = await fs.stat(realPath)
-    if (!info.isFile()) return { ok: false, error: 'Это не файл.' }
+    if (!info.isFile()) return { ok: false, error: mainT('common.notAFileDot') }
 
     return { ok: true, path: realPath }
   } catch {
-    return { ok: false, error: 'Файла нет на диске — возможно, он был удалён или переименован.' }
+    return { ok: false, error: mainT('saveOut.fileGone') }
   }
 }
 
@@ -123,8 +124,7 @@ export async function saveImageOut(
 
   if (classified.kind === 'bytes') {
     const bytes = Buffer.from(classified.base64, 'base64')
-    if (bytes.byteLength === 0)
-      return { saved: false, error: 'Картинка пустая — сохранять нечего.' }
+    if (bytes.byteLength === 0) return { saved: false, error: mainT('saveOut.imageEmpty') }
 
     return writeWhereChosen(window, classified.suggestedName, async (target) => {
       await fs.writeFile(target, bytes)

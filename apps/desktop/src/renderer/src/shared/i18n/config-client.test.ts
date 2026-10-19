@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createI18nConfigClient, readStoredLocale } from './config-client'
+import { createI18nConfigClient, readStoredLocale, reportLocaleToMain } from './config-client'
 
 function memoryStorage(initial?: string): Storage {
   const map = new Map<string, string>()
@@ -74,5 +74,46 @@ describe('createI18nConfigClient', () => {
     await expect(
       createI18nConfigClient(storage).saveConfig({ display: { language: 'en' } })
     ).resolves.toEqual({ ok: true })
+  })
+})
+
+describe('createI18nConfigClient: language is reported to the main process', () => {
+  it('reports the stored locale when the provider reads the config on mount', async () => {
+    const report = vi.fn()
+    await createI18nConfigClient(memoryStorage('en'), report).getConfig()
+    expect(report).toHaveBeenCalledExactlyOnceWith('en')
+  })
+
+  it('reports the default locale when nothing has been chosen', async () => {
+    const report = vi.fn()
+    await createI18nConfigClient(memoryStorage(), report).getConfig()
+    expect(report).toHaveBeenCalledExactlyOnceWith('ru')
+  })
+
+  it('reports a switch', async () => {
+    const report = vi.fn()
+    await createI18nConfigClient(memoryStorage(), report).saveConfig({
+      display: { language: 'en' }
+    })
+    expect(report).toHaveBeenCalledExactlyOnceWith('en')
+  })
+
+  it('reportLocaleToMain forwards the code over the bridge and survives its absence', async () => {
+    const setUiLanguage = vi.fn().mockResolvedValue({ language: 'en' })
+    vi.stubGlobal('window', { aecpilot: { setUiLanguage } })
+    try {
+      reportLocaleToMain('en')
+      expect(setUiLanguage).toHaveBeenCalledExactlyOnceWith('en')
+
+      vi.stubGlobal('window', {
+        aecpilot: { setUiLanguage: vi.fn().mockRejectedValue(new Error('x')) }
+      })
+      expect(() => reportLocaleToMain('ru')).not.toThrow()
+
+      vi.stubGlobal('window', {})
+      expect(() => reportLocaleToMain('ru')).not.toThrow()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

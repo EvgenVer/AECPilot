@@ -14,6 +14,7 @@
 
 import * as fs from 'node:fs'
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { mainT } from './i18n'
 
 export interface VaultTreeNode {
   name: string
@@ -43,13 +44,13 @@ function hasUnsupportedPrefix(p: string): boolean {
  * "is this rel inside .aecpilot" guard. */
 function sanitizedSegments(rel: string): string[] {
   if (CONTROL_CHAR_RE.test(rel)) {
-    throw new PathOutsideVaultError('Путь содержит недопустимые управляющие символы')
+    throw new PathOutsideVaultError(mainT('path.controlChars'))
   }
   if (hasUnsupportedPrefix(rel)) {
-    throw new PathOutsideVaultError('Служебные префиксы путей (\\\\?\\, \\\\.\\) не поддерживаются')
+    throw new PathOutsideVaultError(mainT('path.devicePrefix'))
   }
   if (isAbsolute(rel)) {
-    throw new PathOutsideVaultError('Путь должен быть относительным путём внутри проекта')
+    throw new PathOutsideVaultError(mainT('vault.relativeInside'))
   }
 
   const rawParts = rel.split(/[\\/]+/).filter((p) => p.length > 0)
@@ -57,10 +58,10 @@ function sanitizedSegments(rel: string): string[] {
   for (const part of rawParts) {
     if (part === '.') continue // harmless "current directory" component
     if (part.includes(':')) {
-      throw new PathOutsideVaultError('Путь не может содержать «:»')
+      throw new PathOutsideVaultError(mainT('path.colon'))
     }
     if (part === '..' || ALL_DOTS_RE.test(part.trimEnd())) {
-      throw new PathOutsideVaultError('Путь не может выходить за пределы проекта')
+      throw new PathOutsideVaultError(mainT('vault.cannotLeave'))
     }
     parts.push(part)
   }
@@ -79,13 +80,13 @@ function lexicalResolve(root: string, rel?: string | null): string {
   const parts = sanitizedSegments(rel)
   if (parts.length === 0) return root
   if (parts[0].toLowerCase() === '.aecpilot') {
-    throw new PathOutsideVaultError('Доступ к служебной папке .aecpilot запрещён')
+    throw new PathOutsideVaultError(mainT('vault.serviceFolder'))
   }
 
   const candidate = resolve(root, ...parts)
   const rel2 = relative(root, candidate)
   if (rel2 !== '' && (rel2.startsWith('..') || isAbsolute(rel2))) {
-    throw new PathOutsideVaultError('Путь выходит за пределы проекта')
+    throw new PathOutsideVaultError(mainT('vault.leaves'))
   }
   return candidate
 }
@@ -119,7 +120,7 @@ export function resolveVaultRel(vaultPath: string, rel?: string | null): string 
   const candidate = lexicalResolve(root, rel)
   const realRoot = safeRealpath(root)
   if (!isWithinRealRoot(realRoot, candidate)) {
-    throw new PathOutsideVaultError('Путь ведёт за пределы проекта через симлинк')
+    throw new PathOutsideVaultError(mainT('vault.symlink'))
   }
   return candidate
 }
@@ -135,16 +136,16 @@ export function resolveVaultRel(vaultPath: string, rel?: string | null): string 
  * symlink to reach the entry is rejected. */
 export function resolveVaultEntryRel(vaultPath: string, rel: string): string {
   if (!rel || rel.trim().length === 0) {
-    throw new PathOutsideVaultError('Путь не может быть пустым')
+    throw new PathOutsideVaultError(mainT('path.empty'))
   }
   const root = resolve(vaultPath)
   const candidate = lexicalResolve(root, rel)
   if (candidate === root) {
-    throw new PathOutsideVaultError('Операция над корнем vault недопустима')
+    throw new PathOutsideVaultError(mainT('vault.rootOperation'))
   }
   const realRoot = safeRealpath(root)
   if (!isWithinRealRoot(realRoot, dirname(candidate))) {
-    throw new PathOutsideVaultError('Путь ведёт за пределы проекта через симлинк')
+    throw new PathOutsideVaultError(mainT('vault.symlink'))
   }
   return candidate
 }
@@ -165,16 +166,16 @@ export function resolveVaultEntryRel(vaultPath: string, rel: string): string {
  * ability to delete a broken symlink from the vault at all. */
 export function resolveVaultContentRel(vaultPath: string, rel: string): string {
   if (!rel || rel.trim().length === 0) {
-    throw new PathOutsideVaultError('Путь не может быть пустым')
+    throw new PathOutsideVaultError(mainT('path.empty'))
   }
   const root = resolve(vaultPath)
   const candidate = lexicalResolve(root, rel)
   if (candidate === root) {
-    throw new PathOutsideVaultError('Это папка проекта, а не документ')
+    throw new PathOutsideVaultError(mainT('vault.isProjectFolder'))
   }
   const realRoot = safeRealpath(root)
   if (!isWithinRealRoot(realRoot, candidate)) {
-    throw new PathOutsideVaultError('Путь ведёт за пределы проекта через симлинк')
+    throw new PathOutsideVaultError(mainT('vault.symlink'))
   }
   return candidate
 }
@@ -228,17 +229,17 @@ const RESERVED_DEVICE_NAMES = new Set([
  * at the part before the first dot). Returns a Russian error message, or
  * `null` if the name is valid. */
 export function validateEntryName(name: string): string | null {
-  if (name.length === 0) return 'Имя не может быть пустым'
+  if (name.length === 0) return mainT('vault.nameEmpty')
   if (FORBIDDEN_NAME_CHARS_RE.test(name)) {
-    return 'Имя содержит запрещённые символы: < > : " / \\ | ? *'
+    return mainT('vault.nameForbiddenChars')
   }
-  if (ALL_DOTS_RE.test(name) || name === '.') return 'Недопустимое имя'
+  if (ALL_DOTS_RE.test(name) || name === '.') return mainT('vault.nameInvalid')
   if (TRAILING_DOT_OR_SPACE_RE.test(name)) {
-    return 'Имя не может заканчиваться точкой или пробелом'
+    return mainT('vault.nameEndsDotOrSpace')
   }
   const deviceBase = name.split('.')[0].toLowerCase()
   if (RESERVED_DEVICE_NAMES.has(deviceBase)) {
-    return 'Это имя зарезервировано системой Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9)'
+    return mainT('vault.nameReserved')
   }
   return null
 }
@@ -299,7 +300,7 @@ export function createFileEntry(
   const parentAbs = resolveVaultRel(vaultPath, parentRel)
   const fileName = extname(name) || name.startsWith('.') ? name : `${name}.md`
   const target = join(parentAbs, fileName)
-  if (fs.existsSync(target)) throw new Error('Файл или папка с таким именем уже существует')
+  if (fs.existsSync(target)) throw new Error(mainT('vault.nameExists'))
   fs.writeFileSync(target, '')
 }
 
@@ -314,7 +315,7 @@ export function createDirEntry(
   if (nameError) throw new Error(nameError)
   const parentAbs = resolveVaultRel(vaultPath, parentRel)
   const target = join(parentAbs, name)
-  if (fs.existsSync(target)) throw new Error('Файл или папка с таким именем уже существует')
+  if (fs.existsSync(target)) throw new Error(mainT('vault.nameExists'))
   fs.mkdirSync(target)
 }
 
@@ -334,7 +335,7 @@ export function writeVaultFile(vaultPath: string, rel: string, text: string): vo
   // ПО ссылке, поэтому симлинк-лист здесь пропускать нельзя.
   const target = resolveVaultContentRel(vaultPath, rel)
   const stat = fs.statSync(target)
-  if (!stat.isFile()) throw new Error('Это не файл')
+  if (!stat.isFile()) throw new Error(mainT('common.notAFile'))
   fs.writeFileSync(target, text, 'utf8')
 }
 
@@ -343,6 +344,6 @@ export function renameEntry(vaultPath: string, rel: string, newName: string): vo
   if (nameError) throw new Error(nameError)
   const oldAbs = resolveVaultEntryRel(vaultPath, rel)
   const newAbs = join(dirname(oldAbs), newName)
-  if (fs.existsSync(newAbs)) throw new Error('Файл или папка с таким именем уже существует')
+  if (fs.existsSync(newAbs)) throw new Error(mainT('vault.nameExists'))
   fs.renameSync(oldAbs, newAbs)
 }

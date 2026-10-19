@@ -19,9 +19,11 @@
 // пытался сделать.
 
 import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { mainT } from './i18n'
 
-export const WRITE_OUTSIDE_ERROR =
-  'Сохранять можно только в файл внутри проекта или выбранный в диалоге'
+export function writeOutsideError(): string {
+  return mainT('preview.writeOutside')
+}
 
 export type WriteDecision = { ok: true; absPath: string } | { ok: false; error: string }
 
@@ -38,7 +40,7 @@ export function decideWrite(
 
   if (!resolved.ok) return { ok: false, error: resolved.error }
   if (!resolved.insideProject && !pickedByUser(resolved.absPath)) {
-    return { ok: false, error: WRITE_OUTSIDE_ERROR }
+    return { ok: false, error: writeOutsideError() }
   }
 
   return { ok: true, absPath: resolved.absPath }

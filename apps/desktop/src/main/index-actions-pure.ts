@@ -4,6 +4,7 @@
 // исполняет. Отказ — значение со словами, а не исключение: окно его показывает.
 
 import { decideGraphMark, PROJECT_SOURCE_ID } from './graph-scope-pure'
+import { mainT } from './i18n'
 
 export type IndexTarget =
   | {
@@ -28,9 +29,9 @@ export function decideIndexTarget(
   if (!decision.ok) return decision
   const sourceId = (payload as { sourceId: string }).sourceId
   const rel = decision.path.slice(sourceId.length + 1)
-  if (rel === '') return { error: 'Выберите файл или папку', ok: false }
-  if (busy.ingest) return { error: 'Идёт индексация — дождитесь её конца', ok: false }
-  if (busy.graph) return { error: 'Строится граф — дождитесь его конца', ok: false }
+  if (rel === '') return { error: mainT('index.pickFileOrFolder'), ok: false }
+  if (busy.ingest) return { error: mainT('index.waitIndexing'), ok: false }
+  if (busy.graph) return { error: mainT('index.waitGraph'), ok: false }
   return { ok: true, place: decision.path, project: sourceId === PROJECT_SOURCE_ID, rel }
 }
 
@@ -44,7 +45,7 @@ export function includePlan(
   const folder = excluded.find((entry) => place.startsWith(`${entry}/`))
   if (folder !== undefined) {
     return {
-      error: `Папка «${folder.slice(folder.indexOf('/') + 1)}» убрана из индекса — верните её целиком`,
+      error: mainT('index.folderRemoved', folder.slice(folder.indexOf('/') + 1)),
       ok: false
     }
   }

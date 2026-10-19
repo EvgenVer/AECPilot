@@ -16,9 +16,11 @@
 // изнутри окна нельзя — значит решение принимает главный процесс.
 
 import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { mainT } from './i18n'
 
-export const WATCH_OUTSIDE_ERROR =
-  'Следить можно только за файлом внутри проекта или выбранным в диалоге'
+export function watchOutsideError(): string {
+  return mainT('preview.watchOutside')
+}
 
 export type WatchDecision = { ok: true; absPath: string } | { ok: false; error: string }
 
@@ -35,7 +37,7 @@ export function decideWatch(
 
   if (!resolved.ok) return { ok: false, error: resolved.error }
   if (!resolved.insideProject && !pickedByUser(resolved.absPath)) {
-    return { ok: false, error: WATCH_OUTSIDE_ERROR }
+    return { ok: false, error: watchOutsideError() }
   }
 
   return { ok: true, absPath: resolved.absPath }

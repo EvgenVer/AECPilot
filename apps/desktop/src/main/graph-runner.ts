@@ -21,6 +21,7 @@ import { readGraphLines, readGraphPreview } from './graph-scope-pure'
 import { RunFailedError, watchSilence } from './ingest-progress-pure'
 import { runOneShot } from './ingest-runner'
 import { aecRagArgs, aecRagCommand } from './aec-rag-command'
+import { mainT } from './i18n'
 
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
@@ -71,7 +72,7 @@ export function runGraphPreview(
       if (settled) return
       settled = true
       proc.kill()
-      reject(new Error('aec-rag graph-preview не ответил вовремя'))
+      reject(new Error(mainT('runner.noAnswerInTime', 'graph-preview')))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
@@ -81,7 +82,7 @@ export function runGraphPreview(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag graph-preview: ${error.message}`))
+      reject(new Error(mainT('runner.spawnFailed', 'graph-preview', error.message)))
     })
 
     proc.on('close', (code) => {
@@ -90,9 +91,7 @@ export function runGraphPreview(
       clearTimeout(timeoutTimer)
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(
-          new Error(`aec-rag graph-preview завершился с ошибкой (код ${code}): ${stderr.trim()}`)
-        )
+        reject(new Error(mainT('runner.exitFailed', 'graph-preview', code, stderr.trim())))
         return
       }
       try {
@@ -134,13 +133,7 @@ export function runGraphAdd(
       if (settled) return
       settled = true
       proc.kill()
-      reject(
-        new RunFailedError(
-          'silent',
-          `aec-rag graph-add молчал ${Math.round(silenceMs / 60000)} мин — процесс остановлен. ` +
-            'Добавленные документы остаются в графе.'
-        )
-      )
+      reject(new RunFailedError('silent', mainT('graph.silent', Math.round(silenceMs / 60000))))
     })
 
     // Задача 3M.5 (решение владельца 2026-10-14): «Остановить построение» —
@@ -152,7 +145,7 @@ export function runGraphAdd(
       settled = true
       silence.stop()
       proc.kill()
-      reject(new RunFailedError('stopped', 'Построение графа остановлено'))
+      reject(new RunFailedError('stopped', mainT('graph.stopped')))
     }
     if (signal?.aborted) stop()
     else signal?.addEventListener('abort', stop, { once: true })
@@ -175,9 +168,7 @@ export function runGraphAdd(
       if (settled) return
       settled = true
       silence.stop()
-      reject(
-        new RunFailedError('spawn', `не удалось запустить aec-rag graph-add: ${error.message}`)
-      )
+      reject(new RunFailedError('spawn', mainT('runner.spawnFailed', 'graph-add', error.message)))
     })
 
     proc.on('close', (code) => {
@@ -189,7 +180,7 @@ export function runGraphAdd(
       fatal = tail.fatal ?? fatal
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        const detail = `aec-rag graph-add завершился с ошибкой (код ${code}): ${stderr.trim()}`
+        const detail = mainT('runner.exitFailed', 'graph-add', code, stderr.trim())
         reject(new RunFailedError(fatal?.code ?? 'exit', fatal?.detail || detail))
         return
       }
@@ -198,7 +189,7 @@ export function runGraphAdd(
         // Важно именно отказом: выбор к этому моменту УЖЕ записан, и молчаливое
         // «готово» после неизвестного результата показало бы папку в графе,
         // которой там может не быть.
-        reject(new RunFailedError('no_report', 'aec-rag graph-add не отчитался о результате'))
+        reject(new RunFailedError('no_report', mainT('runner.noReport', 'graph-add')))
         return
       }
       resolve(finalReport)

@@ -26,6 +26,7 @@ import {
 } from '../project/project-config'
 import { validateNewSource } from '../project/source-validation'
 import { buildSourceTree, isSourceAvailable, type SourceTreeNode } from './source-tree'
+import { mainT } from './i18n'
 
 export interface OpenProject {
   name: string
@@ -58,11 +59,8 @@ export type OpenProjectResult =
 /** Plain-language text for each `VaultConflict` `generateVault` can report
  * (task 1.5.4) — kept here, not in vault-generator.ts, same split as
  * `mapGenerateVaultError` below (Russian UI strings live in this file). */
-const VAULT_CONFLICT_MESSAGES: Record<VaultConflict, string> = {
-  'agents-md':
-    'В папке уже есть свой файл AGENTS.md — он останется без изменений, будет добавлена только недостающая структура vault',
-  aecpilot:
-    'В папке уже есть папка или файл «.aecpilot», не относящиеся к этому проекту — они останутся без изменений'
+function vaultConflictMessage(conflict: VaultConflict): string {
+  return conflict === 'agents-md' ? mainT('project.agentsExists') : mainT('project.aecpilotForeign')
 }
 
 /** Maps `generateVault`'s (English, exception-message) errors to
@@ -73,15 +71,15 @@ const VAULT_CONFLICT_MESSAGES: Record<VaultConflict, string> = {
 function mapGenerateVaultError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
   if (message.includes('vault target path is a file, not a directory')) {
-    return 'Указанный путь — файл, а не папка'
+    return mainT('project.pathIsFile')
   }
   // Review fix-iteration 1 (minor 2): only reachable once the user has
   // already confirmed past a `.aecpilot` naming conflict — see
   // createMissingVaultEntries's up-front check in vault-generator.ts.
   if (message.includes('.aecpilot is occupied by a file')) {
-    return '«.aecpilot» занят файлом — переместите или переименуйте его, чтобы продолжить'
+    return mainT('project.aecpilotIsFile')
   }
-  return `Не удалось создать проект: ${message}`
+  return mainT('project.createFailed', message)
 }
 
 /** Creates a new vault at `dirPath` named `name` (trimmed), reading the
@@ -107,7 +105,7 @@ export function createProject(
 ): CreateProjectResult {
   const trimmedName = name.trim()
   if (trimmedName.length === 0) {
-    return { ok: false, error: 'название проекта не может быть пустым' }
+    return { ok: false, error: mainT('project.nameEmpty') }
   }
 
   let agentsTemplate: string
@@ -116,9 +114,10 @@ export function createProject(
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `не удалось прочитать шаблон AGENTS.md: ${
+      error: mainT(
+        'project.templateReadFailed',
         error instanceof Error ? error.message : String(error)
-      }`
+      )
     }
   }
 
@@ -138,10 +137,10 @@ export function createProject(
     if (vaultResult.reason === 'already-project') {
       return {
         ok: false,
-        error: 'Эта папка уже является проектом AECPilot — откройте её через «Открыть проект»'
+        error: mainT('project.alreadyProject')
       }
     }
-    return { needsConfirm: vaultResult.conflicts.map((c) => VAULT_CONFLICT_MESSAGES[c]) }
+    return { needsConfirm: vaultResult.conflicts.map((c) => vaultConflictMessage(c)) }
   }
 
   return { ok: true, project: { name: trimmedName, vaultPath: dirPath } }
@@ -162,7 +161,7 @@ export function createProject(
  * handler in main/index.ts does both on success. */
 export function openProject(vaultPath: string): OpenProjectResult {
   if (!existsSync(vaultPath)) {
-    return { ok: false, error: 'Папка не найдена' }
+    return { ok: false, error: mainT('project.folderNotFound') }
   }
 
   const configPath = join(vaultPath, '.aecpilot', 'project.json')
@@ -177,7 +176,10 @@ export function openProject(vaultPath: string): OpenProjectResult {
     }
     return {
       ok: false,
-      error: `Папка недоступна: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT(
+        'project.folderUnavailable',
+        error instanceof Error ? error.message : String(error)
+      )
     }
   }
 
@@ -185,7 +187,7 @@ export function openProject(vaultPath: string): OpenProjectResult {
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return { ok: false, error: 'Файл .aecpilot/project.json повреждён (невалидный JSON)' }
+    return { ok: false, error: mainT('project.jsonBroken') }
   }
 
   const validated = validateProjectConfig(parsed)
@@ -193,7 +195,7 @@ export function openProject(vaultPath: string): OpenProjectResult {
     const details = validated.errors
       .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
       .join('; ')
-    return { ok: false, error: `Некорректный project.json: ${details}` }
+    return { ok: false, error: mainT('project.jsonInvalid', details) }
   }
 
   // Task 1.6.C1 (owner decision 2026-07-31): a vault created before that
@@ -229,7 +231,10 @@ function readProjectConfigFile(
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Папка недоступна: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT(
+        'project.folderUnavailable',
+        error instanceof Error ? error.message : String(error)
+      )
     }
   }
 
@@ -237,7 +242,7 @@ function readProjectConfigFile(
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return { ok: false, error: 'Файл .aecpilot/project.json повреждён (невалидный JSON)' }
+    return { ok: false, error: mainT('project.jsonBroken') }
   }
 
   const validated = validateProjectConfig(parsed)
@@ -245,7 +250,7 @@ function readProjectConfigFile(
     const details = validated.errors
       .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
       .join('; ')
-    return { ok: false, error: `Некорректный project.json: ${details}` }
+    return { ok: false, error: mainT('project.jsonInvalid', details) }
   }
 
   return { ok: true, config: validated.value }
@@ -351,10 +356,10 @@ export function updateProjectSettings(
 
   const settings: ProjectSettings = { ...result.config.settings, ...patch }
   if (settings.wiki_lang.trim() === '') {
-    return { ok: false, error: 'Язык вики не может быть пустым' }
+    return { ok: false, error: mainT('project.wikiLanguageEmpty') }
   }
   if (!Number.isFinite(settings.scan_interval_s) || settings.scan_interval_s <= 0) {
-    return { ok: false, error: 'Интервал сканирования должен быть больше нуля' }
+    return { ok: false, error: mainT('project.scanIntervalPositive') }
   }
   // Task 5.14. Unlike wiki_lang, an EMPTY extraction language is legal — it is
   // how a project says "not chosen yet" and lets `aec_rag.rag_index` supply the
@@ -362,7 +367,7 @@ export function updateProjectSettings(
   // be written to the graph fingerprint verbatim and never match anything
   // again.
   if (settings.extraction_language !== settings.extraction_language.trim()) {
-    return { ok: false, error: 'Язык извлечения не должен начинаться или кончаться пробелом' }
+    return { ok: false, error: mainT('project.extractionLanguageTrim') }
   }
 
   try {
@@ -370,7 +375,7 @@ export function updateProjectSettings(
   } catch (error: unknown) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'не удалось записать project.json'
+      error: error instanceof Error ? error.message : mainT('project.jsonWriteFailed')
     }
   }
   return { ok: true, settings }
@@ -403,7 +408,7 @@ export async function getSourceStatusResult(
   sourceId: string
 ): Promise<SourceStatusResult> {
   const source = findSourceById(vaultPath, sourceId)
-  if (!source) return { ok: false, error: 'Источник не найден' }
+  if (!source) return { ok: false, error: mainT('common.sourceNotFound') }
   return { ok: true, status: (await isSourceAvailable(source.root_path)) ? 'ok' : 'unavailable' }
 }
 
@@ -426,7 +431,7 @@ export async function getSourceTreeResult(
   sourceId: string
 ): Promise<SourceTreeResult> {
   const source = findSourceById(vaultPath, sourceId)
-  if (!source) return { ok: false, error: 'Источник не найден' }
+  if (!source) return { ok: false, error: mainT('common.sourceNotFound') }
 
   if (!(await isSourceAvailable(source.root_path))) {
     return { ok: true, status: 'unavailable' }
@@ -482,7 +487,7 @@ export async function addSourceToProject(
   try {
     await fsp.access(rootPath)
   } catch {
-    warnings.push('Путь сейчас недоступен — источник будет добавлен как недоступный')
+    warnings.push(mainT('project.sourcePathUnavailable'))
   }
 
   if (warnings.length > 0 && !options?.confirmed) {
@@ -501,7 +506,7 @@ export async function addSourceToProject(
     const details = revalidated.errors
       .map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
       .join('; ')
-    return { ok: false, errors: [`Некорректный project.json после добавления: ${details}`] }
+    return { ok: false, errors: [mainT('project.jsonInvalidAfterAdd', details)] }
   }
 
   // Fix-iteration 1 (review minor): a write failure (disk full, permission
@@ -514,7 +519,7 @@ export async function addSourceToProject(
     return {
       ok: false,
       errors: [
-        `Не удалось сохранить project.json: ${error instanceof Error ? error.message : String(error)}`
+        mainT('project.jsonSaveFailed', error instanceof Error ? error.message : String(error))
       ]
     }
   }
@@ -542,7 +547,7 @@ export function removeSourceFromProject(vaultPath: string, sourceId: string): Re
   const config = configResult.config
 
   if (!config.sources.some((s) => s.id === sourceId)) {
-    return { ok: false, error: 'Источник не найден' }
+    return { ok: false, error: mainT('common.sourceNotFound') }
   }
 
   const updatedConfig: ProjectConfig = {
@@ -566,7 +571,7 @@ export function renameSource(
   const config = configResult.config
 
   if (!config.sources.some((s) => s.id === sourceId)) {
-    return { ok: false, error: 'Источник не найден' }
+    return { ok: false, error: mainT('common.sourceNotFound') }
   }
 
   const name = label.trim()
@@ -588,7 +593,7 @@ function writeSources(vaultPath: string, updatedConfig: ProjectConfig): RemoveSo
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось сохранить project.json: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('project.jsonSaveFailed', error instanceof Error ? error.message : String(error))
     }
   }
 

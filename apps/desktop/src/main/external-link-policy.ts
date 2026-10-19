@@ -1,3 +1,5 @@
+import { mainT } from './i18n'
+
 /** Which URLs the app is willing to hand to the OS browser, and which
  * navigations the renderer window is allowed to perform (task 1.6.4a).
  *
@@ -21,21 +23,21 @@ export type LinkDecision = { allowed: true; url: string } | { allowed: false; re
 /** Decides whether `raw` may be handed to `shell.openExternal`. */
 export function decideExternalLink(raw: unknown): LinkDecision {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
-    return { allowed: false, reason: 'ссылка не указана' }
+    return { allowed: false, reason: mainT('link.missing') }
   }
   // A URL longer than this is not a link a human is going to follow; it is a
   // payload. The cap also keeps a hostile string out of the OS shell call.
-  if (raw.length > 2048) return { allowed: false, reason: 'ссылка слишком длинная' }
+  if (raw.length > 2048) return { allowed: false, reason: mainT('link.tooLong') }
 
   let parsed: URL
   try {
     parsed = new URL(raw)
   } catch {
-    return { allowed: false, reason: 'ссылка не разобрана как URL' }
+    return { allowed: false, reason: mainT('link.notUrl') }
   }
 
   if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
-    return { allowed: false, reason: `схема ${parsed.protocol} не разрешена` }
+    return { allowed: false, reason: mainT('link.schemeForbidden', parsed.protocol) }
   }
 
   // `new URL()` normalises the input (percent-encoding, host case, dot

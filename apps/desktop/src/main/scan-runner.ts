@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process'
 import type { ScanReport } from '../shared/ipc'
 import { aecRagArgs, aecRagCommand } from './aec-rag-command'
+import { mainT } from './i18n'
 
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
@@ -52,11 +53,7 @@ export function runScan(
       if (settled) return
       settled = true
       proc.kill()
-      reject(
-        new Error(
-          `aec-rag scan не завершился за ${Math.round(timeoutMs / 60000)} мин — процесс принудительно остановлен`
-        )
-      )
+      reject(new Error(mainT('runner.killedAfterMinutes', 'scan', Math.round(timeoutMs / 60000))))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -70,7 +67,7 @@ export function runScan(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag scan: ${error.message}`))
+      reject(new Error(mainT('runner.spawnFailed', 'scan', error.message)))
     })
 
     proc.on('close', (code) => {
@@ -80,7 +77,7 @@ export function runScan(
 
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag scan завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        reject(new Error(mainT('runner.exitFailed', 'scan', code, stderr.trim())))
         return
       }
       try {
@@ -89,9 +86,11 @@ export function runScan(
       } catch (error: unknown) {
         reject(
           new Error(
-            `не удалось разобрать отчёт aec-rag scan: ${
+            mainT(
+              'runner.parseReportFailed',
+              'scan',
               error instanceof Error ? error.message : String(error)
-            }`
+            )
           )
         )
       }
@@ -145,11 +144,7 @@ export function runDetach(
       if (settled) return
       settled = true
       proc.kill()
-      reject(
-        new Error(
-          `aec-rag detach не завершился за ${Math.round(timeoutMs / 1000)} с — процесс принудительно остановлен`
-        )
-      )
+      reject(new Error(mainT('runner.killedAfterSeconds', 'detach', Math.round(timeoutMs / 1000))))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -163,7 +158,7 @@ export function runDetach(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag detach: ${error.message}`))
+      reject(new Error(mainT('runner.spawnFailed', 'detach', error.message)))
     })
 
     proc.on('close', (code) => {
@@ -173,7 +168,7 @@ export function runDetach(
 
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        reject(new Error(`aec-rag detach завершился с ошибкой (код ${code}): ${stderr.trim()}`))
+        reject(new Error(mainT('runner.exitFailed', 'detach', code, stderr.trim())))
         return
       }
       try {
@@ -182,9 +177,11 @@ export function runDetach(
       } catch (error: unknown) {
         reject(
           new Error(
-            `не удалось разобрать отчёт aec-rag detach: ${
+            mainT(
+              'runner.parseReportFailed',
+              'detach',
               error instanceof Error ? error.message : String(error)
-            }`
+            )
           )
         )
       }

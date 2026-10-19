@@ -8,6 +8,7 @@
 // keep that string from becoming a capability.
 
 import { isAbsolute, normalize, relative, resolve, sep } from 'node:path'
+import { mainT } from './i18n'
 
 export type ArtifactPathResult =
   { ok: true; absPath: string; insideProject: boolean } | { ok: false; error: string }
@@ -54,18 +55,18 @@ export function resolveArtifactPath(
   value: unknown
 ): ArtifactPathResult {
   if (typeof value !== 'string' || value.trim() === '') {
-    return { ok: false, error: 'путь не указан' }
+    return { ok: false, error: mainT('artifact.pathMissing') }
   }
   const raw = value.trim()
   if (/^(?:https?|data|mailto|javascript):/i.test(raw)) {
-    return { ok: false, error: 'это ссылка, а не файл' }
+    return { ok: false, error: mainT('artifact.isLink') }
   }
   // eslint-disable-next-line no-control-regex -- deliberate: a control char in a path is never legitimate
-  if (/[\x00-\x1f]/.test(raw)) return { ok: false, error: 'путь содержит управляющие символы' }
+  if (/[\x00-\x1f]/.test(raw)) return { ok: false, error: mainT('artifact.controlChars') }
 
   const candidate = stripFileScheme(raw)
   if (!isAbsolute(candidate) && !projectRoot) {
-    return { ok: false, error: 'путь относительный, а проект не открыт' }
+    return { ok: false, error: mainT('artifact.relativeNoProject') }
   }
 
   const absPath = isAbsolute(candidate)
@@ -101,5 +102,6 @@ export function imageMime(absPath: string): string {
  * screenshot or drawing export; a 200 MB scan is not something to inline. */
 export const PREVIEW_MAX_BYTES = 12 * 1024 * 1024
 
-export const PREVIEW_OUTSIDE_PROJECT_ERROR =
-  'Предпросмотр показывает только файлы внутри рабочей папки проекта. Этот файл лежит за её пределами — откройте его в проводнике.'
+export function previewOutsideProjectError(): string {
+  return mainT('preview.outsideProject')
+}

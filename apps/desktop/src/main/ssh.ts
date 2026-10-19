@@ -35,6 +35,7 @@ import {
   type SshHostEntry,
   type SshTarget
 } from './ssh-pure'
+import { mainT } from './i18n'
 
 /** Порт ядра НА ТОЙ машине. Тот же, что у локального `hermes serve`: свой порт
  * для удалённого запуска ничего не улучшил бы, а помнить пришлось бы два. */
@@ -76,7 +77,9 @@ const defaultDeps: SshDeps = {
       server.listen(0, '127.0.0.1', () => {
         const address = server.address()
         const port = typeof address === 'object' && address ? address.port : 0
-        server.close(() => (port === 0 ? reject(new Error('нет свободного порта')) : resolve(port)))
+        server.close(() =>
+          port === 0 ? reject(new Error(mainT('ssh.noFreePort'))) : resolve(port)
+        )
       })
     }),
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -228,8 +231,7 @@ export async function startSshTunnel(target: SshTarget): Promise<SshStartResult>
   return {
     ok: false,
     sshError: 'timeout',
-    error:
-      'Ядро на той машине не ответило вовремя. Проверьте, что путь к `hermes` верен и он там запускается.'
+    error: mainT('ssh.coreNoAnswer')
   }
 }
 

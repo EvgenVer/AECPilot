@@ -21,6 +21,7 @@
 //   прочее  — отказ с именем схемы, чтобы это читалось как отказ, а не как сбой.
 
 import { cleanFilters } from './select-paths-pure'
+import { mainT } from './i18n'
 
 /** Их форма запроса к нативному диалогу сохранения (`selectSavePath`,
  * `donor/global.d.ts`). */
@@ -42,9 +43,9 @@ export type SaveSource =
   | { kind: 'path'; value: string; suggestedName: string }
   | { kind: 'refused'; error: string }
 
-export const SAVE_REMOTE_REFUSED =
-  'Эта картинка лежит в интернете. Откройте её ссылку в браузере и сохраните ' +
-  'оттуда — приложение не скачивает файлы по сети вместо окна.'
+export function saveRemoteRefused(): string {
+  return mainT('saveOut.remoteRefused')
+}
 
 /** Сколько символов имени файла показывать в диалоге. Не ограничение файловой
  * системы, а защита от строки на 4000 символов из ответа модели. */
@@ -128,19 +129,19 @@ function decodedName(value: string): string {
 /** Куда ведёт адрес картинки из ленты — см. «ГРАНИЦА ПО СХЕМЕ» в шапке. */
 export function classifySaveSource(raw: unknown): SaveSource {
   if (typeof raw !== 'string' || raw.trim() === '') {
-    return { kind: 'refused', error: 'Адрес картинки не указан.' }
+    return { kind: 'refused', error: mainT('saveOut.noAddress') }
   }
 
   const value = raw.trim()
   // eslint-disable-next-line no-control-regex -- намеренно: то же правило, что в resolveArtifactPath
   if (/[\x00-\x1f]/.test(value)) {
-    return { kind: 'refused', error: 'Адрес содержит управляющие символы.' }
+    return { kind: 'refused', error: mainT('saveOut.controlChars') }
   }
 
   if (/^data:/i.test(value)) {
     const parsed = readDataUrl(value)
     if (!parsed) {
-      return { kind: 'refused', error: 'Картинку не удалось прочитать: адрес data: испорчен.' }
+      return { kind: 'refused', error: mainT('saveOut.brokenDataUrl') }
     }
     return {
       kind: 'bytes',
@@ -149,11 +150,11 @@ export function classifySaveSource(raw: unknown): SaveSource {
     }
   }
 
-  if (/^https?:/i.test(value)) return { kind: 'refused', error: SAVE_REMOTE_REFUSED }
+  if (/^https?:/i.test(value)) return { kind: 'refused', error: saveRemoteRefused() }
 
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value)?.[1]?.toLowerCase()
   if (scheme !== undefined && scheme !== 'file') {
-    return { kind: 'refused', error: `Приложение не сохраняет адреса вида «${scheme}:».` }
+    return { kind: 'refused', error: mainT('saveOut.schemeRefused', scheme) }
   }
 
   return { kind: 'path', value, suggestedName: safeFileName(decodedName(value), 'image') }

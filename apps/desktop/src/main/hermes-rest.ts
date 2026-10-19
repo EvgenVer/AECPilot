@@ -22,6 +22,7 @@ import {
   REST_UNAVAILABLE_MESSAGE,
   type RestTarget
 } from './hermes-rest-pure'
+import { mainT } from './i18n'
 
 export { REST_UNAVAILABLE_MESSAGE, type RestTarget }
 
@@ -69,10 +70,10 @@ export async function hermesRest<T = unknown>(
     })
   } catch (error: unknown) {
     if (controller.signal.aborted) {
-      throw new Error(`Ядро не ответило за ${Math.round(timeoutMs / 1000)} с`)
+      throw new Error(mainT('rest.timeout', Math.round(timeoutMs / 1000)))
     }
     const text = error instanceof Error ? error.message : String(error)
-    throw new Error(`Не удалось обратиться к ядру: ${redactSecrets(text, [target.token])}`)
+    throw new Error(mainT('rest.requestFailed', redactSecrets(text, [target.token])))
   } finally {
     clearTimeout(timer)
   }

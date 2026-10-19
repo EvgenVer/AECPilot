@@ -8,6 +8,7 @@
 // разбирается как наш JSON, а не первую непустую.
 
 import type { MemoryFact, MemoryFactsAnswer } from '../shared/ipc'
+import { mainT } from './i18n'
 
 /** Слова qdrant о занятой папке. Проверяется подстрокой: полный текст несёт
  *  путь к хранилищу и хвост «Check that qdrant is running», а нам нужно одно —
@@ -45,11 +46,11 @@ export function readFactsAnswer(stdout: string): MemoryFactsAnswer {
   }
 
   if (!parsed) {
-    return { busy: false, error: 'Читатель памяти не ответил', ok: false }
+    return { busy: false, error: mainT('memory.readerNoAnswer'), ok: false }
   }
 
   if (parsed.ok !== true) {
-    const error = typeof parsed.error === 'string' ? parsed.error : 'Список фактов не прочитан'
+    const error = typeof parsed.error === 'string' ? parsed.error : mainT('memory.factsNotRead')
     return { busy: error.includes(BUSY_MARK), error, ok: false }
   }
 

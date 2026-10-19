@@ -22,9 +22,11 @@ import { pathToFileURL } from 'node:url'
 import { isInsideAttachmentsDir } from './attachments'
 import { isInside, resolveArtifactPath } from './artifact-files-pure'
 import { decideExternalLink } from './external-link-policy'
+import { mainT } from './i18n'
 
-export const PREVIEW_EXTERNAL_ERROR =
-  'В браузере открывается только страница проекта, выбранный вами файл или то, что предпросмотр сам выгрузил'
+export function previewExternalError(): string {
+  return mainT('preview.externalOnly')
+}
 
 export type ExternalPreviewDecision =
   { ok: true; url: string; staged: boolean } | { ok: false; error: string }
@@ -67,7 +69,7 @@ export function decideOpenPreviewExternal(
   const allowed =
     isInside(scope.projectRoot, resolved.absPath) || pickedByUser(resolved.absPath) || staged
 
-  if (!allowed) return { ok: false, error: PREVIEW_EXTERNAL_ERROR }
+  if (!allowed) return { ok: false, error: previewExternalError() }
 
   // Отдаём НОРМАЛИЗОВАННЫЙ адрес — по той же причине, по какой это делает
   // `decideExternalLink`: строка, которую проверили, и строка, которую открыли,

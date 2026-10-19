@@ -47,13 +47,37 @@ export function readStoredLocale(storage: Pick<Storage, 'getItem'>): Locale {
   }
 }
 
-export function createI18nConfigClient(storage: Storage = window.localStorage) {
+/** Tells the main process which language the interface is in (T27, part 2).
+ *
+ * The main process draws a few things the window does not — the tray menu, the
+ * quit and file dialogs, the text of errors it returns — and has no access to
+ * `localStorage`. So the choice is pushed over IPC: once when the provider
+ * confirms the stored locale on mount, and again on every switch. Best-effort:
+ * a missing bridge (tests, a bare browser) or a refused call must not touch the
+ * language switch itself. */
+export function reportLocaleToMain(locale: Locale): void {
+  try {
+    const bridge = typeof window === 'undefined' ? undefined : window.aecpilot
+    void bridge?.setUiLanguage?.(localeConfigValue(locale))?.catch(() => undefined)
+  } catch {
+    // Same reason: reporting is never allowed to break the switch.
+  }
+}
+
+export function createI18nConfigClient(
+  storage: Storage = window.localStorage,
+  report: (locale: Locale) => void = reportLocaleToMain
+) {
   return {
-    getConfig: (): Promise<StoredConfig> =>
-      Promise.resolve({ display: { language: readStoredLocale(storage) } }),
+    getConfig: (): Promise<StoredConfig> => {
+      const locale = readStoredLocale(storage)
+      report(locale)
+      return Promise.resolve({ display: { language: locale } })
+    },
 
     saveConfig: (config: StoredConfig): Promise<{ ok: boolean }> => {
       const locale = normalizeLocale(config.display?.language)
+      report(locale)
       try {
         storage.setItem(STORAGE_KEY, localeConfigValue(locale))
       } catch {

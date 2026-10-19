@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
+import { decideWrite, realPathWritable, writeOutsideError } from './preview-write-pure'
 
 const PROJECT = process.platform === 'win32' ? 'D:\\проект' : '/проект'
 const INSIDE = process.platform === 'win32' ? 'D:\\проект\\заметка.md' : '/проект/заметка.md'
@@ -23,7 +23,7 @@ describe('decideWrite', () => {
   it('файл ВНЕ проекта — нельзя, и это главное правило задачи', () => {
     expect(decideWrite(PROJECT, OUTSIDE, nothingPicked)).toEqual({
       ok: false,
-      error: WRITE_OUTSIDE_ERROR
+      error: writeOutsideError()
     })
   })
 
@@ -52,7 +52,7 @@ describe('decideWrite', () => {
 
   it('отказ говорит про СОХРАНЕНИЕ: их редактор показывает этот текст человеку', () => {
     // Текст слежения в ответ на «сохранить» соврал бы о том, что произошло.
-    expect(WRITE_OUTSIDE_ERROR).toContain('Сохранять')
+    expect(writeOutsideError()).toContain('Сохранять')
   })
 })
 

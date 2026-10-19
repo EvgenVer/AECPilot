@@ -5,7 +5,7 @@
 // канал. Отличия от их файла:
 //   - иконка — значок самого исполняемого файла (`app.getFileIcon`): своего
 //     файла иконки у приложения нет, а без иконки трея не бывает;
-//   - подписи трея — наши и по-русски, как остальные диалоги главного процесса;
+//   - подписи трея — наши, на языке интерфейса (`i18n.ts`) и пересобираются при его смене;
 //   - нет их слежки за хозяином трея под Linux (`tray-host`) и выхода «для
 //     передачи» (`isQuittingForHandoff`): ни того, ни другого у нас нет.
 // Выключено по умолчанию и хранится только на этой машине — как у них.
@@ -14,6 +14,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from 'electron'
 import type { NativeImage } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { mainT, onUiLanguageChange } from './i18n'
 
 export interface MinimizeToTrayStatus {
   enabled: boolean
@@ -68,6 +69,21 @@ export function createMinimizeToTray(options: Options) {
     tray = null
   }
 
+  /** Меню собирается заново, а не хранится: подписи зависят от языка интерфейса. */
+  const trayMenu = (): Menu =>
+    Menu.buildFromTemplate([
+      { label: mainT('tray.show'), click: restore },
+      { type: 'separator' },
+      // Обычный выход — с тем же вопросом о незаконченной работе.
+      { label: mainT('tray.quit'), click: () => app.quit() }
+    ])
+
+  // Переключили язык — уже стоящий в трее значок получает меню на новом языке
+  // (задача T27); следующий показ меню прочтёт его, а не старое.
+  onUiLanguageChange(() => {
+    if (tray && !tray.isDestroyed()) tray.setContextMenu(trayMenu())
+  })
+
   const apply = async (on: boolean): Promise<MinimizeToTrayStatus> => {
     enabled = on
     if (!on) {
@@ -79,14 +95,7 @@ export function createMinimizeToTray(options: Options) {
         if (icon.isEmpty()) throw new Error('No usable tray icon')
         tray = new Tray(icon.resize({ width: 16, height: 16 }))
         tray.setToolTip('AECPilot')
-        tray.setContextMenu(
-          Menu.buildFromTemplate([
-            { label: 'Показать AECPilot', click: restore },
-            { type: 'separator' },
-            // Обычный выход — с тем же вопросом о незаконченной работе.
-            { label: 'Выйти из AECPilot', click: () => app.quit() }
-          ])
-        )
+        tray.setContextMenu(trayMenu())
         tray.on('click', restore)
         tray.on('double-click', restore)
       } catch (error) {

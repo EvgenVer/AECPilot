@@ -12,6 +12,7 @@
 
 import { spawn } from 'node:child_process'
 import { aecRagArgs, aecRagCommand } from './aec-rag-command'
+import { mainT } from './i18n'
 
 export type QuoteVerdict = {
   text: string
@@ -63,24 +64,24 @@ export function runQuoteCheck(
 
     const timer = setTimeout(() => {
       proc.kill()
-      unavailable('проверка выдержек не ответила вовремя')
+      unavailable(mainT('quote.noAnswerInTime'))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
     proc.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
-    proc.on('error', (error: Error) =>
-      unavailable(`не удалось запустить проверку: ${error.message}`)
-    )
+    proc.on('error', (error: Error) => unavailable(mainT('quote.spawnFailed', error.message)))
 
     // Ответ уходит в UTF-8 явно: на стороне питона он так же явно и читается,
     // иначе русский текст приезжает искажённым и сверять его бессмысленно.
-    proc.stdin.on('error', () => unavailable('проверка выдержек оборвалась на записи'))
+    proc.stdin.on('error', () => unavailable(mainT('quote.writeBroken')))
     proc.stdin.end(Buffer.from(answer, 'utf8'))
 
     proc.on('close', (code) => {
       if (settled) return
       if (code !== 0) {
-        unavailable(Buffer.concat(stderrChunks).toString('utf8').trim() || `код ${code}`)
+        unavailable(
+          Buffer.concat(stderrChunks).toString('utf8').trim() || mainT('quote.exitCode', code)
+        )
         return
       }
       settled = true
@@ -89,7 +90,7 @@ export function runQuoteCheck(
         resolve(JSON.parse(Buffer.concat(stdoutChunks).toString('utf8')) as QuoteCheckResult)
       } catch {
         settled = false
-        unavailable('проверка выдержек ответила неразборчиво')
+        unavailable(mainT('quote.unreadable'))
       }
     })
   })

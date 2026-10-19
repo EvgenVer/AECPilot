@@ -17,6 +17,8 @@
 // win from enumerating methods is small — but it is not zero, and this is the
 // place to add a rule if that ever changes.
 
+import { mainT } from './i18n'
+
 /** Methods the renderer may never invoke, whatever the donor's code does.
  *
  * `model.save_key` writes a provider key into the core's config in plaintext.
@@ -380,11 +382,7 @@ export function explainProfileDeleteFailure(
   // says something useful on its own.
   if (!/500|WinError 32|being used by another process|in use/i.test(message)) return null
 
-  return (
-    'Профиль не удалён: ядро держит его базу открытой, пока в этом запуске ' +
-    'была сессия этого профиля. Закройте сессию и перезапустите приложение, ' +
-    'затем повторите удаление.'
-  )
+  return mainT('profile.deleteInUse')
 }
 
 /** Отказ вызова — в форму, которая переживёт `ipcRenderer.invoke` (находка D-37).

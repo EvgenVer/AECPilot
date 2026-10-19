@@ -10,7 +10,7 @@ import {
   planSaveDialog,
   readDataUrl,
   safeFileName,
-  SAVE_REMOTE_REFUSED
+  saveRemoteRefused
 } from './save-out-pure'
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo='
@@ -27,7 +27,7 @@ describe('откуда берётся картинка', () => {
   it('адрес в интернете — отказ со ссылкой на браузер, а не тихая загрузка', () => {
     expect(classifySaveSource('https://example.com/cat.png')).toEqual({
       kind: 'refused',
-      error: SAVE_REMOTE_REFUSED
+      error: saveRemoteRefused()
     })
     expect(classifySaveSource('HTTP://example.com/cat.png').kind).toBe('refused')
   })

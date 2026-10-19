@@ -9,6 +9,7 @@
 
 import { hermesRest, type RestTarget } from './hermes-rest'
 import { describeRemoteFileError, parseDataUrl, remoteBaseName } from './remote-files-pure'
+import { mainT } from './i18n'
 
 /** Читать документ можно долго: файл идёт по сети целиком, base64 к тому же
  * добавляет треть. Умолчание REST (10 с) для этого мало. */
@@ -41,7 +42,7 @@ export async function readRemoteDocument(
     })
 
     const parsed = parseDataUrl(answer?.dataUrl)
-    if (!parsed) return { ok: false, error: 'Ядро вернуло файл в непонятном виде' }
+    if (!parsed) return { ok: false, error: mainT('files.badFileAnswer') }
 
     // Копия, а не срез чужого буфера: `Buffer` в Node может лежать в общем
     // пуле, и отдать наружу его нижележащий буфер значит отдать заодно чужие
@@ -70,7 +71,7 @@ export async function readRemoteDataUrl(
     })
 
     if (!parseDataUrl(answer?.dataUrl)) {
-      return { ok: false, error: 'Ядро вернуло картинку в непонятном виде' }
+      return { ok: false, error: mainT('files.badImageAnswer') }
     }
 
     return { ok: true, dataUrl: answer.dataUrl }

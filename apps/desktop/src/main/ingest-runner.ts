@@ -21,6 +21,7 @@ import {
 } from './ingest-progress-pure'
 import type { IndexInventory, RagStatus } from '../shared/ipc'
 import { aecRagArgs, aecRagCommand } from './aec-rag-command'
+import { mainT } from './i18n'
 
 // Python пишет stderr в кодировке консоли Windows, а читаем мы UTF-8 — без этого
 // русский отказ `aec-rag` доходит до человека кракозябрами (замер 3G.50).
@@ -50,7 +51,7 @@ export class IngestStoppedError extends Error {
   readonly interrupted: null | { rel_path: string; source_id: string }
 
   constructor(interrupted: null | { rel_path: string; source_id: string } = null) {
-    super('Индексация остановлена')
+    super(mainT('ingest.stopped'))
     this.name = 'IngestStoppedError'
     this.interrupted = interrupted
   }
@@ -117,13 +118,7 @@ export function runIngest(
       if (settled) return
       finish()
       proc.kill()
-      reject(
-        new RunFailedError(
-          'silent',
-          `aec-rag ingest молчал ${Math.round(silenceMs / 60000)} мин — процесс остановлен. ` +
-            'Готовое сохранено; следующий запуск продолжит с места остановки.'
-        )
-      )
+      reject(new RunFailedError('silent', mainT('ingest.silent', Math.round(silenceMs / 60000))))
     })
 
     // Killing the aec-rag.exe launcher ends the python it started (measured
@@ -168,7 +163,7 @@ export function runIngest(
     proc.on('error', (error: Error) => {
       if (settled) return
       finish()
-      reject(new RunFailedError('spawn', `не удалось запустить aec-rag ingest: ${error.message}`))
+      reject(new RunFailedError('spawn', mainT('runner.spawnFailed', 'ingest', error.message)))
     })
 
     proc.on('close', (code) => {
@@ -184,12 +179,12 @@ export function runIngest(
           return
         }
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
-        const detail = `aec-rag ingest завершился с ошибкой (код ${code}): ${stderr.trim()}`
+        const detail = mainT('runner.exitFailed', 'ingest', code, stderr.trim())
         reject(new RunFailedError(fatal?.code ?? 'exit', fatal?.detail || detail))
         return
       }
       if (!finalReport) {
-        reject(new RunFailedError('no_report', 'aec-rag ingest не отчитался о результате'))
+        reject(new RunFailedError('no_report', mainT('runner.noReport', 'ingest')))
         return
       }
       resolve({ progress: seen, report: finalReport })
@@ -300,7 +295,7 @@ export function runOneShot<T>(
       if (settled) return
       settled = true
       proc.kill()
-      reject(new Error(`aec-rag ${command} не ответил вовремя`))
+      reject(new Error(mainT('runner.noAnswerInTime', command)))
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
@@ -310,7 +305,7 @@ export function runOneShot<T>(
       if (settled) return
       settled = true
       clearTimeout(timeoutTimer)
-      reject(new Error(`не удалось запустить aec-rag ${command}: ${error.message}`))
+      reject(new Error(mainT('runner.spawnFailed', command, error.message)))
     })
 
     proc.on('close', (code) => {
@@ -322,11 +317,7 @@ export function runOneShot<T>(
         const stderr = Buffer.concat(stderrChunks).toString('utf8')
         // Задача 3M.6: человеку — причина, журнал целиком — в журнал приложения.
         console.error(`aec-rag ${command} (код ${code}):\n${stderr}`)
-        reject(
-          new Error(
-            `aec-rag ${command} завершился с ошибкой (код ${code}): ${oneShotFailure(stdout, stderr)}`
-          )
-        )
+        reject(new Error(mainT('runner.exitFailed', command, code, oneShotFailure(stdout, stderr))))
         return
       }
       try {
@@ -334,9 +325,11 @@ export function runOneShot<T>(
       } catch (error: unknown) {
         reject(
           new Error(
-            `не удалось разобрать ответ aec-rag ${command}: ${
+            mainT(
+              'runner.parseAnswerFailed',
+              command,
               error instanceof Error ? error.message : String(error)
-            }`
+            )
           )
         )
       }

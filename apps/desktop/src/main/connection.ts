@@ -30,6 +30,7 @@ import {
   type SshSettings,
   type StoredConnection
 } from './connection-pure'
+import { mainT } from './i18n'
 
 /** Ровно та часть `safeStorage`, которой мы пользуемся. */
 export interface SecureStore {
@@ -154,7 +155,10 @@ export function saveConnection(raw: unknown): SaveOutcome {
         return {
           ok: false,
           config: connectionView(),
-          error: `Не удалось зашифровать токен: ${error instanceof Error ? error.message : String(error)}`
+          error: mainT(
+            'connection.encryptFailed',
+            error instanceof Error ? error.message : String(error)
+          )
         }
       }
     } else if (input.allowPlainTextToken) {
@@ -165,10 +169,7 @@ export function saveConnection(raw: unknown): SaveOutcome {
       return {
         ok: false,
         config: connectionView(),
-        error:
-          'На этой машине нет безопасного хранилища ключей, поэтому токен можно ' +
-          'сохранить только открытым текстом. Это отдельное согласие — подтвердите ' +
-          'его, если так и нужно.'
+        error: mainT('connection.plainTextConsent')
       }
     }
   }
@@ -181,7 +182,7 @@ export function saveConnection(raw: unknown): SaveOutcome {
     return {
       ok: false,
       config: connectionView(),
-      error: `Не удалось сохранить настройку подключения: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('connection.saveFailed', error instanceof Error ? error.message : String(error))
     }
   }
 

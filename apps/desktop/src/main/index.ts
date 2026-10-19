@@ -102,6 +102,7 @@ import {
 } from './cron-runner'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
+import { loadUiLanguage, registerUiLanguageIpc } from './ui-language'
 import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
 import { createdProfileByRest, inheritMainSoul } from './soul-inherit-pure'
 import { noteWorking, releaseKeepAwake, restoreKeepAwake, setKeepAwakeMode } from './keep-awake'
@@ -113,7 +114,7 @@ import {
   isInside,
   isPreviewableImage,
   PREVIEW_MAX_BYTES,
-  PREVIEW_OUTSIDE_PROJECT_ERROR,
+  previewOutsideProjectError,
   resolveArtifactPath
 } from './artifact-files-pure'
 import { hermesRest, type RestTarget } from './hermes-rest'
@@ -141,7 +142,7 @@ import {
   installContextMenuBridge
 } from './context-menu'
 import { installMediaProtocol, registerMediaScheme } from './media-proxy'
-import { FILES_LIVE_ON_CORE_MACHINE } from './remote-files-pure'
+import { filesLiveOnCoreMachine } from './remote-files-pure'
 import { decideGraphMark, PROJECT_SOURCE_ID } from './graph-scope-pure'
 import { decideIndexTarget, includePlan, type IndexTarget } from './index-actions-pure'
 import { applyIngestEvent, failureOf } from './ingest-progress-pure'
@@ -238,7 +239,7 @@ import {
 } from './agent-defaults-pure'
 import { MEM0_DISTRIBUTIONS, distributionsInstalled } from './core-packages-pure'
 import {
-  FILTER_NOT_LOADED,
+  filterNotLoaded,
   FILTER_STATUS_COMMAND,
   filterLoaded,
   startsTurn,
@@ -280,14 +281,14 @@ import { readAttachmentDataUrl, saveAttachment } from './attachments'
 import { rememberPickedPath, wasPickedByUser, wasPickedOrIsKnown } from './picked-paths'
 import { previewWatchCount, startPreviewWatch, stopPreviewWatch } from './preview-watch'
 import { decideOpenPreviewExternal } from './preview-external-pure'
-import { decideWatch, realPathAllowed, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
+import { decideWatch, realPathAllowed, watchOutsideError } from './preview-watch-pure'
 import {
   decodePreviewText,
   type DirEntry,
   PREVIEW_TEXT_MAX_BYTES,
   visibleDirEntries
 } from './preview-read-pure'
-import { decideWrite, realPathWritable, WRITE_OUTSIDE_ERROR } from './preview-write-pure'
+import { decideWrite, realPathWritable, writeOutsideError } from './preview-write-pure'
 import { cropCapture } from './preview-capture-pure'
 import { resolveSourceContentRel, resolveSourceEntryRel } from './source-tree'
 import {
@@ -300,6 +301,7 @@ import {
   writeVaultFile
 } from './vault-fs'
 import type { ScanReportEnvelope } from '../shared/ipc'
+import { mainT } from './i18n'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -724,7 +726,7 @@ let scanning = false
 // async operation racing a project switch elsewhere in this file.
 const scanScheduler = new ScanScheduler<ScanReportEnvelope>(
   () => {
-    if (!currentProject) return Promise.reject(new Error('нет открытого проекта'))
+    if (!currentProject) return Promise.reject(new Error(mainT('common.noProjectLc')))
     // Fix-iteration 1 (review major, task 1.15): `vaultPath` is captured
     // here — this runner fires synchronously when the scan *starts*, not
     // when it resolves — so a scan begun against project A stays tagged A
@@ -1792,7 +1794,7 @@ ipcMain.handle('artifacts:stat', async (_event, value: unknown) => {
   // ответ был бы про чужой диск.
   if (filesAreRemote()) {
     const path = typeof value === 'string' ? value : ''
-    if (path === '') return { ok: false, error: 'Пустой путь' }
+    if (path === '') return { ok: false, error: mainT('common.emptyPath') }
     const info = await statRemoteFile(restTarget(), path)
     return {
       ok: true,
@@ -1837,14 +1839,14 @@ ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
   // «Показать в проводнике» при удалённом ядре не значит ничего: проводник
   // открылся бы на ЭТОЙ машине, где файла нет. Решение 3.13a — выключить и
   // объяснить, а не открывать пустую папку.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
 
   const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   try {
     await fs.promises.stat(resolved.absPath)
   } catch {
-    return { ok: false, error: 'Файла нет на диске — возможно, он был удалён или переименован' }
+    return { ok: false, error: mainT('preview.fileGone') }
   }
   shell.showItemInFolder(resolved.absPath)
   return { ok: true }
@@ -1853,9 +1855,9 @@ ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
 ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
   if (filesAreRemote()) {
     const path = typeof value === 'string' ? value : ''
-    if (path === '') return { ok: false, error: 'Пустой путь' }
+    if (path === '') return { ok: false, error: mainT('common.emptyPath') }
     if (!isPreviewableImage(path)) {
-      return { ok: false, error: 'Предпросмотр умеет только растровые картинки' }
+      return { ok: false, error: mainT('preview.rasterOnly') }
     }
     // Размер ограничивает ядро (`_FS_DATA_URL_MAX_BYTES`), и его отказ приходит
     // сюда словами — своего предела мы не заводим: два предела на одну картинку
@@ -1865,9 +1867,9 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
 
   const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
-  if (!resolved.insideProject) return { ok: false, error: PREVIEW_OUTSIDE_PROJECT_ERROR }
+  if (!resolved.insideProject) return { ok: false, error: previewOutsideProjectError() }
   if (!isPreviewableImage(resolved.absPath)) {
-    return { ok: false, error: 'Предпросмотр умеет только растровые картинки' }
+    return { ok: false, error: mainT('preview.rasterOnly') }
   }
   try {
     // The containment check above is lexical; `realpath` closes the symlink
@@ -1875,14 +1877,14 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
     // read those bytes into the window. Same layering as `vault-fs.ts`.
     const realPath = await fs.promises.realpath(resolved.absPath)
     if (!isInside(currentProject?.vaultPath, realPath)) {
-      return { ok: false, error: PREVIEW_OUTSIDE_PROJECT_ERROR }
+      return { ok: false, error: previewOutsideProjectError() }
     }
     const info = await fs.promises.stat(realPath)
-    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+    if (!info.isFile()) return { ok: false, error: mainT('common.notAFile') }
     if (info.size > PREVIEW_MAX_BYTES) {
       return {
         ok: false,
-        error: `Картинка больше ${Math.round(PREVIEW_MAX_BYTES / (1024 * 1024))} МБ — откройте её в проводнике`
+        error: mainT('preview.imageTooLarge', Math.round(PREVIEW_MAX_BYTES / (1024 * 1024)))
       }
     }
     const bytes = await fs.promises.readFile(realPath)
@@ -1890,7 +1892,7 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('preview.readFailed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -1906,7 +1908,7 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
   if (filesAreRemote()) {
     // Файл лежит на машине ядра, и `fs.watch` этой машины смотрел бы на пустое
     // место — или, хуже, на СВОЙ файл с тем же путём.
-    return { ok: false, error: 'Файлы на машине ядра — следить за ними отсюда нечем' }
+    return { ok: false, error: mainT('preview.remoteNoWatch') }
   }
 
   const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
@@ -1918,17 +1920,17 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
     // Слой тот же, что у `artifacts:preview`.
     const realPath = await fs.promises.realpath(decided.absPath)
     if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
-      return { ok: false, error: WATCH_OUTSIDE_ERROR }
+      return { ok: false, error: watchOutsideError() }
     }
 
     const info = await fs.promises.stat(realPath)
-    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+    if (!info.isFile()) return { ok: false, error: mainT('common.notAFile') }
 
     return { ok: true, watch: startPreviewWatch(realPath, event.sender) }
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось начать слежение: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('preview.watchFailed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -1942,10 +1944,11 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
 // Что можно писать — в `preview-write-pure.ts`; здесь диск и отказы. Взят ОДИН
 // член из трёх (D-79): `renamePath` и `trashPath` остаются непроброшенными.
 ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
 
   const value = payload as { content?: unknown; path?: unknown } | null
-  if (typeof value?.content !== 'string') return { ok: false, error: 'Нечего сохранять' }
+  if (typeof value?.content !== 'string')
+    return { ok: false, error: mainT('preview.nothingToSave') }
 
   const decided = decideWrite(currentProject?.vaultPath, value.path, wasPickedByUser)
   if (!decided.ok) return { ok: false, error: decided.error }
@@ -1956,11 +1959,11 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
     // наружу — на несуществующем пути он и отвечает отказом.
     const realPath = await fs.promises.realpath(decided.absPath)
     if (!realPathWritable(currentProject?.vaultPath, realPath, wasPickedByUser)) {
-      return { ok: false, error: WRITE_OUTSIDE_ERROR }
+      return { ok: false, error: writeOutsideError() }
     }
 
     const info = await fs.promises.stat(realPath)
-    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+    if (!info.isFile()) return { ok: false, error: mainT('common.notAFile') }
 
     await fs.promises.writeFile(realPath, value.content, 'utf8')
 
@@ -1968,7 +1971,7 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось сохранить: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('preview.saveFailed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -1979,7 +1982,7 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
 // `preview-read-pure.ts`; здесь диск и отказы. Отказ поднимается в окне
 // ошибкой, и их панель показывает его человеку.
 ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
 
   const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
   if (!decided.ok) return { ok: false, error: decided.error }
@@ -1987,11 +1990,11 @@ ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
   try {
     const realPath = await fs.promises.realpath(decided.absPath)
     if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
-      return { ok: false, error: WATCH_OUTSIDE_ERROR }
+      return { ok: false, error: watchOutsideError() }
     }
 
     const info = await fs.promises.stat(realPath)
-    if (!info.isFile()) return { ok: false, error: 'Это не файл' }
+    if (!info.isFile()) return { ok: false, error: mainT('common.notAFile') }
 
     const handle = await fs.promises.open(realPath, 'r')
     try {
@@ -2008,7 +2011,7 @@ ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось прочитать файл: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('preview.readFailed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -2017,7 +2020,7 @@ ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
 // Правило то же, что у `preview:read-text`; отказ — полем `error`, как у их
 // главного процесса (`electron/fs-read-dir.ts`): дерево показывает его в узле.
 ipcMain.handle('preview:read-dir', async (_event, value: unknown) => {
-  if (filesAreRemote()) return { entries: [], error: FILES_LIVE_ON_CORE_MACHINE }
+  if (filesAreRemote()) return { entries: [], error: filesLiveOnCoreMachine() }
 
   const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
   if (!decided.ok) return { entries: [], error: decided.error }
@@ -2025,7 +2028,7 @@ ipcMain.handle('preview:read-dir', async (_event, value: unknown) => {
   try {
     const realPath = await fs.promises.realpath(decided.absPath)
     if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
-      return { entries: [], error: WATCH_OUTSIDE_ERROR }
+      return { entries: [], error: watchOutsideError() }
     }
 
     const dirents = await fs.promises.readdir(realPath, { withFileTypes: true })
@@ -2121,10 +2124,10 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
       : {}
 
   if (typeof text !== 'string' || text.trim() === '')
-    return { ok: false, error: 'пустое сообщение' }
-  if (!isQuickEntryTarget(target)) return { ok: false, error: 'неизвестная цель отправки' }
-  if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
-  if (!currentProject) return { ok: false, error: 'проект не открыт' }
+    return { ok: false, error: mainT('chat.emptyMessage') }
+  if (!isQuickEntryTarget(target)) return { ok: false, error: mainT('chat.unknownTarget') }
+  if (!gateway) return { ok: false, error: mainT('common.noGatewayLc') }
+  if (!currentProject) return { ok: false, error: mainT('chat.projectNotOpen') }
 
   try {
     if (target === 'new') await newSession()
@@ -2164,6 +2167,10 @@ ipcMain.handle('zoom:set-percent', (_event, percent: unknown) => setZoomPercent(
 // неё на проходе `profiles.create` (см. обработчик `gateway:rpc`).
 ipcMain.handle('agent-language:get', () => ({ language: loadAgentLanguage() }))
 
+// Язык интерфейса (T27): окно присылает выбор, главный процесс говорит на нём в
+// диалогах, меню трея и ошибках. См. `i18n.ts` и `ui-language.ts`.
+registerUiLanguageIpc()
+
 ipcMain.handle('agent-language:set', (_event, language: unknown) => ({
   language: saveAgentLanguage(language)
 }))
@@ -2202,12 +2209,12 @@ ipcMain.handle('chat:complete-slash', async (_event, text: unknown) => {
 type AttachOutcome = { ok: true; path?: string; count: number } | { ok: false; error: string }
 
 async function attachViaGateway(method: 'image.attach' | 'pdf.attach', path: string) {
-  if (!gateway) return { ok: false as const, error: 'нет связи со шлюзом' }
+  if (!gateway) return { ok: false as const, error: mainT('common.noGatewayLc') }
   const activeSessionId = await ensureSession()
   try {
     const result = await gateway.request(method, { session_id: activeSessionId, path })
     if (!result.attached) {
-      return { ok: false as const, error: result.message ?? 'вложение не принято' }
+      return { ok: false as const, error: result.message ?? mainT('attach.rejected') }
     }
     return { ok: true as const, path: result.path, count: result.count ?? 0 }
   } catch (error: unknown) {
@@ -2220,13 +2227,13 @@ async function attachViaGateway(method: 'image.attach' | 'pdf.attach', path: str
  * from the user through a trusted dialog. */
 ipcMain.handle('attach:pick', async (event): Promise<AttachOutcome[]> => {
   const window = BrowserWindow.fromWebContents(event.sender)
-  if (!window) return [{ ok: false, error: 'нет окна' }]
+  if (!window) return [{ ok: false, error: mainT('chat.noWindow') }]
   const picked = await dialog.showOpenDialog(window, {
-    title: 'Прикрепить к сообщению',
+    title: mainT('attach.dialogTitle'),
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: 'Картинки и PDF', extensions: [...IMAGE_DIALOG_EXTENSIONS, 'pdf'] },
-      { name: 'Все файлы', extensions: ['*'] }
+      { name: mainT('attach.filterImagesPdf'), extensions: [...IMAGE_DIALOG_EXTENSIONS, 'pdf'] },
+      { name: mainT('attach.filterAll'), extensions: ['*'] }
     ]
   })
   if (picked.canceled) return []
@@ -2234,7 +2241,7 @@ ipcMain.handle('attach:pick', async (event): Promise<AttachOutcome[]> => {
   for (const filePath of picked.filePaths) {
     const kind = classifyAttachment(filePath)
     if (kind === 'unsupported') {
-      outcomes.push({ ok: false, error: `не поддерживается: ${basename(filePath)}` })
+      outcomes.push({ ok: false, error: mainT('attach.unsupported', basename(filePath)) })
       continue
     }
     outcomes.push(await attachViaGateway(kind === 'pdf' ? 'pdf.attach' : 'image.attach', filePath))
@@ -2247,11 +2254,12 @@ ipcMain.handle('attach:pick', async (event): Promise<AttachOutcome[]> => {
  * spawns its own gateway (runtime/serve.mjs). It would be the wrong call for a
  * remote gateway; there their `image.attach_bytes` is the path. */
 ipcMain.handle('attach:paste', async (): Promise<AttachOutcome> => {
-  if (!gateway) return { ok: false, error: 'нет связи со шлюзом' }
+  if (!gateway) return { ok: false, error: mainT('common.noGatewayLc') }
   const activeSessionId = await ensureSession()
   try {
     const result = await gateway.request('clipboard.paste', { session_id: activeSessionId })
-    if (!result.attached) return { ok: false, error: result.message ?? 'в буфере нет картинки' }
+    if (!result.attached)
+      return { ok: false, error: result.message ?? mainT('attach.noClipboardImage') }
     return { ok: true, path: result.path, count: result.count ?? 0 }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
@@ -2580,7 +2588,7 @@ ipcMain.handle('project:get-settings', () => {
 })
 
 ipcMain.handle('project:update-settings', (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProjectLc') }
   const { wikiLang, scanIntervalS, embeddingModel, extractionLanguage } = (payload ?? {}) as {
     wikiLang?: unknown
     scanIntervalS?: unknown
@@ -3245,7 +3253,7 @@ ipcMain.handle('profiles:list', async () => {
 
 ipcMain.handle('profiles:create', async (_event, payload: unknown) => {
   const { name } = (payload ?? {}) as { name?: unknown }
-  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  if (!isValidProfileName(name)) throw new Error(mainT('profile.invalidName'))
   const created = await hermesRest(restTarget(), '/api/profiles', {
     method: 'POST',
     body: { name }
@@ -3261,7 +3269,7 @@ ipcMain.handle('profiles:create', async (_event, payload: unknown) => {
 ipcMain.handle('profiles:delete', async (_event, payload: unknown) => {
   const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown }
   if (confirmed !== true) throw new Error('удаление профиля требует подтверждения')
-  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  if (!isValidProfileName(name)) throw new Error(mainT('profile.invalidName'))
   const target = restTarget()
   const { current } = parseActiveProfile(await hermesRest<unknown>(target, '/api/profiles/active'))
   const refusal = refuseProfileDeletion(name, sessionProfile ?? current)
@@ -3275,7 +3283,7 @@ ipcMain.handle('profiles:delete', async (_event, payload: unknown) => {
 // transcript to match.
 ipcMain.handle('profiles:use', async (_event, payload: unknown) => {
   const { name } = (payload ?? {}) as { name?: unknown }
-  if (!isValidProfileName(name)) throw new Error('недопустимое имя профиля')
+  if (!isValidProfileName(name)) throw new Error(mainT('profile.invalidName'))
   const target = restTarget()
   const { current } = parseActiveProfile(await hermesRest<unknown>(target, '/api/profiles/active'))
   sessionProfile = name === current ? undefined : name
@@ -3291,7 +3299,7 @@ ipcMain.handle('profiles:use', async (_event, payload: unknown) => {
 // должен знать, к какому ядру мы сейчас подключены.
 configureRoster({
   request: async (method, params) => {
-    if (!gateway) throw new Error('нет связи с ядром')
+    if (!gateway) throw new Error(mainT('common.noCoreConnectionLc'))
     // Метод приходит строкой из модуля роестра, а карта методов типизирована по
     // именам. Сужение здесь, в одном месте: проверять имя метода в каждом
     // вызове значило бы повторять карту вторым списком.
@@ -3346,7 +3354,7 @@ export function stopRosterSnapshotPolling(): void {
 ipcMain.handle('yolo:set', async (_event, enabled: unknown) => {
   if (!gateway) throw new Error('gateway is not connected')
   if (typeof enabled !== 'boolean') throw new Error('invalid yolo flag')
-  if (!sessionId) throw new Error('нет живой сессии — YOLO переключается только в её пределах')
+  if (!sessionId) throw new Error(mainT('yolo.noLiveSession'))
   return gateway.request('config.set', {
     key: 'yolo',
     value: enabled ? '1' : '0',
@@ -3461,7 +3469,7 @@ async function ensureSecretFilter(method: string, params: unknown): Promise<void
   }
   if (!filterLoaded(result)) {
     console.error('aecpilot: secret filter is NOT loaded in the core — turn refused')
-    throw new Error(FILTER_NOT_LOADED)
+    throw new Error(filterNotLoaded())
   }
   filterChecked.sessions.add(sessionId)
 }
@@ -3568,16 +3576,11 @@ async function captureCredentialWrite(write: {
   // Строка в `.env` профиля СИЛЬНЕЕ окружения (`get_env_value_prefer_dotenv` в
   // ядре), поэтому сохранить поверх неё значит сохранить в никуда.
   if (write.action === 'store' && profileDir && keyEnvVarStatus(profileDir, write.envVar)) {
-    throw new Error(
-      `${write.envVar} задан в .env профиля — значение оттуда сильнее нашего. ` +
-        'Уберите строку из .env и повторите.'
-    )
+    throw new Error(mainT('providerKey.envWins', write.envVar))
   }
 
   if (!setProviderKey(write.envVar, write.action === 'store' ? write.value : null)) {
-    throw new Error(
-      'safeStorage недоступен на этой машине — ключ не сохранён (в открытом виде не пишем)'
-    )
+    throw new Error(mainT('providerKey.noSafeStorage'))
   }
 
   // Удаление идёт и у ядра: значение могло лечь в `.env` до этого правила.
@@ -3700,7 +3703,7 @@ function sshTargetOf(settings: SshSettings): SshTarget | null {
  * показать словами, а не запись в журнале при пустом окне. */
 async function connectViaSsh(): Promise<ReconnectOutcome> {
   const target = sshTargetOf(sshSettings())
-  if (!target) return { ok: false, error: 'Не указана машина, к которой подключаться' }
+  if (!target) return { ok: false, error: mainT('connection.noMachine') }
 
   const result = await startSshTunnel(target)
   if (!result.ok) {
@@ -3709,7 +3712,7 @@ async function connectViaSsh(): Promise<ReconnectOutcome> {
   }
 
   const remote = remoteTarget()
-  if (!remote) return { ok: false, error: 'Туннель поднялся, но подключение не состоялось' }
+  if (!remote) return { ok: false, error: mainT('connection.tunnelNoConnect') }
 
   // SECURITY: адрес сокета несёт токен — он собирается здесь и здесь остаётся.
   await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
@@ -3885,7 +3888,7 @@ ipcMain.handle('keys:save', async (_event, payload: unknown) => {
     return {
       ok: false,
       restarted: false,
-      error: 'safeStorage недоступен на этой машине — ключ не сохранён (в открытом виде не пишем)'
+      error: mainT('providerKey.noSafeStorage')
     }
   }
   // A key only reaches hermes through the child process's environment, so it
@@ -4018,10 +4021,10 @@ async function providerRequest(
   body?: unknown
 ): Promise<{ ok: true; answer: unknown } | { ok: false; error: string }> {
   if (!/^https?:\/\//i.test(baseUrl)) {
-    return { ok: false, error: `адрес «${baseUrl}» не http(s)` }
+    return { ok: false, error: mainT('provider.notHttp', baseUrl) }
   }
   const key = buildProviderKeyEnv()[keyEnvVar] ?? process.env[keyEnvVar]
-  if (!key) return { ok: false, error: `ключ ${keyEnvVar} не задан` }
+  if (!key) return { ok: false, error: mainT('provider.keyNotSet', keyEnvVar) }
   try {
     const response = await fetch(baseUrl.replace(/\/+$/, '') + path, {
       method: body === undefined ? 'GET' : 'POST',
@@ -4032,11 +4035,11 @@ async function providerRequest(
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(15_000)
     })
-    if (!response.ok) return { ok: false, error: `провайдер ответил ${response.status}` }
+    if (!response.ok) return { ok: false, error: mainT('provider.answered', response.status) }
     return { ok: true, answer: await response.json() }
   } catch (error: unknown) {
-    const reason = error instanceof Error ? error.name : 'ошибка сети'
-    return { ok: false, error: `провайдер не ответил (${reason})` }
+    const reason = error instanceof Error ? error.name : mainT('provider.networkError')
+    return { ok: false, error: mainT('provider.noAnswer', reason) }
   }
 }
 
@@ -4070,7 +4073,7 @@ ipcMain.handle('data-providers:models', async (_event, payload: unknown) => {
   try {
     profileDir = (await loadServeModule()).HERMES_HOME_DIR
   } catch {
-    return { ok: false, error: 'профиль ядра не найден' }
+    return { ok: false, error: mainT('provider.profileNotFound') }
   }
   const { agent } = readDataProviderInputs(profileDir)
   const choices = parseDataProviders(JSON.stringify(choice ?? null))
@@ -4079,9 +4082,7 @@ ipcMain.handle('data-providers:models', async (_event, payload: unknown) => {
   const answer = await providerRequest(resolved.baseUrl, resolved.keyEnvVar, '/models')
   if (!answer.ok) return answer
   const models = parseModelIds(answer.answer)
-  return models.length > 0
-    ? { ok: true, models }
-    : { ok: false, error: 'провайдер не назвал ни одной модели' }
+  return models.length > 0 ? { ok: true, models } : { ok: false, error: mainT('provider.noModels') }
 })
 
 ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
@@ -4091,7 +4092,7 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
     if (section.keyEnvVar && !isCredentialEnvVarName(section.keyEnvVar)) {
       return {
         ok: false,
-        error: `имя переменной ключа «${section.keyEnvVar}»: латинские заглавные буквы, цифры и _`
+        error: mainT('provider.badKeyVarName', section.keyEnvVar)
       }
     }
   }
@@ -4100,7 +4101,7 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
     profileDir = (await loadServeModule()).HERMES_HOME_DIR
   } catch (error: unknown) {
     console.error('aecpilot: could not locate the hermes profile for data providers', error)
-    return { ok: false, error: 'профиль ядра не найден — выбор не сохранён' }
+    return { ok: false, error: mainT('provider.profileNotFoundNotSaved') }
   }
   // Задача 3G.52: ширина вектора — только замеренная здесь же и только для той же
   // модели на том же адресе; смена эмбеддингов — вопрос до записи.
@@ -4120,7 +4121,11 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
     if (!width) {
       return {
         ok: false,
-        error: `ширина вектора модели «${probe.model}» не измерена: ${answer.ok ? 'в ответе нет вектора' : answer.error} — выбор не сохранён`
+        error: mainT(
+          'provider.dimsNotMeasured',
+          probe.model,
+          answer.ok ? mainT('provider.noVectorInAnswer') : answer.error
+        )
       }
     }
     next = { ...next, memory: { ...next.memory, embeddingDims: width } }
@@ -4133,7 +4138,7 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
     )
   } catch (error: unknown) {
     console.error('aecpilot: could not write aec-providers.json', error)
-    return { ok: false, error: 'файл выбора не записался — выбор не сохранён' }
+    return { ok: false, error: mainT('provider.choiceNotWritten') }
   }
   // Открытый проект получает новое окружение сразу: `aec-rag` перерегистрируется
   // (ядро перечитывает MCP), профиль памяти переписывается. Без проекта — при
@@ -4186,7 +4191,7 @@ ipcMain.handle('memory:read-notes', async () => {
     }
   } catch (error: unknown) {
     console.error('aecpilot: could not read the memory notes', error)
-    return { ok: false as const, error: 'Не удалось прочитать записку памяти' }
+    return { ok: false as const, error: mainT('memory.readNoteFailed') }
   }
 })
 
@@ -4203,7 +4208,7 @@ ipcMain.handle('memory:write-note', async (_event, payload: unknown) => {
     return { ok: true as const }
   } catch (error: unknown) {
     console.error('aecpilot: could not write the memory note', error)
-    return { ok: false as const, error: 'Не удалось сохранить записку' }
+    return { ok: false as const, error: mainT('memory.saveNoteFailed') }
   }
 })
 
@@ -4235,7 +4240,7 @@ ipcMain.handle('memory:set-autowrite', async (_event, enabled: unknown) => {
     return { ok: true as const, autowrite: enabled }
   } catch (error: unknown) {
     console.error('aecpilot: could not change the memory autowrite flag', error)
-    return { ok: false as const, error: 'Не удалось изменить автозапись' }
+    return { ok: false as const, error: mainT('memory.autowriteFailed') }
   }
 })
 
@@ -4367,7 +4372,7 @@ ipcMain.handle('preview:open-external', async (_event, value: unknown) => {
   // Файл на машине ядра здесь не существует: открыть его местным браузером
   // значило бы открыть чужой файл с тем же путём — или ничего.
   if (decision.url.startsWith('file:') && filesAreRemote()) {
-    return { ok: false, error: 'Файл лежит на машине ядра — открыть его здесь нечем' }
+    return { ok: false, error: mainT('preview.remoteCannotOpen') }
   }
 
   try {
@@ -4433,7 +4438,7 @@ ipcMain.handle('preview:capture', async (event, payload: unknown) => {
   const guest =
     typeof value?.webContentsId === 'number' ? webContents.fromId(value.webContentsId) : undefined
   if (!guest || guest.isDestroyed() || guest.hostWebContents?.id !== event.sender.id) {
-    return { ok: false, error: 'Гость предпросмотра не найден' }
+    return { ok: false, error: mainT('preview.guestNotFound') }
   }
 
   try {
@@ -4442,7 +4447,7 @@ ipcMain.handle('preview:capture', async (event, payload: unknown) => {
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось снять предпросмотр: ${error instanceof Error ? error.message : String(error)}`
+      error: mainT('preview.captureFailed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -4467,15 +4472,15 @@ ipcMain.handle('connection:test', async (_event, input: unknown) => {
     // Проверяется то, что человек СЕЙЧАС видит в форме, поверх сохранённого:
     // поля, которых в запросе не было, он не менял.
     const target = sshTargetOf({ ...sshSettings(), ...request.ssh })
-    if (!target) return { ok: false, error: 'Не указана машина, к которой подключаться' }
+    if (!target) return { ok: false, error: mainT('connection.noMachine') }
     return probeSsh(target)
   }
-  if (request.remoteUrl === '') return { ok: false, error: 'Адрес не похож на адрес сервера' }
+  if (request.remoteUrl === '') return { ok: false, error: mainT('connection.badAddress') }
 
   // Токен берётся из запроса, а если его там нет — сохранённый: человек может
   // проверять новый адрес со старым токеном, не набирая его заново.
   const token = request.remoteToken !== '' ? request.remoteToken : connectionToken()
-  if (token === '') return { ok: false, error: 'Токен не задан' }
+  if (token === '') return { ok: false, error: mainT('connection.noToken') }
 
   try {
     const status = await hermesRest<{ version?: string }>(
@@ -4622,7 +4627,7 @@ ipcMain.handle('cron-runner:set', (_event, on: unknown) => setCronRunner(on))
 // приходящую снаружи главного процесса.
 ipcMain.handle('log:reveal', async () => {
   const directory = logDirectory()
-  if (directory === '') return { ok: false, path: '', error: 'журнал ещё не заведён' }
+  if (directory === '') return { ok: false, path: '', error: mainT('index.logNotCreated') }
   const failure = await shell.openPath(directory)
   return failure === ''
     ? { ok: true, path: directory }
@@ -4848,8 +4853,8 @@ ipcMain.handle('scan:trigger', () => {
   // сейчас работает не здесь: индекс, который никто не спросит, из документов,
   // которых агент не видит. Решение 3.13a — серверная поставка (фаза 6), а до
   // неё честный отказ вместо бессмысленной работы.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   void scanScheduler.triggerNow()
   return { ok: true }
 })
@@ -4882,7 +4887,7 @@ ipcMain.handle('sources:list', () => {
 // are unchanged, only the tool-backing data is, so the current session picks
 // it up on its next tool call without losing history.
 ipcMain.handle('sources:add', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, errors: ['нет открытого проекта'] }
+  if (!currentProject) return { ok: false, errors: [mainT('common.noProjectLc')] }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, errors: ['invalid payload'] }
   }
@@ -4916,7 +4921,7 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
 // load, so every source's "RO"/"недоступен" badge shows up without a manual
 // expand, and without the cost of a full recursive tree build per source.
 ipcMain.handle('sources:status', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -4937,7 +4942,7 @@ ipcMain.handle('sources:status', async (_event, payload: unknown) => {
 // removing a source only rewrites project.json, so `reloadMcp` is called
 // unconditionally (best-effort, no session reset) once that write succeeds.
 ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProjectLc') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -4964,7 +4969,7 @@ ipcMain.handle('sources:remove', async (_event, payload: unknown) => {
 // "Источники" activity — read-only, no-op when no project is open (a stale
 // renderer call after the project was closed mid-flight must never throw).
 ipcMain.handle('sources:tree', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -4981,7 +4986,7 @@ ipcMain.handle('sources:tree', async (_event, payload: unknown) => {
 // `vault:show-in-explorer` but resolved against the source's root instead of
 // the vault.
 ipcMain.handle('sources:show-in-explorer', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -4991,7 +4996,7 @@ ipcMain.handle('sources:show-in-explorer', async (_event, payload: unknown) => {
   }
   if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
   const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
-  if (!source) return { ok: false, error: 'Источник не найден' }
+  if (!source) return { ok: false, error: mainT('common.sourceNotFound') }
   let absPath: string
   try {
     absPath = await resolveSourceEntryRel(source.root_path, rel)
@@ -5011,7 +5016,7 @@ ipcMain.handle('sources:show-in-explorer', async (_event, payload: unknown) => {
 
 // 3J.6 (SPEC UR44): название источника в приложении — только в project.json.
 ipcMain.handle('sources:rename', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProjectLc') }
   const { sourceId, label } = (payload ?? {}) as Record<string, unknown>
   if (typeof sourceId !== 'string' || sourceId.length === 0) {
     return { ok: false, error: 'sourceId must be a non-empty string' }
@@ -5026,7 +5031,7 @@ ipcMain.handle('sources:rename', async (_event, payload: unknown) => {
 // backing "Копировать путь" — the renderer copies the returned path itself
 // (via the clipboard), it never builds the path on its own.
 ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5036,7 +5041,7 @@ ipcMain.handle('sources:get-entry-path', async (_event, payload: unknown) => {
   }
   if (typeof rel !== 'string') return { ok: false, error: 'rel must be a string' }
   const source = listProjectSources(currentProject.vaultPath).find((s) => s.id === sourceId)
-  if (!source) return { ok: false, error: 'Источник не найден' }
+  if (!source) return { ok: false, error: mainT('common.sourceNotFound') }
   try {
     return { ok: true, path: await resolveSourceEntryRel(source.root_path, rel) }
   } catch (error: unknown) {
@@ -5071,7 +5076,7 @@ function publishIngestState(next: Partial<IngestState>): void {
 }
 
 ipcMain.handle('index:status', async () => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   try {
     const { runIndexStatus } = await import('./ingest-runner')
     return { ok: true, status: await runIndexStatus(currentProject.vaultPath) }
@@ -5082,7 +5087,7 @@ ipcMain.handle('index:status', async () => {
 
 // Task 3J.10: the Index page's tree — every file of the project with its state.
 ipcMain.handle('index:inventory', async () => {
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   try {
     const { runIndexInventory } = await import('./ingest-runner')
     return { ok: true, inventory: await runIndexInventory(currentProject.vaultPath) }
@@ -5096,9 +5101,9 @@ ipcMain.handle('quotes:check', async (_event, answer: unknown) => {
   // обязан отличать «выдержка не найдена» от «проверить не удалось», и второе
   // не должно выглядеть как первое.
   if (typeof answer !== 'string' || !answer.trim()) {
-    return { available: false, reason: 'пустой ответ', quotes: [] }
+    return { available: false, reason: mainT('index.emptyAnswer'), quotes: [] }
   }
-  if (!currentProject) return { available: false, reason: 'нет открытого проекта', quotes: [] }
+  if (!currentProject) return { available: false, reason: mainT('common.noProjectLc'), quotes: [] }
   try {
     const { runQuoteCheck } = await import('./quote-check')
     const { HERMES_HOME_DIR } = await loadServeModule()
@@ -5126,8 +5131,8 @@ ipcMain.handle('index:embedding-switch', () => {
 })
 
 ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
-  if (!currentProject) return { started: false, error: 'Нет открытого проекта' }
-  if (ingestState.running) return { started: false, error: 'Индексация уже идёт' }
+  if (!currentProject) return { started: false, error: mainT('common.noProject') }
+  if (ingestState.running) return { started: false, error: mainT('common.indexingAlreadyRunning') }
 
   const full =
     typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
@@ -5226,14 +5231,14 @@ async function beginIngest(
 function projectFileRequest(
   payload: unknown
 ): { ok: true; path: string; rel: string } | { error: string; ok: false } {
-  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (!currentProject) return { error: mainT('common.noProject'), ok: false }
   if (typeof payload !== 'object' || payload === null) {
     return { error: 'invalid payload', ok: false }
   }
   const decision = decideGraphMark({ ...payload, sourceId: PROJECT_SOURCE_ID }, [])
   if (!decision.ok) return decision
   const rel = decision.path.slice(PROJECT_SOURCE_ID.length + 1)
-  if (rel === '') return { error: 'Выберите файл или папку проекта', ok: false }
+  if (rel === '') return { error: mainT('index.pickProjectFileOrFolder'), ok: false }
   return { ok: true, path: decision.path, rel }
 }
 
@@ -5246,8 +5251,8 @@ ipcMain.handle('index:project-list', () =>
 ipcMain.handle('index:project-include', async (_event, payload: unknown) => {
   const request = projectFileRequest(payload)
   if (!request.ok) return request
-  if (ingestState.running) return { error: 'Индексация уже идёт', ok: false }
-  if (graphState.running) return { error: 'Строится граф — включите после него', ok: false }
+  if (ingestState.running) return { error: mainT('common.indexingAlreadyRunning'), ok: false }
+  if (graphState.running) return { error: mainT('index.graphBuildingEnableAfter'), ok: false }
   const vaultPath = currentProject!.vaultPath
   try {
     const { runProjectInclude } = await import('./ingest-runner')
@@ -5264,8 +5269,8 @@ ipcMain.handle('index:project-include', async (_event, payload: unknown) => {
 ipcMain.handle('index:project-exclude', async (_event, payload: unknown) => {
   const request = projectFileRequest(payload)
   if (!request.ok) return request
-  if (ingestState.running) return { error: 'Идёт индексация — уберите после неё', ok: false }
-  if (graphState.running) return { error: 'Строится граф — уберите после него', ok: false }
+  if (ingestState.running) return { error: mainT('index.indexingRemoveAfter'), ok: false }
+  if (graphState.running) return { error: mainT('index.graphBuildingRemoveAfter'), ok: false }
   try {
     const { runProjectExclude } = await import('./ingest-runner')
     const report = await runProjectExclude(currentProject!.vaultPath, request.rel, buildExtraEnv())
@@ -5283,7 +5288,7 @@ ipcMain.handle('index:excluded-list', () =>
 )
 
 function indexTarget(payload: unknown): IndexTarget {
-  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (!currentProject) return { error: mainT('common.noProject'), ok: false }
   return decideIndexTarget(
     payload,
     listProjectSources(currentProject.vaultPath).map((source) => source.id),
@@ -5372,7 +5377,7 @@ function publishGraphState(next: Partial<GraphAddState>): void {
 /** Путь области графа собирает главный процесс, а не окно: он уезжает в
  *  project.json как выбор человека, и рендерер путей не строит. */
 function markRequest(payload: unknown): ReturnType<typeof decideGraphMark> {
-  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (!currentProject) return { error: mainT('common.noProject'), ok: false }
   const sourceIds = listProjectSources(currentProject.vaultPath).map((source) => source.id)
   return decideGraphMark(payload, sourceIds)
 }
@@ -5394,7 +5399,7 @@ ipcMain.handle('graph:preview', async (_event, payload: unknown) => {
 // заново (типы сущностей в промпте сменились). Порядок тот же, что у отметки:
 // сначала цена, прогон — только по согласию.
 ipcMain.handle('graph:rebuild-preview', async () => {
-  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (!currentProject) return { error: mainT('common.noProject'), ok: false }
   try {
     const { runGraphPreview } = await import('./graph-runner')
     return { ok: true, preview: await runGraphPreview(currentProject.vaultPath, null, 'folder') }
@@ -5416,7 +5421,7 @@ ipcMain.handle('graph:stop', () => {
 // Задача 3J.14: граф для вкладки «Граф». Путь документа собирает main, как и у
 // отметки, — окно путей не строит. `{ view: 'documents' }` — карта документов (3L.9).
 ipcMain.handle('graph:export', async (_event, payload: unknown) => {
-  if (!currentProject) return { error: 'Нет открытого проекта', ok: false }
+  if (!currentProject) return { error: mainT('common.noProject'), ok: false }
   if ((payload as { view?: unknown } | null)?.view === 'documents') {
     try {
       const { runDocumentMapExport } = await import('./graph-runner')
@@ -5446,7 +5451,7 @@ ipcMain.handle('graph:add', async (_event, payload: unknown) => {
 })
 
 ipcMain.handle('graph:rebuild', async () => {
-  if (!currentProject) return { error: 'Нет открытого проекта', started: false }
+  if (!currentProject) return { error: mainT('common.noProject'), started: false }
   return startGraphRun(null, 'folder')
 })
 
@@ -5455,12 +5460,12 @@ async function startGraphRun(
   path: null | string,
   kind: GraphScopeKind
 ): Promise<{ error?: string; started: boolean }> {
-  if (graphState.running) return { error: 'Граф уже строится', started: false }
+  if (graphState.running) return { error: mainT('index.graphAlreadyBuilding'), started: false }
   // Один процесс на индекс: ingest и граф пишут одни и те же таблицы и один и
   // тот же векторный стор (находка D-49 — та же причина, только там граница
   // стоит внутри сервера, а здесь между нашими процессами).
   if (ingestState.running) {
-    return { error: 'Идёт индексация — граф строится после неё', started: false }
+    return { error: mainT('index.graphAfterIndexing'), started: false }
   }
 
   const vaultPath = currentProject!.vaultPath
@@ -5559,7 +5564,7 @@ async function memoryFactsCall(args: string[]): Promise<MemoryFactsAnswer> {
   if (remoteTarget() !== undefined || connectionMode() === 'ssh' || process.env.AEC_GATEWAY_URL) {
     return {
       busy: false,
-      error: 'Ядро на другой машине не на связи — список фактов читается только у него',
+      error: mainT('memory.remoteCoreOffline'),
       ok: false
     }
   }
@@ -5584,7 +5589,7 @@ ipcMain.handle('memory:facts-read', async () => {
     console.error('aecpilot: could not read the project memory facts', error)
     return {
       busy: false as const,
-      error: 'Не удалось прочитать память проекта',
+      error: mainT('memory.readProjectFailed'),
       ok: false as const
     }
   }
@@ -5594,7 +5599,7 @@ ipcMain.handle('memory:facts-delete', async (_event, id: unknown) => {
   // Идентификатор уходит в команду строкой через пробел — пробел или пустота в
   // нём означали бы удаление не того факта, а не «не нашлось».
   if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) {
-    return { error: 'Не сказано, какой факт удалить', ok: false as const }
+    return { error: mainT('memory.factNotNamed'), ok: false as const }
   }
 
   try {
@@ -5604,7 +5609,7 @@ ipcMain.handle('memory:facts-delete', async (_event, id: unknown) => {
     return answer.ok ? { ok: true as const } : { error: answer.error, ok: false as const }
   } catch (error: unknown) {
     console.error('aecpilot: could not delete a project memory fact', error)
-    return { error: 'Не удалось удалить факт', ok: false as const }
+    return { error: mainT('memory.deleteFactFailed'), ok: false as const }
   }
 })
 
@@ -5631,7 +5636,7 @@ async function resolveViewerPath(
   try {
     if (typeof sourceId === 'string' && sourceId.length > 0) {
       const source = listProjectSources(vaultPath).find((s) => s.id === sourceId)
-      if (!source) return { ok: false, error: `Источник «${sourceId}» не подключён` }
+      if (!source) return { ok: false, error: mainT('source.notConnected', sourceId) }
       return { absPath: await resolveSourceContentRel(source.root_path, rel), ok: true }
     }
     return { absPath: resolveVaultContentRel(vaultPath, rel), ok: true }
@@ -5658,7 +5663,7 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
   // «не та» — хуже: путь в цитате пришёл от ядра и относится к его машине.
   if (filesAreRemote()) return readRemoteDocument(restTarget(), rel)
 
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
 
   const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved
@@ -5666,9 +5671,9 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
 
   try {
     const stat = await fs.promises.stat(absPath)
-    if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
+    if (stat.isDirectory()) return { ok: false, error: mainT('common.folderNotDocument') }
     if (stat.size > MAX_VIEWER_BYTES) {
-      return { ok: false, error: 'Файл слишком велик для просмотра' }
+      return { ok: false, error: mainT('common.fileTooLargeToView') }
     }
     const bytes = await fs.promises.readFile(absPath)
     return {
@@ -5680,8 +5685,9 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
     }
   } catch (error: unknown) {
     const code = (error as { code?: string }).code
-    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
-    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
+    if (code === 'ENOENT') return { ok: false, error: mainT('common.fileNotFound') }
+    if (code === 'EACCES' || code === 'EPERM')
+      return { ok: false, error: mainT('common.fileNoAccess') }
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -5706,16 +5712,16 @@ ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
     return readSheetsFromBuffer(Buffer.from(remote.bytes))
   }
 
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
 
   const resolved = await resolveViewerPath(currentProject.vaultPath, rel, sourceId)
   if (!resolved.ok) return resolved
 
   try {
     const stat = await fs.promises.stat(resolved.absPath)
-    if (stat.isDirectory()) return { ok: false, error: 'Это папка, а не документ' }
+    if (stat.isDirectory()) return { ok: false, error: mainT('common.folderNotDocument') }
     if (stat.size > MAX_VIEWER_BYTES) {
-      return { ok: false, error: 'Файл слишком велик для просмотра' }
+      return { ok: false, error: mainT('common.fileTooLargeToView') }
     }
     // Загружается по первой книге: пакет тяжёлый, а сессия без единого XLSX
     // платить за него не должна.
@@ -5723,8 +5729,9 @@ ipcMain.handle('viewer:read-sheets', async (_event, payload: unknown) => {
     return await readSheets(resolved.absPath)
   } catch (error: unknown) {
     const code = (error as { code?: string }).code
-    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
-    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
+    if (code === 'ENOENT') return { ok: false, error: mainT('common.fileNotFound') }
+    if (code === 'EACCES' || code === 'EPERM')
+      return { ok: false, error: mainT('common.fileNoAccess') }
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -5750,8 +5757,8 @@ ipcMain.handle('vault:tree', () => {
 ipcMain.handle('vault:create-file', (_event, payload: unknown) => {
   // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
   // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5771,8 +5778,8 @@ ipcMain.handle('vault:create-file', (_event, payload: unknown) => {
 ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
   // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
   // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5793,8 +5800,8 @@ ipcMain.handle('vault:create-dir', (_event, payload: unknown) => {
 ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
   // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
   // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5809,8 +5816,9 @@ ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
     return { ok: true }
   } catch (error: unknown) {
     const code = (error as { code?: string }).code
-    if (code === 'ENOENT') return { ok: false, error: 'Файл не найден' }
-    if (code === 'EACCES' || code === 'EPERM') return { ok: false, error: 'Нет доступа к файлу' }
+    if (code === 'ENOENT') return { ok: false, error: mainT('common.fileNotFound') }
+    if (code === 'EACCES' || code === 'EPERM')
+      return { ok: false, error: mainT('common.fileNoAccess') }
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -5818,8 +5826,8 @@ ipcMain.handle('vault:write-file', (_event, payload: unknown) => {
 ipcMain.handle('vault:rename', (_event, payload: unknown) => {
   // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
   // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5842,8 +5850,8 @@ ipcMain.handle('vault:rename', (_event, payload: unknown) => {
 ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
   // Задача 3.13b: писать на диск ЭТОЙ машины, пока агент работает на другой,
   // значит править не те файлы. Отказ с причиной, а не тихая запись мимо.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5861,9 +5869,7 @@ ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
   } catch (error: unknown) {
     return {
       ok: false,
-      error: `Не удалось переместить в корзину: ${
-        error instanceof Error ? error.message : String(error)
-      }`
+      error: mainT('trash.failed', error instanceof Error ? error.message : String(error))
     }
   }
 })
@@ -5874,8 +5880,8 @@ ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
 ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
   // Проводник открылся бы ЗДЕСЬ, а файл лежит там. Пустая папка вместо ответа —
   // это не «показали», это молчаливая неправда.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -5897,8 +5903,8 @@ ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {
 // path itself).
 ipcMain.handle('vault:get-entry-path', (_event, payload: unknown) => {
   // Путь этой машины для файла на той — та же неправда, только в виде строки.
-  if (filesAreRemote()) return { ok: false, error: FILES_LIVE_ON_CORE_MACHINE }
-  if (!currentProject) return { ok: false, error: 'Нет открытого проекта' }
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   if (typeof payload !== 'object' || payload === null) {
     return { ok: false, error: 'invalid payload' }
   }
@@ -6110,6 +6116,10 @@ app
     // родившийся раньше подписки, ушёл бы куда угодно без вопроса.
     installPreviewGuestGuard()
 
+    // Задача T27: язык интерфейса, сохранённый прошлым запуском, — ДО трея и
+    // первых диалогов; рендерер подтвердит или поправит его своим сообщением.
+    loadUiLanguage()
+
     // Задача 3G.23 (D-146): до первого окна — окно регистрируется в трее при
     // создании, и настройка с диска должна быть уже прочитана.
     minimizeToTray = createMinimizeToTray({
@@ -6206,7 +6216,7 @@ function confirmQuitDespiteWork(prompt: QuitPrompt): boolean {
   return (
     dialog.showMessageBoxSync({
       type: 'warning',
-      buttons: ['Выйти', 'Остаться'],
+      buttons: [mainT('quit.buttonQuit'), mainT('quit.buttonStay')],
       defaultId: 1,
       cancelId: 1,
       message: prompt.message,

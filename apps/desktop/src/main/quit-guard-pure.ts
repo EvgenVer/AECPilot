@@ -15,6 +15,8 @@
 // перенесённый код донора. Поэтому она нормализуется, а не принимается на
 // веру: отрицательное число, дробь, посторонние типы в списке заголовков.
 
+import { mainT } from './i18n'
+
 /** Сколько заголовков показать поимённо; остальные — числом. */
 const MAX_LISTED = 4
 
@@ -78,18 +80,10 @@ export function quitPromptFor(work: ActiveWork): QuitPrompt | null {
   // «и ещё N» дописывается только к НЕПУСТОМУ списку: когда ни один чат не
   // назван, число уже стоит в первой строке, и одинокий пункт «• и ещё 2»
   // читался бы как «кроме этих двух есть ещё два».
-  if (remaining > 0 && lines.length > 0) lines.push(`• и ещё ${remaining}`)
+  if (remaining > 0 && lines.length > 0) lines.push(mainT('quit.andMore', remaining))
 
   return {
-    message:
-      work.count === 1
-        ? 'Агент ещё работает в одном чате.'
-        : `Агент ещё работает в чатах: ${work.count}.`,
-    detail: [
-      lines.join('\n'),
-      'Выход остановит его посреди хода. Всё, что он не успел дописать, пропадёт.'
-    ]
-      .filter((line) => line !== '')
-      .join('\n\n')
+    message: work.count === 1 ? mainT('quit.oneChat') : mainT('quit.manyChats', work.count),
+    detail: [lines.join('\n'), mainT('quit.detail')].filter((line) => line !== '').join('\n\n')
   }
 }

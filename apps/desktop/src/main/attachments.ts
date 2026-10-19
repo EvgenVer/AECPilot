@@ -23,6 +23,7 @@
 import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import { mainT } from './i18n'
 
 /** Extensions we will write. Anything else becomes `.bin`: the extension ends
  * up in a filename on the user's disk, and a renderer choosing it freely could
@@ -79,8 +80,8 @@ export async function saveAttachment(
   bytes: Uint8Array,
   extension: unknown
 ): Promise<string> {
-  if (bytes.byteLength === 0) throw new Error('пустой файл')
-  if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error('файл слишком велик')
+  if (bytes.byteLength === 0) throw new Error(mainT('attach.empty'))
+  if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(mainT('attach.tooLarge'))
   await fs.mkdir(dir, { recursive: true })
   const target = path.join(dir, `${randomUUID()}.${normalizeExtension(extension)}`)
   await fs.writeFile(target, bytes)
@@ -101,9 +102,9 @@ export async function readAttachmentDataUrl(
   pickedByUser: (candidate: string) => boolean = () => false
 ): Promise<string> {
   if (!isInsideAttachmentsDir(dir, filePath) && !pickedByUser(filePath)) {
-    throw new Error('читать можно только вложения этого сеанса и выбранные вами файлы')
+    throw new Error(mainT('attach.readForbidden'))
   }
   const bytes = await fs.readFile(filePath)
-  if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error('файл слишком велик')
+  if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(mainT('attach.tooLarge'))
   return `data:${mediaTypeFor(filePath)};base64,${bytes.toString('base64')}`
 }

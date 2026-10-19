@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   describeRemoteFileError,
-  FILES_LIVE_ON_CORE_MACHINE,
+  filesLiveOnCoreMachine,
   parseDataUrl,
   remoteBaseName
 } from './remote-files-pure'
@@ -63,6 +63,6 @@ describe('имя файла на чужой машине', () => {
 
 describe('одинаковая причина объясняется одинаково', () => {
   it('текст называет машину ядра, а не «ошибку доступа»', () => {
-    expect(FILES_LIVE_ON_CORE_MACHINE).toContain('другой машине')
+    expect(filesLiveOnCoreMachine()).toContain('другой машине')
   })
 })

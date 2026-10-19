@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { decideWatch, realPathAllowed, sameFile, WATCH_OUTSIDE_ERROR } from './preview-watch-pure'
+import { decideWatch, realPathAllowed, sameFile, watchOutsideError } from './preview-watch-pure'
 
 const PROJECT = process.platform === 'win32' ? 'D:\\проект' : '/проект'
 const INSIDE = process.platform === 'win32' ? 'D:\\проект\\отчёт.html' : '/проект/отчёт.html'
@@ -37,7 +37,7 @@ describe('decideWatch', () => {
   it('файл ВНЕ проекта — нельзя, и это главное правило задачи', () => {
     expect(decideWatch(PROJECT, OUTSIDE, nothingPicked)).toEqual({
       ok: false,
-      error: WATCH_OUTSIDE_ERROR
+      error: watchOutsideError()
     })
   })
 

@@ -52,6 +52,7 @@ const api: AecpilotApi = {
   setKeepAwake: (on) => ipcRenderer.invoke('power:keep-awake', on),
   getAgentLanguage: () => ipcRenderer.invoke('agent-language:get'),
   setAgentLanguage: (language) => ipcRenderer.invoke('agent-language:set', language),
+  setUiLanguage: (language) => ipcRenderer.invoke('ui-language:set', language),
   getConnection: () => ipcRenderer.invoke('connection:get'),
   saveConnection: (input) => ipcRenderer.invoke('connection:save', input),
   applyConnection: (input) => ipcRenderer.invoke('connection:apply', input),

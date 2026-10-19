@@ -18,6 +18,8 @@
 // проверки пустой номер открыл бы окно на маршруте `#/` — то есть просто второе
 // главное окно, молча и не то.
 
+import { mainT } from './i18n'
+
 /** Их флаг вторичного окна (`store/windows.ts`, `SECONDARY_WINDOW_FLAG`). */
 export const SECONDARY_WINDOW_FLAG = 'secondary'
 
@@ -59,12 +61,12 @@ export function planSessionWindow(
   options?: { watch?: unknown }
 ): WindowPlanResult {
   if (typeof sessionId !== 'string' || sessionId.trim() === '') {
-    return { ok: false, error: 'номер сессии не указан' }
+    return { ok: false, error: mainT('window.sessionMissing') }
   }
 
   const id = sessionId.trim()
   if (hasControlChar(id) || id.length > 200) {
-    return { ok: false, error: 'номер сессии испорчен' }
+    return { ok: false, error: mainT('window.sessionBroken') }
   }
 
   const query: Record<string, string> = { win: SECONDARY_WINDOW_FLAG }
@@ -87,12 +89,12 @@ export function planSessionWindow(
  */
 export function planBrowserWindow(tabId: unknown): WindowPlanResult {
   if (typeof tabId !== 'string' || tabId.trim() === '') {
-    return { ok: false, error: 'номер вкладки не указан' }
+    return { ok: false, error: mainT('window.tabMissing') }
   }
 
   const id = tabId.trim()
   if (hasControlChar(id) || id.length > 200) {
-    return { ok: false, error: 'номер вкладки испорчен' }
+    return { ok: false, error: mainT('window.tabBroken') }
   }
 
   return { ok: true, plan: { query: { win: 'browser', tab: id }, hash: SESSION_ROUTE_PREFIX } }

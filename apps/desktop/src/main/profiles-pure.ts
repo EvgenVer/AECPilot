@@ -7,6 +7,7 @@
 // `hermes serve`, not read off their docs.
 
 import type { ProfileRow } from '../shared/ipc'
+import { mainT } from './i18n'
 
 export type { ProfileRow }
 
@@ -69,17 +70,14 @@ export function isValidProfileName(value: unknown): value is string {
  * directory at all — it is the hermes root itself). */
 export function refuseProfileDeletion(name: string, current: string): string | undefined {
   if (name === current) {
-    return 'Это профиль, под которым сейчас работает ядро — сначала переключитесь на другой.'
+    return mainT('profile.deleteCurrent')
   }
   if (name === 'default') {
-    return 'Профиль «default» — это сам домашний каталог hermes, удалять его приложение не даёт.'
+    return mainT('profile.deleteDefault')
   }
   return undefined
 }
 
 export function describeProfileDeletion(name: string): string {
-  return (
-    `Удалить профиль «${name}»? Вместе с ним исчезнут его настройки, ключи, скилы и вся ` +
-    'история его сессий — это отдельный каталог на диске, и восстановить его будет нечем.'
-  )
+  return mainT('profile.deleteConfirm', name)
 }

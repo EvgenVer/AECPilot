@@ -25,6 +25,7 @@
 
 import * as fs from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { mainT } from './i18n'
 
 export interface SourceTreeNode {
   name: string
@@ -106,15 +107,13 @@ function hasUnsupportedPrefix(p: string): boolean {
  * rather than shared). */
 function sanitizedSegments(rel: string): string[] {
   if (CONTROL_CHAR_RE.test(rel)) {
-    throw new PathOutsideSourceError('Путь содержит недопустимые управляющие символы')
+    throw new PathOutsideSourceError(mainT('path.controlChars'))
   }
   if (hasUnsupportedPrefix(rel)) {
-    throw new PathOutsideSourceError(
-      'Служебные префиксы путей (\\\\?\\, \\\\.\\) не поддерживаются'
-    )
+    throw new PathOutsideSourceError(mainT('path.devicePrefix'))
   }
   if (isAbsolute(rel)) {
-    throw new PathOutsideSourceError('Путь должен быть относительным путём внутри источника')
+    throw new PathOutsideSourceError(mainT('source.relativeInside'))
   }
 
   const rawParts = rel.split(/[\\/]+/).filter((p) => p.length > 0)
@@ -122,10 +121,10 @@ function sanitizedSegments(rel: string): string[] {
   for (const part of rawParts) {
     if (part === '.') continue // harmless "current directory" component
     if (part.includes(':')) {
-      throw new PathOutsideSourceError('Путь не может содержать «:»')
+      throw new PathOutsideSourceError(mainT('path.colon'))
     }
     if (part === '..' || ALL_DOTS_RE.test(part.trimEnd())) {
-      throw new PathOutsideSourceError('Путь не может выходить за пределы источника')
+      throw new PathOutsideSourceError(mainT('source.cannotLeave'))
     }
     parts.push(part)
   }
@@ -148,7 +147,7 @@ function lexicalResolve(root: string, rel?: string | null): string {
   const candidate = resolve(root, ...parts)
   const rel2 = relative(root, candidate)
   if (rel2 !== '' && (rel2.startsWith('..') || isAbsolute(rel2))) {
-    throw new PathOutsideSourceError('Путь выходит за пределы источника')
+    throw new PathOutsideSourceError(mainT('source.leaves'))
   }
   return candidate
 }
@@ -203,7 +202,7 @@ export async function resolveSourceEntryRel(
 
   const realRoot = await safeRealpath(root)
   if (!(await isWithinRealRoot(realRoot, dirname(candidate)))) {
-    throw new PathOutsideSourceError('Путь ведёт за пределы источника через симлинк')
+    throw new PathOutsideSourceError(mainT('source.symlink'))
   }
   return candidate
 }
@@ -217,17 +216,17 @@ export async function resolveSourceEntryRel(
  * explorer". Backs the source branch of `viewer:read-document`. */
 export async function resolveSourceContentRel(rootPath: string, rel: string): Promise<string> {
   if (!rel || rel.trim().length === 0) {
-    throw new PathOutsideSourceError('Путь не может быть пустым')
+    throw new PathOutsideSourceError(mainT('path.empty'))
   }
   const root = resolve(rootPath)
   const candidate = lexicalResolve(root, rel)
   if (candidate === root) {
-    throw new PathOutsideSourceError('Это папка источника, а не документ')
+    throw new PathOutsideSourceError(mainT('source.isSourceFolder'))
   }
 
   const realRoot = await safeRealpath(root)
   if (!(await isWithinRealRoot(realRoot, candidate))) {
-    throw new PathOutsideSourceError('Путь ведёт за пределы источника через симлинк')
+    throw new PathOutsideSourceError(mainT('source.symlink'))
   }
   return candidate
 }

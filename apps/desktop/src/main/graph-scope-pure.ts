@@ -24,9 +24,12 @@ import type {
 } from '../shared/ipc'
 
 import { isProgress, readFatal, readJsonLines } from './ingest-progress-pure'
+import { mainT } from './i18n'
 
 export const PARENT_SEGMENT_ERROR = 'Путь в граф не может выходить за корень источника'
-export const UNKNOWN_SOURCE_ERROR = 'Источник не найден'
+export function unknownSourceError(): string {
+  return mainT('common.sourceNotFound')
+}
 export { PROJECT_SOURCE_ID }
 export const BAD_KIND_ERROR = 'Вид записи в граф может быть только папкой или файлом'
 
@@ -57,7 +60,7 @@ export function decideGraphMark(payload: unknown, sourceIds: string[]): GraphMar
   if (typeof rel !== 'string') return { error: 'rel must be a string', ok: false }
   if (!isScopeKind(kind)) return { error: BAD_KIND_ERROR, ok: false }
   if (sourceId !== PROJECT_SOURCE_ID && !sourceIds.includes(sourceId)) {
-    return { error: UNKNOWN_SOURCE_ERROR, ok: false }
+    return { error: unknownSourceError(), ok: false }
   }
   if (rel.split('/').includes('..')) return { error: PARENT_SEGMENT_ERROR, ok: false }
 
@@ -85,14 +88,14 @@ export function readGraphPreview(stdout: string): GraphPreview {
   try {
     parsed = JSON.parse(stdout)
   } catch {
-    throw new Error('не удалось разобрать ответ aec-rag graph-preview')
+    throw new Error(mainT('graph.parseFailed'))
   }
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('aec-rag graph-preview ответил не объектом')
+    throw new Error(mainT('graph.notObject'))
   }
   const record = parsed as Record<string, unknown>
   if (!isNumber(record.documents) || !isNumber(record.chunks_estimate)) {
-    throw new Error('в ответе aec-rag graph-preview нет чисел прогноза')
+    throw new Error(mainT('graph.noNumbers'))
   }
 
   return {

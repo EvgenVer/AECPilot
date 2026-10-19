@@ -9,6 +9,8 @@
 // «записка агента» или «записка о человеке». Приняв путь от окна, мы дали бы
 // возможность записать что угодно куда угодно внутри профиля.
 
+import { mainT } from './i18n'
+
 /** Сторона записки в терминах окна. Ничего, кроме этих двух, не существует. */
 export type NoteTarget = 'memory' | 'user'
 
@@ -37,11 +39,7 @@ export const NOTE_TARGET_ERROR = 'Неизвестная сторона запи
 export const NOTE_CONTENT_ERROR = 'Текст записки должен быть строкой'
 
 export function noteTooLongError(target: NoteTarget, length: number): string {
-  return (
-    `Записка длиннее предела ядра: ${length} знаков против ${NOTE_LIMITS[target]}. ` +
-    'Ядро вклеивает её в каждый ход целиком, поэтому сократите текст — ' +
-    'подробности лучше держать в памяти проекта.'
-  )
+  return mainT('memory.noteTooLong', length, NOTE_LIMITS[target])
 }
 
 export function isNoteTarget(value: unknown): value is NoteTarget {

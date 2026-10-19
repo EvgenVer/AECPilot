@@ -10,7 +10,7 @@ import {
   BAD_KIND_ERROR,
   PARENT_SEGMENT_ERROR,
   PROJECT_SOURCE_ID,
-  UNKNOWN_SOURCE_ERROR,
+  unknownSourceError,
   decideGraphMark,
   graphScopePath,
   readGraphLines,
@@ -47,7 +47,7 @@ describe('decideGraphMark', () => {
   it('отказывает незнакомому источнику', () => {
     const decision = decideGraphMark({ kind: 'file', rel: 'a.pdf', sourceId: 'чужой' }, SOURCES)
 
-    expect(decision).toEqual({ error: UNKNOWN_SOURCE_ERROR, ok: false })
+    expect(decision).toEqual({ error: unknownSourceError(), ok: false })
   })
 
   it('отказывает выходу за корень источника', () => {

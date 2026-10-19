@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import type { MemoryFactsAnswer } from '../shared/ipc'
 
 import { readFactsAnswer } from './memory-facts-pure'
+import { mainT } from './i18n'
 
 // TODO(Phase 6 / task 6.2): та же оговорка про упакованное приложение, что у
 // graph-runner — путь к скрипту внутри репозитория.
@@ -71,7 +72,7 @@ export function runMemoryFacts(
 
     const timer = setTimeout(() => {
       proc.kill()
-      done({ busy: false, error: 'Читатель памяти не ответил вовремя', ok: false })
+      done({ busy: false, error: mainT('memory.readerNoAnswerInTime'), ok: false })
     }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
@@ -84,7 +85,7 @@ export function runMemoryFacts(
     proc.on('error', (error: Error) => {
       done({
         busy: false,
-        error: `Не удалось запустить читатель памяти: ${error.message}`,
+        error: mainT('memory.readerSpawnFailed', error.message),
         ok: false
       })
     })

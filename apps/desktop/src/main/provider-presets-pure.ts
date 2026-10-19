@@ -13,6 +13,8 @@
 //
 // SECURITY: only variable NAMES live here, never values.
 
+import { mainT } from './i18n'
+
 /** The core's provider ids we have a preset for (`hermes_cli/auth.py`). */
 export const PRESET_PROVIDER_IDS = ['gemini', 'openai-api', 'custom'] as const
 export type PresetProviderId = (typeof PRESET_PROVIDER_IDS)[number]
@@ -93,16 +95,16 @@ export function isPresetProviderId(value: unknown): value is PresetProviderId {
  *  Refuses in words when there is nothing to go on — never falls back to OpenAI. */
 export function resolveProvider(profile: ProfileProvider): ResolvedProvider {
   const raw = (profile.provider ?? '').trim()
-  if (!raw) return { ok: false, reason: 'провайдер не выбран' }
+  if (!raw) return { ok: false, reason: mainT('provider.notChosen') }
   const id = raw.startsWith('custom:') ? 'custom' : raw
   if (!isPresetProviderId(id)) {
-    return { ok: false, reason: `для провайдера «${raw}» нет OpenAI-совместимого адреса в таблице` }
+    return { ok: false, reason: mainT('provider.noPresetAddress', raw) }
   }
   const preset = PROVIDER_PRESETS[id]
   const baseUrl = preset.baseUrl ?? (profile.baseUrl ?? '').trim()
   const keyEnvVar = preset.keyEnvVar ?? (profile.keyEnvVar ?? '').trim()
-  if (!baseUrl) return { ok: false, reason: 'у своего адреса не указан base_url' }
-  if (!keyEnvVar) return { ok: false, reason: 'у своего адреса не указана переменная ключа' }
+  if (!baseUrl) return { ok: false, reason: mainT('provider.noBaseUrl') }
+  if (!keyEnvVar) return { ok: false, reason: mainT('provider.noKeyVar') }
   return { ok: true, id, baseUrl, keyEnvVar, models: preset.models }
 }
 
@@ -272,7 +274,7 @@ export const DEFAULT_DATA_PROVIDERS: DataProviders = {
   memory: { provider: 'rag' }
 }
 
-const SETTINGS_PLACE = 'окне «Индекс и память» (палитра команд, Ctrl+K)'
+const settingsPlace = (): string => mainT('provider.settingsPlace')
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -335,7 +337,7 @@ function resolveAgentProvider(agent: ProfileProvider): ResolvedProvider {
   if (raw && !raw.startsWith('custom:') && !isPresetProviderId(raw)) {
     return {
       ok: false,
-      reason: `агент работает через «${raw}» — у этого входа нет адреса с ключом для индекса и памяти; выберите провайдера в ${SETTINGS_PLACE}`
+      reason: mainT('provider.agentNoAddress', raw, settingsPlace())
     }
   }
   return resolved
@@ -367,7 +369,7 @@ export function ragProvider(agent: ProfileProvider, choices: DataProviders): Rag
   if (!embedding || !extraction) {
     return {
       ok: false,
-      reason: `у своего адреса не выбраны модели RAG — укажите их в ${SETTINGS_PLACE}`
+      reason: mainT('provider.noRagModels', settingsPlace())
     }
   }
   return {
@@ -397,13 +399,13 @@ export function memoryProvider(agent: ProfileProvider, choices: DataProviders): 
   if (!llmModel || !embeddingModel) {
     return {
       ok: false,
-      reason: `у своего адреса не выбраны модели памяти — укажите их в ${SETTINGS_PLACE}`
+      reason: mainT('provider.noMemoryModels', settingsPlace())
     }
   }
   if (!embeddingDims) {
     return {
       ok: false,
-      reason: `ширина вектора модели «${embeddingModel}» не измерена — выберите модель заново в ${SETTINGS_PLACE}`
+      reason: mainT('provider.dimsUnknown', embeddingModel, settingsPlace())
     }
   }
   return {
@@ -560,19 +562,12 @@ export function embeddingChangeWarnings(input: {
   const to = rag.ok ? rag.env.AEC_RAG_EMBEDDING_MODEL : null
   const from = (index.builtWith ?? '').trim()
   if (from && to && to !== from && !(index.projectModel ?? '').trim()) {
-    warnings.push(
-      `Индекс проекта построен моделью «${from}», с этим выбором эмбеддинги считает «${to}». ` +
-        'Векторы разных моделей несравнимы: после сохранения индекс попросит перестройку — ' +
-        'в индикаторе индекса, с ценой до запуска.'
-    )
+    warnings.push(mainT('provider.warnIndexModel', from, to))
   }
   const memoryFrom = memoryEmbeddingModel(agent, saved)
   const memoryTo = memoryEmbeddingModel(agent, next)
   if (memoryFrom && memoryTo && memoryFrom !== memoryTo) {
-    warnings.push(
-      `Память записана моделью «${memoryFrom}», с этим выбором — «${memoryTo}». ` +
-        'Прежние факты не будут видны, пока модель не возвращена; удалены они не будут.'
-    )
+    warnings.push(mainT('provider.warnMemoryModel', memoryFrom, memoryTo))
   }
   return warnings
 }

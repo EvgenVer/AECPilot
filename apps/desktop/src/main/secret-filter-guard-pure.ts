@@ -13,13 +13,14 @@
 // дошла до конца в срок. Перед первым ходом каждой сессии главный процесс спрашивает
 // её через `command.dispatch`; нет ответа — ход не отправляется.
 
+import { mainT } from './i18n'
+
 export const FILTER_STATUS_COMMAND = 'aec-filter-status'
 export const FILTER_STATUS_LOADED = 'aec-secret-filter: loaded'
 
-export const FILTER_NOT_LOADED =
-  'Фильтр секретов не загрузился, поэтому ход не отправлен: без него агент мог бы ' +
-  'передать ключ или пароль наружу. Перезапустите приложение. Если повторится — ' +
-  'подробности в журнале ядра (logs/errors.log профиля).'
+export function filterNotLoaded(): string {
+  return mainT('secretFilter.notLoaded')
+}
 
 /** Запросы, с которых начинается работа модели с инструментами. */
 const TURN_METHODS = new Set(['prompt.submit', 'prompt.background', 'prompt.btw'])

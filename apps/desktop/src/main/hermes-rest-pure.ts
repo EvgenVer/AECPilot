@@ -9,6 +9,8 @@
 // nothing. Owner decision R1: REST is used only where RPC does not reach;
 // anything RPC covers keeps going over RPC.
 
+import { mainT } from './i18n'
+
 /** Everything the client needs to address the local gateway — the same
  * `{host, port, token}` `runtime/serve.mjs` already hands back from
  * `startServe`. */
@@ -68,16 +70,16 @@ export function buildRestHeaders(target: RestTarget, hasBody: boolean): Record<s
 export function redactSecrets(text: string, extra: string[] = []): string {
   let out = text
   for (const secret of extra) {
-    if (secret && secret.length >= 8) out = out.split(secret).join('[скрыто]')
+    if (secret && secret.length >= 8) out = out.split(secret).join(mainT('rest.redacted'))
   }
   return (
     out
       // Provider key prefixes: sk-…, sk-ant-…, ghp_…, xoxb-… and friends.
-      .replace(/\b(sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, '[скрыто]')
-      .replace(/\b(gh[pousr]|xox[baprs])[-_][A-Za-z0-9_-]{8,}/g, '[скрыто]')
+      .replace(/\b(sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, mainT('rest.redacted'))
+      .replace(/\b(gh[pousr]|xox[baprs])[-_][A-Za-z0-9_-]{8,}/g, mainT('rest.redacted'))
       // Bare high-entropy strings: 24+ hex or base64url characters in a row.
-      .replace(/\b[0-9a-fA-F]{24,}\b/g, '[скрыто]')
-      .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '[скрыто]')
+      .replace(/\b[0-9a-fA-F]{24,}\b/g, mainT('rest.redacted'))
+      .replace(/\b[A-Za-z0-9_-]{40,}\b/g, mainT('rest.redacted'))
   )
 }
 
@@ -92,15 +94,15 @@ export function redactSecrets(text: string, extra: string[] = []): string {
 export function describeRestError(status: number, detail: string, tokens: string[] = []): string {
   const clean = redactSecrets(detail.trim(), tokens)
   const suffix = clean === '' ? '' : `: ${clean}`
-  if (status === 400) return `Ядро отклонило запрос${suffix}`
+  if (status === 400) return mainT('rest.badRequest', suffix)
   if (status === 401 || status === 403) {
-    return 'Ядро не приняло токен сессии — перезапустите бэкенд в разделе «Шлюз»'
+    return mainT('rest.tokenRejected')
   }
-  if (status === 404) return `Не найдено${suffix}`
-  if (status === 409) return `Уже существует${suffix}`
-  if (status === 422) return `Ядро не приняло данные формы${suffix}`
-  if (status >= 500) return `Ошибка на стороне ядра (${status})${suffix}`
-  return `Запрос отклонён (${status})${suffix}`
+  if (status === 404) return mainT('rest.notFound', suffix)
+  if (status === 409) return mainT('rest.exists', suffix)
+  if (status === 422) return mainT('rest.invalidForm', suffix)
+  if (status >= 500) return mainT('rest.serverError', status, suffix)
+  return mainT('rest.rejected', status, suffix)
 }
 
 /** Pulls FastAPI's error text out of a parsed body.

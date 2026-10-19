@@ -25,6 +25,7 @@
 import { app, dialog, BrowserWindow, type WebContents } from 'electron'
 
 import { decidePreviewNavigation, describeNavigation } from './preview-nav-policy'
+import { mainT } from './i18n'
 
 /** Адрес, с которого шла последняя разрешённая навигация каждого гостя. */
 const openedByGuest = new Map<number, string>()
@@ -39,11 +40,8 @@ function askText(target: string): { message: string; detail: string } {
   const { host, address } = describeNavigation(target)
 
   return {
-    message: host ? `Страница уводит на ${host}` : 'Страница уводит на другой адрес',
-    detail:
-      `Открытая страница пытается перейти по адресу:\n${address}\n\n` +
-      'Это другой сайт, а не другая страница того же сайта. Вместе с адресом ' +
-      'туда уходит всё, что в нём написано, — поэтому решение за вами.'
+    message: host ? mainT('preview.navMessageHost', host) : mainT('preview.navMessageOther'),
+    detail: mainT('preview.navDetail', address)
   }
 }
 
@@ -52,7 +50,7 @@ async function confirmNavigation(contents: WebContents, target: string): Promise
   const { message, detail } = askText(target)
   const options = {
     type: 'question' as const,
-    buttons: ['Перейти', 'Остаться'],
+    buttons: [mainT('preview.navGo'), mainT('preview.navStay')],
     defaultId: 1,
     cancelId: 1,
     message,
