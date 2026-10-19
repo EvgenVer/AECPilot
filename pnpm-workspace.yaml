@@ -53,6 +53,13 @@ overrides:
   # release at all (latest is 1.1.3, the fix is promised for >=1.1.4): recorded,
   # nothing to bump to; it never reaches the shipped bundle (T37 rechecks).
   undici@6: '^6.28.1'
+  # Task T37, owner decision 2026-10-19: buffers@0.1.1 has no license anywhere (see
+  # below), reached only as exceljs > unzipper@0.10 > binary > buffers. unzipper
+  # 0.12.5 (MIT, already in the lock under electron-builder) drops binary, buffers,
+  # chainsaw, traverse and big-integer. exceljs needs unzipper only in its STREAMING
+  # reader (`lib/stream/xlsx/workbook-reader.js`); we read with `xlsx.readFile` /
+  # `xlsx.load` (jszip). Recheck on every exceljs raise.
+  unzipper@0.10: '0.12.5'
 
 # `unicode-animations` ships a postinstall that prints a spinner demo to
 # /dev/tty for three seconds. Harmless (read the script: no network, no writes)
@@ -92,6 +99,8 @@ overrides:
 #                   не «метаданные потеряли»: спрашивать больше некого и негде.
 #                   Остаётся выбор владельца — принять как есть или уйти с
 #                   exceljs; до этого выбора пакет едет в поставку без прав.
+#                   ВЫБОР СДЕЛАН 2026-10-19 (T37): убрать — override
+#                   `unzipper@0.10: 0.12.5` выше; пакета в дереве больше нет.
 # Задача 3E.23 (замечание D-73), решение владельца 2026-09-08 — вариант «запись
 # с обоснованием». Двенадцать записей ниже — ОДИН пакет, `tar@6.2.1`, и одна
 # дорога: `apps/desktop > get-windows > @mapbox/node-pre-gyp > tar` (плюс та же
@@ -167,6 +176,10 @@ auditConfig:
 #     the Squirrel.Windows target; we build NSIS and zip (T38), so its install
 #     script (it copies Squirrel's vendor binaries) has nothing to do.
 allowBuilds:
+  # Task T37: its install script downloads the Electron binary into `dist/`; without
+  # it the package is a stub (measured on the raise to 43.7.11: `onlyBuiltDependencies`
+  # below no longer gates builds under pnpm 11, `allowBuilds` does).
+  electron: true
   electron-winstaller: false
   get-windows: true
   unicode-animations: false
