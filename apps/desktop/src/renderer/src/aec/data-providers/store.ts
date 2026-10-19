@@ -6,6 +6,7 @@
 import { atom } from 'nanostores'
 
 import type { DataProvidersFile, DataProvidersState } from '../../../../shared/ipc'
+import { aecT } from '../../shared/i18n/aec-translate'
 
 export const EMPTY_STATE: DataProvidersState = {
   encryptionAvailable: true,
@@ -55,7 +56,8 @@ export async function saveDataChoice(
 ): Promise<{ error: string; warnings: string[] }> {
   const answer = await window.aecpilot.saveDataProviders(choice, confirmed)
   if (answer.warnings?.length) return { error: '', warnings: answer.warnings }
-  if (!answer.ok) return { error: answer.error ?? 'выбор не сохранён', warnings: [] }
+  if (!answer.ok)
+    return { error: answer.error ?? aecT('dataProviders.errChoiceNotSaved'), warnings: [] }
   await refreshDataProviders()
   return { error: '', warnings: [] }
 }
@@ -68,12 +70,12 @@ export async function listModels(
   const answer = await window.aecpilot.listDataModels(choice, section)
   return answer.ok && answer.models
     ? { ok: true, models: answer.models }
-    : { ok: false, error: answer.error ?? 'список не получен' }
+    : { ok: false, error: answer.error ?? aecT('dataProviders.errListFailed') }
 }
 
 export async function saveDataKey(envVar: string, key: null | string): Promise<string> {
   const answer = await window.aecpilot.saveProviderKey({ envVar, key })
-  if (!answer.ok) return answer.error ?? 'ключ не сохранён'
+  if (!answer.ok) return answer.error ?? aecT('dataProviders.errKeyNotSaved')
   await refreshDataProviders()
   return ''
 }

@@ -18,7 +18,7 @@ import { useAecT } from '../../shared/i18n'
 import type { RollbackCheckpoint, RollbackDiffResult } from '../../../../shared/gateway/types'
 
 import {
-  DIFF_CHANGE_LABEL,
+  DIFF_CHANGE_KEY,
   describeRollback,
   explainScope,
   formatCheckpointTime,
@@ -181,7 +181,8 @@ export function RollbackPanel() {
 }
 
 function ScopeWarning({ scope }: { scope: Parameters<typeof explainScope>[0] }) {
-  const { title, detail } = explainScope(scope)
+  const t = useAecT()
+  const { title, detail } = explainScope(scope, t)
 
   return (
     <div className="flex flex-col gap-1 rounded-[4px] bg-(--ui-bg-quaternary) p-2">
@@ -232,7 +233,7 @@ function DiffView({
         {files.map((file) => (
           <li className="flex items-center gap-2" key={file.path}>
             <span className="min-w-0 flex-1 truncate">{file.path}</span>
-            <span className="text-(--ui-text-secondary)">{DIFF_CHANGE_LABEL[file.change]}</span>
+            <span className="text-(--ui-text-secondary)">{t(DIFF_CHANGE_KEY[file.change])}</span>
             {file.binary && (
               <span className="text-(--ui-text-secondary)">{t('rollback.binary')}</span>
             )}

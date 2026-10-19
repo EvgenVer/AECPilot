@@ -2,10 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
-import {
-  createHermesDesktopBridge,
-  CHANNEL_ENABLE_DECLINED
-} from '../../shared/hermes-desktop-shim'
+import { createHermesDesktopBridge, channelEnableDeclined } from '../../shared/hermes-desktop-shim'
 
 import ChannelDisclosureDialog from './ChannelDisclosureDialog'
 import { $channelConsent } from './store'
@@ -95,7 +92,7 @@ describe('раскрытие перед включением канала', () =
     await vi.waitFor(() => expect($channelConsent.get()).not.toBeNull())
     $channelConsent.get()!.answer(false)
 
-    await expect(call).rejects.toThrow(CHANNEL_ENABLE_DECLINED)
+    await expect(call).rejects.toThrow(channelEnableDeclined())
     expect(rest).not.toHaveBeenCalled()
   })
 
@@ -115,7 +112,7 @@ describe('раскрытие перед включением канала', () =
 
     const second = bridge.api({ ...ENABLE, path: '/api/messaging/platforms/discord' })
 
-    await expect(second).rejects.toThrow(CHANNEL_ENABLE_DECLINED)
+    await expect(second).rejects.toThrow(channelEnableDeclined())
     expect($channelConsent.get()?.platformId).toBe('telegram')
     expect(rest).not.toHaveBeenCalled()
   })

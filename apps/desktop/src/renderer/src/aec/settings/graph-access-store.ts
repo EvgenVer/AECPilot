@@ -8,6 +8,7 @@
 import { atom } from 'nanostores'
 
 import type { GraphAccessState } from '../../../../shared/ipc'
+import { aecT } from '../../shared/i18n/aec-translate'
 
 export const EMPTY: GraphAccessState = {
   encryptionAvailable: true,
@@ -33,7 +34,7 @@ export async function refreshGraphAccess(): Promise<GraphAccessState> {
  *  тому, что ничего не изменилось. */
 export async function saveGraphKey(envVar: string, key: null | string): Promise<string> {
   const answer = await window.aecpilot.saveProviderKey({ envVar, key })
-  if (!answer.ok) return answer.error ?? 'ключ не сохранён'
+  if (!answer.ok) return answer.error ?? aecT('dataProviders.errKeyNotSaved')
   await refreshGraphAccess()
   return ''
 }

@@ -371,6 +371,8 @@ export const aecLocales: PluginLocaleBundles = {
       next: 'Next page',
       close: 'Close',
       closeTab: (name: string) => `Close ${name}`,
+      sourceLine: (sourceId: string) => `Source: ${sourceId}. `,
+      pathLine: (path: string) => `Path: ${path}`,
       unsupported: 'This format will open in the built-in viewer later.',
       showInExplorer: 'Show in file manager',
       search: 'Search in the document',
@@ -392,6 +394,43 @@ export const aecLocales: PluginLocaleBundles = {
       sheetTruncated: (shown: number, total: number) => `First ${shown} rows of ${total}`
     },
     rollback: {
+      scope: {
+        vault: {
+          title: 'Snapshots are taken for the project root',
+          detail: 'The list below is complete.'
+        },
+        ancestor: {
+          title: 'Checkpoints are taken for a different folder',
+          detail: (dir: string) =>
+            `The core looks upward from the edited file for a project marker folder and found one above the vault: ${dir}. Snapshots are stored there, while this screen asks for the project root — that is why the list is empty.`
+        },
+        blocked: {
+          title: 'No snapshots are taken at all',
+          detail: (dir: string) =>
+            `The nearest project marker folder is the home directory (${dir}), which the core considers too broad and silently refuses to snapshot. No snapshot of the agent’s edits is saved.`
+        },
+        unmarked: {
+          title: 'Checkpoints are taken for a different folder',
+          detail:
+            'The project root has none of the marker folders the core looks for, so a snapshot is taken for the subfolder that holds the edited file. This screen asks for the project root and does not see such snapshots.'
+        },
+        remote: {
+          title: 'Snapshots are taken on the core’s machine',
+          detail:
+            'The core runs on another machine, and the folder it takes snapshots for cannot be seen from here. An empty list may mean either that nothing was edited, or that snapshots are stored there in a different folder.'
+        },
+        unknown: {
+          title: 'Could not check the snapshot scope',
+          detail:
+            'No project is open, or its root cannot be read right now — an empty list may mean either that nothing was edited, or that snapshots are stored in a different folder.'
+        }
+      },
+      change: {
+        added: 'added',
+        deleted: 'deleted',
+        renamed: 'renamed',
+        modified: 'changed'
+      },
       title: 'Changes',
       loading: 'Loading snapshots…',
       disabled: 'Checkpoints are off — the agent’s edits are not being snapshotted.',
@@ -512,6 +551,9 @@ export const aecLocales: PluginLocaleBundles = {
       confirm: 'Turn on'
     },
     dataProviders: {
+      errChoiceNotSaved: 'the choice was not saved',
+      errListFailed: 'the list was not received',
+      errKeyNotSaved: 'the key was not saved',
       command: 'Index and memory',
       title: 'Index and memory',
       lead:
@@ -563,6 +605,8 @@ export const aecLocales: PluginLocaleBundles = {
         'The core profile could not be read, so the choice can be neither shown nor saved.'
     },
     graphAccess: {
+      checkDone: 'done',
+      checkMissing: 'not yet',
       command: 'Microsoft Graph access',
       title: 'Microsoft Graph access',
       lead:
@@ -680,10 +724,36 @@ export const aecLocales: PluginLocaleBundles = {
       navCount: (count: number) => `Memory · ${count}`
     },
     citations: {
+      pageAbbr: 'p.',
       unverified: 'This phrase is not in the cited place:',
       projectFile: 'project file',
       projectFileHint:
         'A file of the project itself (a draft, a wiki page) — not a source document.'
+    },
+    quickEntry: {
+      ariaLabel: 'Message to the agent',
+      placeholder: 'What should be done? Enter to send, Esc to hide',
+      target: 'Send to:',
+      targetCurrent: 'the current session',
+      targetNew: 'a new session',
+      sending: 'Sending…',
+      onTop: 'The window stays on top'
+    },
+    shim: {
+      declinedChannel: 'The channel was not enabled — you cancelled.',
+      declinedInstall: 'Not installed — you did not confirm the installation.',
+      declinedWebhooks: 'The receiver was not enabled — you cancelled the core restart.',
+      imageReleased: 'Could not read the image: the window has already released it.',
+      imageNoCanvas: 'Could not read the image: the window gave no canvas.',
+      connectionUnknown: (id: string) => `Connection “${id}” is not registered`,
+      thisComputer: 'This computer',
+      settingNotApplied: 'the setting was not applied',
+      settingNotSaved: 'the setting was not saved'
+    },
+    modelKeys: {
+      noKeyMark: 'no key',
+      noKeyRefusal: (provider: string) =>
+        `Provider ${provider} has no key — add it in Settings → Keys.`
     },
     onboarding: {
       title: 'Getting started',
@@ -1141,6 +1211,8 @@ export const aecLocales: PluginLocaleBundles = {
       next: 'Следующая страница',
       close: 'Закрыть',
       closeTab: (name: string) => `Закрыть ${name}`,
+      sourceLine: (sourceId: string) => `Источник: ${sourceId}. `,
+      pathLine: (path: string) => `Путь: ${path}`,
       unsupported: 'Этот формат откроется во встроенном просмотрщике позже.',
       showInExplorer: 'Показать в проводнике',
       search: 'Поиск по документу',
@@ -1162,6 +1234,43 @@ export const aecLocales: PluginLocaleBundles = {
       sheetTruncated: (shown: number, total: number) => `Первые ${shown} строк из ${total}`
     },
     rollback: {
+      scope: {
+        vault: {
+          title: 'Снимки собираются для корня проекта',
+          detail: 'Список ниже полный.'
+        },
+        ancestor: {
+          title: 'Чекпойнты собираются не для этой папки',
+          detail: (dir: string) =>
+            `Ядро ищет вверх от правимого файла папку-признак проекта и нашло её выше хранилища: ${dir}. Снимки складываются туда, а этот экран спрашивает корень проекта — поэтому список пуст.`
+        },
+        blocked: {
+          title: 'Снимки не создаются вообще',
+          detail: (dir: string) =>
+            `Ближайшая папка-признак проекта — домашняя директория (${dir}), а её ядро считает слишком широкой и молча отказывается снимать. Ни один снимок правок агента не сохраняется.`
+        },
+        unmarked: {
+          title: 'Чекпойнты собираются не для этой папки',
+          detail:
+            'В корне проекта нет ни одной папки-признака, которую ищет ядро, поэтому снимок делается для той подпапки, где лежит правимый файл. Этот экран спрашивает корень проекта и таких снимков не видит.'
+        },
+        remote: {
+          title: 'Снимки собираются на машине ядра',
+          detail:
+            'Ядро работает на другой машине, и папку, для которой оно делает снимки, отсюда не увидеть. Пустой список может означать и отсутствие правок, и то, что снимки складываются там в другую папку.'
+        },
+        unknown: {
+          title: 'Охват снимков проверить не удалось',
+          detail:
+            'Проект не открыт либо его корень сейчас не читается — пустой список может означать и отсутствие правок, и то, что снимки складываются в другую папку.'
+        }
+      },
+      change: {
+        added: 'добавлен',
+        deleted: 'удалён',
+        renamed: 'переименован',
+        modified: 'изменён'
+      },
       title: 'Изменения',
       loading: 'Загружаю снимки…',
       disabled: 'Чекпойнты выключены — снимки правок агента не сохраняются.',
@@ -1282,6 +1391,9 @@ export const aecLocales: PluginLocaleBundles = {
       confirm: 'Включить'
     },
     dataProviders: {
+      errChoiceNotSaved: 'выбор не сохранён',
+      errListFailed: 'список не получен',
+      errKeyNotSaved: 'ключ не сохранён',
       command: 'Индекс и память',
       title: 'Индекс и память',
       lead:
@@ -1332,6 +1444,8 @@ export const aecLocales: PluginLocaleBundles = {
       profileUnread: 'Профиль ядра не прочитан — выбор не показать и не сохранить.'
     },
     graphAccess: {
+      checkDone: 'готово',
+      checkMissing: 'нет',
       command: 'Доступы Microsoft Graph',
       title: 'Доступы Microsoft Graph',
       lead:
@@ -1446,9 +1560,35 @@ export const aecLocales: PluginLocaleBundles = {
       navCount: (count: number) => `Память · ${count}`
     },
     citations: {
+      pageAbbr: 'с.',
       unverified: 'Этой фразы в процитированном месте нет:',
       projectFile: 'файл проекта',
       projectFileHint: 'Файл самого проекта (черновик, страница вики), а не документ источника.'
+    },
+    quickEntry: {
+      ariaLabel: 'Сообщение агенту',
+      placeholder: 'Что сделать? Enter — отправить, Esc — скрыть',
+      target: 'Куда:',
+      targetCurrent: 'в текущую сессию',
+      targetNew: 'в новую сессию',
+      sending: 'Отправляю…',
+      onTop: 'Окно поверх остальных'
+    },
+    shim: {
+      declinedChannel: 'Канал не включён — вы отменили включение.',
+      declinedInstall: 'Не установлено — вы не подтвердили установку.',
+      declinedWebhooks: 'Приёмник не включён — вы отменили перезапуск ядра.',
+      imageReleased: 'Картинку не удалось прочитать: окно её уже освободило.',
+      imageNoCanvas: 'Картинку не удалось прочитать: окно не дало холст.',
+      connectionUnknown: (id: string) => `Подключение «${id}» не зарегистрировано`,
+      thisComputer: 'Этот компьютер',
+      settingNotApplied: 'настройка не применена',
+      settingNotSaved: 'настройка не сохранена'
+    },
+    modelKeys: {
+      noKeyMark: 'нет ключа',
+      noKeyRefusal: (provider: string) =>
+        `У провайдера ${provider} нет ключа — добавьте его в Настройках → Ключи.`
     },
     onboarding: {
       title: 'С чего начать',

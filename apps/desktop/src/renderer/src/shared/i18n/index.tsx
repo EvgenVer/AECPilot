@@ -14,10 +14,12 @@ import { type ReactNode, useState } from 'react'
 
 import { I18nProvider, useI18n } from '../../donor/i18n/context'
 import { registerPluginLocales, usePluginI18n } from '../../donor/i18n/plugin-i18n'
+import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { LOCALE_OPTIONS } from '../../donor/i18n/languages'
 import type { Locale } from '../../donor/i18n/types'
 
 import { AEC_I18N_NAMESPACE, aecLocales } from './aec-catalog'
+import { bindAecLocale } from './aec-translate'
 import { createI18nConfigClient, readStoredLocale } from './config-client'
 
 export { useI18n }
@@ -45,6 +47,10 @@ export function useAecT(): (key: string, ...args: unknown[]) => string {
 // from non-React code, and a bundle that only exists once a component has
 // mounted would make those calls return raw keys.
 registerPluginLocales(AEC_I18N_NAMESPACE, aecLocales)
+
+// The same, for code that has no component: `aecT` (aec-translate.ts) follows the
+// language their provider keeps in the runtime.
+bindAecLocale(getRuntimeI18nLocale)
 
 /** Mounts their provider with our storage behind it. `initialLocale` is read
  * synchronously so the first paint is already in the right language — their

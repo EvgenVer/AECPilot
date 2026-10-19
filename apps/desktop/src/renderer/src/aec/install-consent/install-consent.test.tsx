@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { Dialog, DialogContent, DialogTitle } from '../../donor/components/ui/dialog'
-import { createHermesDesktopBridge, INSTALL_DECLINED } from '../../shared/hermes-desktop-shim'
+import { createHermesDesktopBridge, installDeclined } from '../../shared/hermes-desktop-shim'
 import { AecI18nProvider } from '../../shared/i18n'
 
 import InstallConsentDialog from './InstallConsentDialog'
@@ -120,7 +120,7 @@ describe('гейт доверия на установку', () => {
     expect(rest).not.toHaveBeenCalled()
 
     $installConsent.get()!.answer(false)
-    await expect(call).rejects.toThrow(INSTALL_DECLINED)
+    await expect(call).rejects.toThrow(installDeclined())
   })
 
   test('согласие пропускает тот же самый запрос дальше', async () => {
@@ -144,7 +144,7 @@ describe('гейт доверия на установку', () => {
     await vi.waitFor(() => expect($installConsent.get()).not.toBeNull())
     $installConsent.get()!.answer(false)
 
-    await expect(call).rejects.toThrow(INSTALL_DECLINED)
+    await expect(call).rejects.toThrow(installDeclined())
     expect(rest).not.toHaveBeenCalled()
   })
 
@@ -184,7 +184,7 @@ describe('гейт доверия на установку', () => {
       body: { name: 'filesystem' }
     })
 
-    await expect(second).rejects.toThrow(INSTALL_DECLINED)
+    await expect(second).rejects.toThrow(installDeclined())
     expect($installConsent.get()?.label).toBe('nous/pdf-tools')
     expect(rest).not.toHaveBeenCalled()
   })
@@ -214,7 +214,7 @@ describe('гейт доверия на установку', () => {
     const consent = await screen.findByRole('dialog', { name: /Добавить MCP-сервер/ })
     fireEvent.click(within(consent).getByRole('button', { name: 'Отмена' }))
 
-    await expect(call).rejects.toThrow(INSTALL_DECLINED)
+    await expect(call).rejects.toThrow(installDeclined())
     expect(rest).not.toHaveBeenCalled()
   })
 })

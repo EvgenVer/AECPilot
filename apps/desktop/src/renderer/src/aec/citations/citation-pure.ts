@@ -184,10 +184,11 @@ export function parseCitationLabel(label: string): Citation | null {
 
 /** What the citation says out loud, for the chip and for its tooltip: the file
  *  name plus the place, without the machine syntax around it. */
-export function citationLabel(citation: Citation): string {
+export function citationLabel(citation: Citation, pageAbbr = 'с.'): string {
   const name = citation.relPath.split('/').pop() || citation.relPath
   const locator = formatLocator(citation.locator)
-  if (typeof citation.locator.page === 'number') return `${name}, с. ${citation.locator.page}`
+  if (typeof citation.locator.page === 'number')
+    return `${name}, ${pageAbbr} ${citation.locator.page}`
   if (citation.locator.heading) return `${name} — ${citation.locator.heading}`
   return locator ? `${name} — ${locator}` : name
 }

@@ -47,6 +47,7 @@ import {
   providersWithoutKey,
   type EnvCatalog
 } from '../aec/model-keys/model-keys-pure'
+import { aecT } from './i18n/aec-translate'
 
 /**
  * Отказ шлюза в ИХ форме. Класс жил только внутри их невендоренного
@@ -288,14 +289,18 @@ export class GatewayBridge {
 
     if (method === 'model.options') {
       return Promise.all([send(), this.providersWithoutKey()]).then(([options, missing]) =>
-        markProvidersWithoutKey(options, missing)
+        markProvidersWithoutKey(options, missing, aecT('modelKeys.noKeyMark'))
       )
     }
     if (method === 'setup.runtime_check') return send().then(withoutForeignSetupReason)
     const provider = providerBeingSaved(method, params)
     if (provider) {
       return this.providersWithoutKey().then((missing) =>
-        missing.has(provider) ? Promise.reject(new Error(noKeyRefusal(provider))) : send()
+        missing.has(provider)
+          ? Promise.reject(
+              new Error(noKeyRefusal(provider, (name) => aecT('modelKeys.noKeyRefusal', name)))
+            )
+          : send()
       )
     }
     return send()

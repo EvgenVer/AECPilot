@@ -53,7 +53,7 @@ export function CitationChip({ citation }: { citation: Citation }): React.JSX.El
         aria-hidden
       />
       {projectFile && <span className="shrink-0 opacity-75">{t('citations.projectFile')}:</span>}
-      <span className="truncate">{citationLabel(citation)}</span>
+      <span className="truncate">{citationLabel(citation, t('citations.pageAbbr'))}</span>
     </button>
   )
 }

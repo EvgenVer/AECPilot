@@ -4,11 +4,23 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { AecI18nProvider } from '../../shared/i18n'
 import { $openDocument, closeAllDocuments } from '../viewers/viewer-store'
 
 import { CitationChip } from './CitationLink'
 import { parseCitationLabel, parseCitations } from './citation-pure'
 import { forgetVerdicts, rememberVerdicts } from './quote-verdicts'
+
+// Inside the real provider: the interface language is its default (Russian)
+// unless `aecpilot.ui-language` says otherwise.
+function renderChipInProvider(text: string): void {
+  const [citation] = parseCitations(text)
+  render(
+    <AecI18nProvider>
+      <CitationChip citation={citation} />
+    </AecI18nProvider>
+  )
+}
 
 function renderChip(text: string): void {
   const [citation] = parseCitations(text)
@@ -27,9 +39,20 @@ describe('CitationChip', () => {
   })
 
   it('shows the file and the page, not the machine syntax', () => {
-    renderChip('[src: tasks/ЭОМ/задание.pdf#p12]')
+    renderChipInProvider('[src: tasks/ЭОМ/задание.pdf#p12]')
 
     expect(screen.getByRole('button').textContent).toContain('задание.pdf, с. 12')
+  })
+
+  it('abbreviates the page in the interface language', () => {
+    window.localStorage.setItem('aecpilot.ui-language', 'en')
+    try {
+      renderChipInProvider('[src: tasks/ЭОМ/задание.pdf#p12]')
+
+      expect(screen.getByRole('button').textContent).toContain('задание.pdf, p. 12')
+    } finally {
+      window.localStorage.removeItem('aecpilot.ui-language')
+    }
   })
 
   it('keeps the raw citation reachable as the title — it is what an engineer copies', () => {

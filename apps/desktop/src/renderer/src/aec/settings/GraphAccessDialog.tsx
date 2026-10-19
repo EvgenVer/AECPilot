@@ -122,7 +122,7 @@ function Readiness(): React.JSX.Element {
       {rows.map(([done, key]) => (
         <li className="text-xs text-(--ui-text-secondary)" key={key}>
           <span className={done ? 'text-(--ui-text-primary)' : 'text-amber-500'}>
-            {done ? 'готово' : 'нет'}
+            {done ? t('graphAccess.checkDone') : t('graphAccess.checkMissing')}
           </span>
           {' — '}
           {t(key)}

@@ -2,10 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
-import {
-  createHermesDesktopBridge,
-  WEBHOOKS_ENABLE_DECLINED
-} from '../../shared/hermes-desktop-shim'
+import { createHermesDesktopBridge, webhooksEnableDeclined } from '../../shared/hermes-desktop-shim'
 
 import WebhookConsentDialog from './WebhookConsentDialog'
 import { $webhookConsent } from './store'
@@ -68,7 +65,7 @@ describe('согласие на перезапуск ядра при включ�
     renderDialog()
     fireEvent.click(screen.getByRole('button', { name: /отмена/i }))
 
-    await expect(call).rejects.toThrow(WEBHOOKS_ENABLE_DECLINED)
+    await expect(call).rejects.toThrow(webhooksEnableDeclined())
     expect(rest).not.toHaveBeenCalled()
   })
 

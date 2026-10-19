@@ -38,56 +38,21 @@ export function describeRollback(listing: RollbackListing): RollbackView {
   }
 }
 
-/** Russian explanation of a scope verdict: a headline and the reason behind
- * it. Kept next to `describeRollback` because the two are read together — the
+/** Translator for the strings of this screen: `useAecT()` in a component, the
+ * runtime translator elsewhere. Passed in so the module stays pure. */
+export type Translate = (key: string, ...args: unknown[]) => string
+
+/** Explanation of a scope verdict: a headline and the reason behind it. The
+ * words live in the catalog (`rollback.scope.<kind>.title|detail`, T27) — the
  * view kind decides whether to show this at all, the text says why. */
-export function explainScope(scope: CheckpointScopeInfo): { title: string; detail: string } {
-  switch (scope.kind) {
-    case 'vault':
-      return {
-        title: 'Снимки собираются для корня проекта',
-        detail: 'Список ниже полный.'
-      }
-    case 'ancestor':
-      return {
-        title: 'Чекпойнты собираются не для этой папки',
-        detail:
-          `Ядро ищет вверх от правимого файла папку-признак проекта и нашло её выше ` +
-          `хранилища: ${scope.dir}. Снимки складываются туда, а этот экран спрашивает ` +
-          `корень проекта — поэтому список пуст.`
-      }
-    case 'blocked':
-      return {
-        title: 'Снимки не создаются вообще',
-        detail:
-          `Ближайшая папка-признак проекта — домашняя директория (${scope.dir}), а её ` +
-          `ядро считает слишком широкой и молча отказывается снимать. Ни один снимок ` +
-          `правок агента не сохраняется.`
-      }
-    case 'unmarked':
-      return {
-        title: 'Чекпойнты собираются не для этой папки',
-        detail:
-          'В корне проекта нет ни одной папки-признака, которую ищет ядро, поэтому ' +
-          'снимок делается для той подпапки, где лежит правимый файл. Этот экран ' +
-          'спрашивает корень проекта и таких снимков не видит.'
-      }
-    case 'remote':
-      return {
-        title: 'Снимки собираются на машине ядра',
-        detail:
-          'Ядро работает на другой машине, и папку, для которой оно делает снимки, ' +
-          'отсюда не увидеть. Пустой список может означать и отсутствие правок, и то, ' +
-          'что снимки складываются там в другую папку.'
-      }
-    case 'unknown':
-      return {
-        title: 'Охват снимков проверить не удалось',
-        detail:
-          'Проект не открыт либо его корень сейчас не читается — пустой список может ' +
-          'означать и отсутствие правок, и то, что снимки складываются в другую папку.'
-      }
-  }
+export function explainScope(
+  scope: CheckpointScopeInfo,
+  t: Translate
+): { title: string; detail: string } {
+  const key = `rollback.scope.${scope.kind}`
+  // Only these two verdicts name a directory in their sentence.
+  const dir = scope.kind === 'ancestor' || scope.kind === 'blocked' ? scope.dir : ''
+  return { title: t(`${key}.title`), detail: t(`${key}.detail`, dir) }
 }
 
 /** Snapshot time for a list row.
@@ -199,9 +164,10 @@ export function parseDiffFiles(diff: string): DiffFile[] {
   return files
 }
 
-export const DIFF_CHANGE_LABEL: Record<DiffChange, string> = {
-  added: 'добавлен',
-  deleted: 'удалён',
-  renamed: 'переименован',
-  modified: 'изменён'
+/** Catalog key of the word that names a file's change in the list. */
+export const DIFF_CHANGE_KEY: Record<DiffChange, string> = {
+  added: 'rollback.change.added',
+  deleted: 'rollback.change.deleted',
+  renamed: 'rollback.change.renamed',
+  modified: 'rollback.change.modified'
 }

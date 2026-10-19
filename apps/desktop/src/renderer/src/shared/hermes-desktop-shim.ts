@@ -51,6 +51,7 @@ import { localPreviewTarget } from '../donor/lib/local-preview'
 import type { PreviewTarget } from '../donor/store/preview'
 
 import { gatewayBridge } from './gateway-bridge'
+import { aecT } from './i18n/aec-translate'
 
 type HermesDesktop = Window['hermesDesktop']
 
@@ -195,7 +196,7 @@ function hostOf(url: string): string {
  * вход по ключу», «ключ хоста изменился», «ядра там нет». Обычный `Error`
  * заменил бы все шесть советов одним «не получилось». */
 function connectionFailure(message: string | undefined, sshError: string | undefined): Error {
-  const error = new Error(message ?? 'настройка не применена')
+  const error = new Error(message ?? aecT('shim.settingNotApplied'))
   if (sshError !== undefined) Object.assign(error, { sshError })
   return error
 }
@@ -214,13 +215,13 @@ async function blobUrlToDataUrl(url: string): Promise<string> {
   try {
     await image.decode()
   } catch {
-    throw new Error('Картинку не удалось прочитать: окно её уже освободило.')
+    throw new Error(aecT('shim.imageReleased'))
   }
   const canvas = document.createElement('canvas')
   canvas.width = image.naturalWidth
   canvas.height = image.naturalHeight
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('Картинку не удалось прочитать: окно не дало холст.')
+  if (!context) throw new Error(aecT('shim.imageNoCanvas'))
   context.drawImage(image, 0, 0)
   return canvas.toDataURL('image/png')
 }
@@ -272,7 +273,7 @@ async function askMcpPutConsent<T>(request: {
     })
   }
 
-  if (!(await askInstallConsent(question))) throw new Error(INSTALL_DECLINED)
+  if (!(await askInstallConsent(question))) throw new Error(installDeclined())
 
   return gatewayBridge().rest<T>(request.path, {
     method: 'PUT',
@@ -308,15 +309,15 @@ function serverEntryOf(
 
 /** Shown by their own error toast when someone reads the list and backs out.
  * A sentence, not a code: it is the whole feedback the person gets. */
-export const CHANNEL_ENABLE_DECLINED = 'Канал не включён — вы отменили включение.'
+export const channelEnableDeclined = (): string => aecT('shim.declinedChannel')
 
 /** То же для установки (задача 3.8): их код ловит эту ошибку и показывает её
  * текст, поэтому отказ обязан читаться как решение человека, а не как сбой. */
-export const INSTALL_DECLINED = 'Не установлено — вы не подтвердили установку.'
+export const installDeclined = (): string => aecT('shim.declinedInstall')
 
 /** Задача 3F.D4 (D-105): отказ от включения приёмника вебхуков. Их экран ловит
  * ошибку и показывает её текст в своём уведомлении. */
-export const WEBHOOKS_ENABLE_DECLINED = 'Приёмник не включён — вы отменили перезапуск ядра.'
+export const webhooksEnableDeclined = (): string => aecT('shim.declinedWebhooks')
 
 /** The members our main process actually serves today. Typed loosely on
  * purpose: their contract is wide and precise (90-odd members), ours is a
@@ -353,7 +354,7 @@ const IMPLEMENTED: Record<string, unknown> = {
               ...(request.body === undefined ? {} : { body: request.body }),
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
-          : Promise.reject(new Error(CHANNEL_ENABLE_DECLINED))
+          : Promise.reject(new Error(channelEnableDeclined()))
       )
     }
 
@@ -380,7 +381,7 @@ const IMPLEMENTED: Record<string, unknown> = {
               ...(request.body === undefined ? {} : { body: request.body }),
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
-          : Promise.reject(new Error(INSTALL_DECLINED))
+          : Promise.reject(new Error(installDeclined()))
       )
     }
 
@@ -395,7 +396,7 @@ const IMPLEMENTED: Record<string, unknown> = {
               ...(request.body === undefined ? {} : { body: request.body }),
               ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
             })
-          : Promise.reject(new Error(WEBHOOKS_ENABLE_DECLINED))
+          : Promise.reject(new Error(webhooksEnableDeclined()))
       )
     }
 
@@ -580,8 +581,7 @@ const IMPLEMENTED: Record<string, unknown> = {
     profile?: null | string
   }): Promise<unknown> {
     const id = String(payload?.connectionId ?? '').trim()
-    if (id && id !== 'local')
-      return Promise.reject(new Error(`Подключение «${id}» не зарегистрировано`))
+    if (id && id !== 'local') return Promise.reject(new Error(aecT('shim.connectionUnknown', id)))
     return (IMPLEMENTED.getConnection as (profile: null | string) => Promise<unknown>)(
       payload?.profile ?? null
     )
@@ -689,7 +689,7 @@ const IMPLEMENTED: Record<string, unknown> = {
     const view = await window.aecpilot.getConnection()
     if (view && view.mode !== 'local') return { agents: [], sources: [] }
     const { profiles } = await window.aecpilot.listProfiles()
-    const label = 'Этот компьютер'
+    const label = aecT('shim.thisComputer')
     return {
       agents: profiles.map((row) => ({
         connectionId: 'local',
@@ -784,7 +784,7 @@ const IMPLEMENTED: Record<string, unknown> = {
 
   saveConnectionConfig(payload: DonorConnectionInput): Promise<unknown> {
     return window.aecpilot.saveConnection(toOurInput(payload)).then((result) => {
-      if (!result.ok) throw new Error(result.error ?? 'настройка не сохранена')
+      if (!result.ok) throw new Error(result.error ?? aecT('shim.settingNotSaved'))
       return asDonorConnection(result.config)
     })
   },

@@ -26,9 +26,11 @@ import type { Translations } from '../../donor/i18n/types'
 import { debrandTranslations, mergeOver } from './debrand'
 import { NO_INTRO_LINE } from './en'
 import { RU_FILL } from './ru-fill'
+import { RU_FILL_PAGES } from './ru-fill-pages'
 
-// Их каталог с дописанными строками, которые он оставил английскими (T20.8).
-const base: Translations = mergeOver(donorRu, RU_FILL)
+// Их каталог с дописанными строками, которые он оставил английскими: обычные
+// экраны (T20.8) и большие страницы настроек (T27).
+const base: Translations = mergeOver(mergeOver(donorRu, RU_FILL), RU_FILL_PAGES)
 
 const RU_TIPS: Translations['tips'] = {
   close: 'Больше не показывать эту подсказку',

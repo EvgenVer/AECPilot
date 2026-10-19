@@ -51,14 +51,18 @@ interface ProviderRow {
 
 /** Ответ `model.options` с пометкой в видимом имени. Остальное не трогается:
  *  выбор по-прежнему идёт по `slug`. */
-export function markProvidersWithoutKey<T>(options: T, missing: Set<string>): T {
+export function markProvidersWithoutKey<T>(
+  options: T,
+  missing: Set<string>,
+  mark: string = NO_KEY_MARK
+): T {
   const providers = (options as { providers?: ProviderRow[] } | null)?.providers
   if (!Array.isArray(providers) || missing.size === 0) return options
   return {
     ...options,
     providers: providers.map((row) =>
       row?.slug && missing.has(row.slug)
-        ? { ...row, name: `${row.name || row.slug} — ${NO_KEY_MARK}` }
+        ? { ...row, name: `${row.name || row.slug} — ${mark}` }
         : row
     )
   }
@@ -72,6 +76,10 @@ export function providerBeingSaved(method: string, params: Record<string, unknow
 }
 
 /** Текст отказа: их экран показывает его своим уведомлением об ошибке. */
-export function noKeyRefusal(provider: string): string {
-  return `У провайдера ${provider} нет ключа — добавьте его в Настройках → Ключи.`
+export function noKeyRefusal(
+  provider: string,
+  message: (provider: string) => string = (name) =>
+    `У провайдера ${name} нет ключа — добавьте его в Настройках → Ключи.`
+): string {
+  return message(provider)
 }

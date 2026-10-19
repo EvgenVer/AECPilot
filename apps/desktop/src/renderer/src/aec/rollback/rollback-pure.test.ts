@@ -3,6 +3,9 @@
 // cannot disambiguate.
 
 import { describe, expect, it } from 'vitest'
+
+import { registerPluginLocales, translatePlugin } from '../../donor/i18n/plugin-i18n'
+import { aecLocales } from '../../shared/i18n/aec-catalog'
 import {
   DIFF_CHAR_LIMIT,
   describeRollback,
@@ -57,19 +60,26 @@ describe('describeRollback', () => {
   })
 })
 
+// The words of the screen live in the catalog; these cases read them in Russian.
+registerPluginLocales('aec-rollback-test', aecLocales)
+const t = (key: string, ...args: unknown[]): string =>
+  translatePlugin('aec-rollback-test', 'ru', key, args)
+
 describe('explainScope', () => {
   it('names the directory the snapshots actually went to', () => {
-    expect(explainScope({ kind: 'ancestor', dir: 'D:/my program' }).detail).toContain(
+    expect(explainScope({ kind: 'ancestor', dir: 'D:/my program' }, t).detail).toContain(
       'D:/my program'
     )
   })
 
   it('says outright that the home-directory case records nothing at all', () => {
-    expect(explainScope({ kind: 'blocked', dir: 'C:/Users/Ivan' }).title).toContain('не создаются')
+    expect(explainScope({ kind: 'blocked', dir: 'C:/Users/Ivan' }, t).title).toContain(
+      'не создаются'
+    )
   })
 
   it('admits it cannot tell when no project is open', () => {
-    expect(explainScope({ kind: 'unknown' }).title).toContain('не удалось')
+    expect(explainScope({ kind: 'unknown' }, t).title).toContain('не удалось')
   })
 })
 

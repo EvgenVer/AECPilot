@@ -1,16 +1,15 @@
-// Гейт покрытия русского каталога (задача T20.8).
+// Гейт покрытия русского каталога (задачи T20.8, T27).
 //
 // Их `ru.ts` собран поверх английского: непереведённая строка не падает, а
 // молча показывает английскую. После подъёма на 0.22.2 таких было 1278 из 5100.
-// Гейт держит три списка и требует, чтобы КАЖДАЯ строка, совпадающая с
+// Гейт держит два списка и требует, чтобы КАЖДАЯ строка, совпадающая с
 // английской, попадала в один из них:
 //   EXCLUDED — поверхность вне продукта (номер исключения из SPEC) или не
 //              показывается вовсе (член моста отсутствует, вызова нет);
-//   PENDING  — большие страницы настроек, перевод которых — следующая задача
-//              (TASKS, Proposals); их число не должно расти молча;
 //   NAMES    — имена, адреса и примеры, которые не переводятся.
-// Новая английская строка на обычном экране (подъём пина принёс ключ, их
-// перевод отстал) роняет гейт: перевести в `ru-fill.ts` или обосновать здесь.
+// Третьего списка («переведём позже») нет с T27: большие страницы настроек
+// переведены в `ru-fill-pages.ts`, и новая английская строка на любом экране
+// роняет гейт. Перевести в `ru-fill.ts` / `ru-fill-pages.ts` или обосновать здесь.
 
 import { describe, expect, it } from 'vitest'
 
@@ -52,25 +51,12 @@ const EXCLUDED: Record<string, string> = {
   'settings.uninstallSection.': 'не показывается: член `uninstall` отсутствует в шиме'
 }
 
-const PENDING: Record<string, string> = {
-  'settings.localModels.': 'страница локальных моделей',
-  'skills.plugins.': 'вкладка плагинов',
-  'settings.plugins.': 'установка плагинов',
-  'connectorsPage.': 'вкладка «Коннекторы» (MCP-серверы)',
-  'connectors.': 'подключение аккаунтов коннекторов',
-  'settings.customEndpoints.': 'свои адреса моделей',
-  'profiles.remoteOverride.': 'удалённое ядро для профиля',
-  'settings.toolsets.': 'наборы инструментов',
-  'settings.model.': 'страница модели',
-  'settings.fieldLabels.': 'подписи полей конфигурации',
-  'settings.fieldDescriptions.': 'описания полей конфигурации'
-}
-
-// Сколько строк сейчас ждёт перевода в PENDING. Число может только падать:
-// выросло — подъём принёс новые английские строки на эти страницы.
-const PENDING_CEILING = 518
-
 const NAMES = new Set([
+  'connectorsPage.add.pastePlaceholder',
+  'connectorsPage.add.typeHttp',
+  'connectorsPage.add.authOauth',
+  'settings.customEndpoints.namePlaceholder',
+  'settings.plugins.installModal.repoPlaceholder',
   'webhooks.deliverOptions.telegram',
   'webhooks.deliverOptions.discord',
   'webhooks.deliverOptions.slack',
@@ -115,27 +101,24 @@ const untranslated = [...leaves(ru)].filter(([key, value]) => {
 const under = (table: Record<string, string>, key: string): boolean =>
   Object.keys(table).some((prefix) => key.startsWith(prefix))
 
-describe('русский каталог не показывает английских строк на обычных экранах (T20.8)', () => {
+describe('русский каталог не показывает английских строк ни на одном экране (T20.8, T27)', () => {
   it('сравнение вообще что-то нашло — иначе гейт пустой', () => {
     expect(english.size).toBeGreaterThan(4000)
     expect(untranslated.length).toBeGreaterThan(0)
   })
 
-  it('каждая английская строка — исключение, отложенная страница или имя', () => {
+  it('каждая английская строка — исключение или имя', () => {
     const stray = untranslated
       .map(([key]) => key)
-      .filter((key) => !NAMES.has(key) && !under(EXCLUDED, key) && !under(PENDING, key))
-    expect(stray, 'перевести в ru-fill.ts или обосновать в этом гейте').toEqual([])
-  })
-
-  it('отложенных строк не стало больше', () => {
-    const pending = untranslated.filter(([key]) => !under(EXCLUDED, key) && under(PENDING, key))
-    expect(pending.length).toBeLessThanOrEqual(PENDING_CEILING)
+      .filter((key) => !NAMES.has(key) && !under(EXCLUDED, key))
+    expect(stray, 'перевести в ru-fill.ts / ru-fill-pages.ts или обосновать в этом гейте').toEqual(
+      []
+    )
   })
 
   it('каждый пункт списков ещё что-то покрывает — мёртвый пункт скрыл бы ошибку', () => {
     const keys = untranslated.map(([key]) => key)
-    const dead = [...Object.keys(EXCLUDED), ...Object.keys(PENDING), ...NAMES].filter(
+    const dead = [...Object.keys(EXCLUDED), ...NAMES].filter(
       (entry) => !keys.some((key) => key === entry || key.startsWith(entry))
     )
     expect(dead).toEqual([])

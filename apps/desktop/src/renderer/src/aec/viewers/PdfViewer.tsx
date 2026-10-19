@@ -421,8 +421,8 @@ export function PdfViewer(): React.JSX.Element {
           <div className="text-destructive space-y-2 text-sm">
             <div>{t('viewer.failed', error)}</div>
             <div className="text-muted-foreground">
-              {request.sourceId ? `Источник: ${request.sourceId}. ` : ''}
-              Путь: {request.relPath}
+              {request.sourceId ? t('viewer.sourceLine', request.sourceId) : ''}
+              {t('viewer.pathLine', request.relPath)}
             </div>
           </div>
         ) : null}
