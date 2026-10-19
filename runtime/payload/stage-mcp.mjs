@@ -101,7 +101,30 @@ export function stageMcp(out) {
   for (const mod of ["aec_sources", "aec_rag", "aec_roster"]) {
     run(python, ["-I", "-c", `import ${mod}.server; print('${mod} ok')`]);
   }
+  bakeBytecode(python, pythonDir);
   return { python, pythonDir };
+}
+
+/** Compiles the whole interpreter tree with `unchecked-hash` pycs, the way their PM bakes
+ *  the core (`scripts/bundles/bytecode.py`, task T23). The installer stamps every file
+ *  with the build time, so the timestamp pycs Python writes by default go stale on
+ *  install and are rewritten on the first run — in a sealed tree, and against the
+ *  hashes `payload-hashes.json` records. A hash pyc is trusted as is and never
+ *  rewritten. Deliberately invalid test fixtures inside packages do not compile and
+ *  are only counted. */
+function bakeBytecode(python, pythonDir) {
+  const lib = path.join(pythonDir, process.platform === "win32" ? "Lib" : "lib");
+  run(python, [
+    "-I",
+    "-c",
+    [
+      "import compileall, py_compile, sys",
+      "ok = compileall.compile_dir(sys.argv[1], quiet=2, force=True, workers=0,",
+      "  invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)",
+      "print('bytecode baked' + ('' if ok else ' (some fixtures do not compile)'))",
+    ].join("\n"),
+    lib,
+  ]);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);

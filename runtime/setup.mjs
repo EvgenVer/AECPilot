@@ -173,7 +173,7 @@ function writeConstraints() {
 }
 
 const STAGE_PAYLOAD = !process.argv.includes("--no-payload");
-const STEPS = STAGE_PAYLOAD ? 7 : 5;
+const STEPS = STAGE_PAYLOAD ? 8 : 5;
 
 console.log(`== 1/${STEPS}: creating isolated venv at ${VENV_DIR}`);
 run("uv", [
@@ -266,6 +266,12 @@ if (STAGE_PAYLOAD) {
     [path.join(RUNTIME_DIR, "payload", "stage-mcp.mjs"), "--out", path.join(RUNTIME_DIR, "mcp")],
     RUNTIME_DIR,
   );
+  // Task T23: the hashes travel inside each payload; the versions are compared with the
+  // tracked record and only reported — a pin raise changes them on purpose (`--write`).
+  console.log(`== 8/${STEPS}: hashing the payloads, comparing versions with the record`);
+  const hashes = path.join(RUNTIME_DIR, "payload", "payload-hashes.mjs");
+  run(process.execPath, [hashes, "record"], RUNTIME_DIR);
+  run(process.execPath, [hashes, "versions"], RUNTIME_DIR);
 }
 
 console.log("\nDone.");
