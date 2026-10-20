@@ -29,6 +29,8 @@ export default defineConfig({
     // Приёмка AC1 (задача T24): установленный exe на имитации чистой машины
     // (`AEC_E2E_EXECUTABLE`, `AEC_E2E_CLEAN_HOME`); индексация двух источников с нуля
     // долгая, поэтому вне гейта и со своим потолком.
+    // Проход языков (задача T27): снимки и выписка подозрительных строк — для разбора.
+    { name: 'locale', testMatch: /acceptance[\\/]locale-sweep\.spec\.ts$/ },
     {
       name: 'clean-machine',
       testMatch: /acceptance[\\/]ac\d+-.*\.spec\.ts$/,
