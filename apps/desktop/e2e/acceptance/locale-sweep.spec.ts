@@ -161,6 +161,22 @@ for (const locale of ['ru', 'en'] as const) {
       await page.screenshot({ path: join(outDir, locale, `${screen.name}.png`) })
       const found = [...new Set(suspicious(locale, text))]
       report.push(`## ${screen.name} (${found.length})`, ...found.map((line) => `- ${line}`), '')
+      // Экран упал в их границу ошибок: записать подробности и перезагрузить окно —
+      // иначе граница остаётся на всех следующих экранах и прячет их.
+      const reload = page.getByRole('button', { name: /^(Reload window|Перезагрузить окно)$/ })
+      if ((await reload.count()) > 0) {
+        await page
+          .getByText(/^(Details|Подробности)$/)
+          .first()
+          .click()
+          .catch(() => undefined)
+        const details = await page.evaluate(() => document.body.innerText)
+        report.push(`CRASH ${screen.name}:`, '```', details.slice(0, 4000), '```', '')
+        await page.evaluate(() => {
+          window.location.hash = '/'
+        })
+        await setLocale(page, locale)
+      }
     }
     writeFileSync(join(outDir, `${locale}.md`), report.join('\n'), 'utf-8')
     expect(report.length).toBeGreaterThan(screens.length)

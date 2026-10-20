@@ -145,44 +145,50 @@ createRoot(document.getElementById('root') as HTMLElement).render(
           <ThemeProvider>
             <HapticsProvider>
               <RootTooltipProvider>
-                {/* useTransitions={false} is theirs and deliberate: react-router
+                {/* Задача T27: граница ошибок ВНУТРИ языка и темы. Корневая стоит
+                    снаружи провайдеров (на случай их собственного падения) и
+                    поэтому всегда говорит по-английски; упавший экран ловит эта и
+                    показывает сообщение на языке интерфейса. */}
+                <ErrorBoundary label="app">
+                  {/* useTransitions={false} is theirs and deliberate: react-router
                     wraps route updates in startTransition, and under a token
                     stream those non-urgent commits get starved. */}
-                <HashRouter useTransitions={false}>
-                  {/* Their application only starts once a vault is open — the
+                  <HashRouter useTransitions={false}>
+                    {/* Their application only starts once a vault is open — the
                       agent's working directory IS the vault (SPEC), and main
                       hands one over only after this gate. */}
-                  <ProjectGate>
-                    <App />
-                    {/* Task 3.10: asked from our bridge, so it hangs at the
+                    <ProjectGate>
+                      <App />
+                      {/* Task 3.10: asked from our bridge, so it hangs at the
                         root rather than inside the screen that triggers it —
                         the screen is theirs and must stay unedited. */}
-                    <ChannelDisclosureDialog />
-                    {/* Задача 3.8 (UR23): что ставится и какие инструменты
+                      <ChannelDisclosureDialog />
+                      {/* Задача 3.8 (UR23): что ставится и какие инструменты
                         просит — до подтверждения. Спрашивается из моста, поэтому
                         стоит здесь, а не внутри их экрана скилов. */}
-                    <InstallConsentDialog />
-                    {/* Задача 3F.D4 (D-105): цена включения вебхуков —
+                      <InstallConsentDialog />
+                      {/* Задача 3F.D4 (D-105): цена включения вебхуков —
                         перезапуск ядра — до нажатия. */}
-                    <WebhookConsentDialog />
-                    {/* Задача 3.8а (UR29): что за инструкции несёт папка
+                      <WebhookConsentDialog />
+                      {/* Задача 3.8а (UR29): что за инструкции несёт папка
                         проекта и доверяем ли мы им. */}
-                    <ProjectSkillsDialog />
-                    {/* Task 3.20: шаги от пустой установки до первого ответа.
+                      <ProjectSkillsDialog />
+                      {/* Task 3.20: шаги от пустой установки до первого ответа.
                         Здесь же, а не внутри их экрана: два шага из шести —
                         их собственный оверлей, и мастер должен стоять рядом
                         с ним, а не под ним. */}
-                    <FirstRunGuide />
-                    {/* Задача 3H.7 (D-189): окна, которые открывает команда,
+                      <FirstRunGuide />
+                      {/* Задача 3H.7 (D-189): окна, которые открывает команда,
                         а не компонент, — выбор провайдера, доступы Graph — и
                         подписка на отчёты сканера. Раньше жили в строке
                         состояния и пропадали вместе с ней: донор прячет её в
                         простом режиме и по Ctrl+Shift+S. */}
-                    <DataProvidersDialog />
-                    <GraphAccessDialog />
-                    <ScanWatcher />
-                  </ProjectGate>
-                </HashRouter>
+                      <DataProvidersDialog />
+                      <GraphAccessDialog />
+                      <ScanWatcher />
+                    </ProjectGate>
+                  </HashRouter>
+                </ErrorBoundary>
               </RootTooltipProvider>
             </HapticsProvider>
           </ThemeProvider>
