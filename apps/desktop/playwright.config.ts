@@ -25,6 +25,14 @@ export default defineConfig({
     },
     // Протокол рабочего стола (задача 3F.12): настоящие окна ОС — проводник,
     // диалог сохранения — на экране человека, поэтому вне гейта `pnpm e2e`.
-    { name: 'desktop', testMatch: /acceptance[\\/]desktop-.*\.spec\.ts$/ }
+    { name: 'desktop', testMatch: /acceptance[\\/]desktop-.*\.spec\.ts$/ },
+    // Приёмка AC1 (задача T24): установленный exe на имитации чистой машины
+    // (`AEC_E2E_EXECUTABLE`, `AEC_E2E_CLEAN_HOME`); индексация двух источников с нуля
+    // долгая, поэтому вне гейта и со своим потолком.
+    {
+      name: 'clean-machine',
+      testMatch: /acceptance[\\/]ac\d+-.*\.spec\.ts$/,
+      timeout: 1200000
+    }
   ]
 })
