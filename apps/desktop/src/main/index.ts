@@ -21,11 +21,13 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync
 } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { openExternalInBackground, openExternalReporting } from './external-open'
@@ -35,15 +37,21 @@ import { loadOrCreateServerToken, rotateServerToken } from './server-token'
 import { createServerTray, type ServerTray } from './server-tray'
 import {
   joinRemote,
+  parseServerRequest,
   parseServerState,
   projectCwdFromAnswer,
   projectNameFromJson,
   remoteDocumentPath,
   renameProjectJson,
   sameRemotePath,
+  SERVER_REQUEST_FILE,
   SERVER_STATE_FILE,
+  serializeServerRequest,
   serializeServerState,
   sourceRootFromProjectJson,
+  sourcesFromProjectJson,
+  type ServerRequest,
+  type ServerRequestResult,
   type ServerScanState,
   type ServerState
 } from './remote-project-pure'
@@ -196,6 +204,7 @@ import type {
   McpLiveStatus,
   McpServerSummary,
   MemoryFactsAnswer,
+  ProjectSource,
   SkillRow
 } from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
@@ -838,6 +847,11 @@ let serverLastScan: ServerScanState | null = null
 let serverPolling = false
 /** Рабочая папка ядра на прошлом шаге слежения; `undefined` — ещё не смотрели. */
 let lastSeenCoreCwd: string | null | undefined
+let serverLastRequest: ServerRequestResult | null = null
+let serverStateWrittenAt = 0
+let serverRequestBusy = false
+/** Ход индексации пишется в состояние не чаще этого (события прогресса идут потоком). */
+const SERVER_INGEST_WRITE_MS = 2_000
 
 function writeServerState(): void {
   if (currentRole() !== 'server' || !currentProject || !serverActivatedAt) return
@@ -846,8 +860,16 @@ function writeServerState(): void {
     host: hostname(),
     activatedAt: serverActivatedAt,
     scanning,
-    lastScan: serverLastScan
+    lastScan: serverLastScan,
+    lastRequest: serverLastRequest,
+    ingest: {
+      running: ingestState.running,
+      error: ingestState.error,
+      progress: ingestState.progress,
+      lastReport: ingestState.lastReport
+    }
   }
+  serverStateWrittenAt = Date.now()
   const target = join(currentProject.vaultPath, '.aecpilot', SERVER_STATE_FILE)
   try {
     writeFileSync(`${target}.tmp`, serializeServerState(state), 'utf-8')
@@ -855,6 +877,57 @@ function writeServerState(): void {
   } catch (error: unknown) {
     console.error('aecpilot: could not write the server state', error)
   }
+}
+
+/** Задача T36.1: выполнить просьбу клиента из `.aecpilot/server-request.json` открытого
+ *  проекта. Файл удаляется до выполнения — просьба не повторится; итог — в состоянии. */
+async function handleServerRequest(): Promise<void> {
+  if (serverRequestBusy || currentRole() !== 'server' || !currentProject || !serverActivatedAt) {
+    return
+  }
+  const vaultPath = currentProject.vaultPath
+  const file = join(vaultPath, '.aecpilot', SERVER_REQUEST_FILE)
+  let text: string
+  try {
+    text = readFileSync(file, 'utf-8')
+    unlinkSync(file)
+  } catch {
+    return
+  }
+  const request = parseServerRequest(text)
+  if (!request) {
+    console.warn('aecpilot: server ignored an unreadable client request')
+    return
+  }
+  serverRequestBusy = true
+  let outcome: Omit<ServerRequestResult, 'id' | 'at'>
+  try {
+    if (request.op === 'add-source') {
+      const added = await addSourceToProject(vaultPath, request.rootPath, {
+        confirmed: request.confirmed
+      })
+      if ('needsConfirm' in added) {
+        outcome = { ok: false, errors: [], needsConfirm: added.needsConfirm }
+      } else if (added.ok) {
+        await reloadMcp()
+        outcome = { ok: true, errors: [] }
+      } else {
+        outcome = { ok: false, errors: added.errors }
+      }
+    } else if (ingestState.running) {
+      outcome = { ok: false, errors: [mainT('common.indexingAlreadyRunning')] }
+    } else {
+      const started = await beginIngest(vaultPath, { full: request.full, rebuild: false })
+      outcome = { ok: started.started, errors: started.error ? [started.error] : [] }
+    }
+  } catch (error: unknown) {
+    outcome = { ok: false, errors: [error instanceof Error ? error.message : String(error)] }
+  } finally {
+    serverRequestBusy = false
+  }
+  serverLastRequest = { id: request.id, ...outcome, at: new Date().toISOString() }
+  writeServerState()
+  console.log(`aecpilot: server handled a client request (${request.op}, ok=${outcome.ok})`)
 }
 
 /** Один шаг слежения: рабочая папка ядра сменилась — открыть там проект. Папка без
@@ -925,6 +998,81 @@ async function remoteReadText(path: string): Promise<string | null> {
 async function readServerState(vaultPath: string): Promise<ServerState | null> {
   const text = await remoteReadText(joinRemote(vaultPath, '.aecpilot', SERVER_STATE_FILE))
   return text ? parseServerState(text) : null
+}
+
+// --- Задача T36.1: просьбы клиента серверу (см. remote-project-pure.ts) -------------
+
+/** Сколько ждать итога просьбы: сервер смотрит раз в 5 с, а подключение источника
+ *  перезапускает наши расширения в ядре. */
+const SERVER_REQUEST_WAIT_MS = 90_000
+const SERVER_INGEST_MIRROR_MS = 3_000
+let serverIngestMirror: ReturnType<typeof setInterval> | null = null
+
+async function sendServerRequest(
+  request: ServerRequest
+): Promise<Pick<ServerRequestResult, 'ok' | 'errors' | 'needsConfirm'>> {
+  if (!currentProject) return { ok: false, errors: [mainT('common.noProjectLc')] }
+  const vaultPath = currentProject.vaultPath
+  try {
+    await hermesRest(restTarget(), '/api/fs/write-text', {
+      method: 'POST',
+      body: {
+        path: joinRemote(vaultPath, '.aecpilot', SERVER_REQUEST_FILE),
+        content: serializeServerRequest(request)
+      },
+      timeoutMs: 15_000
+    })
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      errors: [
+        mainT('remoteProject.requestFailed', error instanceof Error ? error.message : String(error))
+      ]
+    }
+  }
+  const deadline = Date.now() + SERVER_REQUEST_WAIT_MS
+  for (;;) {
+    const state = await readServerState(vaultPath)
+    if (state?.lastRequest?.id === request.id) return state.lastRequest
+    if (Date.now() > deadline) {
+      return { ok: false, errors: [mainT('remoteProject.serverDidNotAnswer')] }
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_500))
+  }
+}
+
+/** Источники проекта на сервере — из его `project.json`. */
+async function remoteSources(): Promise<ProjectSource[]> {
+  if (!currentProject) return []
+  const text = await remoteReadText(
+    joinRemote(currentProject.vaultPath, '.aecpilot', 'project.json')
+  )
+  return text ? sourcesFromProjectJson(text) : []
+}
+
+/** Ход индексации на сервере — в здешний индикатор, пока она идёт. */
+function mirrorServerIngest(): void {
+  const vaultPath = currentProject?.vaultPath
+  if (serverIngestMirror || !vaultPath) return
+  const stop = (): void => {
+    if (serverIngestMirror) clearInterval(serverIngestMirror)
+    serverIngestMirror = null
+  }
+  const step = async (): Promise<void> => {
+    if (!filesAreRemote() || currentProject?.vaultPath !== vaultPath) return stop()
+    const ingest = (await readServerState(vaultPath))?.ingest
+    if (!ingest) return
+    publishIngestState({
+      error: ingest.error,
+      lastReport: ingest.lastReport as IngestState['lastReport'],
+      progress: ingest.progress as IngestState['progress'],
+      running: ingest.running,
+      stopping: false
+    })
+    if (!ingest.running) stop()
+  }
+  serverIngestMirror = setInterval(() => void step(), SERVER_INGEST_MIRROR_MS)
+  void step()
 }
 
 const REMOTE_PROJECT_FILE = 'remote-project.json'
@@ -1032,6 +1180,8 @@ async function openRemoteProject(
   saveRemoteProject(project)
   resetActiveSessionForProjectSwitch()
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('project:opened', project)
+  // T36.1: индексация, начатая раньше (с этого или другого клиента), видна сразу.
+  mirrorServerIngest()
   return { ok: true, project }
 }
 
@@ -5203,7 +5353,8 @@ ipcMain.handle('sources:list', () => {
   // список к его работе отношения не имеет (решение 3.13a: серверная поставка,
   // фаза 6). Пустой список — не «источников нет», а «спрашивать надо не здесь»;
   // словами это говорит окно.
-  if (filesAreRemote()) return []
+  // T36.1: при сервере список — его `project.json`, прочитанный файловым API ядра.
+  if (filesAreRemote()) return remoteSources()
   return currentProject ? listProjectSources(currentProject.vaultPath) : []
 })
 
@@ -5226,6 +5377,23 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
   const { rootPath, confirmed } = payload as Record<string, unknown>
   if (typeof rootPath !== 'string' || rootPath.length === 0) {
     return { ok: false, errors: ['rootPath must be a non-empty string'] }
+  }
+  // T36.1: папка — на диске сервера (её выбрали их удалённым диалогом); проверяет и
+  // подключает её сам сервер. Охранник D-47 «выбрано в диалоге этого процесса» здесь
+  // ничего не доказывает: тот же токен и так читает любой файл сервера API ядра.
+  if (filesAreRemote()) {
+    const answer = await sendServerRequest({
+      id: randomUUID(),
+      op: 'add-source',
+      rootPath,
+      confirmed: confirmed === true
+    })
+    if (answer.needsConfirm && answer.needsConfirm.length > 0) {
+      return { needsConfirm: answer.needsConfirm }
+    }
+    return answer.ok
+      ? { ok: true, sources: await remoteSources() }
+      : { ok: false, errors: answer.errors }
   }
   if (!isAbsolute(rootPath)) {
     return { ok: false, errors: ['путь к источнику должен быть абсолютным'] }
@@ -5401,9 +5569,18 @@ let ingestState: IngestState = {
 let ingestAbort: AbortController | null = null
 
 function publishIngestState(next: Partial<IngestState>): void {
+  const wasRunning = ingestState.running
   ingestState = { ...ingestState, ...next }
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('index:ingest-state', ingestState)
+  }
+  // T36.1: у сервера окна нет — ход индексации видит клиент через состояние сервера.
+  if (
+    currentRole() === 'server' &&
+    (wasRunning !== ingestState.running ||
+      Date.now() - serverStateWrittenAt >= SERVER_INGEST_WRITE_MS)
+  ) {
+    writeServerState()
   }
 }
 
@@ -5468,6 +5645,20 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 
   const full =
     typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
+  // T36.1: при сервере индексирует сервер — своим `aec-rag`, по своим дискам; здесь
+  // только его ход в индикаторе. Выборочно и с перестройкой — на самом сервере.
+  if (filesAreRemote()) {
+    const partial =
+      typeof payload === 'object' &&
+      payload !== null &&
+      ((payload as { rebuild?: unknown }).rebuild === true ||
+        ((payload as { target?: unknown }).target ?? null) !== null)
+    if (partial) return { started: false, error: mainT('remoteProject.wholeIndexOnly') }
+    const answer = await sendServerRequest({ id: randomUUID(), op: 'ingest', full })
+    if (!answer.ok) return { started: false, error: answer.errors.join('\n') }
+    mirrorServerIngest()
+    return { started: true }
+  }
   // Задача 3G.7: перестройка стирает построенный индекс — только по явному флагу,
   // который ставит кнопка с вопросом о цене.
   const rebuild =
@@ -6491,8 +6682,9 @@ app
       serverTray.setState(serveHandle ? 'running' : 'failed')
       console.log(`aecpilot: server mode, gateway ${serveHandle ? 'up' : 'DOWN'}`)
       // Задачи T33/T34: проект сервера — рабочая папка его ядра.
-      setInterval(() => void followServerProject(), SERVER_PROJECT_POLL_MS)
-      void followServerProject()
+      const followStep = (): void => void followServerProject().then(() => handleServerRequest())
+      setInterval(followStep, SERVER_PROJECT_POLL_MS)
+      followStep()
       return
     }
 

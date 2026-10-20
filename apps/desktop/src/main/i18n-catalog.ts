@@ -34,6 +34,12 @@ const ru = {
     'Сервер не подтвердил открытие проекта за две минуты. Проверьте, что сервер AECPilot запущен (значок в трее на сервере), и попробуйте снова.',
   'remoteProject.scanOnServer':
     'Сканирует сервер по своему расписанию — в том числе при закрытом приложении.',
+  'remoteProject.requestFailed': (reason: string) =>
+    `Не удалось передать просьбу серверу: ${reason}`,
+  'remoteProject.serverDidNotAnswer':
+    'Сервер не ответил на просьбу за полторы минуты. Проверьте, что сервер AECPilot запущен, и попробуйте снова.',
+  'remoteProject.wholeIndexOnly':
+    'На сервере индексируется весь проект целиком: выборочная индексация и перестройка — только на самом сервере.',
   'connection.clientHasNoCore':
     'Это установка «только приложение»: своего ядра здесь нет. Подключитесь к серверу.',
   'serverTray.tooltip': 'AECPilot — сервер',
@@ -374,6 +380,12 @@ const en: Catalog = {
     'The server did not confirm opening the project within two minutes. Check that the AECPilot server is running (its tray icon on the server) and try again.',
   'remoteProject.scanOnServer':
     'The server scans on its own schedule — including while this app is closed.',
+  'remoteProject.requestFailed': (reason: string) =>
+    `Could not pass the request to the server: ${reason}`,
+  'remoteProject.serverDidNotAnswer':
+    'The server did not answer within a minute and a half. Check that the AECPilot server is running and try again.',
+  'remoteProject.wholeIndexOnly':
+    'On a server the whole project is indexed at once: indexing a part or rebuilding is done on the server itself.',
   'connection.clientHasNoCore':
     'This is an app-only installation with no core of its own. Connect to a server.',
   'serverTray.tooltip': 'AECPilot — server',

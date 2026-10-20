@@ -4,7 +4,7 @@
 // `config.set {key: 'cwd', value: <папка на сервере>}`: ядро само проверяет, что папка
 // есть на ЕГО диске, и записывает `terminal.cwd` в свой config.yaml (их
 // `methods_config_set.py::_set_cwd`). Серверный процесс (роль `server`) раз в несколько
-// секунд читает этот ключ у своего ядра (`config.get {key: 'full'}`) и, увидев новую
+// секунд читает этот ключ у своего ядра (`config.get {key: 'project'}`) и, увидев новую
 // папку, открывает проект У СЕБЯ — регистрация наших MCP-расширений, сканирование и
 // индекс идут по местным для сервера путям. Записи конфига ядра с клиента не нужно, а
 // ключи и пути сервера клиент не видит вовсе (T33: «вместо записи в config.yaml на диске»).
@@ -14,8 +14,37 @@
 // сервер держит открытым, кто сканирует и чем кончился последний скан. Клиент читает
 // его файловым API ядра (`/api/fs/read-text`), тем же, которым открывает документы
 // (3.13b). Сканирование живёт на сервере и идёт при закрытом клиенте (T34).
+//
+// ПРОСЬБЫ КЛИЕНТА (T36.1) — файл `<проект>/.aecpilot/server-request.json`, записанный
+// файловым API ядра (`/api/fs/write-text`): «подключи источник» и «проиндексируй».
+// У клиентской установки нет ни `aec-rag`, ни дисков сервера, поэтому и то и другое
+// делает сервер — своей проверкой источника и своим запуском индексации; итог просьбы
+// и ход индексации он кладёт в `server-state.json`. Доверие не шире прежнего: держатель
+// токена и так пишет и читает любой файл через то же API ядра.
 
 export const SERVER_STATE_FILE = 'server-state.json'
+export const SERVER_REQUEST_FILE = 'server-request.json'
+
+export type ServerRequest =
+  | { id: string; op: 'add-source'; rootPath: string; confirmed: boolean }
+  | { id: string; op: 'ingest'; full: boolean }
+
+export interface ServerRequestResult {
+  id: string
+  ok: boolean
+  errors: string[]
+  /** Подключение источника: предупреждения, которые человек должен подтвердить. */
+  needsConfirm?: string[]
+  at: string
+}
+
+/** Ход индексации на сервере — то, что окну клиента нужно для индикатора. */
+export interface ServerIngestState {
+  running: boolean
+  error: string | null
+  progress: unknown
+  lastReport: unknown
+}
 
 export interface ServerScanState {
   /** ISO-время окончания последнего скана. */
@@ -34,6 +63,10 @@ export interface ServerState {
   activatedAt: string
   scanning: boolean
   lastScan: ServerScanState | null
+  /** T36.1: итог последней просьбы клиента. */
+  lastRequest?: ServerRequestResult | null
+  /** T36.1: индексация, запущенная по просьбе клиента. */
+  ingest?: ServerIngestState | null
 }
 
 /** Путь на машине сервера. Разделитель берётся из самого пути: сервер — Windows, но
@@ -88,12 +121,104 @@ export function parseServerState(text: string): ServerState | null {
       }
     }
   }
+  let lastRequest: ServerRequestResult | null = null
+  const request = record.lastRequest
+  if (typeof request === 'object' && request !== null) {
+    const value = request as Record<string, unknown>
+    if (typeof value.id === 'string' && typeof value.ok === 'boolean') {
+      lastRequest = {
+        id: value.id,
+        ok: value.ok,
+        errors: Array.isArray(value.errors)
+          ? value.errors.filter((item): item is string => typeof item === 'string')
+          : [],
+        ...(Array.isArray(value.needsConfirm)
+          ? {
+              needsConfirm: value.needsConfirm.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            }
+          : {}),
+        at: typeof value.at === 'string' ? value.at : ''
+      }
+    }
+  }
+  let ingest: ServerIngestState | null = null
+  if (typeof record.ingest === 'object' && record.ingest !== null) {
+    const value = record.ingest as Record<string, unknown>
+    ingest = {
+      running: value.running === true,
+      error: typeof value.error === 'string' ? value.error : null,
+      progress: value.progress ?? null,
+      lastReport: value.lastReport ?? null
+    }
+  }
   return {
     project: record.project,
     host: record.host,
     activatedAt: typeof record.activatedAt === 'string' ? record.activatedAt : '',
     scanning: record.scanning === true,
-    lastScan
+    lastScan,
+    lastRequest,
+    ingest
+  }
+}
+
+const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/
+const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|\/|\\\\)/
+
+/** Просьба клиента, прочитанная сервером; всё, что не узнано, — `null` (не выполняется). */
+export function parseServerRequest(text: string): ServerRequest | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const record = parsed as Record<string, unknown>
+  if (typeof record.id !== 'string' || !REQUEST_ID.test(record.id)) return null
+  if (record.op === 'add-source') {
+    const rootPath = typeof record.rootPath === 'string' ? record.rootPath.trim() : ''
+    return ABSOLUTE.test(rootPath)
+      ? { id: record.id, op: 'add-source', rootPath, confirmed: record.confirmed === true }
+      : null
+  }
+  if (record.op === 'ingest') return { id: record.id, op: 'ingest', full: record.full === true }
+  return null
+}
+
+export function serializeServerRequest(request: ServerRequest): string {
+  return `${JSON.stringify(request, null, 2)}\n`
+}
+
+/** Источники проекта из `project.json` сервера — для списка в окне клиента. */
+export function sourcesFromProjectJson(
+  text: string
+): { id: string; root_path: string; added_at: string; label?: string }[] {
+  try {
+    const parsed = JSON.parse(text) as { sources?: unknown }
+    if (!Array.isArray(parsed.sources)) return []
+    return parsed.sources.flatMap((source: unknown) => {
+      if (typeof source !== 'object' || source === null) return []
+      const {
+        id,
+        root_path: rootPath,
+        added_at: addedAt,
+        label
+      } = source as Record<string, unknown>
+      if (typeof id !== 'string' || typeof rootPath !== 'string') return []
+      return [
+        {
+          id,
+          root_path: rootPath,
+          added_at: typeof addedAt === 'string' ? addedAt : '',
+          ...(typeof label === 'string' && label !== '' ? { label } : {})
+        }
+      ]
+    })
+  } catch {
+    return []
   }
 }
 

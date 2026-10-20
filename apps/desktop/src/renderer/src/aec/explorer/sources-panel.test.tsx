@@ -358,8 +358,11 @@ describe('добавление в граф', () => {
 // Задача 3.13b. Источники читают наши расширения, а их запускает ядро: при
 // удалённом ядре они живут там же. Здешний список к его работе не относится.
 describe('ядро на другой машине', () => {
-  it('вместо списка — объяснение, и за списком не ходим', async () => {
+  // T36.1: список — источники сервера (main читает его project.json), состояние
+  // источника здесь не спрашивается: папки на диске сервера.
+  it('показывает источники сервера с объяснением, состояние не спрашивает', async () => {
     getConnection.mockResolvedValue({ mode: 'remote' })
+    listSources.mockResolvedValue([{ ...source, label: 'Архив на сервере' }])
 
     render(
       <QueryClientProvider
@@ -371,8 +374,9 @@ describe('ядро на другой машине', () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText(/Источники — на машине ядра/)).toBeTruthy()
-    expect(listSources).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Источники — папки на сервере/)).toBeTruthy()
+    expect(await screen.findByText('Архив на сервере')).toBeTruthy()
+    expect(getSourceStatus).not.toHaveBeenCalled()
   })
 })
 

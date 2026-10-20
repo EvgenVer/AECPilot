@@ -138,11 +138,10 @@ export const aecLocales: PluginLocaleBundles = {
     sources: {
       title: 'Sources',
       empty: 'No sources connected — the agent has nothing to read yet.',
-      remoteTitle: 'Sources live on the core machine',
+      remoteTitle: 'Sources are folders on the server',
       remoteDetail:
-        'Our extensions are launched by the core itself, so with a remote core they ' +
-        'run there and index that machine. Folders connected here would be indexed ' +
-        'for nobody.',
+        'The server reads and indexes them, and the index stays there. A folder you ' +
+        'connect is picked on the server’s disk, not on this computer.',
       add: 'Connect a folder',
       addAnyway: 'Connect anyway',
       remove: 'Disconnect',
@@ -993,11 +992,10 @@ export const aecLocales: PluginLocaleBundles = {
     sources: {
       title: 'Источники',
       empty: 'Источники не подключены — агенту пока нечего читать.',
-      remoteTitle: 'Источники — на машине ядра',
+      remoteTitle: 'Источники — папки на сервере',
       remoteDetail:
-        'Наши расширения запускает само ядро, поэтому при удалённом ядре они живут ' +
-        'там же и читают ту машину. Папки, подключённые здесь, индексировались бы ни ' +
-        'для кого.',
+        'Их читает и индексирует сервер, индекс остаётся там. Подключаемая папка ' +
+        'выбирается на диске сервера, а не этого компьютера.',
       add: 'Подключить папку',
       addAnyway: 'Подключить всё равно',
       remove: 'Отключить',

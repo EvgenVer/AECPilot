@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import {
   joinRemote,
+  parseServerRequest,
   parseServerState,
   projectCwdFromAnswer,
   projectNameFromJson,
   remoteDocumentPath,
   renameProjectJson,
   sameRemotePath,
+  serializeServerRequest,
   serializeServerState,
-  sourceRootFromProjectJson
+  sourceRootFromProjectJson,
+  sourcesFromProjectJson
 } from './remote-project-pure'
 
 describe('пути на машине сервера (T33)', () => {
@@ -48,7 +51,11 @@ describe('состояние сервера (T34)', () => {
       scanning: false,
       lastScan: { at: '2026-10-19T20:01:00.000Z', ok: true, envelope: { vaultPath: 'D:\\proj' } }
     }
-    expect(parseServerState(serializeServerState(state))).toEqual(state)
+    expect(parseServerState(serializeServerState(state))).toEqual({
+      ...state,
+      lastRequest: null,
+      ingest: null
+    })
   })
 
   it('неполный или битый файл — нет состояния', () => {
@@ -90,5 +97,57 @@ describe('документ из цитаты на сервере', () => {
     expect(remoteDocumentPath('D:\\proj', '..\\secret.txt', null)).toBeNull()
     expect(remoteDocumentPath('D:\\proj', 'C:\\Windows\\win.ini', null)).toBeNull()
     expect(remoteDocumentPath('D:\\proj', '/etc/passwd', null)).toBeNull()
+  })
+})
+
+describe('просьбы клиента серверу (T36.1)', () => {
+  it('подключение источника и индексация читаются обратно', () => {
+    const add = { id: 'a-1', op: 'add-source', rootPath: 'D:/docs', confirmed: true } as const
+    expect(parseServerRequest(serializeServerRequest(add))).toEqual(add)
+    const ingest = { id: 'b2', op: 'ingest', full: false } as const
+    expect(parseServerRequest(serializeServerRequest(ingest))).toEqual(ingest)
+  })
+
+  it('чужая операция, относительный путь и кривой id не выполняются', () => {
+    expect(parseServerRequest('{"id":"x","op":"rm","rootPath":"D:/a"}')).toBeNull()
+    expect(parseServerRequest('{"id":"x","op":"add-source","rootPath":"docs"}')).toBeNull()
+    expect(parseServerRequest('{"id":"../x","op":"ingest"}')).toBeNull()
+    expect(parseServerRequest('не json')).toBeNull()
+  })
+
+  it('итог просьбы и ход индексации переживают запись состояния', () => {
+    const state = parseServerState(
+      serializeServerState({
+        project: 'D:/p',
+        host: 'srv',
+        activatedAt: 't',
+        scanning: false,
+        lastScan: null,
+        lastRequest: { id: 'a-1', ok: false, errors: ['нет папки'], at: 't2' },
+        ingest: { running: true, error: null, progress: { done: 1 }, lastReport: null }
+      })
+    )
+    expect(state?.lastRequest).toEqual({ id: 'a-1', ok: false, errors: ['нет папки'], at: 't2' })
+    expect(state?.ingest).toEqual({
+      running: true,
+      error: null,
+      progress: { done: 1 },
+      lastReport: null
+    })
+  })
+
+  it('источники сервера — из его project.json, без мусора', () => {
+    const text = JSON.stringify({
+      sources: [
+        { id: 's1', root_path: 'D:/a', added_at: 't', label: 'Архив' },
+        { id: 's2', root_path: 'D:/b' },
+        { root_path: 'D:/c' }
+      ]
+    })
+    expect(sourcesFromProjectJson(text)).toEqual([
+      { id: 's1', root_path: 'D:/a', added_at: 't', label: 'Архив' },
+      { id: 's2', root_path: 'D:/b', added_at: '' }
+    ])
+    expect(sourcesFromProjectJson('{')).toEqual([])
   })
 })

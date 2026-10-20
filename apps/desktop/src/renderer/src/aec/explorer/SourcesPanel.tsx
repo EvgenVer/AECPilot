@@ -31,6 +31,7 @@ import {
   runDocumentAction,
   useDocumentIndex
 } from '../index-status/document-actions'
+import { pickProjectFolder } from '../project/pick-project-folder'
 import { openDocument } from '../viewers/viewer-store'
 import { openIndexPage } from '../workspace-pages'
 
@@ -259,9 +260,9 @@ export function SourcesPanel() {
   }, [renamingId])
 
   // Задача 3.13b. Наши расширения запускает само ядро — значит при удалённом
-  // ядре они живут там же и читают ту машину. Здешний список к его работе
-  // отношения не имеет, и показывать «источников нет» было бы неправдой о
-  // другом вопросе. Полный ответ — серверная поставка (PLAN, фаза 6).
+  // ядре они живут там же и читают ту машину. Задача T36.1: список тогда —
+  // источники сервера (его `project.json`), папка выбирается на диске сервера, а
+  // дерево, состояние и меню источника остаются за сервером.
   const { data: connection, isError: connectionUnknown } = useQuery({
     queryKey: ['aec', 'connection'],
     queryFn: () => window.aecpilot.getConnection()
@@ -271,14 +272,14 @@ export function SourcesPanel() {
   const { data: sources } = useQuery({
     queryKey: SOURCES_KEY,
     queryFn: () => window.aecpilot.listSources(),
-    enabled: connectionUnknown || connection?.mode === 'local'
+    enabled: connectionUnknown || connection !== undefined
   })
 
   // Status is a second, cheaper call per source — kept separate so a slow or
   // dead share delays a badge, not the list.
   const { data: statuses } = useQuery({
     queryKey: [...SOURCES_KEY, 'status', (sources ?? []).map((source) => source.id).join(',')],
-    enabled: sources !== undefined,
+    enabled: sources !== undefined && !filesAreRemote,
     queryFn: async (): Promise<Statuses> => {
       const entries = await Promise.all(
         (sources ?? []).map(async (source) => {
@@ -346,10 +347,13 @@ export function SourcesPanel() {
   const handleAdd = useCallback(async () => {
     setError(undefined)
     // Same native picker the project dialog uses — main owns the dialog, the
-    // renderer never sees a path it did not get from main.
-    const picked = await window.aecpilot.pickProjectDirectory()
+    // renderer never sees a path it did not get from main. T36.1: with a server,
+    // their remote picker browses the server's disk instead.
+    const picked = filesAreRemote
+      ? await pickProjectFolder(t('sources.add'))
+      : await window.aecpilot.pickProjectDirectory()
     if (picked) await submitAdd(picked, false)
-  }, [submitAdd])
+  }, [filesAreRemote, submitAdd, t])
 
   const handleRemove = useCallback(
     async (source: ProjectSource) => {
@@ -435,6 +439,26 @@ export function SourcesPanel() {
         <div className="flex flex-col gap-1 rounded-[4px] bg-(--ui-bg-quaternary) p-2 text-xs">
           <strong className="text-(--ui-text-primary)">{t('sources.remoteTitle')}</strong>
           <p className="text-(--ui-text-secondary)">{t('sources.remoteDetail')}</p>
+          {sources === undefined ? (
+            <span className="text-(--ui-text-secondary)">{t('common.loading')}</span>
+          ) : sources.length === 0 ? (
+            <span className="text-(--ui-text-secondary)">{t('sources.empty')}</span>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {sources.map((source) => (
+                <li
+                  className="flex min-w-0 items-center gap-1 py-0.5"
+                  key={source.id}
+                  title={source.root_path}
+                >
+                  <Codicon className="text-(--ui-text-secondary)" name="folder" />
+                  <span className="truncate text-(--ui-text-primary)">
+                    {sourceDisplayName(source)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : sources === undefined ? (
         <div className="text-xs text-(--ui-text-secondary)">{t('common.loading')}</div>
