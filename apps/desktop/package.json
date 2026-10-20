@@ -5,6 +5,10 @@
   "author": "AECPilot",
   "private": true,
   "main": "./out/main/index.js",
+  "aecpilot": {
+    "//updateFeedUrl": "T42: https address of our latest-version JSON {version, url}; empty = no update check, no network request. Set at the first release.",
+    "updateFeedUrl": ""
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

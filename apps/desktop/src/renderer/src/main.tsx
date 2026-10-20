@@ -62,6 +62,7 @@ import {
 } from './aec/context-menu/hit-test-guard'
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
+import { registerUpdateNotice } from './aec/update-notice/register-update-notice'
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerIndexPage } from './aec/index-page/register'
 import { registerProjectPage } from './aec/project/register'
@@ -85,6 +86,9 @@ registerCoreNotices()
 // лог. Подписка ставится до первого рендера — ответ на опрос приходит раньше,
 // чем человек успеет сказать что-то в пустоту.
 registerMemoryNotice()
+// Задача T42: о новой версии — уведомлением с «Скачать»; без адреса в сборке и без
+// сети — молча.
+void registerUpdateNotice()
 registerMemoryScreen()
 // Задача 3H.8 (UR43): страница «Индекс» — маршрут, строка боковой панели и Ctrl+K.
 registerIndexPage()

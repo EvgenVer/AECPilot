@@ -462,6 +462,12 @@ export const aecLocales: PluginLocaleBundles = {
     resumeProgress: {
       loading: 'Loading this session’s history…'
     },
+    updateNotice: {
+      title: (version: string) => `AECPilot ${version} is available`,
+      message:
+        'Download the installer and run it over this installation — your projects, settings and indexes stay in place.',
+      download: 'Download'
+    },
     memoryNotice: {
       title: 'Extended memory is off',
       package:
@@ -1301,6 +1307,12 @@ export const aecLocales: PluginLocaleBundles = {
     },
     resumeProgress: {
       loading: 'Загружаю историю этой сессии…'
+    },
+    updateNotice: {
+      title: (version: string) => `Вышла AECPilot ${version}`,
+      message:
+        'Скачайте установщик и запустите его поверх этой установки — проекты, настройки и индексы останутся на месте.',
+      download: 'Скачать'
     },
     memoryNotice: {
       title: 'Расширенная память выключена',

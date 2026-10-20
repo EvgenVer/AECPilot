@@ -1121,6 +1121,9 @@ export interface AecpilotApi {
    * is allowed at all (`http`/`https`/`mailto` only) and returns why not, so
    * the chat can show the refusal instead of failing silently. */
   openExternalLink(url: string): Promise<VaultOpResult>
+  /** Задача T42: новая версия из нашего файла версии (адрес — настройка сборки) или
+   * `null` — нет адреса, нет сети, нет новой версии. Один запрос на запуск. */
+  checkForUpdate(): Promise<{ version: string; url: string } | null>
   /** Keeps the machine from sleeping through a long unattended run (task
    * 3.18). The display may still go dark — that is `prevent-app-suspension`,
    * and it is what the criterion asks for. Answers with the state actually in
