@@ -61,6 +61,31 @@ export function parseKeepAwakeJson(text: string): KeepAwakeMode {
   }
 }
 
-export function serializeKeepAwake(mode: KeepAwakeMode): string {
-  return `${JSON.stringify({ mode }, null, 2)}\n`
+/** Задача T42.1 (их `keep-awake-controller.ts`, решение владельца 2026-10-19): сон
+ * короче этого считается не сном машины, а закрытой крышкой на минуту — предлагать
+ * за него «не засыпать» было бы навязчиво. Их число, дословно. */
+export const IDLE_SLEEP_MIN_SECONDS = 55
+
+/** Предложение делается один раз на компьютер; флаг живёт в том же файле, что режим. */
+export function parseKeepAwakeOffered(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as { offered?: unknown }).offered === true
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Ход шёл, режим «никогда», и машина ушла в сон по таймеру — после пробуждения
+ * стоит один раз предложить «пока агент работает». Их правило, дословно. */
+export function sleptMidTurn(mode: KeepAwakeMode, working: boolean, idleSeconds: number): boolean {
+  return mode === 'off' && working && idleSeconds >= IDLE_SLEEP_MIN_SECONDS
+}
+
+export function serializeKeepAwake(mode: KeepAwakeMode, offered = false): string {
+  return `${JSON.stringify({ mode, ...(offered ? { offered } : {}) }, null, 2)}\n`
 }

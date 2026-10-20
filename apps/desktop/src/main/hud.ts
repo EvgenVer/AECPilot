@@ -19,10 +19,11 @@
 // ГЛАВНОГО окна как украшение; здесь она — способ существования поверхности:
 // сквозь неё видно то, над чем она висит.
 
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import { openExternalInBackground } from './external-open'
 import {
   clampBounds,
   defaultHudBounds,
@@ -105,14 +106,14 @@ export function openHud(
   const ownUrl = rendererUrl ?? ''
   hud.webContents.setWindowOpenHandler(({ url }) => {
     const decision = decideExternalLink(url)
-    if (decision.allowed) void shell.openExternal(decision.url)
+    if (decision.allowed) openExternalInBackground(decision.url)
     return { action: 'deny' }
   })
   hud.webContents.on('will-navigate', (event, url) => {
     if (isOwnRendererUrl(url, ownUrl)) return
     event.preventDefault()
     const decision = decideExternalLink(url)
-    if (decision.allowed) void shell.openExternal(decision.url)
+    if (decision.allowed) openExternalInBackground(decision.url)
   })
 
   hud.on('closed', () => {

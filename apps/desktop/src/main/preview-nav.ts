@@ -14,9 +14,56 @@
 // `reload` при этом имеет запасной смысл (перезагрузить окно), а `back` и
 // `forward` вне браузера не значат ничего и просто гаснут.
 
-import { webContents as electronWebContents, type BrowserWindow } from 'electron'
+import {
+  ipcMain,
+  webContents as electronWebContents,
+  type BrowserWindow,
+  type WebContents
+} from 'electron'
 
 export type PreviewNavCommand = 'back' | 'forward' | 'reload'
+
+// Задача T42.3 (их `preview-guest-offscreen.ts`, решение владельца 2026-10-19). Вкладка
+// браузера, ушедшая из виду (неактивная вкладка, свёрнутая сторона, отложенная сессия),
+// остаётся для Chromium гостем в фокусе — скрытие `<webview>` фокус не двигает, — и
+// жест «назад» листал бы невидимую страницу. Что на экране, знает только окно; оно и
+// сообщает, а здесь скрытые гости из жестов исключаются.
+const hiddenGuests = new Set<number>()
+const watchedGuests = new WeakSet<WebContents>()
+
+/** Окно `sender` говорит о СВОЁМ госте — за чужие оно говорить не может. */
+export function notePreviewGuestHidden(
+  sender: WebContents,
+  guest: null | undefined | WebContents,
+  hidden: boolean
+): void {
+  if (!guest || guest.isDestroyed() || guest.getType() !== 'webview') return
+  if (guest.hostWebContents !== sender) return
+
+  if (!hidden) {
+    hiddenGuests.delete(guest.id)
+    return
+  }
+
+  hiddenGuests.add(guest.id)
+  if (!watchedGuests.has(guest)) {
+    watchedGuests.add(guest)
+    guest.once('destroyed', () => hiddenGuests.delete(guest.id))
+  }
+}
+
+/** Канал окна: `{ webContentsId, hidden }` (их `hermes:preview-guest-hidden`). */
+export function installPreviewGuestHidden(): void {
+  ipcMain.on('preview-guest:hidden', (event, payload: unknown) => {
+    const record = typeof payload === 'object' && payload !== null ? payload : {}
+    const { webContentsId, hidden } = record as { webContentsId?: unknown; hidden?: unknown }
+    notePreviewGuestHidden(
+      event.sender,
+      electronWebContents.fromId(Number(webContentsId)),
+      Boolean(hidden)
+    )
+  })
+}
 
 /** Выполняет жест на госте, если фокус в нём. Возвращает `true`, когда жест
  * израсходован здесь и в окно посылать нечего — в том числе когда идти некуда:
@@ -25,6 +72,8 @@ function commandFocusedGuest(command: PreviewNavCommand): boolean {
   const focused = electronWebContents.getFocusedWebContents()
 
   if (!focused || focused.isDestroyed() || focused.getType() !== 'webview') return false
+  // Скрытый гость — не та страница, в которой человек: жест уходит окну (T42.3).
+  if (hiddenGuests.has(focused.id)) return false
 
   const history = focused.navigationHistory
 

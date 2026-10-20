@@ -641,9 +641,9 @@ const IMPLEMENTED: Record<string, unknown> = {
   //     боковой панели: шлюз у нас один, свой, и пункт без члена не рисуется;
   //   `getEmbedHostOrigin` — их локальный http-источник для встроенного
   //     YouTube; без члена их код встраивает со своего источника, как раньше;
-  //   `logLine` и `setPreviewGuestHidden` объявлены `=> void` (см. ниже,
-  //     D-42): строки в их журнал и скрытие гостя предпросмотра за кадром
-  //     их код зовёт через `?.`, и отсутствие — их же ветка.
+  //   `logLine` объявлен `=> void` (см. ниже, D-42): строки в их журнал их
+  //     код зовёт через `?.`, и отсутствие — их же ветка. `setPreviewGuestHidden`
+  //     стоял здесь до задачи T42.3 — теперь проброшен (см. ниже).
   assumeFreshInstall: undefined,
   desktopMetrics: undefined,
   freeTierChallenge: undefined,
@@ -651,7 +651,6 @@ const IMPLEMENTED: Record<string, unknown> = {
   localSkin: undefined,
   logLine: undefined,
   probeLocalBackend: undefined,
-  setPreviewGuestHidden: undefined,
   updateHold: undefined,
   windowRelay: undefined,
 
@@ -1278,6 +1277,24 @@ const IMPLEMENTED: Record<string, unknown> = {
 
   onBatteryChanged(callback: (onBattery: boolean) => void): () => void {
     return window.aecpilot.onBatteryChanged(callback)
+  },
+
+  // Задача T42.1 (их `keep-awake-offer`): их `store/keep-awake.ts` показывает
+  // предложение по этому сигналу; решает главный процесс — один раз на компьютер.
+  onKeepAwakeOffer(callback: () => void): () => void {
+    return window.aecpilot.onKeepAwakeOffer(callback)
+  },
+
+  // Задача T42.3 (их `preview-guest-hidden`): их `preview-guest-offscreen.ts` сообщает,
+  // какая вкладка браузера ушла из виду, — главный процесс не отдаёт ей жесты.
+  setPreviewGuestHidden(webContentsId: number, hidden: boolean): void {
+    window.aecpilot.setPreviewGuestHidden(webContentsId, hidden)
+  },
+
+  // Задача T42.2 (их `external-open-failed`): отказ ОС открыть ссылку показывает их
+  // диалог с адресом вместо мёртвого клика.
+  onExternalOpenFailed(callback: (payload: { url: string; message?: string }) => void): () => void {
+    return window.aecpilot.onExternalOpenFailed(callback)
   },
 
   onPowerResume(callback: () => void): () => void {

@@ -1494,6 +1494,13 @@ export interface AecpilotApi {
    * состояние; связь со шлюзом перепроверяет главный процесс — сокет мог
    * остаться открытым и мёртвым. */
   onPowerResume(cb: () => void): () => void
+  /** Задача T42.1: сон оборвал ход агента — один раз на компьютер окно предлагает
+   * режим «пока агент работает» (их `keep-awake-offer`). */
+  onKeepAwakeOffer(cb: () => void): () => void
+  /** Задача T42.3: вкладка браузера ушла из виду / вернулась — жесты её не листают. */
+  setPreviewGuestHidden(webContentsId: number, hidden: boolean): void
+  /** Задача T42.2: ОС не открыла разрешённую ссылку (их `external-open-failed`). */
+  onExternalOpenFailed(cb: (payload: { url: string; message?: string }) => void): () => void
   /** Slash-command completions for what is being typed (task 1.6.8). Never
    * rejects: a disconnected gateway or a failed call comes back as an empty
    * list, because this runs on every keystroke and must not put an error over

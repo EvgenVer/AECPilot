@@ -174,6 +174,19 @@ const api: AecpilotApi = {
     ipcRenderer.on('power:battery-changed', listener)
     return () => ipcRenderer.removeListener('power:battery-changed', listener)
   },
+  setPreviewGuestHidden: (webContentsId, hidden) =>
+    ipcRenderer.send('preview-guest:hidden', { webContentsId, hidden: Boolean(hidden) }),
+  onExternalOpenFailed: (cb) => {
+    const listener = (_event: unknown, payload: { url: string; message?: string }): void =>
+      cb(payload)
+    ipcRenderer.on('external-open:failed', listener)
+    return () => ipcRenderer.removeListener('external-open:failed', listener)
+  },
+  onKeepAwakeOffer: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('keep-awake:offer', listener)
+    return () => ipcRenderer.removeListener('keep-awake:offer', listener)
+  },
   onPowerResume: (cb) => {
     const listener = (): void => cb()
     ipcRenderer.on('power:resume', listener)

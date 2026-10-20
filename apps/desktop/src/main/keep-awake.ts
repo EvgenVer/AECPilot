@@ -21,12 +21,17 @@ import {
   keepAwakeWanted,
   type KeepAwakeMode,
   parseKeepAwakeJson,
-  serializeKeepAwake
+  parseKeepAwakeOffered,
+  serializeKeepAwake,
+  sleptMidTurn
 } from './keep-awake-pure'
 
 let blockerId: null | number = null
 let mode: KeepAwakeMode = 'off'
 let working = false
+/** Задача T42.1: предложение уже делалось на этом компьютере. */
+let offered = false
+let sleptDuringTurn = false
 
 function statePath(): string {
   return join(app.getPath('userData'), 'keep-awake.json')
@@ -44,7 +49,7 @@ function persist(next: KeepAwakeMode): void {
   try {
     const path = statePath()
     mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, serializeKeepAwake(next), 'utf-8')
+    writeFileSync(path, serializeKeepAwake(next, offered), 'utf-8')
   } catch (error: unknown) {
     // A preference that could not be written is not worth failing the toggle
     // over — the blocker itself is already in the state the user asked for.
@@ -96,7 +101,29 @@ export function noteWorking(next: boolean): void {
 /** Restores the preference at startup — the whole reason main owns a copy: an
  * overnight run must not depend on someone opening Settings first. */
 export function restoreKeepAwake(): boolean {
+  try {
+    offered = parseKeepAwakeOffered(readFileSync(statePath(), 'utf-8'))
+  } catch {
+    offered = false
+  }
   return setKeepAwakeMode(loadKeepAwake(), { save: false })
+}
+
+/** Задача T42.1: машина засыпает. `idleSeconds` — сколько она простояла без человека
+ *  (`powerMonitor.getSystemIdleTime()`): по нему сон по таймеру отличается от крышки. */
+export function noteSuspend(idleSeconds: number): void {
+  sleptDuringTurn = sleptMidTurn(mode, working, idleSeconds)
+}
+
+/** Задача T42.1: машина проснулась. Если сон оборвал ход, окно один раз предлагает
+ *  «пока агент работает»; `offer` возвращает false, когда показать некому, — тогда
+ *  предложение остаётся на следующий раз. */
+export function noteResume(offer: () => boolean): void {
+  if (sleptDuringTurn && !offered && offer()) {
+    offered = true
+    persist(mode)
+  }
+  sleptDuringTurn = false
 }
 
 export function releaseKeepAwake(): void {

@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import {
   decidePowerSave,
+  IDLE_SLEEP_MIN_SECONDS,
   keepAwakeWanted,
   parseKeepAwakeJson,
   parseKeepAwakeMode,
-  serializeKeepAwake
+  parseKeepAwakeOffered,
+  serializeKeepAwake,
+  sleptMidTurn
 } from './keep-awake-pure'
 
 /**
@@ -96,5 +99,24 @@ describe('keepAwakeWanted', () => {
   test('«всегда» и «никогда» от хода не зависят', () => {
     expect(keepAwakeWanted('always', false)).toBe(true)
     expect(keepAwakeWanted('off', true)).toBe(false)
+  })
+})
+
+// Задача T42.1 (их `keep-awake-controller.ts`): предложение «пока агент работает»
+// после сна, оборвавшего ход, — один раз на компьютер.
+describe('предложение после сна посреди хода', () => {
+  test('только когда шёл ход, режим «никогда» и сон был по таймеру', () => {
+    expect(sleptMidTurn('off', true, IDLE_SLEEP_MIN_SECONDS)).toBe(true)
+    expect(sleptMidTurn('off', false, 600)).toBe(false)
+    expect(sleptMidTurn('while-working', true, 600)).toBe(false)
+    expect(sleptMidTurn('off', true, IDLE_SLEEP_MIN_SECONDS - 1)).toBe(false)
+  })
+
+  test('флаг «уже предлагали» живёт в файле режима и не ломает старый формат', () => {
+    expect(parseKeepAwakeOffered(serializeKeepAwake('off', true))).toBe(true)
+    expect(parseKeepAwakeJson(serializeKeepAwake('while-working', true))).toBe('while-working')
+    expect(parseKeepAwakeOffered(serializeKeepAwake('off'))).toBe(false)
+    expect(parseKeepAwakeOffered('{"keepAwake": true}')).toBe(false)
+    expect(parseKeepAwakeOffered('не json')).toBe(false)
   })
 })

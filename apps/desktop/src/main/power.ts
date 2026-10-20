@@ -45,6 +45,8 @@ export function isOnBattery(): boolean {
 export function installPowerWatch(handlers: {
   onBatteryChanged: (value: boolean) => void
   onResume: () => void
+  /** Задача T42.1: машина уходит в сон; сколько секунд она простояла без человека. */
+  onSuspend?: (idleSeconds: number) => void
 }): void {
   onBattery = readOnBattery()
 
@@ -57,4 +59,6 @@ export function installPowerWatch(handlers: {
   powerMonitor.on('on-battery', () => change(true))
   powerMonitor.on('on-ac', () => change(false))
   powerMonitor.on('resume', () => handlers.onResume())
+  const { onSuspend } = handlers
+  if (onSuspend) powerMonitor.on('suspend', () => onSuspend(powerMonitor.getSystemIdleTime()))
 }

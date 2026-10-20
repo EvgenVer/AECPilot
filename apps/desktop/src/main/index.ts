@@ -18,6 +18,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
+import { openExternalInBackground, openExternalReporting } from './external-open'
 import { isAllowedPermission } from './media-permission-pure'
 import {
   AUTOWRITE_FILE,
@@ -105,7 +106,14 @@ import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
 import { loadUiLanguage, registerUiLanguageIpc } from './ui-language'
 import { applySoulLanguage, soulLanguageLine } from './agent-language-pure'
 import { createdProfileByRest, inheritMainSoul } from './soul-inherit-pure'
-import { noteWorking, releaseKeepAwake, restoreKeepAwake, setKeepAwakeMode } from './keep-awake'
+import {
+  noteResume,
+  noteSuspend,
+  noteWorking,
+  releaseKeepAwake,
+  restoreKeepAwake,
+  setKeepAwakeMode
+} from './keep-awake'
 import { parseKeepAwakeMode } from './keep-awake-pure'
 import { applyZoom, installZoomShortcuts, setZoomPercent, zoomPercent } from './zoom'
 import { levelForPercent } from './zoom-pure'
@@ -131,7 +139,7 @@ import { f12Payload, shouldBlockDevtoolsKey, shouldForwardF12 } from './devtools
 import { createMinimizeToTray, executableIcon } from './minimize-to-tray'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installPreviewGuestGuard } from './preview-guest'
-import { installBrowserNavGestures } from './preview-nav'
+import { installBrowserNavGestures, installPreviewGuestHidden } from './preview-nav'
 import { readWindowBelow } from './os-windows'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
 import {
@@ -1702,7 +1710,7 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     const decision = decideExternalLink(url)
-    if (decision.allowed) void shell.openExternal(decision.url)
+    if (decision.allowed) openExternalInBackground(decision.url)
     return { action: 'deny' }
   })
 
@@ -1710,7 +1718,7 @@ function createWindow(plan: WindowPlan = planAppWindow()): BrowserWindow {
     if (isOwnRendererUrl(url, ownUrl)) return
     event.preventDefault()
     const decision = decideExternalLink(url)
-    if (decision.allowed) void shell.openExternal(decision.url)
+    if (decision.allowed) openExternalInBackground(decision.url)
   })
 
   if (process.env.AEC_SMOKE === '1') {
@@ -1758,7 +1766,7 @@ ipcMain.handle('shell:open-external', async (_event, payload: unknown) => {
   const decision = decideExternalLink(url)
   if (!decision.allowed) return { ok: false, error: decision.reason }
   try {
-    await shell.openExternal(decision.url)
+    await openExternalReporting(decision.url)
     return { ok: true }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
@@ -4376,7 +4384,7 @@ ipcMain.handle('preview:open-external', async (_event, value: unknown) => {
   }
 
   try {
-    await shell.openExternal(decision.url)
+    await openExternalReporting(decision.url)
 
     // `exported` — окну, чтобы оно сказало человеку: содержимое вкладки ушло за
     // песочницу. Знает об этом главный процесс (он один видит, что путь лежит в
@@ -6115,6 +6123,8 @@ app
     // первого окна. `web-contents-created` не отдаёт уже созданных, и гость,
     // родившийся раньше подписки, ушёл бы куда угодно без вопроса.
     installPreviewGuestGuard()
+    // Задача T42.3: окно сообщает, какие его вкладки браузера ушли из виду.
+    installPreviewGuestHidden()
 
     // Задача T27: язык интерфейса, сохранённый прошлым запуском, — ДО трея и
     // первых диалогов; рендерер подтвердит или поправит его своим сообщением.
@@ -6172,7 +6182,15 @@ app
       onResume: () => {
         broadcastToWindows('power:resume', undefined)
         void revalidateGatewayAfterResume()
-      }
+        // Задача T42.1: только главное окно — у быстрого ввода и ленты нет места
+        // для их уведомления (как у донора: `mainWindow`).
+        noteResume(() => {
+          if (!trayPrimary || trayPrimary.isDestroyed()) return false
+          trayPrimary.webContents.send('keep-awake:offer')
+          return true
+        })
+      },
+      onSuspend: (idleSeconds) => noteSuspend(idleSeconds)
     })
 
     app.on('activate', () => {

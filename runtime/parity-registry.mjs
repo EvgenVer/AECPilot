@@ -307,9 +307,9 @@ export const ELECTRON_CLASSIFICATION = {
   "minimize-to-tray": { ours: "minimize-to-tray", note: "сворачивание в трей — 3G.23" },
   "embed-host": { hx: "HX32", note: "YouTube внутри чата через локальный http — не берём" },
   "local-backend": { task: "T35", note: "«эта машина / удалённый шлюз» — наш экран подключения" },
-  "keep-awake-offer": { task: "T42.1", note: "предложение не спать после сна посреди хода" },
-  "external-open-failed": { task: "T42.2", note: "сообщение «ссылку открыть не удалось»" },
-  "preview-guest-hidden": { task: "T42.3", note: "скрытая вкладка браузера не листается жестами «назад/вперёд/обновить»" },
+  "keep-awake-offer": { ours: "keep-awake", note: "keep-awake:offer — предложение не спать после сна посреди хода, один раз на компьютер (T42.1)" },
+  "external-open-failed": { ours: "external-open", note: "external-open:failed — их диалог с адресом вместо мёртвого клика (T42.2)" },
+  "preview-guest-hidden": { ours: "preview-guest", note: "preview-guest:hidden — скрытая вкладка браузера не листается жестами (T42.3)" },
 };
 
 /** RPC prefixes §Non-Goals excludes, for the reachability note. Each cites the
