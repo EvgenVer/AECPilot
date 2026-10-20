@@ -309,7 +309,7 @@ export const ELECTRON_CLASSIFICATION = {
   "local-backend": { task: "T35", note: "«эта машина / удалённый шлюз» — наш экран подключения" },
   "keep-awake-offer": { task: "T42.1", note: "предложение не спать после сна посреди хода" },
   "external-open-failed": { task: "T42.2", note: "сообщение «ссылку открыть не удалось»" },
-  "preview-guest-hidden": { task: "T42.3", note: "скрытый гость предпросмотра не рисует кадры" },
+  "preview-guest-hidden": { task: "T42.3", note: "скрытая вкладка браузера не листается жестами «назад/вперёд/обновить»" },
 };
 
 /** RPC prefixes §Non-Goals excludes, for the reachability note. Each cites the
