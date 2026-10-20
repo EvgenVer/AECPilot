@@ -44,7 +44,7 @@ overrides:
   # and jsdom. None of the three reaches the shipped bundle, but a finding
   # nobody looks at is a finding nobody sees change.
   postcss@8: '^8.5.23'
-  undici@7: '^7.29.0'
+  undici@7: '^7.29.1'
   js-yaml@4: '^4.3.2'
   # Task T22 (electron-builder 26.17.0, build-time only): its tree brought undici 6
   # (node-gyp under @electron/rebuild) with three advisories fixed in 6.28.1, and
@@ -60,6 +60,13 @@ overrides:
   # reader (`lib/stream/xlsx/workbook-reader.js`); we read with `xlsx.readFile` /
   # `xlsx.load` (jszip). Recheck on every exceljs raise.
   unzipper@0.10: '0.12.5'
+  # Task T37, owner decision 2026-10-19 («обновить сейчас»): the dev half of the full
+  # audit. browserslist (two highs, <=4.28.6) and baseline-browser-mapping (<2.11.0)
+  # ride in on vite/babel; both are raised inside the major every parent asks for
+  # (registry checked 2026-10-19: same maintainers, MIT / Apache-2.0). undici@7
+  # above went 7.29.0 -> 7.29.1 for the same audit; vitest is a direct devDependency.
+  browserslist@4: '^4.28.7'
+  baseline-browser-mapping@2: '^2.11.0'
 
 # `unicode-animations` ships a postinstall that prints a spinner demo to
 # /dev/tty for three seconds. Harmless (read the script: no network, no writes)
@@ -146,6 +153,16 @@ overrides:
 # родителями ради уязвимости, которой нужна вторая.
 # КОГДА СНИМАТЬ: донор поднимает katex при подъёме пина, или mermaid расширяет
 # диапазон до 0.18 — проверять при каждом из этих событий.
+# Задача T37 (решение владельца 2026-10-19) — две находки дерева сборки, которым
+# подниматься некуда:
+#   GHSA-hp3w-g68c-fv3c — sprintf-js@1.1.3 (@electron/get > global-agent > roarr,
+#     только сборка electron-builder). Исправленной версии нет вовсе (последняя —
+#     1.1.3); в замыкание поставки не входит. СНИМАТЬ: выйдет sprintf-js >=1.1.4 или
+#     roarr уйдёт из дерева electron-builder — проверять при его подъёме.
+#   GHSA-rj75-hqrm-r3gf — postcss-selector-parser@6.0.10 (@tailwindcss/typography),
+#     квадратичный разбор селекторов. Работает на сборке CSS по НАШЕМУ коду, внешнего
+#     входа нет; исправление только в 7.x — форсированный мажор под родителем,
+#     просящим ^6. СНИМАТЬ: при подъёме @tailwindcss/typography на postcss-selector-parser 7.
 auditConfig:
   ignoreGhsas:
     - GHSA-w5hq-g745-h8pq
@@ -164,6 +181,9 @@ auditConfig:
     - GHSA-r6q2-hw4h-h46w
     - GHSA-vmf3-w455-68vh
     - GHSA-w8wr-v893-vjvp
+    # sprintf-js@1.1.3, postcss-selector-parser@6.0.10 — см. блок выше (T37)
+    - GHSA-hp3w-g68c-fv3c
+    - GHSA-rj75-hqrm-r3gf
 
 # Задача 3E.8 (UR30, отменённые HX7 и HX12). Обе нативные и обе обязаны
 # выполнить свой скрипт установки — иначе в пакете не окажется двоичного
