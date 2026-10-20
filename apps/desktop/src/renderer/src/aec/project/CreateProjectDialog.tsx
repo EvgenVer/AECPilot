@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import { CloseOnEscape } from '../CloseOnEscape'
+import { pickProjectFolder } from './pick-project-folder'
 
 export default function CreateProjectDialog({
   onClose,
@@ -38,7 +39,7 @@ export default function CreateProjectDialog({
     setPicking(true)
     setError(undefined)
     try {
-      const picked = await window.aecpilot.pickProjectDirectory()
+      const picked = await pickProjectFolder()
       if (picked) setDirPath(picked)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

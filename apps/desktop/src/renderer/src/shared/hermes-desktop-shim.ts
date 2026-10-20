@@ -59,9 +59,14 @@ type HermesDesktop = Window['hermesDesktop']
  * (SPEC HX3) — они отдаются пустыми, а не выдумываются: их экран читает `mode`
  * и рисует ту вкладку, которая нужна. */
 function asDonorConnection(view: import('../../../shared/ipc').ConnectionView): unknown {
+  // Задача T35 (SPEC N16): профиль — поле подключения, а не константа. Их код
+  // передаёт его в вызовы ядра (`desktopFsProfile`, создание сессий); пусто — их же
+  // ветка «профиль запуска», как было до T35.
+  const profile =
+    view.mode === 'remote' ? view.remoteProfile : view.mode === 'ssh' ? view.sshRemoteProfile : ''
   return {
     ...view,
-    profile: null,
+    profile: profile === '' ? null : profile,
     remoteOauthConnected: false,
     cloudOrg: ''
   }
@@ -76,6 +81,7 @@ function toOurInput(
     'remoteUrl',
     'remoteToken',
     'allowPlainTextToken',
+    'remoteProfile',
     'sshHost',
     'sshUser',
     'sshPort',
@@ -103,6 +109,7 @@ interface DonorConnectionInput {
   remoteUrl?: string
   remoteToken?: string
   allowPlainTextToken?: boolean
+  remoteProfile?: string
   sshHost?: string
   sshUser?: string
   sshPort?: number | null

@@ -156,12 +156,39 @@ export function IndexStatus(): React.JSX.Element | null {
   )
 }
 
+/** Задача T34: при подключении к серверу индекс ведёт сервер — здесь видно, чья
+ *  машина сканирует, когда был последний скан и чем кончился. */
+function ServerIndexNote(): React.JSX.Element | null {
+  const t = useAecT()
+  const state = useQuery({
+    queryKey: ['aec', 'server-scan'],
+    queryFn: () => window.aecpilot.getScanState(),
+    refetchInterval: 15_000
+  })
+  const server = state.data?.server
+  if (!server) return null
+  return (
+    <div className="text-muted-foreground space-y-1 text-sm">
+      <div>{t('index.serverOwner', server.host)}</div>
+      <div className="text-xs">
+        {state.data?.scanning
+          ? t('index.serverScanning')
+          : server.lastScanAt === null
+            ? t('index.serverNoScanYet')
+            : server.ok === false
+              ? t('index.serverLastScanFailed', new Date(server.lastScanAt).toLocaleString())
+              : t('index.serverLastScan', new Date(server.lastScanAt).toLocaleString())}
+      </div>
+    </div>
+  )
+}
+
 /** Тело страницы «Индекс»: что прочитано, что устарело, кнопки прогона и граф. */
 export function IndexDetails(): React.JSX.Element | null {
   const t = useAecT()
   const { data, ingest, graph, pendingSwitch, providerGap } = useIndexState()
 
-  if (!data) return null
+  if (!data) return <ServerIndexNote />
 
   const stale = data.stale_count
 

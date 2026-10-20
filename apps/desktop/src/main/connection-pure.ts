@@ -53,6 +53,10 @@ export interface StoredConnection {
   tokenEncoding: TokenEncoding
   /** Зашифрованный (base64) или открытый токен. Никогда не покидает main. */
   token: string
+  /** Задача T35 (SPEC N16): профиль ядра на той стороне — поле подключения, а не
+   * константа. Пусто — профиль, с которым ядро запущено. Права из него не выводятся:
+   * токен доказывает только то, что его дали, а не кто пришёл. */
+  remoteProfile: string
   ssh: SshSettings
 }
 
@@ -68,6 +72,8 @@ export interface PublicConnection {
   /** Токен лежит открытым текстом — по явному согласию, и человек об этом
    * должен видеть напоминание, а не забыть. */
   remoteTokenPlainText: boolean
+  /** Задача T35: профиль ядра на той стороне; пусто — профиль запуска. */
+  remoteProfile: string
   /** Переменная окружения перекрывает настройку (режим e2e). */
   envOverride: boolean
   sshHost: string
@@ -85,6 +91,8 @@ export interface ConnectionInput {
    * настройку молчанием он не должен. Тогда переключение режима не заставляет
    * набирать адрес заново. */
   remoteUrl: string | undefined
+  /** Задача T35: `undefined` — «не менять», как у адреса. */
+  remoteProfile: string | undefined
   /** Пустая строка означает «не менять» — их экран не присылает токен, когда
    * человек его не трогал. Стереть токен — это `mode: 'local'` или явное
    * `clearToken`. */
@@ -100,6 +108,7 @@ export const DEFAULT_CONNECTION: StoredConnection = {
   remoteUrl: '',
   tokenEncoding: 'none',
   token: '',
+  remoteProfile: '',
   ssh: { ...NO_SSH }
 }
 
@@ -157,6 +166,7 @@ export function readConnectionInput(raw: unknown): ConnectionInput {
     mode,
     ssh: readSshSettings(value),
     remoteUrl: value.remoteUrl === undefined ? undefined : normalizeRemoteUrl(value.remoteUrl),
+    remoteProfile: value.remoteProfile === undefined ? undefined : text(value.remoteProfile),
     remoteToken: typeof value.remoteToken === 'string' ? value.remoteToken.trim() : '',
     allowPlainTextToken: value.allowPlainTextToken === true,
     clearToken: value.clearToken === true
@@ -205,6 +215,7 @@ export function publicConfig(
     remoteTokenPreview: tokenPreview(options.plainToken),
     secureTokenStorage: options.secureAvailable,
     remoteTokenPlainText: stored.tokenEncoding === 'plain',
+    remoteProfile: stored.remoteProfile,
     envOverride: options.envOverride,
     sshHost: stored.ssh.host,
     sshUser: stored.ssh.user,
@@ -228,6 +239,7 @@ export function parseStoredConnection(raw: string): StoredConnection {
       remoteUrl: normalizeRemoteUrl(value.remoteUrl),
       tokenEncoding: encoding === 'safe' || encoding === 'plain' ? encoding : 'none',
       token: typeof value.token === 'string' ? value.token : '',
+      remoteProfile: text(value.remoteProfile),
       ssh: {
         host: text(ssh.host),
         user: text(ssh.user),

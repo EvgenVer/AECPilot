@@ -23,6 +23,7 @@ const REMOTE: StoredConnection = {
   remoteUrl: 'https://hermes.example.org',
   tokenEncoding: 'safe',
   token: 'ZW5jcnlwdGVk',
+  remoteProfile: 'work',
   ssh: { ...NO_SSH }
 }
 
@@ -207,5 +208,29 @@ describe('готовность к подключению', () => {
 
     expect(connectionReady(ssh)).toBe(true)
     expect(connectionReady({ ...ssh, ssh: { ...NO_SSH } })).toBe(false)
+  })
+})
+
+describe('профиль — поле подключения (T35, SPEC N16)', () => {
+  it('сохраняется, читается обратно и виден окну', () => {
+    const back = parseStoredConnection(serializeStoredConnection(REMOTE))
+    expect(back.remoteProfile).toBe('work')
+    const view = publicConfig(back, { secureAvailable: true, envOverride: false, plainToken: 't' })
+    expect(view.remoteProfile).toBe('work')
+  })
+
+  it('не присланный профиль — «не менять», присланный пустой — профиль запуска', () => {
+    expect(readConnectionInput({ mode: 'remote' }).remoteProfile).toBeUndefined()
+    expect(readConnectionInput({ mode: 'remote', remoteProfile: '  ' }).remoteProfile).toBe('')
+  })
+
+  it('старый файл без профиля читается с пустым профилем', () => {
+    const legacy = JSON.stringify({
+      mode: 'remote',
+      remoteUrl: 'https://h.example',
+      tokenEncoding: 'safe',
+      token: 'x'
+    })
+    expect(parseStoredConnection(legacy).remoteProfile).toBe('')
   })
 })

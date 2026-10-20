@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react'
 
 import CreateProjectDialog from './CreateProjectDialog'
 import ProjectSettingsDialog from './ProjectSettingsDialog'
+import { pickProjectFolder } from './pick-project-folder'
 
 const CURRENT_PROJECT_KEY = ['aec', 'current-project'] as const
 const RECENTS_KEY = ['aec', 'recent-projects'] as const
@@ -46,7 +47,7 @@ export function useProjectActions() {
   )
 
   const pickAndOpen = useCallback(async () => {
-    const picked = await window.aecpilot.pickProjectDirectory()
+    const picked = await pickProjectFolder()
     if (picked) await open(picked)
   }, [open])
 

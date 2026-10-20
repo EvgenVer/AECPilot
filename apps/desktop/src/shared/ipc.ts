@@ -107,6 +107,8 @@ export interface ConnectionView {
   remoteTokenPreview: string | null
   secureTokenStorage: boolean
   remoteTokenPlainText: boolean
+  /** Задача T35: профиль ядра на той стороне; пусто — профиль запуска. */
+  remoteProfile: string
   envOverride: boolean
   /** Настройка ssh. Секрета здесь нет: путь к ключу — это путь, а не ключ, и
    * токен для ssh не хранится вовсе (его назначает главный процесс на каждое
@@ -129,6 +131,7 @@ export interface ConnectionInputView {
   remoteToken?: string
   allowPlainTextToken?: boolean
   clearToken?: boolean
+  remoteProfile?: string
   sshHost?: string
   sshUser?: string
   sshPort?: number | null
@@ -1776,7 +1779,12 @@ export interface AecpilotApi {
    * `main` resets it on every project switch). Mirrors `getGatewayState`'s
    * hydrate-on-mount pattern — a scan can start/finish before the renderer
    * subscribes to `onScanState`/`onScanReport`. */
-  getScanState(): Promise<{ scanning: boolean; lastReport: ScanReportEnvelope | null }>
+  /** Задача T34: при подключении к серверу — состояние ЕГО сканера и имя его машины. */
+  getScanState(): Promise<{
+    scanning: boolean
+    lastReport: ScanReportEnvelope | null
+    server: { host: string; lastScanAt: string | null; ok: boolean | null } | null
+  }>
   /** "Сканировать сейчас" — triggers an immediate scan of the current
    * project's sources. A no-op (still `ok: true`) if a scan is already in
    * flight; `ok: false` if no project is open. Resolves as soon as the scan

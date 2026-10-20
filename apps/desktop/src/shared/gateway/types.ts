@@ -770,7 +770,7 @@ export interface LearningDetailResult {
  * server-side (see `ConfigShowResult`).
  *
  * Errors: unknown key → 4002. */
-export type ConfigGetKey = 'reasoning' | 'fast' | 'busy' | 'prompt'
+export type ConfigGetKey = 'reasoning' | 'fast' | 'busy' | 'prompt' | 'project'
 
 export interface ConfigGetParams {
   key: ConfigGetKey
@@ -782,11 +782,15 @@ export interface ConfigGetParams {
  * - `reasoning` → `value` (effort name) + `display` ('show' | 'hide')
  * - `fast` → `value`: 'fast' | 'normal'
  * - `busy` → `value`: 'queue' | 'steer' | 'interrupt'
- * - `prompt` → `prompt` (the custom system prompt; '' when unset) */
+ * - `prompt` → `prompt` (the custom system prompt; '' when unset)
+ * - `project` → `cwd` + `branch`: the core's working folder (`terminal.cwd`, else the
+ *   folder it was launched in) — tasks T33/T34 read the server's project from it */
 export interface ConfigGetResult {
   value?: string
   display?: string
   prompt?: string
+  cwd?: string
+  branch?: string | null
 }
 
 export type ConfigShowParams = Record<string, never>
@@ -1154,7 +1158,17 @@ export interface ModelOptionsResult {
  * - `yolo`: `1`/`0` (also `on`/`off`); ANY other value, empty string included,
  *   makes their handler INVERT the current state — so this app always sends an
  *   explicit `'1'`/`'0'` (task 1.6.B5.21) */
-export type ConfigSetKey = 'model' | 'reasoning' | 'fast' | 'verbose' | 'prompt' | 'busy' | 'yolo'
+export type ConfigSetKey =
+  | 'model'
+  | 'reasoning'
+  | 'fast'
+  | 'verbose'
+  | 'prompt'
+  | 'busy'
+  | 'yolo'
+  /** Task T33: the core's working folder — their `_set_cwd` checks the folder exists on
+   * THEIR disk and persists `terminal.cwd`; a server installation opens its project there. */
+  | 'cwd'
 
 export interface ConfigSetParams {
   key: ConfigSetKey

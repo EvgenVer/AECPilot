@@ -15,6 +15,7 @@ import { useAecT } from '../../shared/i18n'
 import type { RecentProject } from '../../../../shared/ipc'
 
 import CreateProjectDialog from './CreateProjectDialog'
+import { pickProjectFolder } from './pick-project-folder'
 
 export default function Welcome() {
   const t = useAecT()
@@ -54,7 +55,7 @@ export default function Welcome() {
 
   async function handlePickAndOpen(): Promise<void> {
     setOpenError(undefined)
-    const picked = await window.aecpilot.pickProjectDirectory()
+    const picked = await pickProjectFolder()
     if (picked) await openVault(picked)
   }
 

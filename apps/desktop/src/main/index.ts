@@ -15,8 +15,15 @@ import {
 } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import * as fs from 'node:fs'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync
+} from 'node:fs'
+import { homedir, hostname } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
@@ -26,6 +33,20 @@ import { installUpdateCheck } from './update-check'
 import { currentRole } from './install-mode'
 import { loadOrCreateServerToken, rotateServerToken } from './server-token'
 import { createServerTray, type ServerTray } from './server-tray'
+import {
+  joinRemote,
+  parseServerState,
+  projectCwdFromAnswer,
+  projectNameFromJson,
+  remoteDocumentPath,
+  renameProjectJson,
+  sameRemotePath,
+  SERVER_STATE_FILE,
+  serializeServerState,
+  sourceRootFromProjectJson,
+  type ServerScanState,
+  type ServerState
+} from './remote-project-pure'
 import { isAllowedPermission } from './media-permission-pure'
 import {
   AUTOWRITE_FILE,
@@ -757,6 +778,7 @@ const scanScheduler = new ScanScheduler<ScanReportEnvelope>(
     onScanStart: () => {
       scanning = true
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('scan:state', true)
+      writeServerState()
     },
     onReport: (envelope) => {
       scanning = false
@@ -765,11 +787,19 @@ const scanScheduler = new ScanScheduler<ScanReportEnvelope>(
         win.webContents.send('scan:state', false)
         win.webContents.send('scan:report', envelope)
       }
+      serverLastScan = { at: new Date().toISOString(), ok: true, envelope }
+      writeServerState()
     },
     onError: (error: unknown) => {
       scanning = false
       console.error('aecpilot: scan FAIL', error)
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('scan:state', false)
+      serverLastScan = {
+        at: new Date().toISOString(),
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      writeServerState()
     }
   }
 )
@@ -792,6 +822,227 @@ function startScanSchedulerForProject(vaultPath: string): void {
     return
   }
   scanScheduler.start(Math.min(getScanIntervalSeconds(vaultPath) * 1000, MAX_SET_TIMEOUT_MS))
+}
+
+// --- Задачи T33/T34: проект на серверной машине (см. remote-project-pure.ts) ---------
+//
+// Сервер (роль `server`) следит за рабочей папкой своего ядра: клиент меняет её
+// RPC `config.set cwd`, и сервер открывает этот проект у себя — регистрация наших
+// расширений, расписание сканирования и индекс идут по местным для сервера путям.
+// Что сервер держит открытым и чем кончился последний скан, он пишет в
+// `<проект>/.aecpilot/server-state.json`; клиент читает это файловым API ядра.
+
+const SERVER_PROJECT_POLL_MS = 5_000
+let serverActivatedAt = ''
+let serverLastScan: ServerScanState | null = null
+let serverPolling = false
+/** Рабочая папка ядра на прошлом шаге слежения; `undefined` — ещё не смотрели. */
+let lastSeenCoreCwd: string | null | undefined
+
+function writeServerState(): void {
+  if (currentRole() !== 'server' || !currentProject || !serverActivatedAt) return
+  const state: ServerState = {
+    project: currentProject.vaultPath,
+    host: hostname(),
+    activatedAt: serverActivatedAt,
+    scanning,
+    lastScan: serverLastScan
+  }
+  const target = join(currentProject.vaultPath, '.aecpilot', SERVER_STATE_FILE)
+  try {
+    writeFileSync(`${target}.tmp`, serializeServerState(state), 'utf-8')
+    renameSync(`${target}.tmp`, target)
+  } catch (error: unknown) {
+    console.error('aecpilot: could not write the server state', error)
+  }
+}
+
+/** Один шаг слежения: рабочая папка ядра сменилась — открыть там проект. Папка без
+ *  проекта становится проектом с именем папки (имя поправит клиент), но только когда
+ *  папку СМЕНИЛИ: без `terminal.cwd` ядро отвечает папкой своего запуска, и делать
+ *  проект из неё никто не просил. Папка с чужими `AGENTS.md`/`.aecpilot` не трогается —
+ *  это решение человека на сервере. */
+async function followServerProject(): Promise<void> {
+  if (serverPolling || !gateway || gatewayState !== 'ready') return
+  serverPolling = true
+  try {
+    const cwd = projectCwdFromAnswer(
+      await gateway.request('config.get', { key: 'project' }, 10_000)
+    )
+    const changed =
+      lastSeenCoreCwd !== undefined &&
+      !(cwd !== null && lastSeenCoreCwd !== null && sameRemotePath(cwd, lastSeenCoreCwd))
+    lastSeenCoreCwd = cwd
+    if (!cwd || (currentProject && sameRemotePath(cwd, currentProject.vaultPath))) {
+      // Проект, восстановленный при старте, — тоже открытый: клиент должен его видеть.
+      if (currentProject && !serverActivatedAt) {
+        serverActivatedAt = new Date().toISOString()
+        writeServerState()
+      }
+      return
+    }
+    let opened = openProject(cwd)
+    if ('needsInit' in opened) {
+      if (!changed) return
+      const created = createProject(cwd, opened.suggestedName, agentsTemplatePath(), {
+        confirmed: false
+      })
+      if (!('ok' in created) || !created.ok) {
+        console.warn('aecpilot: server did not create a project in the core working folder')
+        return
+      }
+      opened = { ok: true, project: created.project }
+    }
+    if (!opened.ok) {
+      console.warn('aecpilot: server could not open the core working folder as a project')
+      return
+    }
+    serverLastScan = null
+    serverActivatedAt = new Date().toISOString()
+    await activateOpenedProject(opened.project)
+    writeServerState()
+    console.log('aecpilot: server project switched by the core working folder')
+  } catch (error: unknown) {
+    console.warn('aecpilot: server project poll FAIL', error)
+  } finally {
+    serverPolling = false
+  }
+}
+
+/** Текст файла на машине ядра или `null` (нет файла, нет связи). */
+async function remoteReadText(path: string): Promise<string | null> {
+  try {
+    const answer = await hermesRest<{ text?: unknown }>(restTarget(), '/api/fs/read-text', {
+      query: { path },
+      timeoutMs: 15_000
+    })
+    return typeof answer?.text === 'string' ? answer.text : null
+  } catch {
+    return null
+  }
+}
+
+async function readServerState(vaultPath: string): Promise<ServerState | null> {
+  const text = await remoteReadText(joinRemote(vaultPath, '.aecpilot', SERVER_STATE_FILE))
+  return text ? parseServerState(text) : null
+}
+
+const REMOTE_PROJECT_FILE = 'remote-project.json'
+/** Сколько ждать, пока сервер откроет проект: первая регистрация расширений и
+ *  перезагрузка MCP на холодном сервере — десятки секунд. */
+const REMOTE_PROJECT_WAIT_MS = 120_000
+
+function saveRemoteProject(project: OpenProject): void {
+  try {
+    writeFileSync(
+      join(app.getPath('userData'), REMOTE_PROJECT_FILE),
+      `${JSON.stringify(project, null, 2)}\n`,
+      'utf-8'
+    )
+  } catch (error: unknown) {
+    console.error('aecpilot: could not remember the server project', error)
+  }
+}
+
+function loadRemoteProject(): OpenProject | null {
+  try {
+    const parsed = JSON.parse(
+      readFileSync(join(app.getPath('userData'), REMOTE_PROJECT_FILE), 'utf-8')
+    ) as { name?: unknown; vaultPath?: unknown }
+    return typeof parsed.vaultPath === 'string' && typeof parsed.name === 'string'
+      ? { name: parsed.name, vaultPath: parsed.vaultPath }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** Задача T33: открыть (или создать) проект на машине сервера. Клиент меняет рабочую
+ *  папку ядра и ждёт, пока сервер подтвердит, что держит этот проект, — только тогда
+ *  агент видит его документы. Путь проекта дальше — в написании сервера. */
+async function openRemoteProject(
+  vaultPath: string,
+  requestedName?: string
+): Promise<{ ok: true; project: OpenProject } | { ok: false; error: string }> {
+  if (!gateway || gatewayState !== 'ready') {
+    return { ok: false, error: mainT('common.noCoreConnectionLc') }
+  }
+  const before = await readServerState(vaultPath)
+  let alreadyCwd = false
+  try {
+    const cwd = projectCwdFromAnswer(
+      await gateway.request('config.get', { key: 'project' }, 10_000)
+    )
+    alreadyCwd = cwd !== null && sameRemotePath(cwd, vaultPath)
+  } catch {
+    // нет ответа — значит, сменим и подождём подтверждения
+  }
+  if (!alreadyCwd) {
+    try {
+      await gateway.request('config.set', { key: 'cwd', value: vaultPath }, 15_000)
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        error: mainT(
+          'remoteProject.folderRejected',
+          error instanceof Error ? error.message : String(error)
+        )
+      }
+    }
+  }
+
+  // Подтверждение — состояние сервера для ЭТОЙ папки, записанное после нашей смены
+  // (или прежнее, если папка уже была рабочей и сервер её держит).
+  const deadline = Date.now() + REMOTE_PROJECT_WAIT_MS
+  let state: ServerState | null = null
+  for (;;) {
+    state = await readServerState(vaultPath)
+    const confirmed =
+      state !== null &&
+      sameRemotePath(state.project, vaultPath) &&
+      (alreadyCwd || before === null || state.activatedAt !== before.activatedAt)
+    if (confirmed) break
+    if (Date.now() > deadline) return { ok: false, error: mainT('remoteProject.serverDidNotOpen') }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_500))
+  }
+
+  const serverPath = state?.project ?? vaultPath
+  const projectJsonPath = joinRemote(serverPath, '.aecpilot', 'project.json')
+  const jsonText = await remoteReadText(projectJsonPath)
+  let name = (jsonText && projectNameFromJson(jsonText)) || basename(serverPath)
+  const wanted = requestedName?.trim()
+  if (wanted && wanted !== name && jsonText) {
+    const renamed = renameProjectJson(jsonText, wanted)
+    if (renamed) {
+      try {
+        await hermesRest(restTarget(), '/api/fs/write-text', {
+          method: 'POST',
+          body: { path: projectJsonPath, content: renamed },
+          timeoutMs: 15_000
+        })
+        name = wanted
+      } catch (error: unknown) {
+        console.warn('aecpilot: could not rename the server project', error)
+      }
+    }
+  }
+
+  const project: OpenProject = { name, vaultPath: serverPath }
+  currentProject = project
+  saveRemoteProject(project)
+  resetActiveSessionForProjectSwitch()
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('project:opened', project)
+  return { ok: true, project }
+}
+
+let remoteRestoreTried = false
+
+/** После подключения к серверу — тот же проект, что был открыт в прошлый раз. */
+async function restoreRemoteProject(): Promise<void> {
+  const saved = loadRemoteProject()
+  if (!saved) return
+  const outcome = await openRemoteProject(saved.vaultPath)
+  console.log(`aecpilot: server project restore ${outcome.ok ? 'ok' : 'FAIL'}`)
 }
 
 // Mirrors the gateway's connection state so a freshly-loaded renderer can pull
@@ -869,6 +1120,11 @@ async function connectGateway(url: string): Promise<void> {
     if (state === 'ready' && mcpReloadOwed) {
       mcpReloadOwed = false
       void reloadMcp()
+    }
+    // Задача T33: клиент сервера возвращается к проекту, открытому там в прошлый раз.
+    if (state === 'ready' && filesAreRemote() && !currentProject && !remoteRestoreTried) {
+      remoteRestoreTried = true
+      void restoreRemoteProject()
     }
   })
 
@@ -4770,6 +5026,11 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (typeof dirPath !== 'string' || dirPath.length === 0) {
     return { ok: false, error: 'dirPath must be a non-empty string' }
   }
+  // Задача T33: ядро на сервере — проект создаёт сервер в выбранной на нём папке
+  // (папку выбирают их удалённым диалогом, на диске сервера), имя ставит клиент.
+  if (filesAreRemote()) {
+    return openRemoteProject(dirPath, typeof name === 'string' ? name : undefined)
+  }
   if (!isAbsolute(dirPath)) {
     return { ok: false, error: 'путь к папке должен быть абсолютным' }
   }
@@ -4833,6 +5094,8 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   if (typeof vaultPath !== 'string' || vaultPath.length === 0) {
     return { ok: false, error: 'vaultPath must be a non-empty string' }
   }
+  // Задача T33: ядро на сервере — и проект открывается там.
+  if (filesAreRemote()) return openRemoteProject(vaultPath)
   if (!isAbsolute(vaultPath)) {
     return { ok: false, error: 'путь к папке должен быть абсолютным' }
   }
@@ -4903,13 +5166,32 @@ ipcMain.handle('scan:trigger', () => {
   // сейчас работает не здесь: индекс, который никто не спросит, из документов,
   // которых агент не видит. Решение 3.13a — серверная поставка (фаза 6), а до
   // неё честный отказ вместо бессмысленной работы.
-  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  // Задача T34: сканирует сервер по своему расписанию, в том числе при закрытом клиенте.
+  if (filesAreRemote()) return { ok: false, error: mainT('remoteProject.scanOnServer') }
   if (!currentProject) return { ok: false, error: mainT('common.noProject') }
   void scanScheduler.triggerNow()
   return { ok: true }
 })
 
-ipcMain.handle('scan:get-state', () => ({ scanning, lastReport: lastScanReport }))
+ipcMain.handle('scan:get-state', async () => {
+  // Задача T34: на клиенте — состояние сканера СЕРВЕРА: идёт ли скан, его последний
+  // отчёт и чья машина сканирует.
+  if (filesAreRemote()) {
+    const state = currentProject ? await readServerState(currentProject.vaultPath) : null
+    return {
+      scanning: state?.scanning ?? false,
+      lastReport: (state?.lastScan?.envelope as ScanReportEnvelope | undefined) ?? null,
+      server: state
+        ? {
+            host: state.host,
+            lastScanAt: state.lastScan?.at ?? null,
+            ok: state.lastScan?.ok ?? null
+          }
+        : null
+    }
+  }
+  return { scanning, lastReport: lastScanReport, server: null }
+})
 
 ipcMain.handle('project:list-recents', () => loadRecents())
 
@@ -5711,7 +5993,22 @@ ipcMain.handle('viewer:read-document', async (_event, payload: unknown) => {
   // Задача 3.13b: ядро на другой машине — документ читается ТАМ. Цитата,
   // которая не открывается, ломает главный сценарий продукта, а открытая
   // «не та» — хуже: путь в цитате пришёл от ядра и относится к его машине.
-  if (filesAreRemote()) return readRemoteDocument(restTarget(), rel)
+  if (filesAreRemote()) {
+    // Задача T33: путь цитаты — от проекта (или источника) на машине сервера.
+    // Абсолютный путь ядра идёт как прежде (3.13b); `..` из текста агента — нет.
+    if (!currentProject || isAbsolute(rel)) return readRemoteDocument(restTarget(), rel)
+    let sourceRoot: string | null = null
+    if (typeof sourceId === 'string' && sourceId.length > 0) {
+      const json = await remoteReadText(
+        joinRemote(currentProject.vaultPath, '.aecpilot', 'project.json')
+      )
+      sourceRoot = json ? sourceRootFromProjectJson(json, currentProject.vaultPath, sourceId) : null
+      if (!sourceRoot) return { ok: false, error: mainT('source.notConnected', sourceId) }
+    }
+    const remotePath = remoteDocumentPath(currentProject.vaultPath, rel, sourceRoot)
+    if (!remotePath) return { ok: false, error: mainT('common.fileNotFound') }
+    return readRemoteDocument(restTarget(), remotePath)
+  }
 
   if (!currentProject) return { ok: false, error: mainT('common.noProject') }
 
@@ -6193,6 +6490,9 @@ app
       })
       serverTray.setState(serveHandle ? 'running' : 'failed')
       console.log(`aecpilot: server mode, gateway ${serveHandle ? 'up' : 'DOWN'}`)
+      // Задачи T33/T34: проект сервера — рабочая папка его ядра.
+      setInterval(() => void followServerProject(), SERVER_PROJECT_POLL_MS)
+      void followServerProject()
       return
     }
 

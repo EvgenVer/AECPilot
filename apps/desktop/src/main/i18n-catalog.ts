@@ -28,6 +28,12 @@ const ru = {
   // --- Диалоги и меню --------------------------------------------------------
   'tray.show': 'Показать AECPilot',
   'tray.quit': 'Выйти из AECPilot',
+  'remoteProject.folderRejected': (reason: string) =>
+    `Сервер не принял папку как рабочую: ${reason}`,
+  'remoteProject.serverDidNotOpen':
+    'Сервер не подтвердил открытие проекта за две минуты. Проверьте, что сервер AECPilot запущен (значок в трее на сервере), и попробуйте снова.',
+  'remoteProject.scanOnServer':
+    'Сканирует сервер по своему расписанию — в том числе при закрытом приложении.',
   'connection.clientHasNoCore':
     'Это установка «только приложение»: своего ядра здесь нет. Подключитесь к серверу.',
   'serverTray.tooltip': 'AECPilot — сервер',
@@ -362,6 +368,12 @@ const en: Catalog = {
 
   'tray.show': 'Show AECPilot',
   'tray.quit': 'Quit AECPilot',
+  'remoteProject.folderRejected': (reason: string) =>
+    `The server did not accept the folder as its working folder: ${reason}`,
+  'remoteProject.serverDidNotOpen':
+    'The server did not confirm opening the project within two minutes. Check that the AECPilot server is running (its tray icon on the server) and try again.',
+  'remoteProject.scanOnServer':
+    'The server scans on its own schedule — including while this app is closed.',
   'connection.clientHasNoCore':
     'This is an app-only installation with no core of its own. Connect to a server.',
   'serverTray.tooltip': 'AECPilot — server',

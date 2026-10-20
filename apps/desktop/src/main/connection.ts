@@ -136,6 +136,7 @@ export function saveConnection(raw: unknown): SaveOutcome {
     // Присланное заменяет, отсутствующее остаётся: переключить режим — не
     // значит стереть настройку, к которой человек собирается вернуться.
     remoteUrl: input.remoteUrl ?? stored.remoteUrl,
+    remoteProfile: input.remoteProfile ?? stored.remoteProfile,
     tokenEncoding: stored.tokenEncoding,
     token: stored.token,
     ssh: { ...stored.ssh, ...input.ssh }
