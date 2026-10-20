@@ -128,6 +128,8 @@
   FunctionEnd
 
   ; The logon task of a server installation, for the person running the installer.
+  ; The exe name is spelled out: this file is compiled before the template defines
+  ; APP_EXECUTABLE_FILENAME (-WX turns that warning into a failed build).
   Function aecRegisterServerTask
     Push $R0
     Push $R1
@@ -142,7 +144,7 @@
     FileWriteUTF16LE $R0 '<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>$R1\$R2</UserId></LogonTrigger></Triggers>$\r$\n'
     FileWriteUTF16LE $R0 '<Principals><Principal id="Author"><UserId>$R1\$R2</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>$\r$\n'
     FileWriteUTF16LE $R0 '<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Enabled>true</Enabled></Settings>$\r$\n'
-    FileWriteUTF16LE $R0 '<Actions Context="Author"><Exec><Command>$INSTDIR\${APP_EXECUTABLE_FILENAME}</Command><Arguments>--server</Arguments><WorkingDirectory>$INSTDIR</WorkingDirectory></Exec></Actions>$\r$\n'
+    FileWriteUTF16LE $R0 '<Actions Context="Author"><Exec><Command>$INSTDIR\AECPilot.exe</Command><Arguments>--server</Arguments><WorkingDirectory>$INSTDIR</WorkingDirectory></Exec></Actions>$\r$\n'
     FileWriteUTF16LE $R0 '</Task>$\r$\n'
     FileClose $R0
     nsExec::ExecToLog 'schtasks /Create /F /TN "AECPilot Server" /XML "$PLUGINSDIR\aec-server-task.xml"'
