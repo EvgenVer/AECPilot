@@ -1,3 +1,6 @@
+// First on purpose: moves `userData` of an installed tree under `<root>/data` (T39)
+// before any module below reads it.
+import './data-root'
 import {
   app,
   BrowserWindow,
@@ -339,9 +342,9 @@ interface ServeModule {
 // inline its source into out/main/index.js, breaking that resolution. The
 // runtime-computed specifier (built from __dirname, not a literal string)
 // keeps this a real dynamic import that Rollup can't inline.
-// TODO(Phase 5 / task 5.1): __dirname will live inside app.asar in the
-// packaged app — this relative path to runtime/serve.mjs must be revisited
-// for the bundled layout.
+// Packaged, __dirname is `resources/app.asar/out/main`, so the same four levels up
+// land on the install root, where `runtime/` ships beside the exe as extraFiles —
+// outside the asar (measured on the installed tree, tasks T22/T40).
 async function loadServeModule(): Promise<ServeModule> {
   const specifier = pathToFileURL(join(__dirname, '../../../../runtime/serve.mjs')).href
   const mod = (await import(/* @vite-ignore */ specifier)) as ServeModule

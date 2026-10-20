@@ -166,6 +166,9 @@ module.exports = {
     deleteAppDataOnUninstall: false,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'AECPilot'
+    shortcutName: 'AECPilot',
+    // Our page strings (build/installer.nsh) exist in these two; the language follows
+    // the OS, no selector (T30).
+    installerLanguages: ['en_US', 'ru_RU']
   }
 }

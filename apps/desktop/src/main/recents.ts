@@ -3,9 +3,16 @@
 // recents-pure.ts for the file-format/merge logic, tested independently.
 
 import { app } from 'electron'
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { addRecent, parseRecentsJson, type RecentProject } from './recents-pure'
+import { installRoot } from './aec-rag-command'
+import { installedDataDir } from './data-root-pure'
+import {
+  addIndexLocation,
+  parseIndexLocations,
+  serializeIndexLocations
+} from './index-locations-pure'
 
 export type { RecentProject }
 
@@ -31,6 +38,7 @@ export function loadRecents(): RecentProject[] {
  * already treats a `recordRecent` failure as best-effort. Returns the
  * updated list. */
 export function recordRecent(entry: RecentProject): RecentProject[] {
+  recordIndexLocation(entry.vaultPath)
   const next = addRecent(loadRecents(), entry)
   const target = recentsPath()
   mkdirSync(dirname(target), { recursive: true })
@@ -43,4 +51,26 @@ export function recordRecent(entry: RecentProject): RecentProject[] {
     throw error
   }
   return next
+}
+
+/** Task T30: every project this installation opened, for the uninstaller's «remove
+ *  project indexes» option — `<root>/data/index-locations.txt` when installed (the
+ *  uninstaller reads exactly that path), `userData` otherwise. Best-effort: a failed
+ *  write must not block opening a project. */
+function indexLocationsPath(): string {
+  const dataDir = installedDataDir({ root: installRoot(), exists: existsSync })
+  return join(dataDir ?? app.getPath('userData'), 'index-locations.txt')
+}
+
+function recordIndexLocation(vaultPath: string): void {
+  try {
+    const file = indexLocationsPath()
+    const list = existsSync(file) ? parseIndexLocations(readFileSync(file)) : []
+    const next = addIndexLocation(list, vaultPath)
+    if (next === list) return
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, serializeIndexLocations(next))
+  } catch {
+    // the list only serves the uninstaller's option; the project opens regardless
+  }
 }
