@@ -9,8 +9,8 @@
 // строка про ЩС-1 стоит в PDF на странице 7 (как блок 15).
 
 import { execFileSync } from 'node:child_process'
-import { cpSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
@@ -107,11 +107,71 @@ test('AC1.4 вопрос — ответ со ссылкой; щелчок отк
   await record(test.info(), page, { transcript: answer.transcript })
 })
 
+// SPEC AC14: «полный сценарий» — это AC1 плюс память, расписание и браузер: каждое
+// из них заводит свои процессы и кэши (Mem0, запускатель расписаний, Chromium из
+// поставки). Снимок каталогов пользователя до и после делает обвязка прогона
+// (`AEC_E2E_CLEAN_HOME`); здесь — только сами действия, по одному на каждое.
+test('AC1.5 (AC14) память, расписание и браузер на той же установке', async () => {
+  const memory = await turn(page, 'Запомни: ГИП проекта — Петров. Ответь одним словом.', {
+    declineForeign: true
+  })
+  console.log('AC14 память ' + memory.transcript)
+  expect(memory.status, memory.transcript).toBe('complete')
+
+  const browser = await turn(
+    page,
+    'Открой https://example.com инструментом browser_navigate (локальный браузер) и ответь только заголовком страницы.',
+    { timeoutMs: 300000, declineForeign: true }
+  )
+  console.log('AC14 браузер ' + browser.transcript)
+  expect(browser.text, 'заголовок страницы из браузера').toMatch(/Example Domain/i)
+
+  const scripts = join(stand.get().profileDir as string, 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  writeFileSync(join(scripts, 'ac14-tick.py'), 'print("tick")\n', 'utf-8')
+  await clearNotifications(page)
+  const jobId = await page.evaluate(async () => {
+    const bridge = (
+      window as unknown as { hermesDesktop: { api: (r: unknown) => Promise<{ id: string }> } }
+    ).hermesDesktop
+    const job = await bridge.api({
+      path: '/api/cron/jobs',
+      method: 'POST',
+      body: {
+        name: 'ac14-тик',
+        schedule: '* * * * *',
+        no_agent: true,
+        script: 'ac14-tick.py',
+        deliver: 'local'
+      }
+    })
+    return job.id
+  })
+  expect(jobId, 'ядро завело задачу').not.toBe('')
+  await page
+    .locator('[role="status"], [role="alert"]')
+    .filter({ hasText: /никто не запускает|nobody is running/i })
+    .getByRole('button', { name: /Запускать по расписанию|Run on schedule/ })
+    .click()
+  await expect
+    .poll(
+      async () => {
+        const jobs = (await page.evaluate(() => window.aecpilot.gatewayRest('/api/cron/jobs'))) as {
+          id: string
+          last_run_at?: string | null
+        }[]
+        return jobs.find((job) => job.id === jobId)?.last_run_at ?? null
+      },
+      { timeout: 240000, intervals: [5000], message: 'задача по расписанию сработала сама' }
+    )
+    .not.toBe(null)
+})
+
 // SPEC AC1 (уточнение 2026-10-16): «проверка путей загруженных DLL». Все процессы
 // дерева приложения (окно, ядро, наши MCP) грузят модули только из каталога установки
 // и из Windows — ни одной библиотеки из Python/Node/Git разработчика. Только на exe
 // установки: в рабочей копии Electron и Python лежат вне её по определению.
-test('AC1.5 загруженные DLL — только из установки и Windows', async () => {
+test('AC1.6 загруженные DLL — только из установки и Windows', async () => {
   const exe = process.env.AEC_E2E_EXECUTABLE
   test.skip(!exe, 'только на exe установки (AEC_E2E_EXECUTABLE)')
   const root = dirname(exe as string).toLowerCase() + '\\'
@@ -137,7 +197,7 @@ test('AC1.5 загруженные DLL — только из установки 
     return path !== '?' && !path.startsWith(root) && !path.startsWith(windows)
   })
   console.log(
-    `AC1.5 процессов ${new Set(rows.map((row) => row[0])).size}: ${[...names].join(', ')}; модулей ${rows.length}`
+    `AC1.6 процессов ${new Set(rows.map((row) => row[0])).size}: ${[...names].join(', ')}; модулей ${rows.length}`
   )
   expect(names.has('python.exe') || names.has('pythonw.exe'), 'ядро и MCP в дереве').toBe(true)
   expect(foreign.map((row) => `${row[1]} ${row[2]}`)).toEqual([])
