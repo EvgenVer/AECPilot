@@ -28,9 +28,10 @@ citations — clicking a citation opens the document at the right page.
      without a window. Meant for the machine that holds the documents.
    - **App only** — this computer connects to an AECPilot server; it has no core and
      no index of its own.
-5. Wait for it to finish. **It takes a while:** a fresh install takes about 15 minutes,
-   an update over the previous version up to 50 minutes. The package has about 90,000
-   files and the antivirus checks each one. The installer has not hung.
+5. Wait for it to finish. **It takes a while:** a fresh install or an update over the
+   previous version takes 15 minutes to an hour. The package has about 100,000 files and
+   the antivirus checks each one — that matters more than the computer's speed. The
+   installer has not hung.
 
 Silent install (for administrators):
 `AECPilot-<version>-win-x64.exe /S /MODE=full /D=C:\AECPilot` (modes `full`, `server`,
@@ -92,7 +93,7 @@ also removes the sign-in task.
 
 ## Troubleshooting
 
-- **The install takes very long** — see above: 15–50 minutes is normal.
+- **The install takes very long** — see above: up to an hour is normal.
 - **The client cannot reach the server** — check the server's tray icon ("AECPilot
   server is running"), that the SSH tunnel is up, and that the token was copied after
   the last re-issue.
