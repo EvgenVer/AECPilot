@@ -16,7 +16,7 @@
 
 import { execFileSync } from 'node:child_process'
 import {
-  cpSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -61,6 +61,7 @@ let runDir = ''
 let projectDir = ''
 let sourceA = ''
 let sourceB = ''
+let serverOutput = ''
 
 interface IngestState {
   running: boolean
@@ -118,6 +119,19 @@ function findIndexTraces(root: string): string[] {
   return found
 }
 
+/** Рекурсивная копия. Не `cpSync`: в Node 22.23 раннера на Windows он пишет кириллическое
+ *  имя назначения в кодировке ANSI («проект» → «РїСЂРѕРµРєС‚», замер 2026-10-20), а
+ *  кириллические папки на «диске сервера» здесь нарочно — их путь идёт через ядро. */
+function copyTree(from: string, to: string): void {
+  mkdirSync(to, { recursive: true })
+  for (const name of readdirSync(from)) {
+    const source = join(from, name)
+    const target = join(to, name)
+    if (statSync(source).isDirectory()) copyTree(source, target)
+    else copyFileSync(source, target)
+  }
+}
+
 test.beforeAll(async () => {
   profile = prepareProfile()
   port = await getFreePort()
@@ -127,9 +141,9 @@ test.beforeAll(async () => {
   projectDir = join(runDir, 'проект')
   sourceA = join(runDir, 'задания')
   sourceB = join(runDir, 'протоколы')
-  cpSync(sample.vault, projectDir, { recursive: true })
-  cpSync(sample.sourceA, sourceA, { recursive: true })
-  cpSync(sample.sourceB, sourceB, { recursive: true })
+  copyTree(sample.vault, projectDir)
+  copyTree(sample.sourceA, sourceA)
+  copyTree(sample.sourceB, sourceB)
   clientUserData = mkdtempSync(join(tmpdir(), 'aecpilot-ac11-client-'))
 })
 
@@ -164,6 +178,13 @@ test('AC11.1 сервер: без окна, шлюз только на 127.0.0.1
     },
     timeout: 120000
   })
+  // Журнал сервера — для разбора: окна у него нет, а `console.log` главного процесса
+  // идёт сюда.
+  const output = (chunk: Buffer): void => {
+    serverOutput = (serverOutput + chunk.toString('utf8')).slice(-200000)
+  }
+  server.process().stdout?.on('data', output)
+  server.process().stderr?.on('data', output)
   await expect
     .poll(() => portOpen(port), {
       timeout: 240000,
@@ -259,15 +280,30 @@ test('AC11.4 источники подключены с клиента и про
   expect(sources).toHaveLength(2)
   const started = await page.evaluate(() => window.aecpilot.startIngest(true))
   expect(started, JSON.stringify(started)).toMatchObject({ started: true })
-  await expect
-    .poll(
-      async () => {
-        const ingest = (await page.evaluate(() => window.aecpilot.getIngestState())) as IngestState
-        return !ingest.running && (ingest.lastReport?.files_total ?? 0) > 0
-      },
-      { timeout: 900000, intervals: [5000], message: 'индексация на сервере закончилась' }
+  let last: unknown = null
+  try {
+    await expect
+      .poll(
+        async () => {
+          const ingest = (await page.evaluate(() =>
+            window.aecpilot.getIngestState()
+          )) as IngestState
+          last = ingest
+          return !ingest.running && (ingest.lastReport?.files_total ?? 0) > 0
+        },
+        { timeout: 480000, intervals: [5000], message: 'индексация на сервере закончилась' }
+      )
+      .toBe(true)
+  } catch (error) {
+    const statePath = join(projectDir, '.aecpilot', 'server-state.json')
+    console.log('AC11.4 состояние у клиента: ' + JSON.stringify(last).slice(0, 3000))
+    console.log(
+      'AC11.4 server-state: ' +
+        (existsSync(statePath) ? readFileSync(statePath, 'utf8').slice(0, 3000) : 'нет файла')
     )
-    .toBe(true)
+    console.log('AC11.4 журнал сервера (хвост):\n' + serverOutput.slice(-6000))
+    throw error
+  }
 })
 
 test('AC11.5 вопрос — ответ со ссылкой; щелчок открывает PDF сервера на нужной странице', async () => {
