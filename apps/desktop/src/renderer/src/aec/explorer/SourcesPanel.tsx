@@ -260,7 +260,7 @@ export function SourcesPanel() {
   }, [renamingId])
 
   // Задача 3.13b. Наши расширения запускает само ядро — значит при удалённом
-  // ядре они живут там же и читают ту машину. Задача T36.1: список тогда —
+  // ядре они живут там же и читают ту машину. Задача T35.1: список тогда —
   // источники сервера (его `project.json`), папка выбирается на диске сервера, а
   // дерево, состояние и меню источника остаются за сервером.
   const { data: connection, isError: connectionUnknown } = useQuery({
@@ -347,7 +347,7 @@ export function SourcesPanel() {
   const handleAdd = useCallback(async () => {
     setError(undefined)
     // Same native picker the project dialog uses — main owns the dialog, the
-    // renderer never sees a path it did not get from main. T36.1: with a server,
+    // renderer never sees a path it did not get from main. T35.1: with a server,
     // their remote picker browses the server's disk instead.
     const picked = filesAreRemote
       ? await pickProjectFolder(t('sources.add'))

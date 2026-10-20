@@ -879,7 +879,7 @@ function writeServerState(): void {
   }
 }
 
-/** Задача T36.1: выполнить просьбу клиента из `.aecpilot/server-request.json` открытого
+/** Задача T35.1: выполнить просьбу клиента из `.aecpilot/server-request.json` открытого
  *  проекта. Файл удаляется до выполнения — просьба не повторится; итог — в состоянии. */
 async function handleServerRequest(): Promise<void> {
   if (serverRequestBusy || currentRole() !== 'server' || !currentProject || !serverActivatedAt) {
@@ -1000,7 +1000,7 @@ async function readServerState(vaultPath: string): Promise<ServerState | null> {
   return text ? parseServerState(text) : null
 }
 
-// --- Задача T36.1: просьбы клиента серверу (см. remote-project-pure.ts) -------------
+// --- Задача T35.1: просьбы клиента серверу (см. remote-project-pure.ts) -------------
 
 /** Сколько ждать итога просьбы: сервер смотрит раз в 5 с, а подключение источника
  *  перезапускает наши расширения в ядре. */
@@ -1180,7 +1180,7 @@ async function openRemoteProject(
   saveRemoteProject(project)
   resetActiveSessionForProjectSwitch()
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('project:opened', project)
-  // T36.1: индексация, начатая раньше (с этого или другого клиента), видна сразу.
+  // T35.1: индексация, начатая раньше (с этого или другого клиента), видна сразу.
   mirrorServerIngest()
   return { ok: true, project }
 }
@@ -5353,7 +5353,7 @@ ipcMain.handle('sources:list', () => {
   // список к его работе отношения не имеет (решение 3.13a: серверная поставка,
   // фаза 6). Пустой список — не «источников нет», а «спрашивать надо не здесь»;
   // словами это говорит окно.
-  // T36.1: при сервере список — его `project.json`, прочитанный файловым API ядра.
+  // T35.1: при сервере список — его `project.json`, прочитанный файловым API ядра.
   if (filesAreRemote()) return remoteSources()
   return currentProject ? listProjectSources(currentProject.vaultPath) : []
 })
@@ -5378,7 +5378,7 @@ ipcMain.handle('sources:add', async (_event, payload: unknown) => {
   if (typeof rootPath !== 'string' || rootPath.length === 0) {
     return { ok: false, errors: ['rootPath must be a non-empty string'] }
   }
-  // T36.1: папка — на диске сервера (её выбрали их удалённым диалогом); проверяет и
+  // T35.1: папка — на диске сервера (её выбрали их удалённым диалогом); проверяет и
   // подключает её сам сервер. Охранник D-47 «выбрано в диалоге этого процесса» здесь
   // ничего не доказывает: тот же токен и так читает любой файл сервера API ядра.
   if (filesAreRemote()) {
@@ -5574,7 +5574,7 @@ function publishIngestState(next: Partial<IngestState>): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('index:ingest-state', ingestState)
   }
-  // T36.1: у сервера окна нет — ход индексации видит клиент через состояние сервера.
+  // T35.1: у сервера окна нет — ход индексации видит клиент через состояние сервера.
   if (
     currentRole() === 'server' &&
     (wasRunning !== ingestState.running ||
@@ -5645,7 +5645,7 @@ ipcMain.handle('index:ingest', async (_event, payload: unknown) => {
 
   const full =
     typeof payload === 'object' && payload !== null && (payload as { full?: unknown }).full === true
-  // T36.1: при сервере индексирует сервер — своим `aec-rag`, по своим дискам; здесь
+  // T35.1: при сервере индексирует сервер — своим `aec-rag`, по своим дискам; здесь
   // только его ход в индикаторе. Выборочно и с перестройкой — на самом сервере.
   if (filesAreRemote()) {
     const partial =

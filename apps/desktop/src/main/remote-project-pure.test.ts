@@ -100,7 +100,7 @@ describe('документ из цитаты на сервере', () => {
   })
 })
 
-describe('просьбы клиента серверу (T36.1)', () => {
+describe('просьбы клиента серверу (T35.1)', () => {
   it('подключение источника и индексация читаются обратно', () => {
     const add = { id: 'a-1', op: 'add-source', rootPath: 'D:/docs', confirmed: true } as const
     expect(parseServerRequest(serializeServerRequest(add))).toEqual(add)
