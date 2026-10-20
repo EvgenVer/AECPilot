@@ -86,7 +86,7 @@ export function hiddenChild(options) {
  * started (does not wait for the gateway to become healthy — use
  * waitHealthy for that).
  */
-export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEnv = {} } = {}) {
+export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEnv = {}, token: fixedToken } = {}) {
   if (!fs.existsSync(HERMES_BIN)) {
     throw new Error(`hermes binary not found at ${HERMES_BIN} — run 'node runtime/setup.mjs' first`);
   }
@@ -109,7 +109,9 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
 
   // Pre-mint the session token so we can authenticate the WS health-check
   // without scraping it out of the dashboard's HTML response.
-  const token = randomBytes(24).toString("hex");
+  // A server installation passes its persistent token instead (tasks T32/T35, owner
+  // decision 2026-10-19): the client enters it once, and a reboot must not void it.
+  const token = typeof fixedToken === "string" && fixedToken.length >= 32 ? fixedToken : randomBytes(24).toString("hex");
 
   const proc = spawn(
     HERMES_BIN,

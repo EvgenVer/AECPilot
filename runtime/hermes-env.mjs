@@ -119,6 +119,31 @@ export const IS_INSTALLED_LAYOUT = coreManifest !== null;
  *  keeps the development profile. */
 export const IS_WORKING_COPY = fs.existsSync(path.join(INSTALL_ROOT, ".git"));
 
+/**
+ * Installation mode (task T31, SPEC UR25): the installer writes one word — `full`,
+ * `server` or `client` — to `<root>/install-mode.txt`. A client installation has no
+ * core payload at all (the installer removes `runtime/core` and `runtime/mcp`), so the
+ * manifest alone cannot prove an installed tree there; this file can. `null` in a
+ * working copy and in an installation older than the file (it counts as `full`).
+ */
+export const INSTALL_MODE_FILE = path.join(INSTALL_ROOT, "install-mode.txt");
+export const INSTALL_MODES = ["full", "server", "client"];
+
+export function readInstallMode(file = INSTALL_MODE_FILE) {
+  try {
+    // The installer writes ANSI/UTF-8 text; tolerate a BOM, case and a line end.
+    const word = fs.readFileSync(file, "utf-8").replace(/^\uFEFF/, "").trim().toLowerCase();
+    return INSTALL_MODES.includes(word) ? word : null;
+  } catch {
+    return null;
+  }
+}
+
+export const INSTALL_MODE = IS_WORKING_COPY ? null : readInstallMode();
+
+/** Writes under `<root>/data`: an installed tree of any mode, never a working copy. */
+export const IS_INSTALLED = !IS_WORKING_COPY && (IS_INSTALLED_LAYOUT || INSTALL_MODE !== null);
+
 // Isolated venv: keeps hermes-agent and its deps out of the repo's root
 // uv workspace (mcp/*) and out of any user-level Python install.
 // Installed: the payload's dependency environment.
@@ -152,7 +177,7 @@ export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGI
 // runtime it runs on.
 export const HERMES_HOME_DIR = process.env.AEC_HERMES_HOME
   ? path.resolve(process.env.AEC_HERMES_HOME)
-  : IS_INSTALLED_LAYOUT && !IS_WORKING_COPY
+  : IS_INSTALLED
     ? path.join(DATA_DIR, "profile")
     : path.join(RUNTIME_DIR, "dev-profile");
 

@@ -28,6 +28,20 @@ const ru = {
   // --- Диалоги и меню --------------------------------------------------------
   'tray.show': 'Показать AECPilot',
   'tray.quit': 'Выйти из AECPilot',
+  'connection.clientHasNoCore':
+    'Это установка «только приложение»: своего ядра здесь нет. Подключитесь к серверу.',
+  'serverTray.tooltip': 'AECPilot — сервер',
+  'serverTray.running': 'Сервер AECPilot работает',
+  'serverTray.starting': 'Сервер AECPilot запускается…',
+  'serverTray.failed': 'Сервер AECPilot не запустился — см. журнал',
+  'serverTray.copyToken': 'Скопировать токен подключения',
+  'serverTray.newToken': 'Выдать новый токен',
+  'serverTray.newTokenConfirm':
+    'Старый токен перестанет работать, и все подключённые клиенты отключатся. Каждому понадобится ввести новый.',
+  'serverTray.newTokenButton': 'Выдать новый',
+  'serverTray.cancel': 'Отмена',
+  'serverTray.copied': 'Токен скопирован. Вставьте его в окне подключения на клиенте.',
+  'serverTray.quit': 'Остановить сервер',
   'quit.buttonQuit': 'Выйти',
   'quit.buttonStay': 'Остаться',
   'quit.andMore': (remaining: number) => `• и ещё ${remaining}`,
@@ -348,6 +362,20 @@ const en: Catalog = {
 
   'tray.show': 'Show AECPilot',
   'tray.quit': 'Quit AECPilot',
+  'connection.clientHasNoCore':
+    'This is an app-only installation with no core of its own. Connect to a server.',
+  'serverTray.tooltip': 'AECPilot — server',
+  'serverTray.running': 'AECPilot server is running',
+  'serverTray.starting': 'AECPilot server is starting…',
+  'serverTray.failed': 'AECPilot server did not start — see the log',
+  'serverTray.copyToken': 'Copy connection token',
+  'serverTray.newToken': 'Issue a new token',
+  'serverTray.newTokenConfirm':
+    'The old token will stop working and every connected client will be disconnected. Each one will need the new token.',
+  'serverTray.newTokenButton': 'Issue new',
+  'serverTray.cancel': 'Cancel',
+  'serverTray.copied': 'Token copied. Paste it into the connection window on the client.',
+  'serverTray.quit': 'Stop the server',
   'quit.buttonQuit': 'Quit',
   'quit.buttonStay': 'Stay',
   'quit.andMore': (remaining) => `• and ${remaining} more`,

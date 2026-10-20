@@ -23,6 +23,9 @@ import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { openExternalInBackground, openExternalReporting } from './external-open'
 import { installUpdateCheck } from './update-check'
+import { currentRole } from './install-mode'
+import { loadOrCreateServerToken, rotateServerToken } from './server-token'
+import { createServerTray, type ServerTray } from './server-tray'
 import { isAllowedPermission } from './media-permission-pure'
 import {
   AUTOWRITE_FILE,
@@ -328,6 +331,8 @@ interface ServeModule {
     port?: number
     host?: string
     extraEnv?: Record<string, string>
+    /** Постоянный токен серверной установки (T32/T35); без него — новый на запуск. */
+    token?: string
   }) => Promise<ServeHandle>
   waitHealthy: (handle: ServeHandle, timeoutMs?: number) => Promise<unknown>
   stopServe: (
@@ -3789,6 +3794,35 @@ async function reconnectForConnection(): Promise<ReconnectOutcome> {
  * arrives later only takes effect on the next start. One implementation means
  * the two paths cannot drift into leaving the app connected to a backend
  * running with stale credentials. */
+// Задачи T31/T32 (решение владельца 2026-10-19): у сервера токен шлюза постоянный —
+// клиент вводит его один раз, и перезагрузка сервера его не обнуляет. У приложения
+// со своим ядром токен по-прежнему новый на каждый запуск: его никто не вводит.
+let serverTokenValue: string | undefined
+let serverTray: ServerTray | undefined
+
+function serverTokenDeps(): Parameters<typeof loadOrCreateServerToken>[0] {
+  return {
+    userDataDir: app.getPath('userData'),
+    secure: safeStorage,
+    log: (message) => console.warn(message)
+  }
+}
+
+/** Токен для `startServe`: постоянный у сервера, `undefined` (новый) у остальных. */
+function serveToken(): string | undefined {
+  if (currentRole() !== 'server') return undefined
+  serverTokenValue ??= loadOrCreateServerToken(serverTokenDeps())
+  return serverTokenValue
+}
+
+/** «Выдать новый токен» в меню значка сервера: шлюз перезапускается с ним, и
+ *  клиенты со старым отключаются. */
+async function rotateServerTokenAndRestart(): Promise<void> {
+  serverTokenValue = rotateServerToken(serverTokenDeps())
+  const outcome = await restartBackend()
+  serverTray?.setState(outcome.ok ? 'running' : 'failed')
+}
+
 async function restartBackend(
   configOverride?: {
     model?: string
@@ -3800,6 +3834,10 @@ async function restartBackend(
   // to restart — settings are saved, but nothing to reconnect.
   if (process.env.AEC_GATEWAY_URL) {
     return { ok: true, restarted: false }
+  }
+  // Задача T31: в установке «только приложение» своего ядра нет — запускать нечего.
+  if (currentRole() === 'client') {
+    return { ok: false, restarted: false, error: mainT('connection.clientHasNoCore') }
   }
 
   holdGatewayState = options.keepConnection === true
@@ -3813,7 +3851,7 @@ async function restartBackend(
     }
 
     if (configOverride) applyModelConfigOverride(HERMES_HOME_DIR, configOverride)
-    serveHandle = await startServe({ extraEnv: buildExtraEnv() })
+    serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
     stopServeFn = stopServe
     // Без числа — окно берётся из `serve.mjs` (`HEALTH_TIMEOUT_MS`), где рядом
     // лежит замер холодного старта. Здесь стояло 30000, и это ровно тот случай,
@@ -5952,6 +5990,10 @@ function installPermissionPolicy(): void {
 // готовности приложения — позже `<video>` уже не примет её как источник потока.
 registerMediaScheme()
 
+// Задача T32: сервер на машине один. Второй запуск (ярлык поверх задачи при входе в
+// систему) выходит сразу — второй шлюз упёрся бы в занятый порт.
+if (currentRole() === 'server' && !app.requestSingleInstanceLock()) app.exit(0)
+
 app
   .whenReady()
   .then(async () => {
@@ -6016,6 +6058,10 @@ app
         // Задача 3.12: ядро на другой машине — свой процесс не нужен.
         console.log('aecpilot: connecting to a remote gateway')
         await connectGateway(wsUrlFor(remote.baseUrl, remote.token))
+      } else if (currentRole() === 'client') {
+        // Задача T31: в установке «только приложение» ядра на диске нет — поднимать
+        // нечего. Окно открывается и ведёт к настройке подключения к серверу.
+        console.warn('aecpilot: client installation without a server connection — no local core')
       } else {
         try {
           const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
@@ -6053,7 +6099,7 @@ app
           // нет только благодаря этой строке.
           await armProfiles()
 
-          serveHandle = await startServe({ extraEnv: buildExtraEnv() })
+          serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
 
           // startServe only spawns the process — the gateway WS endpoint isn't
           // accepting connections yet. Wait until it's healthy before connecting:
@@ -6135,6 +6181,20 @@ app
     // Задача T27: язык интерфейса, сохранённый прошлым запуском, — ДО трея и
     // первых диалогов; рендерер подтвердит или поправит его своим сообщением.
     loadUiLanguage()
+
+    // Задачи T31/T32: сервер живёт без окна — только значок в трее. Ядро и его
+    // планировщик уже подняты выше; окна, быстрого ввода и ленты здесь нет.
+    if (currentRole() === 'server') {
+      serverTray = await createServerTray({
+        getIcon: executableIcon,
+        getToken: () => serveToken() ?? '',
+        rotateToken: rotateServerTokenAndRestart,
+        quit: () => app.quit()
+      })
+      serverTray.setState(serveHandle ? 'running' : 'failed')
+      console.log(`aecpilot: server mode, gateway ${serveHandle ? 'up' : 'DOWN'}`)
+      return
+    }
 
     // Задача 3G.23 (D-146): до первого окна — окно регистрируется в трее при
     // создании, и настройка с диска должна быть уже прочитана.

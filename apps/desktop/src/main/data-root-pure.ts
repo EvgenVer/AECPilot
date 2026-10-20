@@ -14,9 +14,12 @@ export interface DataRootInput {
 /** `<root>/data` of an installed tree, or `null` for a working copy / a bare tree. */
 export function installedDataDir({ root, exists }: DataRootInput): string | null {
   if (exists(join(root, '.git'))) return null
-  // The core payload's manifest is the proof of an installed tree (hermes-env.mjs).
-  if (!exists(join(root, 'runtime', 'core', 'manifest.json'))) return null
-  return join(root, 'data')
+  // The core payload's manifest is the proof of an installed tree (hermes-env.mjs) —
+  // except in a client installation, which has no core: there the installer's
+  // `install-mode.txt` is (task T31).
+  const installed =
+    exists(join(root, 'runtime', 'core', 'manifest.json')) || exists(join(root, 'install-mode.txt'))
+  return installed ? join(root, 'data') : null
 }
 
 /** The `userData` folder to set before `ready`, or `null` to leave Electron's default.

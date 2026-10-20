@@ -26,6 +26,11 @@ describe('installedDataDir', () => {
     expect(installedDataDir({ root, exists })).toBeNull()
   })
 
+  it('is <root>/data in a client installation without the core (T31)', () => {
+    const mode = join(root, 'install-mode.txt')
+    expect(installedDataDir({ root, exists: (file) => file === mode })).toBe(data)
+  })
+
   it('is null for a tree without the payload', () => {
     expect(installedDataDir({ root, exists: () => false })).toBeNull()
   })
