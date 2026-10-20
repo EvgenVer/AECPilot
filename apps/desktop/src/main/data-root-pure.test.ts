@@ -54,12 +54,18 @@ describe('installedDataEnv', () => {
     expect(env.TEMP).toBe(join(data, 'tmp'))
     expect(env.TMP).toBe(env.TEMP)
     expect(env.XDG_CACHE_HOME).toBe(join(data, 'cache'))
+    expect(env.XDG_CONFIG_HOME).toBe(join(data, 'config'))
     expect(env.HF_HOME).toBe(join(data, 'cache', 'huggingface'))
     expect(env.npm_config_prefix).toBe(join(data, 'npm'))
     expect(env.npm_config_cache).toBe(join(data, 'cache', 'npm'))
     expect(env.PATH).toBeUndefined()
     expect(env.Path.split(delimiter)).toEqual(['C:\\Windows', 'C:\\bin', join(data, 'npm')])
-    expect(dataEnvDirs(env)).toEqual([join(data, 'tmp'), join(data, 'cache'), join(data, 'npm')])
+    expect(dataEnvDirs(env)).toEqual([
+      join(data, 'tmp'),
+      join(data, 'cache'),
+      join(data, 'config'),
+      join(data, 'npm')
+    ])
   })
 
   it('does not add the npm prefix twice', () => {

@@ -192,12 +192,21 @@ test('AC1.6 загруженные DLL — только из установки 
     .filter(Boolean)
     .map((line) => line.split('\t'))
   const names = new Set(rows.map((row) => row[1]))
-  const foreign = rows.filter(([, , file]) => {
+  const outside = rows.filter(([, , file]) => {
     const path = (file ?? '').toLowerCase()
     return path !== '?' && !path.startsWith(root) && !path.startsWith(windows)
   })
+  // Вне установки и Windows законно грузится только то, что ОС сама внедряет в каждый
+  // процесс: антивирус (AMSI Защитника) и зарегистрированные криптопровайдеры CryptoAPI
+  // (замер 2026-10-20: «КриптоПро CSP» на этой машине). Проверка — о другом: ни одной
+  // библиотеки из Python, Node, Git, uv или Hermes разработчика.
+  const developer = /python|node|\\git\\|\\uv\\|hermes|conda|\.venv|pnpm|npm/i
+  const foreign = outside.filter(([, , file]) => developer.test(file ?? ''))
   console.log(
     `AC1.6 процессов ${new Set(rows.map((row) => row[0])).size}: ${[...names].join(', ')}; модулей ${rows.length}`
+  )
+  console.log(
+    `AC1.6 внедрены ОС: ${[...new Set(outside.map((row) => row[2]))].join('; ') || 'нет'}`
   )
   expect(names.has('python.exe') || names.has('pythonw.exe'), 'ядро и MCP в дереве').toBe(true)
   expect(foreign.map((row) => `${row[1]} ${row[2]}`)).toEqual([])

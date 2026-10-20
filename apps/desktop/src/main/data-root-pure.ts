@@ -34,6 +34,9 @@ export function installedUserData(dataDir: string | null, userDataSwitch: boolea
  * The agent's `npm install -g` lands in `npm_config_prefix` (measured 2026-10-17,
  * T21.2: without it, in the npm of a foreign Hermes install), so that folder also goes
  * to the END of PATH — what the agent installs it can run, shadowing nothing.
+ * `XDG_CONFIG_HOME` (measured 2026-10-20, AC14): without it the core's local browser
+ * tool (`browser_harness/paths.py`) wrote `~/.config/browser-harness` — Python CLIs
+ * fall back to `~/.config` on Windows too.
  *
  * Not `PYTHONPYCACHEPREFIX`: the core payload's bytecode is baked
  * (`.hermes-baked-pycache`) and a prefix would relocate the READS too, making every
@@ -53,6 +56,7 @@ export function installedDataEnv(dataDir: string, env: NodeJS.ProcessEnv): Recor
     TMP: tmp,
     TMPDIR: tmp,
     XDG_CACHE_HOME: cache,
+    XDG_CONFIG_HOME: join(dataDir, 'config'),
     HF_HOME: join(cache, 'huggingface'),
     npm_config_prefix: npmPrefix,
     npm_config_cache: join(cache, 'npm'),
@@ -63,5 +67,5 @@ export function installedDataEnv(dataDir: string, env: NodeJS.ProcessEnv): Recor
 /** The folders of {@link installedDataEnv} to create up front: a missing TEMP breaks
  *  programs. */
 export function dataEnvDirs(dataEnv: Record<string, string>): string[] {
-  return [dataEnv.TEMP, dataEnv.XDG_CACHE_HOME, dataEnv.npm_config_prefix]
+  return [dataEnv.TEMP, dataEnv.XDG_CACHE_HOME, dataEnv.XDG_CONFIG_HOME, dataEnv.npm_config_prefix]
 }

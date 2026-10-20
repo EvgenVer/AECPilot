@@ -26,11 +26,13 @@ export default defineConfig({
     // Протокол рабочего стола (задача 3F.12): настоящие окна ОС — проводник,
     // диалог сохранения — на экране человека, поэтому вне гейта `pnpm e2e`.
     { name: 'desktop', testMatch: /acceptance[\\/]desktop-.*\.spec\.ts$/ },
-    // Приёмка AC1 (задача T24): установленный exe на имитации чистой машины
-    // (`AEC_E2E_EXECUTABLE`, `AEC_E2E_CLEAN_HOME`); индексация двух источников с нуля
-    // долгая, поэтому вне гейта и со своим потолком.
     // Проход языков (задача T27): снимки и выписка подозрительных строк — для разбора.
     { name: 'locale', testMatch: /acceptance[\\/]locale-sweep\.spec\.ts$/ },
+    // Приёмка AC1/AC11 (задачи T24, T36): установленный exe на имитации чистой машины
+    // (`AEC_E2E_EXECUTABLE`, `AEC_E2E_CLEAN_HOME`; сервер и клиент — `AEC_E2E_SERVER_EXE`,
+    // `AEC_E2E_CLIENT_EXE`); индексация с нуля долгая, поэтому вне гейта и со своим
+    // потолком. Запуск: `--project=clean-machine <спека>` — без `=` путь к спеке
+    // уходит в список проектов.
     {
       name: 'clean-machine',
       testMatch: /acceptance[\\/]ac\d+-.*\.spec\.ts$/,
