@@ -426,7 +426,17 @@ test('AC11.6 разделение: индекс, ядро и наши MCP — т
   expect(aecpilot).toEqual(expect.arrayContaining(['project.json', 'server-state.json']))
   expect(existsSync(join(serverRoot, 'runtime', 'core'))).toBe(true)
   expect(existsSync(join(serverRoot, 'runtime', 'mcp'))).toBe(true)
-  expect(findIndexTraces(clientRoot), 'следы индекса в каталоге клиента').toEqual([])
+  // Шаблон демо-проекта из поставки (`runtime/fixtures/demo-vault/.aecpilot/project.json`,
+  // в git; одинаков у сервера и клиента) — не след работы клиента. Проверяем, что он
+  // остался шаблоном: в нём по-прежнему один `project.json`, без индекса.
+  const shippedTemplate = join(clientRoot, 'runtime', 'fixtures', 'demo-vault', '.aecpilot')
+  if (existsSync(shippedTemplate)) {
+    expect(readdirSync(shippedTemplate), 'шаблон поставки без индекса').toEqual(['project.json'])
+  }
+  expect(
+    findIndexTraces(clientRoot).filter((trace) => trace !== shippedTemplate),
+    'следы индекса в каталоге клиента'
+  ).toEqual([])
   expect(findIndexTraces(clientUserData), 'следы индекса в данных клиента').toEqual([])
 })
 
