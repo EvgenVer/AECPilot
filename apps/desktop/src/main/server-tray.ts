@@ -1,7 +1,8 @@
 // Задачи T31/T32 (решения владельца 2026-10-16 и 2026-10-19). Установка «только
 // сервер» живёт без окна: значок в трее говорит, работает ли шлюз, и даёт ровно то,
 // что нужно на серверной машине, — скопировать постоянный токен подключения для
-// клиента, выдать новый (старый перестаёт действовать) и остановить сервер.
+// клиента, выдать новый (старый перестаёт действовать), задать ключи моделей (T35.2)
+// и остановить сервер.
 
 import { clipboard, dialog, Menu, Tray, type NativeImage } from 'electron'
 
@@ -15,6 +16,8 @@ export interface ServerTrayOptions {
   getToken: () => string
   /** Новый токен и перезапуск шлюза с ним. */
   rotateToken: () => Promise<void>
+  /** Окно «Ключи моделей» на этой машине (T35.2). */
+  openKeys: () => void
   quit: () => void
 }
 
@@ -71,6 +74,8 @@ export async function createServerTray(options: ServerTrayOptions): Promise<Serv
             void confirmRotate()
           }
         },
+        { type: 'separator' },
+        { label: mainT('serverTray.keys'), click: options.openKeys },
         { type: 'separator' },
         { label: mainT('serverTray.quit'), click: options.quit }
       ])

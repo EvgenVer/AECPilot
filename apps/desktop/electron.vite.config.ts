@@ -79,7 +79,7 @@ export const donorAliases = {
 
 export default defineConfig({
   main: {},
-  // Two preloads: the main window's ~150-member bridge, and the quick-entry
+  // Preloads: the main window's ~150-member bridge, and the quick-entry
   // window's two verbs (task 3.15). A capture box has no business holding the
   // API the application window needs.
   preload: {
@@ -87,7 +87,9 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/preload/index.ts'),
-          'quick-entry': path.resolve(here, 'src/preload/quick-entry.ts')
+          'quick-entry': path.resolve(here, 'src/preload/quick-entry.ts'),
+          // Задача T35.2: окно ключей моделей на сервере — три своих глагола.
+          'server-keys': path.resolve(here, 'src/preload/server-keys.ts')
         }
       }
     }
@@ -130,7 +132,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(here, 'src/renderer/index.html'),
-          'quick-entry': path.resolve(here, 'src/renderer/quick-entry.html')
+          'quick-entry': path.resolve(here, 'src/renderer/quick-entry.html'),
+          'server-keys': path.resolve(here, 'src/renderer/server-keys.html')
         }
       }
     }

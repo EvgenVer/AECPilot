@@ -35,6 +35,8 @@ import { installUpdateCheck } from './update-check'
 import { currentRole } from './install-mode'
 import { loadOrCreateServerToken, rotateServerToken } from './server-token'
 import { createServerTray, type ServerTray } from './server-tray'
+import { serverKeyRows } from './server-keys-pure'
+import { openServerKeysWindow } from './server-keys-window'
 import {
   joinRemote,
   parseServerRequest,
@@ -247,6 +249,8 @@ import {
 import {
   isApprovalMode,
   isCredentialEnvVarName,
+  isStorableKeyName,
+  isStorableKeyValue,
   mergeApprovalsModeIntoConfigYaml,
   mergeModelIntoConfigYaml,
   parseApprovalsMode,
@@ -4229,7 +4233,55 @@ async function rotateServerTokenAndRestart(): Promise<void> {
   serverTray?.setState(outcome.ok ? 'running' : 'failed')
 }
 
-async function restartBackend(
+/** Задача T35.2 (решение владельца 2026-10-20): окно ключей моделей на сервере —
+ *  тот же путь, что `keys:save` у окна приложения: наше шифрованное хранилище, затем
+ *  перезапуск ядра, потому что ключ доходит до него только окружением при запуске. */
+function openServerKeys(): void {
+  openServerKeysWindow({
+    rows: async () => {
+      let profileDir: string | undefined
+      try {
+        profileDir = (await loadServeModule()).HERMES_HOME_DIR
+      } catch (error: unknown) {
+        console.error('aecpilot: could not locate the hermes profile for .env checks', error)
+      }
+      return serverKeyRows(
+        Object.values(PROVIDER_PRESETS).map((preset) => preset.keyEnvVar),
+        storedProviderKeyNames(),
+        (envVar) => (profileDir ? keyEnvVarStatus(profileDir, envVar) : false)
+      )
+    },
+    encryptionAvailable: isEncryptionAvailable,
+    save: async (envVar, key) => {
+      if (!setProviderKey(envVar, key)) return { stored: false, restarted: false }
+      serverTray?.setState('starting')
+      const outcome = await restartBackend()
+      serverTray?.setState(outcome.ok ? 'running' : 'failed')
+      return { stored: true, restarted: outcome.ok, error: outcome.error }
+    },
+    // Только в разработке: в установленной программе адрес из окружения увёл бы окно
+    // с мостом сохранения ключа на чужую страницу (ревью 2026-10-21).
+    ...(!app.isPackaged && process.env.ELECTRON_RENDERER_URL
+      ? { rendererUrl: process.env.ELECTRON_RENDERER_URL }
+      : {})
+  })
+}
+
+/** Перезапуски ядра — по одному (ревью T35.2, 2026-10-21). На сервере их может
+ *  начать и окно ключей, и «Выдать новый токен» в трее; второй, пришедший во время
+ *  первого, видел бы `serveHandle === undefined`, пропускал остановку и упирался в
+ *  занятый порт. Очередь, а не отказ: каждый из двух просил своё. */
+let restartQueue: Promise<unknown> = Promise.resolve()
+
+function restartBackend(
+  ...args: Parameters<typeof restartBackendNow>
+): ReturnType<typeof restartBackendNow> {
+  const run = restartQueue.then(() => restartBackendNow(...args))
+  restartQueue = run.catch(() => undefined)
+  return run
+}
+
+async function restartBackendNow(
   configOverride?: {
     model?: string
     baseUrl?: string
@@ -4339,6 +4391,10 @@ ipcMain.handle('keys:save', async (_event, payload: unknown) => {
   if (key !== null && typeof key !== 'string') throw new Error('invalid key')
   const value = key === null ? null : key.trim()
   if (value !== null && value === '') throw new Error('empty key')
+  // Задача T35.2 (ревью 2026-10-21): сохранить — только под именем ключа, не системной
+  // переменной, и только значение без управляющих символов; удалить — любое.
+  if (value !== null && !isStorableKeyName(envVar)) throw new Error('reserved env var name')
+  if (value !== null && !isStorableKeyValue(value)) throw new Error('invalid key')
 
   if (!setProviderKey(envVar, value)) {
     return {
@@ -6677,8 +6733,13 @@ app
         getIcon: executableIcon,
         getToken: () => serveToken() ?? '',
         rotateToken: rotateServerTokenAndRestart,
+        openKeys: openServerKeys,
         quit: () => app.quit()
       })
+      // Задача T35.2: ярлык AECPilot, запущенный поверх работающего сервера, открывает
+      // его окно ключей — второй сервер всё равно не поднимется (замок выше), а значок
+      // в трее Windows часто спрятан за стрелкой.
+      app.on('second-instance', openServerKeys)
       serverTray.setState(serveHandle ? 'running' : 'failed')
       console.log(`aecpilot: server mode, gateway ${serveHandle ? 'up' : 'DOWN'}`)
       // Задачи T33/T34: проект сервера — рабочая папка его ядра.
@@ -6762,6 +6823,9 @@ app
   })
 
 app.on('window-all-closed', () => {
+  // Задача T35.2: сервер живёт в трее, и его окно ключей — не последнее окно
+  // приложения, а форма. Закрыть её не значит остановить сервер.
+  if (currentRole() === 'server') return
   if (process.platform !== 'darwin') app.quit()
 })
 

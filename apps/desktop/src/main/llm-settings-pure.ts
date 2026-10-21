@@ -242,6 +242,75 @@ export function isCredentialEnvVarName(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(value)
 }
 
+// Задача T35.2 (ревью безопасности 2026-10-21). Сохранённый ключ уходит в окружение
+// ядра ПОСЛЕДНИМ (`runtime/serve.mjs`: `...extraEnv`) и при каждом запуске, поэтому
+// «ключ» с именем PATH, NODE_OPTIONS, PYTHONWARNINGS или нашего же токена шлюза —
+// это не ключ, а постоянная подмена поведения процесса. Запрет — по точным именам и
+// префиксам, а не белым списком суффиксов: у ядра есть настоящие ключи вида
+// HERMES_CUSTOM_API_KEY или HERMES_LANGFUSE_SECRET_KEY.
+const RESERVED_KEY_NAMES = new Set([
+  'PATH',
+  'PATHEXT',
+  'COMSPEC',
+  'SYSTEMROOT',
+  'WINDIR',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'PROGRAMDATA',
+  'BROWSER',
+  'HF_HOME',
+  'SSL_CERT_FILE',
+  'REQUESTS_CA_BUNDLE',
+  'HERMES_HOME',
+  'HERMES_GATEWAY_LOCK_DIR',
+  'HERMES_DASHBOARD_SESSION_TOKEN',
+  'HERMES_TUI_CHECKPOINTS'
+])
+const RESERVED_KEY_PREFIXES = [
+  'PYTHON',
+  'NODE_',
+  'NPM_',
+  'ELECTRON_',
+  'LD_',
+  'DYLD_',
+  'XDG_',
+  'AEC_',
+  'MEM0',
+  'UV_',
+  'PIP_'
+]
+
+/** Имя, под которым ключ провайдера можно СОХРАНИТЬ: имя переменной с ключом и не
+ *  переменная, управляющая самим процессом ядра. */
+export function isStorableKeyName(value: unknown): value is string {
+  return (
+    isCredentialEnvVarName(value) &&
+    !RESERVED_KEY_NAMES.has(value) &&
+    !RESERVED_KEY_PREFIXES.some((prefix) => value.startsWith(prefix))
+  )
+}
+
+/** Предел длины ключа: настоящие ключи провайдеров — десятки и сотни символов. */
+export const MAX_KEY_LENGTH = 8192
+
+/** Значение ключа: непустое, без управляющих символов и не длиннее предела. NUL в
+ *  значении роняет запуск ядра ошибкой Node, в текст которой попадает само значение, —
+ *  а оттуда в журнал (ревью 2026-10-21). */
+export function isStorableKeyValue(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAX_KEY_LENGTH &&
+    // eslint-disable-next-line no-control-regex
+    !/[\u0000-\u001f\u007f]/.test(value)
+  )
+}
+
 /** Ciphertext per credential env var. Values are base64 of
  * `safeStorage.encryptString` — never plaintext, and never sent to the
  * renderer in any form. */
@@ -284,8 +353,10 @@ export function buildProviderEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [name, ciphertext] of Object.entries(keys)) {
+    // Сохранённое раньше под зарезервированным именем в окружение ядра не идёт.
+    if (!isStorableKeyName(name)) continue
     const value = decrypt(ciphertext)
-    if (value) env[name] = value
+    if (isStorableKeyValue(value)) env[name] = value
   }
   return env
 }

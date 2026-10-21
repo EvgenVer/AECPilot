@@ -80,7 +80,7 @@ export interface LaunchOptions {
 
 /** Ключи провайдеров из `.env` профиля: `ИМЯ_API_KEY=значение`. Значения
  *  не печатаются и никуда, кроме хранилища приложения, не уходят. */
-function profileProviderKeys(profileDir: string): Array<{ envVar: string; key: string }> {
+export function profileProviderKeys(profileDir: string): Array<{ envVar: string; key: string }> {
   const file = join(profileDir, '.env')
   if (!existsSync(file)) return []
   const keys: Array<{ envVar: string; key: string }> = []

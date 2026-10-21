@@ -89,6 +89,15 @@ describe('provider keys (task 1.6.B2.5)', () => {
     it('is empty for an empty store', () => {
       expect(buildProviderEnv({}, () => 'x')).toEqual({})
     })
+
+    it('never puts a reserved name or a control-character value into the core env (T35.2)', () => {
+      expect(
+        buildProviderEnv(
+          { NODE_OPTIONS: 'a', PYTHONWARNINGS: 'b', GEMINI_API_KEY: 'c', OPENAI_API_KEY: 'd' },
+          (c) => (c === 'd' ? 'bad\u0000value' : `plain-${c}`)
+        )
+      ).toEqual({ GEMINI_API_KEY: 'plain-c' })
+    })
   })
 
   describe('isCredentialEnvVarName', () => {

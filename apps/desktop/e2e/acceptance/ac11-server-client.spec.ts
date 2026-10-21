@@ -5,7 +5,8 @@
 //
 // Сценарий: сервер без окна и только на 127.0.0.1 → клиент подключается токеном
 // сервера → открывает проект на диске сервера → подключает там два источника и
-// запускает индексацию (её делает сервер, T35.1) → вопрос с цитатой → щелчок открывает
+// запускает индексацию (её делает сервер, T35.1; ключ модели серверу задан его окном
+// ключей, T35.2) → вопрос с цитатой → щелчок открывает
 // PDF на нужной странице → разделение: `.aecpilot/`, ядро и наши MCP есть только у
 // сервера → клиент закрыт, а сервер сам замечает новый файл в источнике (T34).
 //
@@ -14,7 +15,7 @@
 // сервера читается внутри его же процесса (safeStorage) и нигде не печатается:
 // буфер обмена процессам агента недоступен (замер 2026-09-19).
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -32,7 +33,12 @@ import { dirname, join } from 'node:path'
 
 import { _electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 
-import { getFreePort, hideFirstRunSurfaces, killProcessTree } from '../lib/app'
+import {
+  getFreePort,
+  hideFirstRunSurfaces,
+  killProcessTree,
+  profileProviderKeys
+} from '../lib/app'
 import { prepareProfile, removeProfile, SHIPPED_SKILLS_COPY } from '../lib/core'
 import { record } from '../lib/evidence'
 import { recordChatEvents, turn } from '../lib/turn'
@@ -62,6 +68,7 @@ let projectDir = ''
 let sourceA = ''
 let sourceB = ''
 let serverOutput = ''
+let providerKeys: Array<{ envVar: string; key: string }> = []
 
 interface IngestState {
   running: boolean
@@ -134,6 +141,18 @@ function copyTree(from: string, to: string): void {
 
 test.beforeAll(async () => {
   profile = prepareProfile()
+  // T35.2: ключ доходит до сервера ТОЛЬКО через его окно ключей. Значения берутся из
+  // `.env` временной копии профиля и там же стираются до запуска сервера — иначе
+  // индексация шла бы на ключе из `.env`, и шаг с окном ничего бы не доказывал.
+  // Профиль копии — не профиль владельца; значения не печатаются.
+  providerKeys = profileProviderKeys(profile)
+  const envFile = join(profile, '.env')
+  if (existsSync(envFile)) {
+    const kept = readFileSync(envFile, 'utf8')
+      .split(/\r?\n/)
+      .filter((line) => !/^\s*[A-Z][A-Z0-9_]*_API_KEY\s*=/.test(line))
+    writeFileSync(envFile, kept.join('\n'))
+  }
   port = await getFreePort()
   runDir = join(serverDocs, `ac11-${Date.now()}`)
   mkdirSync(runDir, { recursive: true })
@@ -209,6 +228,71 @@ test('AC11.1 сервер: без окна, шлюз только на 127.0.0.1
       : ''
   })
   expect(token, 'токен сервера сохранён зашифрованным').toMatch(/^[0-9a-f]{32,}$/)
+})
+
+// Задача T35.2: у сервера нет окна приложения, ключ модели задаётся окном «Ключи
+// моделей». Его открывает пункт трея или повторный запуск ярлыка — трей Playwright не
+// нажмёт, поэтому здесь второй запуск. Ключ берётся из `.env` временной копии профиля
+// и уходит только в поле окна; в журнал теста не печатается.
+test('AC11.1а ключ модели задаётся окном ключей на сервере', async () => {
+  const running = server as ElectronApplication
+  const keys = providerKeys
+  expect(keys.length, 'в .env копии профиля был ключ провайдера').toBeGreaterThan(0)
+  const windowOpened = running.waitForEvent('window', { timeout: 60000 })
+  const second = spawn(serverExe, ['--server'], {
+    cwd: dirname(serverExe),
+    env: {
+      ...(process.env as Record<string, string>),
+      AEC_HERMES_HOME: profile,
+      AEC_SERVE_PORT: String(port),
+      AEC_SKILLS_DIR: join(profile, SHIPPED_SKILLS_COPY)
+    },
+    stdio: 'ignore'
+  })
+  try {
+    const keysPage = await windowOpened
+    await keysPage.waitForSelector('section.row', { timeout: 30000 })
+    const names = await keysPage.$$eval('section.row[data-env-var]', (rows) =>
+      rows.map((row) => (row as HTMLElement).dataset.envVar)
+    )
+    console.log(`AC11.1а строки окна: ${names.join(', ')}`)
+    let saved = 0
+    for (const entry of keys) {
+      const row = keysPage.locator(`section.row[data-env-var="${entry.envVar}"]`)
+      if ((await row.count()) === 0) {
+        console.log(`AC11.1а строки ${entry.envVar} в окне нет — пропущен`)
+        continue
+      }
+      await row.locator('input').fill(entry.key)
+      await row.locator('button[data-action="save"]').click()
+      // Полный текст успеха: «Ключ сохранён, но ядро не перезапустилось» — провал.
+      await expect(keysPage.locator('#status')).toHaveText(
+        /^(Ключ сохранён, ядро перезапущено|Key saved, core restarted)\.$/,
+        { timeout: 300000 }
+      )
+      const fresh = keysPage.locator(`section.row[data-env-var="${entry.envVar}"]`)
+      await expect(fresh.locator('.state')).toHaveText(/сохранён|stored/)
+      expect(await fresh.locator('.warn').count(), 'значение не перекрыто .env').toBe(0)
+      // Булевы проверки: при падении Playwright напечатал бы полученное значение.
+      expect((await fresh.locator('input').inputValue()) === '', 'поле стёрто').toBe(true)
+      expect((await keysPage.content()).includes(entry.key), 'значения нет в окне').toBe(false)
+      saved += 1
+    }
+    expect(saved, 'сохранён хотя бы один ключ').toBeGreaterThan(0)
+    await record(test.info(), keysPage)
+    await keysPage.keyboard.press('Escape').catch(() => undefined)
+  } finally {
+    killProcessTree(second.pid)
+  }
+  await expect
+    .poll(() => running.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), {
+      timeout: 15000,
+      message: 'окно ключей закрыто, сервер работает дальше'
+    })
+    .toBe(0)
+  await expect
+    .poll(() => portOpen(port), { timeout: 240000, intervals: [2000], message: 'шлюз после перезапуска' })
+    .toBe(true)
 })
 
 test('AC11.2 клиент без своего ядра подключается к серверу', async () => {
