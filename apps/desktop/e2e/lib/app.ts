@@ -246,24 +246,31 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
     ...options.env
   }
   let mock: Awaited<ReturnType<typeof spawnMock>> | undefined
-  let profileDir: string | undefined
   let servePort: number | undefined
-  let ownsProfile = false
+
+  // Профиль — временная копия и на заглушке: ядра там нет, но главный процесс
+  // при старте регистрирует в профиле плагин памяти и её настройки. Без
+  // `AEC_HERMES_HOME` это шло в `runtime/dev-profile` — профиль ручной приёмки
+  // (замер 2026-10-21: `config.yaml` и `mem0.json` менялись за секунды до конца
+  // гейта). Ключ заглушке не нужен.
+  const profileDir =
+    options.profileDir ??
+    prepareProfile({
+      withoutProviderKey: options.mode === 'mock' || options.withoutProviderKey
+    })
+  const ownsProfile = !options.profileDir
+  env.AEC_HERMES_HOME = profileDir
+  // T20.11: навыки поставки — копия в профиле стенда (см. `core.ts`).
+  const skillsCopy = join(profileDir, SHIPPED_SKILLS_COPY)
+  if (existsSync(skillsCopy)) env.AEC_SKILLS_DIR = skillsCopy
 
   if (options.mode === 'mock') {
     mock = await spawnMock(projectDir)
     env.AEC_GATEWAY_URL = `ws://127.0.0.1:${mock.port}/api/ws`
     env.AEC_GATEWAY_REST_URL = `http://127.0.0.1:${mock.restPort}`
   } else {
-    profileDir =
-      options.profileDir ?? prepareProfile({ withoutProviderKey: options.withoutProviderKey })
-    ownsProfile = !options.profileDir
     servePort = await getFreePort()
-    env.AEC_HERMES_HOME = profileDir
     env.AEC_SERVE_PORT = String(servePort)
-    // T20.11: навыки поставки — копия в профиле стенда (см. `core.ts`).
-    const skillsCopy = join(profileDir, SHIPPED_SKILLS_COPY)
-    if (existsSync(skillsCopy)) env.AEC_SKILLS_DIR = skillsCopy
     delete env.AEC_GATEWAY_URL
     delete env.AEC_GATEWAY_REST_URL
   }

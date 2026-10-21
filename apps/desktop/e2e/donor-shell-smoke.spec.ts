@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ElectronApplication, Locator, Page } from 'playwright'
+import { prepareProfile, removeProfile } from './lib/core'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
@@ -31,6 +32,8 @@ let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
 let projectDir = ''
 let userDataDir = ''
+/** Временная копия профиля автотестов — см. `launchStand` в `lib/app.ts`. */
+let hermesHome = ''
 let mainOutput = ''
 /** Композер хоть раз был жив — значит его исчезновение есть о чём сказать. */
 let composerSeen = false
@@ -363,13 +366,15 @@ test.beforeAll(async () => {
     body: JSON.stringify({ cwd: projectDir })
   })
 
+  hermesHome = prepareProfile({ withoutProviderKey: true })
   app = await _electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     cwd: desktopDir,
     env: {
       ...process.env,
       AEC_GATEWAY_URL: `ws://127.0.0.1:${mockPort}/api/ws`,
-      AEC_GATEWAY_REST_URL: `http://127.0.0.1:${mockRestPort}`
+      AEC_GATEWAY_REST_URL: `http://127.0.0.1:${mockRestPort}`,
+      AEC_HERMES_HOME: hermesHome
     }
   })
 
@@ -423,6 +428,7 @@ test.afterAll(async () => {
     }
     if (projectDir) rmSync(projectDir, { force: true, recursive: true })
     if (userDataDir) rmSync(userDataDir, { force: true, recursive: true })
+    if (hermesHome) removeProfile(hermesHome)
   }
 })
 
