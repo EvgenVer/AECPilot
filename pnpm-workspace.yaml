@@ -201,6 +201,10 @@ allowBuilds:
   # below no longer gates builds under pnpm 11, `allowBuilds` does).
   electron: true
   electron-winstaller: false
+  # esbuild 0.28.2 arrives with vite 7.3.7 (task T37, audit 2026-10-21). Its binary is the
+  # optional package `@esbuild/win32-x64`; the install script only re-checks it, and
+  # 0.28.1 ran without it too — the build is the check.
+  esbuild: false
   get-windows: true
   unicode-animations: false
 
