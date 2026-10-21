@@ -12,6 +12,7 @@
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
+import { findForeignPaths, isolateProfileMcp } from './profile-mcp'
 
 const repoRoot = join(__dirname, '..', '..', '..', '..')
 export const e2eProfileDir = join(repoRoot, 'runtime', 'e2e-profile')
@@ -46,7 +47,28 @@ export function prepareProfile(options: { withoutProviderKey?: boolean } = {}): 
     filter: (source) => !skip(source) && !(options.withoutProviderKey && source === envFile)
   })
   copyShippedSkills(dir)
+  isolateMcp(dir)
   return dir
+}
+
+/** Регистрации MCP в копии не должны вести наружу: `aec-roster` с `--home`
+ *  профиля разработчика запускал бы там ядро, проектные серверы — скрипты
+ *  чужого профиля (замер 2026-10-21). Сторож падает на любом пути за
+ *  пределами копии и двух venv репозитория. */
+function isolateMcp(profile: string): void {
+  const configPath = join(profile, 'config.yaml')
+  const { text } = isolateProfileMcp(readFileSync(configPath, 'utf-8'), profile)
+  writeFileSync(configPath, text, 'utf-8')
+  const foreign = findForeignPaths(text, [
+    profile,
+    join(repoRoot, '.venv'),
+    join(repoRoot, 'runtime', '.hermes-venv')
+  ])
+  if (foreign.length > 0) {
+    throw new Error(
+      `config.yaml копии смотрит наружу: ${foreign.map((f) => `${f.line}: ${f.path}`).join('; ')}`
+    )
+  }
 }
 
 /** Задача T20.11 (решение владельца 2026-10-16, п. 16). Навыки поставки агент
