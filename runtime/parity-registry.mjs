@@ -227,7 +227,10 @@ export const ELECTRON_CLASSIFICATION = {
   "power-battery": { ours: "power", note: "power:battery-changed / on-battery" },
   "power-resume": { ours: "power", note: "power:resume" },
   logs: { ours: "log", note: "падение рендерера должно пережить окно — задача 3.29" },
-  uninstall: { task: "T30" },
+  uninstall: {
+    ourWay: "apps/desktop/build/installer.nsh",
+    note: "удаление ведёт установщик Windows: страница «Что будет удалено», данные и индексы по выбору (T30, T30.1); их раздел настроек скрыт — шим отдаёт undefined",
+  },
   "active-work": { ours: "active-work", note: "задача 3E.11" },
   ambient: { ours: "ambient", note: "фоновые подсказки — задача 3E.11" },
   devtools: { ours: "devtools", note: "запрет F12 — задача 3E.11" },
