@@ -4,6 +4,8 @@ node_modules/
 out/
 dist/
 release/
+# Written at packing time from the packed app folder (installed-entries.cjs, T30.1)
+apps/desktop/build/installed-entries.nsh
 
 # Python
 .venv/

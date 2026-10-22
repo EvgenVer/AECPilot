@@ -22,6 +22,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
+const { writeInstalledEntries } = require('./installed-entries.cjs')
+
 const repo = path.resolve(__dirname, '..', '..')
 const electronPackage = require(require.resolve('electron/package.json', { paths: [__dirname] }))
 
@@ -153,6 +155,16 @@ module.exports = {
     }
   ],
   publish: null,
+  // T30.1: the uninstaller removes only what is packed here (installed-entries.cjs);
+  // build/installer.nsh includes the list this writes.
+  afterPack: (context) => {
+    if (context.electronPlatformName !== 'win32') return
+    writeInstalledEntries(
+      context.appOutDir,
+      context.packager.info.buildResourcesDir,
+      context.packager.appInfo.productFilename
+    )
+  },
   win: {
     target: ['nsis', 'zip'],
     // Unsigned on the MVP (SPEC A7): no certificate is configured, so nothing is signed;

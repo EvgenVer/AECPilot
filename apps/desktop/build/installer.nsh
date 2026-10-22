@@ -8,6 +8,7 @@
 ; includes — so what they use comes in here (each header guards against a second include).
 !include LogicLib.nsh
 !include FileFunc.nsh
+!include WordFunc.nsh
 !include MUI2.nsh
 !include nsDialogs.nsh
 
@@ -57,6 +58,8 @@
   LangString aecModeServer 1049 "Только сервер — ядро агента и индекс работают в фоне при входе в систему, без окна; к нему подключаются ноутбуки"
   LangString aecModeClient 1033 "App only — this computer connects to an AECPilot server; no core and no index here"
   LangString aecModeClient 1049 "Только приложение — этот компьютер подключается к серверу AECPilot; ядра и индекса здесь нет"
+  LangString aecServerTaskFailed 1033 "The AECPilot Server task could not be created, so the server will not start at sign-in. Start AECPilot.exe --server by hand or reinstall."
+  LangString aecServerTaskFailed 1049 "Не удалось создать задачу «AECPilot Server» — сервер не будет запускаться при входе в систему. Запустите AECPilot.exe --server вручную или переустановите."
 
   Var aecMode
   Var aecFullBox
@@ -127,6 +130,16 @@
     ${endif}
   FunctionEnd
 
+  ; T30.1: the folder and the account name go into XML text — `&` (legal in both) would
+  ; break the task file, and schtasks would refuse it.
+  Function aecXmlEscape
+    Exch $R0
+    ${WordReplace} $R0 "&" "&amp;" "+" $R0
+    ${WordReplace} $R0 "<" "&lt;" "+" $R0
+    ${WordReplace} $R0 ">" "&gt;" "+" $R0
+    Exch $R0
+  FunctionEnd
+
   ; The logon task of a server installation, for the person running the installer.
   ; The exe name is spelled out: this file is compiled before the template defines
   ; APP_EXECUTABLE_FILENAME (-WX turns that warning into a failed build).
@@ -134,23 +147,35 @@
     Push $R0
     Push $R1
     Push $R2
+    Push $R3
     ReadEnvStr $R1 USERDOMAIN
     ReadEnvStr $R2 USERNAME
+    Push "$R1\$R2"
+    Call aecXmlEscape
+    Pop $R2
+    Push $INSTDIR
+    Call aecXmlEscape
+    Pop $R3
     FileOpen $R0 "$PLUGINSDIR\aec-server-task.xml" w
     FileWriteWord $R0 0xFEFF
     FileWriteUTF16LE $R0 '<?xml version="1.0" encoding="UTF-16"?>$\r$\n'
     FileWriteUTF16LE $R0 '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">$\r$\n'
     FileWriteUTF16LE $R0 '<RegistrationInfo><Description>AECPilot server: agent core and document index (installation mode «server»).</Description></RegistrationInfo>$\r$\n'
-    FileWriteUTF16LE $R0 '<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>$R1\$R2</UserId></LogonTrigger></Triggers>$\r$\n'
-    FileWriteUTF16LE $R0 '<Principals><Principal id="Author"><UserId>$R1\$R2</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>$\r$\n'
+    FileWriteUTF16LE $R0 '<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>$R2</UserId></LogonTrigger></Triggers>$\r$\n'
+    FileWriteUTF16LE $R0 '<Principals><Principal id="Author"><UserId>$R2</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>$\r$\n'
     FileWriteUTF16LE $R0 '<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Enabled>true</Enabled></Settings>$\r$\n'
-    FileWriteUTF16LE $R0 '<Actions Context="Author"><Exec><Command>$INSTDIR\AECPilot.exe</Command><Arguments>--server</Arguments><WorkingDirectory>$INSTDIR</WorkingDirectory></Exec></Actions>$\r$\n'
+    FileWriteUTF16LE $R0 '<Actions Context="Author"><Exec><Command>$R3\AECPilot.exe</Command><Arguments>--server</Arguments><WorkingDirectory>$R3</WorkingDirectory></Exec></Actions>$\r$\n'
     FileWriteUTF16LE $R0 '</Task>$\r$\n'
     FileClose $R0
     nsExec::ExecToLog 'schtasks /Create /F /TN "AECPilot Server" /XML "$PLUGINSDIR\aec-server-task.xml"'
     Pop $R0
     DetailPrint "AECPilot Server task: $R0"
+    ${if} $R0 != "0"
+    ${andIfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "$(aecServerTaskFailed)"
+    ${endif}
     Delete "$PLUGINSDIR\aec-server-task.xml"
+    Pop $R3
     Pop $R2
     Pop $R1
     Pop $R0
@@ -190,7 +215,9 @@
 ; schedules; Electron's userData; caches). The template's own removal is
 ; `RMDir /r $INSTDIR` — on EVERY update too, because a new version first runs the old
 ; uninstaller with --updated. So the removal is ours (`customRemoveFiles`):
-; * everything under $INSTDIR except `data` goes;
+; * what the installer put under $INSTDIR goes, and nothing else (T30.1: the folder
+;   may hold the person's own files — the template adds `\AECPilot` to it only when
+;   the path does not already contain that word, and never for a silent `/D=`);
 ; * `data` goes only when the person ticks it on the page below, never on an update;
 ; * project indexes (<vault>\.aecpilot of every project this installation opened, from
 ;   data\index-locations.txt, see main/recents.ts) go only when ticked, never on an
@@ -311,27 +338,16 @@
     Pop $R3
   FunctionEnd
 
+  ; T30.1: exactly what the installer put here — the top level of the packed app
+  ; folder, listed at packing time (installed-entries.cjs). Anything else in the
+  ; folder is not ours and stays, whatever folder the program was installed into.
+  !include "${BUILD_RESOURCES_DIR}\installed-entries.nsh"
+
   Function un.aecRemoveProgram
-    Push $R1
-    Push $R2
-    FindFirst $R1 $R2 "$INSTDIR\*.*"
-    loop:
-      StrCmp $R2 "" done
-      StrCmp $R2 "." next
-      StrCmp $R2 ".." next
-      StrCmp $R2 "data" next
-      StrCmp $R2 "install-mode.txt" 0 remove
-      StrCmp $aecUpdating "1" next
-    remove:
-      RMDir /r "$INSTDIR\$R2"
-      Delete "$INSTDIR\$R2"
-    next:
-      FindNext $R1 $R2
-      Goto loop
-    done:
-    FindClose $R1
-    Pop $R2
-    Pop $R1
+    !insertmacro aecRemoveInstalledEntries
+    ${if} $aecUpdating != "1"
+      Delete "$INSTDIR\install-mode.txt"
+    ${endif}
   FunctionEnd
 
   !macro customRemoveFiles

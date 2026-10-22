@@ -57,9 +57,21 @@ from one nobody noticed — and the next reviewer will raise them again otherwis
   client-side path check would assert something it cannot know. Accepted: we start that
   core ourselves over ssh, the files are its own, and the boundary — if one is wanted —
   belongs on its side, not here.
+  **Re-examined 2026-10-21 (security review of phase 3, T43):** the server installation
+  (UR25, T32) starts its core itself, at logon, so "we start it over ssh" no longer holds
+  for that mode. The acceptance stands on a different ground, which is stronger: the
+  server's gateway listens on 127.0.0.1 only (`runtime/serve.mjs` `SERVE_HOST`, measured
+  by AC11.1), so a client reaches it only through a tunnel to that machine, and the
+  gateway token (192 random bits, kept encrypted by DPAPI, `main/server-token.ts`) is
+  handed out from the server's own tray. Whoever holds both already has a session on the
+  server; the core's terminal tool gives that session everything `read-data-url` does.
+  The token *is* the server's file system — treat copying it like sharing an ssh key.
+  A plain `http://` address to a non-loopback host is accepted by the client
+  (`normalizeRemoteUrl`) and would carry the token in clear text; today nothing listens
+  there, because the server binds loopback only.
 
 Revisit either when the reasoning behind it changes: a source that can be connected
-without a person picking the folder, or a remote core we no longer start ourselves.
+without a person picking the folder, or a server gateway that listens beyond loopback.
 
 ### Specific notes
 - **Core plugin directory is a code-execution path (R11).** Hermes loads any ESM file from
