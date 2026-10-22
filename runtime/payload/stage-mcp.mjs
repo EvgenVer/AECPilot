@@ -80,22 +80,11 @@ export function stageMcp(out) {
   ]);
   run("uv", ["pip", "install", "--python", python, "--require-hashes", "-r", requirements]);
   run("uv", ["pip", "install", "--python", python, "--no-deps", ...MCP_PACKAGES]);
+  pruneUnused(pythonDir);
 
-  // First use of RapidOCR with the model the parser names (parse.py: `eslav`,
-  // onnxruntime) — downloads the models into the package folder now.
-  run(python, [
-    "-I",
-    "-c",
-    [
-      "from docling.datamodel.pipeline_options import RapidOcrOptions",
-      "from docling.models.stages.ocr.rapid_ocr_model import RapidOcrModel",
-      "from docling.datamodel.accelerator_options import AcceleratorOptions",
-      "RapidOcrModel(enabled=True, artifacts_path=None,",
-      "  options=RapidOcrOptions(lang=['eslav'], backend='onnxruntime'),",
-      "  accelerator_options=AcceleratorOptions())",
-      "print('rapidocr models ready')",
-    ].join("\n"),
-  ]);
+  // First use of RapidOCR exactly as the parser builds it (parse.py `_reader`: `eslav`,
+  // onnxruntime, no torch) — downloads the models into the package folder now.
+  run(python, ["-I", "-c", "from aec_rag.parse import _reader; _reader(); print('rapidocr models ready')"]);
   // Smoke: every server module imports from the staged interpreter, isolated from
   // the user's site (-I) — what the core will run.
   for (const mod of ["aec_sources", "aec_rag", "aec_roster"]) {
@@ -103,6 +92,54 @@ export function stageMcp(out) {
   }
   bakeBytecode(python, pythonDir);
   return { python, pythonDir };
+}
+
+/** What the servers never load (task T43.1, owner decision 2026-10-22): every file is
+ *  one more the installer writes and the antivirus scans. Measured by running the MCP and
+ *  plugin suites with all of it blocked from import — nothing reached for it but
+ *  openpyxl's guarded `from ..tests import KEEP_VBA`, whose folder its wheel does not ship.
+ *  - pip: nothing installs into this interpreter after staging (LightRAG's pip-on-demand
+ *    sits in its API server and storage backends, which we do not run — PLAN §Risks R15);
+ *  - tcl/tk, IDLE, turtledemo, ensurepip: the standard library's GUI and bootstrap;
+ *  - `include/`, `libs/`: headers and import libraries for building C extensions;
+ *  - `Scripts/`: console-script exes, which carry this machine's absolute path — the
+ *    servers start as `python -m` (hermes-env.mjs `mcpServerCommand`);
+ *  - `tests` folders inside packages (pandas, sympy, numpy, networkx, …). */
+const UNUSED_PATHS = [
+  "Scripts",
+  "include",
+  "libs",
+  "tcl",
+  "DLLs/_tkinter.pyd",
+  "DLLs/tcl86t.dll",
+  "DLLs/tk86t.dll",
+  "Lib/tkinter",
+  "Lib/idlelib",
+  "Lib/turtledemo",
+  "Lib/ensurepip",
+];
+
+function pruneUnused(pythonDir) {
+  if (process.platform !== "win32") return;
+  const sitePackages = path.join(pythonDir, "Lib", "site-packages");
+  const removed = [...UNUSED_PATHS.map((rel) => path.join(pythonDir, rel))];
+  for (const name of fs.readdirSync(sitePackages)) {
+    if (/^pip(-[^/]*\.dist-info)?$/i.test(name)) removed.push(path.join(sitePackages, name));
+  }
+  // A `tests` folder below a package's top level — never the package itself.
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.name === "tests") removed.push(full);
+      else walk(full);
+    }
+  };
+  for (const entry of fs.readdirSync(sitePackages, { withFileTypes: true })) {
+    if (entry.isDirectory() && !entry.name.endsWith(".dist-info")) walk(path.join(sitePackages, entry.name));
+  }
+  for (const target of removed) fs.rmSync(target, { recursive: true, force: true });
+  console.log(`pruned ${removed.length} unused paths from the MCP interpreter`);
 }
 
 /** Compiles the whole interpreter tree with `unchecked-hash` pycs, the way their PM bakes

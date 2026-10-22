@@ -30,8 +30,9 @@ export const HASHES_NAME = 'payload-hashes.json'
 export const PAYLOADS = ['core', 'mcp']
 
 /** What never ships, so neither the record nor an installed tree has it: the hash file
- *  itself, their PM's store lock and set-aside trees (`electron-builder.config.cjs`,
- *  RUNTIME_FILTER) and `.gitkeep` (electron-builder drops it everywhere). */
+ *  itself, their PM's store lock and set-aside trees, the core's uv cache (task T43.1)
+ *  (`electron-builder.config.cjs`, RUNTIME_FILTER) and `.gitkeep` (electron-builder
+ *  drops it everywhere). */
 function ignored(rel) {
   const name = rel.slice(rel.lastIndexOf('/') + 1)
   return (
@@ -39,6 +40,7 @@ function ignored(rel) {
     name === '.gitkeep' ||
     rel === 'tools/.install.lock' ||
     rel.startsWith('tools/.reclaim-') ||
+    rel.startsWith('uv-cache/') ||
     rel.startsWith('.build-') ||
     rel.endsWith('.pyc.tmp')
   )

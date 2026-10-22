@@ -111,6 +111,13 @@ const RUNTIME_FILTER = [
   // Their PM's set-aside trees and store lock (stage_core.py::drop_set_aside).
   '!core/tools/.reclaim-*/**',
   '!core/tools/.install.lock',
+  // A second copy of the core's own dependencies, for PM to rebuild an environment
+  // without network — only when the person turns on a core plugin with Python
+  // dependencies of its own. Without it PM downloads what that plugin needs
+  // (`pm/packages.py::uv_cache_dir` handles an image without one). ~8 400 files the
+  // product never reads otherwise (task T43.1, owner decision 2026-10-22). Their
+  // assembler requires the folder, so it stays in the staged `runtime/core`.
+  '!core/uv-cache/**',
   'mcp/**',
   // The Mem0 plugin's source at its pin, copied into the profile at start
   // (`register-mem0-plugin.mjs` reads it from this very relative path).

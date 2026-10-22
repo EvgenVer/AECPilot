@@ -266,22 +266,37 @@ OCR_MAX_SIDE = 5000
 _ocr_reader = None
 
 
+def _cpu_device(accelerator_device: str, supported_devices=None) -> str:
+    """Docling's `decide_device` without torch: the answer it gives on every machine
+    we ship to. Docling imports torch only to ask it for CUDA, MPS or XPU, and the
+    torch our lock used to carry was the CPU build (`2.13.0+cpu`, no CUDA built in),
+    so the answer was always "cpu". torch — about 15 000 files of the installed tree —
+    is out of the lock since task T43.1."""
+    return "cpu"
+
+
 def _reader():
     """RapidOCR with the `eslav` model, built the way Docling builds it (PLAN
     §Risks R4) — through their class, so the language and the model files stay
-    exactly what they were. Loads once per process, about 4 s."""
+    exactly what they were. Loads once per process, about 4 s.
+
+    Their class picks the device through `decide_device`, which imports torch; it
+    gets :func:`_cpu_device` for the length of the construction instead."""
     global _ocr_reader
     if _ocr_reader is None:
+        from unittest import mock
+
         from docling.datamodel.accelerator_options import AcceleratorOptions
         from docling.datamodel.pipeline_options import RapidOcrOptions
-        from docling.models.stages.ocr.rapid_ocr_model import RapidOcrModel
+        from docling.models.stages.ocr import rapid_ocr_model
 
-        model = RapidOcrModel(
-            enabled=True,
-            artifacts_path=None,
-            options=RapidOcrOptions(lang=["eslav"], backend="onnxruntime"),
-            accelerator_options=AcceleratorOptions(),
-        )
+        with mock.patch.object(rapid_ocr_model, "decide_device", _cpu_device):
+            model = rapid_ocr_model.RapidOcrModel(
+                enabled=True,
+                artifacts_path=None,
+                options=RapidOcrOptions(lang=["eslav"], backend="onnxruntime"),
+                accelerator_options=AcceleratorOptions(),
+            )
         _ocr_reader = model.reader
     return _ocr_reader
 

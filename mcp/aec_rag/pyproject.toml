@@ -27,6 +27,11 @@ dependencies = [
     # we now import them ourselves. numpy carries the rendered page to RapidOCR.
     "pypdfium2>=5.12,<6",
     "numpy>=2,<3",
+    # LightRAG tells a dead holder of its storage lock from a live one through psutil
+    # when it is installed (`kg/shared_storage.py`), and guesses without it. It used to
+    # arrive with Docling's `accelerate`; the root pyproject now leaves that stack out
+    # (task T43.1), so it is declared here to keep the same behaviour.
+    "psutil>=7,<8",
 ]
 
 [project.scripts]

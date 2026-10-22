@@ -5,6 +5,40 @@ requires-python = ">=3.12,<3.14"
 
 [tool.uv]
 package = false
+# Task T43.1 (owner decision 2026-10-22): `docling` is the all-in-one build and drags in
+# its PDF models' stack, which our servers never run — PDFs are read by pdfium and
+# scans by RapidOCR on onnxruntime (parse.py). Measured with every module below blocked
+# from import: the MCP and plugin suites pass, and nothing but `torch` is even reached —
+# Docling asks it which device to use for RapidOCR, and parse.py answers that itself.
+# The packages stay out of the lock, so the tests run on exactly what the installer ships.
+# Saves ~25 000 files of the installed tree.
+exclude-dependencies = [
+    "torch",
+    "torchvision",
+    "transformers",
+    "tokenizers",
+    "safetensors",
+    "accelerate",
+    "huggingface-hub",
+    "hf-xet",
+    "faker",
+    "polyfactory",
+    "jsonlines",
+    "dill",
+    "multiprocess",
+    "mpire",
+    "semchunk",
+    "tree-sitter",
+    "tree-sitter-c",
+    "tree-sitter-javascript",
+    "tree-sitter-python",
+    "tree-sitter-typescript",
+    "setuptools",
+    "jinja2",
+    "markupsafe",
+    "filelock",
+    "fsspec",
+]
 
 [tool.uv.workspace]
 members = ["mcp/*"]
