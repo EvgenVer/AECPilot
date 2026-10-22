@@ -19,6 +19,7 @@
 //   node runtime/payload/payload-hashes.mjs versions [--check | --write] [--runtime <staged dir>]
 //   node runtime/payload/payload-hashes.mjs verify [--root <dir>]
 
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -113,9 +114,12 @@ export function collectVersions(runtimeDir = RUNTIME_DIR) {
       python: distributions(path.join(core, manifest.runtime.sitePackages))
     },
     mcp: {
-      python: /#define PY_VERSION\s+"([^"]+)"/.exec(
-        fs.readFileSync(path.join(mcp, 'include', 'patchlevel.h'), 'utf-8')
-      )?.[1],
+      // Asked of the interpreter itself: its C headers are pruned at staging (T43.1).
+      python: spawnSync(
+        path.join(mcp, process.platform === 'win32' ? 'python.exe' : 'bin/python3'),
+        ['-I', '-c', 'import platform; print(platform.python_version())'],
+        { encoding: 'utf-8' }
+      ).stdout?.trim(),
       // python-build-standalone's release the interpreter came from.
       build: fs.readFileSync(path.join(mcp, 'BUILD'), 'utf-8').trim(),
       packages: distributions(path.join(mcp, 'Lib', 'site-packages'))

@@ -14,8 +14,8 @@ citations, keeps the project wiki and notices new revisions.
 - Quickstart: [docs/quickstart.en.md](docs/quickstart.en.md)
 
 Windows 10/11 x64. Установщик ставит всё в одну выбранную папку; установка начисто идёт
-от 15 минут до часа. / Everything is installed into one folder you pick; a fresh install takes
-15 minutes to an hour.
+около 10 минут, дольше — на медленном диске. / Everything is installed into one folder you pick;
+a fresh install takes about 10 minutes, longer on a slow disk.
 
 ## Разработчикам / For developers
 

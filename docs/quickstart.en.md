@@ -8,7 +8,7 @@ citations — clicking a citation opens the document at the right page.
 ## Requirements
 
 - Windows 10 or 11, 64-bit.
-- About 4 GB of free space for the program, plus room for data and project indexes.
+- About 3 GB of free space for the program, plus room for data and project indexes.
 - An API key for a model provider (for example Google Gemini), or a subscription the
   first-run wizard supports.
 - No Python, Node.js or Git needed — everything ships inside the installation.
@@ -29,7 +29,7 @@ citations — clicking a citation opens the document at the right page.
    - **App only** — this computer connects to an AECPilot server; it has no core and
      no index of its own.
 5. Wait for it to finish. **It takes a while:** a fresh install or an update over the
-   previous version takes 15 minutes to an hour. The package has about 100,000 files and
+   previous version takes about 10 minutes, longer on a slow disk. The package has about 60,000 files and
    the antivirus checks each one — that matters more than the computer's speed. The
    installer has not hung.
 
@@ -93,7 +93,7 @@ also removes the sign-in task.
 
 ## Troubleshooting
 
-- **The install takes very long** — see above: up to an hour is normal.
+- **The install takes very long** — see above: this is normal, the installer has not hung.
 - **The client cannot reach the server** — check the server's tray icon ("AECPilot
   server is running"), that the SSH tunnel is up, and that the token was copied after
   the last re-issue.
