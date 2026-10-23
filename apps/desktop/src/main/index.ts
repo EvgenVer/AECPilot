@@ -31,6 +31,7 @@ import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
 import { decideExternalLink, isOwnRendererUrl } from './external-link-policy'
 import { openExternalInBackground, openExternalReporting } from './external-open'
+import { installThirdPartyNotices } from './third-party-notices'
 import { installUpdateCheck } from './update-check'
 import { currentRole } from './install-mode'
 import { loadOrCreateServerToken, rotateServerToken } from './server-token'
@@ -6721,6 +6722,7 @@ app
     installPreviewGuestHidden()
     // Задача T42: проверка новой версии по нашему файлу версии — только уведомление.
     installUpdateCheck()
+    installThirdPartyNotices()
 
     // Задача T27: язык интерфейса, сохранённый прошлым запуском, — ДО трея и
     // первых диалогов; рендерер подтвердит или поправит его своим сообщением.

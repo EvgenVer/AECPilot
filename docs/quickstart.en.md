@@ -91,6 +91,12 @@ shows what will be removed. Two checkboxes, both off by default:
 Your documents and project folders are never removed. For "Server only" the uninstaller
 also removes the sign-in task.
 
+## Licenses
+
+AECPilot is free to use; its terms are in `LICENSE.txt` in the program folder. Third-party
+licenses are in `THIRD-PARTY-NOTICES.txt` next to it; the program also opens it:
+Ctrl+K → «Third-party licenses».
+
 ## Troubleshooting
 
 - **The install takes very long** — see above: this is normal, the installer has not hung.

@@ -24,6 +24,8 @@ const ru = {
   'common.noGatewayLc': 'нет связи со шлюзом',
   'common.emptyPath': 'Пустой путь',
   'common.noCoreConnectionLc': 'нет связи с ядром',
+  'licenses.noticesMissing':
+    'Файла лицензий нет: он собирается вместе с установщиком и лежит в папке установленной программы',
 
   // --- Диалоги и меню --------------------------------------------------------
   'tray.show': 'Показать AECPilot',
@@ -394,6 +396,8 @@ const en: Catalog = {
   'common.noGatewayLc': 'no connection to the gateway',
   'common.emptyPath': 'Empty path',
   'common.noCoreConnectionLc': 'no connection to the core',
+  'licenses.noticesMissing':
+    'There is no license file here: it is built with the installer and lives in the folder of the installed program',
 
   'tray.show': 'Show AECPilot',
   'tray.quit': 'Quit AECPilot',

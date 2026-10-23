@@ -1,0 +1,39 @@
+AECPilot — лицензионное соглашение / License agreement
+
+© 2026 <ПРАВООБЛАДАТЕЛЬ>. Все права защищены. / All rights reserved.
+
+1. Использование. Программой AECPilot можно пользоваться бесплатно, на любом числе своих
+   компьютеров, в том числе в профессиональной работе.
+2. Ограничения. Без письменного согласия правообладателя нельзя: распространять программу
+   или её части (выкладывать, передавать, продавать, сдавать в аренду); изменять,
+   декомпилировать и дизассемблировать её, кроме случаев, прямо разрешённых законом;
+   удалять или менять сведения об авторстве и лицензиях.
+3. Сторонние компоненты. В программу входят компоненты других авторов; они распространяются
+   по своим лицензиям — см. THIRD-PARTY-NOTICES.txt в папке программы. Настоящее соглашение
+   не ограничивает прав, которые дают эти лицензии.
+4. Без гарантий. Программа предоставляется «как есть», без каких-либо гарантий. Ответы
+   агента и результаты обработки документов готовит модель искусственного интеллекта:
+   проверяйте их перед использованием в проектных решениях. Правообладатель не отвечает за
+   убытки от использования программы в пределах, допускаемых законом.
+5. Данные. Программа не передаёт ваши документы и данные правообладателю. Запросы к
+   поставщикам моделей ИИ уходят только тем поставщикам, которых вы выбрали, и на их
+   условиях.
+
+---
+
+1. Use. You may use AECPilot free of charge on any number of your own computers, including
+   in professional work.
+2. Restrictions. Without the copyright holder's written consent you may not distribute the
+   program or its parts (publish, transfer, sell, rent it out); modify, decompile or
+   disassemble it, except where the law expressly permits it; remove or alter authorship
+   and license notices.
+3. Third-party components. The program includes components by other authors, distributed
+   under their own licenses — see THIRD-PARTY-NOTICES.txt in the program folder. This
+   agreement does not restrict any rights those licenses grant.
+4. No warranty. The program is provided "as is", without warranty of any kind. The agent's
+   answers and the results of document processing are produced by an artificial
+   intelligence model: check them before relying on them in design decisions. To the extent
+   permitted by law, the copyright holder is not liable for damages arising from the use of
+   the program.
+5. Data. The program sends none of your documents or data to the copyright holder. Requests
+   to AI model providers go only to the providers you choose, under their terms.

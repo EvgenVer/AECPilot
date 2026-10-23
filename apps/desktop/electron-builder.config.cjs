@@ -23,9 +23,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const { writeInstalledEntries } = require('./installed-entries.cjs')
+const { readOwner, writeThirdPartyNotices } = require('./third-party-notices.cjs')
 
 const repo = path.resolve(__dirname, '..', '..')
 const electronPackage = require(require.resolve('electron/package.json', { paths: [__dirname] }))
+// T43.2 (SPEC A8): the copyright holder from package.json `aecpilot.copyrightHolder`.
+const owner = readOwner(__dirname)
 
 /** What the main process loads from `node_modules` at run time: `import('exceljs')`
  *  (sheet-read) and `import('get-windows')` (os-windows) — everything else in
@@ -135,7 +138,7 @@ module.exports = {
   productName: 'AECPilot',
   executableName: 'AECPilot',
   artifactName: 'AECPilot-${version}-${os}-${arch}.${ext}',
-  copyright: 'AECPilot contributors',
+  copyright: `© ${new Date().getFullYear()} ${owner.holder || 'AECPilot'}`,
   electronVersion: electronPackage.version,
   // The Electron the tests run on, not a second download of it.
   electronDist: path.join(
@@ -153,6 +156,8 @@ module.exports = {
   asar: true,
   asarUnpack: ['**/*.node', '**/prebuilds/**'],
   extraFiles: [
+    // T43.2 (SPEC A8): the program's own license, next to THIRD-PARTY-NOTICES.txt.
+    { from: path.join(repo, 'LICENSE.txt'), to: 'LICENSE.txt' },
     { from: path.join(repo, 'runtime'), to: 'runtime', filter: RUNTIME_FILTER },
     { from: path.join(repo, 'skills'), to: 'skills', filter: ['**/*', '!**/__pycache__/**'] },
     {
@@ -162,10 +167,16 @@ module.exports = {
     }
   ],
   publish: null,
-  // T30.1: the uninstaller removes only what is packed here (installed-entries.cjs);
-  // build/installer.nsh includes the list this writes.
+  // T43.2: THIRD-PARTY-NOTICES.txt is written into the packed tree first, so the list
+  // below has it. T30.1: the uninstaller removes only what is packed here
+  // (installed-entries.cjs); build/installer.nsh includes the list this writes.
   afterPack: (context) => {
     if (context.electronPlatformName !== 'win32') return
+    const license = fs.readFileSync(path.join(context.appOutDir, 'LICENSE.txt'), 'utf-8')
+    if (!owner.holder || !license.includes(owner.holder)) {
+      throw new Error('LICENSE.txt must name aecpilot.copyrightHolder of package.json (T43.2)')
+    }
+    writeThirdPartyNotices(context.appOutDir, __dirname)
     writeInstalledEntries(
       context.appOutDir,
       context.packager.info.buildResourcesDir,

@@ -17,6 +17,7 @@ const api: AecpilotApi = {
     }),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  openThirdPartyNotices: () => ipcRenderer.invoke('licenses:open-notices'),
   getZoom: () => ipcRenderer.invoke('zoom:get'),
   setZoomPercent: (percent) => ipcRenderer.invoke('zoom:set-percent', percent),
   onZoomChanged: (cb) => {

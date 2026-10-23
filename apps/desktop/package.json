@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "description": "AECPilot — рабочее место инженера-проектировщика с агентом",
   "author": "AECPilot",
+  "license": "SEE LICENSE IN LICENSE.txt",
   "private": true,
   "main": "./out/main/index.js",
   "aecpilot": {
     "//updateFeedUrl": "T42: https address of our latest-version JSON {version, url}; empty = no update check, no network request. Set at the first release.",
-    "updateFeedUrl": ""
+    "updateFeedUrl": "",
+    "//copyrightHolder": "T43.2 (SPEC A8): the copyright holder of AECPilot — © line, exe properties, LICENSE.txt, THIRD-PARTY-NOTICES.txt. The installer build stops while it is empty.",
+    "copyrightHolder": "",
+    "//sourceOfferContact": "T43.2: the address that answers the written offer of Git for Windows sources (GPLv2) in THIRD-PARTY-NOTICES.txt.",
+    "sourceOfferContact": ""
   },
   "scripts": {
     "dev": "electron-vite dev",

@@ -63,6 +63,7 @@ import {
 import { registerCoreNotices } from './aec/core-notices/register-core-notices'
 import { registerMemoryNotice } from './aec/memory-notice/register-memory-notice'
 import { registerUpdateNotice } from './aec/update-notice/register-update-notice'
+import { registerLicenses } from './aec/licenses/register-licenses'
 import { registerMemoryScreen } from './aec/memory/register'
 import { registerIndexPage } from './aec/index-page/register'
 import { registerProjectPage } from './aec/project/register'
@@ -89,6 +90,8 @@ registerMemoryNotice()
 // Задача T42: о новой версии — уведомлением с «Скачать»; без адреса в сборке и без
 // сети — молча.
 void registerUpdateNotice()
+// Задача T43.2: лицензии сторонних компонентов — команда Ctrl+K.
+registerLicenses()
 registerMemoryScreen()
 // Задача 3H.8 (UR43): страница «Индекс» — маршрут, строка боковой панели и Ctrl+K.
 registerIndexPage()

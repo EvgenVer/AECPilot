@@ -1127,6 +1127,9 @@ export interface AecpilotApi {
   /** Задача T42: новая версия из нашего файла версии (адрес — настройка сборки) или
    * `null` — нет адреса, нет сети, нет новой версии. Один запрос на запуск. */
   checkForUpdate(): Promise<{ version: string; url: string } | null>
+  /** Задача T43.2: открывает `THIRD-PARTY-NOTICES.txt` папки установки; в рабочей копии
+   * файла нет — отказ с объяснением. */
+  openThirdPartyNotices(): Promise<VaultOpResult>
   /** Keeps the machine from sleeping through a long unattended run (task
    * 3.18). The display may still go dark — that is `prevent-app-suspension`,
    * and it is what the criterion asks for. Answers with the state actually in

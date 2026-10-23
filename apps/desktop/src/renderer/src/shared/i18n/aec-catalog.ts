@@ -473,6 +473,10 @@ export const aecLocales: PluginLocaleBundles = {
         'Download the installer and run it over this installation — your projects, settings and indexes stay in place.',
       download: 'Download'
     },
+    licenses: {
+      command: 'Third-party licenses',
+      failedTitle: 'Could not open the licenses'
+    },
     memoryNotice: {
       title: 'Extended memory is off',
       package:
@@ -1323,6 +1327,10 @@ export const aecLocales: PluginLocaleBundles = {
       message:
         'Скачайте установщик и запустите его поверх этой установки — проекты, настройки и индексы останутся на месте.',
       download: 'Скачать'
+    },
+    licenses: {
+      command: 'Лицензии сторонних компонентов',
+      failedTitle: 'Не удалось открыть лицензии'
     },
     memoryNotice: {
       title: 'Расширенная память выключена',
