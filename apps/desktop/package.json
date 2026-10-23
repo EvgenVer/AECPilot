@@ -10,9 +10,9 @@
     "//updateFeedUrl": "T42: https address of our latest-version JSON {version, url}; empty = no update check, no network request. Set at the first release.",
     "updateFeedUrl": "",
     "//copyrightHolder": "T43.2 (SPEC A8): the copyright holder of AECPilot — © line, exe properties, LICENSE.txt, THIRD-PARTY-NOTICES.txt. The installer build stops while it is empty.",
-    "copyrightHolder": "",
+    "copyrightHolder": "Evgenii Veremev",
     "//sourceOfferContact": "T43.2: the address that answers the written offer of Git for Windows sources (GPLv2) in THIRD-PARTY-NOTICES.txt.",
-    "sourceOfferContact": ""
+    "sourceOfferContact": "evgenyveremiev88@gmail.com"
   },
   "scripts": {
     "dev": "electron-vite dev",
