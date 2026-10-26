@@ -3,6 +3,10 @@
 // a screen, a reason citing a document that no longer says it, a reason left
 // behind after the surface was ported.
 
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,10 +19,13 @@ import {
   readDenied,
   readExclusions,
   readTaskIds,
+  readTasksText,
 } from "./parity-registry.mjs";
 
 const from = { ref: "v0.20.2", sha: "d".repeat(40) };
 const base = { exclusions: ["HX1"], taskIds: new Set(["3.5"]), denied: ["model.save_key"], from };
+/** A channel whose verdict is «задача принесёт», for the checks of task citations. */
+const TASK_RULES = { surfaces: {}, channels: { updates: { task: "T42", note: "обновления" } } };
 
 describe("classifySurface", () => {
   it("does not call a surface ours because a helper of it was pulled in", () => {
@@ -80,6 +87,33 @@ describe("document parsing", () => {
     ].join("\n");
     expect([...readTaskIds(tasks)].sort()).toEqual(["T7", "T7.1", "T8"]);
     expect([...readClosedTaskIds(tasks)].sort()).toEqual(["T7.1", "T8"]);
+  });
+
+  it("reads the task list of docs/TASKS.md, a checked item being a closed task", () => {
+    const tasks = [
+      "- [x] T44 (7.1) Канбан-доска — поглощена задачей 3E.13 — check: y",
+      "- [ ] T45 (7.2) Решить хост автораздачи — after: T44",
+      "  - [ ] T45 — продолжение пункта, а не задача",
+      "- [ ] T4501 — ид задачи без пробела: T4501, а не T45",
+    ].join("\n");
+    expect([...readTaskIds(tasks)].sort()).toEqual(["T44", "T45", "T4501"]);
+    expect([...readClosedTaskIds(tasks)]).toEqual(["T44"]);
+  });
+
+  it("finds a task in docs/TASKS.md and in every finished stage", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "parity-tasks-"));
+    try {
+      fs.writeFileSync(path.join(dir, "TASKS.md"), "- [ ] T45 Решить хост\n");
+      fs.mkdirSync(path.join(dir, "history"));
+      fs.writeFileSync(path.join(dir, "history", "stage-1.md"), "| T7 | Голос | done | none | Check: y |\n");
+      fs.writeFileSync(path.join(dir, "history", "stage-3.md"), "| T42 | Обновления | done | none | Check: y |\n");
+      fs.writeFileSync(path.join(dir, "history", "id-changes.md"), "| T99 | не этап | done | none | x |\n");
+      const text = readTasksText({ tasksFile: path.join(dir, "TASKS.md"), historyDir: path.join(dir, "history") });
+      expect([...readTaskIds(text)].sort()).toEqual(["T42", "T45", "T7"]);
+      expect([...readClosedTaskIds(text)].sort()).toEqual(["T42", "T7"]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("reads the deny list from the module rather than a copy of it", () => {
@@ -173,13 +207,11 @@ describe("buildRegistry integrity", () => {
     const registry = buildRegistry({
       ...base,
       taskIds: new Set(),
-      // Фикстура обязана называть строку, которая ЕЩЁ ССЫЛАЕТСЯ НА ЗАДАЧУ:
-      // проверяется механизм, но берётся живая таблица, и перенос поверхности
-      // роняет такой тест. Так случилось дважды — с `cron` при закрытии D-50 и
-      // с `webhooks` при переносе экрана 2026-09-10 (задача 3.11). Поэтому
-      // подопытное взято из ELECTRON_CLASSIFICATION (`updates` → T42, бывшая 3.21):
-      // в поверхностях строк с задачей больше НЕ ОСТАЛОСЬ, а эта ждёт упаковки
-      // (фаза 3) и переживёт всё, что до неё.
+      // Строка правил своя, а не из живой таблицы: живая теряла строки со
+      // ссылкой на задачу при каждом переносе — `cron` при закрытии D-50,
+      // `webhooks` 2026-09-10, `updates` с закрытием T42 — и тест падал вместе
+      // с ними, хотя механизм был цел.
+      rules: TASK_RULES,
       surfaces: {},
       channels: { theirs: ["updates"], ours: [] },
     });
@@ -194,6 +226,7 @@ describe("buildRegistry integrity", () => {
       ...base,
       taskIds: new Set(["T42"]),
       closedTaskIds: new Set(["T42"]),
+      rules: TASK_RULES,
       surfaces: {},
       channels: { theirs: ["updates"], ours: [] },
     });

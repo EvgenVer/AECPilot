@@ -7,7 +7,7 @@
 // Takes a git ref, so the registry can be generated against a version we have
 // NOT pinned. That is the point: the composition of Phase 3B has to be fixed
 // once, against the tree we will actually port from, instead of being rewritten
-// after every release (PLAN §Синхронность с релизом донора).
+// after every release (docs/plan-details.md §Синхронность с релизом донора).
 //
 //   node runtime/parity-registry.mjs                      — против DONOR_SHA
 //   node runtime/parity-registry.mjs refs/aecpilot/v0.20.2
@@ -33,8 +33,12 @@ import { DONOR_ROOT, DONOR_SHA } from "./donor-env.mjs";
 import { readVendorZone } from "./donor-report.mjs";
 
 const REPO_DIR = path.resolve(RUNTIME_DIR, "..");
-const SPEC_FILE = path.join(REPO_DIR, "SPECIFICATION.md");
-const TASKS_FILE = path.join(REPO_DIR, "TASKS.md");
+// Since the move to the studio workflow (2026-10-26) the §Non-Goals entries live
+// in docs/PRODUCT.md, the open work in docs/TASKS.md and finished stages in
+// docs/history/stage-<N>.md; a verdict may cite a task from any of them.
+const SPEC_FILE = path.join(REPO_DIR, "docs", "PRODUCT.md");
+const TASKS_FILE = path.join(REPO_DIR, "docs", "TASKS.md");
+const HISTORY_DIR = path.join(REPO_DIR, "docs", "history");
 const DENY_FILE = path.join(REPO_DIR, "apps/desktop/src/main/gateway-passthrough-pure.ts");
 const OUR_PRELOAD = path.join(REPO_DIR, "apps/desktop/src/preload/index.ts");
 
@@ -139,7 +143,7 @@ export const ELECTRON_CLASSIFICATION = {
   // Их канал спрашивает у main: «почему эта поверхность выключена при удалённом
   // ядре». У нас спрашивать некого и незачем — причина не ВЫЧИСЛЯЕТСЯ в момент
   // вопроса, а ЗАПИСАНА: решение по каждой из семи поверхностей принято задачей
-  // 3.13a (PLAN §«Удалённый режим»), а текст лежит в нашем каталоге
+  // 3.13a (docs/plan-details.md §«Удалённый режим»), а текст лежит в нашем каталоге
   // (`remoteTitle`/`remoteDetail`) и рисуется самой поверхностью. Круга к main
   // нет вовсе.
   "get-remote-display-reason": {
@@ -267,7 +271,7 @@ export const ELECTRON_CLASSIFICATION = {
     note: "туннель к localhost удалённого ядра — 3E.5; отдельная сессия `ssh -N -L` по уже открытому подключению (ControlMaster в OpenSSH под Windows нет)",
   },
   // — приехало с пином 0.21.2 (задача 3.B4, решения владельца 2026-09-14 по
-  //   таблице PLAN §«Решения интервью 2026-09-14»)
+  //   таблице docs/plan-details.md §«Решения интервью 2026-09-14»)
   capturePreview: {
     ours: "preview",
     note: "preview:capture — снимок гостя для их аннотаций на предпросмотре (пакет 9.7, берём)",
@@ -334,15 +338,31 @@ export function readExclusions(specText) {
   return [...specText.matchAll(/^- \*\*(HX\d+)\./gm)].map((m) => m[1]);
 }
 
-/** Rows of the TASKS task tables — `| T12 | задача | done | After | Verification |`,
- * the canonical format since the toolkit update of 2026-10-15. Only a row whose
- * first cell is a task id counts: the §ID changes table maps legacy numbers
- * (`5.1а`, `3.B3д`, `D-84`) and is lookup history, not work a verdict may cite.
- * Cells split on unescaped pipes, as the toolkit checker splits them — a task
- * text may carry a literal `\|`. */
+/** The text every task lives in: docs/TASKS.md, then each finished stage. */
+export function readTasksText({ tasksFile = TASKS_FILE, historyDir = HISTORY_DIR } = {}) {
+  const stages = fs
+    .readdirSync(historyDir)
+    .filter((name) => /^stage-\d+\.md$/.test(name))
+    .sort()
+    .map((name) => path.join(historyDir, name));
+  return [tasksFile, ...stages].map((file) => fs.readFileSync(file, "utf8")).join("\n");
+}
+
+/** Tasks in either form the documents use. Finished stages keep the task tables
+ * of the 2026-10-15 toolkit — `| T12 | задача | done | After | Verification |`;
+ * docs/TASKS.md lists tasks as `- [x] T44 …` (done) or `- [ ] T45 …` (open).
+ * Only a row whose first cell is a task id counts: the ID changes table maps
+ * legacy numbers (`5.1а`, `3.B3д`, `D-84`) and is lookup history, not work a
+ * verdict may cite. Cells split on unescaped pipes — a task text may carry a
+ * literal `\|`. */
 function taskRows(tasksText) {
   const rows = [];
   for (const line of tasksText.split(/\r?\n/)) {
+    const item = /^- \[([ xX])\] (T\d+(?:\.\d+)?)\b/.exec(line);
+    if (item) {
+      rows.push({ id: item[2], status: item[1] === " " ? "open" : "done" });
+      continue;
+    }
     if (!/^\| T\d+(?:\.\d+)? \|/.test(line)) continue;
     const cells = line
       .split(/(?<!\\)\|/)
@@ -353,7 +373,7 @@ function taskRows(tasksText) {
   return rows;
 }
 
-/** Task ids TASKS.md actually carries, so the table cannot cite a task that was
+/** Task ids the task lists actually carry, so the table cannot cite a task that was
  * renumbered out from under it. */
 export function readTaskIds(tasksText) {
   return new Set(taskRows(tasksText).map((row) => row.id));
@@ -446,16 +466,28 @@ export function existingOurWayFiles() {
   return new Set(cited.filter((relative) => fs.existsSync(path.join(REPO_DIR, relative))));
 }
 
-export function buildRegistry({ surfaces, channels, exclusions, taskIds, closedTaskIds, ourFiles, denied, from }) {
+/** `rules` defaults to the live tables; tests pass their own, so a check of the
+ * mechanism does not break when the row it borrowed gets ported. */
+export function buildRegistry({
+  surfaces,
+  channels,
+  exclusions,
+  taskIds,
+  closedTaskIds,
+  ourFiles,
+  denied,
+  from,
+  rules = { surfaces: CLASSIFICATION, channels: ELECTRON_CLASSIFICATION },
+}) {
   const ourGroups = new Set(channels?.ours ?? []);
   const files = new Set(ourFiles ?? []);
   const closed = new Set(closedTaskIds ?? []);
   const rows = [
     ...Object.entries(surfaces).map(([name, counts]) =>
-      classifySurface(name, { ...counts, rule: CLASSIFICATION[name], ourFiles: files }),
+      classifySurface(name, { ...counts, rule: rules.surfaces[name], ourFiles: files }),
     ),
     ...(channels?.theirs ?? []).map((name) =>
-      classifyChannel(name, { rule: ELECTRON_CLASSIFICATION[name], ourGroups, ourFiles: files }),
+      classifyChannel(name, { rule: rules.channels[name], ourGroups, ourFiles: files }),
     ),
   ];
 
@@ -464,7 +496,7 @@ export function buildRegistry({ surfaces, channels, exclusions, taskIds, closedT
   const usedTasks = new Set(rows.map((r) => r.task).filter(Boolean));
 
   for (const hx of usedHx) {
-    if (!exclusions.includes(hx)) problems.push(`таблица ссылается на ${hx}, которого нет в SPECIFICATION`);
+    if (!exclusions.includes(hx)) problems.push(`таблица ссылается на ${hx}, которого нет в PRODUCT`);
   }
   for (const task of usedTasks) {
     if (!taskIds.has(task)) problems.push(`таблица ссылается на задачу ${task}, которой нет в TASKS`);
@@ -654,8 +686,8 @@ function main() {
       ours: readChannelGroups(fs.readFileSync(OUR_PRELOAD, "utf8")),
     },
     exclusions: readExclusions(fs.readFileSync(SPEC_FILE, "utf8")),
-    taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf8")),
-    closedTaskIds: readClosedTaskIds(fs.readFileSync(TASKS_FILE, "utf8")),
+    taskIds: readTaskIds(readTasksText()),
+    closedTaskIds: readClosedTaskIds(readTasksText()),
     // Файлы, на которые ссылаются записи `ourWay`, — проверенные существующими.
     // Так же, как `ours` проверяется по preload: обещание в таблице должно быть
     // опровержимым, иначе оно не обещание, а надпись.

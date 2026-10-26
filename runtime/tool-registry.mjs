@@ -40,12 +40,11 @@ import { HERMES_HOME_DIR, HERMES_SHA, DEV_HERMES_SRC_DIR as HERMES_SRC_DIR, HERM
 // Parity tooling reads the pinned SOURCE with the development venv (task T21.2):
 // the payload's snapshot leaves tests and docs out, its interpreter needs core_python.py.
 const PYTHON_BIN = path.join(DEV_VENV_DIR, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
-import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
+import { readClosedTaskIds, readExclusions, readTaskIds, readTasksText } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = path.resolve(RUNTIME_DIR, "..");
-const SPEC_FILE = path.join(REPO_DIR, "SPECIFICATION.md");
-const TASKS_FILE = path.join(REPO_DIR, "TASKS.md");
+const SPEC_FILE = path.join(REPO_DIR, "docs", "PRODUCT.md");
 
 /** Their platform bundles: one per messaging platform, each a union of the same
  * tools. Named by prefix because that is how the core names them. */
@@ -55,8 +54,8 @@ const PLATFORM_PREFIX = "hermes-";
  * The verdict table. Every tool the core ships must match exactly one entry —
  * by name, or by the prefix of its family. `where` is the evidence: a file that
  * exists, a §Non-Goals number, or a task id. Both of the latter are CHECKED
- * against SPECIFICATION.md and TASKS.md, so a renumbering cannot leave a
- * citation pointing at nothing.
+ * against docs/PRODUCT.md and the task lists (docs/TASKS.md, docs/history), so
+ * a renumbering cannot leave a citation pointing at nothing.
  */
 export const VERDICTS = {
   // ── есть у нас ──────────────────────────────────────────────────────────
@@ -275,7 +274,7 @@ export function buildRegistry({ toolsets, exclusions, taskIds, closedTaskIds = n
       badCitations.push(`${tool}: §Non-Goals не содержит ${verdict.hx} (отменён или переименован)`);
     }
     if (verdict.status === "task" && !taskIds.has(verdict.task)) {
-      badCitations.push(`${tool}: в TASKS.md нет задачи ${verdict.task}`);
+      badCitations.push(`${tool}: в docs/TASKS.md и docs/history нет задачи ${verdict.task}`);
     } else if (verdict.status === "task" && closedTaskIds.has(verdict.task)) {
       badCitations.push(
         `${tool}: задача ${verdict.task} ЗАКРЫТА — вердикт «работа впереди» пережил работу; ` +
@@ -373,8 +372,8 @@ if (isMain) {
   const registry = buildRegistry({
     toolsets: readToolsets(),
     exclusions: readExclusions(fs.readFileSync(SPEC_FILE, "utf-8")),
-    taskIds: readTaskIds(fs.readFileSync(TASKS_FILE, "utf-8")),
-    closedTaskIds: readClosedTaskIds(fs.readFileSync(TASKS_FILE, "utf-8"))
+    taskIds: readTaskIds(readTasksText()),
+    closedTaskIds: readClosedTaskIds(readTasksText())
   });
 
   console.log(formatRegistry(registry));

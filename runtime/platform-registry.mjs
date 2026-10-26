@@ -35,7 +35,7 @@
 // Exit code is 1 while РАСХОЖДЕНИЕ, ВЕРДИКТ БЕЗ ПЛАТФОРМЫ or ССЫЛКА В НИКУДА
 // is non-empty — same contract as the other two registries. A row waiting on
 // the owner is NOT a divergence: it carries the finding number it was put to
-// him under, and that number is checked against TASKS.md like every other
+// him under, and that number is checked against the task lists like every other
 // citation.
 
 import fs from "node:fs";
@@ -48,12 +48,11 @@ import { HERMES_HOME_DIR, HERMES_SHA, DEV_HERMES_SRC_DIR as HERMES_SRC_DIR, HERM
 // Parity tooling reads the pinned SOURCE with the development venv (task T21.2):
 // the payload's snapshot leaves tests and docs out, its interpreter needs core_python.py.
 const PYTHON_BIN = path.join(DEV_VENV_DIR, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
-import { readClosedTaskIds, readExclusions, readTaskIds } from "./parity-registry.mjs";
+import { readClosedTaskIds, readExclusions, readTaskIds, readTasksText } from "./parity-registry.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = path.resolve(RUNTIME_DIR, "..");
-const SPEC_FILE = path.join(REPO_DIR, "SPECIFICATION.md");
-const TASKS_FILE = path.join(REPO_DIR, "TASKS.md");
+const SPEC_FILE = path.join(REPO_DIR, "docs", "PRODUCT.md");
 const SHORTLIST_FILE = path.join(
   REPO_DIR,
   "apps/desktop/src/renderer/src/aec/channels-disclosure/disclosure-pure.ts"
@@ -62,8 +61,9 @@ const SHORTLIST_FILE = path.join(
 /**
  * The verdict table. Every entrance the core ships must match exactly one
  * entry. `where` is the evidence: a SPEC requirement, a §Non-Goals number, a
- * task id or a finding id — the last three are CHECKED against SPECIFICATION.md
- * and TASKS.md, so a renumbering cannot leave a citation pointing at nothing.
+ * task id or a finding id — the last three are CHECKED against docs/PRODUCT.md
+ * and the task lists (docs/TASKS.md, docs/history), so a renumbering cannot
+ * leave a citation pointing at nothing.
  *
  * `ours` reads «в объёме по UR19, но карточки в списке нет»: the shortlist is
  * ours to choose (O7), the scope is not. Мессенджер, не названный в HX11,
@@ -241,14 +241,14 @@ export function buildRegistry({
       badCitations.push(`${id}: §Non-Goals не содержит ${verdict.hx} (отменён или переименован)`);
     }
     if (verdict.status === "task" && !taskIds.has(verdict.task)) {
-      badCitations.push(`${id}: в TASKS.md нет задачи ${verdict.task}`);
+      badCitations.push(`${id}: в docs/TASKS.md и docs/history нет задачи ${verdict.task}`);
     } else if (verdict.status === "task" && closedTaskIds.has(verdict.task)) {
       badCitations.push(
         `${id}: задача ${verdict.task} ЗАКРЫТА — вердикт «работа впереди» пережил работу`
       );
     }
     if (verdict.status === "owner" && !findingIds.has(verdict.finding)) {
-      badCitations.push(`${id}: в TASKS.md нет замечания ${verdict.finding}`);
+      badCitations.push(`${id}: в docs/TASKS.md и docs/history нет замечания ${verdict.finding}`);
     } else if (verdict.status === "owner" && closedFindingIds.has(verdict.finding)) {
       badCitations.push(
         `${id}: замечание ${verdict.finding} ЗАКРЫТО — решение принято, а строка всё ещё ждёт его`
@@ -395,7 +395,7 @@ export function formatRegistry(registry) {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isMain) {
-  const tasksText = fs.readFileSync(TASKS_FILE, "utf-8");
+  const tasksText = readTasksText();
   const registry = buildRegistry({
     platforms: readPlatforms(),
     shortlist: readShortlist(fs.readFileSync(SHORTLIST_FILE, "utf-8")),
