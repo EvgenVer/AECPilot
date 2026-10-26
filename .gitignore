@@ -75,3 +75,10 @@ runtime/core/
 runtime/core.prepare.lock
 runtime/core.prepared.json
 runtime/mcp/
+
+# Added by studio setup
+!.env.example
+site/
+.DS_Store
+Thumbs.db
+Desktop.ini
