@@ -6,6 +6,7 @@ const api: AecpilotApi = {
   submitPrompt: (text, truncateBeforeUserOrdinal) =>
     ipcRenderer.invoke('chat:submit', { text, truncateBeforeUserOrdinal }),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
+  // --8<-- [start:gateway_api]
   gatewayRpc: (method, params, timeoutMs) =>
     ipcRenderer.invoke('gateway:rpc', { method, params, timeoutMs }),
   gatewayRest: (path, options) =>
@@ -15,6 +16,7 @@ const api: AecpilotApi = {
       body: options?.body,
       timeoutMs: options?.timeoutMs
     }),
+  // --8<-- [end:gateway_api]
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', { url }),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   openThirdPartyNotices: () => ipcRenderer.invoke('licenses:open-notices'),

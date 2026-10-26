@@ -155,6 +155,7 @@ module.exports = {
   npmRebuild: false,
   asar: true,
   asarUnpack: ['**/*.node', '**/prebuilds/**'],
+  // --8<-- [start:extra_files]
   extraFiles: [
     // T43.2 (SPEC A8): the program's own license, next to THIRD-PARTY-NOTICES.txt.
     { from: path.join(repo, 'LICENSE.txt'), to: 'LICENSE.txt' },
@@ -166,6 +167,7 @@ module.exports = {
       filter: ['**/*', '!**/__pycache__/**', '!**/tests/**']
     }
   ],
+  // --8<-- [end:extra_files]
   publish: null,
   // T43.2: THIRD-PARTY-NOTICES.txt is written into the packed tree first, so the list
   // below has it. T30.1: the uninstaller removes only what is packed here
@@ -183,6 +185,7 @@ module.exports = {
       context.packager.appInfo.productFilename
     )
   },
+  // --8<-- [start:windows_targets]
   win: {
     target: ['nsis', 'zip'],
     // Unsigned on the MVP (SPEC A7): no certificate is configured, so nothing is signed;
@@ -201,4 +204,5 @@ module.exports = {
     // the OS, no selector (T30).
     installerLanguages: ['en_US', 'ru_RU']
   }
+  // --8<-- [end:windows_targets]
 }

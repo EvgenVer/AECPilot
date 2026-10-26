@@ -53,9 +53,11 @@ export const PYTHON_VERSION = "3.14.6";
 //   v2026.9.11 = 0.21.2, commit 939e45c91d751fadd94dcd1b873ac3cb44846213 (task 3.B4)
 //   v2026.9.24 = 0.21.5, commit f97608f178d1ffeca59860195ab7da295f7c8e5f (task 3.B6),
 //                Python 3.12.13
+// --8<-- [start:core_pin]
 export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
 export const HERMES_TAG = "v0.22.2";
 export const HERMES_SHA = "d923a5eb487a17c0a68801bba9ef0f56c81040a8";
+// --8<-- [end:core_pin]
 
 // Mem0 left the core in 0.22.0: `plugins/memory/mem0` and the `mem0` extra are gone,
 // the provider is the catalog plugin `mem0ai/mem0`, subdirectory below, at the pin
@@ -175,11 +177,13 @@ export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGI
 // Installed (UR40): the profile lives under the install root, never in the
 // person's home — `<root>/data/profile`. A working copy keeps `dev-profile` whatever
 // runtime it runs on.
+// --8<-- [start:profile_dir]
 export const HERMES_HOME_DIR = process.env.AEC_HERMES_HOME
   ? path.resolve(process.env.AEC_HERMES_HOME)
   : IS_INSTALLED
     ? path.join(DATA_DIR, "profile")
     : path.join(RUNTIME_DIR, "dev-profile");
+// --8<-- [end:profile_dir]
 
 // POSIX branch untested in Phase 0 (dev target = Windows)
 const isWindows = process.platform === "win32";

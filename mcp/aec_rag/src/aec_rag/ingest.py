@@ -192,6 +192,7 @@ async def ingest(
     """
     report = IngestReport()
 
+    # --8<-- [start:ingest_candidates]
     removed = prune_removed(conn)
     report.removed_chunks = removed
     if removed:
@@ -207,6 +208,7 @@ async def ingest(
 
     report.files_total = len(candidates)
     on_progress(Progress(stage="started", done=0, total=report.files_total))
+    # --8<-- [end:ingest_candidates]
 
     parse = parser or parse_file
     for done, file in enumerate(candidates, start=1):

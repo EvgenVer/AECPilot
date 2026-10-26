@@ -139,6 +139,7 @@ def build_server(
                 f"unable to list path in source {source_id!r}: {path!r} ({type(exc).__name__})"
             ) from exc
 
+    # --8<-- [start:sources_read]
     @server.tool(
         description=(
             "Read a file's content from a source root, as text (UTF-8, invalid bytes "
@@ -162,6 +163,7 @@ def build_server(
                 f"unable to read path in source {source_id!r}: {path!r} ({type(exc).__name__})"
             ) from exc
 
+    # --8<-- [end:sources_read]
     @server.tool(
         description=(
             "Get file/directory metadata (size, mtime) for a path in a source root. "

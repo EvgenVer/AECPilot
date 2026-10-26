@@ -113,6 +113,7 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
   // decision 2026-10-19): the client enters it once, and a reboot must not void it.
   const token = typeof fixedToken === "string" && fixedToken.length >= 32 ? fixedToken : randomBytes(24).toString("hex");
 
+  // --8<-- [start:spawn_serve]
   const proc = spawn(
     HERMES_BIN,
     // `--isolated` (ядро 0.22, задача T20.5): без него второй serve с живой записью
@@ -142,6 +143,7 @@ export async function startServe({ port = SERVE_PORT, host = SERVE_HOST, extraEn
       stdio: ["ignore", "pipe", "pipe"],
     }),
   );
+  // --8<-- [end:spawn_serve]
 
   fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
   const logStream = fs.createWriteStream(LOG_PATH, { flags: "a" });

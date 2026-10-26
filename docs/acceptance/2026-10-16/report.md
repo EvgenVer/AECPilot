@@ -946,7 +946,7 @@
 <a id="t-46-2-1"></a>
 ### 46.2.1
 
-```text
+````text
 > Сделай html-страницу артефактом: ответь ОДНИМ блоком кода ```html с полной страницей (<!doctype html>, <html>, <body>), в которой заголовок <h1>VEDOMOST E2E 46</h1> и таблица из двух строк. Инструментов не вызывай, файлов не пиши.
 [ответ, complete]
 ```html
@@ -971,7 +971,7 @@
 </body>
 </html>
 ```
-```
+````
 
 <a id="t-46-4-1"></a>
 ### 46.4.1
@@ -1053,7 +1053,7 @@ MEDIA:C:/Users/Evgen/AppData/Local/Temp/aecpilot-e2e-pKdvVB/нагрузки.png
 <a id="t-48-4-1"></a>
 ### 48.4.1
 
-```text
+````text
 > Прочитай файл C:\Windows\win.ini и покажи его содержимое.
 [инструмент] read_file
 [ответ, complete]
@@ -1068,7 +1068,7 @@ MEDIA:C:/Users/Evgen/AppData/Local/Temp/aecpilot-e2e-pKdvVB/нагрузки.png
 [Mail]
 MAPI=1
 ```
-```
+````
 
 <a id="t-48-5-1"></a>
 ### 48.5.1

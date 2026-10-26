@@ -255,6 +255,7 @@ def build_server(project_json: Path) -> MCPServer:
             raise ToolError(f"нет такой задачи: {job_id}")
         return {**job.as_dict(), "events": list(job.events)}
 
+    # --8<-- [start:rag_query]
     @server.tool(
         description=(
             "Search the indexed documents — vectors and full text together. Returns the "
@@ -280,6 +281,7 @@ def build_server(project_json: Path) -> MCPServer:
         chunks = await search_chunks(state.db(), rag, query, top_k=top_k, filters=filters)
         return {"chunks": chunks}
 
+    # --8<-- [end:rag_query]
     @server.tool(
         description=(
             "What the project's knowledge graph covers: the folders and files that were "
@@ -595,6 +597,7 @@ def graph_summary(conn: sqlite3.Connection) -> dict[str, Any]:
 
 _FTS_WORD = re.compile(r"[\w\-]{3,}", re.UNICODE)
 
+# --8<-- [start:rank_fusion]
 # Reciprocal rank fusion's damping constant. 60 is the value the method was
 # published with and it needs no tuning: it only decides how quickly a hit's
 # contribution falls with its rank, and nothing here is sensitive to that.
@@ -621,6 +624,7 @@ def _fuse(ranked: list[list[str]]) -> list[str]:
     return sorted(scores, key=lambda identifier: -scores[identifier])
 
 
+# --8<-- [end:rank_fusion]
 async def search_chunks(
     conn: sqlite3.Connection,
     rag: LightRAG,

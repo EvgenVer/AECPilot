@@ -44,6 +44,7 @@ def build_server(roster_path: str, hermes: str, home: str) -> MCPServer:
             "разговоры. Ход может занять минуты."
         )
     )
+    # --8<-- [start:ask_specialist]
     def ask_specialist(name: str, question: str) -> str:
         try:
             # Возраст снимка передаётся вместе с ним: без него промах по
@@ -60,4 +61,5 @@ def build_server(roster_path: str, hermes: str, home: str) -> MCPServer:
 
         return signed(reply.answer, specialist.name, specialist.title)
 
+    # --8<-- [end:ask_specialist]
     return server

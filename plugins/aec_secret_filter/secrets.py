@@ -80,6 +80,7 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 
+# --8<-- [start:find_secrets]
 def find_secrets(text: str) -> list[str]:
     """Идентификаторы находок в порядке объявления. Пусто — секретов не видно."""
     if not text:
@@ -93,6 +94,7 @@ def find_secrets(text: str) -> list[str]:
     return found
 
 
+# --8<-- [end:find_secrets]
 #: Чем подменяется найденное значение. Текст, а не пустота: пропавший кусок
 #: должен быть ВИДЕН — и человеку в журнале памяти, и модели, которая из этого
 #: хода факты извлекает.

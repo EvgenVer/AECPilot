@@ -27,9 +27,11 @@ export type Citation = {
   start: number
 }
 
+// --8<-- [start:citation_re]
 // `source_id` is a single path segment, so the first slash separates it from
 // the relative path; the locator runs to the closing bracket.
 const CITATION_RE = /\[src:\s*([^/\]\s][^/\]]*)\/([^\]#[]+?)(?:#([^\][]*))?\]/g
+// --8<-- [end:citation_re]
 
 const PAGE_RE = /^p(\d+)$/
 const HEADING_PREFIX = 'h:'

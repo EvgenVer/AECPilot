@@ -19,6 +19,7 @@
 
 import { mainT } from './i18n'
 
+// --8<-- [start:denied_methods]
 /** Methods the renderer may never invoke, whatever the donor's code does.
  *
  * `model.save_key` writes a provider key into the core's config in plaintext.
@@ -35,6 +36,7 @@ export const DENIED_RPC_METHODS: readonly string[] = ['model.save_key']
 export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
   { method: 'POST', path: '/api/env/reveal' }
 ]
+// --8<-- [end:denied_methods]
 
 /** Окончания имён, которые НЕ являются секретом: адрес сервера, хост, порт,
  * имя модели. Всё остальное в форме `SCREAMING_SNAKE` считается учётными
@@ -87,6 +89,7 @@ export function classifyEnvWrite(
 const RPC_METHOD_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i
 const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
+// --8<-- [start:check_rpc_call]
 /** Validates an RPC call arriving from the renderer and returns the method
  * name to forward. Throws — the caller turns that into a rejected invoke —
  * when the method is malformed or denied. */
@@ -102,6 +105,7 @@ export function checkRpcCall(method: unknown): string {
   }
   return method
 }
+// --8<-- [end:check_rpc_call]
 
 /** Parameters the renderer may never send, whatever the donor's code does.
  *

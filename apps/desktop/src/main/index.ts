@@ -3902,6 +3902,7 @@ async function ensureSecretFilter(method: string, params: unknown): Promise<void
   filterChecked.sessions.add(sessionId)
 }
 
+// --8<-- [start:gateway_rpc]
 ipcMain.handle(
   'gateway:rpc',
   async (
@@ -3943,6 +3944,7 @@ ipcMain.handle(
     }
   }
 )
+// --8<-- [end:gateway_rpc]
 
 // Ответ окна на вопрос ядра (0.21.3, задача 3.B5в) — кадр с id вопроса. Задача
 // 3E.4 (R22): текст страницы предпросмотра, который окно шлёт ядру, помечается
@@ -5337,6 +5339,7 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   return result
 })
 
+// --8<-- [start:activate_project]
 /** Everything `project:open` does once the project has been read — shared with
  * the restore at start-up (task 3G.20, D-89), so both open a project the same way. */
 async function activateOpenedProject(project: OpenProject): Promise<void> {
@@ -5360,6 +5363,7 @@ async function activateOpenedProject(project: OpenProject): Promise<void> {
     win.webContents.send('project:opened', project)
   }
 }
+// --8<-- [end:activate_project]
 
 ipcMain.handle('project:get-current', () => currentProject ?? null)
 
@@ -5761,6 +5765,7 @@ async function beginIngest(
     stopping: false
   })
 
+  // --8<-- [start:ingest_after_scan]
   // D-114. Индексация берёт только просканированные файлы, а подключение папки
   // скана не запускает — до следующего по расписанию (5 минут) «Проиндексировать»
   // в мастере отрабатывал вхолостую. Поэтому сначала свежий скан. Файлы на
@@ -5778,6 +5783,7 @@ async function beginIngest(
         { extraEnv: buildExtraEnv(), full, paths, rebuild, signal: abort.signal }
       )
     )
+    // --8<-- [end:ingest_after_scan]
     .then(({ report }) => {
       if (currentProject?.vaultPath !== vaultPath) {
         publishIngestState({ progress: null, running: false, stopping: false })

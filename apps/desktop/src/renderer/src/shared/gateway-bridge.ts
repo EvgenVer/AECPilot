@@ -241,6 +241,7 @@ export class GatewayBridge {
    * the connection away from every other window. */
   close(): void {}
 
+  // --8<-- [start:bridge_request]
   request<T = unknown>(
     method: string,
     params: Record<string, unknown> = {},
@@ -275,6 +276,7 @@ export class GatewayBridge {
       call.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
     })
   }
+  // --8<-- [end:bridge_request]
 
   /** D-109 (задача 3F.D3): провайдер без ключа подписан «нет ключа» в
    * `model.options`, а запись профиля с ним отклоняется до ядра — иначе

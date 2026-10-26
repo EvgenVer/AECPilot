@@ -160,6 +160,7 @@ export function storedProviderKeyNames(): string[] {
   return Object.keys(loadLlmSettings().providerKeys ?? {}).sort()
 }
 
+// --8<-- [start:set_provider_key]
 /** Stores or clears one provider's key. `key: null` removes the entry.
  * Returns false when encryption is unavailable and a key was to be stored —
  * writing plaintext is not an option, so the caller must tell the user rather
@@ -184,3 +185,4 @@ export function setProviderKey(envVar: string, key: string | null): boolean {
   })
   return true
 }
+// --8<-- [end:set_provider_key]

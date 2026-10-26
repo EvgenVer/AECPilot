@@ -10,6 +10,21 @@ nav = [
   "PRODUCT.md",
   { "Архитектура" = [
     "ARCHITECTURE.md",
+    { "Компоненты" = [
+      "components/main-process.md",
+      "components/renderer.md",
+      "components/core-runtime.md",
+      "components/aec-sources.md",
+      "components/aec-rag.md",
+      "components/core-extensions.md",
+      "components/packaging.md",
+    ] },
+    { "Сценарии" = [
+      "flows/question-with-citation.md",
+      "flows/indexing.md",
+      "flows/server-client.md",
+    ] },
+    "data.md",
     { "Решения" = [
       "decisions/index.md",
       "decisions/0001-core-without-fork.md",
@@ -29,7 +44,24 @@ nav = [
       "decisions/0015-licensing.md",
     ] },
   ] },
+  "operations.md",
   "TASKS.md",
+  { "Справочник" = [
+    "glossary.md",
+    "core-facts.md",
+    "plan-details.md",
+    "THREAT_MODEL.md",
+    "quickstart.ru.md",
+    "quickstart.en.md",
+  ] },
+  { "Приёмка" = [
+    "manual-checklist.md",
+    "acceptance/README.md",
+    "acceptance/desktop-protocol.md",
+    "acceptance/2026-09-25/report.md",
+    "acceptance/2026-09-30/report.md",
+    "acceptance/2026-10-16/report.md",
+  ] },
   { "История" = [
     "history/index.md",
     "history/stage-1.md",
