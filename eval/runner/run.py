@@ -88,6 +88,7 @@ def record_usage(response) -> None:
             f"qa-eval: потолок ${BUDGET_USD:.2f} превышен (~${spent_usd():.2f}, {USAGE}) — стоп"
         )
 
+
 QUESTION_TYPES = {"factual", "table", "scan", "negative", "injection", "overview"}
 PROVENANCE = {"derived", "needs_owner_check"}
 

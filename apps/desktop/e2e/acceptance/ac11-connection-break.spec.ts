@@ -61,7 +61,11 @@ async function startServer(): Promise<ElectronApplication> {
     timeout: 120000
   })
   await expect
-    .poll(() => portOpen(port), { timeout: 240000, intervals: [2000], message: 'шлюз сервера поднят' })
+    .poll(() => portOpen(port), {
+      timeout: 240000,
+      intervals: [2000],
+      message: 'шлюз сервера поднят'
+    })
     .toBe(true)
   return app
 }

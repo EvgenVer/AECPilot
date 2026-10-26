@@ -28,9 +28,17 @@ function put(file: string, text: string): void {
   writeFileSync(file, text, 'utf-8')
 }
 
-function dist(sitePackages: string, name: string, headers: string, files: Record<string, string> = {}): void {
+function dist(
+  sitePackages: string,
+  name: string,
+  headers: string,
+  files: Record<string, string> = {}
+): void {
   const info = join(sitePackages, `${name.replaceAll('-', '_')}-1.0.dist-info`)
-  put(join(info, 'METADATA'), `Metadata-Version: 2.4\nName: ${name}\nVersion: 1.0\n${headers}\n\nbody\n`)
+  put(
+    join(info, 'METADATA'),
+    `Metadata-Version: 2.4\nName: ${name}\nVersion: 1.0\n${headers}\n\nbody\n`
+  )
   for (const [file, text] of Object.entries(files)) put(join(info, file), text)
 }
 
@@ -39,9 +47,15 @@ beforeEach(() => {
   desktop = join(root, 'desktop')
   app = join(root, 'app')
   put(join(desktop, 'package.json'), JSON.stringify({ dependencies: { alpha: '1' } }))
-  put(join(desktop, 'node_modules', 'alpha', 'package.json'), JSON.stringify({ name: 'alpha', version: '1.0.0', license: 'MIT', dependencies: { beta: '2' } }))
+  put(
+    join(desktop, 'node_modules', 'alpha', 'package.json'),
+    JSON.stringify({ name: 'alpha', version: '1.0.0', license: 'MIT', dependencies: { beta: '2' } })
+  )
   put(join(desktop, 'node_modules', 'alpha', 'LICENSE'), 'ALPHA LICENSE TEXT')
-  put(join(desktop, 'node_modules', 'beta', 'package.json'), JSON.stringify({ name: 'beta', version: '2.0.0', license: 'ISC', author: 'Beta Author' }))
+  put(
+    join(desktop, 'node_modules', 'beta', 'package.json'),
+    JSON.stringify({ name: 'beta', version: '2.0.0', license: 'ISC', author: 'Beta Author' })
+  )
   put(join(desktop, 'src', 'renderer', 'src', 'donor', 'LICENSE.donor'), 'DONOR MIT TEXT')
   const tools = join(app, 'runtime', 'core', 'tools')
   put(join(tools, 'git-2.53.0+3-win32-x64', 'LICENSE.txt'), 'GPLv2')
@@ -75,7 +89,9 @@ describe('renderThirdPartyNotices', () => {
   it('lists Python packages with the path of their text, a standard text otherwise, and not ours', () => {
     const text = renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
     expect(text).toContain('withtext 1.0 — BSD-3-Clause')
-    expect(text).toContain('runtime/mcp/python/Lib/site-packages/withtext-1.0.dist-info/licenses/LICENSE')
+    expect(text).toContain(
+      'runtime/mcp/python/Lib/site-packages/withtext-1.0.dist-info/licenses/LICENSE'
+    )
     expect(text).toContain('Copyright (c) Some Author. MIT')
     expect(text).toContain('MIT License')
     expect(text).not.toMatch(/^aec-rag/m)
@@ -84,12 +100,20 @@ describe('renderThirdPartyNotices', () => {
   })
 
   it('stops the build without a holder or a contact', () => {
-    expect(() => renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: { holder: 'X' } })).toThrow(/sourceOfferContact/)
+    expect(() =>
+      renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: { holder: 'X' } })
+    ).toThrow(/sourceOfferContact/)
   })
 
   it('stops the build on a package without a text whose license it holds no text for', () => {
-    dist(join(app, 'runtime', 'mcp', 'python', 'Lib', 'site-packages'), 'copyleft', 'License-Expression: GPL-3.0-only')
-    expect(() => renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })).toThrow(/copyleft/)
+    dist(
+      join(app, 'runtime', 'mcp', 'python', 'Lib', 'site-packages'),
+      'copyleft',
+      'License-Expression: GPL-3.0-only'
+    )
+    expect(() =>
+      renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
+    ).toThrow(/copyleft/)
   })
 })
 

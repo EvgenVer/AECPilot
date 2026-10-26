@@ -33,12 +33,7 @@ import { dirname, join } from 'node:path'
 
 import { _electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 
-import {
-  getFreePort,
-  hideFirstRunSurfaces,
-  killProcessTree,
-  profileProviderKeys
-} from '../lib/app'
+import { getFreePort, hideFirstRunSurfaces, killProcessTree, profileProviderKeys } from '../lib/app'
 import { prepareProfile, removeProfile, SHIPPED_SKILLS_COPY } from '../lib/core'
 import { record } from '../lib/evidence'
 import { recordChatEvents, turn } from '../lib/turn'
@@ -291,7 +286,11 @@ test('AC11.1а ключ модели задаётся окном ключей н
     })
     .toBe(0)
   await expect
-    .poll(() => portOpen(port), { timeout: 240000, intervals: [2000], message: 'шлюз после перезапуска' })
+    .poll(() => portOpen(port), {
+      timeout: 240000,
+      intervals: [2000],
+      message: 'шлюз после перезапуска'
+    })
     .toBe(true)
 })
 

@@ -96,7 +96,11 @@ describe('parseServerKeySave — names and values the core must not take (review
   })
 
   it('keeps real core credentials that share a reserved-looking prefix', () => {
-    for (const envVar of ['HERMES_CUSTOM_API_KEY', 'BROWSERBASE_API_KEY', 'MSGRAPH_CLIENT_SECRET']) {
+    for (const envVar of [
+      'HERMES_CUSTOM_API_KEY',
+      'BROWSERBASE_API_KEY',
+      'MSGRAPH_CLIENT_SECRET'
+    ]) {
       expect(parseServerKeySave({ envVar, key: 'x' }).ok, envVar).toBe(true)
     }
   })

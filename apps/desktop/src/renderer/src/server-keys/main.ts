@@ -135,7 +135,12 @@ function rowView(row: Row): HTMLElement {
   const box = el(
     'section',
     { className: 'row' },
-    el('div', { className: 'head' }, el('span', { className: 'name', textContent: row.envVar }), state),
+    el(
+      'div',
+      { className: 'head' },
+      el('span', { className: 'name', textContent: row.envVar }),
+      state
+    ),
     controls
   )
   box.dataset.envVar = row.envVar

@@ -113,7 +113,9 @@ const PYTHON_LICENSE_OVERRIDES = {
 /** `MIT`, `ISC`, `Apache-2.0`, `BSD-3-Clause`, `PSF` — or null for a license we hold no
  *  standard text of. */
 function standardId(license) {
-  const id = String(license).replace(/ License$/i, '').trim()
+  const id = String(license)
+    .replace(/ License$/i, '')
+    .trim()
   if (/^MIT$/i.test(id)) return 'MIT'
   if (/^ISC$/i.test(id)) return 'ISC'
   if (/^BSD(-3-Clause)?$/i.test(id)) return 'BSD-3-Clause'
@@ -148,11 +150,21 @@ function npmClosure(desktopDir) {
     const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))
     const key = `${pkg.name ?? name}@${pkg.version}`
     if (seen.has(key)) return
-    seen.set(key, { name: pkg.name ?? name, version: pkg.version, license: licenseOf(pkg), author: authorOf(pkg), dir })
-    for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies })) visit(dep, dir)
+    seen.set(key, {
+      name: pkg.name ?? name,
+      version: pkg.version,
+      license: licenseOf(pkg),
+      author: authorOf(pkg),
+      dir
+    })
+    for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }))
+      visit(dep, dir)
   }
-  for (const dep of Object.keys({ ...root.dependencies, ...root.optionalDependencies })) visit(dep, desktopDir)
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
+  for (const dep of Object.keys({ ...root.dependencies, ...root.optionalDependencies }))
+    visit(dep, desktopDir)
+  return [...seen.values()].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version)
+  )
 }
 
 /** METADATA headers of a dist-info: the first value of each name (multi-line folded). */
@@ -217,14 +229,19 @@ function pythonPackages(sitePackages, root) {
               .readFileSync(record, 'utf-8')
               .split(/\r?\n/)
               .map((line) => line.split(',')[0].split('/')[0])
-              .filter((top) => top && !top.endsWith('.dist-info') && top !== '..' && !top.includes('.'))
+              .filter(
+                (top) => top && !top.endsWith('.dist-info') && top !== '..' && !top.includes('.')
+              )
           )
         : new Set()
       for (const top of tops) {
         const dir = path.join(sitePackages, top)
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue
         for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
-          if (item.isFile() && (LICENSE_FILE.test(item.name) || /^thirdpartynotices/i.test(item.name))) {
+          if (
+            item.isFile() &&
+            (LICENSE_FILE.test(item.name) || /^thirdpartynotices/i.test(item.name))
+          ) {
             texts.push(path.join(dir, item.name))
           }
         }
@@ -237,7 +254,11 @@ function pythonPackages(sitePackages, root) {
       version: fields.get('Version')?.[0] ?? '',
       license: override?.license ?? pythonLicense(fields),
       note: override?.note ?? null,
-      author: fields.get('Author')?.[0] || fields.get('Author-email')?.[0] || fields.get('Maintainer')?.[0] || null,
+      author:
+        fields.get('Author')?.[0] ||
+        fields.get('Author-email')?.[0] ||
+        fields.get('Maintainer')?.[0] ||
+        null,
       texts: texts.map((t) => path.relative(root, t).split(path.sep).join('/')).sort(),
       // A long free-text License field is the license itself: some packages ship no file.
       inline: texts.length ? null : (fields.get('License') ?? []).join('\n') || null
@@ -267,7 +288,8 @@ function coreTools(appOutDir) {
       let level = [path.join(tools, entry.name)]
       for (let depth = 0; depth < 3 && level.length; depth++) {
         const texts = level.flatMap(licenseFiles)
-        if (texts.length) return { folder: entry.name, texts: texts.map((file) => rel(appOutDir, file)) }
+        if (texts.length)
+          return { folder: entry.name, texts: texts.map((file) => rel(appOutDir, file)) }
         level = level.flatMap((dir) =>
           fs
             .readdirSync(dir, { withFileTypes: true })
@@ -304,10 +326,10 @@ const TOOL_LICENSES = {
   ].join('\n'),
   chromium: [
     'Chromium (сборка Chrome for Testing для запасного браузера агента / the Chrome for Testing',
-    'build of the agent\'s fallback browser) — BSD-3-Clause, Copyright The Chromium Authors.',
+    "build of the agent's fallback browser) — BSD-3-Clause, Copyright The Chromium Authors.",
     'Тексты лицензий Chromium и его компонентов — LICENSES.chromium.html в папке программы /',
     'the licenses of Chromium and its components are in LICENSES.chromium.html in the program',
-    'folder (the same project as Electron\'s Chromium).'
+    "folder (the same project as Electron's Chromium)."
   ].join('\n')
 }
 
@@ -324,7 +346,9 @@ function gitForWindowsTag(folder) {
  */
 function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
   if (!owner?.holder || !owner?.contact) {
-    throw new Error('third-party notices: aecpilot.copyrightHolder and aecpilot.sourceOfferContact must be set')
+    throw new Error(
+      'third-party notices: aecpilot.copyrightHolder and aecpilot.sourceOfferContact must be set'
+    )
   }
   const out = []
   out.push(
@@ -350,7 +374,9 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
       '',
       'Git for Windows поставляется без изменений как отдельная программа. Исходный код этой',
       `версии${tag ? ` (${tag})` : ''} опубликован проектом Git for Windows:`,
-      tag ? `  https://github.com/git-for-windows/git/releases/tag/${tag}` : '  https://github.com/git-for-windows/git/releases',
+      tag
+        ? `  https://github.com/git-for-windows/git/releases/tag/${tag}`
+        : '  https://github.com/git-for-windows/git/releases',
       '  https://gitforwindows.org/',
       'Письменное предложение: в течение трёх лет с момента получения этой копии AECPilot',
       `${owner.holder} по запросу на ${owner.contact} предоставит полный исходный код`,
@@ -395,7 +421,10 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
    *  supply a text for, so a new dependency of that kind stops the build, not the notice. */
   const standardLine = (name, license, author) => {
     const id = standardId(license)
-    if (!id) throw new Error(`third-party notices: ${name} ships no license text and ${license} has no standard text here`)
+    if (!id)
+      throw new Error(
+        `third-party notices: ${name} ships no license text and ${license} has no standard text here`
+      )
     if (id === 'PSF') {
       return `Copyright (c) ${author || `the ${name} authors`}. PSF: текст — LICENSE.txt интерпретатора Python (раздел Python выше) / text in the Python interpreter's LICENSE.txt (Python section above).`
     }
@@ -415,7 +444,7 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
     'components: LICENSES.chromium.html.'
   )
 
-  out.push(section('Инструменты ядра / the core\'s tools (runtime/core/tools)'))
+  out.push(section("Инструменты ядра / the core's tools (runtime/core/tools)"))
   for (const tool of tools) {
     const kind = Object.keys(TOOL_LICENSES).find((name) => tool.folder.startsWith(`${name}-`))
     if (tool.texts.length) out.push(`${tool.folder}: ${tool.texts.join(', ')}`)
@@ -425,17 +454,35 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
 
   const core = path.join(appOutDir, 'runtime', 'core', 'hermes-agent', 'LICENSE')
   out.push(section('Ядро Hermes Agent / the Hermes Agent core'))
-  out.push(fs.existsSync(core) ? `MIT: ${rel(appOutDir, core)}` : 'MIT, Copyright (c) 2025 Nous Research')
-  const mem0 = path.join(appOutDir, 'runtime', '.mem0-plugin-src', 'integrations', 'hermes-plugin-mem0', 'LICENSE')
-  if (fs.existsSync(mem0)) out.push(`Плагин памяти Mem0 / the Mem0 memory plugin — Apache-2.0: ${rel(appOutDir, mem0)}`)
+  out.push(
+    fs.existsSync(core) ? `MIT: ${rel(appOutDir, core)}` : 'MIT, Copyright (c) 2025 Nous Research'
+  )
+  const mem0 = path.join(
+    appOutDir,
+    'runtime',
+    '.mem0-plugin-src',
+    'integrations',
+    'hermes-plugin-mem0',
+    'LICENSE'
+  )
+  if (fs.existsSync(mem0))
+    out.push(`Плагин памяти Mem0 / the Mem0 memory plugin — Apache-2.0: ${rel(appOutDir, mem0)}`)
 
   const runtimes = [
-    ['Python ядра / the core\'s Python', path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages')],
-    ['Python MCP-серверов / the MCP servers\' Python', path.join(appOutDir, 'runtime', 'mcp', 'python', 'Lib', 'site-packages')]
+    [
+      "Python ядра / the core's Python",
+      path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
+    ],
+    [
+      "Python MCP-серверов / the MCP servers' Python",
+      path.join(appOutDir, 'runtime', 'mcp', 'python', 'Lib', 'site-packages')
+    ]
   ]
   const cpython = [
     path.join(appOutDir, 'runtime', 'mcp', 'python', 'LICENSE.txt'),
-    ...tools.filter((t) => t.folder.startsWith('python-')).flatMap((t) => t.texts.map((x) => path.join(appOutDir, x)))
+    ...tools
+      .filter((t) => t.folder.startsWith('python-'))
+      .flatMap((t) => t.texts.map((x) => path.join(appOutDir, x)))
   ].filter((file) => fs.existsSync(file))
   out.push(
     section('Python (CPython) — Python Software Foundation License'),
@@ -456,7 +503,8 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
         }
       }
       // A long free-text License field is the license itself; a short one is only its name.
-      if (row.inline && row.inline.length > 80) out.push(...row.inline.split('\n').map((line) => `    ${line}`))
+      if (row.inline && row.inline.length > 80)
+        out.push(...row.inline.split('\n').map((line) => `    ${line}`))
       else if (!row.texts.length) out.push(`    ${standardLine(row.name, row.license, row.author)}`)
       if (row.note) out.push(`    ${row.note}`)
     }
@@ -467,7 +515,8 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
   if (standards.has('ISC')) out.push('ISC License', '', ISC_TEXT, '')
   if (standards.has('BSD-3-Clause')) out.push('BSD 3-Clause License', '', BSD3_TEXT, '')
   if (standards.has('Apache-2.0')) {
-    if (!apacheText) throw new Error('third-party notices: no shipped copy of the Apache-2.0 text found')
+    if (!apacheText)
+      throw new Error('third-party notices: no shipped copy of the Apache-2.0 text found')
     out.push(apacheText, '')
   }
   return out.join('\n') + '\n'

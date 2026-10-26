@@ -446,7 +446,8 @@ const en: Catalog = {
   'serverKeys.badName':
     'A variable name is capital Latin letters, digits and “_”, for example GEMINI_API_KEY; system variables (PATH, PYTHON…, NODE_… and the like) cannot hold a key.',
   'serverKeys.emptyKey': 'Enter a key.',
-  'serverKeys.badKey': 'A key is one line without control characters, at most 8192 characters long.',
+  'serverKeys.badKey':
+    'A key is one line without control characters, at most 8192 characters long.',
   'serverKeys.noEncryption':
     'Encryption is not available on this machine — the key was not saved (we never write it in plain text).',
   'quit.buttonQuit': 'Quit',
