@@ -235,7 +235,7 @@ function noteUntrusted(fields: Record<string, unknown>): Record<string, unknown>
 
 /**
  * Рабочая папка сеанса, созданного из окна, — папка открытого проекта
- * (задача 1.20, specs/workspace-sources.md: «working dir агента = vault»).
+ * (задача 1.20, docs/history/specs/workspace-sources.md: «working dir агента = vault»).
  *
  * Замер 23.09.2026 (дефект D-121): сеансы создаёт и сам донор, своим путём, и
  * кладёт в `session.create` свою «живую» папку — ту, откуда запущен шлюз. Агент

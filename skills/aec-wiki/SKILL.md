@@ -16,7 +16,7 @@ PROVENANCE. Adapted from the core's bundled skill `llm-wiki` v2.1.0
 (`skills/research/llm-wiki/SKILL.md`, hermes-agent tag v2026.9.24, commit
 f97608f178d1ffeca59860195ab7da295f7c8e5f), MIT license, (c) Nous Research.
 Their sections and rules are kept in their order; only what works differently in
-AECPilot is changed (specs/wiki.md §Overview). When the core pin moves, diff their
+AECPilot is changed (docs/history/specs/wiki.md §Overview). When the core pin moves, diff their
 new text against this list and re-apply the edits — do not rewrite.
 
 Edits:

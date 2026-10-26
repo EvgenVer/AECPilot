@@ -272,7 +272,7 @@ def graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     ``covers_whole_project`` is answered honestly and pessimistically: an empty
     project is not «covered», it is empty, and an overview of half a project
     presented as an overview of the project misleads worse than a refusal
-    (specs/qa-over-sources.md).
+    (docs/history/specs/qa-over-sources.md).
     """
     documents = conn.execute("SELECT count(*), coalesce(sum(chunk_count), 0) FROM graph_documents")
     count, chunks = documents.fetchone()

@@ -1,7 +1,7 @@
 // Pure logic for task 1.15's change-detection notification, split out from
 // ScanNotification.tsx so it can be unit-tested without React/DOM (same
 // convention as chat-state.ts). Turns a raw `ScanReport` (task 1.14) into the
-// notification's display model — see specs/workspace-sources.md's "Детект
+// notification's display model — see docs/history/specs/workspace-sources.md's "Детект
 // изменений" BDD: a report where every source is `unchanged`-only never
 // shows/replaces the notification.
 

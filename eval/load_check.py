@@ -1,6 +1,6 @@
 """What the index costs to hold and to query (task 2.18).
 
-PLAN §Architecture chose NanoVectorDB with a review point attached: embedded
+docs/plan-details.md §Architecture chose NanoVectorDB with a review point attached: embedded
 stores have limits (R3), and the decision to stay or to move to our own
 sqlite-vec layer is to be made on numbers, not on preference. This produces the
 numbers.

@@ -4,7 +4,7 @@
 // wire. It is duplicated rather than shared because the two halves cross a
 // language boundary, and the thing that keeps them honest is the test suite on
 // each side asserting the same examples — the ones written down in
-// specs/qa-over-sources.md §Формат locator.
+// docs/history/specs/qa-over-sources.md §Формат locator.
 //
 // The locator uses each format's own notation (`p12`, `Ведомость!C5:D6`,
 // `h:Кабельный журнал`) so a citation stays readable to the engineer it is
@@ -44,7 +44,7 @@ const HEADING_STOP = /[\]#\r\n]/
 
 /** The href our citations carry so the markdown renderer hands them to us.
  *  A constant, not a payload: the citation itself is the link's label, which
- *  keeps the answer text exactly what specs/qa-over-sources.md prescribes and
+ *  keeps the answer text exactly what docs/history/specs/qa-over-sources.md prescribes and
  *  spares the model any URL encoding of Cyrillic file names. */
 export const CITATION_HREF = '#cite'
 

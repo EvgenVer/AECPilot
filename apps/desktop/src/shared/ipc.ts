@@ -1091,7 +1091,7 @@ export interface AecpilotApi {
    * badge without a manual expand. */
   getSourceStatus(sourceId: string): Promise<SourceStatusResult>
   /** Disconnects `sourceId` from the current project (task 1.16,
-   * specs/workspace-sources.md's "Отключение источника"): removes it from
+   * docs/history/specs/workspace-sources.md's "Отключение источника"): removes it from
    * `project.json` (the source of truth — always happens on success) and,
    * best-effort, tells `index.db` to mark every matching row `detached`
    * (never deleted) via a short-lived `aec-rag detach` process; a detach
@@ -1109,11 +1109,11 @@ export interface AecpilotApi {
   ): Promise<{ ok: true; sources: ProjectSource[] } | { ok: false; error: string }>
   /** Reads a connected source's directory tree (task 1.8) — read-only, no
    * write operations exist for a source (RO by construction, see
-   * specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
+   * docs/history/specs/workspace-sources.md's "Гарантия read-only"). Symlinks are shown
    * as a leaf, never traversed. */
   getSourceTree(sourceId: string): Promise<SourceTreeResult>
   /** Opens the OS file manager with a connected source's entry highlighted
-   * (task 1.5.5, specs/workspace-sources.md § UI-операции: "любой узел
+   * (task 1.5.5, docs/history/specs/workspace-sources.md § UI-операции: "любой узел
    * ... источника, на любом уровне вложенности") — `rel` is the entry's rel
    * path from the source root (posix-style, as in `SourceTreeNode.path`);
    * `''` targets the source's own root. Read-only, never modifies the
@@ -1740,7 +1740,7 @@ export interface AecpilotApi {
    * first. */
   deleteVaultEntry(rel: string): Promise<VaultOpResult>
   /** Opens the OS file manager with the item at `rel` highlighted
-   * (specs/workspace-sources.md § API contracts, UI operations) —
+   * (docs/history/specs/workspace-sources.md § API contracts, UI operations) —
    * read-only, never modifies the vault. */
   showVaultEntryInExplorer(rel: string): Promise<VaultOpResult>
   /** Resolves a vault entry to its absolute path (task 1.5.7) — backs the
@@ -1750,7 +1750,7 @@ export interface AecpilotApi {
    * own (anti-traversal resolution stays a main-process concern). */
   getVaultEntryPath(rel: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>
   /** Checkpoints and rollback (task 1.6.C2, contract
-   * specs/checkpoints-rollback.md). All three address the agent session's
+   * docs/history/specs/checkpoints-rollback.md). All three address the agent session's
    * working directory — the open vault — because the gateway takes no
    * directory parameter.
    *
@@ -1875,7 +1875,7 @@ export interface AecpilotApi {
     encryptionAvailable: boolean
     keys: { envVar: string; hasKey: boolean; envOverrides: boolean }[]
   }>
-  // --- Skills and learning, batch 3 (contract: specs/agent-skills.md) -----
+  // --- Skills and learning, batch 3 (contract: docs/history/specs/agent-skills.md) -----
 
   /** Installed skills with description, category and enabled state (task
    * 1.6.B3.3). Over REST because the RPC answers with bare names. */
@@ -1973,7 +1973,7 @@ export interface AecpilotApi {
    * user; repeat with `confirm: true` after they agree. */
   reloadMcpServers(confirm?: boolean): Promise<{ status: string; message?: string }>
   // --- Sessions, details, palette, YOLO, profiles: batch 5 ------------------
-  // Contract: specs/agent-sessions.md. Every call below is opened deliberately
+  // Contract: docs/history/specs/agent-sessions.md. Every call below is opened deliberately
   // by the user, so a failure is shown rather than swallowed.
   //
   // Two ids travel here and they are NOT interchangeable — see `LiveSessionId`

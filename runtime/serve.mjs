@@ -14,7 +14,7 @@
 // comment: "The desktop shell mints the token and injects it via
 // HERMES_DASHBOARD_SESSION_TOKEN so its main process can authenticate").
 //
-// Checkpoints (UR14, specs/checkpoints-rollback.md): the tui_gateway path
+// Checkpoints (UR14, docs/history/specs/checkpoints-rollback.md): the tui_gateway path
 // does NOT read `checkpoints:` from config.yaml — that key is only consulted
 // by their interactive CLI (cli.py). tui_gateway gates on the
 // HERMES_TUI_CHECKPOINTS env var instead (tui_gateway/server.py:

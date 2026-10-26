@@ -4,7 +4,7 @@ SPECIFICATION UR24 splits indexing in two. This is the first level and the one
 that is always on: everything that got into the project is read, chunked and
 made searchable, **without a single LLM call**. That is what makes indexing
 everything affordable, and it covers every scenario in
-specs/qa-over-sources.md except the overview ones.
+docs/history/specs/qa-over-sources.md except the overview ones.
 
 The second level — the knowledge graph — is opt-in per folder or file and lives
 in :mod:`aec_rag.graph_scope`.

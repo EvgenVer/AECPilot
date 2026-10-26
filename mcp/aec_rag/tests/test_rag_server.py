@@ -1,6 +1,6 @@
 """Contract tests for the aec-rag MCP tools (tasks 2.10, 2.11).
 
-Checked against specs/qa-over-sources.md §API contracts through the real MCP
+Checked against docs/history/specs/qa-over-sources.md §API contracts through the real MCP
 session, so the shape an agent sees is the shape asserted here.
 
 The LLM stub asserts on call. That is how «tier one never calls a model»

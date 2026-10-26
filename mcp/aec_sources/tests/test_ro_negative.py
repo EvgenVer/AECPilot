@@ -1,6 +1,6 @@
 """Negative read-only tests (task 1.17): the RO guarantee itself (no
 write/delete tools exist, ever) plus the rejected-attempts journal
-(specs/workspace-sources.md: "logs/ — журнал операций и отклонённых
+(docs/history/specs/workspace-sources.md: "logs/ — журнал операций и отклонённых
 попыток записи"; BDD "Гарантия read-only").
 """
 

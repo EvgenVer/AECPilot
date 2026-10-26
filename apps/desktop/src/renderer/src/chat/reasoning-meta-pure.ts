@@ -4,7 +4,7 @@
 // explorer-search-pure.ts / panel-sizes-pure.ts).
 //
 // Deliberately returns `undefined` rather than inventing a value when the
-// underlying signal is missing — specs/agent-chat.md's "мета не выдумывается"
+// underlying signal is missing — docs/history/specs/agent-chat.md's "мета не выдумывается"
 // (same rule that kept the fabricated file counters out of task 1.5.5).
 
 /** Russian plural for «шаг» — 1 шаг · 2–4 шага · 5–20 шагов, then by the

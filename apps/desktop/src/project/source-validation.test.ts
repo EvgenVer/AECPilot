@@ -1,5 +1,5 @@
 // Unit tests for task 1.7's pure source-add validation (contract:
-// specs/workspace-sources.md § Edge cases).
+// docs/history/specs/workspace-sources.md § Edge cases).
 
 import { describe, expect, it } from 'vitest'
 import { validateNewSource } from './source-validation'

@@ -1,4 +1,4 @@
-// The one seam the donor's code is always edited at (PLAN §Слой донора, edit
+// The one seam the donor's code is always edited at (docs/plan-details.md §Слой донора, edit
 // kind 1): their gateway client opens a WebSocket from the renderer and holds
 // the session token to do it. SPEC C9 says our renderer does neither — main
 // owns the socket, the host, the port and the token — so their client class is

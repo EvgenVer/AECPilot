@@ -161,7 +161,7 @@ export function resolveVaultEntryRel(vaultPath: string, rel: string): string {
  * resolver to a content sink: a symlink inside the vault named `отчёт.md` and
  * pointing at `~/.ssh/id_rsa` was read out to the renderer, and the path
  * doing it arrives from agent-authored citation text (see the trust
- * boundaries in `docs/SECURITY.md`). The fix is a second resolver rather than
+ * boundaries in `docs/THREAT_MODEL.md`). The fix is a second resolver rather than
  * a stricter first one: tightening `resolveVaultEntryRel` would take away the
  * ability to delete a broken symlink from the vault at all. */
 export function resolveVaultContentRel(vaultPath: string, rel: string): string {

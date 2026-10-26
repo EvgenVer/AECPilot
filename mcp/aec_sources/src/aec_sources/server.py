@@ -1,6 +1,6 @@
 """MCP server `aec-sources`: read-only access to project sources.
 
-Contract: specs/workspace-sources.md (API contracts). Tools are read-only by
+Contract: docs/history/specs/workspace-sources.md (API contracts). Tools are read-only by
 construction; no write/delete tools exist for sources.
 
 All 4 read-only tools (sources_list/sources_tree/sources_read/sources_stat)
@@ -30,7 +30,7 @@ class _AuditingMCPServer(MCPServer):
     """MCPServer that also journals calls to tool names it doesn't register at
     all — e.g. an agent guessing at a write/delete tool
     (``sources_write``/``sources_delete``/...) that simply doesn't exist,
-    read-only by construction (specs/workspace-sources.md). Calls to the 4
+    read-only by construction (docs/history/specs/workspace-sources.md). Calls to the 4
     registered tools are journaled from inside their bodies instead (see
     ``_resolve`` below), since only there is the source/path context
     available; here we only see the raw ``name``.

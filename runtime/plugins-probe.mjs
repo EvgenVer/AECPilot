@@ -24,7 +24,7 @@
 // this probe's first run did exactly that — the restore sat after another RPC,
 // which failed, and a plugin stayed enabled in the owner's profile.
 //
-// MEASURED 2026-07-30 on the dev profile (see TASKS.md 1.6.B2a.1 for the full
+// MEASURED 2026-07-30 on the dev profile (see task 1.6.B2a.1 in `git show 64fa482^:TASKS.md` for the full
 // reading):
 //   - 80 plugins, all bundled, none active. There are THREE status strings,
 //     not two: "not enabled" (never touched), "disabled" (explicitly turned

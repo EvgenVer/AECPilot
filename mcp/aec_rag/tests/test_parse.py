@@ -118,7 +118,7 @@ def test_pdf_document_markdown_holds_the_whole_document(parsed_pdf):
 
 
 # What a frame stamp on a scanned sheet reads like: measured 2026-10-07, such a
-# page carries 64–69 letters and digits (PLAN §3H item C).
+# page carries 64–69 letters and digits (docs/plan-details.md §3H item C).
 STAMP = "Взам. инв. № Подп. и дата Инв. № подл. Изм. Кол.уч. Лист №док. Подп. Дата 02-ПЗ"
 PROSE = (
     "Инженерно-геологические условия площадки определены по результатам бурения "

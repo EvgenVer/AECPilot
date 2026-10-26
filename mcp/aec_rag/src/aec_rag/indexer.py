@@ -1,6 +1,6 @@
 """Filesystem walker + sha256-based change detection feeding ``index.db``.
 
-See specs/workspace-sources.md (Data schemas, Edge cases) for the contract:
+See docs/history/specs/workspace-sources.md (Data schemas, Edge cases) for the contract:
 size limit and locked-file skips are recorded (not fatal), and symlink/
 junction cycles are guarded against via a visited-real-path set.
 """
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 # Default cap (bytes) above which a file is skipped rather than hashed, per
-# specs/workspace-sources.md (Edge cases: "Файл больше лимита ... default 200 МБ").
+# docs/history/specs/workspace-sources.md (Edge cases: "Файл больше лимита ... default 200 МБ").
 DEFAULT_MAX_SIZE = 200 * 1024 * 1024
 
 _HASH_CHUNK_SIZE = 1024 * 1024
@@ -90,7 +90,7 @@ def walk_files(root: Path | str, unreadable: list[str] | None = None) -> Iterato
     owner with the measurement and accepted on 2026-08-26 (finding D-52): a
     junction inside a folder somebody connected counts as part of that folder.
     Do not "fix" it here — the accepted risk and what it admits are written up
-    in ``docs/SECURITY.md`` §Accepted risks and in specs/workspace-sources.md;
+    in ``docs/THREAT_MODEL.md`` §Accepted risks and in docs/history/specs/workspace-sources.md;
     changing it is a requirements decision, not a bugfix.
 
     ``unreadable``, when given, collects the root-relative paths the walk could
@@ -292,7 +292,7 @@ def scan_source(
     unlistable — e.g. a dropped network share), this returns immediately
     with ``root_unavailable: True`` and every list/count at its default
     (empty/zero); no row is read as "deleted" just because the whole
-    source is temporarily unreachable (specs/workspace-sources.md, edge
+    source is temporarily unreachable (docs/history/specs/workspace-sources.md, edge
     case "источник недоступен": the index is preserved).
     """
     root = Path(root_path)
@@ -430,7 +430,7 @@ def scan_source(
 
 def detach_source(conn: sqlite3.Connection, source_id: str) -> int:
     """Marks every ``files`` row belonging to ``source_id`` as ``detached``
-    (task 1.16, specs/workspace-sources.md's "Отключение источника"): rows are
+    (task 1.16, docs/history/specs/workspace-sources.md's "Отключение источника"): rows are
     never removed, only their status changes — including rows already
     ``"ok"``/``"changed"``/``"deleted"``, since disconnecting the source
     disconnects it entirely, not just its currently-missing files.

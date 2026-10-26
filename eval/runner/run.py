@@ -200,7 +200,7 @@ def skill_rules(path: Path | None = None) -> str:
     the file, so editing the skill is editing what is measured.
 
     `path` overrides the shipped skill — that is how one version of it is
-    measured against another on the same questions (PLAN §Validation strategy).
+    measured against another on the same questions (docs/plan-details.md §Validation strategy).
     """
     text = (path or SKILL).read_text(encoding="utf-8")
     body = text.split("---", 2)[-1] if text.startswith("---") else text

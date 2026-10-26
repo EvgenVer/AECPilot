@@ -1,6 +1,6 @@
 // Как ссылка находит место внутри документа (задача 4.4).
 //
-// Адресация родная для каждого формата (решение O4, specs/qa-over-sources.md):
+// Адресация родная для каждого формата (решение O4, docs/history/specs/qa-over-sources.md):
 // у таблицы это `Ведомость!C5:D6` — ровно то, что Excel пишет в поле адреса, —
 // у DOCX это заголовок, потому что страниц у файла нет вовсе: Word рисует их
 // при печати.
@@ -84,7 +84,7 @@ export function findSheet(names: string[], wanted: string | undefined): null | n
 }
 
 /** Заголовок из ссылки сравнивается по префиксу: цитата обрезает его по
- *  первому `]`, `#` или переводу строки (specs/qa-over-sources.md), поэтому
+ *  первому `]`, `#` или переводу строки (docs/history/specs/qa-over-sources.md), поэтому
  *  требовать полного совпадения значило бы не находить именно обрезанные. */
 export function normalizeHeading(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()

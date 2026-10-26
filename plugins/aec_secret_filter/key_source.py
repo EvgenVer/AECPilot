@@ -16,7 +16,7 @@
 `AEC_PROVIDER_KEY_NAMES` (через запятую). Чужие переменные окружения источник не
 трогает: перечня нет — нет и ключей. `.env` профиля главнее (их правило: источник
 без `override_existing` только заполняет пробелы) — как и до мультиплекса.
-Замер — `runtime/multiplex-secrets-probe.py`, PLAN §«Приёмка владельца 2026-10-09».
+Замер — `runtime/multiplex-secrets-probe.py`, docs/plan-details.md §«Приёмка владельца 2026-10-09».
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """Schema for ``index.db`` (lives at ``<vault>/.aecpilot/index.db``).
 
-See specs/workspace-sources.md (Data schemas) for the contract: a ``files``
+See docs/history/specs/workspace-sources.md (Data schemas) for the contract: a ``files``
 table tracking every scanned file per source, plus a ``files_fts`` virtual
 table — a stub in this task, populated with extracted text in task 2.9.
 """

@@ -75,7 +75,7 @@ export async function setAutowrite(enabled: boolean): Promise<string> {
 //
 // СПИСОК ЧИТАЕТСЯ СРАЗУ, АГЕНТ НЕ ГАСИТСЯ. До 3H.21 между «не просили» и «список
 // открыт» стояла остановка ядра; теперь список отдаёт команда живого ядра
-// (specs/agent-memory.md, замер 3H.20), и состояние — обычное «читаю / есть /
+// (docs/history/specs/agent-memory.md, замер 3H.20), и состояние — обычное «читаю / есть /
 // отказ».
 
 export interface MemoryFactsView {

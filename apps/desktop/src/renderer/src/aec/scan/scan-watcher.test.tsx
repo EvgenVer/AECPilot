@@ -1,4 +1,4 @@
-// The rule this component exists to keep, from specs/workspace-sources.md
+// The rule this component exists to keep, from docs/history/specs/workspace-sources.md
 // § "Детект изменений": a scan that found nothing says nothing. A toast every
 // cycle would teach the user to dismiss the one that matters.
 

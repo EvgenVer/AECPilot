@@ -1,6 +1,6 @@
 """MCP server `aec-rag`: index the project's documents and search them.
 
-Contract: specs/qa-over-sources.md (API contracts). Two rules shape everything
+Contract: docs/history/specs/qa-over-sources.md (API contracts). Two rules shape everything
 here:
 
 * **The tool returns material, the agent writes the answer.** `rag_query` and
@@ -761,7 +761,7 @@ async def overview(
     Material, not prose. Finished text from a tool would be a second author in
     the product, with its own tone and its own language, and it does not
     decompose back into the exact references an engineer needs
-    (specs/qa-over-sources.md).
+    (docs/history/specs/qa-over-sources.md).
     """
     from lightrag.base import QueryParam
 

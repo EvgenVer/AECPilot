@@ -1,6 +1,6 @@
 """Chunker over the markdown produced by :mod:`aec_rag.parse` (task 2.6).
 
-Three rules, in the order they matter (specs/qa-over-sources.md, Data schemas):
+Three rules, in the order they matter (docs/history/specs/qa-over-sources.md, Data schemas):
 
 1. **A chunk never loses its locator.** It inherits the one from the segment it
    came from and gains the nearest heading when the segment has inner headings —

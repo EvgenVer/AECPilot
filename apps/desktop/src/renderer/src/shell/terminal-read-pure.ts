@@ -1,5 +1,5 @@
 // Serializing the terminal buffer for the agent's `read_terminal` tool
-// (task 1.6.B6.16, contract: specs/workbench-panels.md §Чтение терминала).
+// (task 1.6.B6.16, contract: docs/history/specs/workbench-panels.md §Чтение терминала).
 //
 // Pure, and node-tested: this is the one place where a mistake costs the agent
 // 30 seconds of a stalled turn (their `_block(..., timeout=30)`,

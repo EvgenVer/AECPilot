@@ -268,7 +268,7 @@ async def main() -> int:
         print(
             "r22-injection: OPENAI_API_KEY не задан.\n"
             "Ключ провайдера лежит в .env профиля, и читать его агенту запрещено "
-            "(docs/SECURITY.md §Protected files) — экспортируйте его сами перед прогоном.",
+            "(AGENTS.md §Safety) — экспортируйте его сами перед прогоном.",
             file=sys.stderr,
         )
         return 2

@@ -1,6 +1,6 @@
 # uv `--override` file for the core install (runtime/setup.mjs, step 3/4).
 # One entry: drop `pillow-heif` from hermes-agent's base dependencies. Its
 # Windows wheel bundles libx265 (GPLv2) — excluded by SPEC N8/C3, owner
-# decision 2026-09-15 (task 3.B5е, PLAN § Selected dependencies). The marker
+# decision 2026-09-15 (task 3.B5е, docs/plan-details.md §Selected dependencies). The marker
 # below is never true, so the requirement is removed rather than pinned.
 pillow-heif; python_version < '0'

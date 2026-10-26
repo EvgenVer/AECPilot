@@ -455,7 +455,7 @@ const IMPLEMENTED: Record<string, unknown> = {
 
   // Task 3.3 (SPEC HX6). There is no git in this product: no branches, no
   // worktrees, no commits — and the vault is deliberately not a repository
-  // (PLAN §«Проектные скилы»). Their code MODELS that: `desktopGit()` is typed
+  // (docs/plan-details.md §«Проектные скилы»). Their code MODELS that: `desktopGit()` is typed
   // `GitBridge | undefined` and every caller guards it (`if (!desktopGit()
   // ?.repoStatus) return false`, `if (!review?.prList) return`, `if (!status)
   // return null`). So the honest answer is the absent member their contract

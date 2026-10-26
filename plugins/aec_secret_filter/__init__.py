@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Инструменты, пишущие в память. `memory` — слой 1 (их встроенный), `mem0_*` —
 # слой 2. Имена слоя 2 принадлежат их плагину и здесь не переименовываются
-# (`specs/agent-memory.md` §«Слой 2»).
+# (`docs/history/specs/agent-memory.md` §«Слой 2»).
 _MEMORY_TOOLS = frozenset({"memory", "mem0_add", "mem0_update"})
 
 # Поля, в которых у этих инструментов лежит текст. `operations` — пакетная форма

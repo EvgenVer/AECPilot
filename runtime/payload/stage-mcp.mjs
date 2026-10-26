@@ -1,6 +1,6 @@
 // Stages the second Python runtime of the installer (task T22, SPEC UR40): our MCP
 // servers `aec-sources`, `aec-rag`, `aec-roster` on Python 3.12 (Docling, LightRAG,
-// RapidOCR — the core moved to 3.14 in phase 2, the servers stay, PLAN §Stack).
+// RapidOCR — the core moved to 3.14 in phase 2, the servers stay, docs/plan-details.md §Stack).
 //
 // Layout: a standalone CPython (python-build-standalone, the same builds uv and the
 // core's PM use) with every dependency installed into ITS OWN site-packages. A
@@ -99,7 +99,7 @@ export function stageMcp(out) {
  *  plugin suites with all of it blocked from import — nothing reached for it but
  *  openpyxl's guarded `from ..tests import KEEP_VBA`, whose folder its wheel does not ship.
  *  - pip: nothing installs into this interpreter after staging (LightRAG's pip-on-demand
- *    sits in its API server and storage backends, which we do not run — PLAN §Risks R15);
+ *    sits in its API server and storage backends, which we do not run — docs/plan-details.md §Risks R15);
  *  - tcl/tk, IDLE, turtledemo, ensurepip: the standard library's GUI and bootstrap;
  *  - `include/`, `libs/`: headers and import libraries for building C extensions;
  *  - `Scripts/`: console-script exes, which carry this machine's absolute path — the

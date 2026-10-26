@@ -1,6 +1,6 @@
 """Parsing of ``project.json`` for the aec-sources MCP server.
 
-See specs/workspace-sources.md (Data schemas) for the full project.json shape.
+See docs/history/specs/workspace-sources.md (Data schemas) for the full project.json shape.
 This module only needs the ``sources`` field: a list of {id, root_path, ...}.
 """
 

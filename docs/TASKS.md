@@ -73,15 +73,6 @@ Done when: по каждой позиции отдельно (прежний PLA
 
 ## Technical debt
 
-- high — `corepack pnpm parity` не работает: реестры паритета (`runtime/parity-registry.mjs`,
-  `tool-registry.mjs`, `platform-registry.mjs`) читают удалённые при переходе на studio
-  корневые `SPECIFICATION.md` (исключения §Non-Goals) и `TASKS.md` (таблицы задач); нужно
-  перевести их на `docs/PRODUCT.md` и `docs/TASKS.md`/`docs/history/` — без этого AC9 не
-  перепроверить — найдено 2026-10-26
-- medium — ссылки на удалённые документы в коде и вне `docs/`: комментарии кода цитируют
-  `specs/<файл>.md` (теперь `docs/history/specs/<файл>.md`), `PLAN §…`, `TASKS.md`;
-  `README.md`, `runtime/README.md` и `eval/README.md` ссылаются на `DESCRIPTION.md`,
-  `SPECIFICATION.md`, `PLAN.md`, `TASKS.md` — найдено 2026-10-26
 - medium — `corepack pnpm lint` не проходит уже в базе: Prettier не принят в 7 файлах
   (`e2e/acceptance/ac11-*.spec.ts`, `src/main/i18n-catalog.ts`, `server-keys-pure.test.ts`,
   `third-party-notices.test.ts`, `src/renderer/src/server-keys/main.ts`,
@@ -96,6 +87,21 @@ Done when: по каждой позиции отдельно (прежний PLA
   `extraction_language`) — `apps/desktop/src/project/project-config.ts` — найдено 2026-08-26
 - low — `markdown-editor.test.tsx` флакует под параллельной нагрузкой полного набора,
   в одиночку проходит — найдено 2026-08-24
+
+Закрыто 2026-10-26 — долги перехода на studio:
+
+- `corepack pnpm parity` снова работает: реестры читают исключения HX из `docs/PRODUCT.md`,
+  задачи — из `docs/TASKS.md` (пункты `- [x] T44`) и таблиц `docs/history/stage-*.md`
+  (`readTasksText` в `runtime/parity-registry.mjs`); два теста реестра, красные ещё до
+  перехода, больше не зависят от живой таблицы (`rules` в `buildRegistry`) — passed:
+  `corepack pnpm parity` → расхождений 0, код 0; Vitest 317 файлов, 4194 passed,
+  3 skipped; pytest 595 passed, 3 skipped.
+- Ссылки на удалённые документы: в коде, тестах, навыке и трёх README `specs/<файл>.md`
+  → `docs/history/specs/<файл>.md` (133), `PLAN §…` → `docs/plan-details.md §…` (35),
+  `docs/SECURITY.md` → `docs/THREAT_MODEL.md` или `AGENTS.md` §Safety, старые номера
+  задач — на `git show 64fa482^:TASKS.md`; датированные отчёты (`eval/`, `runtime/contracts/`)
+  оставлены как есть — passed: `ruff check` чист, Prettier по изменённым файлам чист,
+  ESLint и `tsc` проходят, `zensical build --strict` — без замечаний.
 
 ## Later
 

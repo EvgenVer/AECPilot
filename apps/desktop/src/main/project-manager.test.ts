@@ -608,7 +608,7 @@ describe('getSourceTreeResult', () => {
     })
     expect('ok' in addedMissing && addedMissing.ok).toBe(true)
 
-    // Mocks "the network path became unreachable" (specs/workspace-sources.md
+    // Mocks "the network path became unreachable" (docs/history/specs/workspace-sources.md
     // "Недоступный источник") — removing the folder after it was connected.
     fs.rmSync(missingSourceDir, { recursive: true, force: true })
 

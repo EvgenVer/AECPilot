@@ -2,7 +2,7 @@
 // the isolated hermes dev profile's config.yaml (task 1.12).
 //
 // Mechanism (from `hermes_cli/mcp_config.py` in the core checkout
-// + tools/mcp_tool.py — see AECPilot TASKS.md task 1.12 for the write-up):
+// + tools/mcp_tool.py — the write-up is task 1.12 in the ledger before 2026-08-05, `git show 64fa482^:TASKS.md`):
 //   - MCP servers live under the `mcp_servers:` top-level key of
 //     ~/.hermes/config.yaml (here: runtime/dev-profile/config.yaml), one
 //     mapping per server name: `{command, args, env?, enabled}` for stdio

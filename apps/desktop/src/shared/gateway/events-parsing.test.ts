@@ -479,7 +479,7 @@ describe('GatewayClient reconnect/backoff', () => {
 })
 
 // --- Batch 6 events (task 1.6.B6.2) ----------------------------------------
-// Contract: specs/workbench-panels.md. Every field asserted here is the
+// Contract: docs/history/specs/workbench-panels.md. Every field asserted here is the
 // donor's own name — these tests fail if a rename ever slips in, which is the
 // point: the payloads are parsed, not re-derived.
 describe('batch 6 events: terminal, processes, notifications', () => {

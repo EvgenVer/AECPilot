@@ -328,7 +328,7 @@ export function listProjectSources(vaultPath: string): ProjectSource[] {
   return result.ok ? result.config.sources : []
 }
 
-// specs/workspace-sources.md § Data schemas: settings.scan_interval_s
+// docs/history/specs/workspace-sources.md § Data schemas: settings.scan_interval_s
 // default. Only used as a fallback if project.json can't be read right after
 // it was just opened/created — the schema itself requires the field once the
 // config parses at all (project-config.ts's validateSettings).
@@ -424,7 +424,7 @@ export type SourceTreeResult =
  * permission revoked, …) — whether caught up front by `isSourceAvailable` or
  * surfacing only once `buildSourceTree` actually reads it — is reported as
  * `{ ok: true, status: 'unavailable' }`, never thrown, so one bad source
- * never blocks the others (specs/workspace-sources.md's "Недоступный
+ * never blocks the others (docs/history/specs/workspace-sources.md's "Недоступный
  * источник"). */
 export async function getSourceTreeResult(
   vaultPath: string,
@@ -531,7 +531,7 @@ export type RemoveSourceResult =
   { ok: true; sources: ProjectSource[] } | { ok: false; error: string }
 
 /** Disconnects `sourceId` from the project at `vaultPath` (task 1.16,
- * specs/workspace-sources.md's "Отключение источника"): removes its entry
+ * docs/history/specs/workspace-sources.md's "Отключение источника"): removes its entry
  * from `project.json`, atomically, same write path as `addSourceToProject`.
  * `project.json` is the source of truth here — this function never touches
  * `index.db` or any file on disk; marking that source's index rows

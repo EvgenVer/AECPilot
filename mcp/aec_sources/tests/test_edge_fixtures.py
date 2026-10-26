@@ -2,7 +2,7 @@
 (>260 chars), a genuinely locked file (real OS-level exclusive lock via
 ctypes, plus a monkeypatch fallback for sources_read).
 
-See specs/workspace-sources.md (Edge cases). Cyrillic-name and space-in-path
+See docs/history/specs/workspace-sources.md (Edge cases). Cyrillic-name and space-in-path
 fixtures, plus symlink-escape and junction/symlink-cycle guards, are already
 covered by test_tools.py (make_fixture_root/make_read_fixture) and
 aec_rag's test_indexer.py; this file only adds what the task 1.18 coverage
@@ -52,7 +52,7 @@ def make_long_path_fixture(tmp_path: Path, min_length: int = 280) -> tuple[Path,
     *plain*-path access to them (what the tool under test actually uses) is
     expected to fail with a clean error rather than succeed -- that failure
     is itself the "long-path поддержка либо понятная ошибка" contract
-    (specs/workspace-sources.md, Edge cases).
+    (docs/history/specs/workspace-sources.md, Edge cases).
 
     Raises ``OSError`` if even the ``\\?\\`` form can't create the path
     (caller should ``pytest.skip``).

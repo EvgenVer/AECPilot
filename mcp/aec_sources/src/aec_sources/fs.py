@@ -77,7 +77,7 @@ def stat_path(target: Path) -> dict:
 
     ``size`` is ``None`` for directories. sha256 is not computed here (see
     task 1.13, the indexer) and is therefore omitted, matching the contract
-    (specs/workspace-sources.md: ``{size, mtime, sha256?}``).
+    (docs/history/specs/workspace-sources.md: ``{size, mtime, sha256?}``).
     """
     stat_result = target.stat()
     is_dir = target.is_dir()

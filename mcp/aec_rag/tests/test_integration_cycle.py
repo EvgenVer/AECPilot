@@ -1,5 +1,5 @@
 """Integration test (task 1.19): the full cycle "подключить -> сканировать ->
-изменить файл -> уведомление" (specs/workspace-sources.md, "Интеграционный
+изменить файл -> уведомление" (docs/history/specs/workspace-sources.md, "Интеграционный
 тест"), driven through the real CLI entry point (`aec-rag scan --project
 <vault>`, same as apps/desktop's scan-runner would spawn), against a real
 filesystem and a real index.db.

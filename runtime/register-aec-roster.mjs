@@ -1,5 +1,5 @@
 // Registers the `aec-roster` MCP server — the tool one specialist uses to ask
-// another (task 3C.7, contract specs/agent-roster.md §Р6).
+// another (task 3C.7, contract docs/history/specs/agent-roster.md §Р6).
 //
 // TWO THINGS SET THIS APART from register-aec-sources / register-aec-rag, and
 // both follow from what the tool is for:

@@ -1,5 +1,5 @@
 // Vault structure generator for task 1.2 — creates the on-disk skeleton of a
-// new AECPilot vault (contract: specs/workspace-sources.md § Data schemas)
+// new AECPilot vault (contract: docs/history/specs/workspace-sources.md § Data schemas)
 // and its starter files. Task 1.5.4 generalized `generateVault` to also
 // initialize a vault inside a directory the user already has files in
 // (Obsidian-style): only the missing pieces are created, existing files are

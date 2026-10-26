@@ -1,5 +1,5 @@
 // Protocol types for tui_gateway's JSON-RPC 2.0 / WebSocket wire format.
-// Map captured from tui_gateway sources (see AECPilot TASKS.md task 0.8):
+// Map captured from tui_gateway sources (task 0.8 in the ledger before 2026-08-05, `git show 64fa482^:TASKS.md`):
 //   ws://<host>:<port>/api/ws?token=<token> — newline-delimited JSON-RPC 2.0.
 //   First server frame after handshake is always a `gateway.ready` event.
 //   Requests: {"jsonrpc":"2.0","id":N,"method":"...","params":{...}}
@@ -367,7 +367,7 @@ export interface GatewayMethodMap {
   'session.undo': { params: SessionScopedParams; result: SessionUndoResult }
   'session.steer': { params: SessionSteerParams; result: SessionSteerResult }
   'commands.catalog': { params: CommandsCatalogParams; result: CommandsCatalogResult }
-  // Роестр специалистов (задача 3C.1, SPEC UR27, контракт — specs/agent-roster.md).
+  // Роестр специалистов (задача 3C.1, SPEC UR27, контракт — docs/history/specs/agent-roster.md).
   // Формы намеренно широкие: ряд профиля несёт свободный блок `ui_meta`, куда
   // каждый клиент кладёт своё, и описывать чужие поля типом мы не вправе.
   // Разбирает ответ `roster-pure.ts` — там же и проверки.
@@ -413,7 +413,7 @@ export interface ProfilesSetAssetParams {
 
 // ---------------------------------------------------------------------------
 // Sessions, details and the command palette (batch 5, contract:
-// specs/agent-sessions.md). Every shape below was read off the installed
+// docs/history/specs/agent-sessions.md). Every shape below was read off the installed
 // gateway's `tui_gateway/server.py`; the ones marked MEASURED were confirmed by
 // `runtime/sessions-probe.mjs` (task 1.6.B5.1).
 //
@@ -675,7 +675,7 @@ export interface CommandsCatalogResult {
 }
 
 // ---------------------------------------------------------------------------
-// Skills and learning (batch 3, contract: specs/agent-skills.md)
+// Skills and learning (batch 3, contract: docs/history/specs/agent-skills.md)
 //
 // `learning.frames` is DELIBERATELY ABSENT from the map above. It is the RPC
 // this batch was planned around, and on hermes 0.18.0 it did not work on this
@@ -1221,7 +1221,7 @@ export interface CompleteSlashResult {
 }
 
 /** Checkpoints and rollback (task 1.6.C2, contract:
- * specs/checkpoints-rollback.md).
+ * docs/history/specs/checkpoints-rollback.md).
  *
  * The one thing to know before reading the shapes below: none of the three
  * methods takes a directory. They all operate on the SESSION's cwd
@@ -1313,7 +1313,7 @@ export interface RollbackRestoreResult {
  *
  * `viewport_rows` and `cursor_row` are honest derivations, not hardware
  * values: this app renders the buffer as text, not through xterm, so there is
- * no real viewport or cursor (specs/workbench-panels.md, fact 6). */
+ * no real viewport or cursor (docs/history/specs/workbench-panels.md, fact 6). */
 export interface TerminalReadPayload {
   total_lines: number
   start: number
@@ -1493,7 +1493,7 @@ export interface RequestCancelEvent {
 
 // ---------------------------------------------------------------------------
 // Batch 6 events: the agent's terminal, its background processes and the
-// core's out-of-band notices (contract: specs/workbench-panels.md). Every
+// core's out-of-band notices (contract: docs/history/specs/workbench-panels.md). Every
 // field name below is the donor's, taken from `tui_gateway/server.py` 0.19.0 at
 // the line quoted on each type — none of these were renamed on the way in.
 //

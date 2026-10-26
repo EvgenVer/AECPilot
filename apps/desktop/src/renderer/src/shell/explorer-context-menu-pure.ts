@@ -6,7 +6,7 @@
 // operations first, a separator, then write operations with delete last.
 //
 // A source node (any depth) is read-only by construction
-// (specs/workspace-sources.md's "Гарантия read-only") and only ever gets the
+// (docs/history/specs/workspace-sources.md's "Гарантия read-only") and only ever gets the
 // read section — no create/rename/delete, at any level.
 
 export type ExplorerNodeKind = 'vault-dir' | 'vault-file' | 'source'

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aecpilot.dev/schemas/project.schema.json",
   "title": "AECPilot project.json",
-  "description": "Schema for <vault>/.aecpilot/project.json (specs/workspace-sources.md § Data schemas). Documentation artifact only — the runtime validator lives in ./project-config.ts (hand-written, no ajv/schema-library dependency) and must be kept in sync with this file manually.",
+  "description": "Schema for <vault>/.aecpilot/project.json (docs/history/specs/workspace-sources.md § Data schemas). Documentation artifact only — the runtime validator lives in ./project-config.ts (hand-written, no ajv/schema-library dependency) and must be kept in sync with this file manually.",
   "type": "object",
   "required": ["schema_version", "name", "created_at", "sources", "settings"],
   "properties": {

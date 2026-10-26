@@ -9,7 +9,7 @@
 //
 // Models here are suggestions for the form and for our modules, not a choice made
 // for the person. Embedding width is not listed on purpose: it is measured with one
-// call when the model changes (PLAN §«Интервью 2026-09-28»).
+// call when the model changes (docs/plan-details.md §«Интервью 2026-09-28»).
 //
 // SECURITY: only variable NAMES live here, never values.
 

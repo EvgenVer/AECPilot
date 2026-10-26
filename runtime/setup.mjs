@@ -51,7 +51,7 @@ function run(command, args, cwd) {
   if (result.error) {
     if (result.error.code === "ENOENT") {
       throw new Error(
-        "'uv' not found in PATH — install uv (see PLAN.md § Stack) and re-run",
+        "'uv' not found in PATH — install uv (see docs/operations.md) and re-run",
       );
     }
     throw result.error;
@@ -61,7 +61,7 @@ function run(command, args, cwd) {
   }
 }
 
-/** The core now comes from git (PLAN.md, decision D1), so git is a build
+/** The core now comes from git (docs/plan-details.md, decision D1), so git is a build
  * prerequisite. uv shells out to it and reports the miss as a build-backend
  * failure buried in a wall of output; say it plainly first instead. */
 function requireGit() {

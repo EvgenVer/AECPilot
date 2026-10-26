@@ -1,5 +1,5 @@
 // Snapshots of the agent's edits, and the way back (UR14, contract
-// `specs/checkpoints-rollback.md`). Ours: the donor has a git review surface,
+// `docs/history/specs/checkpoints-rollback.md`). Ours: the donor has a git review surface,
 // which SPEC excludes (HX6) — this speaks to `rollback.*` instead and says
 // "changes in my documents", never "commits".
 //

@@ -9,7 +9,7 @@
 // десятки, а не тысячи, и лишний слой тут стоил бы больше, чем экономил.
 //
 // Только чтение. Источники read-only (SPEC UR2, AC6), а редактор ячейки —
-// отдельный вопрос объёма (PLAN §зависимости).
+// отдельный вопрос объёма (docs/plan-details.md §зависимости).
 
 import { useStore } from '@nanostores/react'
 import { useVirtualizer } from '@tanstack/react-virtual'

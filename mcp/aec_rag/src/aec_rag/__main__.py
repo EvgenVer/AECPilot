@@ -6,14 +6,14 @@ Also `aec-rag detach --project <...> --source <id>` (task 1.16): marks that
 source's `files` rows `detached` in `index.db` without touching anything
 else — spawned by the desktop app right after it removes the source from
 project.json (apps/desktop/src/main/project-manager.ts's
-`removeSourceFromProject`), best-effort (see specs/workspace-sources.md's
+`removeSourceFromProject`), best-effort (see docs/history/specs/workspace-sources.md's
 "Отключение источника"). `scan` self-heals a `detach` that lost a lock race
 against it: see `run_scan`'s docstring for the orphan-sweep it runs after
 every scan cycle.
 
 Spawned by the desktop app's scan scheduler (apps/desktop/src/main/
 scan-runner.ts) once per scheduled tick / "scan now" click; also runnable by
-hand for verification (see specs/workspace-sources.md's "Детект изменений").
+hand for verification (see docs/history/specs/workspace-sources.md's "Детект изменений").
 """
 
 from __future__ import annotations

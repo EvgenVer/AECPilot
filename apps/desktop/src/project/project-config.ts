@@ -1,5 +1,5 @@
 // Schema + validator for <vault>/.aecpilot/project.json (task 1.1).
-// Contract: specs/workspace-sources.md § Data schemas. A hand-written
+// Contract: docs/history/specs/workspace-sources.md § Data schemas. A hand-written
 // structural validator is used on purpose — no ajv/schema-library dependency
 // (coordinator decision) — kept in sync manually with project.schema.json,
 // the documentation artifact next to this file.

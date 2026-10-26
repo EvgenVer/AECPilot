@@ -1,5 +1,5 @@
 // The two behaviours this panel exists for, both from
-// specs/workspace-sources.md: a folder that main answers with a warning is not
+// docs/history/specs/workspace-sources.md: a folder that main answers with a warning is not
 // connected until the user says so a second time, and a source that has become
 // unreachable says so without being expanded.
 

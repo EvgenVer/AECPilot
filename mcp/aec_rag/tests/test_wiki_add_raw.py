@@ -1,4 +1,4 @@
-"""Задача 3G.15 — сырьё в обход индекса (`wiki_add_raw`, specs/wiki.md, UR6)."""
+"""Задача 3G.15 — сырьё в обход индекса (`wiki_add_raw`, docs/history/specs/wiki.md, UR6)."""
 
 from __future__ import annotations
 

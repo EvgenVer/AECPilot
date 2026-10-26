@@ -1,6 +1,6 @@
 """Best-effort JSONL journal of rejected access attempts (task 1.17).
 
-specs/workspace-sources.md (Data schemas): ``<vault>/.aecpilot/logs/`` —
+docs/history/specs/workspace-sources.md (Data schemas): ``<vault>/.aecpilot/logs/`` —
 "журнал операций и отклонённых попыток записи". A failure to write the
 journal (disk full, permissions, ...) must never break the tool call it is
 recording, so ``log_rejected`` never raises: any ``OSError`` while creating

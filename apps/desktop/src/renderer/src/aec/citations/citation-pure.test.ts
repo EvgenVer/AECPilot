@@ -1,6 +1,6 @@
 // Tests for the citation grammar on the renderer side (task 2.13).
 //
-// The examples are the ones written down in specs/qa-over-sources.md §Формат
+// The examples are the ones written down in docs/history/specs/qa-over-sources.md §Формат
 // locator, so this file and mcp/aec_rag/tests/test_citation.py assert the same
 // contract from opposite sides of the wire — that agreement is the only thing
 // keeping two implementations of one grammar honest.

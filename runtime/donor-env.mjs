@@ -2,7 +2,7 @@
 // commit of hermes-agent we copy renderer code from, and where that tree lives
 // on disk. Pure path/constant module — no side effects.
 //
-// See PLAN.md § "Слой донора — как именно берётся их код".
+// See docs/plan-details.md § "Слой донора — как именно берётся их код".
 
 import { fileURLToPath } from "node:url";
 import path from "node:path";

@@ -3,7 +3,7 @@
 // HERMES_TUI_CHECKPOINTS is enabled in our `hermes serve` launch path (see
 // the "Checkpoints" header comment in runtime/serve.mjs).
 //
-// specs/checkpoints-rollback.md, Open questions #1: the core snapshots the
+// docs/history/specs/checkpoints-rollback.md, Open questions #1: the core snapshots the
 // *working directory it computes* for the edited file
 // (CheckpointManager.get_working_dir_for_path — climbs to the nearest of
 // nine marker files, or falls back to the file's own directory), while
@@ -14,7 +14,7 @@
 //   1. Starts `hermes serve` via the same startServe/waitHealthy/stopServe
 //      functions the desktop app uses.
 //   2. Creates a session whose cwd is a throwaway vault-shaped temp dir (a
-//      `wiki/` subdir with one file, mirroring specs/workspace-sources.md).
+//      `wiki/` subdir with one file, mirroring docs/history/specs/workspace-sources.md).
 //   3. Forces a checkpoint via CheckpointManager.ensure_checkpoint() — the
 //      core's own public "take a snapshot now" method
 //      (tools/checkpoint_manager.py); no `hermes checkpoints ...` CLI

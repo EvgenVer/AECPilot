@@ -4,7 +4,7 @@
 //
 // It renders nothing — it is a subscription with a UI side effect, mounted once
 // next to the app. The rule it must not break comes from
-// specs/workspace-sources.md § "Детект изменений": a scan where every source is
+// docs/history/specs/workspace-sources.md § "Детект изменений": a scan where every source is
 // unchanged says NOTHING. A toast on every cycle would train the user to
 // dismiss the one that matters.
 

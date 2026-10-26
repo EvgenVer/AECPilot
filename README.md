@@ -40,5 +40,6 @@ node runtime/setup.mjs
 | `corepack pnpm lint` | линтеры, типы, формат, аудит зависимостей |
 | `corepack pnpm -C apps/desktop run dist:win` | установщик и zip в `apps/desktop/release` (~30–60 минут) |
 
-Документы проекта: [DESCRIPTION.md](DESCRIPTION.md), [SPECIFICATION.md](SPECIFICATION.md),
-[PLAN.md](PLAN.md), [TASKS.md](TASKS.md); правила работы агентов — [AGENTS.md](AGENTS.md).
+Документы проекта — сайт в `docs/`: [что строим](docs/PRODUCT.md),
+[архитектура](docs/ARCHITECTURE.md), [журнал работ](docs/TASKS.md),
+[эксплуатация](docs/operations.md); правила работы агентов — [AGENTS.md](AGENTS.md).

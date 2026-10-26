@@ -18,7 +18,7 @@
  * only consumes CSI and OSC sequences, and `ESC c` is neither, so the VIEW must
  * treat a chunk starting with `\x1bc` as "replace everything" before parsing.
  * Kept as theirs rather than replaced with a flag, so the file stays a
- * verbatim island (specs/workbench-panels.md, fact 6).
+ * verbatim island (docs/history/specs/workbench-panels.md, fact 6).
  */
 
 type Writer = (chunk: string) => void

@@ -21,7 +21,7 @@
 // same question their pane answers ("what changed in my files, and how do I
 // undo it") from the only source that exists here: the core's shadow snapshot
 // store. Their pane reads the working tree's git, and this vault is
-// deliberately not a repository (PLAN §«Проектные скилы»), so with
+// deliberately not a repository (docs/plan-details.md §«Проектные скилы»), so with
 // `hermesDesktop.git` declared absent (SPEC HX6, `hermes-desktop-shim.ts`)
 // their body can only ever say "not a repository".
 

@@ -1,6 +1,6 @@
 """Conversion of a source document into markdown plus locators.
 
-A PDF is read in two speeds (task 3H.13–3H.14, PLAN §3H item C): its text layer
+A PDF is read in two speeds (task 3H.13–3H.14, docs/plan-details.md §3H item C): its text layer
 first, page by page, with pypdfium2 — under a second for a 300-page report — and
 then, in the background, only the pages without a usable layer are rendered and
 recognised with RapidOCR. Docling is no longer used for PDFs: measured
@@ -8,7 +8,7 @@ recognised with RapidOCR. Docling is no longer used for PDFs: measured
 pages that carry a frame stamp in their text layer. DOCX, XLSX and CSV still go
 through Docling; MD and TXT are read as text (D-199).
 
-See specs/qa-over-sources.md (Data schemas): every chunk carries a ``locator``
+See docs/history/specs/qa-over-sources.md (Data schemas): every chunk carries a ``locator``
 pointing back at the place in the original document. Which place that is depends
 on the format — a PDF has pages, a DOCX has none and only headings — so parsing
 produces a uniform sequence of segments, each labelled with the coarsest locator
@@ -44,7 +44,7 @@ class ParseError(RuntimeError):
 class ParsedSegment:
     """A piece of the original document together with the place it came from.
 
-    ``locator`` follows specs/qa-over-sources.md: ``{"page": n}`` for PDFs
+    ``locator`` follows docs/history/specs/qa-over-sources.md: ``{"page": n}`` for PDFs
     (1-based, i.e. the number a person reads in a viewer — that is what a
     citation has to survive), ``{"heading": text}`` for formats that have no
     pages, ``{"sheet": name, "range": "A1:B3"}`` for spreadsheets. An empty
@@ -82,7 +82,7 @@ def build_converter(*, ocr: bool = True) -> DocumentConverter:
     * **The OCR engine is named, not defaulted.** RapidOCR's own default is a
       Chinese model, and Docling's is `lang=["chinese"]` on the onnxruntime
       backend. `eslav` (East Slavic, PP-OCRv5) is the measurement's winner —
-      see `eval/ocr-report.md` and PLAN §Risks R4. The measured alternative
+      see `eval/ocr-report.md` and docs/plan-details.md §Risks R4. The measured alternative
       that ships without any extra install, `cyrillic` on the torch backend,
       returns Latin/Cyrillic mush on Russian technical text and is not an
       acceptable fallback.
@@ -172,7 +172,7 @@ def split_by_headings(markdown: str) -> list[tuple[str | None, str]]:
 
 # A page counts as having a usable text layer when it holds at least this many
 # letters and digits, and they make up at least this share of its visible
-# characters. Measured 2026-10-07 on the ИГИ reports (PLAN §3H item C): a scanned
+# characters. Measured 2026-10-07 on the ИГИ reports (docs/plan-details.md §3H item C): a scanned
 # page whose layer is only the frame stamp carries 64–69 letters, a page of real
 # text runs into the hundreds and thousands. A font with a broken encoding gives
 # plenty of characters but few letters — the share catches that.
@@ -276,7 +276,7 @@ def _cpu_device(accelerator_device: str, supported_devices=None) -> str:
 
 
 def _reader():
-    """RapidOCR with the `eslav` model, built the way Docling builds it (PLAN
+    """RapidOCR with the `eslav` model, built the way Docling builds it (docs/plan-details.md
     §Risks R4) — through their class, so the language and the model files stay
     exactly what they were. Loads once per process, about 4 s.
 
@@ -336,7 +336,7 @@ def parse_docx(path: Path | str, *, converter: DocumentConverter | None = None) 
 
     A DOCX has no pages — Docling reports ``num_pages() == 0``, because page
     breaks are a property of how Word renders the file, not of the file — so the
-    heading is the only locator the format offers (specs/qa-over-sources.md,
+    heading is the only locator the format offers (docs/history/specs/qa-over-sources.md,
     edge case «Locator недоступен»).
     """
     path = Path(path)

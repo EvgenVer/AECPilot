@@ -3,7 +3,7 @@
 // Ours entirely: the donor has no concept of a source.
 //
 // Task 1.8.17, second slice. What this screen owes the user, from
-// specs/workspace-sources.md: adding a folder can come back asking for
+// docs/history/specs/workspace-sources.md: adding a folder can come back asking for
 // confirmation (it overlaps another source, or is unreachable right now), and
 // an already-connected source can become unreachable later — a moved drive, a
 // disconnected share — which has to be visible without expanding anything.

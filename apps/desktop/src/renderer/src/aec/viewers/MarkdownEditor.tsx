@@ -3,7 +3,7 @@
 // Markdown — единственный формат, который здесь и смотрят, и правят: файлы
 // vault наши, их пишет агент и дописывает человек. Остальные форматы
 // открываются только на чтение (SPEC UR2, AC6 — источники read-only; DOCX
-// обратно не пишется вовсе, PLAN §зависимости).
+// обратно не пишется вовсе, docs/plan-details.md §зависимости).
 //
 // Milkdown берётся голым ядром, без их React-обёртки: обёртка — ещё один
 // пакет ради одного `useEffect`, а редактор всё равно живёт вне React —
@@ -191,7 +191,7 @@ export function MarkdownEditor(): React.JSX.Element | null {
           </div>
         ) : null}
         {/* `prose` — типографика Tailwind, уже стоящая ради их markdown-рендера
-            (PLAN §зависимости). Своей темы Milkdown не несёт, и это к лучшему:
+            (docs/plan-details.md §зависимости). Своей темы Milkdown не несёт, и это к лучшему:
             редактор выглядит так же, как ответ агента над ним. */}
         <div className="prose prose-sm dark:prose-invert max-w-none" ref={hostRef} />
       </div>

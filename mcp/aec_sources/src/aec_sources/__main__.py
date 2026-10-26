@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
         "--project",
         required=True,
         type=Path,
-        help="Path to the project's project.json (see specs/workspace-sources.md)",
+        help="Path to the project's project.json (see docs/history/specs/workspace-sources.md)",
     )
     args = parser.parse_args(argv)
 

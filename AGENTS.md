@@ -143,11 +143,12 @@ If the owner corrects the same kind of mistake twice, propose a rule for this fi
   orphaned windows show the owner a blank screen and break the next run's schedules.
 - **Legacy references.** Task and finding IDs of the old format (`3B.12`, `4D-11`, `D-174`, …)
   in code, tests and `docs/manual-checklist.md` are provenance; do not rewrite them in passing
-  (mapping: `docs/history/id-changes.md`). In code comments, `specs/<file>.md` means
-  `docs/history/specs/<file>.md`, `SPEC <ID>` means `docs/PRODUCT.md`, `PLAN §«…»` means the
-  section of `docs/plan-details.md` with that heading, `MEMORY.md §…` means
-  `docs/core-facts.md` or `docs/operations.md`, `docs/SECURITY.md` means
-  `docs/THREAT_MODEL.md`. The full old ledger is `git show 61b712f:TASKS.md`.
+  (mapping: `docs/history/id-changes.md`). `SPEC <ID>` in code means the requirement with that
+  ID in `docs/PRODUCT.md`. Dated reports (`eval/`, `runtime/contracts/`, `docs/acceptance/`)
+  keep the paths of their day: `specs/<file>.md` means `docs/history/specs/<file>.md`,
+  `PLAN §«…»` the section of `docs/plan-details.md` with that heading, `MEMORY.md §…`
+  `docs/core-facts.md` or `docs/operations.md`, `docs/SECURITY.md` `docs/THREAT_MODEL.md`.
+  The old ledger is `git show 61b712f:TASKS.md`; before 2026-08-05, `git show 64fa482^:TASKS.md`.
 
 ## Project commands
 

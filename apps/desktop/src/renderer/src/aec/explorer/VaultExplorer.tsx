@@ -1,6 +1,6 @@
 // The vault explorer — ours, because the donor has no such thing: their file
 // pane browses a working directory, ours browses the project's vault, which is
-// a structure we create and own (specs/workspace-sources.md).
+// a structure we create and own (docs/history/specs/workspace-sources.md).
 //
 // Task 1.8.17, first slice: the tree itself plus create/rename/delete. Sources,
 // search and "show in Explorer" are the slices after it.
@@ -301,7 +301,7 @@ export function VaultExplorer() {
   const filesAreRemote = connection !== undefined && connection.mode !== 'local'
 
   // Server state through React Query, like every screen of theirs — our surface
-  // is written in their stack, and main is the server here (PLAN §Слой донора).
+  // is written in their stack, and main is the server here (docs/plan-details.md §Слой донора).
   const { data: tree, error: loadError } = useQuery({
     queryKey: VAULT_TREE_KEY,
     queryFn: () => window.aecpilot.getVaultTree(),

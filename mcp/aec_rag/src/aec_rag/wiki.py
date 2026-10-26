@@ -3,7 +3,7 @@
 Скелет создаётся кодом, а не агентом. Причина простая: папки и три служебных
 файла — это не работа для модели, а вызов модели ради `mkdir` стоит денег и
 времени и иногда ошибается. Модель наполняет вики (задачи 4.8–4.9); где что
-лежит, решено заранее и записано в ``specs/wiki.md``.
+лежит, решено заранее и записано в ``docs/history/specs/wiki.md``.
 
 Ничего существующего не перезаписывается. Вики живёт долго, её правит человек,
 и повторный вызов ``wiki_init`` на живом проекте обязан быть безобиден.
@@ -18,10 +18,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-#: Папки вики. Порядок — как в ``specs/wiki.md``.
+#: Папки вики. Порядок — как в ``docs/history/specs/wiki.md``.
 SUBDIRS = ("raw", "entities", "concepts", "comparisons", "queries")
 
-#: Теги предметной области по умолчанию (``specs/wiki.md`` §Data schemas).
+#: Теги предметной области по умолчанию (``docs/history/specs/wiki.md`` §Data schemas).
 DEFAULT_TAGS = (
     "object",
     "building",
@@ -545,7 +545,7 @@ def write_page(vault: Path, rel: str, text: str) -> dict[str, object]:
 
 # --------------------------------------- сырьё в обход индекса (3G.15, UR6)
 
-#: Виды сырья, внесённого человеком (specs/wiki.md §Data schemas, вид «б»).
+#: Виды сырья, внесённого человеком (docs/history/specs/wiki.md §Data schemas, вид «б»).
 RAW_KINDS = ("files", "links", "notes", "decisions")
 
 #: Символы, которых нет в имени файла Windows. Имя страницы — заголовок

@@ -2,7 +2,7 @@
 // desktop opens a working directory, ours creates and owns a vault. The logic
 // is the one task 1.3/1.5.4 measured against main (pick a folder → name it →
 // generate the vault, non-empty folders get only what they are missing and
-// existing files are never touched — specs/workspace-sources.md). What changed
+// existing files are never touched — docs/history/specs/workspace-sources.md). What changed
 // in task 1.8.18 is the skin: their Button, their Tailwind variables, their
 // i18n. No CSS of our own.
 

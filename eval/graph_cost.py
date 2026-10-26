@@ -41,7 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLES = REPO_ROOT / "eval" / "samples" / "project"
 DEFAULT_ENV_FILE = REPO_ROOT / "runtime" / "dev-profile" / ".env"
 
-# The reference project's chunk count, from PLAN §Architecture (464 chunks ×
+# The reference project's chunk count, from docs/plan-details.md §Architecture (464 chunks ×
 # 3072 dimensions ≈ 5.7 MB of vectors). Every extrapolation below is per-chunk
 # cost × this number.
 REFERENCE_PROJECT_CHUNKS = 464

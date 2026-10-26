@@ -4,7 +4,7 @@ exclusive lock via ctypes), a directory symlink cycle (in addition to the
 junction cycle already covered in test_indexer.py), and a combined
 Cyrillic+spaces .docx name.
 
-See specs/workspace-sources.md (Edge cases). This file only adds what the
+See docs/history/specs/workspace-sources.md (Edge cases). This file only adds what the
 task 1.18 coverage audit found missing on top of test_indexer.py.
 """
 

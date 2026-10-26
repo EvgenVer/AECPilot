@@ -8,7 +8,7 @@ re-copy instead of a merge.
 - Snapshot point: `DONOR_SHA` in [`runtime/donor-env.mjs`](../../../../../runtime/donor-env.mjs)
   (`node runtime/donor-env.mjs` verifies the on-disk tree against it).
 - Read source: `runtime/.hermes-src/apps/desktop/src/**`.
-- Policy: `PLAN.md` § «Слой донора — как именно берётся их код»; the hard rules
+- Policy: `docs/plan-details.md` § «Слой донора — как именно берётся их код»; the hard rules
   are restated in `AGENTS.md` § Conventions.
 
 ## Layout

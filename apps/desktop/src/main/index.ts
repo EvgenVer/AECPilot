@@ -1992,7 +1992,7 @@ async function ensureSession(): Promise<string> {
     ensureSessionPromise = gateway
       .request('session.create', {
         source: 'aecpilot-desktop',
-        // Task 1.20 (specs/workspace-sources.md § API — "working dir агента
+        // Task 1.20 (docs/history/specs/workspace-sources.md § API — "working dir агента
         // = vault"): only sent when a project is open, so a Phase 0-style
         // chat with no project keeps falling back to the gateway's own
         // launch cwd, unchanged.
@@ -2808,7 +2808,7 @@ ipcMain.handle('goal:dispatch', async (_event, action: unknown) => {
 })
 
 // --- Checkpoints / rollback (task 1.6.C2) ----------------------------------
-// Contract: specs/checkpoints-rollback.md. Everything below addresses the
+// Contract: docs/history/specs/checkpoints-rollback.md. Everything below addresses the
 // session's cwd (= the open vault) because the gateway offers no directory
 // parameter; `checkpointScope()` is what lets the screen explain an empty
 // list instead of just showing one.
@@ -2893,7 +2893,7 @@ ipcMain.handle('rollback:restore', async (_event, payload: unknown) => {
   })
 })
 
-// --- Skills and learning, batch 3 (contract: specs/agent-skills.md) --------
+// --- Skills and learning, batch 3 (contract: docs/history/specs/agent-skills.md) --------
 // Split across both transports on purpose, and both choices are measured
 // rather than assumed (probe `runtime/skills-probe.mjs`, task 1.6.B3.1):
 //   - the skill LIST and the learning GRAPH come over REST, because the RPC
@@ -3007,7 +3007,7 @@ ipcMain.handle('learn:dispatch', async (_event, topic: unknown) => {
 
 // --- Our own settings that live in the project (tasks 1.6.B2.17–B2.19) -----
 // Wiki language, scan interval and embedding model belong to the VAULT, not to
-// the app: they travel with the project (specs/workspace-sources.md § Data
+// the app: they travel with the project (docs/history/specs/workspace-sources.md § Data
 // schemas), so they are read from and written to `project.json`.
 
 ipcMain.handle('project:get-settings', () => {
@@ -3434,7 +3434,7 @@ ipcMain.handle('sessions:switch', async (_event, id: string) => {
 })
 
 // --- Sessions, details, palette, YOLO: batch 5 ------------------------------
-// Contract: specs/agent-sessions.md. The one rule that runs through all of it:
+// Contract: docs/history/specs/agent-sessions.md. The one rule that runs through all of it:
 // a LIVE sid and a STORED id are different things (see `LiveSessionId` /
 // `StoredSessionId` in shared/gateway/types.ts). `session.list`/`resume`/
 // `delete` take the stored one; everything else here takes the live one.
@@ -5130,7 +5130,7 @@ ipcMain.handle('project-skills:trust', (_event, trusted: unknown) =>
   setProjectSkillsTrust(currentProject?.vaultPath, trusted === true)
 )
 
-// Задача 3.6а. Кто запускает задачи по расписанию. Разбор — PLAN §«Свой тик
+// Задача 3.6а. Кто запускает задачи по расписанию. Разбор — docs/plan-details.md §«Свой тик
 // расписаний»: тикает их планировщик в отдельном процессе, и человек решает,
 // поднимать ли его.
 ipcMain.handle('cron-runner:get', () => cronRunnerState())
@@ -5541,7 +5541,7 @@ ipcMain.handle('sources:tree', async (_event, payload: unknown) => {
   return getSourceTreeResult(currentProject.vaultPath, sourceId)
 })
 
-// Task 1.5.5 (specs/workspace-sources.md § UI-операции): "Показать в
+// Task 1.5.5 (docs/history/specs/workspace-sources.md § UI-операции): "Показать в
 // проводнике" for a connected source's entry, at any nesting level
 // (`rel: ''` targets the source's own root) — read-only, mirrors
 // `vault:show-in-explorer` but resolved against the source's root instead of
@@ -6128,7 +6128,7 @@ async function startGraphRun(
 // С ЖИВЫМ ЯДРОМ — ЕГО КОМАНДОЙ, БЕЗ ОСТАНОВКИ. Встроенный qdrant держит папку
 // хранилища исключительно, но наш плагин живёт в процессе ядра и держит один
 // клиент Mem0 на папку: команда `/aec-memory-facts` читает и удаляет через него
-// (замер `runtime/memory-list-probe.py`, specs/agent-memory.md). Тот же путь, что
+// (замер `runtime/memory-list-probe.py`, docs/history/specs/agent-memory.md). Тот же путь, что
 // `/goal` и `/learn`. Ядро на другой машине — та же команда, исполняется там, где
 // его хранилище. Без ядра папку держать некому, и тот же код читает отдельный
 // короткий процесс.
@@ -6475,7 +6475,7 @@ ipcMain.handle('vault:delete', async (_event, payload: unknown) => {
   }
 })
 
-// "Показать в проводнике" (specs/workspace-sources.md § API contracts, UI
+// "Показать в проводнике" (docs/history/specs/workspace-sources.md § API contracts, UI
 // operations) — read-only, opens the OS file manager with the item
 // highlighted.
 ipcMain.handle('vault:show-in-explorer', (_event, payload: unknown) => {

@@ -1,5 +1,5 @@
 // Pure logic behind the "Сессии" section of the Агент hub (tasks 1.6.B5.3–B5.10).
-// Contract: specs/agent-sessions.md.
+// Contract: docs/history/specs/agent-sessions.md.
 //
 // Two lists, two different questions, and merging them would answer neither:
 // `session.list` reads the DATABASE (every conversation this project ever had,

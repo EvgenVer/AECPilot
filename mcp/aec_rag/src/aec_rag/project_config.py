@@ -1,6 +1,6 @@
 """Parsing of ``project.json`` for the aec-rag scan CLI.
 
-See specs/workspace-sources.md (Data schemas) for the full project.json
+See docs/history/specs/workspace-sources.md (Data schemas) for the full project.json
 shape. This module only needs the ``sources`` field — a list of
 {id, root_path, ...} — same contract as
 mcp/aec_sources/src/aec_sources/config.py's ``parse_project_config``,

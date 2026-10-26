@@ -1,4 +1,4 @@
-"""Smoke-эвал скила `aec-wiki` (задача 4.14, критерии — specs/wiki.md).
+"""Smoke-эвал скила `aec-wiki` (задача 4.14, критерии — docs/history/specs/wiki.md).
 
     uv run python eval/wiki_eval.py                  # все сценарии
     uv run python eval/wiki_eval.py --only build     # один
@@ -335,7 +335,7 @@ def render_report(outcomes: list[Outcome], started: str) -> str:
         f"Прогон: {started}. Модель: `{MODEL}`, судья: `{JUDGE_MODEL}`.",
         f"Сценариев: {len(outcomes)}, прошло целиком: {passed}.",
         "",
-        "Критерии — `specs/wiki.md` §Feature-level acceptance: покрытие ключевых",
+        "Критерии — `docs/history/specs/wiki.md` §Feature-level acceptance: покрытие ключевых",
         "фактов, валидность провенанса, отсутствие выдумок, явное оформление",
         "противоречия. Плюс то, что спека требует от страницы: заголовок и связи.",
         "",

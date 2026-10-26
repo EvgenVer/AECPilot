@@ -1,5 +1,5 @@
 // Why the rollback screen can show an empty list even though the agent has
-// been editing files (task 1.6.C2, specs/checkpoints-rollback.md Open
+// been editing files (task 1.6.C2, docs/history/specs/checkpoints-rollback.md Open
 // questions №1).
 //
 // hermes decides WHICH directory a snapshot covers per edited file, with
@@ -19,7 +19,7 @@
 // practice.
 //
 // Whether to place a marker in the vault root is the OWNER's decision and is
-// not taken here (TASKS.md 1.6.C1).
+// not taken here (task 1.6.C1 in the ledger before 2026-08-05, `git show 64fa482^:TASKS.md`).
 
 /** The nine markers, verbatim from `get_working_dir_for_path`. */
 export const CHECKPOINT_MARKERS = [

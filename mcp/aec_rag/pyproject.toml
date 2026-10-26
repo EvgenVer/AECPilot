@@ -14,14 +14,14 @@ dependencies = [
     # LightRAG keeps `openai` in an optional extra and pulls it in at runtime
     # with `pipmaster` (pip-install-on-demand) when a binding needs it. We
     # declare it ourselves so nothing ever installs into the venv behind our
-    # back — see PLAN §Risks R15.
+    # back — see docs/plan-details.md §Risks R15.
     "openai>=2,<3",
-    # OCR backend chosen by the measurement in task 2.2 (PLAN §Risks R4):
+    # OCR backend chosen by the measurement in task 2.2 (docs/plan-details.md §Risks R4):
     # RapidOCR's `eslav` model runs on onnxruntime. Declared directly rather
     # than through docling's `onnxruntime` extra — on Windows that extra
     # resolves to `onnxruntime-gpu`, which wants CUDA.
     "onnxruntime>=1.7,<1.24",
-    # Two-speed PDF ingest (task 3H.13, PLAN §3H item C): the text layer is read
+    # Two-speed PDF ingest (task 3H.13, docs/plan-details.md §3H item C): the text layer is read
     # page by page with pypdfium2, and a page without a usable layer is rendered
     # by it for recognition. Both arrived with Docling already; declared because
     # we now import them ourselves. numpy carries the rendered page to RapidOCR.

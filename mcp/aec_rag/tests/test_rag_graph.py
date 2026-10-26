@@ -1,7 +1,7 @@
 """Contract tests for tier 2 — the knowledge graph (tasks 2.10b, 2.11a).
 
 The behaviour under test is SPECIFICATION UR24 and the two graph scenarios of
-specs/qa-over-sources.md: the graph is empty until someone chooses otherwise, it
+docs/history/specs/qa-over-sources.md: the graph is empty until someone chooses otherwise, it
 says how much work it is *before* doing it, a document outside it is still
 searchable, and new files in a marked folder wait to be confirmed rather than
 being billed for.
@@ -83,7 +83,7 @@ async def test_graph_add_says_how_much_work_it_is_before_doing_it(project, monke
 
 @pytest.mark.anyio
 async def test_a_document_outside_the_graph_is_still_searchable(project, monkeypatch, calls):
-    """specs/qa-over-sources.md, «Документ не выбран в граф»: an ordinary
+    """docs/history/specs/qa-over-sources.md, «Документ не выбран в граф»: an ordinary
     question about it is answered by ordinary search, with a place.
     """
     project_json, source = project

@@ -2,7 +2,7 @@
 // with an RO badge + availability status): builds a connected source's
 // directory tree and reports whether its root is currently reachable. A
 // source is read-only by construction — there are no write operations here,
-// or anywhere, for a source (see specs/workspace-sources.md's "Гарантия
+// or anywhere, for a source (see docs/history/specs/workspace-sources.md's "Гарантия
 // read-only").
 //
 // Task 1.5.5 adds `resolveSourceEntryRel` — an anti-traversal resolver for a

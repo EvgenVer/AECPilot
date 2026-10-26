@@ -1,5 +1,5 @@
 // Pure parts of the rollback screen (task 1.6.C2, contract
-// specs/checkpoints-rollback.md): turning the gateway's two thin answers into
+// docs/history/specs/checkpoints-rollback.md): turning the gateway's two thin answers into
 // something a person can act on. No React, no IPC — everything here is a
 // function of its arguments so the awkward cases (empty list that is not
 // really empty, truncated patch, ambiguous diff) can be pinned by unit tests.
@@ -13,7 +13,7 @@ import type { RollbackCheckpoint } from '../../../../shared/gateway/types'
  * directory genuinely has no snapshots", `unavailable` means "checkpoints are
  * on but nothing that happens in this vault will ever appear in THIS list".
  * Showing the second as the first is what this whole type exists to prevent
- * (specs/checkpoints-rollback.md Open questions №1). */
+ * (docs/history/specs/checkpoints-rollback.md Open questions №1). */
 export type RollbackView =
   | { kind: 'disabled' }
   | { kind: 'unavailable'; scope: CheckpointScopeInfo }

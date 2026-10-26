@@ -7,7 +7,7 @@ import path from "node:path";
 
 export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-// Pins — must match PLAN.md § Stack & package managers.
+// Pins — must match docs/plan-details.md § Stack & package managers.
 // 0.22.0 made Python 3.14 mandatory: every core dependency carries the marker
 // `python_version >= '3.14'` and `[tool.uv] environments` is >=3.14 — on 3.12 the
 // core installs with no dependencies at all. Owner permission 2026-10-15 (task T20.3).
@@ -15,7 +15,7 @@ export const HERMES_VERSION = "0.22.2";
 export const PYTHON_VERSION = "3.14.6";
 
 // The core is installed from git, not from PyPI: the author stopped publishing
-// wheels (PLAN.md, decision D1). A git tag can be moved; a commit id cannot, so
+// wheels (docs/plan-details.md, decision D1). A git tag can be moved; a commit id cannot, so
 // the pin is the commit — the tag is only how we found it and how we re-check it.
 //
 // `git ls-remote --tags <repo>` on 2026-09-01 gave, for release 0.21.0:
@@ -29,7 +29,7 @@ export const PYTHON_VERSION = "3.14.6";
 // tagged commit, and it read `0.21.0` here — the release that was waited for
 // through August finally exists, and the release commit says so in one line
 // (`chore: release v0.21.0 (2026.8.31)`). The curated notes promised "with
-// 0.21.0" never arrived, so the tree stays the only source. Rule (PLAN §Слой
+// 0.21.0" never arrived, so the tree stays the only source. Rule (docs/plan-details.md §Слой
 // донора) is unchanged and is what got us here: the pin goes to the LAST
 // AVAILABLE TAG, never to an expected release number.
 //

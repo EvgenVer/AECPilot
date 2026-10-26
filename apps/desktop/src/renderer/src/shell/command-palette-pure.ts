@@ -1,5 +1,5 @@
 // Pure logic behind the Ctrl+K command palette (tasks 1.6.B5.17–B5.19).
-// Contract: specs/agent-sessions.md §Палитра команд.
+// Contract: docs/history/specs/agent-sessions.md §Палитра команд.
 //
 // Three sources, one list: the gateway's own command registry
 // (`commands.catalog` — so the palette always describes THIS build, not a list

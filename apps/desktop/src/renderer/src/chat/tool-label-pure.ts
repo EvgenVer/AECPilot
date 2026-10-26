@@ -11,7 +11,7 @@
 
 /** Shown when the server sent no usable tool name at all. Deliberately
  * generic: inventing a specific tool name would be worse than admitting we
- * don't have one (specs/agent-chat.md — «мета не выдумывается»). */
+ * don't have one (docs/history/specs/agent-chat.md — «мета не выдумывается»). */
 export const FALLBACK_TOOL_LABEL = 'инструмент'
 
 /** The label to print on a tool card. Always a non-empty, printable string. */

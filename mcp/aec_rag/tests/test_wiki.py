@@ -1,7 +1,7 @@
 """Скелет вики (задача 4.7).
 
 Проверяется не «создались ли папки» — это mkdir, — а два обещания, на которых
-держится вся вика: структура ровно та, что записана в ``specs/wiki.md``, и
+держится вся вика: структура ровно та, что записана в ``docs/history/specs/wiki.md``, и
 повторный вызов на живом проекте ничего не портит.
 """
 
@@ -38,7 +38,7 @@ def test_schema_carries_the_domain_taxonomy() -> None:
 def test_schema_states_the_rules_that_lint_will_check() -> None:
     schema = default_schema()
 
-    # Правила из specs/wiki.md, по которым потом судит lint (4.11). Если они
+    # Правила из docs/history/specs/wiki.md, по которым потом судит lint (4.11). Если они
     # разъедутся, агент будет писать одно, а проверка требовать другое.
     assert "200" in schema
     assert "[src:" in schema
@@ -192,7 +192,7 @@ def test_stale_report_notices_a_source_that_left(tmp_path: Path) -> None:
     report = stale_snapshots(conn, tmp_path)
 
     # Исчезнувший источник — не повод что-то удалять: страницы по нему остаются,
-    # но об этом надо знать (specs/wiki.md, «источник отключён»).
+    # но об этом надо знать (docs/history/specs/wiki.md, «источник отключён»).
     assert [entry["rel_path"] for entry in report.gone] == ["ЭОМ/задание.pdf"]
 
 

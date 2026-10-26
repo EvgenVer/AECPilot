@@ -1,5 +1,5 @@
 // Pure validation for task 1.7's "add source" flow (contract:
-// specs/workspace-sources.md § Edge cases — vault/source nesting is
+// docs/history/specs/workspace-sources.md § Edge cases — vault/source nesting is
 // forbidden, overlapping sources warn). No fs access here — existence/
 // availability of `candidatePath` is a best-effort check done by the caller
 // in main (see project-manager.ts's addSourceToProject), never here.

@@ -3,7 +3,7 @@
 // No npm deps: node:child_process/net (via serve.mjs) + the Node 22
 // built-in global WebSocket.
 //
-// Protocol map (from `tui_gateway/server.py` and `ws.py` in the core checkout — see AECPilot TASKS.md task 0.8 for the write-up):
+// Protocol map (from `tui_gateway/server.py` and `ws.py` in the core checkout — the write-up is task 0.8 in the ledger before 2026-08-05, `git show 64fa482^:TASKS.md`):
 //   - connect                → server sends {"method":"event","params":{"type":"gateway.ready",...}}
 //   - "session.create"       → {"result":{"session_id": "...", ...}}
 //   - "prompt.submit"        → {"result":{"status":"streaming"}}, reply streams via events:

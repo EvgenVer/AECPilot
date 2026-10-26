@@ -23,7 +23,7 @@ class PathOutsideSourceError(Exception):
     """The requested path is absolute or escapes its source root.
 
     Corresponds to the contract error code PATH_OUTSIDE_SOURCE
-    (specs/workspace-sources.md).
+    (docs/history/specs/workspace-sources.md).
     """
 
 

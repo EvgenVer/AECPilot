@@ -14,7 +14,7 @@ node runtime/setup.mjs
 Creates a venv at `runtime/.hermes-venv` (CPython 3.14.6 managed by `uv`,
 `hermes-agent[mcp,ddgs]` 0.22.2 installed editable from a shallow checkout at
 `HERMES_SHA` in `runtime/.hermes-src` — upstream's build backend refuses to build a
-wheel, see PLAN.md § Stack). Versions are constrained to the core's own `uv.lock`
+wheel, see docs/plan-details.md § Stack & package managers). Versions are constrained to the core's own `uv.lock`
 (`uv export` into `runtime/uv-constraints.txt` on every run). The `ddgs` extra is the
 keyless web search our profile selects; since 0.22 it is no longer a core dependency.
 
@@ -112,7 +112,7 @@ Exit 3 = any other failure (protocol-level failure, non-auth model failure,
 or the model correctly reporting the tool isn't available).
 
 `setup.mjs` installs `hermes-agent[mcp,ddgs]` at the pinned SHA (0.22.2 since task
-T20.3) — the `mcp` extra (approved, see PLAN.md § Selected dependencies) pulls
+T20.3) — the `mcp` extra (approved, see docs/plan-details.md § Selected dependencies) pulls
 in hermes's pinned `mcp==2.0.0` + `starlette==1.3.1` into
 `runtime/.hermes-venv`, which is what lets
 `tools.mcp_tool` act as an MCP *client* and connect to aec-sources (or any

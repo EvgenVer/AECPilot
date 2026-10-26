@@ -5,7 +5,7 @@
 // достаётся готовая таблица строк, а не файл и разборщик к нему.
 //
 // Только чтение. Запись exceljs умеет, но источники read-only по SPEC UR2/AC6,
-// а редактора ячейки у нас нет — см. PLAN §зависимости.
+// а редактора ячейки у нас нет — см. docs/plan-details.md §зависимости.
 
 import type { SheetData, SheetReadResult } from '../shared/ipc'
 import { mainT } from './i18n'

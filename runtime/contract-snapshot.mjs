@@ -63,7 +63,7 @@ const VERSION_LABEL = argValue("--version") ?? HERMES_VERSION;
 const SHA_LABEL = argValue("--sha") ?? HERMES_SHA;
 
 /** Where the core's Python actually lives. Since 0.20.0 the install is editable
- * (their build backend refuses to build a wheel — see PLAN §Stack), so the
+ * (their build backend refuses to build a wheel — see docs/plan-details.md §Stack), so the
  * modules sit in the source checkout and site-packages holds only a .pth. The
  * site-packages branch stays for the day a normal install becomes possible
  * again. */

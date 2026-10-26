@@ -1,4 +1,4 @@
-// Probes risk R2 (PLAN.md § Risks): does a marker SOUL.md placed in the dev
+// Probes risk R2 of the early plan (PLAN.md, now in git history): does a marker SOUL.md placed in the dev
 // profile (HERMES_HOME) actually reach the model's system prompt when the
 // agent runs behind `hermes serve` (tui_gateway), or does gateway mode ignore
 // it (hermes tracker issue #26596 — "Gateway mode ignores SOUL.md —

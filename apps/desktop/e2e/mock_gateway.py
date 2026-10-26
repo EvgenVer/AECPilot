@@ -294,7 +294,7 @@ async def handle(connection: ServerConnection) -> None:
             # goes back on disk — for the whole snapshot or for the one file
             # `file_path` names. The manager's own verdict travels as
             # `success`, a refusal as `success: false` with `error`, exactly as
-            # the contract has it (specs/checkpoints-rollback.md).
+            # the contract has it (docs/history/specs/checkpoints-rollback.md).
             params = request.get("params") or {}
             wanted = params.get("hash")
             file_path = params.get("file_path")

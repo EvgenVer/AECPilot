@@ -12,7 +12,7 @@
 // each, with the real notes promised for 0.21.0 — so the tree is the only
 // source of truth about what moved. And an area with zero churn is a free
 // port: the file lands byte-identical whether it comes from the old SHA or the
-// new one, which is how Phase 3A was carved out of Phase 3 (PLAN §Слой донора).
+// new one, which is how Phase 3A was carved out of Phase 3 (docs/plan-details.md §Слой донора).
 //
 // Reads the donor checkout that the core install already keeps at DONOR_SHA.
 // Comparing against a ref we have NOT pinned is the point, so the ref only has
