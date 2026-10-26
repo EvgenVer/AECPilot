@@ -145,6 +145,13 @@ function pinnedCore() {
 }
 
 /** Собрать текст отчёта. Чистая часть — без файловой системы, ради теста. */
+/** Ограда блока кода для стенограммы: длиннее самой длинной серии обратных кавычек
+ *  в тексте, иначе блок кода из ответа агента закрывает её раньше времени. */
+export function fenceFor(text) {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  return '`'.repeat(Math.max(3, longest + 1))
+}
+
 export function buildReport({ date, positions, merged, tested, fixme, usage, run, lines, build }) {
   const out = []
   const byLabel = new Map()
@@ -256,7 +263,7 @@ export function buildReport({ date, positions, merged, tested, fixme, usage, run
     for (const position of withTranscripts) {
       out.push(`<a id="t-${position.id.replace(/\./g, '-')}"></a>`, `### ${position.id}`, '')
       for (const transcript of merged.get(position.id).transcripts)
-        out.push('```text', transcript, '```', '')
+        out.push(`${fenceFor(transcript)}text`, transcript, fenceFor(transcript), '')
     }
   }
   return out.join('\n')
