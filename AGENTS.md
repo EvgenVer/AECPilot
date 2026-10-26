@@ -106,6 +106,49 @@ If the owner corrects the same kind of mistake twice, propose a rule for this fi
 - Hooks block risky actions. When one stops you, follow its reason instead of working
   around it.
 
+## Project rules
+
+- **Donor zone.** `apps/desktop/src/renderer/src/donor/**` holds Hermes Desktop files (MIT),
+  copied verbatim from `runtime/.hermes-src/apps/desktop/src/**` at `DONOR_SHA`
+  (`runtime/donor-env.mjs`). Full text: `apps/desktop/src/renderer/src/donor/README.md`;
+  policy: `docs/plan-details.md` §«Слой донора».
+  1. Every vendored file carries a provenance header: source path, commit, license and the
+     list of edits made to it; a file copied unchanged says `Edits: none`.
+  2. Exactly six edits are allowed: (1) their backend client → our IPC bridge (their
+     gateway client, or a single call a product constraint sends elsewhere); (2) their i18n
+     → our catalog; (3) registration tables — dropping a contribution excluded in
+     `docs/PRODUCT.md` §«Не входит в первую версию» or registering one of ours (a locale, a
+     surface) in the same table; (4) dropping imports we do not have (their cloud, brand,
+     telemetry); (5) replacing the donor's product name in a string a person can see
+     (PRODUCT C12) — only the name, only in user-visible text, never in a storage key,
+     attribute, module path or anything else the product depends on; (6) provider-picker
+     defaults — which provider is recommended and the order of the list — only the
+     constants and the order of the rows, never the flow. Anything else makes the file a
+     rewrite that does not belong in this zone.
+  3. Never patch a vendored file toward a newer upstream version: re-copy it from the new
+     `DONOR_SHA` and re-apply the edits its header lists.
+  4. Our own surfaces live in `apps/desktop/src/renderer/src/aec/**`, use the same stack and
+     carry no header.
+- **Core checkout.** `runtime/.hermes-src` is the installed checkout of the pinned core; never
+  edit it (a fix there disappears at the next pin lift). Read upstream sources in a separate
+  blobless clone in the scratchpad. Before building our own solution, look for a ready one in
+  the core and the donor (`runtime/.hermes-src`, the core's bundled skills).
+- **Owner's data.** `runtime/dev-profile` and `%APPDATA%\@aecpilot\desktop` belong to the
+  owner's manual acceptance — never write there. Automated runs use `runtime/e2e-profile`
+  through a temporary copy; scripts that start the core directly (`runtime/*-probe.*`) must get
+  `AEC_HERMES_HOME` pointing at such a copy, or they write into `runtime/dev-profile`.
+- **Clean-machine runs** (installer checks) happen only under `D:\AECPilot-cleantest`.
+- **No orphans.** After every Electron or Playwright run make sure no `electron.exe` and no core
+  `gateway run` process is left; never keep `corepack pnpm dev` running in the background —
+  orphaned windows show the owner a blank screen and break the next run's schedules.
+- **Legacy references.** Task and finding IDs of the old format (`3B.12`, `4D-11`, `D-174`, …)
+  in code, tests and `docs/manual-checklist.md` are provenance; do not rewrite them in passing
+  (mapping: `docs/history/id-changes.md`). In code comments, `specs/<file>.md` means
+  `docs/history/specs/<file>.md`, `SPEC <ID>` means `docs/PRODUCT.md`, `PLAN §«…»` means the
+  section of `docs/plan-details.md` with that heading, `MEMORY.md §…` means
+  `docs/core-facts.md` or `docs/operations.md`, `docs/SECURITY.md` means
+  `docs/THREAT_MODEL.md`. The full old ledger is `git show 61b712f:TASKS.md`.
+
 ## Project commands
 
 <!-- Filled in by task T1 "Project skeleton" once the stack is approved: one exact
