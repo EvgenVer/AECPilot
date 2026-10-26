@@ -164,6 +164,7 @@ SOUL, шлюз команд, разбор контрактов. Поведени
 - T49: подпись A2A не работает из-за дефекта ядра (`eval/reports/a2a-signature-defect.md`)
   — ждёт исправления у авторов.
 - `pnpm parity` (реестры паритета, инструментов и платформ) читает удалённые при
-  переходе на studio файлы `SPECIFICATION.md` и `TASKS.md` — сломан до правки кода
+  переходе на studio корневые `SPECIFICATION.md` и `TASKS.md` (теперь
+  [PRODUCT](../PRODUCT.md) и [TASKS](../TASKS.md)) — сломан до правки кода
   (высокий долг в [TASKS](../TASKS.md)).
 - Зонды без `AEC_HERMES_HOME` пишут в `runtime/dev-profile` — профиль ручной приёмки.
