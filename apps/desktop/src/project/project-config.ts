@@ -141,8 +141,8 @@ function validateSettings(settings: unknown, errors: ProjectConfigValidationErro
 /** Validates an `unknown` value (e.g. freshly `JSON.parse`d file contents)
  * against the `project.json` schema, returning either the value narrowed to
  * `ProjectConfig` or the full list of every error found — not just the
- * first. Unknown extra fields anywhere in the input are ignored
- * (forward-compat), not an error. */
+ * first. Unknown extra fields anywhere in the input are not an error and are
+ * kept in the value as they are (forward-compat). */
 export function validateProjectConfig(input: unknown): ValidateProjectConfigResult {
   const errors: ProjectConfigValidationError[] = []
 
@@ -181,21 +181,25 @@ export function validateProjectConfig(input: unknown): ValidateProjectConfigResu
   const sources = input.sources as Record<string, unknown>[]
   const settings = input.settings as Record<string, unknown>
 
+  // Unknown fields are carried through, not dropped: every write goes back through
+  // this value, so dropping them here would erase them from project.json at the
+  // first settings edit (technical debt 2026-08-26, D-56).
   return {
     ok: true,
     value: {
+      ...input,
       schema_version: schemaVersion as number,
       name: input.name as string,
       created_at: input.created_at as string,
-      sources: sources.map((source) => ({
+      sources: sources.map(({ label, ...source }) => ({
+        ...source,
         id: source.id as string,
         root_path: source.root_path as string,
         added_at: source.added_at as string,
-        ...(typeof source.label === 'string' && source.label.trim() !== ''
-          ? { label: source.label }
-          : {})
+        ...(typeof label === 'string' && label.trim() !== '' ? { label } : {})
       })),
       settings: {
+        ...settings,
         wiki_lang: settings.wiki_lang as string,
         scan_interval_s: settings.scan_interval_s as number,
         embedding_model: settings.embedding_model as string,

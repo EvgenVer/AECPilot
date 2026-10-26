@@ -85,6 +85,32 @@ describe('validateProjectConfig — valid input', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('keeps unknown extra fields in the value, so a write-back does not erase them', () => {
+    const result = validateProjectConfig({
+      ...VALID_CONFIG,
+      extra_top_level: { kept: true },
+      sources: [{ ...VALID_CONFIG.sources[0], extra_source_field: 'kept' }],
+      settings: { ...VALID_CONFIG.settings, extra_setting: 'kept' }
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const value = result.value as unknown as Record<string, unknown> & {
+      sources: Record<string, unknown>[]
+      settings: Record<string, unknown>
+    }
+    expect(value.extra_top_level).toEqual({ kept: true })
+    expect(value.sources[0].extra_source_field).toBe('kept')
+    expect(value.settings.extra_setting).toBe('kept')
+  })
+
+  it('still drops a blank source label rather than keeping it through the spread', () => {
+    const result = validateProjectConfig({
+      ...VALID_CONFIG,
+      sources: [{ ...VALID_CONFIG.sources[0], label: '   ' }]
+    })
+    expect(result.ok && 'label' in result.value.sources[0]).toBe(false)
+  })
+
   it('exposes the current schema version as a constant', () => {
     expect(PROJECT_CONFIG_SCHEMA_VERSION).toBe(1)
   })

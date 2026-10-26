@@ -773,6 +773,26 @@ describe('updateProjectSettings — язык извлечения', () => {
     expect(updateProjectSettings(vaultPath, { extraction_language: '' }).ok).toBe(true)
   })
 
+  // Технический долг 2026-08-26 (D-56 был закрыт только для extraction_language):
+  // поле, которого схема не знает, — от более новой версии программы или со
+  // стороны Python, — стиралось первой же правкой через окно.
+  it('поля, неизвестные схеме, переживают правку настроек', () => {
+    const file = path.join(vaultPath, '.aecpilot', 'project.json')
+    const config = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown> & {
+      settings: Record<string, unknown>
+    }
+    config.future_top_level = { kept: true }
+    config.settings.future_setting = 'kept'
+    fs.writeFileSync(file, JSON.stringify(config, null, 2))
+
+    expect(updateProjectSettings(vaultPath, { scan_interval_s: 60 }).ok).toBe(true)
+
+    const after = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>
+    expect(after.future_top_level).toEqual({ kept: true })
+    expect(onDisk().future_setting).toBe('kept')
+    expect(onDisk().scan_interval_s).toBe(60)
+  })
+
   it('пробелы по краям отклоняются: они уедут в отпечаток графа как есть', () => {
     const result = updateProjectSettings(vaultPath, { extraction_language: ' Russian' })
 
