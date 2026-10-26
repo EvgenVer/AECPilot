@@ -82,6 +82,15 @@ Done when: по каждой позиции отдельно (прежний PLA
   `specs/<файл>.md` (теперь `docs/history/specs/<файл>.md`), `PLAN §…`, `TASKS.md`;
   `README.md`, `runtime/README.md` и `eval/README.md` ссылаются на `DESCRIPTION.md`,
   `SPECIFICATION.md`, `PLAN.md`, `TASKS.md` — найдено 2026-10-26
+- medium — `corepack pnpm lint` не проходит уже в базе: Prettier не принят в 7 файлах
+  (`e2e/acceptance/ac11-*.spec.ts`, `src/main/i18n-catalog.ts`, `server-keys-pure.test.ts`,
+  `third-party-notices.test.ts`, `src/renderer/src/server-keys/main.ts`,
+  `third-party-notices.cjs` в `apps/desktop`), ruff format — в `eval/runner/run.py`; аудит
+  падает на новой уязвимости zod GHSA-mrhx-c7xc-m3w5 (high, нет в `auditConfig` в
+  `pnpm-workspace.yaml`) — отформатировать и решить по zod — найдено 2026-10-26
+- low — генератор отчёта приёмки `apps/desktop/e2e/lib/report.mjs` вкладывает блок кода
+  ответа агента в блок стенограммы с той же оградой ```` ``` ````, и страница отчёта
+  ломается (в трёх отчётах ограда расширена вручную) — найдено 2026-10-26
 - medium — `validateProjectConfig` пересобирает `settings` из известных полей, и
   `updateProjectSettings` теряет поле, неизвестное схеме (D-56 закрыт только для
   `extraction_language`) — `apps/desktop/src/project/project-config.ts` — найдено 2026-08-26

@@ -214,14 +214,15 @@ corepack pnpm -C apps/desktop run dist:win
 ## Сайт документации
 
 ```bash
-uvx --with-requirements requirements-docs.txt zensical serve
+uvx --with-requirements requirements-docs.txt zensical serve -a localhost:8137
 ```
 
 ```bash
 uvx --with-requirements requirements-docs.txt zensical build --strict
 ```
 
-`serve` открывает сайт на `http://localhost:8000`; `build --strict` должен проходить без
+`serve` открывает сайт на `http://localhost:8137` (порт 8000 по умолчанию на машине
+разработки занят другой программой); `build --strict` должен проходить без
 замечаний — битая ссылка или фрагмент кода, указывающий на несуществующий файл или
 область, его роняют. Zensical ставится в отдельное окружение `uvx`, а не в `.venv`: ему
 нужен `jinja2`, который корневой `pyproject.toml` исключает.

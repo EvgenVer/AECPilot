@@ -151,5 +151,21 @@ If the owner corrects the same kind of mistake twice, propose a rule for this fi
 
 ## Project commands
 
-<!-- Filled in by task T1 "Project skeleton" once the stack is approved: one exact
-     command each to install, run, test, lint and format, and preview the docs. -->
+Windows; run from Git Bash in the repository root (the test suite needs its `sh`; pnpm is
+only `corepack pnpm`).
+
+- Install: `corepack pnpm install && uv sync && node runtime/setup.mjs` — the core at its
+  pin plus both installer payloads (minutes; `--no-payload` skips the payloads).
+- Run: `corepack pnpm dev`; the built app as the owner runs it:
+  `corepack pnpm build && corepack pnpm app`.
+- Test: `corepack pnpm test` (Vitest and pytest, ~10 min); end-to-end on the mock gateway:
+  `corepack pnpm e2e`. Live acceptance (`corepack pnpm e2e:acceptance`) and the evals in
+  `eval/` call a paid model — only with the owner's consent and budget.
+- Lint: `corepack pnpm lint`.
+- Format: `corepack pnpm -C apps/desktop format && uv run ruff format .`.
+- Installer: `corepack pnpm -C apps/desktop run dist:win` (30–60 min, into
+  `apps/desktop/release`).
+- Docs: `uvx --with-requirements requirements-docs.txt zensical serve -a localhost:8137`
+  (http://localhost:8137); check: `uvx --with-requirements requirements-docs.txt zensical
+  build --strict`. Zensical runs through `uvx`: `pyproject.toml` excludes its `jinja2`
+  from `.venv`.
