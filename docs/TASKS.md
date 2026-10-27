@@ -7,11 +7,25 @@
 ## Now
 
 - Stage: доводка MVP к выпуску (этап 4 не начат: только по слову владельца)
-- Active task: none — технический долг закрыт 2026-10-26 (см. §Technical debt)
-- Next step: первый выпуск 0.1.0 в GitHub Releases по [эксплуатации](operations.md)
-  §«Выпуск версии» — пересобрать установщик (Electron 43.8.3) и опубликовать с согласия
-  владельца; проверить, что адрес `updateFeedUrl` отдаёт `latest.json`
-- Waiting for the owner: согласие на публикацию первого релиза; старт этапа 4
+- Active task: выпуск 0.1.0 — установщик пересобран и проверен, `latest.json` готов
+  (`apps/desktop/release/`, вне git); осталась публикация
+- Next step: с согласия владельца — `gh release create v0.1.0` с установщиком и
+  `latest.json` по [эксплуатации](operations.md) §«Выпуск версии», затем проверить, что
+  адрес `updateFeedUrl` отдаёт `latest.json`
+- Waiting for the owner: согласие на публикацию релиза v0.1.0; старт этапа 4
+
+Сборка 0.1.0 (2026-10-27) — passed: `node runtime/setup.mjs` и `dist:win` с кодом 0
+(Electron 43.8.3); `AECPilot-0.1.0-win-x64.exe` 839 391 538 байт, SHA-256
+`51e2396b801a76b4d2b96a78d13aac1c40a29afc779fa6f0d1f46066c566b2ad`; zip 1 055 906 595 байт,
+SHA-256 `cbdab9bd70bfd4f047eb494a06bc39f5d8ba30a83fc19e6c1934550fdc1bed00`; в `app.asar`
+есть `exceljs` и `get-windows`. Чистая установка в `D:\AECPilot-cleantest\r010`:
+`/S /MODE=full` — код 0 за 1778 с, `install-mode.txt` = `full`; `payload-hashes verify` —
+core 38 226 и mcp 23 073 файла, 0 изменённых, 0 пропавших, 0 лишних; запуск без ключа
+модели (без платных вызовов) — окно «AECPilot», `hermes serve` слушает только
+`127.0.0.1:18789`, MCP `aec_roster` поднят, всё пишется под `install\data`, в
+`errors.log` и `desktop.log` ошибок нет; после закрытия процессов не осталось; тихое
+удаление — код 0 за 27 с, `data` сохранена. `latest.json` проверен по
+`update-check-pure.ts` (https, версия разбирается; для 0.1.0 уведомления нет).
 
 Решения 2026-10-26: лицензия остаётся закрытой (A8), репозиторий публичный — код открыт
 для чтения; выпуск — GitHub Releases с `latest.json` в каждом релизе, адрес прописан в
@@ -78,7 +92,12 @@ Done when: по каждой позиции отдельно (прежний PLA
 
 ## Technical debt
 
-Открытого долга нет.
+- (низкий) Ложное предупреждение «набор инструментов агента СУЖЕН»
+  (`runtime/narrowed-toolsets.mjs`) срабатывает на собственное умолчание приложения
+  `platform_toolsets: cli: [hermes-cli, kanban]` (D-129, `apps/desktop/src/main/index.ts`):
+  `hermes-cli` — их полный набор, ничего не сужено. Видно только в `desktop.log` каждой
+  установки; сторожу нужно не считать сужением список, в котором есть `hermes-cli`. Найдено
+  проверкой установки 0.1.0, 2026-10-27.
 
 Закрыто 2026-10-26 — весь долг перед выпуском:
 
