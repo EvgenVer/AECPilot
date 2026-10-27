@@ -7,12 +7,17 @@
 ## Now
 
 - Stage: доводка MVP к выпуску (этап 4 не начат: только по слову владельца)
-- Active task: выпуск 0.1.0 — установщик пересобран и проверен, `latest.json` готов
-  (`apps/desktop/release/`, вне git); осталась публикация
-- Next step: с согласия владельца — `gh release create v0.1.0` с установщиком и
-  `latest.json` по [эксплуатации](operations.md) §«Выпуск версии», затем проверить, что
-  адрес `updateFeedUrl` отдаёт `latest.json`
-- Waiting for the owner: согласие на публикацию релиза v0.1.0; старт этапа 4
+- Active task: none — 0.1.0 выпущен 2026-10-27
+  ([релиз](https://github.com/EvgenVer/AECPilot/releases/tag/v0.1.0))
+- Next step: этап 4 — по слову владельца; до него — низкий долг ниже
+- Waiting for the owner: старт этапа 4
+
+Выпуск 0.1.0 (2026-10-27, с согласия владельца) — passed: тег `v0.1.0` на `5d2a916`, релиз
+не черновик и не предрелиз; файлы — установщик (839 391 538 байт, digest GitHub совпал с
+нашим SHA-256), `latest.json`, `SHA256SUMS.txt`; zip по решению владельца не выложен,
+лежит локально в корне проекта (исключён через `.git/info/exclude`). Адрес
+`aecpilot.updateFeedUrl` отдаёт `latest.json` с кодом 200, ссылка на установщик —
+200, `Content-Length` 839 391 538.
 
 Сборка 0.1.0 (2026-10-27) — passed: `node runtime/setup.mjs` и `dist:win` с кодом 0
 (Electron 43.8.3); `AECPilot-0.1.0-win-x64.exe` 839 391 538 байт, SHA-256
