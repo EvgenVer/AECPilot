@@ -7,8 +7,8 @@
   "private": true,
   "main": "./out/main/index.js",
   "aecpilot": {
-    "//updateFeedUrl": "T42: https address of our latest-version JSON {version, url}; empty = no update check, no network request. Set at the first release.",
-    "updateFeedUrl": "",
+    "//updateFeedUrl": "T42: https address of our latest-version JSON {version, url}; empty = no update check, no network request. Owner decision 2026-10-26: every GitHub release carries latest.json, and GitHub redirects this address to the newest one (no release yet = 404 = no notice).",
+    "updateFeedUrl": "https://github.com/EvgenVer/AECPilot/releases/latest/download/latest.json",
     "//copyrightHolder": "T43.2 (SPEC A8): the copyright holder of AECPilot — © line, exe properties, LICENSE.txt, THIRD-PARTY-NOTICES.txt. The installer build stops while it is empty.",
     "copyrightHolder": "Evgenii Veremev",
     "//sourceOfferContact": "T43.2: the address that answers the written offer of Git for Windows sources (GPLv2) in THIRD-PARTY-NOTICES.txt.",

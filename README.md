@@ -43,3 +43,13 @@ node runtime/setup.mjs
 Документы проекта — сайт в `docs/`: [что строим](docs/PRODUCT.md),
 [архитектура](docs/ARCHITECTURE.md), [журнал работ](docs/TASKS.md),
 [эксплуатация](docs/operations.md); правила работы агентов — [AGENTS.md](AGENTS.md).
+
+## Лицензия / License
+
+AECPilot — бесплатная программа с закрытой лицензией: исходный код открыт для чтения, но
+копировать, распространять и переделывать его без письменного согласия правообладателя
+нельзя. Условия — [LICENSE.txt](LICENSE.txt); изменения в репозиторий извне не принимаются.
+
+AECPilot is free proprietary software: the source is public to read, but copying,
+distributing or modifying it requires the copyright holder's written consent. Terms —
+[LICENSE.txt](LICENSE.txt); outside contributions are not accepted.

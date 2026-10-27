@@ -59,7 +59,8 @@ node runtime/setup.mjs
 | `AEC_SKILLS_DIR` | копия `skills/` для живых автотестов, где агент может править навыки |
 
 Адрес файла последней версии для уведомления об обновлении — `aecpilot.updateFeedUrl` в
-`apps/desktop/package.json`; пока он пуст, проверка выключена.
+`apps/desktop/package.json` (файл `latest.json` последнего релиза на GitHub); пустой адрес
+выключает проверку.
 
 ## Проверки
 
@@ -90,8 +91,30 @@ corepack pnpm -C apps/desktop run dist:win
 Собирает интерфейс и складывает установщик NSIS и zip в `apps/desktop/release` — 30–60
 минут. Перед этим нужны свежие payload (`node runtime/setup.mjs`). Проверка «чистой
 машины» — только под `D:\AECPilot-cleantest` (проект `clean-machine` Playwright).
-Публикация не настроена: место публикации, адрес файла версии и подпись кода ждут решения
-владельца. Подробно — [установка и поставка](components/packaging.md).
+Подробно — [установка и поставка](components/packaging.md).
+
+## Выпуск версии
+
+Установщики выкладываются в GitHub Releases публичного репозитория
+`github.com/EvgenVer/AECPilot`; лицензия остаётся закрытой, подписи нет (PRODUCT A7, A8).
+Выпуск — публикация от аккаунта владельца, поэтому каждый делается с его согласия.
+
+1. Поднять `version` в `apps/desktop/package.json`, собрать установщик (выше) и проверить
+   его на чистой машине.
+2. Создать релиз с тегом `v<версия>` и приложить к нему два файла: установщик
+   `AECPilot-<версия>-win-x64.exe` и `latest.json`:
+
+    ```json
+    {
+      "version": "<версия>",
+      "url": "https://github.com/EvgenVer/AECPilot/releases/download/v<версия>/AECPilot-<версия>-win-x64.exe"
+    }
+    ```
+
+3. Проверить: адрес из `aecpilot.updateFeedUrl` открывается и отдаёт этот `latest.json`.
+   Приложение предыдущей версии при запуске показывает уведомление о новой.
+
+GitHub принимает в релиз файлы до 2 ГБ; установщик 0.1.0 весит 840 МБ.
 
 ## Журналы
 
