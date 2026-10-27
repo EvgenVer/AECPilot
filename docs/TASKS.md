@@ -6,12 +6,13 @@
 
 ## Now
 
-- Stage: 4 — после MVP (не начат: только по слову владельца)
-- Active task: none
-- Next step: решения владельца к выпуску — место публикации установщика, адрес файла
-  последней версии (`aecpilot.updateFeedUrl` в `apps/desktop/package.json`), подпись кода;
-  затем слово владельца на этап 4
-- Waiting for the owner: место публикации и подпись; старт этапа 4
+- Stage: доводка MVP к выпуску (этап 4 не начат: только по слову владельца)
+- Active task: none — технический долг закрыт 2026-10-26 (см. §Technical debt)
+- Next step: открытая лицензия продукта (решение владельца), выпуск через GitHub Releases
+  с файлом версии `latest.json` в релизе, затем push (разрешён владельцем 2026-10-26 после
+  лицензии, выпуска и долга)
+- Waiting for the owner: какая открытая лицензия; подпись (SignPath Foundation бесплатно,
+  но после первого выпуска и со сборкой в CI); старт этапа 4
 
 MVP собран: этапы 1–3 закрыты 2026-10-22 (`eval/reports/phase3-acceptance.md`) — установщик
 Windows с тремя режимами, всё в одном каталоге, AC1/AC2/AC11/AC14 на установке, обзор
@@ -73,20 +74,28 @@ Done when: по каждой позиции отдельно (прежний PLA
 
 ## Technical debt
 
-- medium — `corepack pnpm lint` не проходит уже в базе: Prettier не принят в 7 файлах
-  (`e2e/acceptance/ac11-*.spec.ts`, `src/main/i18n-catalog.ts`, `server-keys-pure.test.ts`,
-  `third-party-notices.test.ts`, `src/renderer/src/server-keys/main.ts`,
-  `third-party-notices.cjs` в `apps/desktop`), ruff format — в `eval/runner/run.py`; аудит
-  падает на новой уязвимости zod GHSA-mrhx-c7xc-m3w5 (high, нет в `auditConfig` в
-  `pnpm-workspace.yaml`) — отформатировать и решить по zod — найдено 2026-10-26
-- low — генератор отчёта приёмки `apps/desktop/e2e/lib/report.mjs` вкладывает блок кода
-  ответа агента в блок стенограммы с той же оградой ```` ``` ````, и страница отчёта
-  ломается (в трёх отчётах ограда расширена вручную) — найдено 2026-10-26
-- medium — `validateProjectConfig` пересобирает `settings` из известных полей, и
-  `updateProjectSettings` теряет поле, неизвестное схеме (D-56 закрыт только для
-  `extraction_language`) — `apps/desktop/src/project/project-config.ts` — найдено 2026-08-26
-- low — `markdown-editor.test.tsx` флакует под параллельной нагрузкой полного набора,
-  в одиночку проходит — найдено 2026-08-24
+Открытого долга нет.
+
+Закрыто 2026-10-26 — весь долг перед выпуском:
+
+- `corepack pnpm lint` проходит: 7 файлов отформатированы Prettier, `eval/runner/run.py` —
+  ruff (`2203ead`). Аудит: zod поднят до 4.6.7 (GHSA-mrhx-c7xc-m3w5), fast-uri до 3.1.9
+  (четыре замечания, только сборка) — overrides в `pnpm-workspace.yaml` по правилу «внутри
+  мажора родителя»; Electron 43.7.11 → 43.8.3 (GHSA-jr5w-w6x2-84p9, недоверие
+  скомпрометированным сертификатам eMudhra; бинарник пришлось ставить вручную —
+  [эксплуатация](operations.md) §Ловушки) — passed: eslint, `tsc`, Prettier, `ruff check`,
+  `ruff format --check`, `pnpm audit --prod` без неучтённых замечаний.
+- Отчёт приёмки: ограда стенограммы длиннее самой длинной серии обратных кавычек в ней
+  (`fenceFor` в `apps/desktop/e2e/lib/report.mjs`, `4567056`) — passed: новый
+  `src/main/e2e-report.test.ts` красный до правки, зелёный после.
+- Поля `project.json`, неизвестные схеме, сохраняются на всех уровнях, в том числе в
+  `settings` (`validateProjectConfig`, `82f3d0a`) — passed: два новых теста красные до
+  правки, зелёные после.
+- `markdown-editor.test.tsx` — запись устарела: файл вынесен в свою группу с одним рабочим
+  ещё 2026-09-08 (`409c809`, группа `heavy` в `vitest.config.ts`) и с тех пор не мигал.
+- Общий итог — passed: Vitest 318 файлов, 4200 passed, 3 skipped; pytest 595 passed,
+  3 skipped; `corepack pnpm e2e` (мок-шлюз, на Electron 43.8.3) 209 passed, 9 skipped;
+  после прогона ни `electron.exe`, ни `gateway run` не осталось.
 
 Закрыто 2026-10-26 — долги перехода на studio:
 

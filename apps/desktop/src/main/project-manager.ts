@@ -262,8 +262,10 @@ function readProjectConfigFile(
  *
  * D-200: written OVER the object already in the file. `aec-rag` keeps its own
  * fields there (`graph_scope`, `project_index`) that `ProjectConfig` does not
- * know, and validation drops them — writing `config` alone wiped the person's
- * graph choice on every source add, remove or rename. */
+ * know, and validation used to drop them — writing `config` alone wiped the
+ * person's graph choice on every source add, remove or rename. Validation keeps
+ * unknown fields now (nested ones in `settings` too, debt closed 2026-10-26);
+ * this merge stays as the second guard. */
 function writeProjectConfigFile(vaultPath: string, config: ProjectConfig): void {
   const configPath = join(vaultPath, '.aecpilot', 'project.json')
   const tempPath = `${configPath}.tmp-${randomUUID()}`
