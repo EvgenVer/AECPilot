@@ -127,6 +127,11 @@ corepack pnpm -C apps/desktop run dist:win
   (`onlyBuiltDependencies` в `pnpm-workspace.yaml`). Свежеопубликованный пакет pnpm
   молча дописывает в `minimumReleaseAgeExclude` того же файла — смотреть этот список в
   диффе.
+- После смены версии Electron `corepack pnpm install` (и `pnpm rebuild electron`) может
+  оставить пакет без бинарника: в его папке нет `dist/`, приложение не запускается
+  (замер 2026-10-26, 43.7.11 → 43.8.3). Чинится запуском его установщика напрямую:
+  `node install.js` в `node_modules/.pnpm/electron@<версия>/node_modules/electron`;
+  проверка — файл `dist/version` с нужной версией.
 - Поиск по каталогу (ripgrep) не видит gitignored-папки вроде `runtime/.hermes-venv` —
   искать по прямому пути к файлу.
 - Компонентные тесты: в `apps/desktop/vitest.config.ts` два проекта, среда выбирается
