@@ -6,6 +6,8 @@ The owner is not a professional developer but has some technical knowledge. They
 approve the product, the architecture, the stack and the key libraries, and want to
 understand how the product works inside, not only what it does. Write in precise
 technical language without slang, and define a narrow term the first time you use it.
+When you ask the owner to decide, start with a concrete example from the product in plain
+words, then the technical detail.
 Talk to the owner and write everything in `docs/` in the language the owner writes in;
 code, code comments and commit messages are always in English.
 
@@ -31,8 +33,12 @@ details: documents explain the code and point to it instead of copying it.
    and stack with the owner.
 3. Otherwise the owner's message sets the scope. "Continue", a task, a stage or the
    plan: take the next task in `docs/TASKS.md` and keep going through tasks and stages
-   without waiting for permission. A question, an explanation, an analysis or a single
-   fix: do it, report, and stop.
+   without waiting for permission. Do not stop after a task or a group of tasks to
+   report or to ask whether to go on: stop only when the plan is done, when every
+   remaining task waits for the owner's decision, or when the owner asks you to. A
+   request in the middle of the work: do it, then go back to the work. A question:
+   answer it and stop. An explanation, an analysis or a single fix when no work is under
+   way: do it, report, and stop.
 
 When a request changes what the product does, update `docs/PRODUCT.md` with the owner
 first. When it changes the architecture or the stack, go back to the `design` skill.
@@ -69,13 +75,24 @@ first. When it changes the architecture or the stack, go back to the `design` sk
   test message, launch the desktop app, run the mobile app in an emulator.
 - A task is done only when the checks in `Project commands` pass and its evidence is
   recorded in `docs/TASKS.md`. Never weaken tests; never report a check you did not run.
+- If the same check fails three times, or an experiment has no clear pass criterion,
+  stop and bring the owner options with their cost instead of trying again.
 - Commit after each verified task. Ask the owner before pushing, force-pushing or
   rewriting history.
 - Keep dependencies inside the project: Python in `.venv`, JavaScript through the
   project's package manager; never install globally. Before adding a package, check
   that it exists and is maintained.
-- Use subagents for broad research, for independent tasks that touch different files,
-  and for fresh reviews. You stay responsible for the plan, `docs/TASKS.md` and the result.
+- Use a subagent only for broad research, a fresh review or an independent task in other
+  files, and run at most three at a time. Start it with a fresh context and a
+  self-contained brief: the goal, the files, what done looks like (in Codex,
+  `fork_turns: "none"`). Ask for a short report. A subagent does only its brief: it does
+  not edit `docs/TASKS.md`, commit, or start subagents of its own. You stay responsible
+  for the plan, `docs/TASKS.md` and the result.
+- Have a fresh subagent review code, not documents or plans: a task that changes the
+  data model, security, money or how parts communicate, before you build on it; in a
+  long stage, every three or four tasks; and each stage at its end. A fix that tests
+  cover needs no new review; after fixing findings, ask the same reviewer to check just
+  the fixes.
 
 ## Technical debt
 
@@ -87,15 +104,21 @@ on critical paths, outdated or vulnerable dependencies. Record the findings unde
 ## Long sessions
 
 `docs/TASKS.md` is your memory across sessions, context compaction and tools; Claude
-Code, Codex and Antigravity all read it. Keep `Now` current when you finish a task and before you
-stop. When a stage is done, move its tasks to `docs/history/stage-<N>.md` and leave one
-summary line, so the file stays short.
+Code, Codex and Antigravity all read it. Keep `Now` current when you finish a task and
+before you stop, and keep it to about ten lines: where work stopped, the next step, what
+waits for the owner. Evidence goes to `docs/history/` or linked files. When a stage is
+done, move its tasks to `docs/history/stage-<N>.md` and leave one summary line, so the
+file stays short. Keep the context small: find code by search, read only the lines you
+need, and keep command output short (quiet test runs, the end of a log).
 
 ## Keeping the owner informed
 
 At the end of each stage, without waiting for a reply, tell the owner what now works,
-how to try it, what the review found and what comes next, and update the documentation
-with the `docs` skill. Report problems plainly, including anything you could not verify.
+how to try it, what the review found and what comes next, suggest starting the next
+stage in a new session, and update the documentation with the `docs` skill. When the
+owner should try the product, start it for them and give numbered steps: what to click,
+what to type (ready to copy) and what should happen. Report problems plainly, including
+anything you could not verify.
 If the owner corrects the same kind of mistake twice, propose a rule for this file.
 
 ## Safety
