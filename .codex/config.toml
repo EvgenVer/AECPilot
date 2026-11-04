@@ -3,6 +3,16 @@
 # operating-system sandbox stops writes outside the project folder.
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
+# Rules for Codex alone; AGENTS.md is read by Claude Code too, so they stay out of it.
+developer_instructions = '''
+The owner wants no progress updates while a command runs, which replaces the default of an
+update and a wait of at most 60 seconds. Wait for a long command instead of checking on it,
+because every check resends the whole conversation: begin the `exec` call with the line
+`// @exec: {"yield_time_ms": 300000}`, loop on `write_stdin` with empty `chars` and
+`yield_time_ms: 300000`, print each call's `output` and the final `exit_code`, and if `exec`
+returns a running cell, `wait` on it with `yield_time_ms: 300000`.
+Start a subagent with `fork_turns: "none"`.
+'''
 
 [sandbox_workspace_write]
 # Package installs and documentation lookups need the network.

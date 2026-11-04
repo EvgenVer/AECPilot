@@ -73,8 +73,13 @@ first. When it changes the architecture or the stack, go back to the `design` sk
   critical paths fully; do not write tests that only repeat the code.
 - Also check the way a user would: open the web app in a browser, send the bot a real
   test message, launch the desktop app, run the mobile app in an emulator.
-- A task is done only when the checks in `Project commands` pass and its evidence is
-  recorded in `docs/TASKS.md`. Never weaken tests; never report a check you did not run.
+- A task is done only when its checks pass and its evidence is recorded in
+  `docs/TASKS.md`. Run all of `Project commands` for each task, unless the tests take
+  more than ten minutes: then run the tests that cover the change, and all of them every
+  three or four tasks and at the end of the stage. Never weaken tests; never report a
+  check you did not run.
+- Tests and one-off scripts work on temporary data named explicitly, never on the real
+  database from the settings, and remove only what they created.
 - If the same check fails three times, or an experiment has no clear pass criterion,
   stop and bring the owner options with their cost instead of trying again.
 - Commit after each verified task. Ask the owner before pushing, force-pushing or
@@ -84,22 +89,24 @@ first. When it changes the architecture or the stack, go back to the `design` sk
   that it exists and is maintained.
 - Use a subagent only for broad research, a fresh review or an independent task in other
   files, and run at most three at a time. Start it with a fresh context and a
-  self-contained brief: the goal, the files, what done looks like (in Codex,
-  `fork_turns: "none"`). Ask for a short report. A subagent does only its brief: it does
-  not edit `docs/TASKS.md`, commit, or start subagents of its own. You stay responsible
-  for the plan, `docs/TASKS.md` and the result.
+  self-contained brief: the goal, the files, what done looks like. Ask for a short report.
+  A subagent does only its brief: it does not edit `docs/TASKS.md`, commit, or start
+  subagents of its own. You stay responsible for the plan, `docs/TASKS.md` and the result.
 - Have a fresh subagent review code, not documents or plans: a task that changes the
   data model, security, money or how parts communicate, before you build on it; in a
   long stage, every three or four tasks; and each stage at its end. A fix that tests
   cover needs no new review; after fixing findings, ask the same reviewer to check just
-  the fixes.
+  the fixes. A review gets at most two such checks; after that, fix now only what would
+  lose data or break security, and move the rest to `Technical debt`.
 
 ## Technical debt
 
 Keep the code matching `docs/ARCHITECTURE.md`. At the end of each stage, have a fresh
 subagent review the stage against it: module boundaries, duplication, dead code, tests
-on critical paths, outdated or vulnerable dependencies. Record the findings under
-`Technical debt` in `docs/TASKS.md` with a priority, and plan the fixes before they grow.
+on critical paths, outdated or vulnerable dependencies. Fix small things as you find
+them. Record the findings, and larger risks found during the stage that do not block the
+current task, under `Technical debt` in `docs/TASKS.md` with a priority. Fix them before
+the stage is closed; keep one open only if the owner agrees.
 
 ## Long sessions
 
