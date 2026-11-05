@@ -5,9 +5,12 @@ AECPilot — лицензионное соглашение / License agreement
 1. Использование. Программой AECPilot можно пользоваться бесплатно, на любом числе своих
    компьютеров, в том числе в профессиональной работе.
 2. Ограничения. Без письменного согласия правообладателя нельзя: распространять программу
-   или её части (выкладывать, передавать, продавать, сдавать в аренду); изменять,
+   или её части (выкладывать, передавать, продавать, сдавать в аренду); предоставлять
+   другим доступ к программе за плату, в том числе как сервис или в составе платной услуги;
+   использовать исходный код программы или его части в других продуктах; изменять,
    декомпилировать и дизассемблировать её, кроме случаев, прямо разрешённых законом;
-   удалять или менять сведения об авторстве и лицензиях.
+   удалять или менять сведения об авторстве и лицензиях. Работу в программе над вашими
+   проектами, в том числе платными, этот пункт не ограничивает.
 3. Сторонние компоненты. В программу входят компоненты других авторов; они распространяются
    по своим лицензиям — см. THIRD-PARTY-NOTICES.txt в папке программы. Настоящее соглашение
    не ограничивает прав, которые дают эти лицензии.
@@ -24,9 +27,12 @@ AECPilot — лицензионное соглашение / License agreement
 1. Use. You may use AECPilot free of charge on any number of your own computers, including
    in professional work.
 2. Restrictions. Without the copyright holder's written consent you may not distribute the
-   program or its parts (publish, transfer, sell, rent it out); modify, decompile or
-   disassemble it, except where the law expressly permits it; remove or alter authorship
-   and license notices.
+   program or its parts (publish, transfer, sell, rent it out); give others access to the
+   program for a fee, including as a service or as part of a paid service; use the source
+   code of the program or its parts in other products; modify, decompile or disassemble it,
+   except where the law expressly permits it; remove or alter authorship and license
+   notices. This section does not restrict working in the program on your own projects,
+   including paid ones.
 3. Third-party components. The program includes components by other authors, distributed
    under their own licenses — see THIRD-PARTY-NOTICES.txt in the program folder. This
    agreement does not restrict any rights those licenses grant.

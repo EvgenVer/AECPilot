@@ -47,9 +47,12 @@ node runtime/setup.mjs
 ## Лицензия / License
 
 AECPilot — бесплатная программа с закрытой лицензией: исходный код открыт для чтения, но
-копировать, распространять и переделывать его без письменного согласия правообладателя
-нельзя. Условия — [LICENSE.txt](LICENSE.txt); изменения в репозиторий извне не принимаются.
+копировать, распространять и переделывать его, предоставлять программу другим за плату и
+использовать её код в других продуктах без письменного согласия правообладателя нельзя.
+Работать в программе над своими проектами, в том числе платными, можно. Условия — [LICENSE.txt](LICENSE.txt); изменения в репозиторий извне не принимаются.
 
 AECPilot is free proprietary software: the source is public to read, but copying,
-distributing or modifying it requires the copyright holder's written consent. Terms —
+distributing or modifying it, giving others paid access to the program, or using its code
+in other products requires the copyright holder's written consent. Working in the program
+on your own projects, including paid ones, is allowed. Terms —
 [LICENSE.txt](LICENSE.txt); outside contributions are not accepted.
