@@ -42,6 +42,7 @@ nav = [
       "decisions/0013-user-chosen-provider.md",
       "decisions/0014-credentials-storage.md",
       "decisions/0015-licensing.md",
+      "decisions/0016-core-0-23-0.md",
     ] },
   ] },
   "operations.md",

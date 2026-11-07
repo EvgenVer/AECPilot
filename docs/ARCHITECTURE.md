@@ -81,13 +81,15 @@ flowchart LR
 
 | Layer | Choice | Why, in one line | Decision |
 |---|---|---|---|
-| Агентное ядро | hermes-agent 0.22.2, пин по коммиту `d923a5eb` | готовые агент, инструменты, MCP, память, навыки; без форка | [0001](decisions/0001-core-without-fork.md), [0012](decisions/0012-core-0-22-2.md) |
+| Агентное ядро | hermes-agent 0.22.2, пин по коммиту `d923a5eb` | готовые агент, инструменты, MCP, память, навыки; без форка; версия 0.2 поднимает на v0.23.0 (план) | [0001](decisions/0001-core-without-fork.md), [0012](decisions/0012-core-0-22-2.md), [0016](decisions/0016-core-0-23-0.md) |
 | Интерфейс | код Hermes Desktop в нашей оболочке, 6 разрешённых правок | их скорость и тесты вместо своих аналогов; право не брать лишнее | [0002](decisions/0002-donor-ui-in-our-shell.md) |
 | Настольная платформа | Electron 43 + React 19 + TypeScript | единственный UI, тот же стек, что у донора | [0003](decisions/0003-desktop-stack.md) |
 | Хранилище | файлы vault + SQLite FTS5 + LightRAG (NanoVectorDB, JSON, NetworkX) | без серверов, бэкап = копия папки | [0004](decisions/0004-files-first-storage.md) |
 | Индексация | два уровня: поиск всегда, граф по выбору | граф стоит вызова модели на каждый фрагмент | [0005](decisions/0005-two-tier-indexing.md) |
 | Память агента | записка ядра + Mem0 (локальный qdrant) | поиск по смыслу и дата у факта | [0006](decisions/0006-memory-mem0.md) |
-| Специалисты | перенос их плагина + наш `aec-roster` | плагин стал исходниками; одно подключение за раз | [0007](decisions/0007-roster-donor-plugin.md) |
+| Специалисты | перенос их плагина + наш `aec-roster` | плагин стал исходниками; одно подключение за раз; в версии 0.2 групповые чаты ведёт ядро (`groups.*`), маршруты субагентов — плагин `advanced-delegation` (план) | [0007](decisions/0007-roster-donor-plugin.md), [0016](decisions/0016-core-0-23-0.md) |
+| Диктовка (план, версия 0.2) | faster-whisper в среде ядра, модель скачивается при первом включении | звук не покидает машину (UR49) | [0016](decisions/0016-core-0-23-0.md) |
+| Lira Support (план, версия 0.2) | MCP-сервер владельца в установщике, подключён по умолчанию | работа с расчётной моделью, запись через подтверждение (UR50) | [0016](decisions/0016-core-0-23-0.md) |
 | Сервер и клиент | один установщик, три режима, SSH-туннель | тяжёлое там, где лежат документы | [0008](decisions/0008-server-client-profiles.md) |
 | Размещение на диске | всё под одним каталогом `<root>` | соседство с обычной установкой Hermes, чистое удаление | [0009](decisions/0009-single-install-directory.md) |
 | Упаковка | electron-builder 26.17.0, NSIS + zip, PM-payload ядра, свой Python 3.12 для MCP | MSIX не даёт выбрать каталог; ядро не собирается в колесо | [0010](decisions/0010-packaging-nsis-payload.md) |
@@ -101,7 +103,7 @@ flowchart LR
 | Линтеры | eslint + prettier, ruff | один стиль на весь репозиторий | — |
 | Разбор документов | pypdfium2 (текстовый слой PDF), RapidOCR на onnxruntime с моделью `eslav` (сканы), Docling (DOCX, XLSX), свой разбор TXT/MD/CSV | быстрый текстовый слой, русские сканы за 5,5 с на страницу | [0005](decisions/0005-two-tier-indexing.md) |
 | Просмотрщики | pdfjs-dist (PDF), docx-preview (DOCX), exceljs в главном процессе (XLSX), Milkdown (Markdown) | у донора просмотрщиков этих форматов нет (UR3) | — |
-| Граф в окне | sigma 3 + graphology, раскладка d3-force, по выгрузке `aec-rag` | своя поверхность на открытой библиотеке (UR44) | — |
+| Граф в окне | sigma 3 + graphology, раскладка d3-force, по выгрузке `aec-rag` | своя поверхность на открытой библиотеке (UR44); в версии 0.2 — sigma 4 (план) | [0016](decisions/0016-core-0-23-0.md) |
 
 Менее крупные решения (зависимости, их версии и веттинг) — [plan-details.md](plan-details.md)
 §«Selected dependencies» и §«Stack & package managers».
@@ -160,6 +162,7 @@ pytest, e2e на Playwright по живому окну (smoke и приёмка 
 | [0013](decisions/0013-user-chosen-provider.md) | 2026-09-28, 2026-10-02 | Провайдера моделей выбирает пользователь; отдельный выбор для индекса и памяти | owner | accepted |
 | [0014](decisions/0014-credentials-storage.md) | 2026-08-17, 2026-10-09 | Хранение учётных данных по типу: safeStorage / ядро | owner | accepted |
 | [0015](decisions/0015-licensing.md) | 2026-10-16, 2026-10-22 | Лицензия продукта и правила лицензий зависимостей | owner | accepted |
+| [0016](decisions/0016-core-0-23-0.md) | 2026-11-07 | Версия 0.2: ядро v0.23.0, групповые чаты на логике ядра, диктовка, Lira Support | owner | accepted |
 
 Решения, принятые агентом в рамках утверждённой архитектуры (замена мелкой библиотеки,
 вспомогательные зависимости, внутреннее устройство модуля), записаны в задачах
