@@ -46,6 +46,7 @@ nav = [
   ] },
   "operations.md",
   "TASKS.md",
+  "next-version.md",
   { "Справочник" = [
     "glossary.md",
     "core-facts.md",
