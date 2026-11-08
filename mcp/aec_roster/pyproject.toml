@@ -5,7 +5,7 @@ requires-python = ">=3.12,<3.14"
 # Только протокол MCP. Разговор со специалистом идёт через их же CLI (см.
 # docs/history/specs/agent-roster.md §Р6), поэтому ни клиента шлюза, ни разбора YAML, ни
 # токена этому серверу не нужно — и ни одной зависимости под них не заведено.
-dependencies = ["mcp>=2,<3"]
+dependencies = ["mcp>=2.3,<3"]
 
 [project.scripts]
 aec-roster = "aec_roster.__main__:main"
