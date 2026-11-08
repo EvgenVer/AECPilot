@@ -1,21 +1,21 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/mermaid-render-cache.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-export type MermaidTheme = 'dark' | 'default'
-
-interface MermaidRenderCacheOptions {
+// Renders are keyed by (theme, code). `theme` is opaque here: any
+// JSON-serialisable diagram theme, so any palette change misses the cache.
+interface MermaidRenderCacheOptions<Theme> {
   defer?: (signal?: AbortSignal) => Promise<void>
   maxEntries: number
-  render: (code: string, theme: MermaidTheme) => Promise<string>
+  render: (code: string, theme: Theme) => Promise<string>
   yieldToMainThread?: () => Promise<void>
 }
 
-interface MermaidRenderCache {
-  render: (code: string, theme: MermaidTheme, signal?: AbortSignal) => Promise<string>
+interface MermaidRenderCache<Theme> {
+  render: (code: string, theme: Theme, signal?: AbortSignal) => Promise<string>
 }
 
 interface PendingRender {
@@ -77,7 +77,7 @@ function yieldTask(): Promise<void> {
 }
 
 // Defer the first uncached render by one frame so the source fallback can
-// paint before the CPU-heavy mermaid runtime is imported and parsed.
+// paint before the diagram renderer's chunk is imported and parsed.
 export function nextPaint(): Promise<void> {
   return new Promise(resolve => {
     if (typeof requestAnimationFrame === 'function') {
@@ -165,12 +165,12 @@ export function createRetryableLoader<T>(load: () => Promise<T>): () => Promise<
   }
 }
 
-export function createMermaidRenderCache({
+export function createMermaidRenderCache<Theme>({
   defer = deferUntilIdle,
   maxEntries,
   render: renderSvg,
   yieldToMainThread = yieldTask
-}: MermaidRenderCacheOptions): MermaidRenderCache {
+}: MermaidRenderCacheOptions<Theme>): MermaidRenderCache<Theme> {
   if (!Number.isInteger(maxEntries) || maxEntries < 1) {
     throw new Error('Mermaid render cache must contain at least one entry')
   }

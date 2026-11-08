@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/diff-lines.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import type { BundledLanguage, ShikiTransformer, ThemedToken } from 'shiki'
 import { chunkLines, type LineChunk, useFixedRowWindow } from '@/components/chat/fixed-row-window'
 import { exceedsHighlightBudget, SHIKI_THEME } from '@/components/chat/shiki-highlighter'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { useSeenOnce } from '@/hooks/use-seen-once'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
 import { cn } from '@/lib/utils'
 
@@ -614,9 +615,17 @@ export function FileDiffPanel({
   const language = shikiLanguageForFilename(path)
   const canHighlight = Boolean(language) && !exceedsHighlightBudget(fullText ?? diff)
   const windowed = showLineNumbers || virtualized
+  // Edit-tool cards open their diff by default, so a session full of file edits
+  // used to tokenize every diff in the loaded window on each switch (seconds of
+  // Shiki on the click path). The compact card keeps the plain colored rows
+  // until it is first on screen. Windowed panels are unchanged: they mount only
+  // the visible rows but still tokenize the whole diff.
+  const boxRef = React.useRef<HTMLDivElement>(null)
+  const seen = useSeenOnce(boxRef, canHighlight && !windowed)
 
   // Windowed: we own fixed-height rows and render only the visible chunks, so a
-  // large diff never mounts (or Shiki-highlights) every line. Compact tool cards
+  // large diff never mounts every line (TokenizedDiffBody still tokenizes the
+  // whole diff once). Compact tool cards
   // are small/clamped, so they let Shiki own the rows (SyntaxDiff).
   const windowedBody = canHighlight ? (
     <TokenizedDiffBody
@@ -631,7 +640,7 @@ export function FileDiffPanel({
     <PreviewDiffRows afterLines={afterRows} beforeLines={beforeRows} chunks={visibleLineChunks} />
   )
 
-  const compactBody = !canHighlight ? (
+  const compactBody = !canHighlight || !seen ? (
     <DiffBody lines={lines} />
   ) : fullText != null ? (
     <TokenizedDiffBody language={language} lines={lines} />
@@ -641,7 +650,7 @@ export function FileDiffPanel({
 
   if (!windowed) {
     return (
-      <div className={cn(DIFF_BOX_CLASS, className)} data-slot="file-diff-panel">
+      <div className={cn(DIFF_BOX_CLASS, className)} data-slot="file-diff-panel" ref={boxRef}>
         {compactBody}
       </div>
     )

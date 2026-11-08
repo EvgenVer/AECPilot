@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/quick-entry.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -66,19 +66,31 @@ function applyStatus(status: QuickEntryStatus | undefined): void {
   })
 }
 
+type QuickEntryBridge = NonNullable<Window['hermesDesktop']['quickEntry']>
+
+/** The shell's Quick Entry settings call, or undefined where there is none
+ *  (outside Electron, the Webapp's bridge). */
+function quickEntrySettingsCall<K extends 'getSettings' | 'setSettings'>(name: K): QuickEntryBridge[K] | undefined {
+  const call = typeof window === 'undefined' ? undefined : window.hermesDesktop?.quickEntry?.[name]
+
+  return typeof call === 'function' ? call : undefined
+}
+
 /** True when the shell exposes the Quick Entry capability (desktop only). */
 export function canUseQuickEntry(): boolean {
-  return typeof window !== 'undefined' && typeof window.hermesDesktop?.quickEntry?.getSettings === 'function'
+  return quickEntrySettingsCall('getSettings') !== undefined
 }
 
 /** Read the live registration state into the store (Settings mount). */
 export async function loadQuickEntrySettings(): Promise<void> {
-  if (!canUseQuickEntry()) {
+  const getSettings = quickEntrySettingsCall('getSettings')
+
+  if (!getSettings) {
     return
   }
 
   try {
-    applyStatus(await window.hermesDesktop.quickEntry.getSettings())
+    applyStatus(await getSettings())
   } catch {
     // A failed read leaves the store as-is; the row keeps its last known copy.
   }
@@ -90,7 +102,9 @@ export async function loadQuickEntrySettings(): Promise<void> {
  * instead of a silently-lost setting.
  */
 export async function saveQuickEntrySettings(patch: { enabled?: boolean; shortcut?: string }): Promise<void> {
-  if (!canUseQuickEntry()) {
+  const setSettings = quickEntrySettingsCall('setSettings')
+
+  if (!setSettings) {
     return
   }
 
@@ -100,7 +114,7 @@ export async function saveQuickEntrySettings(patch: { enabled?: boolean; shortcu
   $quickEntry.set({ ...previous, ...patch, registered: previous.registered })
 
   try {
-    applyStatus(await window.hermesDesktop.quickEntry.setSettings(patch))
+    applyStatus(await setSettings(patch))
   } catch {
     $quickEntry.set(previous)
   }

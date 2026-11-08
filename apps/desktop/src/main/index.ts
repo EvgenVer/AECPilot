@@ -178,6 +178,16 @@ import { f12Payload, shouldBlockDevtoolsKey, shouldForwardF12 } from './devtools
 import { createMinimizeToTray, executableIcon } from './minimize-to-tray'
 import { isDevtoolsBlocked, restoreDevtoolsBlocked, setDevtoolsBlocked } from './devtools-block'
 import { installPreviewGuestGuard } from './preview-guest'
+import { preparedJournal } from './prepared-submissions'
+import { saveTextFileAs } from './save-text-file'
+import { registerStreamWorkClock } from './stream-work-clock'
+import {
+  beginPreviewGuestActivity,
+  endPreviewGuestActivity,
+  executePreviewGuestScript,
+  holdOwnerAwake,
+  PREVIEW_GUEST_PARTITION
+} from './preview-guest-activity'
 import { installBrowserNavGestures, installPreviewGuestHidden } from './preview-nav'
 import { readWindowBelow } from './os-windows'
 import { readEditCommand, readSpellcheckAction } from './context-menu-pure'
@@ -220,9 +230,11 @@ import {
   tagReplayEpoch,
   type ReplayWatermark
 } from './event-replay-pure'
+import { readClipboardImagePng } from './clipboard-image-pure'
 import {
   applyProjectCwd,
   checkRestCall,
+  checkRpcAction,
   checkRpcCall,
   classifyEnvWrite,
   describeRpcFailure,
@@ -1205,6 +1217,9 @@ async function restoreRemoteProject(): Promise<void> {
 // fires while no window exists to receive the push, so a push-only channel
 // would leave the renderer stuck at 'closed'.
 let gatewayState: GatewayConnectionState = 'closed'
+/** Payload of the last `gateway.ready` on the current connection (T52): every
+ * renderer dial of their 0.23 client waits for one — `gateway:get-ready`. */
+let lastGatewayReady: Record<string, unknown> | null = null
 /** D-177: перезапуск ядра, обрыв которого окнам не показывается (ключ из окна
  * первого запуска). Состояние копится в `gatewayState` и уходит окнам одним
  * кадром, когда перезапуск закончен. */
@@ -1229,7 +1244,13 @@ async function connectGateway(url: string): Promise<void> {
   gatewayUrl = url
   gateway = new GatewayClient({ url })
   replayWatermark = EMPTY_WATERMARK
+  lastGatewayReady = null
   gateway.onEvent((event: GatewayEvent) => {
+    if (event.type === 'gateway.ready') {
+      const payload = (event as { payload?: unknown }).payload
+      lastGatewayReady =
+        payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    }
     // Отметка догона ведётся ПО ВСЕМ кадрам, включая чужие сессии и
     // бессессионные: нумерация в шлюзе сквозная, и пропуск кадра здесь
     // означал бы просьбу переслать то, что уже приходило (задача 3.B2г).
@@ -1266,6 +1287,8 @@ async function connectGateway(url: string): Promise<void> {
   gateway.onStateChange((state) => {
     const wasReconnecting = gatewayState === 'reconnecting'
     gatewayState = state
+    // A dropped connection's ready frame says nothing about the next one.
+    if (state !== 'ready') lastGatewayReady = null
     if (holdGatewayState) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('gateway:state', state)
 
@@ -1698,20 +1721,15 @@ function applyWebBackend(homeDir: string): void {
  * цена не растворилась в фразе «браузер стал мощнее».
  *
  * ПОЭТОМУ КЛЮЧА ЗДЕСЬ БОЛЬШЕ НЕТ — и это не «вернули умолчание», а решение с
- * последствием: при пустом `browser.backend` ядро включает режим Browser Use
- * CLI, «если CLI вообще запускается» (`is_browser_use_cli_mode` → `_find_cli`:
- * ищет бинарь `browser-use` и `uvx` на PATH, ничего не скачивая). Значит ФОРМА
- * браузерной поверхности зависит от машины: где `uv` есть — один инструмент с
- * кодом, где нет — прежние десять узких. Это их же поведение («so browsing
- * never silently breaks»), и владелец выбрал повторить его как есть.
+ * последствием: при пустом `browser.backend` ядро включало режим Browser Use CLI.
+ * С ядра 0.23.0 (задача T51) выбора больше нет вовсе: десять узких инструментов и
+ * `agent-browser` ядро убрало, `browser_exec` — единственный браузер, и он идёт через
+ * `browser-harness` из venv ядра (`tools/browser_use_cli.py::_find_cli`), то есть
+ * больше не тянет пакет с PyPI в момент вызова.
  *
- * СТАРЫЙ КЛЮЧ В УЖЕ СУЩЕСТВУЮЩЕМ КОНФИГЕ МЫ НЕ УДАЛЯЕМ. `browser.backend: off`,
- * записанный прежней версией, останется, и на такой машине набор будет прежним,
- * пока ключ не убрать руками (их панель настроек это умеет). Автоматически
- * стирать его нельзя: отличить НАШЕ прежнее умолчание от ВЫБОРА ЧЕЛОВЕКА,
- * сделанного в той же панели, по файлу невозможно, а «мы лучше знаем» — не то
- * правило, по которому трогают чужой конфиг. Профиль разработки почищен вручную
- * задачей 3E.17, иначе решение не проверялось бы живым вызовом.
+ * СТАРЫЙ КЛЮЧ `browser.backend` МЫ НЕ ТРОГАЕМ — и с 0.23.0 это не нужно: миграция
+ * конфига ядра v52 удаляет его сама (разбор `runtime/contracts/reading-0.23.0.md`),
+ * а без узких инструментов ему и нечего выбирать.
  *
  * `cloud_provider: "local"` ОСТАЁТСЯ. Это другой вопрос — ГДЕ работает браузер,
  * а не какой формы инструмент. Их строка «★ recommended · free · Headless
@@ -3864,6 +3882,7 @@ ipcMain.handle('version:get', async () => {
 })
 
 ipcMain.handle('gateway:get-state', () => gatewayState)
+ipcMain.handle('gateway:get-ready', () => lastGatewayReady)
 
 // The two generic doors the donor's gateway client rides on (task 1.8.5).
 // Their ~200 typed wrappers all funnel into one `request(method, params)` and
@@ -3929,6 +3948,7 @@ ipcMain.handle(
         ),
         currentProject?.vaultPath ?? null
       ) as never
+      checkRpcAction(method, params as Record<string, unknown>)
       const timeoutMs = typeof payload?.timeoutMs === 'number' ? payload.timeoutMs : undefined
       await ensureSecretFilter(method, params)
       const value = await gateway.request(method as never, params, timeoutMs)
@@ -4836,10 +4856,11 @@ ipcMain.handle('attachments:read-data-url', async (_event, payload: unknown) => 
 // Пустой буфер — это ответ `path: ''`, а не ошибка: их композер показывает на
 // него «в буфере нет картинки».
 ipcMain.handle('attachments:save-clipboard', async () => {
-  const image = clipboard.readImage()
-  if (image.isEmpty()) return { ok: true, path: '' }
+  // Electron 44 (T52): no readImage() any more — the PNG comes through clipboard.read().
+  const png = await readClipboardImagePng(clipboard)
+  if (!png) return { ok: true, path: '' }
   try {
-    return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, image.toPNG(), 'png') }
+    return { ok: true, path: await saveAttachment(ATTACHMENTS_DIR, png, 'png') }
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -4965,6 +4986,30 @@ ipcMain.handle('preview:capture', async (event, payload: unknown) => {
       error: mainT('preview.captureFailed', error instanceof Error ? error.message : String(error))
     }
   }
+})
+
+// Task T52 (donor 0.23.0): a short lease on the preview guest and a script in
+// its loaded document — their `read_preview` / `drive_preview` and annotations
+// go only through this. Checks and lifecycle: `preview-guest-activity.ts`.
+ipcMain.handle('preview-guest-activity:begin', (event, webContentsId: unknown) => {
+  if (!Number.isSafeInteger(webContentsId)) throw new Error('Invalid preview guest')
+  return beginPreviewGuestActivity(
+    event.sender,
+    webContents.fromId(webContentsId as number) ?? undefined,
+    session.fromPartition(PREVIEW_GUEST_PARTITION),
+    () => holdOwnerAwake(event.sender)
+  )
+})
+
+ipcMain.handle('preview-guest-activity:end', (event, token: unknown) => {
+  if (Number.isSafeInteger(token)) endPreviewGuestActivity(event.sender, token as number)
+})
+
+ipcMain.handle('preview-guest-activity:script', (event, token: unknown, code: unknown) => {
+  if (!Number.isSafeInteger(token) || typeof code !== 'string') {
+    throw new Error('Invalid preview script request')
+  }
+  return executePreviewGuestScript(event.sender, token as number, code)
 })
 
 // Задача 3E.8 (UR30, отменённый HX12). Окно ОС под нашим — ТОЛЬКО метаданные.
@@ -5185,6 +5230,57 @@ ipcMain.handle('save:file', async (event, payload: unknown) => {
     currentProject?.vaultPath,
     request
   )
+})
+
+// Task T52 (donor 0.23.0): their journal of uncertain sends, one file per renderer
+// origin in userData (`prepared-submissions.ts`). Key and entry are opaque strings.
+function preparedStore(event: Electron.IpcMainInvokeEvent): ReturnType<typeof preparedJournal> {
+  const url = event.senderFrame?.url
+  if (!url) throw new Error('Invalid prepared submission sender')
+  return preparedJournal(app.getPath('userData'), new URL(url).origin)
+}
+
+ipcMain.handle('prepared-submissions:read', (event) => JSON.stringify(preparedStore(event).read()))
+
+ipcMain.handle('prepared-submissions:update', (event, key: unknown, entry: unknown) => {
+  if (typeof key !== 'string' || (entry !== null && typeof entry !== 'string')) {
+    throw new Error('Invalid prepared submission')
+  }
+  preparedStore(event).update(key, entry === null ? null : JSON.parse(entry))
+})
+
+ipcMain.handle(
+  'prepared-submissions:compare-and-set',
+  (event, key: unknown, expected: unknown, entry: unknown) => {
+    if (
+      typeof key !== 'string' ||
+      [expected, entry].some((value) => value !== null && typeof value !== 'string')
+    ) {
+      throw new Error('Invalid prepared submission comparison')
+    }
+    const parse = (value: unknown): unknown => (value === null ? null : JSON.parse(value as string))
+    const { applied, current } = preparedStore(event).compareAndSet(
+      key,
+      parse(expected),
+      parse(entry)
+    )
+    return { applied, current: current === null ? null : JSON.stringify(current) }
+  }
+)
+
+// Task T52 (donor 0.23.0): keeps streamed output moving in a hidden window.
+registerStreamWorkClock(ipcMain, (sender) => BrowserWindow.fromWebContents(sender))
+
+// Task T52 (donor 0.23.0): `/save` hands over rendered text; the person picks
+// where it goes (the project folder first), main writes it.
+ipcMain.handle('save:text', async (event, request: unknown) => {
+  const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined
+  return saveTextFileAs((request ?? {}) as Record<string, unknown>, {
+    defaultDir: () => currentProject?.vaultPath ?? app.getPath('documents'),
+    defaultTitle: mainT('saveOut.saveTextTitle'),
+    showSaveDialog: (options) =>
+      owner ? dialog.showSaveDialog(owner, options) : dialog.showSaveDialog(options)
+  })
 })
 
 // Task 3.17. Their composer adds files and folders to the context through

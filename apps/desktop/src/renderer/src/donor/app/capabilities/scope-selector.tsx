@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/scope-selector.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -9,8 +9,7 @@
  */
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router'
+import { useMemo, useState } from 'react'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { DesktopRosterAgent } from '@/global'
@@ -21,8 +20,6 @@ import { activeGatewayConnectionId } from '@/store/gateway'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 
 import { useOnProfileSwitch } from '../hooks/use-on-profile-switch'
-
-import { linkedScope } from './connectors/data/deep-link'
 
 interface ScopeOption {
   key: string
@@ -64,22 +61,7 @@ export function useCapabilityScope({
   fixedProfile?: string
 }): CapabilityScope {
   const activeProfile = useStore($activeGatewayProfile)
-  const { key: locationKey, search } = useLocation()
-
-  // A link from a chat names the chat's own profile (and connection), so the page opens on that scope.
-  const linked = useMemo(() => linkedScope(new URLSearchParams(search)), [search])
-
-  const [scopeOverride, setScopeOverride] = useState<null | string | { connectionId: string; profile: string }>(
-    () => linked
-  )
-
-  // A page that stays mounted (docked) takes each new link's scope before any tab acts on the link.
-  useEffect(() => {
-    if (linked !== null) {
-      setScopeOverride(linked)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationKey])
+  const [scopeOverride, setScopeOverride] = useState<null | string | { connectionId: string; profile: string }>(null)
 
   const scopeProfile: ProfileScope = useMemo(
     () =>

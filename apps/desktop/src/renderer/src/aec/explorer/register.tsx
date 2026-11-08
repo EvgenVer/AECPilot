@@ -9,7 +9,7 @@ import { revealTreePane } from '../../donor/components/pane-shell/tree/store'
 import { registry } from '../../donor/contrib/registry'
 import { STATUSBAR_AREAS } from '../../donor/sdk'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
-import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
+import { getRuntimeI18nLocale, subscribeRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { IndexStatus } from '../index-status/IndexStatus'
@@ -56,39 +56,57 @@ registry.register({
 // the git surface SPEC excludes (HX6) — see
 // `aec/rollback/register-changes-pane.tsx`. One panel, one place.
 
-registry.register({
-  id: 'aec-explorer',
-  area: 'panes',
-  source: 'core',
-  title: title(),
-  data: {
-    placement: 'left',
-    collapsible: true,
-    width: '260px',
-    minWidth: '200px',
-    maxWidth: '480px'
-  },
-  render: () => <VaultExplorer />
-})
+// The runtime locale is still the default while modules load; their shell
+// only knows the person's language once the I18nProvider has resolved it, so
+// a title read once at load would stay English (found in T52 e2e). Register
+// again on every locale change, as the nav pages do.
+function register_aec_explorer(): void {
+  registry.register({
+    id: 'aec-explorer',
+    area: 'panes',
+    source: 'core',
+    title: title(),
+    data: {
+      placement: 'left',
+      collapsible: true,
+      width: '260px',
+      minWidth: '200px',
+      maxWidth: '480px'
+    },
+    render: () => <VaultExplorer />
+  })
+}
+
+register_aec_explorer()
+subscribeRuntimeI18nLocale(register_aec_explorer)
 
 // The document viewer sits on the right, next to checkpoints: both answer
 // «show me the thing itself» about something that just appeared in the chat.
 // It is what a citation opens (task 2.14) — the click that closes the loop
 // between an answer and the page it came from (SPEC UR3, AC1).
-registry.register({
-  id: 'aec-viewer',
-  area: 'panes',
-  source: 'core',
-  title: viewerTitle(),
-  data: {
-    placement: 'right',
-    collapsible: true,
-    width: '460px',
-    minWidth: '320px',
-    maxWidth: '900px'
-  },
-  render: () => <DocumentViewer />
-})
+// The runtime locale is still the default while modules load; their shell
+// only knows the person's language once the I18nProvider has resolved it, so
+// a title read once at load would stay English (found in T52 e2e). Register
+// again on every locale change, as the nav pages do.
+function register_aec_viewer(): void {
+  registry.register({
+    id: 'aec-viewer',
+    area: 'panes',
+    source: 'core',
+    title: viewerTitle(),
+    data: {
+      placement: 'right',
+      collapsible: true,
+      width: '460px',
+      minWidth: '320px',
+      maxWidth: '900px'
+    },
+    render: () => <DocumentViewer />
+  })
+}
+
+register_aec_viewer()
+subscribeRuntimeI18nLocale(register_aec_viewer)
 
 // Opening a document is intent to SEE it. The right column starts collapsed,
 // and until task 3F.3 (D-91) a click in the tree or on a citation put the

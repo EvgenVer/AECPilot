@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_connector_card.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,7 +44,7 @@ export const zhConnectorCard: TranslationOverrides['connectors'] = {
     allApps: '全部应用',
     receiptConnected: apps => `已连接：${apps}`,
     receiptNone: '未连接新应用',
-    receiptTimedOut: '5 分钟后已关闭',
+    receiptTimedOut: '10 分钟后已关闭',
     finishInBrowser: '请在浏览器中完成',
     signInFailed: '连接失败，点击重试'
   }

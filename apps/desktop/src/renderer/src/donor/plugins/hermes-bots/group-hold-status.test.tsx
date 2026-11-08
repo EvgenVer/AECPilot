@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-hold-status.test.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,8 @@ import type { GroupMember } from './types'
 const { host } = vi.hoisted(() => ({ host: {} as Record<string, unknown> }))
 
 vi.mock('@hermes/plugin-sdk', async () => {
-  const { pluginSdkMock } = await import('./group-test-utils')
+  const { pluginSdkMock, createGroupGateway } = await import('./group-test-utils')
+  Object.assign(host, createGroupGateway().host)
   const base = await pluginSdkMock(host)
 
   return {
@@ -152,11 +153,13 @@ describe('durable group holds', () => {
 
     activity.recordGroupActivity('Core', { kind: 'settled', member: null })
     const view = render(<GroupChatWorkspace group="Core" members={MEMBERS} />)
-    expect(screen.getByRole('button', { name: /^Activity/ }).textContent).toContain('research hit an error')
+    // The workspace paints behind the group-source classification gate, so the
+    // activity row appears once that async check settles.
+    expect((await screen.findByRole('button', { name: /^Activity/ })).textContent).toContain('research hit an error')
 
     activity.recordGroupActivity('Core', { kind: 'replied', member: 'research' })
     view.rerender(<GroupChatWorkspace group="Core" members={MEMBERS} />)
-    expect(screen.getByRole('button', { name: /^Activity/ }).textContent).toContain('builder hit an error')
+    expect((await screen.findByRole('button', { name: /^Activity/ })).textContent).toContain('builder hit an error')
   })
 
   it('projects hydrated holds into the real group workspace', async () => {
@@ -173,6 +176,6 @@ describe('durable group holds', () => {
 
     render(<GroupChatWorkspace group="Core" members={MEMBERS} />)
 
-    expect(screen.getByRole('status').textContent).toContain('Paused: Research')
+    expect((await screen.findByRole('status')).textContent).toContain('Paused: Research')
   })
 })

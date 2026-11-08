@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/session-index.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -52,8 +52,10 @@ export function buildSessionByAnyId(
  * only local ids — renders empty, so the conversation vanishes from the
  * sidebar entirely (#85969). Falling back to the row flag keeps the invariant:
  * a session the backend says is pinned is always reachable from the Pinned
- * section, whatever the local cache holds. session-pin-sync then adopts the
- * pin into the local set on its next reconcile, restoring ordering control.
+ * section, whatever the local cache holds. For a row the pin set's own gateway
+ * owns, session-pin-sync then adopts the pin into the local set on its next
+ * reconcile, restoring ordering control; another gateway's row (kept or still
+ * painted after a pick) is never adopted and stays a server-only pin.
  *
  * `unconfirmedPinWrites` is that same module's fence, and the fallback has to
  * respect it. Unpinning drops the id from the local set immediately, but the

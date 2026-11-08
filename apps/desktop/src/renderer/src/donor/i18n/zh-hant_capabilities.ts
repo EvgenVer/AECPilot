@@ -1,16 +1,33 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_capabilities.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { TranslationOverrides } from './define-locale'
+import { zhHantPluginPreviewAccess } from './zh-hant_plugin_preview_access'
+import { zhHantPluginUpdateAll } from './zh-hant_plugin_update_all'
 
 export const zhHantCapabilities = {
   skills: {
     plugins: {
-      pageBlurb: '外掛可以擴充本應用程式、代理，或兩者 — 每一部分都有自己的開關。'
+      ...zhHantPluginPreviewAccess,
+      ...zhHantPluginUpdateAll,
+      pageBlurb: '外掛可以擴充本應用程式、代理，或兩者 — 每一部分都有自己的開關。',
+      folderAccess: {
+        title: '資料夾存取',
+        hint: (name: string) => `${name} 可以讀取和修改這些資料夾中的檔案。撤銷後立即生效。`,
+        revoke: '撤銷',
+        revokeLabel: (path: string) => `撤銷對 ${path} 的存取`,
+        revoked: (name: string, path: string) => `${name} 已無法再使用 ${path}。`,
+        revokeFailed: (name: string) => `無法撤銷 ${name} 的資料夾存取`,
+        pickerTitle: (name: string) => `為 ${name} 選擇資料夾`,
+        pickerButton: '允許存取',
+        refusedProtected: (name: string) =>
+          `${name} 不能使用該資料夾：其中包含 Hermes 的設定、金鑰或外掛資料。請選擇不包含它們的資料夾。`,
+        loadFailed: (name: string) => `無法載入與 ${name} 共用的資料夾。`
+      }
     },
     hub: {
       search: '搜尋',
@@ -71,6 +88,10 @@ export const zhHantCapabilities = {
     changesApplyNewSessions: '變更將套用至新工作階段。',
     skillUpdated: '技能已更新',
     edit: '編輯',
+    lock: '鎖定',
+    locked: '已鎖定',
+    lockHint: '鎖定期間，代理程式無法變更此技能。你仍可自行編輯。',
+    unlockedHint: '鎖定後，代理程式將無法變更此技能。你仍可自行編輯。',
     archive: '封存',
     skillArchivedTitle: '技能已封存',
     skillArchivedMessage: '可透過 hermes curator restore 還原。',

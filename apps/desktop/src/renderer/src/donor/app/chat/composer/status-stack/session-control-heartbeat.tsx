@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/session-control-heartbeat.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 
 import { StatusControlRow } from '@/components/chat/status-control-row'
 import { StatusSection } from '@/components/chat/status-section'
@@ -34,7 +34,12 @@ import {
   type SessionControlHeartbeat
 } from '@/store/session-control'
 
-import { type ConfirmState, formatHeartbeatCountdown, formatHeartbeatInterval } from './session-control-utils'
+import {
+  type ConfirmState,
+  formatCountdown,
+  formatHeartbeatInterval,
+  useCountdownClock
+} from './session-control-utils'
 
 interface HeartbeatSectionProps {
   heartbeat: SessionControlHeartbeat
@@ -43,22 +48,6 @@ interface HeartbeatSectionProps {
   onFeedback: (error: string | null, success: string | null) => void
 }
 
-function useHeartbeatClock(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (!active) {
-      return
-    }
-
-    const tick = () => setNow(Date.now())
-    const interval = window.setInterval(tick, 1_000)
-
-    return () => window.clearInterval(interval)
-  }, [active])
-
-  return now
-}
 
 export const SessionControlHeartbeatSection = memo(function SessionControlHeartbeatSection({
   heartbeat,
@@ -94,7 +83,7 @@ export const SessionControlHeartbeatSection = memo(function SessionControlHeartb
   )
 
   const stateLabel = heartbeat.status === 'paused' ? ctrl.heartbeatPaused : ctrl.heartbeatActive
-  const now = useHeartbeatClock(heartbeat.status === 'active')
+  const now = useCountdownClock(heartbeat.status === 'active')
   const intervalLabel = formatHeartbeatInterval(heartbeat.interval_seconds, t)
   const nextDueTimestamp = (heartbeat.last_fired_at || heartbeat.created_at) + heartbeat.interval_seconds
   const nextDueMs = nextDueTimestamp > 1e11 ? nextDueTimestamp : nextDueTimestamp * 1_000
@@ -102,7 +91,7 @@ export const SessionControlHeartbeatSection = memo(function SessionControlHeartb
 
   const nextRunLabel =
     heartbeat.status === 'active'
-      ? ` · ${isDue ? ctrl.heartbeatDueWaitingForIdle : ctrl.heartbeatNext(formatHeartbeatCountdown(nextDueTimestamp, now))}`
+      ? ` · ${isDue ? ctrl.dueWaitingForIdle : ctrl.heartbeatNext(formatCountdown(nextDueTimestamp, now))}`
       : ''
 
   const iconClass = heartbeat.status === 'paused' ? 'text-red-500' : isDue ? 'text-amber-500' : 'text-emerald-500'

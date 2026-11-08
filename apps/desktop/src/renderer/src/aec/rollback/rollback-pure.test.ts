@@ -8,6 +8,7 @@ import { registerPluginLocales, translatePlugin } from '../../donor/i18n/plugin-
 import { aecLocales } from '../../shared/i18n/aec-catalog'
 import {
   DIFF_CHAR_LIMIT,
+  describeRestore,
   describeRollback,
   explainScope,
   formatCheckpointTime,
@@ -140,5 +141,79 @@ describe('parseDiffFiles', () => {
 
   it('finds nothing in an empty patch', () => {
     expect(parseDiffFiles('')).toEqual([])
+  })
+})
+
+// T52: from core 0.23.0 a full restore is "careful" — files the person edited
+// after the agent's last write stay as they are, and files the agent created
+// after the snapshot are deleted. "Snapshot restored." for a restore that put
+// nothing back is the lie these cases pin.
+describe('describeRestore', () => {
+  it('names the file of a file-scoped restore', () => {
+    expect(describeRestore({ success: true, file: 'docs/а.md' }, 'docs/а.md', t)).toBe(
+      'Файл docs/а.md восстановлен.'
+    )
+  })
+
+  it('keeps the plain sentence for a classic full restore', () => {
+    // No agent-write ledger: the core falls back to the old full restore and
+    // reports no file lists at all.
+    expect(describeRestore({ success: true, restored_to: 'abc12345' }, undefined, t)).toBe(
+      'Снимок восстановлен.'
+    )
+  })
+
+  it('does not call a restore that put nothing back a success', () => {
+    const text = describeRestore(
+      {
+        success: true,
+        reason: 'nothing to restore (all changed files were user-edited)',
+        restored_files: [],
+        skipped_user_edits: ['КР-1.docx'],
+        skipped_oversize: []
+      },
+      undefined,
+      t
+    )
+    expect(text).not.toContain('Снимок восстановлен')
+    expect(text).toContain('Возвращать нечего')
+    expect(text).toContain('КР-1.docx')
+  })
+
+  it('counts what came back and names what was kept or left', () => {
+    const text = describeRestore(
+      {
+        success: true,
+        restored_files: ['a.md', 'b.md'],
+        skipped_user_edits: ['c.md'],
+        skipped_oversize: ['big.ifc'],
+        failed_deletes: ['new.md']
+      },
+      undefined,
+      t
+    )
+    expect(text).toContain('возвращено файлов — 2')
+    expect(text).toContain('Ваши правки сохранены: c.md.')
+    expect(text).toContain('big.ifc')
+    expect(text).toContain('new.md')
+  })
+
+  it('shortens a long list of paths', () => {
+    const paths = ['1.md', '2.md', '3.md', '4.md', '5.md']
+    const text = describeRestore(
+      { success: true, restored_files: ['x.md'], skipped_user_edits: paths },
+      undefined,
+      t
+    )
+    expect(text).toContain('1.md, 2.md, 3.md и ещё 2')
+  })
+
+  it('passes a refusal through with its reason', () => {
+    expect(describeRestore({ success: false, error: 'занято' }, undefined, t)).toBe(
+      'Не удалось восстановить: занято'
+    )
+    expect(describeRestore({ success: false }, undefined, t)).toBe(
+      'Не удалось восстановить: причина не названа'
+    )
   })
 })

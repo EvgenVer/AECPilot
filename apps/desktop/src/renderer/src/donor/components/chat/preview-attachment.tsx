@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/preview-attachment.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -57,7 +57,11 @@ export function PreviewAttachment({ target }: { target: string }) {
   const { t } = useI18n()
   // This link lives in one session's transcript; resolve it against THAT
   // session's cwd, not the primary chat's.
-  const cwd = useStore(useSessionView().$cwd)
+  const view = useSessionView()
+  const cwd = useStore(view.$cwd)
+  const storedId = useStore(view.$storedId)
+  const runtimeId = useStore(view.$runtimeId)
+  const sessionId = storedId || runtimeId || ''
   const openSources = useStore($previewTabSources)
   const [opening, setOpening] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -164,7 +168,7 @@ export function PreviewAttachment({ target }: { target: string }) {
     setOpening(true)
 
     try {
-      const preview = await normalizeOrLocalPreviewTarget(requestTarget, requestCwd || undefined)
+      const preview = await normalizeOrLocalPreviewTarget(requestTarget, requestCwd || undefined, { sessionId })
 
       if (
         !mountedRef.current ||
@@ -209,7 +213,7 @@ export function PreviewAttachment({ target }: { target: string }) {
       // Works in both modes: the Electron main process fetches the bytes
       // through the session's backend connection (local gateway or remote)
       // and prompts for a save location.
-      const result = await downloadGatewayMediaFile(target)
+      const result = await downloadGatewayMediaFile(target, sessionId ? { sessionId } : undefined)
 
       if (mountedRef.current && result.saved) {
         setDownloaded(true)

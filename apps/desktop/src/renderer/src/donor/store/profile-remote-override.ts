@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/profile-remote-override.ts
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -98,9 +98,8 @@ export async function refreshProfileRemoteOverrides(names: string[]): Promise<vo
 }
 
 // The token-rotation failure shape: the remote host answered but refused the
-// credentials. Mirrors the auth-vocabulary used by suggestion-providers/repair
-// — connectivity failures (timeout, refused, DNS) stay generic so a down host
-// doesn't misread as a revoked token.
+// credentials. Connectivity failures (timeout, refused, DNS) stay generic so a
+// down host doesn't misread as a revoked token.
 const AUTH_FAILURE_RE =
   /\b(401|403|unauthorized|forbidden)\b|invalid[_ ]?token|token .*(expired|invalid|rejected)|authenticat\w+ (failed|required|expired)/i
 

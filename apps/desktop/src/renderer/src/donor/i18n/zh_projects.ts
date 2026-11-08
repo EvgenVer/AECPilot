@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_projects.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,6 +40,7 @@ export const zhProjects: NonNullable<TranslationOverrides['sidebar']>['projects'
   movedTo: name => `已移动到 ${name}`,
   moveFailed: '无法移动会话',
   moveNoFolder: '该项目没有可移入的文件夹',
+  moveBusy: '请先停止正在运行的回合，再移动该聊天',
   moveNoProjects: '没有其他项目',
   reveal: '在文件夹中显示',
   copyPath: '复制路径',

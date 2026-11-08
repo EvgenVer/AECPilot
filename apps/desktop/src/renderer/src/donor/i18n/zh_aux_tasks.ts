@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_aux_tasks.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,6 @@ import type { AuxTaskCopyMap } from './types_aux_tasks'
 export const zhAuxTasks: AuxTaskCopyMap = {
   vision: { label: '视觉', hint: '图片分析' },
   compression: { label: '压缩', hint: '上下文压缩' },
-  skills_hub: { label: '技能中心', hint: '技能搜索' },
   approval: { label: '审批', hint: '智能自动批准' },
   mcp: { label: 'MCP', hint: 'MCP 工具路由' },
   title_generation: { label: '标题生成', hint: '会话标题' },

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/projects.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -22,7 +22,7 @@ import type { HermesGitBaseBranch, HermesGitBranch } from '@/global'
 import { getHermesConfig, hermesApi, type HermesGateway, type SessionInfo } from '@/hermes'
 import { translateNow } from '@/i18n'
 import { desktopDefaultCwd, isDesktopFsRemoteMode, selectDesktopPaths, writeDesktopFileText } from '@/lib/desktop-fs'
-import { desktopGit } from '@/lib/desktop-git'
+import { desktopGit, desktopGitFor, type GitOwnerRoute } from '@/lib/desktop-git'
 import { isMissingRestEndpoint, isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { isUnderPath } from '@/lib/path-compare'
 import { stampRowsWithOwningConnection } from '@/lib/session-owner-stamp'
@@ -34,10 +34,12 @@ import {
   ensureActiveGatewayOpen,
   isActivePrimary
 } from '@/store/gateway'
+import { setGatewayProjectAppearance } from '@/store/gateway-project-looks'
 import { $sidebarShowAllSessions, setSidebarAgentsGrouped } from '@/store/layout'
 import { notify } from '@/store/notifications'
 import {
   $activeGatewayProfile,
+  $newChatProfile,
   $profiles,
   $profileScope,
   ALL_PROFILES,
@@ -170,7 +172,7 @@ export function goToProject(id: string, options?: { newSession?: boolean }): voi
 // you were looking at: after a restart that's the just-resumed session, whose
 // stored cwd is often a home-dir fallback, so every new chat landed there
 // instead of the configured default (#71873, #80213, #77496).
-export function resolveNewSessionCwd(): string {
+export function resolveNewSessionCwd(profile?: string): string {
   const scope = $projectScope.get()
 
   // Inside Home, "no folder" is the point: a new chat must stay detached rather
@@ -187,7 +189,11 @@ export function resolveNewSessionCwd(): string {
     }
   }
 
-  return workspaceCwdForNewSession()
+  // A tile names its profile before $newChatProfile catches up. The folder
+  // belongs to that profile, which on a browser host is its own stored default.
+  const owner = (profile?.trim() || $newChatProfile.get() || $activeGatewayProfile.get()).trim()
+
+  return workspaceCwdForNewSession(owner)
 }
 
 // Entering a project moves the live workspace only when main holds a fresh
@@ -808,10 +814,15 @@ export async function moveSessionToProject(
     throw new Error(translateNow('sidebar.projects.moveNoFolder'))
   }
 
+  // The shared owner refuses a move while a turn runs (its frozen policy would change under it).
   const res = await gatewayRequest<WorkspaceMovePayload>('session.workspace.move', {
     cwd,
     session_key: sessionId,
     ...(profile ? { profile } : {})
+  }).catch((err: unknown) => {
+    throw (err as { data?: { reason?: string } })?.data?.reason === 'session_busy'
+      ? new Error(translateNow('sidebar.projects.moveBusy'))
+      : err
   })
 
   const moved = res.cwd || cwd
@@ -1259,9 +1270,18 @@ export async function updateProject(
 // Returns true when an adoption happened, so an incremental picker can close
 // (the node's id changes on adopt, and a second stale write would double-create).
 export async function setProjectAppearance(
-  project: Pick<SidebarProjectTree, 'color' | 'icon' | 'id' | 'isAuto' | 'label' | 'path'>,
+  project: Pick<SidebarProjectTree, 'color' | 'connectionId' | 'icon' | 'id' | 'isAuto' | 'label' | 'path' | 'profile'>,
   patch: { color?: null | string; icon?: null | string }
 ): Promise<boolean> {
+  // Another gateway's project: its look is that gateway's record, never one on this window's.
+  if (project.connectionId && project.path) {
+    const route = { connectionId: project.connectionId, profile: project.profile || 'default' }
+
+    await setGatewayProjectAppearance(route, project.path, patch)
+
+    return false
+  }
+
   if (!project.isAuto) {
     await updateProject(project.id, patch)
 
@@ -1452,14 +1472,18 @@ export function refreshWorktrees(): void {
   bumpWorktrees()
 }
 
+// A repo another gateway owns is on that machine: its git, never this window's.
+const gitFor = (owner?: GitOwnerRoute) => (owner ? desktopGitFor(owner) : desktopGit())
+
 // Spin up a fresh worktree the lightest way (`git worktree add -b`) under the
 // repo, returning where Hermes should start working. Git is the source of
 // truth; the caller starts a session in the returned path.
 export async function startWorkInRepo(
   repoPath: string,
-  options?: { name?: string; branch?: string; base?: string; existingBranch?: string }
+  options?: { name?: string; branch?: string; base?: string; existingBranch?: string },
+  owner?: GitOwnerRoute
 ): Promise<null | { path: string; branch: string }> {
-  const git = desktopGit()
+  const git = gitFor(owner)
 
   if (!git || !repoPath) {
     return null
@@ -1474,7 +1498,7 @@ export async function startWorkInRepo(
     // backend's /api/git mirror, and an older backend may predate it. The raw
     // failure ("Expected JSON … but got HTML" / a bare 404) reads like a git
     // error — name the real remedy instead of degrading silently.
-    if (isDesktopFsRemoteMode() && isMissingRestEndpoint(err)) {
+    if ((owner || isDesktopFsRemoteMode()) && isMissingRestEndpoint(err)) {
       throw new Error(translateNow('sidebar.projects.worktreeStaleBackend'))
     }
 
@@ -1492,8 +1516,8 @@ export async function startWorkInRepo(
 // by hand first.
 // Empty on a non-repo. On a remote gateway the list comes from the backend's
 // /api/git/branches mirror, so it acts on the repo where sessions actually run.
-export async function listRepoBranches(repoPath: string): Promise<HermesGitBranch[]> {
-  const git = desktopGit()
+export async function listRepoBranches(repoPath: string, owner?: GitOwnerRoute): Promise<HermesGitBranch[]> {
+  const git = gitFor(owner)
 
   if (!git?.branchList || !repoPath) {
     return []
@@ -1506,8 +1530,8 @@ export async function listRepoBranches(repoPath: string): Promise<HermesGitBranc
 // new-worktree dialog. The remote default (origin/HEAD) is flagged so the
 // UI can preselect it. Empty on a non-repo; remote gateways serve it from the
 // backend's /api/git/base-branches mirror.
-export async function listBaseBranches(repoPath: string): Promise<HermesGitBaseBranch[]> {
-  const git = desktopGit()
+export async function listBaseBranches(repoPath: string, owner?: GitOwnerRoute): Promise<HermesGitBaseBranch[]> {
+  const git = gitFor(owner)
 
   if (!git?.baseBranchList || !repoPath) {
     return []
@@ -1516,8 +1540,8 @@ export async function listBaseBranches(repoPath: string): Promise<HermesGitBaseB
   return git.baseBranchList(repoPath)
 }
 
-export async function switchBranchInRepo(repoPath: string, branch: string): Promise<void> {
-  const git = desktopGit()
+export async function switchBranchInRepo(repoPath: string, branch: string, owner?: GitOwnerRoute): Promise<void> {
+  const git = gitFor(owner)
 
   if (!git || !repoPath || !branch.trim()) {
     return
@@ -1537,6 +1561,8 @@ export interface StartWorkSessionRequest {
   draft?: string
   /** Stack the fresh session as a tab when main already holds a chat (palette/⌘O opens-from-nowhere). */
   openTab?: boolean
+  /** The gateway the worktree was made on, when it is not the window's: the session starts there. */
+  owner?: GitOwnerRoute
   path: string
   token: number
 }
@@ -1579,6 +1605,8 @@ export interface WorktreeDialogState {
   repoPath: string
   /** The base branch selected in a "branch off from X" menu. */
   base?: string
+  /** The gateway owning `repoPath` when it is another gateway's project: git runs there. */
+  owner?: GitOwnerRoute
 }
 
 export const $worktreeDialog = atom<null | WorktreeDialogState>(null)
@@ -1589,7 +1617,11 @@ export function closeWorktreeDialog(): void {
 
 let startWorkToken = 0
 
-export function requestStartWorkSession(path: string, draft?: string, options?: { openTab?: boolean }): void {
+export function requestStartWorkSession(
+  path: string,
+  draft?: string,
+  options?: { openTab?: boolean; owner?: GitOwnerRoute }
+): void {
   const target = path.trim()
 
   if (!target) {
@@ -1600,6 +1632,7 @@ export function requestStartWorkSession(path: string, draft?: string, options?: 
   $startWorkSessionRequest.set({
     draft: draft?.trim() || undefined,
     openTab: options?.openTab || undefined,
+    owner: options?.owner,
     path: target,
     token: startWorkToken
   })
@@ -1608,9 +1641,10 @@ export function requestStartWorkSession(path: string, draft?: string, options?: 
 export async function removeWorktreePath(
   repoPath: string,
   worktreePath: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean },
+  owner?: GitOwnerRoute
 ): Promise<void> {
-  const git = desktopGit()
+  const git = gitFor(owner)
 
   if (!git) {
     return

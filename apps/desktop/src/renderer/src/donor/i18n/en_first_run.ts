@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/en_first_run.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,8 @@ export const enFirstRun: FirstRunCopy = {
   skip: 'Skip setup',
   skipTip: 'End the guided setup and open a new chat.',
   skipFailed: 'Could not skip setup',
+  slashOffTitle: 'Slash commands are off during setup',
+  slashOffBody: 'They work as usual once setup is done.',
   localModel: {
     title: 'This computer can run a model locally',
     text: (model, size) => `${model} (${size}) fits your hardware. It runs free, and your chats stay on this computer.`,

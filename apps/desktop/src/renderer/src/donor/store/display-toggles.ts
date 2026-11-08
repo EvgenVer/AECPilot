@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/display-toggles.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,7 +32,7 @@
 import type { ReadableAtom } from 'nanostores'
 
 import { readKey } from '@/lib/storage'
-import { $gateway, activeGatewayProfileKey, requestGatewayForProfile } from '@/store/gateway'
+import { $gateway, activeGatewayRoute, requestGatewayForAgent } from '@/store/gateway'
 
 interface Mirror {
   configKey: string
@@ -43,11 +43,18 @@ interface Mirror {
 const mirrors: Mirror[] = []
 
 function push(mirror: Mirror): void {
-  // Routed by profile: `config.set` is `@_profile_scoped`, and on the
-  // shared-primary route an unscoped write edits the LAUNCH profile's
-  // config.yaml instead of the viewed one (#125969 class).
-  void requestGatewayForProfile(activeGatewayProfileKey(), 'config.set', {
+  // Routed by (connection, profile): `config.set` is `@_profile_scoped`, and on
+  // the shared-primary route an unscoped write edits the LAUNCH profile's
+  // config.yaml instead of the viewed one (#125969 class). A bare profile name
+  // would resolve through this machine's pool and miss a remote-only profile.
+  // Read from the registry: on a gateway switch this runs inside the $gateway
+  // notification, before the new route's profile atom is published.
+  // The profile also rides in the params: several profiles share one remote
+  // backend, and an unscoped write there edits its launch profile.
+  const { connectionId, profile } = activeGatewayRoute()
+  void requestGatewayForAgent(connectionId, profile, 'config.set', {
     key: mirror.configKey,
+    profile,
     value: mirror.read() ? 'true' : 'false'
   }).catch(() => {
     // Not connected, or a gateway too old to know the key. The next toggle

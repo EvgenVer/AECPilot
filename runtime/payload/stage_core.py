@@ -51,9 +51,10 @@ from pathlib import Path
 RUNTIME = Path(__file__).resolve().parents[1]
 CORE_SRC = RUNTIME / ".hermes-src"
 
-# Tool closure we ship. PM adds the dependencies (`uv` -> `python`,
-# `agent-browser` -> `node`, ...) itself through `walk()`.
-TOOLS = ("python", "uv", "node", "npm", "git", "ripgrep", "agent-browser", "chromium")
+# Tool closure we ship. PM adds the dependencies (`uv` -> `python`, ...) itself
+# through `walk()`. `agent-browser` left with core 0.23.0: their PM retired it in
+# favour of `chromium` (`pm/defaults.py`, `RETIRED_DEFAULTS`; task T51).
+TOOLS = ("python", "uv", "node", "npm", "git", "ripgrep", "chromium")
 EXTRAS = ("mcp", "ddgs")
 MEM0_REQUIREMENTS = RUNTIME / "mem0-plugin-requirements.txt"
 EXCLUDED_PACKAGES = ("pillow-heif",)

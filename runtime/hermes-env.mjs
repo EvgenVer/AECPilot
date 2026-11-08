@@ -11,7 +11,7 @@ export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 // 0.22.0 made Python 3.14 mandatory: every core dependency carries the marker
 // `python_version >= '3.14'` and `[tool.uv] environments` is >=3.14 — on 3.12 the
 // core installs with no dependencies at all. Owner permission 2026-10-15 (task T20.3).
-export const HERMES_VERSION = "0.22.2";
+export const HERMES_VERSION = "0.23.0";
 export const PYTHON_VERSION = "3.14.6";
 
 // The core is installed from git, not from PyPI: the author stopped publishing
@@ -44,6 +44,13 @@ export const PYTHON_VERSION = "3.14.6";
 //   7b77e29eedd85a8497ce2821448dac7964dc46f6  refs/tags/v0.22.2     (tag object)
 //   d923a5eb487a17c0a68801bba9ef0f56c81040a8  refs/tags/v0.22.2^{}  (the commit)
 //
+// 0.23.0 «The Hearth Release» (task T51, decision 0016; owner approval 2026-11-07).
+// `git ls-remote --tags` on 2026-11-07:
+//   df1774294af26285ae758c6114f3f2f60e2a602d  refs/tags/v0.23.0     (tag object)
+//   2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19  refs/tags/v0.23.0^{}  (the commit)
+// Python stays 3.14. The core now holds versions through `[tool.uv]
+// override-dependencies`, which setup.mjs passes on (`writeOverrides`).
+//
 // Previous pins:
 //   v2026.8.3  = 0.20.0, commit 3c27eb6234bf91b8ceee9e9071591b31e9b148cb
 //   v2026.8.18 = 0.20.4, commit e624e9fde561e1add9388384012b295fde669ade (task 3.B0)
@@ -53,10 +60,12 @@ export const PYTHON_VERSION = "3.14.6";
 //   v2026.9.11 = 0.21.2, commit 939e45c91d751fadd94dcd1b873ac3cb44846213 (task 3.B4)
 //   v2026.9.24 = 0.21.5, commit f97608f178d1ffeca59860195ab7da295f7c8e5f (task 3.B6),
 //                Python 3.12.13
+//   v0.22.2    = 0.22.2, commit d923a5eb487a17c0a68801bba9ef0f56c81040a8 (task T20.3),
+//                Python 3.14.6
 // --8<-- [start:core_pin]
 export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
-export const HERMES_TAG = "v0.22.2";
-export const HERMES_SHA = "d923a5eb487a17c0a68801bba9ef0f56c81040a8";
+export const HERMES_TAG = "v0.23.0";
+export const HERMES_SHA = "2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19";
 // --8<-- [end:core_pin]
 
 // Mem0 left the core in 0.22.0: `plugins/memory/mem0` and the `mem0` extra are gone,

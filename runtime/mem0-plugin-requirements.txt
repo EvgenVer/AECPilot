@@ -11,7 +11,10 @@
 #
 # One resolution, not two: `qdrant-client` caps `portalocker<4`, and a second
 # install after the core can downgrade or break what the core resolved.
-mem0ai==2.0.10
+# mem0ai 2.0.10 -> 2.0.20 (task T51, 2026-11-07): GHSA-5324-3w58-qpp2, a cross-user
+# conversation-history leak through unescaped `&`/`=` in session ids, fixed in 2.0.18;
+# the newest 2.0.x, inside the plugin range `>=2.0.10,<3`.
+mem0ai==2.0.20
 httpx>=0.27,<1
 qdrant-client==1.19.0
 sqlalchemy==2.0.52

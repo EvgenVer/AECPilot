@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/json-rpc-channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -83,6 +83,17 @@ export class JsonRpcGatewayError extends Error {
   }
 }
 
+/** Refusals `session.steer` / `session.redirect` answer before the text reaches any agent
+ *  (gateway/session_busy_controls.py::correct): the turn the client believed busy is gone or cannot
+ *  take a correction, so the words are safe to admit as the next prompt — never retried as a control. */
+const UNDELIVERED_CORRECTION_REASONS = new Set(['execution_not_ready', 'stale_generation', 'unsupported_control'])
+
+export function isUndeliveredCorrectionRefusal(error: unknown): boolean {
+  const reason = error instanceof JsonRpcGatewayError ? (error.data as { reason?: unknown } | undefined)?.reason : null
+
+  return typeof reason === 'string' && UNDELIVERED_CORRECTION_REASONS.has(reason)
+}
+
 /** JSON-RPC "method not found" (tui_gateway/server.py::dispatch `_err(rid, -32601, …)`). */
 export const JSON_RPC_METHOD_NOT_FOUND = -32601
 
@@ -144,6 +155,11 @@ export interface JsonRpcRequestChannelOptions {
   heartbeatLiveness?: HeartbeatLiveness
   /** `setTimeout`/`setInterval` handles are `unref`'d when the runtime supports it (Node) so a pending call cannot pin the process. */
   unrefTimers?: boolean
+  /**
+   * Read at each attach: this client is the Desktop app connected to a backend on its own machine.
+   * The backend offers the welcome trial and first-run onboarding only to that client.
+   */
+  desktopLocal?: () => boolean
 }
 
 export type HeartbeatLiveness = 'any-inbound' | 'response'
@@ -163,6 +179,10 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000
 export const DEFAULT_HEARTBEAT_DEADLINE_MS = 45_000
 const MAX_OUTSTANDING_PINGS = 8
+// A tick that lands this many intervals late ran behind a local stall (frozen
+// renderer, intensive throttling, OS suspend): the gap says nothing about the
+// peer, so the deadline is not judged on it alone.
+const LATE_TICK_INTERVALS = 1.5
 
 // Hoisted decoder: attach mode can drive high-frequency binary frames (tool
 // deltas, reasoning streams) and a fresh TextDecoder per message is avoidable
@@ -204,6 +224,8 @@ export class JsonRpcRequestChannel {
   private lastLivenessAt = 0
   /** The bound generation's backend counts `decline` as one client abstaining (see `ServerRequest.decline`). */
   private backendCountsDeclines = false
+  /** The bound generation's canonical owner admits `clarify_batch` on `prompt.submit` (`client.capabilities`). */
+  private backendClarifyBatch = false
   private readonly requestHandlers: ServerRequestHandler[] = []
   private readonly options: Required<
     Omit<JsonRpcRequestChannelOptions, 'onEvent' | 'onHeartbeatFailure' | 'onRequestHandlerError' | 'onUnhandledRequest'>
@@ -213,6 +235,7 @@ export class JsonRpcRequestChannel {
   constructor(options: JsonRpcRequestChannelOptions = {}) {
     this.options = {
       createRequestId: options.createRequestId ?? ((nextId: number) => `${options.requestIdPrefix ?? 'r'}${nextId}`),
+      desktopLocal: options.desktopLocal ?? (() => false),
       heartbeatDeadlineMs: options.heartbeatDeadlineMs ?? DEFAULT_HEARTBEAT_DEADLINE_MS,
       heartbeatIntervalMs: options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS,
       heartbeatLiveness: options.heartbeatLiveness ?? 'response',
@@ -230,6 +253,11 @@ export class JsonRpcRequestChannel {
     return this.options.requestTimeoutMs
   }
 
+  /** Whether the bound generation's canonical owner admits `clarify_batch` on `prompt.submit`. */
+  get clarifyBatch(): boolean {
+    return this.backendClarifyBatch
+  }
+
   get connected(): boolean {
     return this.transport !== null
   }
@@ -240,6 +268,14 @@ export class JsonRpcRequestChannel {
     this.transport = transport
     this.lastLivenessAt = Date.now()
     this.backendCountsDeclines = false
+    this.backendClarifyBatch = false
+
+    // First on the socket, before the owner's own requests: the backend reads frames in order, and its
+    // answer to the boot's first onboarding.state already depends on this. A call of its own, so a
+    // backend older than the field refuses just this one (4000) and keeps server_requests.
+    if (this.options.desktopLocal()) {
+      this.request('client.capabilities', { desktop_local: true }).catch(() => undefined)
+    }
   }
 
   /** Drop the transport and fail every in-flight call with `error`. */
@@ -521,6 +557,7 @@ export class JsonRpcRequestChannel {
       .then(result => {
         if (this.transport === transport) {
           this.backendCountsDeclines = result?.declines_not_shown === true
+          this.backendClarifyBatch = result?.canonical_clarify_batch === true
         }
       })
       .catch(() => undefined)
@@ -547,6 +584,14 @@ export class JsonRpcRequestChannel {
     // throttling), so the previous ping's pong is ~60 s old at every tick;
     // a deadline on its age alone dropped every idle hidden socket.
     let lastPingAt = 0
+    let lastTickAt = Date.now()
+    let previousTickLate = false
+    // One probe per silence episode: a one-off late tick (an on-time tick, then
+    // a stall) cannot tell local suspension from a dead peer, so it re-probes
+    // once instead of dropping a socket whose pong is still queued behind the
+    // stall. Steady throttling makes every tick late; that is not a stall, and
+    // its dead-socket detection stays two throttled ticks.
+    let graceProbeSent = false
 
     this.heartbeatTimer = setInterval(() => {
       if (this.transport !== transport) {
@@ -554,11 +599,26 @@ export class JsonRpcRequestChannel {
       }
 
       const now = Date.now()
+      const late = now - lastTickAt >= this.options.heartbeatIntervalMs * LATE_TICK_INTERVALS
+      const stalled = late && !previousTickLate
 
-      if (lastPingAt > this.lastLivenessAt && now - this.lastLivenessAt >= this.options.heartbeatDeadlineMs) {
-        this.failHeartbeat(new Error('WebSocket heartbeat acknowledgement timed out'))
+      lastTickAt = now
+      previousTickLate = late
 
-        return
+      const unanswered = lastPingAt > this.lastLivenessAt
+
+      if (!unanswered) {
+        graceProbeSent = false
+      }
+
+      if (unanswered && now - this.lastLivenessAt >= this.options.heartbeatDeadlineMs) {
+        if (!stalled || graceProbeSent) {
+          this.failHeartbeat(new Error('WebSocket heartbeat acknowledgement timed out'))
+
+          return
+        }
+
+        graceProbeSent = true
       }
 
       const id = `heartbeat-${++this.heartbeatSequence}`

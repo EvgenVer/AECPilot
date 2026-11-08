@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_notices.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { TranslationOverrides } from './define-locale'
+import { jaDesktopCommands } from './ja_desktop_commands'
+import { jaSessionCommands } from './ja_session_commands'
 
 // Shell notices (remote-display toast, butterbar, keep-awake offer), spread into ja.ts.
 export const jaNotices = {
@@ -23,10 +25,34 @@ export const jaNotices = {
       after: 'が適用されます。'
     }
   },
+  promptNotices: {
+    legacySendUnconfirmed:
+      'このサーバーはこのメッセージの前回の送信を確認できなかったため、すでに実行された可能性があります。再送信する前に会話を確認してください。',
+    restoredDraftAttachmentsDropped:
+      '未送信のメッセージの添付ファイルは復元されませんでした。送信する前にもう一度添付してください。',
+    mcpReloadDeferred:
+      'このチャットは処理中です。MCP の変更は現在のターンが終わって MCP を再読み込みしたとき、またはチャットを開き直したときに反映されます',
+    mcpReloadUnavailable: servers => `接続できませんでした: ${servers}`,
+    compactedTurnUnavailable: 'このメッセージはチャットの圧縮時に要約されたため、復元や編集はできなくなりました。',
+    staleTurnUnavailable: 'このメッセージはこのチャットの履歴にはもうありません。',
+    sessionCommands: jaSessionCommands,
+    desktopCommands: jaDesktopCommands
+  },
   keepAwakeOffer: {
     title: 'Hermes の作業中にコンピューターがスリープしました',
     message:
       'タスクの実行中は、Hermes がコンピューターのスリープを防げます。画面はいつもどおりオフになり、バッテリー駆動中はスリープすることがあります。',
     action: '実行中はスリープしない'
+  },
+  billingBlock: {
+    titleNous: 'Nous クレジットが不足しています',
+    titleProvider: provider => `クレジット不足 — ${provider}`,
+    fallbackMessage: 'アカウントのクレジットが不足しています。続行するにはクレジットを追加してください。',
+    openBilling: '請求を開く',
+    addCredits: 'クレジットを追加',
+    dismiss: '閉じる'
   }
-} satisfies Pick<TranslationOverrides, 'remoteDisplayBanner' | 'butterbar' | 'keepAwakeOffer'>
+} satisfies Pick<
+  TranslationOverrides,
+  'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'keepAwakeOffer' | 'billingBlock'
+>

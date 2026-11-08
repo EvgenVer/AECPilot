@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/overlays/overlay-split-layout.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -41,13 +41,18 @@ interface OverlayMainProps {
 interface OverlayNavItemProps {
   active: boolean
   current?: boolean
-  icon: IconComponent
+  /** Optional: filter/value rows (catalog facets) read as plain labels. */
+  icon?: IconComponent
   /** Stable identity for the row, used as its `data-tour` handle. */
   id?: string
   label: string
   // Renders as an indented child of another nav item: smaller icon and a
   // lighter active state so it never competes with the boxed parent item.
   nested?: boolean
+  /** Presentational only (e.g. `CheckboxMark`); the row stays the one control. */
+  leading?: ReactNode
+  /** Toggle rows (multi-select facets) announce their state. */
+  pressed?: boolean
   onClick: () => void
   trailing?: ReactNode
 }
@@ -118,14 +123,17 @@ export const OverlayNavItem = memo(function OverlayNavItem({
   id,
   label,
   nested,
+  leading,
+  pressed,
   onClick,
   trailing
 }: OverlayNavItemProps) {
   return (
     <button
       aria-current={current ? 'page' : undefined}
+      aria-pressed={pressed}
       className={cn(
-        'flex h-7 w-full items-center justify-start gap-2 rounded-md border px-2 text-left text-[length:var(--conversation-text-font-size)] font-normal transition-colors',
+        'row-hover flex h-7 w-full shrink-0 items-center justify-start gap-2 rounded-md border px-2 text-left text-[length:var(--conversation-text-font-size)] font-normal transition-colors',
         nested
           ? active
             ? current
@@ -144,13 +152,16 @@ export const OverlayNavItem = memo(function OverlayNavItem({
       onClick={onClick}
       type="button"
     >
-      <Icon
-        className={cn(
-          'shrink-0',
-          nested ? 'size-3.5' : 'size-4',
-          active ? 'text-foreground/80' : 'text-muted-foreground/80'
-        )}
-      />
+      {leading}
+      {Icon && (
+        <Icon
+          className={cn(
+            'shrink-0',
+            nested ? 'size-3.5' : 'size-4',
+            active ? 'text-foreground/80' : 'text-muted-foreground/80'
+          )}
+        />
+      )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {trailing}
     </button>

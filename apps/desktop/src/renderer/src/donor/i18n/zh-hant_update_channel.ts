@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,5 +21,8 @@ export const zhHantUpdateChannel = {
   latestRelease: (v: string) => `你正在使用最新的穩定版發布（${v}）。`,
   rollbackTitle: (v: string) => `回退到穩定版 ${v}`,
   rollbackBody: (v: string) => `目前的組建比穩定版 ${v} 更新。安裝後 Hermes 將回退到該版本。`,
-  rollbackAction: (v: string) => `回退到 ${v}`
+  heldBody: (v: string) =>
+    `此版本比穩定版 ${v} 更新，且你的工作階段已在使用 ${v} 無法開啟的閘道執行環境。在更新的穩定版發布前，Hermes 會維持目前版本。`,
+  rollbackAction: (v: string) => `回退到 ${v}`,
+  allChanges: '查看全部變更'
 }

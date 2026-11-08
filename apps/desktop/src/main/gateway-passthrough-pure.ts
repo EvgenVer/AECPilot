@@ -26,7 +26,23 @@ import { mainT } from './i18n'
  * Ours live in safeStorage and reach the core only through its spawn env
  * (rule R2), so this method has no legitimate caller here — and a screen that
  * "helpfully" offers it would silently create a second, weaker key store. */
-export const DENIED_RPC_METHODS: readonly string[] = ['model.save_key']
+export const DENIED_RPC_METHODS: readonly string[] = [
+  'model.save_key',
+  // Core 0.23.0 (task T52): uploads a debug bundle to Nous-internal storage — HX3.
+  'diagnostics.share_nous'
+]
+
+/** Actions of a method the renderer may never ask for (core 0.23.0, task T52).
+ *
+ * `plugins.manage` grew `update_all` and `auto_update` — one click would turn on
+ * `plugins.auto_apply` over our profile default and re-pin every plugin without
+ * our trust gate (decision 0012 item 6, HX2) — and `install_desktop` /
+ * `remove_desktop`, the desktop half of a plugin for THEIR window's loader (HX5).
+ * The rest of the method (list, toggle, inspect, install, update, remove) is the
+ * catalog our gate already covers. */
+export const DENIED_RPC_ACTIONS: Readonly<Record<string, readonly string[]>> = {
+  'plugins.manage': ['update_all', 'auto_update', 'install_desktop', 'remove_desktop']
+}
 
 /** REST routes the renderer may never reach, by method + path.
  *
@@ -34,7 +50,13 @@ export const DENIED_RPC_METHODS: readonly string[] = ['model.save_key']
  * as above, from the other end: we never write keys there, and nothing should
  * be able to read them back out through us either. */
 export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
-  { method: 'POST', path: '/api/env/reveal' }
+  { method: 'POST', path: '/api/env/reveal' },
+  // Core 0.23.0 (task T52): the same plugin self-update as `plugins.manage`
+  // above, by REST, and the switch that starts the gateway's web app (HX33).
+  { method: 'POST', path: '/api/dashboard/agent-plugins/update-all' },
+  { method: 'PUT', path: '/api/dashboard/plugins/auto-update' },
+  { method: 'POST', path: '/api/webapp-access/start' },
+  { method: 'POST', path: '/api/webapp-access/restart' }
 ]
 // --8<-- [end:denied_methods]
 
@@ -66,12 +88,43 @@ const NON_SECRET_ENV_SUFFIX = /_(URL|HOST|PORT|MODEL|REGION|ENDPOINT|PATH|DIR|TI
  * (`get_env_value_prefer_dotenv`), так что забытая там строка перебила бы наш
  * шифрованный ключ молча.
  */
+/** The route part of a REST path as the core will match it: segments
+ * percent-decoded, the query left out. Refuses what would be rewritten AFTER
+ * our check — `.`/`..` segments (also encoded), backslashes, empty segments and
+ * an encoded `/` — because the deny list and the env interception judge this
+ * form, while `new URL` and uvicorn normalise the raw one (fresh review, T52:
+ * `/api/x/%2e%2e/env/reveal` reached `env/reveal`). An encoded name inside a
+ * segment (a Cyrillic profile) stays legal. */
+export function canonicalRoute(path: string): string {
+  const raw = path.split(/[?#]/, 1)[0]
+  if (raw.includes('\\')) throw new Error(`gateway REST: backslash in "${path}"`)
+  const segments = raw.split('/').slice(1)
+  const decoded = segments.map((segment, index) => {
+    let value: string
+    try {
+      value = decodeURIComponent(segment)
+    } catch {
+      throw new Error(`gateway REST: malformed escape in "${path}"`)
+    }
+    if (
+      (value === '' && index < segments.length - 1) ||
+      value === '.' ||
+      value === '..' ||
+      /[/\\]/.test(value)
+    ) {
+      throw new Error(`gateway REST: illegal path segment (traversal) in "${path}"`)
+    }
+    return value
+  })
+  return '/' + decoded.join('/')
+}
+
 export function classifyEnvWrite(
   method: string,
   path: string,
   body: unknown
 ): { action: 'forward' } | { action: 'store' | 'clear'; envVar: string; value: string } {
-  const route = path.split(/[?#]/, 1)[0]
+  const route = canonicalRoute(path)
   if (route !== '/api/env' || (method !== 'PUT' && method !== 'DELETE')) {
     return { action: 'forward' }
   }
@@ -106,6 +159,39 @@ export function checkRpcCall(method: unknown): string {
   return method
 }
 // --8<-- [end:check_rpc_call]
+
+/** Refuses a denied ACTION of an otherwise allowed method (`DENIED_RPC_ACTIONS`). */
+/** `/plugins update` and `/plugins auto-update` reach the same unattended update
+ * through the slash worker (`hermes_cli/plugins_auto_update.py::plugins_slash_action`).
+ * The core resolves the command name itself (`resolve_command`, prefixes
+ * included), so any start of "plugins" from four letters counts. */
+function isPluginUpdateCommand(base: string, arg: string): boolean {
+  const name = base.trim().replace(/^\//, '').toLowerCase()
+  const sub = (arg.trim().split(/\s+/, 1)[0] ?? '').toLowerCase()
+  const plugins = name.length >= 4 && 'plugins'.startsWith(name)
+  return plugins && (sub === 'update' || sub.startsWith('auto'))
+}
+
+export function checkRpcAction(method: string, params: Record<string, unknown>): void {
+  const denied = DENIED_RPC_ACTIONS[method]
+  const slash =
+    method === 'slash.exec' && typeof params.command === 'string'
+      ? (() => {
+          const [base = '', ...rest] = params.command.trim().replace(/^\//, '').split(/\s+/)
+          return { base, arg: rest.join(' ') }
+        })()
+      : method === 'command.dispatch' && typeof params.name === 'string'
+        ? { base: params.name, arg: typeof params.arg === 'string' ? params.arg : '' }
+        : null
+  if (slash && isPluginUpdateCommand(slash.base, slash.arg)) {
+    throw new Error(`gateway RPC: "/plugins ${slash.arg.trim()}" is not available to the renderer`)
+  }
+  if (denied && typeof params.action === 'string' && denied.includes(params.action)) {
+    throw new Error(
+      `gateway RPC: "${method}" action "${params.action}" is not available to the renderer`
+    )
+  }
+}
 
 /** Parameters the renderer may never send, whatever the donor's code does.
  *
@@ -346,10 +432,7 @@ export function checkRestCall(method: unknown, path: unknown): { method: string;
     throw new Error(`gateway REST: unsupported method ${String(method)}`)
   }
 
-  const route = path.split(/[?#]/, 1)[0]
-  if (route.split('/').includes('..')) {
-    throw new Error(`gateway REST: illegal path traversal in "${path}"`)
-  }
+  const route = canonicalRoute(path)
   if (DENIED_REST_ROUTES.some((d) => d.method === normalized && d.path === route)) {
     throw new Error(
       `gateway REST: ${normalized} ${route} is not available to the renderer (rule R2)`

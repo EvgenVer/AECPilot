@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/data.bot-meta.test.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -428,6 +428,15 @@ describe("a bot is named by its own backend, never by another bot's cached recor
     ])
     // The local cache's stale title and color never travel: only the patch rides the server's copy.
     expect(configures.at(-1)?.ui_meta).toEqual({ 'hermes-bots': { color: '#0000ff', groups: ['room'] } })
+  })
+
+  it("reports a save its machine never answered as unreachable, not as an older gateway's fallback", async () => {
+    hostMock.requestProfile.mockRejectedValue(new Error('connection refused'))
+
+    await expect(saveBotMeta(vps, { groups: [] })).resolves.toEqual({
+      serverOutcome: 'unreachable',
+      serverPersisted: false
+    })
   })
 
   it('names, tags, and prompts the bot with what its backend reports', () => {

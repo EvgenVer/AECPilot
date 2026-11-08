@@ -454,15 +454,23 @@ export const aecLocales: PluginLocaleBundles = {
       restore: 'Restore',
       restoredFile: (path: string) => `File ${path} restored.`,
       restoredAll: 'Snapshot restored.',
+      restoredCount: (count: number) => `Snapshot restored: files put back — ${count}.`,
+      nothingRestored:
+        'Nothing to put back: every file changed since the snapshot was edited by you, and those stay as they are.',
+      keptUserEdits: (paths: string) => `Your edits are kept: ${paths}.`,
+      keptOversize: (paths: string) =>
+        `Too large to be in any snapshot, left as they are: ${paths}.`,
+      failedDeletes: (paths: string) => `Files the agent created could not be deleted: ${paths}.`,
+      morePaths: (count: number) => `and ${count} more`,
       restoreFailed: (reason: string) => `Could not restore: ${reason}`,
       noReason: 'no reason given',
       confirmLabel: 'Confirm restore',
       confirmFile: (path: string, when: string) =>
         `File ${path} will be overwritten with the state it had at ${when}. The current contents are lost.`,
       confirmAll: (when: string) =>
-        `Every file will be overwritten with the state it had at ${when}, and the last turn disappears from the session history. The current contents are lost.`,
+        `Files the agent changed after ${when} go back to the snapshot, and the last turn disappears from the session history. Files you edited yourself after the agent’s last write stay as they are.`,
       confirmNote:
-        'Files created AFTER the snapshot are not deleted by a restore — that is the core’s behaviour.'
+        'Files the agent created after the snapshot are deleted. A session with no record of the agent’s writes restores the whole folder instead, and files created after the snapshot stay.'
     },
     resumeProgress: {
       loading: 'Loading this session’s history…'
@@ -1309,15 +1317,23 @@ export const aecLocales: PluginLocaleBundles = {
       restore: 'Восстановить',
       restoredFile: (path: string) => `Файл ${path} восстановлен.`,
       restoredAll: 'Снимок восстановлен.',
+      restoredCount: (count: number) => `Снимок восстановлен: возвращено файлов — ${count}.`,
+      nothingRestored:
+        'Возвращать нечего: все файлы, изменённые после снимка, правили вы сами — они остались как есть.',
+      keptUserEdits: (paths: string) => `Ваши правки сохранены: ${paths}.`,
+      keptOversize: (paths: string) =>
+        `Слишком большие, в снимки не попадают — оставлены как есть: ${paths}.`,
+      failedDeletes: (paths: string) => `Созданные агентом файлы не удалось удалить: ${paths}.`,
+      morePaths: (count: number) => `и ещё ${count}`,
       restoreFailed: (reason: string) => `Не удалось восстановить: ${reason}`,
       noReason: 'причина не названа',
       confirmLabel: 'Подтверждение восстановления',
       confirmFile: (path: string, when: string) =>
         `Файл ${path} будет перезаписан состоянием на ${when}. Текущее содержимое пропадёт.`,
       confirmAll: (when: string) =>
-        `Все файлы будут перезаписаны состоянием на ${when}, а последний ход исчезнет из истории сессии. Текущее содержимое пропадёт.`,
+        `Файлы, которые агент менял после ${when}, вернутся к состоянию снимка, а последний ход исчезнет из истории сессии. Файлы, которые вы сами правили после последней записи агента, останутся как есть.`,
       confirmNote:
-        'Файлы, созданные ПОСЛЕ снимка, при восстановлении не удаляются — это поведение ядра.'
+        'Файлы, которые агент создал после снимка, будут удалены. Если у сессии нет журнала записей агента, восстанавливается вся папка, а созданные после снимка файлы остаются.'
     },
     resumeProgress: {
       loading: 'Загружаю историю этой сессии…'

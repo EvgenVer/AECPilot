@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/store.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -1083,11 +1083,9 @@ export const $collapsedTreeSides = modeLayout.atom<ReadonlySet<TreeSide>>(LAYOUT
 })
 const hasPersistedSides = modeLayout.has(LAYOUT_KEYS.collapsed)
 
-// Side visibility is DERIVED from an app store (the binding owns persistence
-// + button state). Reveals un-collapse the column directly instead of writing
-// back through the setter — the right side's store IS the file tree's toggle,
-// so a neighbour's reveal must not press it. Layout reset still reopens every
-// side through its setter, because there the toggles SHOULD move.
+// Side visibility persists separately from the bound pane's toggle: revealing
+// a neighbour opens the column without opening Files. Chrome changes still
+// drive the side; layout reset reopens through the setter too.
 const sideOpeners: Partial<Record<TreeSide, (open: boolean) => void>> = {}
 const sideVisibility: Partial<Record<TreeSide, () => boolean>> = {}
 
@@ -1206,7 +1204,7 @@ function restoreDismissedSidePanes(side: TreeSide) {
   }
 }
 
-/** Bind a side's visibility to an app store (mirror of bindPaneVisibility). */
+/** Restore the side quietly; only later chrome changes are reveal/hide intent. */
 export function bindTreeSideVisibility(
   side: TreeSide,
   $open: { get(): boolean; listen(fn: (open: boolean) => void): void },
@@ -1979,7 +1977,7 @@ export function restoreTreePane(paneId: string) {
   revealTreePane(paneId)
 }
 
-/** Is a pane actually ON SCREEN? In the tree, not dismissed, not chrome
+/** Is a pane actually ON SCREEN? In the tree, not dismissed, not chrome/side
  *  hidden, its zone un-minimized, and holding its stack's active slot.
  *  True for every pane class — tool panels and hide-style panes alike. */
 export function isPaneVisible(paneId: string): boolean {
@@ -1988,11 +1986,13 @@ export function isPaneVisible(paneId: string): boolean {
   }
 
   const group = paneGroup(paneId)
+  const side = treeSideOfPane(paneId)
 
-  return Boolean(group && !group.minimized && group.active === paneId)
+  return Boolean(group && !group.minimized && group.active === paneId && !(side && $collapsedTreeSides.get().has(side)))
 }
 
 const paneVisibleCache = new Map<string, ReadableAtom<boolean>>()
+const paneVisibleStores = [$layoutTree, $dismissedPanes, $hiddenTreePanes, $collapsedTreeSides]
 
 /** Reactive `isPaneVisible` for chrome that renders an on/off affordance
  *  (the statusbar's terminal button). Memoized per pane id so `useStore`
@@ -2001,7 +2001,7 @@ export function $paneVisible(paneId: string): ReadableAtom<boolean> {
   let cached = paneVisibleCache.get(paneId)
 
   if (!cached) {
-    cached = computed([$layoutTree, $dismissedPanes, $hiddenTreePanes], () => isPaneVisible(paneId))
+    cached = computed(paneVisibleStores, () => isPaneVisible(paneId))
     paneVisibleCache.set(paneId, cached)
   }
 

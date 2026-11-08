@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/starmap.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,10 @@ export const $starmapError = atom<null | string>(null)
 
 let inflight: Promise<void> | null = null
 
+// Bumped by resetStarmapGraph on a profile switch: a load still awaiting the
+// previous profile's graph must not publish it, nor clear the newer slot.
+let starmapEpoch = 0
+
 export async function loadStarmapGraph(force = false): Promise<void> {
   if (inflight) {
     return inflight
@@ -31,14 +35,26 @@ export async function loadStarmapGraph(force = false): Promise<void> {
   $starmapLoading.set(true)
   $starmapError.set(null)
 
+  const epoch = starmapEpoch
+
   inflight = (async () => {
     try {
-      $starmapGraph.set(await getStarmapGraph())
+      const graph = await getStarmapGraph()
+
+      if (epoch === starmapEpoch) {
+        $starmapGraph.set(graph)
+      }
     } catch (err) {
-      $starmapError.set(err instanceof Error ? err.message : String(err))
+      if (epoch === starmapEpoch) {
+        $starmapError.set(err instanceof Error ? err.message : String(err))
+      }
     } finally {
-      $starmapLoading.set(false)
-      inflight = null
+      // Same epoch means this is still the only flight; a stranded one leaves
+      // the newer load's spinner and slot alone.
+      if (epoch === starmapEpoch) {
+        $starmapLoading.set(false)
+        inflight = null
+      }
     }
   })()
 
@@ -64,9 +80,35 @@ export function evictStarmapNode(id: string): () => void {
   return () => $starmapGraph.set(prev)
 }
 
-/** Drop the cache so the next open refetches against the now-active profile. */
+/** Drop the cache (and strand any in-flight load) so the next load scans the new scope. Does not
+ *  reload: a gateway switch resets before the new connection is active; callers reload an open
+ *  view once the new request scope is published (reloadOpenStarmapGraph). */
 export function resetStarmapGraph(): void {
+  starmapEpoch += 1
   inflight = null
   $starmapGraph.set(null)
   $starmapError.set(null)
+  // The stranded load no longer owns the spinner; a fresh load re-raises it.
+  $starmapLoading.set(false)
+}
+
+let openStarmapViews = 0
+
+/** Reload a mounted Star Map view after a reset, once requests route to the new scope. A view
+ *  loads on mount only, so nothing else would refetch it. */
+export function reloadOpenStarmapGraph(): void {
+  if (openStarmapViews > 0) {
+    void loadStarmapGraph()
+  }
+}
+
+/** Load the graph for a mounted Star Map view and keep it loaded across profile/gateway resets
+ *  while the view stays open. Returns the unmount cleanup. */
+export function watchStarmapGraph(): () => void {
+  openStarmapViews += 1
+  void loadStarmapGraph()
+
+  return () => {
+    openStarmapViews -= 1
+  }
 }

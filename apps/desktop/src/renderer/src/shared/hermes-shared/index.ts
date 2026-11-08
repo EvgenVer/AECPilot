@@ -52,6 +52,7 @@ export {
   DEFAULT_HEARTBEAT_DEADLINE_MS,
   DEFAULT_HEARTBEAT_INTERVAL_MS,
   type GatewayRequestId,
+  isUndeliveredCorrectionRefusal,
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_METHOD_NOT_FOUND,
   jsonRpcErrorFromFrame,
@@ -111,6 +112,7 @@ export {
   type UpdateDebtStep
 } from '../../donor/hermes-shared/update-debt'
 export {
+  BROWSER_NATIVE_DIAL,
   buildHermesWebSocketUrl,
   type GatewayAuthMode,
   GatewayReauthRequiredError,
@@ -118,6 +120,7 @@ export {
   type GatewayWsUrlResult,
   type HermesWebSocketUrlOptions,
   isGatewayReauthRequired,
+  normalizeBasePath,
   resolveGatewayWsUrl,
   type ResolveGatewayWsUrlDeps,
   type WebSocketAuthParam
@@ -193,3 +196,47 @@ export function isGatewayWebSocketUrl(value: unknown): value is string {
     return false
   }
 }
+
+// Kind 1, pin 0.23.0 (task T52): pure modules their 0.23 renderer reaches for —
+// the capability catalog's browse/featured/install helpers, file URLs, the
+// Hermes Cloud host check, the plan-usage gauges, the usage tick and the
+// request-id helper. Re-exported with the same members as their index.
+export {
+  groupCatalogPlugins,
+  PLUGIN_CATEGORIES,
+  PLUGIN_CATEGORY_ORDER,
+  sortCatalogPlugins
+} from '../../donor/hermes-shared/catalog-browse'
+export {
+  type FeaturedCandidate,
+  featuredPicks,
+  isOfficialSkillSource,
+  OFFICIAL_SKILL_SOURCES,
+  pickFeatured
+} from '../../donor/hermes-shared/catalog-featured'
+export {
+  pluginCatalogInstallUrl,
+  skillCatalogInstallIdentifier,
+  skillCatalogInstallUrl
+} from '../../donor/hermes-shared/catalog-install'
+export { fileUrlToNativePath } from '../../donor/hermes-shared/file-url'
+export { HERMES_CLOUD_MANAGED, isHermesCloudUrl } from '../../donor/hermes-shared/hermes-cloud'
+export {
+  gaugeScope,
+  gaugeTitle,
+  hasTopTier,
+  PAYMENT_PAUSE_REASON,
+  planBlocks,
+  planLimit,
+  sectionAt,
+  splitRecommended,
+  type UsageLevel,
+  usageLevel,
+  usageTag
+} from '../../donor/hermes-shared/plan-usage'
+export { randomUuid } from '../../donor/hermes-shared/session-http-mutations'
+export {
+  mergeUsage,
+  type UsageTickPayload,
+  usageFromTick
+} from '../../donor/hermes-shared/usage-tick'

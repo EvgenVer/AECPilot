@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/workspace-header.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import { openWorktreeDialog } from '@/store/coding-status'
 import { copyPath, revealPath } from '@/store/projects'
 
 import {
+  SIDEBAR_FOCUS_VISIBLE,
   SIDEBAR_LEAD_ICON_SIZE,
   SidebarRowBody,
   SidebarRowLabel,
@@ -25,6 +26,9 @@ import {
   SidebarRowLeadGlyph,
   SidebarRowShell
 } from '../chrome'
+
+import { projectOwnerRoute } from './gateway-project-rows'
+import type { SidebarProjectTree } from './workspace-groups'
 
 // Branch/worktree labels routinely share a long prefix (`bb/coding-context-…`),
 // so plain end-truncation (`truncate`) hides exactly the suffix that tells two
@@ -63,7 +67,10 @@ export function WorkspaceAddButton({
     <Tip label={label}>
       <button
         aria-label={label}
-        className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100"
+        className={cn(
+          'grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100 focus-visible:opacity-100',
+          SIDEBAR_FOCUS_VISIBLE
+        )}
         onClick={onClick}
         onPointerDown={onPointerDown}
         type="button"
@@ -185,7 +192,10 @@ export function WorkspaceMenu({ path, onRemove }: { path: null | string; onRemov
     <ActionsMenu ariaLabel={p.menu} contentClassName="w-48" items={items}>
       <button
         aria-label={p.menu}
-        className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100 data-[state=open]:opacity-100"
+        className={cn(
+          'grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/workspace:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100',
+          SIDEBAR_FOCUS_VISIBLE
+        )}
         onClick={event => event.stopPropagation()}
         type="button"
       >
@@ -222,7 +232,11 @@ export function WorkspaceContextMenu({
 // inside it. Naming is explicit — no auto-generated `hermes/work-<ts>` trees.
 // The base branch defaults to the remote default (origin/HEAD); the user can
 // pick any local or remote-tracking branch via a filterable combobox.
-export function StartWorkButton({ repoPath }: { repoPath: string }) {
+export function StartWorkButton({
+  project
+}: {
+  project: Pick<SidebarProjectTree, 'connectionId' | 'path' | 'profile'>
+}) {
   const { t } = useI18n()
   const p = t.sidebar.projects
 
@@ -230,10 +244,14 @@ export function StartWorkButton({ repoPath }: { repoPath: string }) {
     <Tip label={p.startWork}>
       <button
         aria-label={p.startWork}
-        className="grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/section:opacity-100 focus-visible:opacity-100"
+        className={cn(
+          'grid size-4 shrink-0 place-items-center rounded-sm bg-transparent text-(--ui-text-quaternary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground group-hover/section:opacity-100 focus-visible:opacity-100',
+          SIDEBAR_FOCUS_VISIBLE
+        )}
         // Publish the intent. The one WorktreeDialog in the sidebar renders it.
         // This button pins its own repo, so it targets this section.
-        onClick={() => void openWorktreeDialog({ repoPath })}
+        // Another gateway's project: the worktree is cut on that machine.
+        onClick={() => void openWorktreeDialog({ owner: projectOwnerRoute(project), repoPath: project.path ?? '' })}
         type="button"
       >
         <Codicon name="git-branch" size="0.75rem" />
@@ -274,8 +292,10 @@ export function WorkspaceHeader({
       {...rest}
     >
       <button
+        aria-expanded={open}
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 bg-transparent text-left',
+          'flex min-w-0 flex-1 items-center gap-1.5 rounded-sm bg-transparent text-left',
+          SIDEBAR_FOCUS_VISIBLE,
           emphasis ? 'hover:text-foreground' : 'hover:text-(--ui-text-secondary)'
         )}
         onClick={onToggle}
@@ -284,7 +304,7 @@ export function WorkspaceHeader({
         <SidebarRowLead>{icon}</SidebarRowLead>
         <LaneLabel label={label} title={title ? `${label}\n${title}` : label} />
         <DisclosureCaret
-          className="shrink-0 text-(--ui-text-tertiary) opacity-0 transition group-hover/workspace:opacity-100"
+          className="shrink-0 text-(--ui-text-tertiary) opacity-0 transition group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100"
           open={open}
         />
       </button>

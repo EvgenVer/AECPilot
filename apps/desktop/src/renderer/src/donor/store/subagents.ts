@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/subagents.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -343,8 +343,8 @@ export function clearSessionSubagents(sid: string) {
  * from the display while background subagents that outlived the spawning turn
  * remain visible (and still accept late progress/complete events).
  *
- * Distinct from `clearSessionSubagents` (used by the Stop action, which
- * genuinely cancels running subagents and so should drop them all) and from
+ * Also what the Stop action uses: Stop ends the turn, not the background
+ * subagents it spawned. Distinct from `clearSessionSubagents` (drops every row) and from
  * `pruneDelegateFallbackSubagents` (which filters by id prefix to remove
  * placeholder rows once the real native event arrives).
  */

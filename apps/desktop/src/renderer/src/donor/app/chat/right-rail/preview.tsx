@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,7 +46,8 @@ export function PreviewTilePane({ onClose, tabId }: PreviewTilePaneProps) {
     }
   }, [previewTabs, tabId])
 
-  const target = previewTabs.find(tab => tab.id === tabId)?.target
+  const tab = previewTabs.find(candidate => candidate.id === tabId)
+  const target = tab?.target
 
   // The tab closed while this pane was still mounted (the mirror disposes it a
   // tick later).
@@ -60,6 +61,7 @@ export function PreviewTilePane({ onClose, tabId }: PreviewTilePaneProps) {
       onClose={onClose}
       onRestartServer={target.kind === 'url' ? (restartPreviewServer ?? undefined) : undefined}
       reloadRequest={previewReloadRequest}
+      sessionId={tab?.sessionId}
       tabId={tabId}
       target={target}
     />

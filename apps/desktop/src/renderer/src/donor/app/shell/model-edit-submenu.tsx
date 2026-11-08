@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/model-edit-submenu.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,6 +32,12 @@ export type FastControl =
   | { kind: 'none' }
   | { kind: 'param'; on: boolean; canEnable?: boolean }
   | { kind: 'variant'; baseId: string; fastId: string; on: boolean }
+
+/** OpenAI Daybreak: one profile-wide switch the owning surface writes (`agent.daybreak`). */
+export interface DaybreakControl {
+  on: boolean
+  set: (on: boolean) => void
+}
 
 /** Resolve the fast mechanism for a model: prefer the speed=fast parameter
  *  when the backend supports it, else fall back to a `…-fast` sibling model. */
@@ -74,6 +80,8 @@ interface ModelEditSubmenuProps {
    *  routes, whose upstream rejects a disable — the toggle is hidden rather
    *  than offered as a control that silently does nothing. */
   canDisableReasoning?: boolean
+  /** Present only on models this account's Codex catalog lists for Daybreak. */
+  daybreak?: DaybreakControl
   /** The profile's configured default effort — what an unset row inherits.
    *  Passed in (not read from a store) so this submenu stays pure. */
   defaultEffort: string
@@ -121,6 +129,7 @@ export function ModelEditSubmenu(props: ModelEditSubmenuProps) {
  *  per-row submenu, the composer's reasoning pill in its own top-level menu. */
 export function ModelOptionsContent({
   canDisableReasoning,
+  daybreak,
   defaultEffort,
   effort,
   effortWire,
@@ -164,7 +173,7 @@ export function ModelOptionsContent({
   const ultrafastOn = serviceTier === 'ultrafast'
   const fastOn = fastControl.kind === 'none' ? false : fastControl.on && !ultrafastOn
 
-  return !hasFast && !ultrafastSupported && !reasoning ? (
+  return !hasFast && !ultrafastSupported && !daybreak && !reasoning ? (
     <div className="px-2.5 py-3 text-xs text-(--ui-text-tertiary)">{copy.noOptions}</div>
   ) : (
     <>
@@ -204,6 +213,18 @@ export function ModelOptionsContent({
             checked={ultrafastOn}
             className="ml-auto"
             onCheckedChange={checked => onSetOptions({ serviceTier: checked ? 'ultrafast' : 'normal' })}
+            size="xs"
+          />
+        </DropdownMenuItem>
+      ) : null}
+      {daybreak ? (
+        <DropdownMenuItem className={dropdownMenuRow} onSelect={event => event.preventDefault()}>
+          {copy.daybreak}
+          <Switch
+            aria-label={copy.daybreak}
+            checked={daybreak.on}
+            className="ml-auto"
+            onCheckedChange={daybreak.set}
             size="xs"
           />
         </DropdownMenuItem>

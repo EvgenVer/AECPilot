@@ -72,7 +72,16 @@ const DEAD_SURFACE_FILES = new Set([
   // Окно проверки их бесплатного тарифа (SPEC HX3) — файл ИХ главного
   // процесса, в зоне ради типов `global.d.ts`; наш главный процесс его не
   // открывает, и заголовок окна никто не увидит.
-  join('hermes-electron', 'challenge-window.ts')
+  join('hermes-electron', 'challenge-window.ts'),
+  // 0.23.0 (T52): их веб-приложение (SPEC HX33, не берём): вход браузера по
+  // билету, браузерные уведомления, транспорт к шлюзу из вкладки, отказ
+  // `/browser` во вкладке. Работают только на хосте `browser`
+  // (`lib/host-capabilities.ts`), а наш хост — `native`; `webapp.enabled`
+  // ядро держит выключенным (`agent-defaults-pure.ts`).
+  join('lib', 'browser-launch-session.ts'),
+  join('lib', 'browser-notifications.ts'),
+  join('lib', 'browser-transport.ts'),
+  join('app', 'session', 'hooks', 'use-prompt-actions', 'browser-manage-refusal.ts')
 ])
 
 /** Их каталоги, разрезанные по разделам (0.22.2, T20.7): `ar_boot.ts`,
@@ -177,7 +186,19 @@ const TECHNICAL = new RegExp(
     "^'hermes-root'$", // имя корня в их типах моста
     '^`hermes`$', // имя исполняемого файла ядра в их типах
     'hermes_not_connected', // код ошибки, а не текст
-    'hermes_connection_op' // имя операции в их журнале подключений
+    'hermes_connection_op', // имя операции в их журнале подключений
+    // Пополнение при подъёме донора на 0.23.0 (задача T52) — все технические:
+    'hermes-gateway-v1', // имя подпротокола WebSocket их шлюза (и в контракте ядра)
+    'hermes-gateway-ticket\\.', // префикс билета в подпротоколе
+    'hermes-cloud-host', // путь их модуля (`@/lib/hermes-cloud-host`)
+    'hermes-preview-document', // тип сообщения рамки предпросмотра
+    'hermes-guest-loaded', // тип сообщения гостевой рамки
+    'hermes-voice-level', // имя их AudioWorklet
+    'open_hermes_folder', // код действия на карточке ошибки
+    'historyHermes', // ключ каталога, а не текст
+    'hermesHandleTaken', // код ошибки роестра
+    'hermes gateway ensure', // команда их CLI в тексте ошибки, как `hermes update`
+    'requiresHermes' // имя поля записи каталога внутри шаблона
   ].join('|')
 )
 

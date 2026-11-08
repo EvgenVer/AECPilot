@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/with-timeout.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,9 +26,12 @@ export const BACKEND_BOOT_WAIT_TIMEOUT_MS = 180_000
 // caller forever. Every caller of these bounds them with this shared budget.
 export const RECONNECT_ATTEMPT_TIMEOUT_MS = 20_000
 
-/** Budget for the phase-1 dial of a source switch (store/connections
- * selectConnection). Unlike the two above this await is not one IPC: it is the
- * main process's whole remote bring-up chain — one ssh connect
+/** Budget for each bounded step of a source switch (store/connections
+ * selectConnection): the phase-1 open of the target, the OAuth REST probe and
+ * the activation (ensureGatewayAgent) each get this whole budget, as does a
+ * registry secondary's getConnectionFor in store/gateway. It is sized for the
+ * worst of them, the cold dial. Unlike the two above, the cold dial is not one IPC:
+ * it is the main process's whole remote bring-up chain — one ssh connect
  * (DEFAULT_CONNECT_TIMEOUT_MS 15 s in electron/ssh-connection.ts), the
  * sequential ssh execs that probe platform, locate the runtime and read its
  * version (DEFAULT_EXEC_TIMEOUT_MS 20 s each), the spawned backend's ready

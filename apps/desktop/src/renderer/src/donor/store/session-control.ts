@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-control.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { JsonRpcGatewayError } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { $gateway } from './gateway'
@@ -666,13 +667,30 @@ function beginAction(sessionId: string, action: SessionControlAction): number {
   return token
 }
 
+interface GatewayRefusalData {
+  detail?: string
+}
+
+// A gateway refusal carries its reason code as the message and the human reason as data.detail.
+function refusalDetail(error: Error): string {
+  if (!(error instanceof JsonRpcGatewayError)) {
+    return ''
+  }
+
+  // SAFETY: `error.data` is the gateway's own refusal data (gateway/session_controls.py::_refusal_data); an absent detail reads as empty.
+  const data = (error.data ?? {}) as GatewayRefusalData
+
+  return data.detail ?? ''
+}
+
 function boundedError(error: unknown): string {
   const message =
-    error instanceof Error
+    (error instanceof Error ? refusalDetail(error) : '') ||
+    (error instanceof Error
       ? error.message
       : isRecord(error) && typeof error.message === 'string'
         ? error.message
-        : 'Session control request failed'
+        : 'Session control request failed')
 
   return message.trim().slice(0, ERROR_LIMIT) || 'Session control request failed'
 }
@@ -865,7 +883,9 @@ export async function runSessionControlAction(
       publishFailure(sessionId, token, error, true)
     }
 
-    throw error
+    const detail = error instanceof Error ? refusalDetail(error) : ''
+
+    throw detail ? new Error(detail, { cause: error }) : error
   }
 }
 

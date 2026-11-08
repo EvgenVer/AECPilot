@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/user-sections.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -394,8 +394,9 @@ export function groupRowsBySection<TRow extends { bot?: RosterRow } | RosterRow>
   for (const row of rows || []) {
     const group = (row as { kind?: string; name?: string })?.kind === 'group' ? row : null
 
+    // A gateway room is not a Desktop room record: a same-name one must not seat it.
     const id = group
-      ? groupChatSectionId(String((group as { name?: string }).name || ''), groupRooms)
+      ? (group as { gateway?: unknown }).gateway ? null : groupChatSectionId(String((group as { name?: string }).name || ''), groupRooms)
       : botSectionId(((row as { bot?: RosterRow })?.bot || row) as RosterRow, metaByName)
 
     if (id && known.has(id)) {

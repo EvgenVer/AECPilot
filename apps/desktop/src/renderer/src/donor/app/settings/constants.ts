@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/constants.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -723,7 +723,16 @@ export const SECTIONS: DesktopConfigSection[] = [
     id: 'model',
     label: 'Model',
     icon: Box,
-    keys: ['model_context_length', 'fallback_providers']
+    keys: [
+      'model_context_length',
+      'fallback_providers',
+      'delegation.model',
+      'delegation.provider',
+      'delegation.max_iterations',
+      'delegation.max_concurrent_children',
+      'delegation.child_timeout_seconds',
+      'delegation.reasoning_effort'
+    ]
   },
   {
     id: 'chat',
@@ -814,12 +823,6 @@ export const SECTIONS: DesktopConfigSection[] = [
       'agent.api_max_retries',
       'agent.service_tier',
       'agent.tool_use_enforcement',
-      'delegation.model',
-      'delegation.provider',
-      'delegation.max_iterations',
-      'delegation.max_concurrent_children',
-      'delegation.child_timeout_seconds',
-      'delegation.reasoning_effort',
       'updates.non_interactive_local_changes'
     ]
   }

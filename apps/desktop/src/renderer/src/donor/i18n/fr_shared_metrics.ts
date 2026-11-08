@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/fr_shared_metrics.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,22 +23,18 @@ export const frSharedMetrics = {
   collectedMachine:
     'Machine : système d’exploitation, plage de RAM, type de GPU, version de Hermes, utilisation de modèles locaux',
   sending:
-    'Les statistiques restent sur cet ordinateur sauf si vous choisissez Partager. Les statistiques partagées sont envoyées à Nous une fois par jour avec un identifiant aléatoire propre à ce profil. Hormis une note unique indiquant que Hermes a été installé, comptée seulement après votre accord, les statistiques d’avant votre accord ne sont jamais envoyées. Modifiez ce choix à tout moment dans les Paramètres.',
+    'Si vous partagez, Hermes envoie les statistiques à Nous une fois par jour avec un identifiant aléatoire propre à ce profil. Hormis une note unique indiquant que Hermes a été installé, les statistiques d’avant votre accord ne sont jamais envoyées. Modifiez ce choix à tout moment dans les Paramètres.',
   readDocs: 'Lire tous les détails',
   share: 'Partager avec Nous',
-  local: 'Garder sur cet ordinateur',
   off: 'Non merci',
   saveFailed: 'Impossible d’enregistrer votre choix',
-  collectLabel: 'Collecter les statistiques d’utilisation',
-  collectDesc:
-    'Uniquement des comptages, conservés sur cet ordinateur. Jamais vos messages, fichiers, chemins ni textes d’erreur.',
   sendLabel: 'Partager les statistiques d’utilisation avec Nous',
   sendDesc:
-    'Envoie les statistiques à Nous une fois par jour avec un identifiant aléatoire pour ce profil. Hormis la note unique d’installation, les statistiques d’avant votre accord ne sont jamais envoyées. Nécessite la collecte activée.',
+    'Uniquement des comptages, envoyés une fois par jour avec un identifiant aléatoire pour ce profil. Jamais vos messages, fichiers, chemins ni textes d’erreur.',
   unavailable: 'Mettez à jour le backend Hermes pour modifier ce réglage.',
   stripBody: 'Uniquement des comptages. Jamais vos messages ni vos fichiers.',
   stripReaskBody:
     'Nouvelle demande : une version précédente pouvait enregistrer « Non merci » avant que vous ne voyiez cette question.',
-  stripChoices: { share: 'Partager avec Nous', local: 'Garder sur cet ordinateur', off: 'Non merci' },
+  stripChoices: { share: 'Partager avec Nous', off: 'Non merci' },
   stripDetails: 'Détails'
 }

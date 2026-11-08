@@ -1,0 +1,34 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/app/gateway/hooks/primary-reauth-notice.ts
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits: none
+ */
+import { translateNow } from '@/i18n'
+import { WEBAPP_LAUNCH_REQUIRED } from '@/lib/browser-launch-session'
+import { failDesktopBoot } from '@/store/boot'
+import { isActivePrimary } from '@/store/gateway'
+import { notify, RECOVERY_ACTIONS } from '@/store/notifications'
+
+/**
+ * Plain "signed out" copy for a reconnect that needs a new sign-in; the raw ticket/HTTP text stays
+ * under Details. In the foreground the boot overlay carries the sign-in flow, so the button hands
+ * off to it (desktop-14), and a Webapp tab's sign-in view already says how to sign back in. A parked
+ * background primary no longer retries by itself, so it must still offer a way to Settings.
+ */
+export function notifyPrimaryReauth(detail: string, currentError: () => string): void {
+  const foreground = isActivePrimary()
+
+  if (foreground && detail === WEBAPP_LAUNCH_REQUIRED) {return}
+
+  notify({
+    kind: 'error',
+    title: translateNow('boot.errors.gatewaySignInRequired'),
+    message: translateNow('boot.errors.gatewaySignInRequiredDetail'),
+    detail,
+    action: foreground
+      ? { label: translateNow('boot.errors.signInAgain'), onClick: () => failDesktopBoot(currentError()) }
+      : RECOVERY_ACTIONS.openGateways()
+  })
+}

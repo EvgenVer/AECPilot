@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-bot-handoff.test.ts
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -99,7 +99,7 @@ function registerGroup(room: Room, group: string, timeline: string[]) {
     [group]: { log: [], sessions: {}, watermarks: {} }
   } as unknown as Record<string, GroupChat>)
   host.openWorkspace = (id: string) => () => timeline.push(`close:${id}`)
-  room.view.openGroupChat(group)
+  room.view.openGroupChat(group, 'name')
 }
 
 beforeEach(() => {
@@ -183,7 +183,7 @@ describe('a failed open must not steal the center', () => {
       Core: { log: [], roomId: 'r-core', sessions: {}, watermarks: {} }
     } as unknown as Record<string, GroupChat>)
     host.openWorkspace = () => () => undefined
-    room.view.openGroupChat('Core')
+    room.view.openGroupChat('Core', 'name')
     openBotCanonicalChat.mockImplementation(async () => {
       const rooms = room.chat.$groupChats.get()
       room.chat.$groupChats.set({ Renamed: rooms.Core } as unknown as Record<string, GroupChat>)

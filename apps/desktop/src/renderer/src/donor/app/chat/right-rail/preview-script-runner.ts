@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-script-runner.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,11 @@ import type { PreviewOwner } from '@/store/preview-ownership'
 import { activePreviewTabFor } from './preview-active-tab'
 
 /** Runs JS source in the pane's guest page, resolving its completion value. */
-export type PreviewScriptRunner = (code: string) => Promise<unknown>
+export interface PreviewScriptRunner {
+  (code: string, signal?: AbortSignal): Promise<unknown>
+  /** Keep the same guest awake between a driven action's script/input trips. */
+  withActivity?: <T>(operation: () => Promise<T>, signal?: AbortSignal) => Promise<T>
+}
 
 const runners = new Map<string, PreviewScriptRunner>()
 

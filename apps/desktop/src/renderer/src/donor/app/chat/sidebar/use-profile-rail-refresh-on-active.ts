@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/use-profile-rail-refresh-on-active.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,9 +21,15 @@ import { refreshActiveProfile } from '@/store/profile'
  * used elsewhere in the sidebar (see refreshProjects/refreshProjectTree).
  * Extracted into its own hook (rather than left inline in ProfileRail) so the
  * focus/visibility wiring is unit-testable without rendering the whole rail.
+ * `enabled` false skips it, for a picker that only stands in for the rail on
+ * some hosts.
  */
-export function useProfileRailRefreshOnActive(): void {
+export function useProfileRailRefreshOnActive(enabled = true): void {
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     void refreshActiveProfile()
 
     const onActive = () => {
@@ -41,5 +47,5 @@ export function useProfileRailRefreshOnActive(): void {
       window.removeEventListener('focus', onActive)
       document.removeEventListener('visibilitychange', onActive)
     }
-  }, [])
+  }, [enabled])
 }

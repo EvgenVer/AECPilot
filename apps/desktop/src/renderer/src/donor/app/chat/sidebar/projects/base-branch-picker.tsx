@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/base-branch-picker.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { HermesGitBaseBranch } from '@/global'
 import { useI18n } from '@/i18n'
+import type { GitOwnerRoute } from '@/lib/desktop-git'
 import { $repoStatus } from '@/store/coding-status'
 import { listBaseBranches } from '@/store/projects'
 
@@ -32,11 +33,14 @@ import { listBaseBranches } from '@/store/projects'
 // selected value via `value` / `onValueChange`.
 export function BaseBranchPicker({
   disabled,
+  owner,
   repoPath,
   onValueChange,
   value
 }: {
   disabled?: boolean
+  /** The gateway owning `repoPath` when it is another gateway's project. */
+  owner?: GitOwnerRoute
   repoPath: string
   onValueChange: (value: string) => void
   value: string
@@ -68,7 +72,7 @@ export function BaseBranchPicker({
     }
 
     setLoading(true)
-    listBaseBranches(repoPath)
+    listBaseBranches(repoPath, owner)
       .then(list => {
         if (active) {
           setBranches(list)
@@ -88,7 +92,7 @@ export function BaseBranchPicker({
     return () => {
       active = false
     }
-  }, [repoPath])
+  }, [owner, repoPath])
 
   // Default to the remote default (origin/HEAD). Fall back to the local
   // default branch (main/master) when no remote exists. Only an EMPTY value

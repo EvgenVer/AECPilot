@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_projects.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,6 +40,7 @@ export const esProjects: NonNullable<TranslationOverrides['sidebar']>['projects'
   movedTo: name => `Movido a ${name}`,
   moveFailed: 'No se pudo mover la sesión',
   moveNoFolder: 'Ese proyecto no tiene carpeta a la que mover',
+  moveBusy: 'Detén el turno en curso y luego mueve el chat',
   moveNoProjects: 'No hay otros proyectos',
   reveal: 'Revelar en carpeta',
   copyPath: 'Copiar ruta',

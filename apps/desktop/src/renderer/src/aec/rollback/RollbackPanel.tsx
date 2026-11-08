@@ -19,6 +19,7 @@ import type { RollbackCheckpoint, RollbackDiffResult } from '../../../../shared/
 
 import {
   DIFF_CHANGE_KEY,
+  describeRestore,
   describeRollback,
   explainScope,
   formatCheckpointTime,
@@ -87,13 +88,9 @@ export function RollbackPanel() {
         })
         // Their handler passes the manager's own verdict through, so a refusal
         // arrives as a successful call with `success: false`.
-        setOutcome(
-          result.success
-            ? target.filePath
-              ? t('rollback.restoredFile', target.filePath)
-              : t('rollback.restoredAll')
-            : t('rollback.restoreFailed', result.error ?? t('rollback.noReason'))
-        )
+        // A careful full restore (core 0.23.0+) can succeed and put nothing
+        // back; `describeRestore` reads the file lists, not just `success`.
+        setOutcome(describeRestore(result, target.filePath, t))
         if (result.success) await queryClient.invalidateQueries({ queryKey: CHECKPOINTS_KEY })
       } catch (err) {
         setOutcome(t('rollback.restoreFailed', err instanceof Error ? err.message : String(err)))

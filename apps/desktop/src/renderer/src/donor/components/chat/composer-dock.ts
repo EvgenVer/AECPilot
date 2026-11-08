@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/composer-dock.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,6 +24,11 @@ export const composerInputBacking = cn(
   'pointer-events-none absolute inset-0 -z-10 rounded-[inherit]',
   composerInputSurface
 )
+
+/** The composer surface's hairline ring. Plugin composers (Bot Mode rooms) wear it too,
+ *  so every input surface in the app reads as the same composer. */
+export const composerSurfaceRing =
+  'border border-[color-mix(in_srgb,var(--dt-composer-ring)_calc(18%*var(--composer-ring-strength)),var(--dt-input))]'
 
 /** Backdrop treatment for non-input composer chrome. Harmless when the fill
  *  goes opaque (drawer open) — nothing shows through to blur. */

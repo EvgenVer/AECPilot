@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/index.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the billing section (HX2)
@@ -9,6 +9,8 @@
  *   [3] registered our «Индекс и память», «Индекс» and «Память агента» entries —
  *       the first opens our provider dialog (owner decision 2026-10-07, D-180),
  *       the other two lead to our pages (SPEC UR43, task 3H.10)
+ *   [3] removed the Web Access entry and view — SPEC HX33 (owner decision
+ *       2026-11-07)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -85,6 +87,7 @@ import { SessionsSettings } from './sessions-settings'
 import { SettingsSubpageHeader } from './subpage-navigation'
 import { resolveSettingsSubpage, settingsSubpageIcon, settingsSubpages } from './subpages'
 import type { SettingsPageProps, SettingsView as SettingsViewId } from './types'
+// EDIT [3]: the Credential Vault (HX24) and Web Access (HX33) views are not registered.
 
 const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   ...SECTIONS.map(s => `config:${s.id}` as SettingsViewId),
@@ -354,6 +357,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.gateway,
             onSelect: () => setActiveView('gateway')
           },
+          // EDIT [3]: their Web Access entry (serving the Webapp from this machine) is HX33.
           {
             active: activeView === 'keybinds',
             icon: Keyboard,

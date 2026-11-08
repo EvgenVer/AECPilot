@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,5 +23,8 @@ export const jaUpdateChannel = {
   rollbackTitle: (v: string) => `安定版リリース ${v} に戻す`,
   rollbackBody: (v: string) =>
     `このビルドは安定版リリース ${v} より新しいです。インストールすると Hermes はそのリリースに戻ります。`,
-  rollbackAction: (v: string) => `${v} に戻す`
+  heldBody: (v: string) =>
+    `このビルドは安定版 ${v} より新しく、セッションはすでに ${v} では開けないゲートウェイ ランタイムを使っています。新しい安定版が出るまで、Hermes はこのビルドのままです。`,
+  rollbackAction: (v: string) => `${v} に戻す`,
+  allChanges: 'すべての変更を見る'
 }

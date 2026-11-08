@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/wake-client-capture.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,8 @@
  * mono int16 frames, and pushes them via `wake.feed` so openWakeWord still
  * runs server-side without requiring a server sound device.
  */
+
+import { bytesToBase64 } from './base64'
 
 const TARGET_RATE = 16_000
 const DEFAULT_FRAME = 1280 // 80 ms @ 16 kHz — matches tools/wake_word.py
@@ -94,18 +96,6 @@ function floatToInt16LE(input: Float32Array): ArrayBuffer {
   }
 
   return buf
-}
-
-function bytesToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let binary = ''
-  const chunk = 0x8000
-
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  }
-
-  return btoa(binary)
 }
 
 /**

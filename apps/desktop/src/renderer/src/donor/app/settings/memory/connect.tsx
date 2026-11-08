@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/memory/connect.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { getMemoryProviderOAuthStatus, startMemoryProviderOAuth } from '@/hermes'
 import { Check, ExternalLink, Loader2 } from '@/lib/icons'
+import { refreshMemoryStatus } from '@/store/memory-status'
 import { notifyError } from '@/store/notifications'
 import type { MemoryProviderOAuthStatus } from '@/types/hermes'
 
@@ -114,6 +115,7 @@ export function MemoryConnect({ profile, provider }: { profile?: string; provide
             setDetail(next.detail || 'Connection failed.')
           } else {
             setPhase('idle')
+            refreshMemoryStatus()
           }
         } catch {
           // Transient poll failure — keep trying until the deadline.

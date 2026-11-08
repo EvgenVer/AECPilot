@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/cloud-team-change.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,6 +28,14 @@ export async function reconnectMovedCloudAgent(
   org: string,
   isCurrent: () => boolean
 ): Promise<boolean> {
+  const connections = desktop.connections
+
+  // Browser-hosted Desktop has no native registry. Do not log it out while
+  // attempting a reconnect whose new ownership cannot be saved.
+  if (!connections) {
+    return false
+  }
+
   const { url } = connection
   await desktop.oauthLogoutConnectionConfig(url)
 
@@ -41,7 +49,7 @@ export async function reconnectMovedCloudAgent(
     return false
   }
 
-  await desktop.connections.save({
+  await connections.save({
     id: connection.id,
     kind: 'cloud',
     label: connection.label,

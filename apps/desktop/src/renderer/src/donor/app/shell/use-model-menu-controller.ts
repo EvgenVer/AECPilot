@@ -1,21 +1,25 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/use-model-menu-controller.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] the Daybreak switch is not offered (`daybreak: undefined`) — SPEC HX35
+ *       (owner decision 2026-11-07)
+ * (no other edits)
  */
 import { DEFAULT_REASONING_EFFORT, type ModelOptionsResult } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { atom } from 'nanostores'
-import { useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { currentPickerSelection } from '@/lib/model-status-label'
+import { $daybreakByProfile, daybreakKey, setDaybreak, syncDaybreak } from '@/store/daybreak'
 import {
   $modelPresets,
   applyModelPreset,
@@ -25,6 +29,7 @@ import {
   modelPresetServiceTier,
   setModelPreset
 } from '@/store/model-presets'
+import { notify } from '@/store/notifications'
 import { $defaultReasoningEffort, markComposerSelectionManual } from '@/store/session'
 
 import type { ModelMenuController } from './model-catalog-menu'
@@ -106,6 +111,35 @@ export function useModelMenuController({
   const latestHostScope = useRef(hostScope)
   latestHostScope.current = hostScope
 
+  // Daybreak is read only once this account's catalog lists a model for it (`capabilities.daybreak`).
+  const daybreakListed = (modelOptions.data?.providers ?? []).some(row =>
+    Object.values(row.capabilities ?? {}).some(caps => caps?.daybreak)
+  )
+
+  const daybreakOn = useStore($daybreakByProfile)[daybreakKey(profile, ownerConnectionId)] ?? false
+
+  // The primary menu's shared requester follows focus when called, and a queued write (store/daybreak.ts)
+  // can go out after focus moved: bind reads and writes to THIS connection's gateway when the host has one.
+  // A tile's requester is already bound to its owner route.
+  const daybreakRequester = useCallback(
+    (requester: typeof requestGateway) =>
+      gateway
+        ? (method: string, params?: Record<string, unknown>) => gateway.request(method, params)
+        : (method: string, params?: Record<string, unknown>) => requester(method, params),
+    [gateway]
+  )
+
+  const daybreakRequest = useRef(daybreakRequester(requestGateway))
+  daybreakRequest.current = daybreakRequester(requestGateway)
+
+  useEffect(() => {
+    if (daybreakListed) {
+      void syncDaybreak((method, params) => daybreakRequest.current(method, params), profile, ownerConnectionId).catch(
+        () => undefined
+      )
+    }
+  }, [daybreakListed, ownerConnectionId, profile])
+
   const patchPreset = (patch: ModelPreset, row: { model: string; provider: string }, failMessage: string) => {
     const dimensions = [
       ...(patch.effort !== undefined ? ['effort' as const] : []),
@@ -131,7 +165,20 @@ export function useModelMenuController({
       failMessage,
       scope: hostScope,
       primary: touchesPrimary,
-      request: requestGateway,
+      // A level picked while a reply streams is the owner's for the next turn, like a model pick.
+      request: async <T>(method: string, params?: Record<string, unknown>) => {
+        const result = await requestGateway<T>(method, params)
+
+        if ((result as { status?: unknown } | undefined)?.status === 'deferred') {
+          notify({
+            id: `model-pick-deferred-${activeSessionId}`,
+            kind: 'info',
+            message: t.shell.modelMenu.pickDeferred(String(params?.value ?? ''))
+          })
+        }
+
+        return result
+      },
       sessionId: activeSessionId,
       isCurrent: dimension => {
         const stamp = stamps.get(dimension)!
@@ -193,6 +240,10 @@ export function useModelMenuController({
     },
 
     presetFor: (provider, model) => modelPresets[modelPresetKey(provider, model)] ?? {},
+
+    // EDIT [3]: their Daybreak switch (`agent.daybreak`) — SPEC HX35, not taken; the
+    // profile pins it off, and with no control the menu draws no switch.
+    daybreak: undefined,
 
     // The composer picker never persists the profile default. With a session it
     // scopes the switch to that session; with none it's UI state shipped on the

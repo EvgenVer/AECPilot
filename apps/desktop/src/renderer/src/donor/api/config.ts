@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/config.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed `revealEnvVar` — plaintext credential read-back (R2)
@@ -9,6 +9,7 @@
  */
 
 import type {
+  AppHandoffStatus,
   ConfigSchemaResponse,
   CustomEndpointsResponse,
   CustomEndpointUpdate,
@@ -359,14 +360,37 @@ export function submitOAuthCode(
   })
 }
 
+// A long-poll waits this long at most for a change (the backend caps it at 25 s); the request's own
+// timeout leaves room for the hold plus a slow answer.
+export const OAUTH_LONG_POLL_SECONDS = 25
+const OAUTH_LONG_POLL_TIMEOUT_MS = 45_000
+
+/** One sign-in poll. With `waitSeconds` it is a long-poll: the backend answers
+ *  once the session leaves `pending`, or after the wait with `pending`. */
 export function pollOAuthSession(
   providerId: string,
   sessionId: string,
-  profile?: ProfileScope
+  profile?: ProfileScope,
+  waitSeconds = 0
 ): Promise<OAuthPollResponse> {
+  const query = waitSeconds > 0 ? `?wait=${waitSeconds}` : ''
+
   return window.hermesDesktop.api<OAuthPollResponse>({
     ...capabilityScoped(profile),
-    path: `/api/providers/oauth/${encodeURIComponent(providerId)}/poll/${encodeURIComponent(sessionId)}`
+    path: `/api/providers/oauth/${encodeURIComponent(providerId)}/poll/${encodeURIComponent(sessionId)}${query}`,
+    ...(waitSeconds > 0 ? { timeoutMs: OAUTH_LONG_POLL_TIMEOUT_MS } : {})
+  })
+}
+
+/** The free tier's handoff after a Nous sign-in. A long-poll: given `since`
+ *  (the `updated_at` on screen) the backend answers once the record changes. */
+export function getNousHandoffStatus(since: null | string, profile?: ProfileScope): Promise<AppHandoffStatus> {
+  const query = new URLSearchParams({ wait: String(OAUTH_LONG_POLL_SECONDS), ...(since ? { since } : {}) })
+
+  return window.hermesDesktop.api<AppHandoffStatus>({
+    ...capabilityScoped(profile),
+    path: `/api/providers/oauth/nous/handoff?${query}`,
+    timeoutMs: OAUTH_LONG_POLL_TIMEOUT_MS
   })
 }
 

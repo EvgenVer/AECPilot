@@ -980,6 +980,12 @@ export interface RuntimeCheckResult {
   /** Where the credential came from (env var, keyring, IAM role, …). */
   source?: string
   error?: string
+  /** Core 0.23.0+ (`hermes_cli/runtime_readiness.py` `readiness_failure`):
+   * set only for a failure provider setup cannot repair (a local model server
+   * that is not running). The donor's `runtime-readiness.ts` then keeps the
+   * window open with the error instead of sending the person back to provider
+   * sign-in; our `setup:runtime-check` passes the answer through as is. */
+  error_code?: string
 }
 
 /** Attachments (task 1.6.A4).
@@ -1303,6 +1309,17 @@ export interface RollbackRestoreResult {
   /** Full restores only: how many trailing messages were dropped from the
    * session history so the agent's context matches the restored files. */
   history_removed?: number
+  /** Core 0.23.0+ "careful" full restore (`safe=True`, i.e. no `all: true` —
+   * we never send it): only what was actually put back. Absent on a classic
+   * restore (no agent-write ledger) and on a file-scoped one. An empty list
+   * with `success: true` means NOTHING was restored. */
+  restored_files?: string[]
+  /** Files the person edited after the agent's last write — left untouched. */
+  skipped_user_edits?: string[]
+  /** Files the size cap kept out of every snapshot — left untouched. */
+  skipped_oversize?: string[]
+  /** Files the agent created after the snapshot that could not be deleted. */
+  failed_deletes?: string[]
 }
 
 /** What the answer to the agent's `terminal.read` request carries under

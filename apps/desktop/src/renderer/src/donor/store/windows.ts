@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/windows.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -186,16 +186,34 @@ export function canOpenNewWindow(): boolean {
   return typeof window !== 'undefined' && typeof window.hermesDesktop?.openWindow === 'function'
 }
 
+type DesktopBridge = Window['hermesDesktop']
+
+// The shell's call that pops the in-app Browser into its own OS window, or
+// undefined where there is none (outside Electron, the Webapp's bridge).
+function browserWindowOpener(): DesktopBridge['openBrowserWindow'] {
+  const open = typeof window === 'undefined' ? undefined : window.hermesDesktop?.openBrowserWindow
+
+  return typeof open === 'function' ? open : undefined
+}
+
+// The shell's call that hands a session to the user's own terminal emulator,
+// or undefined where there is none (outside Electron, the Webapp's bridge).
+function sessionTerminalOpener(): DesktopBridge['openSessionInTerminal'] {
+  const open = typeof window === 'undefined' ? undefined : window.hermesDesktop?.openSessionInTerminal
+
+  return typeof open === 'function' ? open : undefined
+}
+
 // True when the shell can pop the in-app Browser into its own OS window.
 export function canOpenBrowserWindow(): boolean {
-  return typeof window !== 'undefined' && typeof window.hermesDesktop?.openBrowserWindow === 'function'
+  return browserWindowOpener() !== undefined
 }
 
 // True when the shell can hand a session to the user's own terminal emulator.
 // Desktop-only, and a REMOTE connection is excluded by the caller: the terminal
 // we'd open is on this machine, but the session lives on the remote host.
 export function canOpenSessionInTerminal(): boolean {
-  return typeof window !== 'undefined' && typeof window.hermesDesktop?.openSessionInTerminal === 'function'
+  return sessionTerminalOpener() !== undefined
 }
 
 type WindowOpenResult = { ok: boolean; error?: string } | undefined
@@ -214,7 +232,10 @@ async function runWindowOpen(call: () => Promise<WindowOpenResult>, failMessage:
 
     return true
   } catch (err) {
-    notifyError(err, failMessage)
+    // A failure that may yet be undone names its toast so it can take it down (the Webapp's
+    // blocked pop-out, whose window can still open late).
+    const id = (err as { notificationId?: unknown } | null)?.notificationId
+    notifyError(err, failMessage, typeof id === 'string' ? { id } : {})
 
     return false
   }
@@ -274,11 +295,13 @@ export async function openNewWindow(route?: { connectionId: null | string; profi
 /** Pop the in-app Browser into its own OS window. Returns whether the
  *  window opened so the caller can dock the tab again on failure. */
 export async function openBrowserInNewWindow(tabId: string): Promise<boolean> {
-  if (!tabId || !canOpenBrowserWindow()) {
+  const openBrowserWindow = browserWindowOpener()
+
+  if (!tabId || !openBrowserWindow) {
     return false
   }
 
-  return runWindowOpen(() => window.hermesDesktop.openBrowserWindow(tabId), 'Could not pop out browser')
+  return runWindowOpen(() => openBrowserWindow(tabId), 'Could not pop out browser')
 }
 
 // Resume a session in the user's own terminal emulator, running the TUI there.
@@ -288,12 +311,11 @@ export async function openSessionInTerminal(
   sessionId: string,
   opts?: { cwd?: string; profile?: string }
 ): Promise<void> {
-  if (!sessionId || !canOpenSessionInTerminal()) {
+  const openInTerminal = sessionTerminalOpener()
+
+  if (!sessionId || !openInTerminal) {
     return
   }
 
-  await runWindowOpen(
-    () => window.hermesDesktop.openSessionInTerminal(sessionId, opts),
-    'Could not open chat in a terminal'
-  )
+  await runWindowOpen(() => openInTerminal(sessionId, opts), 'Could not open chat in a terminal')
 }

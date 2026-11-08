@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_connectors.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,7 +14,7 @@ export const jaConnectors = {
       allApps: 'すべてのアプリ',
       receiptConnected: apps => `接続済み: ${apps}`,
       receiptNone: '新しく接続したアプリはありません',
-      receiptTimedOut: '5 分後に閉じました',
+      receiptTimedOut: '10 分後に閉じました',
       finishInBrowser: 'ブラウザーで完了してください',
       signInFailed: '接続できませんでした。クリックして再試行'
     }

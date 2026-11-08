@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/desktop-install-overlay.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import type {
   DesktopBootstrapState
 } from '@/global'
 import { useI18n } from '@/i18n'
+import { writeClipboardText } from '@/lib/clipboard'
 import { AlertCircle, ChevronDown, ChevronRight, Globe, iconSize, Loader2, Monitor } from '@/lib/icons'
 import { capitalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
@@ -549,7 +550,7 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
             <div className="mt-2 flex items-center gap-2">
               <Button
                 onClick={() => {
-                  void navigator.clipboard?.writeText(ups.installCommand).catch(() => {})
+                  void writeClipboardText(ups.installCommand).catch(() => {})
                 }}
                 size="sm"
                 variant="secondary"
@@ -758,7 +759,7 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
                     const fullText = state.error ? `Error: ${state.error}\n\n${text}` : text
 
                     try {
-                      await navigator.clipboard.writeText(fullText)
+                      await writeClipboardText(fullText)
                       setCopied(true)
                       window.setTimeout(() => setCopied(false), 1500)
                     } catch {

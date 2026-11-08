@@ -1,14 +1,16 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/index.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registered our RecommendedKeyRow (aec/onboarding) at the top of the picker
  *   [6] provider-picker defaults (owner decision 2026-10-06, D-174): no featured
  *       OAuth provider (FEATURED_ID ''), the ChatGPT subscription second as a plain
  *       row, everything else behind the disclosure with the key rows ahead of the
- *       OAuth list (Nous Portal last); FeaturedProviderRow no longer imported;
+ *       OAuth list (Nous Portal last); the key form shows no featured row either
+ *       (their NOUS_FALLBACK constant is not kept; FeaturedProviderRow stays
+ *       imported for that branch, which no longer has a provider to show);
  *       the OpenAI key row named 'OpenAI-API' (owner decision 2026-10-07, D-188)
  * (no other edits)
  */
@@ -58,6 +60,7 @@ import { DocsLink, FlowPanel, Status } from './flow'
 import { FreeTierSetupNotice } from './free-tier-setup-notice'
 import { DecodedLabel } from './glyph'
 import {
+  FeaturedProviderRow,
   FireworksProviderRow,
   LocalModelsProviderRow,
   OpenRouterProviderRow,
@@ -645,29 +648,25 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
   const ordered = useMemo(() => (providers ? sortProviders(providers) : []), [providers])
   const hasOauth = ordered.length > 0
   const apiKeyOptions = useApiKeyCatalog(ctx.scope)
+  const select = (p: OAuthProvider) => void startProviderOAuth(p, ctx)
 
   // localEndpoint forces the key form regardless of `mode` (which a manual
   // provider refresh may flip back to 'oauth'); it preselects the local option
   // and hides the "back to sign in" link since the user came specifically to
-  // configure a custom endpoint.
-  if (localEndpoint || mode === 'apikey' || !hasOauth) {
+  // configure a custom endpoint. A list still loading (null) is not "no OAuth
+  // providers": it waits below instead of flashing the key form.
+  if (localEndpoint || mode === 'apikey' || (providers !== null && !hasOauth)) {
     return (
-      <div className="grid gap-3">
-        <ApiKeyForm
-          canGoBack={hasOauth && !localEndpoint}
-          initialEnvKey={localEndpoint ? 'OPENAI_BASE_URL' : apiKeyInitialEnv}
-          onBack={() => setOnboardingMode('oauth')}
-          onSave={(envKey, value, name, apiKey, modelName) =>
-            saveOnboardingApiKey(envKey, value, name, ctx, apiKey, modelName)
-          }
-          options={apiKeyOptions}
-        />
-        {manual ? null : (
-          <div className="flex justify-center pt-1">
-            <ChooseLaterLink />
-          </div>
-        )}
-      </div>
+      <KeyFormStep
+        apiKeyOptions={apiKeyOptions}
+        ctx={ctx}
+        hasOauth={hasOauth}
+        initialEnvKey={apiKeyInitialEnv}
+        localEndpoint={localEndpoint}
+        manual={manual}
+        onSelect={select}
+        providers={ordered}
+      />
     )
   }
 
@@ -675,7 +674,6 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
     return <Status>{t.onboarding.lookingUpProviders}</Status>
   }
 
-  const select = (p: OAuthProvider) => void startProviderOAuth(p, ctx)
   // EDIT [6]: наверху — наша строка OpenAI и подписка ChatGPT обычной строкой;
   // остальное всегда под «Другие провайдеры», строки ключей перед OAuth, чтобы
   // Nous Portal (последний в PROVIDER_ORDER) замыкал список.
@@ -741,6 +739,53 @@ export function Picker({ ctx }: { ctx: OnboardingContext }) {
           {t.onboarding.haveApiKey}
         </Button>
       </div>
+    </div>
+  )
+}
+
+// The API-key step of the picker. Nous stays reachable from it, including when
+// the provider list failed to load and there is no picker to go back to; the
+// custom-endpoint form (localEndpoint) is a deliberate destination and skips it.
+function KeyFormStep({
+  apiKeyOptions,
+  ctx,
+  hasOauth,
+  initialEnvKey,
+  localEndpoint,
+  manual,
+  onSelect,
+  providers
+}: {
+  apiKeyOptions: ApiKeyOption[]
+  ctx: OnboardingContext
+  hasOauth: boolean
+  initialEnvKey?: string
+  localEndpoint: boolean
+  manual: boolean
+  onSelect: (provider: OAuthProvider) => void
+  providers: OAuthProvider[]
+}) {
+  // EDIT [6]: their fallback put Nous Portal over the key form when the OAuth list could not be
+  // read; with no featured provider (FEATURED_ID '', D-174) there is no row to fall back to.
+  const nous = localEndpoint ? null : (providers.find(p => p.id === FEATURED_ID) ?? null)
+
+  return (
+    <div className="grid gap-3">
+      {nous ? <FeaturedProviderRow onSelect={onSelect} provider={nous} /> : null}
+      <ApiKeyForm
+        canGoBack={hasOauth && !localEndpoint}
+        initialEnvKey={localEndpoint ? 'OPENAI_BASE_URL' : initialEnvKey}
+        onBack={() => setOnboardingMode('oauth')}
+        onSave={(envKey, value, name, apiKey, modelName) =>
+          saveOnboardingApiKey(envKey, value, name, ctx, apiKey, modelName)
+        }
+        options={apiKeyOptions}
+      />
+      {manual ? null : (
+        <div className="flex justify-center pt-1">
+          <ChooseLaterLink />
+        </div>
+      )}
     </div>
   )
 }

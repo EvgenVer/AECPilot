@@ -1,44 +1,31 @@
 // Браузер агента — против ЖИВОГО ядра и живого Chromium (задача 3E.3, UR31).
 //
-// ЗАЧЕМ ПРОБА, А НЕ ЧТЕНИЕ КОНФИГУРАЦИИ. Ровно как с веб-поиском (3E.2),
-// чтение обмануло бы: в наборах ядра `browser` числится включённым, и из этого
-// следует вывод «браузер у агента есть». На деле при пустом `browser.backend`
-// ядро включает режим Browser Use CLI — «если CLI вообще запускается» — и
-// ЗАМЕНЯЕТ им весь набор `browser_*` одним инструментом `browser_exec`,
-// принимающим произвольный код на Python. Запускался он у нас по совпадению:
-// `uvx` стоит на машине, потому что мы сами ставим `uv` для ядра. Ни один файл
-// репозитория этого не говорил.
+// ЗАЧЕМ ПРОБА, А НЕ ЧТЕНИЕ КОНФИГУРАЦИИ. Ровно как с веб-поиском (3E.2), чтение
+// обманывало: в наборах ядра `browser` числился включённым, а какой формы браузер
+// получает модель, решала машина. До 0.22.2 при пустом `browser.backend` ядро
+// ЗАМЕНЯЛО десять узких `browser_*` одним `browser_exec` с кодом на Python — «если CLI
+// вообще запускается» (решение владельца 2026-09-08, задача 3E.17: берём `browser_exec`).
+//
+// С ядра 0.23.0 (задача T51) выбора больше нет: узкие инструменты и `agent-browser` ядро
+// убрало (`tools/browser_tool.py` — пустая заглушка), `browser_exec` — единственный
+// браузер, и он идёт через `browser-harness` из venv ядра, а не через `uvx browser-use`
+// с PyPI в момент вызова. Поэтому живой прогон теперь гоняет сам `browser_exec`.
 //
 // ЧТО ПРОВЕРЯЕТСЯ (на настоящем ядре, настоящем Chromium, настоящей сети):
-//   1. Какой движок выбран и КАКИЕ ИНСТРУМЕНТЫ из-за этого видит модель.
-//      ОЖИДАНИЕ ПЕРЕВЁРНУТО 2026-09-08 решением владельца (задача 3E.17): взят
-//      `browser_exec`, и проверяется именно ЗАМЕНА — один инструмент вместо
-//      десяти узких, а не одиннадцатый рядом с ними. Цена выбора записана в
-//      SPEC UR32 и R21 (в ленте блок кода вместо действия, исполнение в
-//      отдельном демоне мимо границы 3E.7, пакет с PyPI в момент вызова); эта
-//      проба её не оспаривает — она проверяет, что выбранная форма живая.
+//   1. Какие браузерные инструменты видит модель: `browser_exec` есть, узких нет.
 //   2. Сеть: настоящая страница из интернета открывается и отдаёт заголовок.
-//   3. Форма: открыть — снять слепок — ВВЕСТИ ТЕКСТ — НАЖАТЬ и увидеть
-//      введённое в ответе. Страница поднимается тут же на петле, поэтому
-//      проверка детерминирована и не зависит от чужой вёрстки: ответ обязан
-//      содержать ровно ту строку, которую ввёл агент. Иначе «нажал» значит
-//      только «вызов не бросил исключение».
-//      ЭТИ НОГИ ГОНЯЮТ ВСТРОЕННЫЙ НАБОР, и после 3E.17 это ЗАПАСНАЯ форма — та,
-//      что достаётся машине без `uvx`. Функции ядра зовутся напрямую, поэтому
-//      выбранный режим на них не влияет. Живого прогона самого `browser_exec`
-//      здесь нет намеренно: он тянет `browser-use` с PyPI в момент вызова, и
-//      делать сетевую установку частью каждого замера — не то же самое, что
-//      принять её как поведение продукта.
-//   4. Слушающие порты, ПОКА БРАУЗЕР ЖИВ (C9, основание HX10). Локальный
-//      движок поднимает свой демон; вопрос не «поднял ли», а НА КАКОМ АДРЕСЕ.
-//      Порт на петле виден только этой машине; порт на `0.0.0.0` — сетевая
-//      поверхность, которой у продукта быть не должно.
+//   3. Форма: открыть — ВВЕСТИ ТЕКСТ — НАЖАТЬ и увидеть введённое в ответе. Страница
+//      поднимается тут же на петле, поэтому проверка детерминирована и не зависит от
+//      чужой вёрстки: ответ обязан содержать ровно ту строку, которую ввёл код.
+//   4. Слушающие порты, ПОКА БРАУЗЕР ЖИВ (C9, основание HX10). Локальный движок
+//      поднимает свой демон; вопрос не «поднял ли», а НА КАКОМ АДРЕСЕ. Порт на петле
+//      виден только этой машине; порт на `0.0.0.0` — сетевая поверхность, которой у
+//      продукта быть не должно.
 //
-// Прогонять при каждом подъёме пина: умолчание движка у донора уже менялось
-// (Browser Use CLI 3.0 стал умолчанием без объявления), а вместе с ним молча
-// меняется вся форма браузерной поверхности агента.
+// Прогонять при каждом подъёме пина: форма браузерной поверхности у ядра уже менялась
+// дважды без объявления.
 //
-// Usage: node runtime/browser-probe.mjs
+// Usage: AEC_HERMES_HOME=<temporary profile copy> node runtime/browser-probe.mjs
 
 import { execFileSync } from "node:child_process";
 
@@ -59,32 +46,23 @@ import http.server, socketserver
 from hermes_cli.plugins import discover_plugins
 discover_plugins()
 
-from tools import browser_tool as bt
-# Уборка переехала в browser_tool_lifecycle (0.21.3 предупреждает, что старый
-# путь в browser_tool оставлен только внешним плагинам и снимается).
-from tools.browser_tool_lifecycle import cleanup_all_browsers
-from tools.browser_use_cli import get_browser_backend, is_browser_use_cli_mode
-from tools.registry import registry
+from tools.registry import discover_builtin_tools, registry
+from tools import browser_use_cli as bu
+from tools.browser_session_lifecycle import cleanup_all_browsers
 
-TYPED = os.environ["PROBE_TYPED"]
-out = {}
-out["backend"] = get_browser_backend()
-out["browser_use_mode"] = bool(is_browser_use_cli_mode())
-
-tools = getattr(registry, "_tools", None) or {}
-
-def _attr(spec, name):
-    got = getattr(spec, name, None)
-    if got is None and isinstance(spec, dict):
-        got = spec.get(name)
-    return got
+# Every built-in tool module registers itself, the way the core starts a session: the
+# list is what the core has, not what this probe happened to import.
+discover_builtin_tools()
+out = {"available": bool(bu.browser_exec_available())}
 
 offered, hidden = [], []
+tools = getattr(registry, "_tools", {}) or {}
 for name in sorted(tools):
     spec = tools[name]
-    if _attr(spec, "toolset") not in {"browser", "browser-use"}:
+    toolset = getattr(spec, "toolset", None)
+    if toolset not in {"browser", "browser-use"}:
         continue
-    check = _attr(spec, "check_fn")
+    check = getattr(spec, "check_fn", None)
     (offered if (check is None or bool(check())) else hidden).append(name)
 out["offered"] = offered
 out["hidden"] = hidden
@@ -132,6 +110,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+def run(code):
+    got = json.loads(bu.browser_exec(code=code, task_id="aec_browser_probe", timeout_s=180))
+    return got
+
+
 server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
 port = server.server_address[1]
 threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -140,43 +123,37 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 # порт попал бы в разницу и был бы приписан браузеру.
 before = listeners()
 
-task = "aec_browser_probe"
 try:
-    net = json.loads(bt.browser_navigate(url=os.environ["PROBE_PAGE"], task_id=task))
-    out["net_ok"] = bool(net.get("success"))
-    out["net_title"] = net.get("title", "")
+    net = run("# Opening a page from the internet\\nnew_tab(%r)\\nwait_for_load()\\nprint('TITLE=' + js('document.title'))" % os.environ["PROBE_PAGE"])
+    out["net_ok"] = bool(net.get("success")) and "TITLE=" in str(net.get("output", ""))
+    out["net_title"] = str(net.get("output", "")).split("TITLE=", 1)[-1].strip()[:80]
+    if not out["net_ok"]:
+        out["net_error"] = str(net.get("error") or net.get("stderr") or net)[:400]
 
-    nav = json.loads(bt.browser_navigate(url="http://127.0.0.1:%d/" % port, task_id=task))
-    out["form_ok"] = bool(nav.get("success"))
-    snap = json.loads(bt.browser_snapshot(task_id=task))
-    tree = str(snap.get("snapshot", ""))
-    out["snap_ok"] = "textbox" in tree and "button" in tree
-
-    def ref_for(kind):
-        for line in tree.splitlines():
-            if kind in line and "[ref=" in line:
-                return line.split("[ref=", 1)[1].split("]", 1)[0].split(",")[0].strip()
-        return ""
-
-    box, button = ref_for("textbox"), ref_for("button")
-    out["refs"] = [box, button]
-    out["type_ok"] = bool(json.loads(bt.browser_type(ref=box, text=TYPED, task_id=task)).get("success"))
-    out["click_ok"] = bool(json.loads(bt.browser_click(ref=button, task_id=task)).get("success"))
-
-    echoed = json.loads(bt.browser_snapshot(task_id=task))
-    out["echo_ok"] = TYPED in str(echoed.get("snapshot", ""))
+    typed = os.environ["PROBE_TYPED"]
+    form = run(
+        "# Filling the local test form\\n"
+        "goto_url('http://127.0.0.1:%d/')\\n" % port
+        + "wait_for_load()\\n"
+        + "fill_input('input[name=q]', %r)\\n" % typed
+        + "js(\\"document.querySelector('button').click()\\")\\n"
+        + "wait_for_load()\\n"
+        + "print('ECHO_TEXT=' + js('document.body.innerText'))"
+    )
+    out["form_ok"] = bool(form.get("success"))
+    out["echo_ok"] = ("ECHO " + typed) in str(form.get("output", ""))
+    if not out["echo_ok"]:
+        out["form_error"] = str(form.get("error") or form.get("stderr") or form.get("output") or form)[:400]
 
     # Порты — пока браузер ЖИВ. После уборки демона мерить нечего.
     during = listeners()
-    if before is None or during is None:
-        out["ports"] = None
-    else:
-        out["ports"] = sorted(during - before)
+    out["ports"] = None if before is None or during is None else sorted(during - before)
 finally:
-    try:
-        cleanup_all_browsers()
-    except Exception as exc:
-        out["cleanup_error"] = repr(exc)[:200]
+    for stop in (bu.stop_harness_daemons, cleanup_all_browsers):
+        try:
+            stop()
+        except Exception as exc:
+            out.setdefault("cleanup_error", repr(exc)[:200])
     server.shutdown()
 
 print("PROBE_JSON " + json.dumps(out, ensure_ascii=False))
@@ -209,48 +186,29 @@ const r = JSON.parse(line.slice("PROBE_JSON ".length));
 
 const problems = [];
 
-console.log("── Движок ─────────────────────────────────────────────");
-console.log(`  browser.backend: ${JSON.stringify(r.backend)}`);
-console.log(`  режим Browser Use CLI: ${r.browser_use_mode ? "ВКЛЮЧЁН" : "выключен"}`);
-if (!r.browser_use_mode) {
-  problems.push(
-    "режим Browser Use CLI ВЫКЛЮЧЕН: выбран `browser_exec` (решение владельца " +
-      "2026-09-08, SPEC UR32), а модель получает встроенный набор. Причин ровно две — " +
-      "либо `browser.backend` записан в config.yaml (прежнее умолчание `off` мы больше " +
-      "не пишем, но записанное раньше остаётся), либо на машине нет ни `browser-use`, " +
-      "ни `uvx`",
-  );
-}
-
-console.log("\n── Что видит модель ───────────────────────────────────");
+console.log("── Что видит модель ───────────────────────────────────");
+console.log(`  browser_exec доступен (browser-harness в venv ядра): ${r.available ? "да" : "НЕТ"}`);
 console.log(`  предлагается (${r.offered.length}): ${r.offered.join(", ") || "—"}`);
 console.log(`  скрыто (${r.hidden.length}): ${r.hidden.join(", ") || "—"}`);
 if (!r.offered.includes("browser_exec")) {
-  problems.push("модели не предлагается `browser_exec` — выбранной формы браузера нет");
+  problems.push("модели не предлагается `browser_exec` — браузера у агента нет");
 }
-// ЗАМЕНА, А НЕ ДОБАВКА. Одиннадцатый инструмент рядом с десятью узкими означал
-// бы, что режим не включился, а инструмент просто зарегистрировался, — и агент
-// ходил бы в страницу то одним видом действий, то другим.
 for (const gone of ["browser_navigate", "browser_click", "browser_type", "browser_snapshot"]) {
-  if (r.offered.includes(gone)) {
-    problems.push(`\`${gone}\` всё ещё предлагается модели: набор не подменён, а дополнен`);
+  if (r.offered.includes(gone) || r.hidden.includes(gone)) {
+    problems.push(`\`${gone}\` снова зарегистрирован: ядро вернуло узкий набор — пересмотреть 3E.17`);
   }
 }
 
-console.log("\n── Живой прогон ВСТРОЕННОГО набора (запасная форма) ───");
-console.log(`  страница из сети: ${r.net_ok ? "да" : "НЕТ"} — «${r.net_title}»`);
-console.log(`  страница с формой: ${r.form_ok ? "да" : "НЕТ"}`);
-console.log(`  слепок: ${r.snap_ok ? "да" : "НЕТ"} — ссылки ${JSON.stringify(r.refs || [])}`);
-console.log(`  ввёл текст: ${r.type_ok ? "да" : "НЕТ"}`);
-console.log(`  нажал: ${r.click_ok ? "да" : "НЕТ"}`);
+console.log("\n── Живой прогон browser_exec ──────────────────────────");
+console.log(`  страница из сети: ${r.net_ok ? "да" : "НЕТ"} — «${r.net_title ?? ""}»`);
+if (r.net_error) console.log(`    ${r.net_error}`);
+console.log(`  страница с формой открылась: ${r.form_ok ? "да" : "НЕТ"}`);
 console.log(`  введённое вернулось со страницы: ${r.echo_ok ? "да" : "НЕТ"}`);
+if (r.form_error) console.log(`    ${r.form_error}`);
 for (const [ok, what] of [
   [r.net_ok, "открыть страницу из сети"],
   [r.form_ok, "открыть страницу с формой"],
-  [r.snap_ok, "снять слепок с полем и кнопкой"],
-  [r.type_ok, "ввести текст"],
-  [r.click_ok, "нажать кнопку"],
-  [r.echo_ok, "увидеть введённое в ответе страницы"],
+  [r.echo_ok, "ввести текст, нажать и увидеть введённое в ответе страницы"],
 ]) {
   if (!ok) problems.push(`живой прогон: не удалось ${what}`);
 }
@@ -275,8 +233,8 @@ if (r.ports === null || r.ports === undefined) {
 console.log("");
 if (problems.length === 0) {
   console.log(
-    "✅ Браузер агента: модели предлагается `browser_exec` вместо узких (замена, а не " +
-      "добавка), запасной встроенный набор жив, сетевого порта не появилось.",
+    "✅ Браузер агента: модели предлагается `browser_exec`, узких инструментов нет, " +
+      "живой прогон с формой прошёл, сетевого порта не появилось.",
   );
   process.exit(0);
 }

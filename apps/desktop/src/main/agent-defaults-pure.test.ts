@@ -191,7 +191,12 @@ describe('умолчания ядра 0.22, закрытые в профиле (
       'telemetry.shared_metrics.send': false,
       'plugins.auto_update_check_hours': 0,
       // T20.9: предел загрузки плагина выше импорта бэкенда Mem0 (~12,7 с)
-      'plugins.load_timeout_seconds': 120
+      'plugins.load_timeout_seconds': 120,
+      // T51 (ядро 0.23.0, решение 0016): самообновление плагинов, веб-приложение (HX33),
+      // Daybreak (HX35) — закреплены, хотя у ядра уже выключены
+      'plugins.auto_apply': false,
+      'webapp.enabled': false,
+      'agent.daybreak': false
     })
   })
 

@@ -834,18 +834,34 @@ test('50.2.1 правый клик по картинке в ленте: «коп
   await expect(copy).toBeVisible()
 
   const app = stand.get().app
-  const clipboardWorks = await app.evaluate(({ clipboard }) => {
-    clipboard.writeText('aecpilot-e2e-clipboard-probe')
-    return clipboard.readText() === 'aecpilot-e2e-clipboard-probe'
+  // Electron 44 (T52): the clipboard API is async.
+  const clipboardWorks = await app.evaluate(async ({ clipboard }) => {
+    try {
+      await clipboard.writeText('aecpilot-e2e-clipboard-probe')
+      return (await clipboard.readText()) === 'aecpilot-e2e-clipboard-probe'
+    } catch {
+      return false
+    }
   })
   await app.evaluate(({ clipboard }) => clipboard.clear())
   await copy.click()
   await expect(menu).toBeHidden()
   if (clipboardWorks) {
     await expect
-      .poll(() => app.evaluate(({ clipboard }) => clipboard.readImage().getSize()), {
-        timeout: 5000
-      })
+      .poll(
+        () =>
+          app.evaluate(async ({ clipboard, nativeImage }) => {
+            for (const item of await clipboard.read()) {
+              if (!item.types.includes('image/png')) continue
+              const blob = (await item.getType('image/png')) as Blob
+              return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer())).getSize()
+            }
+            return null
+          }),
+        {
+          timeout: 5000
+        }
+      )
       .toEqual({ width: 64, height: 64 })
   } else {
     // Буфер обмена недоступен процессам этого запуска (OpenClipboard →

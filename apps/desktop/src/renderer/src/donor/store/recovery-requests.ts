@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/recovery-requests.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,8 +12,8 @@ import { atom } from 'nanostores'
  * no knowledge of the active profile — chiefly notification action buttons
  * fired from stores. The shell controller (`app/contrib/wiring.tsx`) owns
  * `navigate` and the active profile, so it consumes these and performs the
- * navigation / restart. Same shape as `$poolLimitsSettingsRequest` and
- * `$billingSettingsRequest`, generalised to any in-app route.
+ * navigation / restart. Same shape as `$billingSettingsRequest`, generalised
+ * to any in-app route.
  *
  * Both atoms carry a `seq` so an identical request twice in a row (the user
  * clicks the same toast button again) still fires.

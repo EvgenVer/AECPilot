@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_shared_metrics.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,21 +19,18 @@ export const jaSharedMetrics = {
   collectedUsage: 'エージェントの品質：失敗した編集、壊れたツール呼び出し、抜け出せないループ、タスクごとのコスト',
   collectedMachine: 'マシン：OS、RAM の範囲、GPU の種類、Hermes のバージョン、ローカルモデルの使用',
   sending:
-    '「共有」を選ばない限り、統計はこのコンピューターに保存されます。共有した統計は、このプロファイル用のランダムな ID とともに 1 日 1 回 Nous に送信されます。Hermes がインストールされたことを示す 1 回限りの記録（オプトイン後にのみ集計）を除き、オプトイン前の統計が送信されることはありません。この設定はいつでも設定画面で変更できます。',
+    '共有すると、Hermes はこのプロファイル用のランダムな ID とともに 1 日 1 回 Nous に統計を送信します。Hermes がインストールされたことを示す 1 回限りの記録を除き、オプトイン前の統計が送信されることはありません。この設定はいつでも設定画面で変更できます。',
   readDocs: '詳細を読む',
   share: 'Nous と共有する',
-  local: 'このコンピューターに保存する',
   off: '共有しない',
   saveFailed: '選択を保存できませんでした',
-  collectLabel: '利用統計を収集する',
-  collectDesc: '件数のみをこのコンピューターに保存します。メッセージ、ファイル、パス、エラーテキストは一切含みません。',
   sendLabel: '利用統計を Nous と共有する',
   sendDesc:
-    'このプロファイル用のランダムな ID を付けて、1 日 1 回 Nous に統計を送信します。1 回限りのインストール記録を除き、オプトイン前の統計は送信されません。収集がオンである必要があります。',
+    '件数のみを、このプロファイル用のランダムな ID を付けて 1 日 1 回送信します。メッセージ、ファイル、パス、エラーテキストは一切含みません。',
   unavailable: 'この設定を変更するには Hermes バックエンドを更新してください。',
   stripBody: '件数のみ。メッセージやファイルは一切含みません。',
   stripReaskBody:
     '改めてお尋ねします：以前のバージョンでは、この質問が表示される前に「今はしない」が保存されることがありました。',
-  stripChoices: { share: 'Nous と共有', local: 'このコンピューターに保存', off: '今はしない' },
+  stripChoices: { share: 'Nous と共有', off: '今はしない' },
   stripDetails: '詳細'
 }

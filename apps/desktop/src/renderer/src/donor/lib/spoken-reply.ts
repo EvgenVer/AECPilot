@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/spoken-reply.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -96,6 +96,27 @@ export function assistantTurnKey(
   id: string
 ): string {
   return `${sessionId ?? ''}:${assistantTurnIndex(messages, id)}`
+}
+
+// FNV-1a: a short, deterministic text fingerprint every window computes alike.
+function textHash(text: string): string {
+  let hash = 0x811c9dc5
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return (hash >>> 0).toString(36)
+}
+
+/** One spoken message of a turn. A turn with tool calls speaks several bubbles
+ *  under one user turn (progress updates, then the final reply), so the turn
+ *  key alone would let the first bubble's claim swallow the rest. Pass the
+ *  bubble's last text part: a live-id rewrite and a hydration fold both keep
+ *  it, so the key survives either. */
+export function spokenSegmentKey(turnKey: string, text: string): string {
+  return `${turnKey}:${textHash(text)}`
 }
 
 /** If a spoken live-tail row vanished and the same user turn now has a durable

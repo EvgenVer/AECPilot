@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/workspace-group.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,7 +17,7 @@ import { displayPath } from '@/lib/display-path'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { $sidebarShowAllSessions, setWorkspaceNodeOpen } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
-import { newSessionInProfile, pinNewChatProfile, selectProfile } from '@/store/profile'
+import { type AgentProfileRoute, newSessionInProfile, pinNewChatProfile, selectProfile } from '@/store/profile'
 import { listRepoBranches, switchBranchInRepo } from '@/store/projects'
 import { $sessionProfilesUsage } from '@/store/session'
 import { $sidebarSessionRankIds } from '@/store/sidebar-sort'
@@ -43,6 +43,30 @@ interface SidebarWorkspaceGroupProps {
   // When set (linked worktree rows), shows a remove affordance that runs a real
   // `git worktree remove`.
   onRemove?: () => void
+  /** Another gateway's project: the lane's branch switch runs on that gateway's git. */
+  owner?: AgentProfileRoute
+}
+
+// Main-checkout lanes are branch-labeled views over the same repo root path.
+// Clicking "+" on `main` should open on `main`, not whatever branch the root
+// currently sits on (`test0`, etc.), so explicitly switch first. A NON-GIT
+// lane (the backend heuristic's folder lane) has no branch to switch — `git
+// switch` there dies with "fatal: not a git repository" (#61362) — so the
+// new session just lands in the folder as-is. Nor does a label git doesn't
+// know: the `main` fallback for rows with no recorded branch (#108694).
+// Another gateway's lane switches on that gateway's git (the window's own
+// lanes pass no owner).
+async function switchMainLaneToLabel(group: SidebarSessionGroup, owner?: AgentProfileRoute): Promise<void> {
+  if (!group.isMain || group.isGit === false || !group.path || !group.label) {
+    return
+  }
+
+  const ownerArg = owner ? ([owner] as const) : ([] as const)
+  const branch = laneSwitchTarget(group, await listRepoBranches(group.path, ...ownerArg))
+
+  if (branch) {
+    await switchBranchInRepo(group.path, branch, ...ownerArg)
+  }
 }
 
 export function SidebarWorkspaceGroup({
@@ -50,7 +74,8 @@ export function SidebarWorkspaceGroup({
   renderRows,
   onNewSession,
   onNewSessionSplit,
-  onRemove
+  onRemove,
+  owner
 }: SidebarWorkspaceGroupProps) {
   const { t } = useI18n()
   const s = t.sidebar
@@ -108,25 +133,12 @@ export function SidebarWorkspaceGroup({
       return true
     }
 
-    // Main-checkout lanes are branch-labeled views over the same repo root path.
-    // Clicking "+" on `main` should open on `main`, not whatever branch the root
-    // currently sits on (`test0`, etc.), so explicitly switch first. A NON-GIT
-    // lane (the backend heuristic's folder lane) has no branch to switch — `git
-    // switch` there dies with "fatal: not a git repository" (#61362) — so the
-    // new session just lands in the folder as-is. Nor does a label git doesn't
-    // know: the `main` fallback for rows with no recorded branch (#108694).
-    if (group.isMain && group.isGit !== false && group.path && group.label) {
-      try {
-        const branch = laneSwitchTarget(group, await listRepoBranches(group.path))
+    try {
+      await switchMainLaneToLabel(group, owner)
+    } catch (err) {
+      notifyError(err, t.statusStack.coding.switchFailed(group.label))
 
-        if (branch) {
-          await switchBranchInRepo(group.path, branch)
-        }
-      } catch (err) {
-        notifyError(err, t.statusStack.coding.switchFailed(group.label))
-
-        return false
-      }
+      return false
     }
 
     return true

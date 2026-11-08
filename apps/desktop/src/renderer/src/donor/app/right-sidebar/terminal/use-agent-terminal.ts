@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-agent-terminal.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,11 +11,16 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 
-import { writeClipboardText } from '@/components/ui/copy-button'
+import { writeClipboardText } from '@/lib/clipboard'
 import { triggerHaptic } from '@/lib/haptics'
+import { $backgroundStatusBySession } from '@/store/composer-status'
 import { useTheme } from '@/themes/context'
 
-import { registerAgentTerminalWriter } from './agent-terminal-stream'
+import {
+  registerAgentTerminalWriter,
+  seedAgentTerminalCommand,
+  syncAgentTerminalSnapshot
+} from './agent-terminal-stream'
 import { makeTerminalReader, registerTerminalReader } from './buffer'
 import { mirrorSelection, terminalClipboardIntent } from './clipboard'
 import { terminalLinkHandler, terminalWebLinksAddon } from './links'
@@ -181,6 +186,17 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
 
       // Stream live output straight into the terminal (replays backlog on attach).
       unregister = registerAgentTerminalWriter(procId, chunk => term.write(chunk))
+      // Closing can evict the backlog while the registry stays unchanged. Pin
+      // the writer before recovering its snapshot so retention cannot evict it.
+      for (const list of Object.values($backgroundStatusBySession.get())) {
+        const item = list.find(item => item.id === procId)
+
+        if (item) {
+          seedAgentTerminalCommand(procId, item.title)
+          syncAgentTerminalSnapshot(procId, item.output ?? '')
+          break
+        }
+      }
       unregisterReader = registerTerminalReader(id, makeTerminalReader(term))
     }
 

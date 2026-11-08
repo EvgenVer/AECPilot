@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/profile-ops.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,7 @@ import {
   focusedRosterOwner,
   rosterWatermarks
 } from './bot-state'
-import { ensureBotMetadata } from './canonical-chat'
+import { ensureBotProfile } from './canonical-chat'
 import {
   $botMeta,
   BOT_META_V1_KEY,
@@ -350,8 +350,8 @@ export function mergeServerMeta(roster: RosterRow[], fetchedAt = 0) {
 
 /** Clone a bot: profile (config/skills/SOUL/memory via clone_from) + look.
  *  Name is "<base>-2", "-3", … — first free slot against the live roster. */
-export async function duplicateBot(bot: RosterRow, roster: RosterRow[]) {
-  await ensureBotMetadata(bot)
+export async function duplicateBot(source: RosterRow, roster: RosterRow[]) {
+  const bot = await ensureBotProfile(source)
   const base = bot.name
   const ownerRoute = botConnectionRoute(bot)
   const ownerKey = ownerRoute ? botRouteKey(ownerRoute) : null
@@ -386,6 +386,12 @@ export async function duplicateBot(bot: RosterRow, roster: RosterRow[]) {
     clone_from: base,
     description: bot.description || ''
   })
+
+  // Prefs a deleted profile left under the copy's name must not become its.
+  // Older builds without the door keep them, as before.
+  if (typeof host.dropLeftoverProfilePrefs === 'function') {
+    host.dropLeftoverProfilePrefs(name, ownerRoute?.connectionId)
+  }
 
   // Same look: avatar shape/color/image and a "(copy)" title so the two
   // are tellable apart in the roster until the user renames. Do not copy

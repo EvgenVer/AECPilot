@@ -1154,6 +1154,41 @@ T20.7, только если их тянет замыкание импортов
 venv ядра совпадает с тем, что апстрим прогнал на своём релизном гейте, а не с тем, что
 резолвер выберет в день установки (раньше `setup.mjs` замок не читал).
 
+**Веттинг подъёма на 0.23.0 — 2026-11-07, задачи T50 и T51 (решение
+[0016](decisions/0016-core-0-23-0.md)).** Набор снят установкой по их `uv.lock` (замер T50 —
+во временном worktree, затем рабочая копия): в venv ядра 104 пакета вместе с плагином Mem0.
+Новый пакет один — `ruamel-yaml-clib` 0.2.15 (MIT, колесо `cp314-win_amd64`; C-ускоритель
+`ruamel.yaml`, которым ядро теперь читает YAML). Ушли `jinja2`, `markupsafe`,
+`importlib-metadata`, `zipp`. Сдвинулись версии, все внутри своих мажоров, кроме Pillow
+12.3 → 13.0 (ядро ставит его заменой поверх точного `pillow==12.3.0` у `browser-harness` —
+`[tool.uv] override-dependencies`, которые `setup.mjs` теперь передаёт сам); среди прочих
+MCP SDK 2.0 → 2.3, Starlette 1.3 → 1.9, uvicorn 0.41 → 0.54, openai 2.24 → 2.54,
+cryptography 50.0.1 → 50.0.2. Лицензии не сменились. Проверка по OSV 2026-11-07 — одно
+замечание, и не от подъёма: `mem0ai` 2.0.10 — GHSA-5324-3w58-qpp2 (28.10, утечка истории
+разговора между пользователями через `&`/`=` в идентификаторах; исправлено в 2.0.18) —
+поднимается внутри ветки 2.0, см. T51. Инструмент их менеджера пакетов `agent-browser`
+снят ядром в пользу `chromium` (`pm/defaults.py`, `RETIRED_DEFAULTS`) и ушёл из поставки.
+
+**Веттинг npm-зависимостей переноса донора на 0.23.0 — 2026-11-07, задача T52.** Библиотеки,
+которые рендерер берёт ради кода донора, подняты до версий их `apps/desktop/package.json` на
+`2bd378ed` (точными версиями, как раньше): CodeMirror (`commands` 6.11.1, `language` 6.13.1,
+`state` 6.7.6, `view` 6.43.14), `@lezer/highlight` 1.2.5, иконки (`@tabler/icons-react`
+3.49.0, `@icons-pack/react-simple-icons` 13.15.1), `@tanstack/react-query` 5.104.1 и
+`react-virtual` 3.14.14, `dompurify` 3.4.17, `driver.js` 1.9.0, `frimousse` 0.4.0, `ignore`
+7.0.12, `katex` 0.16.47 → 0.19.0, `motion` 12.43.0, `radix-ui` 1.7.0, `react-router` 8.4.0,
+`react-shiki` 0.11.2, `shiki` 4.5.0, `streamdown` 2.7.0, `tailwind-merge` 3.7.0, `tw-shimmer`
+0.4.13, Testing Library (`dom` 10.4.2, `react` 16.3.3); Electron 43.8.3 → 44.9.3 (план T52).
+Замена одной библиотеки на равноценную: `mermaid` 11.16 снят, вместо него `pele` 1.13.0 (MIT,
+`obsidianmd/pele`, 2,4 МБ, без своих зависимостей среди рантайма) — донор рисует Mermaid-схемы
+им, своим SVG без скриптов. `pnpm dedupe` убрал вторые копии CodeMirror (−17 пакетов). Сборочные
+инструменты остаются нашими (vite 7, `@vitejs/plugin-react` 5, electron-builder 26). Electron 44
+сделал буфер обмена асинхронным и убрал `clipboard.readImage()`: главный процесс читает картинку
+через `clipboard.read()` (`main/clipboard-image-pure.ts`, тот же ответ, что у их
+`electron/clipboard-image.ts`). Аудит 2026-11-07: `mermaid` ушёл из дерева; `katex` 0.16.47
+остаётся только под `remark-math > micromark-extension-math` — запись GHSA-238p-pmpm-9mq7 в
+`pnpm-workspace.yaml` пока нужна; две новые умеренные находки в сборочной цепочке
+`get-windows > node-gyp` (`glob` GHSA-g3hv-75wg-m249, `minimatch`) — в «Technical debt».
+
 **Объявлены прямыми 2026-10-07 задачей 3H.12** (общее «го» владельца на фазу 3H) —
 `pypdfium2>=5.12,<6` и `numpy>=2,<3` в `mcp/aec_rag/pyproject.toml`. Новых пакетов нет: оба
 уже стояли в замке транзитивно через Docling, версии не изменились (`pypdfium2` 5.12.1 от

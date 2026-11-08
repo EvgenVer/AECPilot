@@ -283,15 +283,16 @@ test('8.3.1 «Восстановить всё»: подтверждение на
   const confirm = page.getByRole('alertdialog')
   await expect(confirm).toBeVisible()
   const text = await confirm.innerText()
-  expect(text).toMatch(/Все файлы будут перезаписаны состоянием на \d\d\.\d\d\.\d{4}, \d\d:\d\d/)
+  expect(text).toMatch(/Файлы, которые агент менял после \d\d\.\d\d\.\d{4}, \d\d:\d\d/)
   expect(text).toContain('последний ход исчезнет из истории')
-  expect(text).toContain('Текущее содержимое пропадёт')
+  // Core 0.23.0: a full restore keeps the person's own edits (T52).
+  expect(text).toContain('которые вы сами правили после последней записи агента, останутся')
 })
 
-test('8.3.2 подтверждение говорит, что файлы, созданные после снимка, не удаляются', async () => {
+test('8.3.2 подтверждение говорит, что файлы, созданные агентом после снимка, удаляются', async () => {
   const page = await ui()
   const text = await page.getByRole('alertdialog').innerText()
-  expect(text).toMatch(/созданные ПОСЛЕ снимка.*не удаляются/s)
+  expect(text).toMatch(/агент создал после снимка, будут удалены/)
 })
 
 test('8.3.3 «Отмена» ничего не меняет', async () => {
@@ -687,14 +688,21 @@ test('26.1.1 картинка из буфера обмена по Ctrl+V ста�
   // недоступен (OpenClipboard → ERROR_ACCESS_DENIED, замер 20.09.2026). Тогда
   // вставка проигрывается событием `paste` с теми же байтами — их обработчик
   // один и тот же; о пути сказано в аннотации.
-  const clipboardWorks = await stand.get().app.evaluate(({ clipboard, nativeImage }, png) => {
-    try {
-      clipboard.writeImage(nativeImage.createFromDataURL(`data:image/png;base64,${png}`))
-      return !clipboard.readImage().isEmpty()
-    } catch {
-      return false
-    }
-  }, PNG)
+  // Electron 44 (T52): images go through clipboard.write()/read() as ClipboardItem.
+  const clipboardWorks = await stand
+    .get()
+    .app.evaluate(async ({ clipboard, ClipboardItem }, png) => {
+      try {
+        const bytes = Buffer.from(png, 'base64')
+        await clipboard.write([
+          new ClipboardItem({ 'image/png': new Blob([bytes], { type: 'image/png' }) })
+        ])
+        const items = await clipboard.read()
+        return items.some((item) => item.types.includes('image/png'))
+      } catch {
+        return false
+      }
+    }, PNG)
   if (clipboardWorks) {
     await page.keyboard.press('Control+v')
   } else {

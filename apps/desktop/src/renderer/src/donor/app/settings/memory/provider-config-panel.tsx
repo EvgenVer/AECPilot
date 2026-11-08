@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/memory/provider-config-panel.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 import { getMemoryProviderConfig, saveMemoryProviderConfig } from '@/hermes'
 import { SlidersHorizontal } from '@/lib/icons'
+import { refreshMemoryStatus } from '@/store/memory-status'
 import { notifyError } from '@/store/notifications'
 import type { MemoryProviderConfig, MemoryProviderField } from '@/types/hermes'
 
@@ -54,6 +55,11 @@ export function ProviderConfigPanel({ profile, provider }: { profile?: string; p
     void refresh()
   }, [refresh])
 
+  const onModalSaved = useCallback(async () => {
+    refreshMemoryStatus()
+    await refresh()
+  }, [refresh])
+
   // Autosave, matching the settings page around the panel: one-key partial PUT
   // on commit, silent on success, no full refresh (it would reset sibling drafts).
   const commitField = useCallback(
@@ -64,6 +70,7 @@ export function ProviderConfigPanel({ profile, provider }: { profile?: string; p
 
       try {
         await saveMemoryProviderConfig(provider, { [field.key]: value }, profile)
+        refreshMemoryStatus()
 
         if (field.kind === 'secret') {
           setValues(current => ({ ...current, [field.key]: '' }))
@@ -160,7 +167,7 @@ export function ProviderConfigPanel({ profile, provider }: { profile?: string; p
         <ProviderConfigModal
           config={config}
           onOpenChange={setShowModal}
-          onSaved={refresh}
+          onSaved={onModalSaved}
           open={showModal}
           profile={profile}
           provider={provider}

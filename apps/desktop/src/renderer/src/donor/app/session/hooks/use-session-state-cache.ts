@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-state-cache.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -377,7 +377,10 @@ export function useSessionStateCache({
       // state anyway). The plain busy heartbeat stays RAF-batched: that
       // coalescing exists only to keep periodic `session.info` updates from
       // churning `$messages` and jerking the scroll position while reading.
-      const isCriticalTransition = !viewState.busy || viewState.needsInput
+      // A sealed interim is also a completed reply: auto-speak must receive it
+      // while tools continue, without requiring per-token paint in a hidden window.
+      const isCriticalTransition =
+        !viewState.busy || viewState.needsInput || (viewState.interimBoundaryPending && !viewState.streamId)
 
       if (isCriticalTransition) {
         if (viewSyncRafRef.current !== null && typeof window !== 'undefined') {

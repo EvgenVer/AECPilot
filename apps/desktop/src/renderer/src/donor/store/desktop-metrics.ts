@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/desktop-metrics.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -36,6 +36,7 @@
  * instead of overwriting each other; the backend latches each day and area once.
  */
 
+import { randomUuid } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { $workspaceMode } from '@/components/pane-shell/workspace-scope'
@@ -365,7 +366,7 @@ export type DesktopMetricsGate = 'off' | 'on' | null
 export const $desktopMetricsGate = atom<DesktopMetricsGate>(null)
 
 /** One id per renderer load: an onboarding step still open from another load was abandoned. */
-const LAUNCH_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random())
+const LAUNCH_ID = randomUuid()
 
 /** Hash of the bound `connection|profile`: names the local record and main's crash consent. */
 let scope = scopeKey('|default')

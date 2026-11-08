@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/tools-list.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -411,7 +411,7 @@ function ToolViewport({
   return (
     <div
       aria-label={label}
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-hidden focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
       data-slot="tools-viewport"
       onKeyDown={onKeyDown}
       onScroll={event => setScrollTop(event.currentTarget.scrollTop)}

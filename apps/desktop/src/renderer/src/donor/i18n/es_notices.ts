@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_notices.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { TranslationOverrides } from './define-locale'
+import { esDesktopCommands } from './es_desktop_commands'
+import { esSessionCommands } from './es_session_commands'
 
 // Shell notices (remote-display toast, butterbar, keep-awake offer), spread into es.ts.
 export const esNotices = {
@@ -23,10 +25,35 @@ export const esNotices = {
       after: '.'
     }
   },
+  promptNotices: {
+    legacySendUnconfirmed:
+      'Este servidor no pudo confirmar el envío anterior de este mensaje, así que es posible que ya se haya ejecutado. Revisa la conversación antes de volver a enviarlo.',
+    restoredDraftAttachmentsDropped:
+      'Los adjuntos de tu mensaje no enviado no se restauraron. Vuelve a adjuntarlos antes de enviarlo.',
+    mcpReloadDeferred:
+      'Este chat está ocupado: el cambio de MCP se aplica cuando termine su turno y MCP se recargue de nuevo, o al volver a abrir el chat',
+    mcpReloadUnavailable: servers => `No se conectó: ${servers}`,
+    compactedTurnUnavailable:
+      'Ese mensaje se resumió al comprimir el chat, así que ya no se puede restaurar ni editar.',
+    staleTurnUnavailable: 'Ese mensaje ya no está en el historial de este chat.',
+    sessionCommands: esSessionCommands,
+    desktopCommands: esDesktopCommands
+  },
   keepAwakeOffer: {
     title: 'Tu equipo entró en suspensión mientras Hermes trabajaba',
     message:
       'Hermes puede mantener tu equipo activo mientras se ejecuta una tarea. La pantalla se sigue apagando, y con batería el equipo aún puede entrar en suspensión.',
     action: 'Mantener activo mientras trabaja'
+  },
+  billingBlock: {
+    titleNous: 'Sin créditos de Nous',
+    titleProvider: provider => `Sin créditos — ${provider}`,
+    fallbackMessage: 'Tu cuenta se quedó sin créditos. Añade créditos para continuar.',
+    openBilling: 'Abrir facturación',
+    addCredits: 'Añadir créditos',
+    dismiss: 'Descartar'
   }
-} satisfies Pick<TranslationOverrides, 'remoteDisplayBanner' | 'butterbar' | 'keepAwakeOffer'>
+} satisfies Pick<
+  TranslationOverrides,
+  'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'keepAwakeOffer' | 'billingBlock'
+>

@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_boot.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { TranslationOverrides } from './define-locale'
+import { zhHantDesktopCommands } from './zh-hant_desktop_commands'
+import { zhHantSessionCommands } from './zh-hant_session_commands'
 
 export const zhHantBoot = {
   boot: {
@@ -83,6 +85,16 @@ export const zhHantBoot = {
       after: '約束。'
     }
   },
+  promptNotices: {
+    legacySendUnconfirmed: '此伺服器無法確認這則訊息先前的傳送，它可能已經執行過。再次傳送前請先查看對話。',
+    restoredDraftAttachmentsDropped: '未傳送訊息中的附件沒有還原。傳送前請重新附加。',
+    mcpReloadDeferred: '此對話正忙：MCP 變更會在目前輪次結束並再次重新載入 MCP 後生效，或在重新開啟對話時生效',
+    mcpReloadUnavailable: servers => `未能連線：${servers}`,
+    compactedTurnUnavailable: '這則訊息在壓縮對話時已被摘要，無法再還原或編輯。',
+    staleTurnUnavailable: '這則訊息已不在此對話的歷史記錄中。',
+    sessionCommands: zhHantSessionCommands,
+    desktopCommands: zhHantDesktopCommands
+  },
 
   updates: {
     discontinuedTitle: '此版本的 Hermes 已停止支援',
@@ -115,6 +127,8 @@ export const zhHantBoot = {
     gitUnusable: 'Hermes 無法在這台電腦上執行 Git，因此無法檢查更新。',
     latestBody: '您正在執行最新版本。',
     versionDetailsDistributionStore: 'Microsoft Store',
+    versionDetailsClient: '本裝置',
+    versionDetailsBackend: '已連線的後端',
     latestBodyBackend: '後端正在執行最新版本。',
     allSetTitle: '已是最新版本',
     availableTitle: '有可用更新',
@@ -350,5 +364,12 @@ export const zhHantBoot = {
   }
 } satisfies Pick<
   TranslationOverrides,
-  'boot' | 'remoteDisplayBanner' | 'butterbar' | 'keepAwakeOffer' | 'updates' | 'install' | 'onboarding'
+  | 'boot'
+  | 'remoteDisplayBanner'
+  | 'butterbar'
+  | 'promptNotices'
+  | 'keepAwakeOffer'
+  | 'updates'
+  | 'install'
+  | 'onboarding'
 >

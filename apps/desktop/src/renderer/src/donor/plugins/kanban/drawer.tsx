@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/drawer.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,7 +40,8 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-  useValue
+  useValue,
+  writeClipboardText
 } from '@hermes/plugin-sdk'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
@@ -256,7 +257,7 @@ function Diagnostics({
     } else if (action.kind === 'unblock') {
       onUnblock()
     } else if (action.kind === 'cli_hint') {
-      void navigator.clipboard.writeText(String(action.payload?.command ?? action.label))
+      void writeClipboardText(String(action.payload?.command ?? action.label))
       host.notify({ kind: 'info', message: k.commandCopied })
     }
   }
@@ -1003,7 +1004,7 @@ export function TaskDrawer({
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       onSelect={() => {
-                        void navigator.clipboard.writeText(task.id)
+                        void writeClipboardText(task.id)
                         host.notify({ kind: 'info', message: k.copiedId(task.id) })
                       }}
                     >
@@ -1012,7 +1013,7 @@ export function TaskDrawer({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() => {
-                        void navigator.clipboard.writeText(task.title || task.id)
+                        void writeClipboardText(task.title || task.id)
                         host.notify({ kind: 'info', message: k.copiedTitle })
                       }}
                     >

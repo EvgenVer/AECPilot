@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/overview-row.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,7 @@ import type { SessionInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { $sidebarShowAllSessions } from '@/store/layout'
+import type { AgentProfileRoute } from '@/store/profile'
 import { fetchProjectSessions, projectProfile } from '@/store/projects'
 
 import {
@@ -32,6 +33,7 @@ import {
 } from '../chrome'
 import { shellOwnsPress } from '../reorderable-list'
 
+import { ownedNewSessionHandlers } from './gateway-project-rows'
 import {
   expandedProjectSessions,
   latestProjectSessions,
@@ -89,7 +91,8 @@ export function ProjectBackRow({ label, onClick }: { label: string; onClick: () 
 interface ProjectOverviewRowProps {
   project: SidebarProjectTree
   onEnter?: (id: string) => void
-  onNewSession?: (path: null | string) => void
+  /** `owner` is set for a project another gateway owns: the session starts there. */
+  onNewSession?: (path: null | string, owner?: AgentProfileRoute) => void
   /** Drag the project's "+" onto a chat zone: create a new session pinned to
    *  this project's cwd, placed exactly where it's dropped. */
   onNewSessionSplit?: NewSessionSplitHandler
@@ -113,8 +116,8 @@ interface ProjectOverviewRowProps {
 export function ProjectOverviewRow({
   project,
   onEnter,
-  onNewSession,
-  onNewSessionSplit,
+  onNewSession: onNewSessionIn,
+  onNewSessionSplit: onNewSessionSplitIn,
   renderRows,
   activeProjectId,
   previewSessions,
@@ -129,6 +132,7 @@ export function ProjectOverviewRow({
   const { t } = useI18n()
   const s = t.sidebar
   const isActive = project.id === activeProjectId
+  const { onNewSession, onNewSessionSplit } = ownedNewSessionHandlers(project, onNewSessionIn, onNewSessionSplitIn)
   const [open, toggleOpen] = useWorkspaceNodeOpen(project.id)
   // The appearance popover anchors here (the full row) so it opens flush with
   // the sidebar's content edge regardless of which side the sidebar is on.

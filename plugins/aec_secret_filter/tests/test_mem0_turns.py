@@ -64,3 +64,14 @@ def test_without_store_or_key_does_nothing() -> None:
     assert forget_scope_turns(FakeMemory(None), "project-aaaa") == 0
     assert forget_scope_turns(None, "project-aaaa") == 0
     assert forget_scope_turns(FakeMemory(FakeDb()), "") == 0
+
+
+def test_finds_the_scope_mem0_escaped() -> None:
+    # mem0 2.0.18+ (GHSA-5324-3w58-qpp2) escapes `%`, `&`, `=` inside scope values;
+    # a row written by 2.0.10 before the raise kept the raw value.
+    db = FakeDb()
+    db.add("agent_id=hermes&user_id=a%26b%3Dc", "новая запись")
+    db.add("agent_id=hermes&user_id=a", "чужой проект: начало сырого ключа")
+
+    assert forget_scope_turns(FakeMemory(db), "a&b=c") == 1
+    assert db.contents() == ["чужой проект: начало сырого ключа"]

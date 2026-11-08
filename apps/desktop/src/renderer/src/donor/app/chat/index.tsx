@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/index.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet surface (HX1)
@@ -121,7 +121,7 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onPickFolders: () => void
   onPickImages: () => void
   onRemoveAttachment: (id: string) => void
-  onSteer: (text: string) => Promise<boolean> | boolean
+  onSteer: (text: string, mode?: 'interrupt' | 'steer') => Promise<boolean> | boolean
   onSteerHidden?: (text: string) => Promise<boolean> | boolean
   onSubmit: (text: string, options?: SubmitTextOptions) => Promise<boolean> | boolean
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
@@ -428,6 +428,7 @@ export function ChatRuntimeBoundary({
   const isHistorical = Boolean(history.page)
   const newerAvailable = history.page?.newerAvailable ?? false
   const { revealRow, returnToLatest } = history
+  const historicalMessages = history.page?.messages
 
   const transcriptWindow = useMemo(
     () => ({
@@ -435,11 +436,13 @@ export function ChatRuntimeBoundary({
       expandWindow,
       revealRow,
       returnToLatest,
-      currentMessages,
+      // Live navigation reads the session store. Broadcasting the changing
+      // live tail here invalidates the entire transcript's navigation context.
+      currentMessages: historicalMessages ?? [],
       isHistorical,
       newerAvailable
     }),
-    [expandWindow, olderAvailable, revealRow, returnToLatest, currentMessages, isHistorical, newerAvailable]
+    [expandWindow, olderAvailable, revealRow, returnToLatest, historicalMessages, isHistorical, newerAvailable]
   )
 
   const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>({

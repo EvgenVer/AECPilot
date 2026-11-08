@@ -72,6 +72,21 @@ const driverIifePath = path.join(
 export const donorAliases = {
   'driver.js/dist/driver.js.iife.js?raw': `${driverIifePath}?raw`,
   'driver.js/dist/driver.js.iife.js': driverIifePath,
+  // 0.23.0 (T52): their catalog-curation.ts reads its data from their shared
+  // package by RELATIVE path. The JSON is vendored into the zone; this exact-match
+  // key points the bundle at it (tsc reads `src/renderer/shared/src/*.d.json.ts`).
+  // 0.23.0 (T52): their vitest.setup.ts sits at THEIR app root and reaches
+  // `./src/lib/playback-source-cache`; ours sits in the zone root, where that
+  // module is `lib/playback-source-cache`. One module, so the setup clears the
+  // same cache the code under test fills.
+  './src/lib/playback-source-cache': path.resolve(
+    here,
+    'src/renderer/src/donor/lib/playback-source-cache.ts'
+  ),
+  '../../../../../shared/src/catalog-curation.json': path.resolve(
+    here,
+    'src/renderer/src/donor/hermes-shared/catalog-curation.json'
+  ),
   '@hermes/shared': path.resolve(here, 'src/renderer/src/shared/hermes-shared'),
   '@hermes/plugin-sdk': path.resolve(here, 'src/renderer/src/donor/sdk'),
   '@': path.resolve(here, 'src/renderer/src/donor')

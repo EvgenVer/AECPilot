@@ -12,10 +12,12 @@ node runtime/setup.mjs
 ```
 
 Creates a venv at `runtime/.hermes-venv` (CPython 3.14.6 managed by `uv`,
-`hermes-agent[mcp,ddgs]` 0.22.2 installed editable from a shallow checkout at
+`hermes-agent[mcp,ddgs]` 0.23.0 installed editable from a shallow checkout at
 `HERMES_SHA` in `runtime/.hermes-src` — upstream's build backend refuses to build a
 wheel, see docs/plan-details.md § Stack & package managers). Versions are constrained to the core's own `uv.lock`
-(`uv export` into `runtime/uv-constraints.txt` on every run). The `ddgs` extra is the
+(`uv export` into `runtime/uv-constraints.txt` on every run), and the core's own
+`[tool.uv] override-dependencies` go next to ours into `runtime/uv-overrides-effective.txt`
+(since 0.23.0 the resolution fails without them). The `ddgs` extra is the
 keyless web search our profile selects; since 0.22 it is no longer a core dependency.
 
 The Mem0 memory provider is an external plugin since 0.22: setup keeps its source at
@@ -111,9 +113,9 @@ Exit 0 = the tool was called and returned the fixture's "demo" source. Exit
 Exit 3 = any other failure (protocol-level failure, non-auth model failure,
 or the model correctly reporting the tool isn't available).
 
-`setup.mjs` installs `hermes-agent[mcp,ddgs]` at the pinned SHA (0.22.2 since task
-T20.3) — the `mcp` extra (approved, see docs/plan-details.md § Selected dependencies) pulls
-in hermes's pinned `mcp==2.0.0` + `starlette==1.3.1` into
+`setup.mjs` installs `hermes-agent[mcp,ddgs]` at the pinned SHA (0.23.0 since task
+T51) — the `mcp` extra (approved, see docs/plan-details.md § Selected dependencies) pulls
+in hermes's pinned `mcp==2.3.0` + `starlette==1.9.0` into
 `runtime/.hermes-venv`, which is what lets
 `tools.mcp_tool` act as an MCP *client* and connect to aec-sources (or any
 other MCP server) at all. Historical note: before that extra was approved

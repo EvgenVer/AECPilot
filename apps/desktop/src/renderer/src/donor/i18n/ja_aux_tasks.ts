@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_aux_tasks.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,6 @@ import type { AuxTaskCopyMap } from './types_aux_tasks'
 export const jaAuxTasks: AuxTaskCopyMap = {
   vision: { label: 'ビジョン', hint: '画像分析' },
   compression: { label: '圧縮', hint: 'コンテキストの圧縮' },
-  skills_hub: { label: 'スキルハブ', hint: 'スキル検索' },
   approval: { label: '承認', hint: 'スマート自動承認' },
   mcp: { label: 'MCP', hint: 'MCP ツールルーティング' },
   title_generation: { label: 'タイトル生成', hint: 'セッションタイトル' },

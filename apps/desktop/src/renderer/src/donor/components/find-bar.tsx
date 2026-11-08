@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/find-bar.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -320,7 +320,7 @@ export function FindBar() {
       <input
         aria-label={t.keybinds.actions['view.findInPage'] ?? 'Find in page'}
         autoComplete="off"
-        className="h-6 w-40 bg-transparent text-xs text-(--ui-text-primary) outline-none placeholder:text-(--ui-text-tertiary)"
+        className="h-6 w-40 bg-transparent text-xs text-(--ui-text-primary) placeholder:text-(--ui-text-tertiary) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         onChange={onInput}
         onKeyDown={onKeyDown}
         placeholder={t.keybinds.actions['view.findInPage'] ?? 'Find in page'}

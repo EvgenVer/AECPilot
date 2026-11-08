@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_first_run.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,8 @@ export const esFirstRun: FirstRunCopy = {
   skip: 'Omitir configuración',
   skipTip: 'Termina la configuración guiada y abre un chat nuevo.',
   skipFailed: 'No se pudo omitir la configuración',
+  slashOffTitle: 'Los comandos con barra no están disponibles durante la configuración',
+  slashOffBody: 'Funcionarán con normalidad cuando termine la configuración.',
   localModel: {
     title: 'Este ordenador puede ejecutar un modelo localmente',
     text: (model, size) =>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/start-voice-button.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -63,7 +63,7 @@ export function StartVoiceButton({
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label={t.composer.voiceEngine}
-                className={cn(GHOST_ICON_BTN, 'w-5 rounded-l-none p-0')}
+                className={cn(GHOST_ICON_BTN, 'w-(--composer-voice-menu-size) rounded-l-none p-0')}
                 disabled={disabled}
                 size="icon"
                 type="button"

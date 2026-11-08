@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/voice-prefs.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,11 +15,20 @@ export const $autoSpeakReplies = atom<boolean>(storedBoolean(AUTO_SPEAK_KEY, fal
 // Best-effort persistence must not give config refresh authority again.
 let autoSpeakChosen = readKey(AUTO_SPEAK_KEY) !== null
 
-/** Migrate the legacy value once without editing the backend configuration. */
+/** Migrate the legacy value once without editing the backend configuration.
+ *  Provisional: every client on this machine migrates from the same config, and
+ *  a fresh browser's migrated value must not replace one the user chose in
+ *  native Desktop in the machine's shared preferences (#145213). */
 export function applyAutoSpeakFromConfig(config: { voice?: { auto_tts?: unknown } | null } | null | undefined) {
   if (config != null && !autoSpeakChosen) {
-    void setAutoSpeakReplies(Boolean(config.voice?.auto_tts))
+    storeAutoSpeak(Boolean(config.voice?.auto_tts), true)
   }
+}
+
+function storeAutoSpeak(enabled: boolean, provisional: boolean) {
+  autoSpeakChosen = true
+  persistBoolean(AUTO_SPEAK_KEY, enabled, { provisional })
+  $autoSpeakReplies.set(enabled)
 }
 
 // Backend default for `voice.stop_phrases` (DEFAULT_VOICE_STOP_PHRASES in
@@ -165,7 +174,5 @@ export function applyThinkingSoundFromConfig(
 
 /** Persist even an unchanged value, so migrating false is also one-time. */
 export async function setAutoSpeakReplies(enabled: boolean): Promise<void> {
-  autoSpeakChosen = true
-  persistBoolean(AUTO_SPEAK_KEY, enabled)
-  $autoSpeakReplies.set(enabled)
+  storeAutoSpeak(enabled, false)
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/settings-manifest.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] registration table: dropped the pet setting (HX1)
@@ -9,11 +9,14 @@
  * (no other edits)
  */
 import type { Translations } from '@/i18n'
+import { servedByHermesCloud } from '@/lib/hermes-cloud-host'
+import { hostHas } from '@/lib/host-capabilities'
 import { NATIVE_NOTIFICATION_KINDS } from '@/store/native-notifications'
 import { canUseQuickEntry } from '@/store/quick-entry'
 import { TRANSLUCENCY_SUPPORTED } from '@/store/translucency'
 
 import type { AppearanceSubpageId } from './appearance-subpages'
+import { nativeHostOnly } from './other-subpages'
 import type { SettingsView } from './types'
 
 interface SettingCopy {
@@ -168,16 +171,6 @@ export const SETTINGS_MANIFEST = {
       keywords: ['devtools', 'developer tools', 'f12', 'inspector', 'debug'],
       copy: t => ({ label: t.settings.config.disableF12Title, description: t.settings.config.disableF12Desc })
     },
-    warmBotBackends: {
-      subpage: 'desktop',
-      keywords: ['pool', 'backends', 'bots', 'warm', 'concurrency', 'limit'],
-      copy: t => ({ label: t.settings.poolLimits.warmBotBackendsTitle })
-    },
-    backendIdleTimeout: {
-      subpage: 'desktop',
-      keywords: ['pool', 'backends', 'idle', 'timeout', 'milliseconds'],
-      copy: t => ({ label: t.settings.poolLimits.backendIdleTimeoutTitle })
-    },
     quickEntry: {
       subpage: 'desktop',
       keywords: ['quick entry', 'global shortcut', 'spotlight', 'summon', 'prompt anywhere'],
@@ -224,9 +217,26 @@ export const SETTINGS_MANIFEST = {
         } satisfies SettingDefinition
       ])
     ),
+    browserPermission: {
+      subpage: 'alerts',
+      keywords: ['notifications', 'browser', 'permission', 'allow', 'tab', 'flash'],
+      available: () => hostHas('browserNotifications'),
+      copy: t => ({
+        label: t.settings.notifications.browserPermission.title,
+        description: t.settings.notifications.browserPermission.states.default
+      })
+    },
+    muteSounds: {
+      subpage: 'sounds',
+      keywords: ['mute', 'silence', 'quiet', 'sound', 'chime', 'wake', 'haptics'],
+      copy: t => ({
+        label: t.settings.notifications.muteSoundsTitle,
+        description: t.settings.notifications.muteSoundsDesc
+      })
+    },
     completionSound: {
       subpage: 'sounds',
-      keywords: ['sound', 'chime', 'ding', 'audio', 'done', 'complete', 'mute'],
+      keywords: ['sound', 'chime', 'ding', 'audio', 'done', 'complete', 'mute', 'off', 'none', 'silence'],
       copy: t => ({
         label: t.settings.notifications.completionSoundTitle,
         description: t.settings.notifications.completionSoundDesc
@@ -242,12 +252,14 @@ export const SETTINGS_MANIFEST = {
   },
   gateway: {
     connectionMode: {
+      available: nativeHostOnly,
       subpage: 'connection',
       keywords: ['gateway', 'connection', 'local', 'cloud', 'remote', 'ssh', 'url', 'token', 'host', 'port', 'key'],
       copy: t => ({ label: t.settings.gateway.modeTitle, description: t.settings.gateway.intro })
     },
     // EDIT [3]: the keychain-encryption setting is HX20.
     diagnostics: {
+      available: nativeHostOnly,
       subpage: 'connection',
       keywords: ['diagnostics', 'logs', 'debug', 'report', 'troubleshoot'],
       copy: t => ({ label: t.settings.gateway.diagnostics, description: t.settings.gateway.diagnosticsDesc })
@@ -255,6 +267,8 @@ export const SETTINGS_MANIFEST = {
   },
   about: {
     updates: {
+      // A Webapp served by Hermes Cloud renders no Updates section.
+      available: () => !servedByHermesCloud(),
       subpage: 'updates',
       keywords: ['update', 'auto update', 'download', 'release', 'version'],
       copy: t => ({ label: t.settings.about.updates })

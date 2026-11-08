@@ -12,7 +12,7 @@
 
 import { registry } from '../../donor/contrib/registry'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
-import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
+import { getRuntimeI18nLocale, subscribeRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { BtwPanel } from './BtwPanel'
@@ -20,17 +20,26 @@ import { BtwPanel } from './BtwPanel'
 const title = (): string =>
   translatePlugin(AEC_I18N_NAMESPACE, getRuntimeI18nLocale(), 'btw.title', [])
 
-registry.register({
-  id: 'aec-btw',
-  area: 'panes',
-  source: 'core',
-  title: title(),
-  data: {
-    placement: 'right',
-    collapsible: true,
-    width: '260px',
-    minWidth: '200px',
-    maxWidth: '440px'
-  },
-  render: () => <BtwPanel />
-})
+// The runtime locale is still the default while modules load; their shell
+// only knows the person's language once the I18nProvider has resolved it, so
+// a title read once at load would stay English (found in T52 e2e). Register
+// again on every locale change, as the nav pages do.
+function register_aec_btw(): void {
+  registry.register({
+    id: 'aec-btw',
+    area: 'panes',
+    source: 'core',
+    title: title(),
+    data: {
+      placement: 'right',
+      collapsible: true,
+      width: '260px',
+      minWidth: '200px',
+      maxWidth: '440px'
+    },
+    render: () => <BtwPanel />
+  })
+}
+
+register_aec_btw()
+subscribeRuntimeI18nLocale(register_aec_btw)

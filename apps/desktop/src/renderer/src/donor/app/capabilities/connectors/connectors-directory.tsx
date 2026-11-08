@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/connectors-directory.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,9 +10,10 @@ import { type ReactNode } from 'react'
 import { PanelEmpty } from '@/app/overlays/panel'
 import { Button } from '@/components/ui/button'
 import { ErrorBanner } from '@/components/ui/error-state'
-import { SearchField } from '@/components/ui/search-field'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { useI18n } from '@/i18n'
+
+import { CapabilitySearch } from '../ui/capability-search'
 
 import { ConnectorRowCard } from './connector-row-card'
 import { cardKey, EMPTY_CONNECTORS_FILTER } from './derive'
@@ -65,26 +66,19 @@ export function ConnectorsDirectory({
   const segmentFellBack = segments.length > 0 && segment !== filter.segment
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3" data-slot="connectors-directory">
-      <div className="flex shrink-0 items-center gap-3">
-        <h2 className="flex-1 text-sm font-semibold text-(--ui-text-primary)">{copy.title}</h2>
-        {addYourOwn}
-      </div>
-
+    <div className="flex min-h-0 flex-1 flex-col" data-slot="connectors-directory">
       {cards.length === 0 ? null : (
         <>
-          <div className="flex shrink-0 items-center gap-3 border-b border-(--ui-stroke-tertiary) pb-1.5">
-            <SearchField
-              containerClassName="min-w-0 flex-1"
-              inputClassName="flex-1"
-              onChange={query => set({ query })}
-              placeholder={copy.searchPlaceholder(cards.length)}
-              value={filter.query}
-            />
-          </div>
+          <CapabilitySearch
+            actions={addYourOwn}
+            onChange={query => set({ query })}
+            placeholder={copy.searchPlaceholder(cards.length)}
+            scope={copy.title}
+            value={filter.query}
+          />
 
           {showSegments || segmentFellBack || hiddenMatches > 0 ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="mt-(--capabilities-gap-controls) flex shrink-0 flex-wrap items-center gap-2">
               {showSegments ? (
                 <SegmentedControl
                   onChange={(next: ConnectorSegmentId) => set({ segment: next })}
@@ -92,6 +86,7 @@ export function ConnectorsDirectory({
                     id: option.id,
                     label: `${segmentLabel(option.id)} ${option.count}`
                   }))}
+                  sizing="content"
                   value={segment}
                 />
               ) : null}
@@ -115,10 +110,10 @@ export function ConnectorsDirectory({
         </>
       )}
 
-      {notices}
+      {notices ? <div className="mt-(--capabilities-gap-controls) shrink-0 empty:hidden">{notices}</div> : null}
 
       {hostedFailed && onRetryHosted ? (
-        <ErrorBanner className="shrink-0 items-center">
+        <ErrorBanner className="mt-(--capabilities-gap-controls) shrink-0 items-center">
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="font-medium">{copy.page.hostedFailedTitle}</span>
             <span className="opacity-80">{copy.page.hostedFailedBody}</span>
@@ -130,9 +125,9 @@ export function ConnectorsDirectory({
       ) : null}
 
       {loading ? (
-        <ToolsWash label={copy.page.loading} rows={10} />
+        <div className="mt-(--capabilities-gap-lead)"><ToolsWash label={copy.page.loading} rows={10} /></div>
       ) : groups.length > 0 ? (
-        <div className="grid min-h-0 flex-1 content-start gap-6 overflow-y-auto overscroll-contain pb-4">
+        <div className="capabilities-sections min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
           {groups.map(group => (
             <Group
               busyKey={busyKey}
@@ -193,15 +188,16 @@ function Group({
   const copy = t.connectorsPage.group
 
   return (
-    <section className="grid gap-2">
-      <header className="flex items-center gap-2">
-        <h3 className="text-xs font-semibold text-(--ui-text-primary)">
-          {group.id === 'local' ? where : copy[group.id]}
-        </h3>
-        <span className="tabular-nums text-xs text-(--ui-text-tertiary)">{group.cards.length}</span>
-
-        {group.id === 'connected' && showsAttentionFirst(group) ? <Note>{copy.connectedNote}</Note> : null}
-        {group.id === 'off' ? <Note>{copy.offNote}</Note> : null}
+    <section>
+      <header className="catalog-section-heading">
+        <div>
+          <h2>
+            {group.id === 'local' ? where : copy[group.id]}
+            <span className="ml-2 font-normal tabular-nums text-(--ui-text-tertiary)">{group.cards.length}</span>
+          </h2>
+          {group.id === 'connected' && showsAttentionFirst(group) ? <p>{copy.connectedNote}</p> : null}
+          {group.id === 'off' ? <p>{copy.offNote}</p> : null}
+        </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -224,8 +220,4 @@ function Group({
       </div>
     </section>
   )
-}
-
-function Note({ children }: { children: ReactNode }) {
-  return <span className="truncate text-[0.65rem] text-(--ui-text-tertiary)">{children}</span>
 }

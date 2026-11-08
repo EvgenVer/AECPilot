@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/shell/statusbar-controls.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, memo, type ReactNode, useMemo, useState } from 'react'
+import { type ComponentProps, createContext, memo, type ReactNode, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import {
@@ -36,6 +36,18 @@ import {
 // trigger). The 'text' variant intentionally omits hover/transition/disabled.
 const STATUSBAR_ACTION_CLASS =
   'inline-flex h-full items-center gap-1 rounded-none px-1.5 text-[0.6875rem] text-(--ui-text-tertiary) transition-colors hover:bg-(--chrome-action-hover) hover:text-foreground disabled:cursor-default disabled:opacity-45'
+
+/** Dismisses the open statusbar dropdown from inside element `menuContent`
+ *  (render-fn content gets `close()` as an argument instead). */
+export const StatusbarMenuCloseContext = createContext<() => void>(() => {})
+
+function renderMenuContent(content: NonNullable<StatusbarItem['menuContent']>, close: () => void): ReactNode {
+  if (typeof content === 'function') {
+    return content(close)
+  }
+
+  return <StatusbarMenuCloseContext.Provider value={close}>{content}</StatusbarMenuCloseContext.Provider>
+}
 
 export interface StatusbarMenuItem {
   id: string
@@ -281,9 +293,7 @@ const StatusbarItemView = memo(function StatusbarItemView({
           sideOffset={8}
         >
           {item.menuContent
-            ? typeof item.menuContent === 'function'
-              ? item.menuContent(() => setMenuOpen(false))
-              : item.menuContent
+            ? renderMenuContent(item.menuContent, () => setMenuOpen(false))
             : (item.menuItems ?? [])
                 .filter(menuItem => !menuItem.hidden)
                 .map(menuItem => (

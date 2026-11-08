@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/de_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,5 +23,8 @@ export const deUpdateChannel = {
   rollbackTitle: (v: string) => `Zurück zum stabilen Release ${v}`,
   rollbackBody: (v: string) =>
     `Dieser Build ist neuer als das stabile Release ${v}. Die Installation setzt Hermes auf dieses Release zurück.`,
-  rollbackAction: (v: string) => `Zurück auf ${v}`
+  heldBody: (v: string) =>
+    `Dieser Build ist neuer als das stabile Release ${v}, und deine Sitzungen nutzen bereits seine Gateway-Laufzeit, die ${v} nicht öffnen kann. Hermes bleibt bei diesem Build, bis ein neueres stabiles Release erscheint.`,
+  rollbackAction: (v: string) => `Zurück auf ${v}`,
+  allChanges: 'Alle Änderungen ansehen'
 }

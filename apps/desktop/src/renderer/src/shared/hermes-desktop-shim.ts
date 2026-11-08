@@ -660,6 +660,29 @@ const IMPLEMENTED: Record<string, unknown> = {
   probeLocalBackend: undefined,
   updateHold: undefined,
   windowRelay: undefined,
+  // Члены, приехавшие с пином 0.23.0 (задача T52). Все необязательные в их
+  // `global.d.ts`, и каждое место вызова проверяет НАЛИЧИЕ, так что отсутствие —
+  // их же ветка, та самая, что работала у нас на 0.22.2:
+  //   вложения через «отложенную загрузку» (`stageFileForAttach`,
+  //     `getStagedFileForAttach`, `getStagedFileDisplayName`) — без них
+  //     перетаскивание и вставка идут прежним путём через путь к файлу;
+  //   `getAudioWsUrl`, `getGatewayFileStreamUrl` — адреса сокета речи и
+  //     потока файла с билетом шлюза в URL: в окне нет ни сокета, ни токена
+  //     (SPEC C9), речь идёт через главный процесс;
+  //   `pluginFiles`, `reconcileDesktopPluginsReport`, `spellcheckDictionary` —
+  //     файлы, сверка и словарь ИХ десктопных плагинов (загрузчик — SPEC HX5,
+  //     не берём; правый клик по слову — наш `context-menu-spellcheck`);
+  //   `uiPreferences` — общие настройки Desktop и их веб-приложения (SPEC HX33:
+  //     веб-приложения нет, настройки окна остаются в localStorage).
+  getAudioWsUrl: undefined,
+  getGatewayFileStreamUrl: undefined,
+  getStagedFileDisplayName: undefined,
+  getStagedFileForAttach: undefined,
+  pluginFiles: undefined,
+  reconcileDesktopPluginsReport: undefined,
+  spellcheckDictionary: undefined,
+  uiPreferences: undefined,
+  stageFileForAttach: undefined,
 
   // Their boot flow asks for a connection descriptor, builds a ws:// URL from
   // it and hands that to the client's `connect()`. Ours ignores the URL — main
@@ -1019,6 +1042,21 @@ const IMPLEMENTED: Record<string, unknown> = {
   // ОТКАЗ ПОДНИМАЕТСЯ ОШИБКОЙ: их `capture` ждёт data-URL и сам бросает
   // «preview capture is unavailable» на пустой ответ — заглушка-прокси
   // отдала бы отклонённый промис с именем члена вместо причины.
+  // Task T52: their preview pane reads and drives the page for the agent only
+  // through this lease since 0.23.0 — without it `read_preview` and
+  // `drive_preview` refuse (`preview-drive-channels.ts`).
+  beginPreviewGuestActivity(webContentsId: number): Promise<number> {
+    return window.aecpilot.beginPreviewGuestActivity(webContentsId)
+  },
+
+  endPreviewGuestActivity(token: number): Promise<void> {
+    return window.aecpilot.endPreviewGuestActivity(token)
+  },
+
+  executePreviewGuestScript(token: number, code: string): Promise<unknown> {
+    return window.aecpilot.executePreviewGuestScript(token, code)
+  },
+
   async capturePreview(payload: {
     rect?: { height: number; width: number; x: number; y: number }
     viewport?: { height: number; width: number }
@@ -1373,6 +1411,37 @@ const IMPLEMENTED: Record<string, unknown> = {
     const result = await window.aecpilot.savePastedText(text)
     if (!result.ok) throw new Error(result.error)
     return result.path
+  },
+
+  // Task T52: their journal of uncertain sends survives a crash of the app
+  // (`main/prepared-submissions.ts`); without it only localStorage holds it.
+  preparedSubmissions: {
+    read: (): Promise<string> => window.aecpilot.preparedSubmissions.read(),
+    update: (key: string, entry: string | null): Promise<void> =>
+      window.aecpilot.preparedSubmissions.update(key, entry),
+    compareAndSet: (key: string, expected: string | null, entry: string | null) =>
+      window.aecpilot.preparedSubmissions.compareAndSet(key, expected, entry)
+  },
+
+  // Task T52: main's wake-up for streaming in a hidden window
+  // (`main/stream-work-clock.ts`); without it their clock runs on window timers.
+  scheduleStreamWorkWake(token: string, delayMs: number | null): void {
+    window.aecpilot.scheduleStreamWorkWake(token, delayMs)
+  },
+
+  onStreamWorkWake(callback: (token: string) => void): () => void {
+    return window.aecpilot.onStreamWorkWake(callback)
+  },
+
+  // Task T52: `/save` — the gateway renders the transcript, main writes it where
+  // the person chose (`main/save-text-file.ts`).
+  saveTextFileAs(request: {
+    content: string
+    defaultPath?: string
+    filters?: Array<{ extensions: string[]; name: string }>
+    title?: string
+  }): Promise<{ canceled?: boolean; path?: string; saved: boolean }> {
+    return window.aecpilot.saveTextFileAs(request)
   },
 
   async saveGatewayFile(payload: {

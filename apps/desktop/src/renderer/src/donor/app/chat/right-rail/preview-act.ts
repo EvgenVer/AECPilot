@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-act.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -292,6 +292,13 @@ ${
 })()`
 }
 
+const ANNOTATION_SCRIPTS = new Map<string, (action: PreviewActAction) => string>([
+  ['pin', action => buildPinScript(action, action.text || '')],
+  ['unpin', buildUnpinScript],
+  ['hold', buildHoldScript],
+  ['strobe', buildStrobeScript]
+])
+
 /** Mark the hit, let the page react, and hand back a fresh inventory. */
 function buildFinishScript(settleMs: number): string {
   return `(function () {
@@ -500,10 +507,22 @@ async function runJson(run: PreviewScriptRunner, code: string): Promise<Trip> {
   // Pages such as Trendyol replace Promise with ZoneAwarePromise. Electron
   // awaits native promises only, otherwise IPC clones the thenable's state.
   // An async function adopts it into a native promise without changing the page.
-  const raw = await Promise.race([
-    run(`(async () => (${code}))()`).catch((error: unknown) => new Error(String(error))),
-    new Promise<undefined>(resolve => setTimeout(resolve, ACT_TIMEOUT_MS))
-  ])
+  const controller = new AbortController()
+  const deadline = Promise.withResolvers<undefined>()
+  const timer = setTimeout(() => deadline.resolve(undefined), ACT_TIMEOUT_MS)
+  let raw: unknown
+
+  try {
+    raw = await Promise.race([
+      run(`(async () => (${code}))()`, controller.signal).catch((error: unknown) => new Error(String(error))),
+      deadline.promise
+    ])
+  } finally {
+    clearTimeout(timer)
+    // executeJavaScript can stay pending after navigation. Retire its wake
+    // lease when this trip ends, not whenever Electron eventually answers.
+    controller.abort()
+  }
 
   if (raw === undefined) {
     return { kind: 'silent' }
@@ -791,27 +810,53 @@ export async function actOnActivePreview(
     return { acted: nav, note: 'Page is loading — call elements to see what is on it.', success: true }
   }
 
-  const run = activePreviewScriptRunner(owner)
+  const runner = activePreviewScriptRunner(owner)
 
-  if (!run) {
+  if (!runner) {
     return { error: NOTHING_OPEN, success: false }
   }
 
-  const typed = action as PreviewActAction
+  const run: PreviewScriptRunner = (code, tripSignal) =>
+    runner(code, signal && tripSignal ? AbortSignal.any([signal, tripSignal]) : (signal ?? tripSignal))
 
+  const input = activePreviewInput(owner)
+  const perform = () => actWithChannels(action as PreviewActAction, run, input, signal)
+
+  if (!runner.withActivity) {
+    return perform()
+  }
+
+  // The first script's deadline has not started while wake acquisition waits.
+  // Bound that wait too, without imposing a deadline on long typing actions.
+  const acquisition = new AbortController()
+  const timeout = setTimeout(() => acquisition.abort(new Error(UNANSWERED)), ACT_TIMEOUT_MS)
+  const activitySignal = signal ? AbortSignal.any([signal, acquisition.signal]) : acquisition.signal
+
+  try {
+    return await runner.withActivity(() => {
+      clearTimeout(timeout)
+
+      return perform()
+    }, activitySignal)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error), success: false }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function actWithChannels(
+  typed: PreviewActAction,
+  run: PreviewScriptRunner,
+  input: PreviewInputHandle | null,
+  signal?: AbortSignal
+): Promise<PreviewActResult> {
   // Annotation, not interaction: nothing is clicked, nothing settles, and the
   // page is not re-read, so these skip the whole act-then-inventory path.
-  if (typed.kind === 'pin' || typed.kind === 'unpin' || typed.kind === 'hold' || typed.kind === 'strobe') {
-    const mark =
-      typed.kind === 'hold'
-        ? buildHoldScript()
-        : typed.kind === 'strobe'
-          ? buildStrobeScript()
-          : typed.kind === 'pin'
-            ? buildPinScript(typed, typed.text || '')
-            : buildUnpinScript(typed)
+  const annotation = ANNOTATION_SCRIPTS.get(typed.kind)
 
-    const trip = await runJson(run, mark)
+  if (annotation) {
+    const trip = await runJson(run, annotation(typed))
 
     if (trip.kind === 'failed') {
       return { error: trip.error, success: false }
@@ -819,8 +864,6 @@ export async function actOnActivePreview(
 
     return trip.kind === 'answered' ? trip.result : { acted: typed.kind, note: NAVIGATED, success: true }
   }
-
-  const input = activePreviewInput(owner)
 
   if (input && DRIVEN.indexOf(typed.kind) !== -1) {
     return driveAction(run, input, typed, signal)

@@ -72,15 +72,25 @@ async function triggerAndWait(api, jobId, expected) {
  * контрольной — этот маршрут отдаёт сведения о сессии, а не её переписку. То же
  * самое, что случилось с наблюдаемой в `cron-tick-probe.mjs`: механизм работал,
  * врал измеритель. Задания живут в таблице `messages`, где `session_id` — это
- * строковый ключ сессии вида `cron_<id>_<время>`. */
-function promptsOf(jobId) {
+ * строковый ключ сессии вида `cron_<id>_<время>`.
+ *
+ * Ядро 0.23.0 (T51) завело сессии запусков по-новому: `id` — `local-<sha256>`,
+ * а имя задачи осталось только в заголовке сессии (`<имя> · <дата>[ #N]`,
+ * `source = 'cron'`). Первый прогон на 0.23 искал по старому ключу и не нашёл
+ * ничего — снова врал измеритель, не механизм. Ищем по обоим; по заголовку —
+ * только сессии, начатые после старта пробы: в копии профиля лежат запуски
+ * прошлых прогонов с теми же именами задач. */
+const PROBE_STARTED_S = Date.now() / 1000;
+
+function promptsOf(jobId, jobName) {
   const db = new DatabaseSync(path.join(HERMES_HOME_DIR, "state.db"), { readOnly: true });
   try {
     return db
       .prepare(
-        "SELECT session_id, content FROM messages WHERE session_id LIKE ? AND role='user' ORDER BY id"
+        "SELECT m.session_id, m.content FROM messages m LEFT JOIN sessions s ON s.id = m.session_id " +
+          "WHERE m.role='user' AND (m.session_id LIKE ? OR (s.source = 'cron' AND s.title LIKE ? AND s.started_at >= ?)) ORDER BY m.id"
       )
-      .all(`cron_${jobId}_%`)
+      .all(`cron_${jobId}_%`, `${jobName} · %`, PROBE_STARTED_S)
       .map((row) => ({
         session: String(row.session_id),
         length: String(row.content ?? "").length,
@@ -124,7 +134,7 @@ async function main() {
     await triggerAndWait(api, withId, 1);
     const runsOn = await triggerAndWait(api, withId, 2);
     console.log(`  запусков записано: ${runsOn.length}`);
-    const promptsOn = promptsOf(withId);
+    const promptsOn = promptsOf(withId, "aecpilot-continuity-on");
     for (const p of promptsOn) {
       console.log(`  ${p.session}: ${p.length} знаков, вставка ${p.carriesMarker ? "ЕСТЬ" : "нет"}`);
     }
@@ -134,7 +144,7 @@ async function main() {
     await triggerAndWait(api, withoutId, 1);
     const runsOff = await triggerAndWait(api, withoutId, 2);
     console.log(`  запусков записано: ${runsOff.length}`);
-    const promptsOff = promptsOf(withoutId);
+    const promptsOff = promptsOf(withoutId, "aecpilot-continuity-off");
     for (const p of promptsOff) {
       console.log(`  ${p.session}: ${p.length} знаков, вставка ${p.carriesMarker ? "ЕСТЬ" : "нет"}`);
     }

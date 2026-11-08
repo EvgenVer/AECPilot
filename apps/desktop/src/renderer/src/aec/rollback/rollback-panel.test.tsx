@@ -100,7 +100,7 @@ describe('RollbackPanel', () => {
     // The diff header and the confirmation speak the same language.
     expect(screen.getByText('Что изменилось после 06.08.2026, 10:00')).toBeTruthy()
     await click('Восстановить всё')
-    expect(screen.getByText(/состоянием на 06\.08\.2026, 10:00/)).toBeTruthy()
+    expect(screen.getByText(/менял после 06\.08\.2026, 10:00/)).toBeTruthy()
   })
 
   it('shows the diff of the snapshot the user picked', async () => {
@@ -124,7 +124,7 @@ describe('RollbackPanel', () => {
     // The confirmation is specific: every file, this snapshot, and the turn
     // disappearing from history.
     expect(screen.getByRole('alertdialog')).toBeTruthy()
-    expect(screen.getByText(/Все файлы будут перезаписаны/)).toBeTruthy()
+    expect(screen.getByText(/Файлы, которые агент менял после/)).toBeTruthy()
     expect(restoreCheckpoint).not.toHaveBeenCalled()
 
     await click('Восстановить')

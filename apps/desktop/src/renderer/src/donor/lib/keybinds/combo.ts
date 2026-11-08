@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/keybinds/combo.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped 'composer.voice' from the input-safe set — the action itself
@@ -151,6 +151,14 @@ export function comboFromEvent(event: KeyboardEvent): string | null {
     return null
   }
 
+  // AltGr typing a character. Windows reports it as Ctrl+Alt; Linux can
+  // report Alt with AltGraph but no Ctrl, which must not read as a plain
+  // Alt chord (the browser-tab defaults are Alt+letter off macOS). Firefox on
+  // macOS reports every Option press as AltGraph, so Option chords stay chords.
+  if (!IS_MAC && event.altKey && !event.ctrlKey && !event.metaKey && event.getModifierState?.('AltGraph')) {
+    return null
+  }
+
   const base = baseKeyFromEventKey(event.key, event.shiftKey) ?? baseKeyFromCode(event.code)
 
   if (!base) {
@@ -242,6 +250,11 @@ export function formatModifierToken(mod: string): string {
 export function comboTokens(combo: string): string[] {
   const parts = combo.split('+')
   const base = parts.pop() ?? ''
+
+  // Canonical order keeps `mod` first; macOS writes Control before Command (⌃⌘N).
+  if (IS_MAC && parts[0] === 'mod' && parts[1] === 'ctrl') {
+    parts.splice(0, 2, 'ctrl', 'mod')
+  }
 
   return [...parts.map(formatModifierToken), labelForBase(base)]
 }

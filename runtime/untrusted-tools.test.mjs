@@ -76,7 +76,7 @@ describe("coveredByCore", () => {
 
   it("имя и префикс считаются покрытием", () => {
     expect(coveredByCore("web_search", core)).toBe(true);
-    expect(coveredByCore("browser_click", core)).toBe(true);
+    expect(coveredByCore("browser_exec", core)).toBe(true);
     expect(coveredByCore("mcp_aec_rag_ask", core)).toBe(true);
   });
 

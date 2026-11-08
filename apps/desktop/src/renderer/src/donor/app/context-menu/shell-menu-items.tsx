@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/context-menu/shell-menu-items.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router'
 import { toggleTargetZoneTabStrip } from '@/components/pane-shell/tree/store'
 import { type MenuKit, renderActionItem } from '@/components/ui/actions-menu'
 import { type Translations, useI18n } from '@/i18n'
+import { cloudOwnsUpdates } from '@/store/cloud-updates'
 import { openCommandPalette } from '@/store/command-palette'
 import { toggleProfileRailVisible } from '@/store/profile-rail-prefs'
 import { toggleStatusbarVisible } from '@/store/statusbar-prefs'
@@ -40,15 +41,21 @@ function shellSections(
     onSelect: () => navigateToWorkspacePage(navigate, SETTINGS_ROUTE)
   })
 
-  const update = renderActionItem(kit, {
-    icon: 'cloud-download',
-    key: 'shell-update',
-    label: t.commandCenter.updateHermes,
-    onSelect: requestActiveUpdate
-  })
+  // A Webapp served by Hermes Cloud has nothing to update. Desktop connected to Cloud keeps
+  // the row: it updates this machine's app and skips the agent.
+  const updateHidden = cloudOwnsUpdates('client')
+
+  const update = updateHidden
+    ? null
+    : renderActionItem(kit, {
+        icon: 'cloud-download',
+        key: 'shell-update',
+        label: t.commandCenter.updateHermes,
+        onSelect: requestActiveUpdate
+      })
 
   if (primaryOnly) {
-    return [[newChat, settings, update]]
+    return [update ? [newChat, settings, update] : [newChat, settings]]
   }
 
   return [
@@ -93,7 +100,7 @@ function shellSections(
       }),
       settings
     ],
-    [update]
+    ...(update ? [[update]] : [])
   ]
 }
 

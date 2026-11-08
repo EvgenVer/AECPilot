@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/trigger-popover.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -52,7 +52,7 @@ function rowKind(item: Unstable_TriggerItem, isSlash: boolean): string {
 
 const ROW_CLASS = [
   'relative flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1 text-left',
-  'outline-hidden transition-colors hover:bg-(--ui-bg-tertiary)',
+  'focus-visible:outline-hidden data-[highlighted]:outline-hidden transition-colors hover:bg-(--ui-bg-tertiary)',
   'data-[highlighted]:bg-(--ui-bg-tertiary) data-[highlighted]:text-foreground'
 ].join(' ')
 

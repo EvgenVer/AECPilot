@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/pane-tab.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,7 +22,7 @@ export const PANE_TAB_STRIP_LINE_RIGHT = 'shadow-[inset_-1px_0_0_var(--ui-stroke
 // Surface tokens become transparent under glass; the body owns the tint.
 // The close-button fade masks the label, so it needs no second surface fill.
 const TAB =
-  'group/tab relative flex shrink-0 items-center border-transparent bg-(--tab-bg) text-[0.6875rem] font-medium [-webkit-app-region:no-drag]'
+  'group/tab relative flex shrink-0 items-center border-transparent bg-(--tab-bg) text-[0.6875rem] font-medium [-webkit-app-region:no-drag] focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--ui-accent)'
 
 // Full height: with the strip's rule removed there is no last-pixel row to
 // leave uncovered, so tabs fill the bar and no sliver of gutter shows through.
@@ -58,12 +58,12 @@ const TAB_SELECTED =
 interface PaneTabProps extends React.ComponentProps<'div'> {
   active?: boolean
   dirty?: boolean
+  /** Keyboard activation is separate from pointerdown so drag/tap routing stays intact. */
+  onActivate?: () => void
   /** Close verb. Horizontal tabs reveal a hover ✕ over the label's masked
-   *  right edge; middle-click and ⌘-click always work,
-   *  and stay the only gestures on vertical rails (no room for a chip ✕).
-   *  There is no way to take the ✕ off a tab that HAS this verb: the chip and
-   *  the pointer gestures are one affordance, so a closeable tab always says
-   *  so. Omit `onClose` to make a tab uncloseable. */
+   *  right edge; Delete, middle-click and ⌘-click also close.
+   *  Vertical rails omit the chip ✕ but keep those gestures.
+   *  Omit `onClose` to make a tab uncloseable. */
   onClose?: () => void
   /** Part of a multi-tab selection (⌥/Ctrl-click, Shift-click) — an accent
    *  wash marks every tab that a drag would carry, Chrome-style. */
@@ -85,11 +85,13 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
   {
     active = false,
     dirty = false,
+    onActivate,
     onClose,
     onMouseDown,
     onPointerDown,
     onPointerUp,
     onClickCapture,
+    onKeyDown,
     selected = false,
     vertical = false,
     side = 'left',
@@ -120,7 +122,6 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
       data-active={active}
       data-closeable={(onClose && !vertical) || undefined}
       data-selected={selected || undefined}
-      data-slot="pane-tab"
       data-vertical={vertical || undefined}
       onClickCapture={event => {
         // Sites whose tab activates on the label's own onClick (the preview
@@ -132,6 +133,35 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
         }
 
         onClickCapture?.(event)
+      }}
+      onKeyDown={event => {
+        // Radix asChild and caller handlers run before our defaults. In
+        // particular, leave ContextMenu/Shift+F10 and modified app shortcuts alone.
+        onKeyDown?.(event)
+
+        if (
+          event.defaultPrevented ||
+          event.target !== event.currentTarget ||
+          props.role !== 'tab' ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          event.nativeEvent.isComposing
+        ) {
+          return
+        }
+
+        const action =
+          event.key === 'Delete' ? onClose : event.key === 'Enter' || event.key === ' ' ? onActivate : undefined
+
+        if (!action) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        action()
       }}
       onMouseDown={event => {
         middle.onMouseDown(event)
@@ -159,6 +189,7 @@ export const PaneTab = React.forwardRef<HTMLDivElement, PaneTabProps>(function P
       }}
       ref={ref}
       {...props}
+      data-slot="pane-tab"
     >
       <div
         className={cn('pane-tab-content flex h-full min-w-0 max-w-full flex-1 items-center', vertical && 'contents')}
@@ -278,6 +309,7 @@ export const PaneTabStrip = React.forwardRef<HTMLDivElement, PaneTabStripProps>(
       {...props}
     >
       <div
+        aria-orientation="horizontal"
         className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         ref={listRef}
         role="tablist"

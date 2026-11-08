@@ -1,0 +1,28 @@
+/**
+ * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
+ * Source:  apps/desktop/src/components/ui/masonry.css
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
+ * Edits: none
+ */
+.masonry {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--masonry-min-width, 17rem)), 1fr));
+  align-items: start;
+  gap: calc(var(--spacing) * 3);
+}
+
+.masonry > [data-slot='masonry-item'] {
+  min-width: 0;
+}
+
+.masonry[data-measured] > [data-slot='masonry-item'] {
+  position: absolute;
+}
+
+@supports (display: grid-lanes) {
+  .masonry {
+    display: grid-lanes;
+  }
+}

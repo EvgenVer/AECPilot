@@ -37,7 +37,10 @@ describe("журнал реплик mem0, который чистит удале
 
   it("область — части `ключ=значение` через `&`", () => {
     // Наша чистка узнаёт свою область по части `user_id=<проект>`.
-    expect(main).toMatch(/def _build_session_scope\(filters\):[\s\S]*?parts\.append\(f"\{key\}=\{val\}"\)[\s\S]*?return "&"\.join\(parts\)/);
+    // mem0 2.0.18+ (GHSA-5324-3w58-qpp2, T51): значение экранируется — наш
+    // `_escape_scope_value` в `mem0_turns.py` повторяет их замену символ в символ.
+    expect(main).toMatch(/def _build_session_scope\(filters\):[\s\S]*?parts\.append\(f"\{key\}=\{_escape_scope_value\(val\)\}"\)[\s\S]*?return "&"\.join\(parts\)/);
+    expect(main).toContain('return str(val).replace("%", "%25").replace("&", "%26").replace("=", "%3D")');
   });
 
   it("реплики лежат в таблице messages с колонкой session_scope", () => {

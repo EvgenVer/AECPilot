@@ -8,6 +8,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { registry } from '../../donor/contrib/registry'
+import { registerPluginLocales } from '../../donor/i18n/plugin-i18n'
+import { getRuntimeI18nLocale, setRuntimeI18nLocale } from '../../donor/i18n/runtime'
+import { AEC_I18N_NAMESPACE, aecLocales } from '../../shared/i18n/aec-catalog'
 
 import { registerChangesPane } from './register-changes-pane'
 
@@ -43,5 +46,19 @@ describe('changes pane (task 3.3)', () => {
     // `revealTreePane(REVIEW_PANE_ID)` and the changed-files card all name it.
     expect(reviewPanes()).toHaveLength(1)
     expect(reviewPanes()[0].area).toBe('panes')
+  })
+
+  it('renames itself when the window learns the person’s language (T52)', () => {
+    // Modules register while the runtime locale is still the default; the
+    // person's language arrives later from their I18nProvider.
+    registerPluginLocales(AEC_I18N_NAMESPACE, aecLocales)
+    const before = getRuntimeI18nLocale()
+    setRuntimeI18nLocale('en')
+    registerChangesPane()
+    expect(reviewPanes()[0].title).toBe('Changes')
+
+    setRuntimeI18nLocale('ru')
+    expect(reviewPanes()[0].title).toBe('Изменения')
+    setRuntimeI18nLocale(before)
   })
 })

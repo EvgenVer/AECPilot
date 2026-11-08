@@ -23,6 +23,11 @@ from __future__ import annotations
 from typing import Any
 
 
+def _escape_scope_value(value: str) -> str:
+    """Their `_build_session_scope` escaping, copied: `%` first, then `&` and `=`."""
+    return value.replace("%", "%25").replace("&", "%26").replace("=", "%3D")
+
+
 def forget_scope_turns(memory: Any, user_id: str) -> int:
     """Удаляет реплики всех областей, где `user_id` — этот проект. Возвращает
     число удалённых реплик; без хранилища или ключа не делает ничего."""
@@ -31,12 +36,14 @@ def forget_scope_turns(memory: Any, user_id: str) -> int:
     lock = getattr(db, "_lock", None)
     if connection is None or lock is None or not user_id:
         return 0
-    part = "user_id=" + user_id
+    # mem0 2.0.18+ (GHSA-5324-3w58-qpp2) escapes the scope's delimiters inside a
+    # value (`_escape_scope_value`); a row written before the raise kept it raw.
+    parts = {"user_id=" + user_id, "user_id=" + _escape_scope_value(user_id)}
     with lock:
         scopes = [
             row[0] for row in connection.execute("SELECT DISTINCT session_scope FROM messages")
         ]
-        mine = [scope for scope in scopes if part in (scope or "").split("&")]
+        mine = [scope for scope in scopes if parts & set((scope or "").split("&"))]
         if not mine:
             return 0
         removed = 0

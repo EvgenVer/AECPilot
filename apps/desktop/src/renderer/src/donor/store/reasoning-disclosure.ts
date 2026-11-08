@@ -1,14 +1,16 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/reasoning-disclosure.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { atom } from 'nanostores'
 
+import { persistStore } from '@/lib/persist-store'
 import { persistBoolean, storedBoolean } from '@/lib/storage'
 import { modeBound } from '@/store/interface-mode'
+import type { HermesConfig } from '@/types/hermes'
 
 const REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY = 'hermes.desktop.reasoning.collapsedByDefault'
 
@@ -16,7 +18,11 @@ const REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY = 'hermes.desktop.reasoning.col
  *  Simple mode rests reasoning collapsed without touching this preference. */
 const $reasoningCollapsedByDefaultPref = atom(storedBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, false))
 
-$reasoningCollapsedByDefaultPref.subscribe(value => persistBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, value))
+persistStore(
+  $reasoningCollapsedByDefaultPref,
+  (value, options) => persistBoolean(REASONING_COLLAPSED_BY_DEFAULT_STORAGE_KEY, value, options),
+  false
+)
 
 export const $reasoningCollapsedByDefault = modeBound(
   'reasoningCollapsedByDefault',
@@ -35,4 +41,11 @@ export const $showReasoning = atom(true)
 
 export function setShowReasoningFromConfig(value: unknown): void {
   $showReasoning.set(!(value === false || value === 'false' || value === 0))
+}
+
+/** The `display.show_reasoning` a local surface uses: a local session's `/reasoning show|hide` saves the
+ *  per-platform `display.platforms.cli` key (the gateway's key for local sessions), which wins over the
+ *  global one, as the gateway and the other local clients resolve it. */
+export function localShowReasoning(display: HermesConfig['display']): boolean | string | undefined {
+  return display?.platforms?.cli?.show_reasoning ?? display?.show_reasoning
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/voice-live.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -285,6 +285,13 @@ export class VoiceLiveSession {
   async start(history: LiveHistoryMessage[]): Promise<void> {
     if (this.peer) {
       throw new Error('GPT-Live session already started')
+    }
+
+    // An insecure origin (a Webapp opened over plain HTTP from another machine) has no
+    // mediaDevices. Fail before opening a peer, with the error the recorder's copy maps to
+    // "microphone unsupported", instead of a TypeError on the missing API.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new DOMException('Microphone capture is unavailable here', 'NotSupportedError')
     }
 
     const connection = new RTCPeerConnection()

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/hermes.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,6 +26,7 @@ export {
 export type { ProfileScope, ResolvedOwner } from './api/client'
 export * from './api/config'
 export * from './api/cron'
+export * from './api/delegation'
 export * from './api/local-models'
 export * from './api/mcp'
 export * from './api/messaging'
@@ -36,6 +37,7 @@ export * from './api/sessions'
 export * from './api/skills'
 export * from './api/system'
 export * from './api/toolsets'
+export * from './api/webapp-access'
 
 export type {
   ActionResponse,
@@ -106,6 +108,10 @@ export type {
   ProjectFolder,
   ProjectInfo,
   ProjectsPayload,
+  RelayLinkCode,
+  RelayLinkCodeState,
+  RelayLinkedAccount,
+  RelayLinksResponse,
   SessionCreateResponse,
   SessionInfo,
   SessionMessage,

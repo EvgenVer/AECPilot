@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/shiki-highlighter.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,7 @@ import { ExpandableBlock } from '@/components/chat/expandable-block'
 import { SHIKI_COLOR_REPLACEMENTS } from '@/components/chat/shiki-config'
 import { CopyButton } from '@/components/ui/copy-button'
 import { useI18n } from '@/i18n'
+import { hostHas } from '@/lib/host-capabilities'
 import { isLikelyProseCodeBlock } from '@/lib/markdown-code'
 
 import type { CachedShikiBlockProps } from './shiki-block'
@@ -205,7 +206,16 @@ export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
       />
       <CodeCardBody className="[&_pre]:px-3 [&_pre]:py-2.5">
         <ExpandableBlock>
-          <Pre className="aui-shiki m-0 overflow-hidden bg-transparent p-0">
+          {/* In the browser host the fence is sized to its longest line, so
+              ExpandableBlock scrolls it sideways in place and draws its fade.
+              Native Desktop keeps main's fence, whose <pre> scrolls itself. */}
+          <Pre
+            className={
+              hostHas('sidewaysCodeFences')
+                ? 'aui-shiki m-0 min-w-max bg-transparent p-0'
+                : 'aui-shiki m-0 overflow-hidden bg-transparent p-0'
+            }
+          >
             {plain ? (
               <PlainCode code={content} />
             ) : (

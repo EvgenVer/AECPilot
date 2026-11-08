@@ -591,19 +591,12 @@ export const RU_FILL_PAGES: TranslationOverride<Translations> = {
         unsupported_gpu: 'GPU не поддерживается',
         unknown: 'состояние неизвестно'
       },
-      catalogTitle: 'Каталог плагинов',
-      catalogBrowse: 'Обзор',
-      catalogHide: 'Скрыть обзор каталога',
-      catalogHint:
-        'Нажмите «+ Добавить этому агенту» у любого плагина — проверенные записи ставятся на закреплённом коммите в выбранный профиль. Встроенные плагины «агент + приложение» предлагают обе части.',
       alreadyInstalled: (name: string) => `${name} уже установлен в этом профиле.`,
       catalogProvenance: (sha: string) =>
         `Установлен из каталога AECPilot${sha ? ` на пине ${sha}` : ''}.`,
       pinnedProvenance: (sha: string) =>
         `Закреплён на коммите ${sha}. Обновления отклоняются, пока его не переустановят с новым пином.`,
       pinnedBadge: (sha: string) => `закреплён @ ${sha}`,
-      tierOfficial: 'официальный',
-      tierCommunity: 'сообщества',
       updateToPin: (sha: string) => `Обновить до ${sha}`,
       updateFailed: (name: string) => `Не удалось обновить ${name}`,
       updated: (name: string) =>

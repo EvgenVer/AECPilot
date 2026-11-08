@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-console.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -115,7 +115,7 @@ function ConsoleRow({ copyText, log, onSend, onToggleSelect, selected }: Console
           </span>
         )}
       </div>
-      <span className="opacity-0 transition-opacity group-hover/row:opacity-100">
+      <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
         <CopyButton
           appearance="inline"
           className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

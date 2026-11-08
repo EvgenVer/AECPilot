@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/types_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,10 @@ export interface UpdateChannelCopy {
   rollbackTitle: (version: string) => string
   /** Installing the older stable release moves the checkout back; says so plainly. */
   rollbackBody: (version: string) => string
+  /** A stable release `hermes update` refuses: this install keeps its build until a newer release. */
+  heldBody: (version: string) => string
   /** Updates overlay install button for that rollback. */
   rollbackAction: (version: string) => string
+  /** Update dialog link to every change in a commit-line update. */
+  allChanges: string
 }

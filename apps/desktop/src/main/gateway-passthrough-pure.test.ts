@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyProjectCwd,
   checkRestCall,
+  checkRpcAction,
   checkRpcCall,
   classifyEnvWrite,
   describeRpcFailure,
@@ -26,6 +27,51 @@ describe('checkRpcCall', () => {
     // No namespace, and no room for a smuggled path or frame field.
     expect(() => checkRpcCall('submit')).toThrow(/not a gateway method name/)
     expect(() => checkRpcCall('session.list; drop')).toThrow(/not a gateway method name/)
+  })
+})
+
+describe('checkRpcAction (ядро 0.23.0, задача T52)', () => {
+  it('отказывает в самообновлении плагинов и их десктопной половине (0012 п. 6, HX5)', () => {
+    for (const action of ['update_all', 'auto_update', 'install_desktop', 'remove_desktop']) {
+      expect(() => checkRpcAction('plugins.manage', { action })).toThrow(/not available/)
+    }
+  })
+
+  it('пропускает прежние действия каталога — их держит наш гейт доверия', () => {
+    for (const action of ['list', 'toggle', 'inspect', 'install', 'update', 'remove']) {
+      expect(() => checkRpcAction('plugins.manage', { action })).not.toThrow()
+    }
+  })
+
+  it('отказывает в отправке отладки в Nous (HX3)', () => {
+    expect(() => checkRpcCall('diagnostics.share_nous')).toThrow(/not available/)
+  })
+
+  it('отказывает в тех же действиях через слеш-команду (свежий обзор T52)', () => {
+    for (const command of [
+      '/plugins update',
+      ' /Plugins  AUTO-UPDATE on',
+      '/plug update',
+      'plugins auto-update'
+    ]) {
+      expect(() => checkRpcAction('slash.exec', { command })).toThrow(/not available/)
+    }
+    expect(() => checkRpcAction('command.dispatch', { name: '/plugins', arg: 'update' })).toThrow(
+      /not available/
+    )
+    expect(() =>
+      checkRpcAction('command.dispatch', { name: 'plugins', arg: ' auto-update' })
+    ).toThrow(/not available/)
+  })
+
+  it('пропускает просмотр списка плагинов и чужие команды', () => {
+    expect(() => checkRpcAction('slash.exec', { command: '/plugins' })).not.toThrow()
+    expect(() => checkRpcAction('slash.exec', { command: '/model update' })).not.toThrow()
+    expect(() => checkRpcAction('command.dispatch', { name: 'plugins', arg: '' })).not.toThrow()
+  })
+
+  it('прочие методы не трогает', () => {
+    expect(() => checkRpcAction('session.list', { action: 'update_all' })).not.toThrow()
   })
 })
 
@@ -87,6 +133,18 @@ describe('checkRestCall', () => {
 
   it('refuses path traversal', () => {
     expect(() => checkRestCall('GET', '/api/../secret')).toThrow(/traversal/)
+  })
+
+  it('refuses plugin self-update and the web-app listener (0.23.0, T52)', () => {
+    expect(() => checkRestCall('POST', '/api/dashboard/agent-plugins/update-all')).toThrow(
+      /not available/
+    )
+    expect(() => checkRestCall('PUT', '/api/dashboard/plugins/auto-update')).toThrow(
+      /not available/
+    )
+    expect(() => checkRestCall('POST', '/api/webapp-access/start')).toThrow(/not available/)
+    expect(() => checkRestCall('POST', '/api/webapp-access/restart')).toThrow(/not available/)
+    expect(() => checkRestCall('GET', '/api/webapp-access/status')).not.toThrow()
   })
 
   it('refuses an unsupported verb', () => {
@@ -407,5 +465,40 @@ describe('applyProjectCwd', () => {
   it('другие вызовы не трогает — явная смена папки человеком (`session.cwd.set`) остаётся его выбором', () => {
     const params = { session_id: 's', cwd: 'D:/elsewhere' }
     expect(applyProjectCwd('session.cwd.set', params, vault)).toBe(params)
+  })
+})
+
+// Fresh review of T52: the deny list compared the RAW path, and WHATWG URL /
+// uvicorn rewrite it afterwards — `%2e%2e`, `.`, backslashes and encoded
+// letters all reached a denied route.
+describe('checkRestCall: the path is judged the way the core will read it', () => {
+  it.each([
+    ['POST', '/api/x/%2e%2e/env/reveal'],
+    ['POST', '/api/x/.%2E/env/reveal'],
+    ['POST', '/api/./webapp-access/start'],
+    ['POST', '/api\\webapp-access\\start'],
+    ['POST', '/api/webapp-access/%73tart'],
+    ['POST', '/api//env/reveal'],
+    ['POST', '/api/env%2Freveal']
+  ])('refuses %s %s', (method, path) => {
+    expect(() => checkRestCall(method, path)).toThrow()
+  })
+
+  it('still carries an encoded name in a segment', () => {
+    // A profile or skill named in Cyrillic travels percent-encoded.
+    const path = `/api/profiles/${encodeURIComponent('проект')}`
+    expect(checkRestCall('GET', path)).toEqual({ method: 'GET', path })
+  })
+
+  it('reads the query string as it is', () => {
+    expect(checkRestCall('GET', '/api/sessions?q=%2e%2e').path).toBe('/api/sessions?q=%2e%2e')
+  })
+})
+
+describe('classifyEnvWrite: an encoded route is still the env route', () => {
+  it('intercepts a secret written through an encoded path', () => {
+    expect(
+      classifyEnvWrite('PUT', '/api/%65nv', { key: 'OPENAI_API_KEY', value: 'sk-x' }).action
+    ).toBe('store')
   })
 })

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/en_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,5 +24,8 @@ export const enUpdateChannel: UpdateChannelCopy = {
   rollbackTitle: (v: string) => `Back to stable release ${v}`,
   rollbackBody: (v: string) =>
     `This build is newer than the stable release ${v}. Installing it moves Hermes back to that release.`,
-  rollbackAction: (v: string) => `Roll back to ${v}`
+  heldBody: (v: string) =>
+    `This build is newer than stable release ${v}. Your sessions already use a gateway runtime that ${v} cannot open, so Hermes stays on this build until a newer stable release ships.`,
+  rollbackAction: (v: string) => `Roll back to ${v}`,
+  allChanges: 'See all changes'
 }

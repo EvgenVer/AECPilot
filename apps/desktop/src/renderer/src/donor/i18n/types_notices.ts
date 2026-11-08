@@ -1,12 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/types_notices.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-// Shell notice strings: the remote-display toast, the butterbar and the keep-awake offer; `Translations`
-// spreads this in.
+import type { DesktopCommandNotices } from './types_desktop_commands'
+
+// Shell notice strings: the remote-display toast, the butterbar, send-outcome toasts and the
+// keep-awake offer; `Translations` spreads this in.
 export interface NoticeTranslations {
   remoteDisplayBanner: {
     message: (reason: string) => string
@@ -17,6 +19,55 @@ export interface NoticeTranslations {
     legal: { before: string; terms: string; between: string; privacy: string; after: string }
   }
 
+  promptNotices: {
+    /** An explicit retry of a send whose identityless (legacy) acknowledgement was lost. */
+    legacySendUnconfirmed: string
+    /** An interrupted send restored as a draft: its attachments did not outlive the page. */
+    restoredDraftAttachmentsDropped: string
+    /** reload.mcp left the chat's servers as they were: a turn was running or waiting. */
+    mcpReloadDeferred: string
+    /** A reloaded MCP server the chat does not run (no_mcp, an explicit pick, a platform allowlist). */
+    /** Configured MCP servers that did not connect on reload. */
+    mcpReloadUnavailable: (servers: string) => string
+    /** An edit/restore/regenerate whose target compaction archived: the owner refused the rewind. */
+    compactedTurnUnavailable: string
+    /** The same refusal for any other stale target: undone in another window, not a user turn, or gone. */
+    staleTurnUnavailable: string
+    /** Typed /undo /retry /steer /queue lines (the Ink TUI's wording on the same gateway). */
+    sessionCommands: SessionCommandNotices
+    /** Desktop-side /rollback /agents /config /history /save /export /import /timestamps lines. */
+    desktopCommands: DesktopCommandNotices
+  }
+
   /** Once per computer, after a timed sleep interrupted a turn with keep-awake off. */
   keepAwakeOffer: { title: string; message: string; action: string }
+  /** The sign-in offer after apps connect on the free tier without the welcome trial. */
+  connectorOffer: { heading: string; body: string }
+}
+
+export interface SessionCommandNotices {
+  undoUsage: string
+  undoNothing: string
+  undidOne: (count: string) => string
+  undidOther: (count: string) => string
+  retryNothing: string
+  retryUnsupported: string
+  /** A rewind refused while a reply is running: main's stop-first guidance (tui_gateway busy_message). */
+  busy: (command: string) => string
+  /** The same refusal while another writer holds the compression lock: Stop does not end it, so wait. */
+  busyCompressing: (command: string) => string
+  steerUsage: string
+  steerQueued: (preview: string) => string
+  steerNoActiveTurn: (preview: string) => string
+  steerRejected: string
+  queued: (preview: string) => string
+  queueFailed: string
+  countOne: (count: string) => string
+  countOther: (count: string) => string
+  /** A canonical queued row's edit the owner refused, or whose row started mid-edit. */
+  queueEditKeptTitle: string
+  queueEditKept: string
+  /** A canonical queued row's save whose answer was lost: the edit stays open for a retry. */
+  queueEditUnconfirmedTitle: string
+  queueEditUnconfirmed: string
 }

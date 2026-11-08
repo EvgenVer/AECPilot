@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/fr_first_run.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,8 @@ export const frFirstRun: FirstRunCopy = {
   skip: 'Ignorer la configuration',
   skipTip: 'Termine la configuration guidée et ouvre une nouvelle discussion.',
   skipFailed: 'Impossible d’ignorer la configuration',
+  slashOffTitle: 'Les commandes slash sont désactivées pendant la configuration',
+  slashOffBody: 'Elles fonctionneront normalement une fois la configuration terminée.',
   localModel: {
     title: 'Cet ordinateur peut exécuter un modèle en local',
     text: (model, size) =>

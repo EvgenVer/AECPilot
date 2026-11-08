@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_capabilities.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { arPluginPreviewAccess } from './ar_plugin_preview_access'
+import { arPluginUpdateAll } from './ar_plugin_update_all'
 import type { TranslationOverrides } from './define-locale'
 
 export const arCapabilities = {
@@ -21,7 +23,22 @@ export const arCapabilities = {
   },
   skills: {
     plugins: {
-      pageBlurb: 'يمكن للإضافة توسيع هذا التطبيق أو الوكيل أو كليهما — ولكل جزء مفتاح تشغيل مستقل.'
+      ...arPluginPreviewAccess,
+      ...arPluginUpdateAll,
+      pageBlurb: 'يمكن للإضافة توسيع هذا التطبيق أو الوكيل أو كليهما — ولكل جزء مفتاح تشغيل مستقل.',
+      folderAccess: {
+        title: 'الوصول إلى المجلدات',
+        hint: (name: string) => `يمكن لـ ${name} قراءة الملفات وتعديلها في هذه المجلدات. يسري الإلغاء فورًا.`,
+        revoke: 'إلغاء',
+        revokeLabel: (path: string) => `إلغاء الوصول إلى ${path}`,
+        revoked: (name: string, path: string) => `لم يعد بإمكان ${name} استخدام ${path}.`,
+        revokeFailed: (name: string) => `تعذر إلغاء وصول ${name} إلى المجلدات`,
+        pickerTitle: (name: string) => `اختر مجلدًا لـ ${name}`,
+        pickerButton: 'السماح بالوصول',
+        refusedProtected: (name: string) =>
+          `لا يمكن لـ ${name} استخدام هذا المجلد: فهو يحتوي على إعدادات Hermes أو مفاتيحه أو بيانات الإضافات. اختر مجلدًا لا يحتويها.`,
+        loadFailed: (name: string) => `تعذّر تحميل المجلدات المشتركة مع ${name}.`
+      }
     },
     tabSkills: 'المهارات',
     tabToolsets: 'مجموعات الأدوات',
@@ -29,6 +46,10 @@ export const arCapabilities = {
     searchSkills: 'البحث في المهارات',
     searchToolsets: 'البحث في مجموعات الأدوات',
     refresh: 'تحديث',
+    lock: 'قفل',
+    locked: 'مقفلة',
+    lockHint: 'لا يمكن للوكيل تغيير هذه المهارة ما دامت مقفلة. لا يزال بإمكانك تعديلها بنفسك.',
+    unlockedHint: 'اقفلها لمنع الوكيل من تغيير هذه المهارة. لا يزال بإمكانك تعديلها بنفسك.',
     refreshing: 'جار التحديث...',
     loading: 'جار التحميل...',
     noSkillsTitle: 'لا توجد مهارات',

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_artifacts.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -123,6 +123,7 @@ export const zhHantArtifacts = {
       sentMessage: count => `已將 ${count} 條記錄新增至輸入框`
     },
     web: {
+      embeddedPreviewHint: '部分網站不允許嵌入式預覽。請在瀏覽器分頁中開啟原始頁面。',
       appFailedToBoot: '預覽應用程式啟動失敗',
       serverNotFound: '找不到伺服器',
       remoteLoopback:

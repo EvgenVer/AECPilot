@@ -52,7 +52,28 @@ interface DeadLink {
   entry: string
 }
 
+// `canonical-protocol.ts` (0.23.0, task T52): `openGatewaySocket` is their
+// socket constructor. Their client hands it to the shared client as
+// `socketFactory` — a value, not a call — and our bridge accepts that option
+// and never calls it (main owns the only socket). Its one real call is
+// `voice-stream.ts`, the dictation chain above, which nothing calls either.
+const VOICE_CHAIN: readonly DeadLink[] = [
+  { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' },
+  {
+    file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-voice-recorder.ts'),
+    entry: 'useVoiceRecorder'
+  },
+  {
+    file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-composer-voice.ts'),
+    entry: 'useComposerVoice'
+  }
+]
+
 const UNREACHABLE_BY_CALLS: Record<string, readonly DeadLink[]> = {
+  [path.join('donor', 'api', 'canonical-protocol.ts')]: [
+    { file: path.join('donor', 'api', 'canonical-protocol.ts'), entry: 'openGatewaySocket' },
+    ...VOICE_CHAIN
+  ],
   [path.join('donor', 'lib', 'voice-stream.ts')]: [
     { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' },
     {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_chrome.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -335,7 +335,6 @@ export const arChrome = {
       ownedByProfile: profile => `مملوكة للملف الشخصي ${profile}`,
       untitledChat: id => `محادثة ${id}`,
       handoffOrigin: platform => `قادمة من ${platform}`,
-      continuationOrigin: 'متابعة تلقائية — تم ضغط هذه المحادثة ومتابعتها',
       renamed: 'تمت إعادة التسمية',
       renameFailed: 'فشلت إعادة التسمية',
       renameTitle: 'إعادة تسمية الجلسة',
@@ -356,6 +355,7 @@ export const arChrome = {
     paneControls: 'تحكم اللوحات',
     appControls: 'تحكم التطبيق',
     modelMenu: {
+      pickDeferred: (model: string) => `سيُطبَّق ${model} بدءًا من رسالتك التالية`,
       search: 'البحث عن نموذج...',
       noModels: 'لا توجد نماذج',
       editModels: 'تحرير النماذج',
@@ -409,7 +409,9 @@ export const arChrome = {
       max: 'أقصى',
       sendsOnRoute: (level: string) => `يُرسل ${level} على هذا المسار`,
       updateFailed: 'فشل تحديث خيار النموذج',
-      fastFailed: 'فشل تحديث الوضع السريع'
+      fastFailed: 'فشل تحديث الوضع السريع',
+      daybreak: 'Daybreak',
+      daybreakFailed: 'فشل تحديث Daybreak'
     },
     gatewayMenu: {
       gateway: 'البوابة',
@@ -467,6 +469,17 @@ export const arChrome = {
       turnRunning: 'الدور يعمل',
       contextUsage: 'استخدام السياق',
       compressions: count => `مرات الضغط: ${count}`,
+      contextUsagePanel: {
+        compact: {
+          action: 'ضغط المحادثة',
+          busyHint: 'أكمل الرد الحالي أو أوقفه أولًا',
+          confirm: 'ضغط',
+          hint: 'لخّص السياق القديم لإفساح المجال. تابع في هذه المحادثة نفسها.',
+          question: 'ضغط هذه المحادثة في ملخص؟',
+          questionNamed: title => `ضغط «${title}» في ملخص؟`,
+          working: 'جارٍ الضغط…'
+        }
+      },
       focusedSince: 'منذ التركيز',
       focusedSinceTitle: 'الوقت منذ تركيز هذه المحادثة — وليس مدة الدور',
       yoloOn: 'YOLO مفعل',
@@ -481,6 +494,7 @@ export const arChrome = {
     }
   },
   rightSidebar: {
+    terminalDropUnquotable: (shell, paths) => `لا يمكن كتابة هذه الأسماء بأمان في ${shell}: ${paths}`,
     terminalReadOnly: 'مخرجات للقراءة فقط',
     terminalReadOnlyHelp:
       'للرد على المطالبات، أوقف الأمر الذي يعمل في الخلفية وشغّله في طرفية جديدة. تفتح الطرفية الجديدة صدفة منفصلة ولا تتصل بهذه العملية.',
@@ -521,6 +535,14 @@ export const arChrome = {
     loadingTree: 'جار تحميل الشجرة...',
     loadingFiles: 'جار تحميل الملفات...',
     terminalHide: 'إخفاء الطرفية',
+    terminalNewOn: 'طرفية جديدة على…',
+    terminalGatewayRemoved: 'بوابة محذوفة',
+    terminalGatewayRemovedBody:
+      'حُذفت البوابة التي كانت تعمل عليها هذه الطرفية، لذا لا يمكن إعادة فتحها. أغلق علامة التبويب هذه.',
+    terminalGatewayNoShellBody:
+      'لا توفر هذه البوابة وصولاً إلى الصدفة، لذا لا يمكن إعادة فتح هذه الطرفية. أغلق علامة التبويب هذه.',
+    terminalDisconnectedBody:
+      'انقطع اتصال الطرفية. اضغط Enter لبدء صدفة جديدة؛ يُحفظ سجل التمرير.',
     addToChat: 'إضافة للمحادثة'
   },
   zones: {
@@ -569,7 +591,8 @@ export const arChrome = {
     saveApply: 'حفظ وتطبيق',
     notExpressible: 'هذا الترتيب متشابك — لا يمكن تمثيله كتقسيمات متداخلة بعد',
     zoneCount: count => `${count} مناطق`,
-    tabCount: count => `${count} تبويبات`
+    tabCount: count => `${count} تبويبات`,
+    tabActions: title => `إجراءات ${title}`
   },
   contextMenu: {
     link: {

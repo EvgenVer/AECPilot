@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-pane-content.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,8 @@ interface RosterContentProps {
   staleNotice: string | number | null
   isLoading: boolean
   initialRosterLoading: boolean
-  roster: RosterRow[]
+  /** Bots plus gateway rooms: either kind alone is a list to show. */
+  listedCount: number
   error: ReturnType<typeof useRoster>['error']
   gatewayUp: boolean
   refetch: ReturnType<typeof useRoster>['refetch']
@@ -52,7 +53,7 @@ export function renderRosterContent({
   staleNotice,
   isLoading,
   initialRosterLoading,
-  roster,
+  listedCount,
   error,
   gatewayUp,
   refetch,
@@ -84,11 +85,11 @@ export function renderRosterContent({
           {staleNotice}
         </div>
       ) : null}
-      {(isLoading || initialRosterLoading) && !roster.length ? (
+      {(isLoading || initialRosterLoading) && !listedCount ? (
         <div className="flex flex-1 items-center justify-center">
           <GlyphSpinner className="text-(--ui-text-tertiary)" spinner="breathe" />
         </div>
-      ) : error && !roster.length ? (
+      ) : error && !listedCount ? (
         <div className="grid gap-2 px-3 py-4 text-xs text-(--ui-text-tertiary)">
           <div>
             {gatewayUp
@@ -99,7 +100,7 @@ export function renderRosterContent({
             {b.roster.retryNow}
           </Button>
         </div>
-      ) : roster.length === 0 ? (
+      ) : listedCount === 0 ? (
         <PanelEmpty description={b.roster.emptyDesc} icon="hubot" title={b.roster.emptyTitle} />
       ) : allBotsHidden && !hiddenExpanded ? (
         <div className="grid content-start gap-2 px-3 py-4 text-xs text-(--ui-text-tertiary)">

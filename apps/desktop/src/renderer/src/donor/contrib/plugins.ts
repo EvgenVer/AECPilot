@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/contrib/plugins.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,7 @@
  */
 
 import { trackGatewayEventDisposers } from './events'
-import { createPluginContext, type HermesPlugin } from './plugin'
+import { createPluginContext, declaredCapabilities, type HermesPlugin } from './plugin'
 import { pluginActive, publishPlugin } from './plugins-store'
 import { watchRuntimePlugins } from './runtime-loader'
 
@@ -52,10 +52,13 @@ export function discoverBundledPlugins(): void {
     // Same inventory + live-toggle contract as runtime plugins: each bundled
     // plugin publishes a record with activate/deactivate handles, and a
     // persisted disable survives boots by skipping registration here.
+    const capabilities = declaredCapabilities(plugin)
+
     const record = {
       id: plugin.id,
       name: plugin.name ?? plugin.id,
       description: plugin.description,
+      capabilities,
       kind: 'bundled' as const
     }
 
@@ -68,7 +71,7 @@ export function discoverBundledPlugins(): void {
       try {
         trackGatewayEventDisposers(
           dispose => disposers.push(dispose),
-          () => plugin.register(createPluginContext(plugin.id, dispose => disposers.push(dispose)))
+          () => plugin.register(createPluginContext(plugin.id, dispose => disposers.push(dispose), capabilities))
         )
         publishPlugin({ ...record, status: 'loaded' })
       } catch (error) {

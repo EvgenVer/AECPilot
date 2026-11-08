@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/inline-preview-directive.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import { useSessionView } from '@/app/chat/session-view'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
+import { PreviewDocumentFrame } from '@/components/ui/preview-document-frame'
 import { useThemeEpoch } from '@/hooks/use-theme-epoch'
 import { isReadFileErrorResult, readDesktopFileText } from '@/lib/desktop-fs'
 import { localPreviewTarget } from '@/lib/local-preview'
@@ -531,7 +532,7 @@ function InlineHtmlFrame({
           className="relative block max-w-full transition-[height] duration-200"
           style={{ height, width: width ?? '100%' }}
         >
-          <iframe
+          <PreviewDocumentFrame
             className="absolute inset-0 size-full border-0 bg-transparent"
             loading="lazy"
             sandbox="allow-scripts"

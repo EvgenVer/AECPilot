@@ -26,6 +26,22 @@ of their own: `apps/shared/src` (their `@hermes/shared` package) lands in
 ours at `renderer/src/electron/<name>.ts`. Only renderer-safe modules (types,
 constants, pure helpers) may be taken from the electron root.
 
+Since 0.23.0 three of their files reach a root by a RELATIVE path that our
+mirror cannot reproduce. Each is answered outside the zone, never by editing
+the importer:
+
+- `../../../shared/src/session-http-mutations` (`api/sessions.ts`,
+  `sdk/index.ts`) — a re-export stub of ours at
+  `renderer/shared/src/session-http-mutations.ts`, like the electron stubs;
+- `../../../../../shared/src/catalog-curation.json`
+  (`app/capabilities/catalog/catalog-curation.ts`) — an exact-match alias in
+  `electron.vite.config.ts` to `hermes-shared/catalog-curation.json`, typed for
+  tsc by `renderer/shared/src/catalog-curation.d.json.ts`
+  (`allowArbitraryExtensions`);
+- `./src/lib/playback-source-cache` (`vitest.setup.ts`, which sits at THEIR app
+  root) — an exact-match alias to `lib/playback-source-cache.ts`, so the setup
+  clears the same module instance the code fills.
+
 ## Provenance header — required on every file
 
 ```ts

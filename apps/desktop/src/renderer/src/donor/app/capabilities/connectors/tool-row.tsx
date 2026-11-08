@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/tool-row.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -104,7 +104,7 @@ export function ToolRow({ expanded, on, onExpand, onToggle, preview = false, rea
         {expandable ? (
           <button
             aria-expanded={expanded}
-            className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 text-left outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
+            className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 text-left focus-visible:outline-hidden focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50"
             onClick={onExpand}
             type="button"
           >

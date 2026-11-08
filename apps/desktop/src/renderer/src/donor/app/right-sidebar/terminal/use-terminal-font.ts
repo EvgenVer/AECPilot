@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-font.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@ import { $terminalFontFamily, applyTerminalFontFamily, resolveTerminalFontFamily
 import { redrawAllTerminals } from './terminals'
 
 interface TerminalFontControllerOptions {
-  fitRef: RefObject<((visible: boolean) => void) | null>
+  fitRef: RefObject<(() => void) | null>
   termRef: RefObject<Terminal | null>
   webglRef: RefObject<WebglAddon | null>
 }
@@ -46,7 +46,7 @@ export function useTerminalFontController({ fitRef, termRef, webglRef }: Termina
 
     void applyTerminalFontFamily({
       clearTextureAtlas: () => webglRef.current?.clearTextureAtlas(),
-      fit: () => fitRef.current?.(true),
+      fit: () => fitRef.current?.(),
       fontFamily,
       isCurrent: () => !cancelled && generationRef.current === generation,
       term

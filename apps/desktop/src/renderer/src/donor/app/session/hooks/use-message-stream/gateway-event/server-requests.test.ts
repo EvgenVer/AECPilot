@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/server-requests.test.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -177,6 +177,25 @@ describe('preview action request routing', () => {
     expect(handled).toBe(true)
     expect(decline).toHaveBeenCalledTimes(1)
     expect(respond).not.toHaveBeenCalled()
+  })
+
+  it('refuses window.read in a browser tab with an error the tool relays', async () => {
+    // A browser tab cannot enumerate OS windows: answer {error, platform} at
+    // once rather than an empty value the tool reports as "did not answer".
+    document.documentElement.dataset.hermesDesktopHost = 'browser'
+
+    try {
+      const { respond } = deliver('window.read', {}, null)
+
+      await Promise.resolve()
+
+      expect(JSON.parse(respond.mock.calls[0][0].value)).toMatchObject({
+        error: expect.stringContaining('desktop app') as string,
+        platform: 'browser'
+      })
+    } finally {
+      delete document.documentElement.dataset.hermesDesktopHost
+    }
   })
 
   it("answers pane reads for a session hosted in one of this window's tiles", async () => {
@@ -403,6 +422,19 @@ describe('preview pop-out forwarding', () => {
     await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1), { timeout: 30_000 })
     expect(requestPopoutPreviewRead).toHaveBeenCalledWith({}, sessionAOwner)
     expect(respond.mock.calls[0][0].value).toBe('')
+  })
+
+  it('reads locally in a browser tab, which has no pop-out to wait on', async () => {
+    document.documentElement.dataset.hermesDesktopHost = 'browser'
+
+    try {
+      const { respond } = deliver('preview.read', { session_id: 'session-a' }, 'session-a')
+
+      await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1))
+      expect(requestPopoutPreviewRead).not.toHaveBeenCalled()
+    } finally {
+      delete document.documentElement.dataset.hermesDesktopHost
+    }
   })
 })
 

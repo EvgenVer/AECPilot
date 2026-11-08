@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -112,12 +112,31 @@ export function parseMaybeObject(value: unknown): Record<string, unknown> {
   }
 }
 
+/** Tools whose refused calls are the agent's own retry loop (a skill write
+ *  refused by the size cap or a stale old_string), not something the user must
+ *  act on — except a batch whose rollback failed, which left partial changes.
+ *  Mirrors agent/display.py::is_neutral_failure. */
+const NEUTRAL_FAILURE_TOOLS: ReadonlySet<string> = new Set(['skill_manage'])
+
+export function isNeutralFailure(toolName: string | undefined, result: unknown): boolean {
+  if (!NEUTRAL_FAILURE_TOOLS.has(toolName ?? '')) {
+    return false
+  }
+
+  // Only the error text: a refused patch also returns a file_preview of the
+  // skill, whose own prose may mention the marker.
+  const error = parseMaybeObject(result).error ?? (typeof result === 'string' ? result : '')
+
+  return !String(error).includes('ROLLBACK FAILED')
+}
+
 /** A call that reported failure, from the part's flag or its result body.
  *  Explicit success beats stale envelope errors, as in individual rows. */
-export function toolCallFailed(part: { isError?: boolean; result?: unknown }): boolean {
+export function toolCallFailed(part: { isError?: boolean; result?: unknown; toolName?: string }): boolean {
   const result = parseMaybeObject(part.result)
 
   return (
+    !isNeutralFailure(part.toolName, part.result) &&
     result.success !== true &&
     result.ok !== true &&
     Boolean(part.isError || result.success === false || result.ok === false || extractToolErrorMessage(part.result))

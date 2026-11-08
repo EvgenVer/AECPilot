@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/data/account-operations.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,7 @@ import { atom } from 'nanostores'
 
 import type { ProfileScope } from '@/hermes'
 import { type ConnectionTarget, parseConnectionTarget } from '@/store/connection-request'
+import { noteFreeTierAppConnected } from '@/store/free-tier-sign-in'
 import { activeGatewayConnectionId } from '@/store/gateway'
 import { normalizeProfileKey } from '@/store/profile'
 
@@ -219,5 +220,11 @@ function refetchOnSettle(operation: AccountOperation): void {
     return
   }
 
-  invalidateConnectors(operation.scope, 'list', 'accounts')
+  // The first connect can create the identity the page opened without, so its bundled catalog and
+  // empty rules are re-read too.
+  invalidateConnectors(operation.scope, 'list', 'accounts', 'catalog', 'policy')
+
+  if (operation.targets.some(target => target.state === 'connected')) {
+    noteFreeTierAppConnected()
+  }
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-undo.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,6 +9,16 @@ import { type RefObject, useCallback, useEffect, useMemo } from 'react'
 
 import { caretOffsetInEditor, composerPlainText, placeCaretAtOffset, renderComposerContents } from '../rich-editor'
 import { type ComposerSnapshot, createComposerUndoHistory } from '../undo-history'
+
+/** Each mounted composer's undo recorder, keyed by its editor element, for the
+ *  one edit the app makes from outside the composer tree: a context-menu
+ *  replacement (`app/context-menu/composer-menu.ts`). */
+const recorders = new WeakMap<HTMLElement, () => void>()
+
+/** Bank `editor`'s current state on its composer's undo stack, if one is mounted. */
+export function recordComposerUndoPoint(editor: HTMLElement): void {
+  recorders.get(editor)?.()
+}
 
 interface UseComposerUndoArgs {
   editorRef: RefObject<HTMLDivElement | null>
@@ -48,6 +58,24 @@ export function useComposerUndo({ editorRef, syncDraftFromEditor }: UseComposerU
     },
     [editorRef, history, snapshot]
   )
+
+  useEffect(() => {
+    const editor = editorRef.current
+
+    if (!editor) {
+      return
+    }
+
+    const record = () => recordUndoPoint()
+
+    recorders.set(editor, record)
+
+    return () => {
+      if (recorders.get(editor) === record) {
+        recorders.delete(editor)
+      }
+    }
+  }, [editorRef, recordUndoPoint])
 
   const applySnapshot = useCallback(
     (next: ComposerSnapshot | null) => {

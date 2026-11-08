@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/boot-failure-overlay.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,7 @@ import { Loader } from '@/components/ui/loader'
 import { LogView } from '@/components/ui/log-view'
 import type { DesktopConnectionConfig, DesktopOauthLoginResult } from '@/global'
 import { useI18n } from '@/i18n'
+import { WEBAPP_LAUNCH_REQUIRED } from '@/lib/browser-launch-session'
 import { reestablishCloudAgentSession } from '@/lib/cloud-agent-session'
 import { DESKTOP_DOCS_URL } from '@/lib/docs'
 import { openExternalLink } from '@/lib/external-link'
@@ -92,6 +93,36 @@ function BootFailureModal({
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  )
+}
+
+/** What the app shows over a failed startup: sign-in instructions for a signed-out Webapp tab,
+ * recovery steps for everything else. */
+export function StartupOverlay() {
+  const error = useStore($desktopBoot).error
+
+  return error?.includes(WEBAPP_LAUNCH_REQUIRED) ? <WebappSignInOverlay /> : <BootFailureOverlay />
+}
+
+/** A Webapp tab without a valid sign-in. The service is running, so there is nothing to recover or
+ * dismiss: only hermes webapp signs the tab in. */
+function WebappSignInOverlay() {
+  const copy = useI18n().t.boot.failure
+
+  return (
+    <BootFailureModal onDismiss={() => undefined}>
+      <div className="relative w-full max-w-[40rem] overflow-hidden rounded-xl border border-(--stroke-nous) bg-(--ui-chat-bubble-background) shadow-nous">
+        <div className="flex items-start gap-3 px-5 py-4">
+          <LogIn className="mt-0.5 size-5" />
+          <div>
+            <DialogPrimitive.Title asChild>
+              <h2 className="text-[0.9375rem] font-semibold tracking-tight">{copy.webappTitle}</h2>
+            </DialogPrimitive.Title>
+            <p className="mt-1 text-[0.8125rem] leading-5 text-(--ui-text-tertiary)">{copy.webappDescription}</p>
+          </div>
+        </div>
+      </div>
+    </BootFailureModal>
   )
 }
 

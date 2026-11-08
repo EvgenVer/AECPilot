@@ -153,6 +153,7 @@ const ru = {
   'saveOut.noAddress': 'Адрес картинки не указан.',
   'saveOut.controlChars': 'Адрес содержит управляющие символы.',
   'saveOut.brokenDataUrl': 'Картинку не удалось прочитать: адрес data: испорчен.',
+  'saveOut.saveTextTitle': 'Сохранить',
   'saveOut.schemeRefused': (scheme: string) => `Приложение не сохраняет адреса вида «${scheme}:».`,
   'saveOut.outsideProject':
     'Сохранять можно только файлы внутри рабочей папки проекта. Этот файл лежит ' +
@@ -525,6 +526,7 @@ const en: Catalog = {
   'saveOut.noAddress': 'The image address is not specified.',
   'saveOut.controlChars': 'The address contains control characters.',
   'saveOut.brokenDataUrl': 'Could not read the image: the data: address is corrupted.',
+  'saveOut.saveTextTitle': 'Save',
   'saveOut.schemeRefused': (scheme) => `The app does not save addresses of the form “${scheme}:”.`,
   'saveOut.outsideProject':
     'Only files inside the project’s working folder can be saved. This file is ' +

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_chat.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -107,7 +107,7 @@ export const arChat = {
       '/init': 'فحص المستودع لإنشاء تعليمات AGENTS.md أو تحديثها',
       '/suggestions': 'مراجعة عمليات الأتمتة المقترحة وقبولها أو رفضها',
       '/blueprint': 'إعداد أتمتة من قالب مخطط',
-      '/browser': 'إدارة متصفح الوكيل [connect|disconnect|status|use]',
+      '/browser': 'إدارة متصفح الوكيل [connect|disconnect|status]',
       '/palette': 'فتح لوحة الأوامر',
       '/usage': 'عرض استخدام الرموز وحدود الطلبات؛ reset يسترد إعادة ضبط محفوظة لحدود Codex',
       '/subscription': 'عرض خطة Nous وتغييرها في المتصفح',
@@ -472,6 +472,7 @@ export const arChat = {
     imageAttach: 'إرفاق الصورة',
     imageWriteFailed: 'فشل كتابة الصورة',
     imageAttachFailed: 'فشل إرفاق الصورة',
+    attachFailed: 'فشل الإرفاق',
     pastedContent: 'محتوى ملصق',
     pasteAttachFailed: 'تعذر إرفاق النص الملصق',
     attachImages: 'إرفاق الصور',
@@ -479,6 +480,7 @@ export const arChat = {
     noClipboardImage: 'لا توجد صورة في الحافظة',
     clipboardPasteFailed: 'فشل اللصق من الحافظة',
     dropFiles: 'أفلت الملفات هنا',
+    dropFilesMore: (count: number) => `و${count} أخرى`,
     handoff: {
       pickPlatform: 'اختر وجهة',
       success: platform => `تم التسليم إلى ${platform}. استأنف هنا في أي وقت.`,

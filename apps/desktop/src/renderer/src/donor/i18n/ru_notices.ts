@@ -1,11 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ru_notices.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { TranslationOverrides } from './define-locale'
+import { ruDesktopCommands } from './ru_desktop_commands'
+import { ruSessionCommands } from './ru_session_commands'
 
 // Shell notices (remote-display toast, butterbar, keep-awake offer), spread into ru.ts.
 export const ruNotices = {
@@ -23,10 +25,35 @@ export const ruNotices = {
       after: '.'
     }
   },
+  promptNotices: {
+    legacySendUnconfirmed:
+      'Этот сервер не смог подтвердить предыдущую отправку этого сообщения, поэтому оно, возможно, уже выполнено. Проверьте беседу, прежде чем отправлять его снова.',
+    restoredDraftAttachmentsDropped:
+      'Вложения из неотправленного сообщения не восстановлены. Прикрепите их снова, прежде чем отправлять его.',
+    mcpReloadDeferred:
+      'Чат занят: изменение MCP применится, когда завершится текущий ход и MCP будет перезагружен снова, или при повторном открытии чата',
+    mcpReloadUnavailable: servers => `Не удалось подключиться: ${servers}`,
+    compactedTurnUnavailable:
+      'Это сообщение было сжато в краткое изложение при сжатии чата, поэтому его больше нельзя восстановить или изменить.',
+    staleTurnUnavailable: 'Этого сообщения больше нет в истории этого чата.',
+    sessionCommands: ruSessionCommands,
+    desktopCommands: ruDesktopCommands
+  },
   keepAwakeOffer: {
     title: 'Компьютер ушёл в сон, пока Hermes работал',
     message:
       'Hermes может не давать компьютеру засыпать, пока выполняется задача. Экран по-прежнему выключается, а от батареи компьютер всё равно может уснуть.',
     action: 'Не засыпать во время работы'
+  },
+  billingBlock: {
+    titleNous: 'Кредиты Nous закончились',
+    titleProvider: provider => `Кредиты закончились — ${provider}`,
+    fallbackMessage: 'В вашем аккаунте закончились кредиты. Пополните баланс, чтобы продолжить.',
+    openBilling: 'Открыть биллинг',
+    addCredits: 'Пополнить кредиты',
+    dismiss: 'Скрыть'
   }
-} satisfies Pick<TranslationOverrides, 'remoteDisplayBanner' | 'butterbar' | 'keepAwakeOffer'>
+} satisfies Pick<
+  TranslationOverrides,
+  'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'keepAwakeOffer' | 'billingBlock'
+>

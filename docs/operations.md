@@ -155,7 +155,8 @@ corepack pnpm -C apps/desktop run dist:win
   диффе.
 - После смены версии Electron `corepack pnpm install` (и `pnpm rebuild electron`) может
   оставить пакет без бинарника: в его папке нет `dist/`, приложение не запускается
-  (замер 2026-10-26, 43.7.11 → 43.8.3). Чинится запуском его установщика напрямую:
+  (замер 2026-10-26, 43.7.11 → 43.8.3; повторилось 2026-11-07, 43.8.3 → 44.9.3). Чинится
+  запуском его установщика напрямую:
   `node install.js` в `node_modules/.pnpm/electron@<версия>/node_modules/electron`;
   проверка — файл `dist/version` с нужной версией.
 - Поиск по каталогу (ripgrep) не видит gitignored-папки вроде `runtime/.hermes-venv` —

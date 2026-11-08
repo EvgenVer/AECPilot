@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/toolsets/toolsets-data.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,41 @@ export function useToolsetsQuery(profile: ProfileScope) {
 
 export const toolsetCalls = (toolset: ToolsetInfo, toolCalls: Record<string, number>): number =>
   toolNames(toolset).reduce((sum, name) => sum + (toolCalls[name] ?? 0), 0)
+
+/** Browsing groups for the Tools page, by what a toolset lets the agent do.
+ *  Toolsets not named here land in the trailing "More tools" group. */
+export type ToolsetThemeId = 'work' | 'create' | 'recall' | 'connect' | 'more'
+
+/** Browsing-group membership; labels and blurbs are i18n (`catalog.toolsets.themes`). */
+export const TOOLSET_THEMES: ReadonlyArray<{ id: Exclude<ToolsetThemeId, 'more'>; names: readonly string[] }> = [
+  {
+    id: 'work',
+    names: ['browser', 'computer_use', 'web', 'terminal', 'file', 'code_execution', 'cronjob', 'kanban', 'delegation', 'todo', 'clarify']
+  },
+  {
+    id: 'create',
+    names: ['vision', 'video', 'stt', 'tts', 'image_gen', 'video_gen']
+  },
+  {
+    id: 'recall',
+    names: ['memory', 'session_search', 'skills']
+  },
+  {
+    id: 'connect',
+    names: ['connections', 'a2a', 'homeassistant', 'x_search', 'messaging', 'spotify']
+  }
+]
+
+export const TOOLSET_MORE_THEME: { id: ToolsetThemeId } = { id: 'more' }
+
+/** Toolsets in the feature row, and the fewest a profile must have before the row shows. */
+export const TOOLSET_FEATURE_COUNT = 4
+export const TOOLSET_FEATURE_MIN = 8
+
+/** The feature row before there's usage to rank by. */
+export const TOOLSET_ESSENTIALS: readonly string[] = ['browser', 'file', 'code_execution', 'memory']
+
+export const toolsetTheme = (name: string): { id: ToolsetThemeId } => TOOLSET_THEMES.find(theme => theme.names.includes(name)) ?? TOOLSET_MORE_THEME
 
 export function filteredToolsets(
   toolsets: ToolsetInfo[],

@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-actions/restore-pending-clarify.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { type GatewayEventPayload, QUESTION_CARD_TOOLS } from '@/lib/chat-messages'
+import { type ChatMessage, type GatewayEventPayload, QUESTION_CARD_TOOLS } from '@/lib/chat-messages'
 import { $clarifyRequests, type ClarifyRequest, clearClarifyRequest } from '@/store/clarify'
 import type { SessionResumeResult } from '@/types/hermes'
 
@@ -70,4 +70,37 @@ export function pendingClarifyToolPayload(request: ClarifyRequest): GatewayEvent
     },
     tool_id: request.requestId
   }
+}
+
+/** Drop the pre-hydration request-id row without copying the other messages.
+ *  A copied clarify row looks like a concurrent edit and hydration keeps both. */
+export function withoutEarlyClarifyProjection(messages: ChatMessage[], requestId: string): ChatMessage[] {
+  let changed = false
+  const next: ChatMessage[] = []
+
+  for (const message of messages) {
+    const parts = message.parts.filter(
+      part =>
+        !(
+          part.type === 'tool-call' &&
+          QUESTION_CARD_TOOLS.has(part.toolName) &&
+          part.result === undefined &&
+          part.toolCallId === requestId
+        )
+    )
+
+    if (parts.length === message.parts.length) {
+      next.push(message)
+
+      continue
+    }
+
+    changed = true
+
+    if (parts.length > 0) {
+      next.push({ ...message, parts })
+    }
+  }
+
+  return changed ? next : messages
 }

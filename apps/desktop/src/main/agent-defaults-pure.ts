@@ -162,7 +162,16 @@ export const CORE_OPT_OUTS: readonly CoreOptOut[] = [
     path: ['plugins', 'load_timeout_seconds'],
     value: 120,
     what: 'the plugin load deadline our secret filter needs'
-  }
+  },
+  // Ядро 0.23.0 (задача T51, решение 0016). У ядра все три уже выключены — закреплено по
+  // уроку `vault.*.enabled`: смена их умолчания не должна включить это молча.
+  // Самообновление плагинов из каталога и git — код из сети мимо нашего гейта (решение
+  // 0012, п. 6).
+  { path: ['plugins', 'auto_apply'], value: false, what: 'the plugin self-update opt-out' },
+  // Веб-приложение шлюза — слушающий порт и вход через Nous (HX33).
+  { path: ['webapp', 'enabled'], value: false, what: 'the web-app opt-out' },
+  // Daybreak — тариф Codex с удалённой конфигурацией (HX35).
+  { path: ['agent', 'daybreak'], value: false, what: 'the Daybreak opt-out' }
 ]
 
 /** UR5 (решение владельца 2026-10-15, интервью вопрос 12): навык ответа по
@@ -177,7 +186,13 @@ export const AUTO_LOAD_SKILLS: readonly string[] = ['aec-qa']
  * `meeting-action-items`, `grounded-citations`, `excalidraw`, `maps`, `computer-use`,
  * `sources-management` и наши (`aec-qa`, `aec-wiki`). Список — их комплект 0.21.5 и
  * имена прежних комплектов, которые остаются в профилях, заведённых раньше; `llm-wiki`
- * выключен — его место занимает наш `aec-wiki` (3G.14). */
+ * выключен — его место занимает наш `aec-wiki` (3G.14).
+ *
+ * Ядро 0.23.0 (задача T51, сверка деревьев `d923a5eb` и `2bd378ed`): встроенных навыков
+ * 44 вместо 58. `docx`, `xlsx` и `powerpoint` слиты в `microsoft-office` — он остаётся
+ * включённым, как они; ушли `llm-wiki` и одиннадцать навыков, которые здесь и так
+ * выключены (решение 0016: отказываемся вместе с ядром). Имена ушедших навыков в списке
+ * остаются — они живут в профилях, заведённых раньше. */
 export const DISABLED_SKILLS: readonly string[] = [
   'airtable',
   'apple-notes',

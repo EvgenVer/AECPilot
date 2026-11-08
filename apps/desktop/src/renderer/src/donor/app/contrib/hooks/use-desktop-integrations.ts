@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/hooks/use-desktop-integrations.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,6 +21,7 @@ import { pathFromHermesDeepLink, resolveHermesOpenPath } from '@/lib/hermes-open
 import { storedSessionIdForNotification } from '@/lib/session-ids'
 import { announceNewSessionDraftKey } from '@/store/composer'
 import { recordAction } from '@/store/desktop-metrics'
+import { onKeptRouteOpened } from '@/store/gateway-kept-routes'
 import { requestMcpInstallFromDeepLink } from '@/store/mcp-deeplink-install'
 import { startMcpHealthChecker, stopMcpHealthChecker } from '@/store/mcp-health'
 import {
@@ -56,6 +57,9 @@ import { requestComposerFocus, requestComposerInsert } from '../../chat/composer
 import { appViewForPath, isOverlayView, NEW_CHAT_ROUTE, routeSessionId, sessionRoute } from '../../routes'
 
 import { resolveRememberedSessionId } from './remembered-session'
+
+// Trailing window that folds a burst of kept-route opens into one list refresh.
+const KEPT_ROUTE_REFRESH_COALESCE_MS = 400
 
 type RememberedSession = Pick<SessionInfo, '_lineage_root_id' | 'id' | 'parent_session_id' | 'profile' | 'source'>
 
@@ -567,5 +571,22 @@ export function useDesktopIntegrations({
     }
 
     return onSessionsChanged(() => void refreshSessions())
+  }, [refreshSessions])
+
+  // A gateway that connects after the list was drawn adds its rows to it.
+  // Kept-route opens (launch dials and reconnects alike) share one trailing
+  // timer, so opens less than KEPT_ROUTE_REFRESH_COALESCE_MS apart pull once.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const off = onKeptRouteOpened(() => {
+      clearTimeout(timer)
+      timer = setTimeout(() => void refreshSessions(), KEPT_ROUTE_REFRESH_COALESCE_MS)
+    })
+
+    return () => {
+      off()
+      clearTimeout(timer)
+    }
   }, [refreshSessions])
 }

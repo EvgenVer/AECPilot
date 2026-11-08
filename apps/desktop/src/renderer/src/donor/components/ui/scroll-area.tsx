@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/scroll-area.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,7 +13,10 @@ import { cn } from '@/lib/utils'
 function ScrollArea({ className, children, ...props }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
   return (
     <ScrollAreaPrimitive.Root className={cn('relative overflow-hidden', className)} data-slot="scroll-area" {...props}>
-      <ScrollAreaPrimitive.Viewport className="size-full outline-none" data-slot="scroll-area-viewport">
+      <ScrollAreaPrimitive.Viewport
+        className="size-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        data-slot="scroll-area-viewport"
+      >
         {children}
       </ScrollAreaPrimitive.Viewport>
       <ScrollBar />

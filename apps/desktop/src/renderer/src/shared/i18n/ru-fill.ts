@@ -163,8 +163,7 @@ export const RU_FILL: TranslationOverride<Translations> = {
       action:
         'Закройте AECPilot в этом профиле, затем осмотрите файл, ничего в нём не меняя, или восстановите снимок:'
     },
-    projects: { autoDiscovered: 'Найден автоматически' },
-    row: { continuationOrigin: 'Автопродолжение — этот разговор сжат и продолжен' }
+    projects: { autoDiscovered: 'Найден автоматически' }
   },
   composer: {
     hiddenQueued: 'Заметка настройки',
@@ -501,8 +500,6 @@ export const RU_FILL: TranslationOverride<Translations> = {
       errorDetails: 'Подробности',
       errorGenericProvider: 'Сервис ИИ',
       errorRetry: 'Повторить',
-      errorLimitResets: (time: string) => `Лимит обновится в ${time}`,
-      errorRetryAtReset: (time: string) => `Повторить, когда лимит обновится (${time})`,
       errorRetryScheduled: (time: string, wait: string) => `Повтор в ${time} — через ${wait}`,
       errorRetryScheduledCancel: 'Отмена',
       errorStartNewSession: 'Начать новый сеанс',
@@ -518,8 +515,7 @@ export const RU_FILL: TranslationOverride<Translations> = {
       errorOpenLogsFailed: 'Не удалось открыть папку журналов',
       errorOpenDesktopLogs: 'Открыть журналы приложения',
       errorOpenHermesFolder: 'Открыть папку данных',
-      errorOpenHermesFolderFailed: 'Не удалось открыть папку данных',
-      errorCopyDiagnostics: 'Скопировать подробности ошибки'
+      errorOpenHermesFolderFailed: 'Не удалось открыть папку данных'
     },
     approval: {
       reconnect: 'Переподключиться',

@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/preview-targets.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { fileUrlToNativePath } from '@hermes/shared'
+
 import { isWindowsAbsolutePath } from '@/lib/path-compare'
 
 const PREVIEW_MARKDOWN_RE = /\[Preview:[^\]]+\]\((?<href>#preview[:/][^)]+)\)/gi
@@ -55,7 +57,8 @@ export function previewName(target: string): string {
     const url = new URL(target)
 
     if (url.protocol === 'file:') {
-      return decodeURIComponent(url.pathname).split(/[\\/]/).filter(Boolean).pop() || target
+      // A URL that does not decode, or encodes a separator, is labelled by its raw path.
+      return (fileUrlToNativePath(target) ?? url.pathname).split(/[\\/]/).filter(Boolean).pop() || target
     }
 
     const file = url.pathname.split('/').filter(Boolean).pop()
@@ -75,24 +78,13 @@ export function previewArtifactKey(target: string, cwd: string): string {
   }
 
   if (/^file:\/\//i.test(path)) {
-    try {
-      const url = new URL(path)
+    const filePath = fileUrlToNativePath(path)
 
-      // Encoded separators are not legal file-URL path segments.
-      if (/%2f|%5c/i.test(url.pathname)) {
-        return path
-      }
-
-      path = decodeURIComponent(url.pathname)
-
-      if (url.hostname) {
-        path = `//${url.hostname}${path}`
-      } else if (/^\/[a-z]:\//i.test(path)) {
-        path = path.slice(1)
-      }
-    } catch {
+    if (filePath === null) {
       return path
     }
+
+    path = filePath
   }
 
   const windows = /^[a-z]:[\\/]/i.test(path) || path.startsWith('\\\\')

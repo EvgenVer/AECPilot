@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/disclosure-row.tsx
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,7 +46,7 @@ export function DisclosureRow({
           // max-w-fit so the click target hugs the title text width — no
           // background fill, just the cursor + the affordance caret.
           'flex min-w-0 max-w-fit items-start gap-1.5 text-left transition-colors',
-          onToggle ? 'hover:text-foreground focus-visible:text-foreground focus-visible:outline-none' : 'cursor-default'
+          onToggle ? 'hover:text-foreground focus-visible:text-foreground' : 'cursor-default'
         )}
         disabled={!onToggle}
         onClick={onToggle}

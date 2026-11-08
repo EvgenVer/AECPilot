@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/focus.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -771,9 +771,21 @@ export const focusComposerInput = (el: HTMLElement | null) => {
     el.focus({ preventScroll: true })
   }
 
+  const retry = () => {
+    // Newer native-control or tab navigation wins over queued retries. A fresh
+    // explicit composer request still gets the synchronous focus call below.
+    const active = document.activeElement
+
+    if (active instanceof HTMLMediaElement || active?.closest('[role="tab"]')) {
+      return
+    }
+
+    focus()
+  }
+
   focus()
-  window.requestAnimationFrame(focus)
-  window.setTimeout(focus, 0)
+  window.requestAnimationFrame(retry)
+  window.setTimeout(retry, 0)
 }
 
 /** Drop focus from the main composer input (status-stack chrome, sidebar, etc.).

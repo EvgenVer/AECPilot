@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-gone-latch.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -33,11 +33,20 @@ export const healsByStoredId = new Map<string, number>()
  *  blip is not. Only the former may stop a poll — misclassifying a transient
  *  failure would silently freeze a healthy session.
  *
- *  Match the gateway's 4001 code when the error carries one. Codeless errors
+ *  Canonical authority errors share code 4001; their reason is authoritative.
+ *  Only reason `not_found` means the binding is gone. Legacy errors without a
+ *  reason retain the gateway's 4001 contract. Codeless errors
  *  (the frame's structure was lost across the IPC bridge or a wrapped rethrow)
  *  are accepted only with a bare "session not found" body — a tool or report
  *  string that merely mentions the phrase must not latch a live runtime. */
 export function isSessionGoneForBackgroundPolling(error: unknown): boolean {
+  const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined
+  const reason = data && typeof data === 'object' ? (data as { reason?: unknown }).reason : undefined
+
+  if (typeof reason === 'string') {
+    return reason === 'not_found'
+  }
+
   if (error instanceof JsonRpcGatewayError && typeof error.code === 'number') {
     return error.code === GATEWAY_SESSION_NOT_FOUND_CODE
   }

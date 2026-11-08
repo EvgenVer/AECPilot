@@ -36,7 +36,6 @@ const EXCLUDED: Record<string, string> = {
   'settings.fieldLabels.stt.': 'HX19',
   'settings.fieldDescriptions.voice.': 'HX19',
   'settings.fieldDescriptions.stt.': 'HX19',
-  'settings.poolLimits.': 'HX27 — пула бэкендов нет',
   'settings.gateway.keychainEncryption': 'HX20 — шифруем всегда',
   'profiles.fleet.': 'HX22 — реестр нескольких ядер',
   'boot.updateHold.': 'HX4 — их обновлятор',
@@ -48,7 +47,14 @@ const EXCLUDED: Record<string, string> = {
   'updates.checkUnknownTitleAppInstaller': 'HX4',
   'updates.checkUnknownBodyAppInstaller': 'HX4',
   'updates.versionDetailsDistributionStore': 'HX4 — Microsoft Store',
-  'settings.uninstallSection.': 'не показывается: член `uninstall` отсутствует в шиме'
+  'settings.uninstallSection.': 'не показывается: член `uninstall` отсутствует в шиме',
+  // Пин 0.23.0 (задача T52):
+  'boot.failure.webappTitle': 'HX33 — веб-приложение',
+  'connectorOffer.': 'HX3 — вход в аккаунт Nous',
+  'shell.statusbar.togglePlanUsage': 'HX2 — тариф и оплата',
+  'shell.statusbar.planUsageTitle': 'HX2',
+  'shell.modelOptions.daybreak': 'HX35 — переключатель снят правкой [3]',
+  'rightSidebar.terminalDrop': 'HX7-прим. — терминала в продукте нет'
 }
 
 const NAMES = new Set([

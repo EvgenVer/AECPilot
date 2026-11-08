@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/transcript-video.test.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,19 @@ describe('video playback speed preference', () => {
   })
 
   afterEach(cleanup)
+
+  it('requests inline playback without removing native controls or caller overrides', async () => {
+    const { TranscriptVideo } = await loadComponent()
+    const { container, rerender } = render(<TranscriptVideo controls src="file:///tmp/mobile.mp4" />)
+    const video = container.querySelector('video')!
+
+    expect(video.playsInline).toBe(true)
+    expect(video.controls).toBe(true)
+
+    rerender(<TranscriptVideo controls playsInline={false} src="file:///tmp/mobile.mp4" />)
+    expect(video.playsInline).toBe(false)
+    expect(video.controls).toBe(true)
+  })
 
   it('persists a user rate change and seeds the next player from it', async () => {
     const { TranscriptVideo } = await loadComponent()

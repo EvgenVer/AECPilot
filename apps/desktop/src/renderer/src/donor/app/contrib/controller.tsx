@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/controller.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the 'terminal' pane, its tool-panel binding and the
@@ -118,6 +118,7 @@ import {
   startTileBackendIdentityGuard,
   startUnrestoredTileTitleBackfill,
   watchSessionTiles,
+  workspaceTabActions,
   WorkspaceTabMenu
 } from '../chat/session-tile'
 import { AppContextMenu } from '../context-menu/app-context-menu'
@@ -129,6 +130,7 @@ import { TermsButterbar } from '../shell/terms-butterbar'
 import { BASIC_TREE, DEFAULT_TREE, registerLayoutPresets } from './layout-presets'
 import { bindLayoutSides } from './layout-sides'
 import { FilesPane, LogsPane, ReviewPaneContent } from './panes'
+import { PluginPreviewConsentDialog } from './plugin-preview-consent-dialog'
 import { ContribWiring, WiredPane } from './wiring'
 import { WorkspacePageHeaderHostContext } from './workspace-page-header'
 
@@ -232,6 +234,7 @@ registry.registerMany([
       placement: 'main',
       minWidth: '22vw',
       tabDrag: workspaceTabDrag,
+      tabActions: workspaceTabActions,
       tabWrap: wrapWorkspaceTab,
       uncloseable: true
     },
@@ -512,6 +515,7 @@ const syncWorkspaceTitle = () => {
       placement: 'main',
       minWidth: '22vw',
       tabDrag: workspaceTabDrag,
+      tabActions: workspaceTabActions,
       tabWrap: wrapWorkspaceTab,
       uncloseable: true
     },
@@ -766,6 +770,7 @@ export function ContribController() {
       <ContribWiring>
         <AppContextMenu />
         <HudShell />
+        <PluginPreviewConsentDialog />
       </ContribWiring>
     )
   }
@@ -774,21 +779,25 @@ export function ContribController() {
     return (
       <ContribWiring>
         <BrowserPopoutShell />
+        <PluginPreviewConsentDialog />
       </ContribWiring>
     )
   }
 
   return (
     <SidebarProvider
-      className="h-screen min-h-0 flex-col bg-background"
+      className="h-full min-h-0 flex-col bg-background"
       onOpenChange={setSidebarOpen}
       open={sidebarOpen}
       style={{ '--sidebar-width': '100%' } as CSSProperties}
     >
       <ContribWiring>
         <AppContextMenu />
+        {/* App-owned answer to a plugin's ctx.preview.executeJavaScript. Plugins
+            run in every window kind, so each shell mounts it. */}
+        <PluginPreviewConsentDialog />
         <div
-          className="flex h-screen min-h-0 w-screen flex-col bg-(--ui-bg-chrome) text-(--ui-text-primary)"
+          className="flex h-full min-h-0 w-screen flex-col bg-(--ui-bg-chrome) text-(--ui-text-primary)"
           // Window-glass hook: this div and the sidebar-wrapper above it are
           // the app shell's two full-window opaque painters; the
           // [data-hermes-glass] rules in styles.css clear them so the tint

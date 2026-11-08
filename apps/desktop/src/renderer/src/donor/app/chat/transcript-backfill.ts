@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/transcript-backfill.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,11 @@
  * drift on the next page.
  */
 
+import {
+  dropPageFoldsCutByTheBoundary,
+  dropPageRowsOfStoppedTurns,
+  dropReceiptTurnsThePageHolds
+} from '@/app/chat/transcript-receipt-turns'
 import { transcriptRowIds } from '@/app/session/hooks/use-session-actions/pending-turn-identity'
 import { getOlderSessionMessages, getSessionMessages, type ProfileScope } from '@/hermes'
 import { type ChatMessage, chatMessageText, toChatMessages } from '@/lib/chat-messages'
@@ -324,6 +329,24 @@ function mergeOverlappingTail(previous: ChatMessage[], refreshedTail: ChatMessag
   }
 
   const byRowId = new Map<number, StoredRowSlot>()
+  // A turn the page holds whole is the page's to draw, whatever stored ids
+  // its live rows managed to bind (see transcript-receipt-turns).
+  const receiptDrop = dropReceiptTurnsThePageHolds(previous, refreshedTail)
+  // Local notices of a dropped turn, keyed by the page row they precede.
+  const anchored = new Map<number, ChatMessage[]>()
+
+  const anchorNotice = (message: ChatMessage): boolean => {
+    const anchor = receiptDrop.noticeAnchors.get(message.id)
+    const slot = anchor === undefined ? undefined : refreshedBySource.get(anchor)?.rowId
+
+    if (slot === undefined) {
+      return false
+    }
+
+    anchored.set(slot, [...(anchored.get(slot) ?? []), message])
+
+    return true
+  }
 
   const place = (messages: ChatMessage[], fresh: boolean): ChatMessage[] => {
     let pending: ChatMessage[] = []
@@ -375,14 +398,22 @@ function mergeOverlappingTail(previous: ChatMessage[], refreshedTail: ChatMessag
     return pending
   }
 
-  const previousTrailing = place(previous, false)
-  const refreshedTrailing = place(refreshedTail, true)
+  const previousTrailing = place(
+    receiptDrop.window.filter(message => !anchorNotice(message)),
+    false
+  )
+
+  const freshRows = dropPageRowsOfStoppedTurns(previous, dropPageFoldsCutByTheBoundary(previous, refreshedTail))
+  const refreshedTrailing = place(freshRows, true)
 
   const stored = [...byRowId.entries()]
     .sort((left, right) => left[0] - right[0])
-    .flatMap(([, { leading, message }]) => [...leading, message])
+    .flatMap(([rowId, { leading, message }]) => [...leading, ...(anchored.get(rowId) ?? []), message])
 
-  return [...stored, ...refreshedTrailing, ...previousTrailing]
+  // A notice whose anchor row the page dropped after all still stays on screen.
+  const unplaced = [...anchored.entries()].filter(([rowId]) => !byRowId.has(rowId)).flatMap(([, notices]) => notices)
+
+  return [...stored, ...refreshedTrailing, ...previousTrailing, ...unplaced]
 }
 
 export function graftRefreshedTailOntoBackfill(refreshedTail: ChatMessage[], previous: ChatMessage[]): ChatMessage[] {

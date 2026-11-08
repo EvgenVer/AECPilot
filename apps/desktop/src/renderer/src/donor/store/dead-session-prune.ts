@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/dead-session-prune.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,8 +10,9 @@
  * the backend.
  *
  * Pins (`hermes.desktop.pinnedSessions`), composer drafts
- * (`hermes:composer-drafts:v3`) and queued prompts
- * (`hermes.desktop.composerQueue.v1`) are keyed by session id and re-asserted
+ * (`hermes:composer-drafts:v4`, mirrored to v3), queued prompts
+ * (`hermes.desktop.composerQueue.v1`) and interrupted sends
+ * (`hermes:composer-outbox:v1:*`) are keyed by session id and re-asserted
  * or probed at boot. When a session is removed from state.db (retention purge,
  * manual delete, another surface pruning it), those keys go stale: nothing
  * ever drops them, so every boot re-requests the dead ids and the gateway
@@ -28,7 +29,8 @@
 
 import { getSession } from '@/hermes'
 import { mapPool } from '@/lib/pool'
-import { clearSessionDraft, stashedDraftScopes } from '@/store/composer'
+import { clearSessionDraft, isFreshDraftScope, stashedDraftScopes } from '@/store/composer'
+import { dropInterruptedSends, interruptedSendScopes } from '@/store/composer-outbox'
 import { $queuedPromptsBySession, clearQueuedPrompts } from '@/store/composer-queue'
 import { $pinnedSessionIds, unpinSession } from '@/store/layout'
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
@@ -159,6 +161,13 @@ function collectCandidates(): string[] {
     }
   }
 
+  // Fresh-chat keys are never session references (they expire with the outbox entry instead).
+  for (const scope of interruptedSendScopes()) {
+    if (!covered.has(scope) && !isFreshDraftScope(scope)) {
+      candidates.add(scope)
+    }
+  }
+
   return [...candidates].filter(id => {
     const expiresAt = alive.get(id)
 
@@ -193,6 +202,8 @@ function dropDeadId(id: string): void {
   if ($queuedPromptsBySession.get()[id]?.length) {
     clearQueuedPrompts(id)
   }
+
+  dropInterruptedSends(id)
 }
 
 async function sweepOnce(requireLoaded = true): Promise<void> {

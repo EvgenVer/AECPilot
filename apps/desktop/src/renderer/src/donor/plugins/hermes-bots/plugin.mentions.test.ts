@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/plugin.mentions.test.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,7 @@
  * composes no CLI handoff and delivers nothing itself.
  */
 
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RosterRow } from './types'
 
@@ -544,5 +544,48 @@ describe('the mention middleware', () => {
     const untouched = 'mail user@example.com and ping @nosuchbot'
 
     expect((await handler({ text: untouched })).text).toBe(untouched)
+  })
+})
+
+describe('the local default when a real hermes profile exists', () => {
+  const RAW = ['default', 'hermes', 'researcher'].map(name => ({
+    connectionId: 'local',
+    connectionKind: 'local',
+    connectionLabel: 'This device',
+    name
+  }))
+
+  afterEach(() => {
+    hostMock.request.mockImplementation(async () => ({}))
+  })
+
+  it.each([
+    ['a warm roster cache', 'warm'],
+    ['a cold cache primed from the raw backend rows', 'cold']
+  ])('hands the agent a target that reaches the profile the user tagged (%s)', async (_label, cache) => {
+    if (cache === 'cold') {
+      // What the backend's profiles.list and Electron's union roster report: raw names, bare handles.
+      hostMock.request.mockImplementation(async () => ({ profiles: RAW }))
+      hostMock.agents.mockResolvedValueOnce({
+        agents: RAW.map(({ name, ...row }) => ({ ...row, handle: name, profile: name, targetProfile: name })),
+        sources: [{ connectionId: 'local', kind: 'local' }]
+      })
+    }
+
+    const { claimDefaultHandles } = await import('./data')
+
+    const { handler } = await contributions({
+      focused: 'researcher',
+      profiles: cache === 'warm' ? (claimDefaultHandles(RAW as RosterRow[]) as never) : null
+    })
+
+    const toDefault = (await handler({ text: 'please ask @default to review' })).text
+    const toHermes = (await handler({ text: 'please ask @hermes to review' })).text
+
+    // message_agent maps 'hermes' to the real hermes profile, so the default must never be handed it.
+    expect(toDefault).toMatch(/@default = agent profile "default"/)
+    expect(toDefault).not.toMatch(/message_agent target: "hermes"/)
+    expect(toHermes).toMatch(/@hermes = agent profile "hermes"/)
+    expect(toHermes).not.toMatch(/agent profile "default"/)
   })
 })

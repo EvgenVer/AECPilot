@@ -916,6 +916,11 @@ export interface AecpilotApi {
    * connects the gateway before the window exists), so the renderer hydrates
    * from this on mount instead of waiting for the next change event. */
   getGatewayState(): Promise<GatewayConnectionState>
+  /** The payload of the last `gateway.ready` the core sent main, or null while
+   * main is not connected (core 0.23.0, task T52). Their client waits for that
+   * frame on every dial; the renderer bridge replays it from here, since main's
+   * one socket received it before the window could listen. */
+  getGatewayReady(): Promise<Record<string, unknown> | null>
   /** Sends one JSON-RPC request to the gateway and resolves with its result
    * (task 1.8.5). The generic door the donor's client adapter rides on — see
    * `renderer/src/shared/gateway-bridge.ts` for who calls it and
@@ -1038,6 +1043,30 @@ export interface AecpilotApi {
    * `saveGatewayFile`). Путь проходит ту же двухслойную проверку, что и
    * предпросмотр артефактов. */
   saveFileOut(payload: { path: string; suggestedName?: string }): Promise<SaveOutResult>
+  /** Their journal of uncertain sends (task T52, donor 0.23.0): JSON strings in and
+   * out, one store per renderer origin; `compareAndSet` is atomic in main. */
+  preparedSubmissions: {
+    read(): Promise<string>
+    update(key: string, entry: string | null): Promise<void>
+    compareAndSet(
+      key: string,
+      expected: string | null,
+      entry: string | null
+    ): Promise<{ applied: boolean; current: string | null }>
+  }
+  /** Ask main to send `stream-work:ready` with `token` after `delayMs` (≤ 400 ms;
+   * `null` cancels that token) — streaming keeps moving while the window is hidden
+   * (task T52, donor 0.23.0). */
+  scheduleStreamWorkWake(token: string, delayMs: number | null): void
+  onStreamWorkWake(callback: (token: string) => void): () => void
+  /** `/save` (task T52): text into a file the person picks in the save dialog. Only a
+   * bare file name is taken from `defaultPath`; the folder is always the person's pick. */
+  saveTextFileAs(request: {
+    content: string
+    defaultPath?: string
+    filters?: Array<{ extensions: string[]; name: string }>
+    title?: string
+  }): Promise<{ canceled?: boolean; path?: string; saved: boolean }>
   pickProjectDirectory(): Promise<string | null>
   /** Creates a new vault at `dirPath` named `name`, records it as the
    * most-recent project, and makes it the current open project (see
@@ -1197,6 +1226,12 @@ export interface AecpilotApi {
    * `viewport` — его размер в тех же единицах; без `rect` — видимая область
    * целиком. Гость обязан принадлежать окну, которое просит
    * (`preview-capture-pure.ts`). Отказ приходит СЛОВАМИ. */
+  /** Lease on the preview guest owned by this window (task T52, donor 0.23.0):
+   * wakes it and returns a token; `executePreviewGuestScript` runs code in its
+   * loaded document and ends the lease. A foreign guest is refused with an error. */
+  beginPreviewGuestActivity(webContentsId: number): Promise<number>
+  endPreviewGuestActivity(token: number): Promise<void>
+  executePreviewGuestScript(token: number, code: string): Promise<unknown>
   capturePreview(payload: {
     rect?: { height: number; width: number; x: number; y: number }
     viewport?: { height: number; width: number }

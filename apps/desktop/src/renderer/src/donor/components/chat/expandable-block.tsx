@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/expandable-block.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@
 import { type ReactNode, useCallback, useRef, useState } from 'react'
 
 import { useResizeObserver } from '@/hooks/use-resize-observer'
+import { hostHas } from '@/lib/host-capabilities'
 import { ChevronDown } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +23,8 @@ export function ExpandableBlock({ children, className }: ExpandableBlockProps) {
   const innerRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
+  const [horizontalOverflowing, setHorizontalOverflowing] = useState(false)
+  const [horizontalAtEnd, setHorizontalAtEnd] = useState(false)
 
   // Measure inside ResizeObserver timing only (layout is clean there). A
   // synchronous mount-time scrollHeight read forces a reflow per instance,
@@ -31,8 +34,25 @@ export function ExpandableBlock({ children, className }: ExpandableBlockProps) {
 
     if (el) {
       setOverflowing(el.scrollHeight > 121)
+      // The sideways cue belongs to the browser host, whose code fences are
+      // sized to their longest line (shiki-highlighter.tsx) and whose touch
+      // screens show no scrollbar. Native Desktop keeps main's block.
+      const hasHorizontalOverflow = hostHas('sidewaysCodeFences') && el.scrollWidth > el.clientWidth + 1
+
+      setHorizontalOverflowing(hasHorizontalOverflow)
+      setHorizontalAtEnd(!hasHorizontalOverflow || el.scrollLeft + el.clientWidth >= el.scrollWidth - 1)
     }
   }, [])
+
+  const handleScroll = useCallback(() => {
+    const el = innerRef.current
+
+    if (!el || !horizontalOverflowing) {
+      return
+    }
+
+    setHorizontalAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1)
+  }, [horizontalOverflowing])
 
   useResizeObserver(measure, innerRef)
 
@@ -46,10 +66,19 @@ export function ExpandableBlock({ children, className }: ExpandableBlockProps) {
           expanded ? 'max-h-[40dvh]' : 'max-h-[7.5rem]',
           className
         )}
+        data-horizontal-overflow={horizontalOverflowing ? '' : undefined}
+        onScroll={handleScroll}
         ref={innerRef}
       >
         {children}
       </div>
+      {horizontalOverflowing && !horizontalAtEnd && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-linear-to-l from-[var(--expandable-fade-from,var(--ui-chat-surface-background))] to-transparent"
+          data-slot="expandable-horizontal-fade"
+        />
+      )}
       {overflowing && (
         // The fade is a pure overflow cue and must not intercept pointer events:
         // it spans the full bottom edge (over the horizontal scrollbar of a wide

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/mcp/use-mcp-servers.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import {
 import { useI18n } from '@/i18n'
 import { completeMcpDesktopOAuth } from '@/lib/mcp-dashboard-oauth'
 import { probeCache, probeKey } from '@/lib/mcp-probe-cache'
+import { announceMcpReload, reloadMcp } from '@/lib/mcp-reload'
 import { getServers, type McpServerEntry, type McpServers } from '@/lib/mcp-servers'
 import { setDisabledTools, toggleToolInServer } from '@/lib/mcp-tool-filter'
 import { notify, notifyError } from '@/store/notifications'
@@ -158,7 +159,7 @@ export function useMcpServers({ gateway, profile }: UseMcpServersOptions): McpSe
     }
 
     try {
-      await gateway.request('reload.mcp', { confirm: true, session_id: activeSessionId ?? undefined })
+      announceMcpReload(await reloadMcp(gateway, activeSessionId))
     } catch (err) {
       notifyError(err, m.reloadFailed)
     }

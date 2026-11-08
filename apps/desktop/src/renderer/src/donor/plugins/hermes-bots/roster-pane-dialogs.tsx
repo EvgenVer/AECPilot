@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-pane-dialogs.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the delete confirmation -> ours (SPEC C12)
@@ -76,9 +76,9 @@ export function renderRosterDialogs({
       />
       <CreateGroupChatDialog
         onClose={() => setGroupCreateOpen(false)}
-        onCreated={groupName => openGroupChat(groupName)}
-        open={groupCreateOpen} // Full multi-source roster: group chats can seat bots from other
-        // registered connections — their turns route to their own machines.
+        onCreated={(group, origin) => openGroupChat(group, origin)}
+        open={groupCreateOpen} // The dialog applies the active gateway mode to
+        // the full roster before allowing a group to be created.
         roster={roster}
       />
       <SectionNameDialog

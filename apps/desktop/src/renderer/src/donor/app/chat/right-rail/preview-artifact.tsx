@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-artifact.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,11 +10,13 @@ import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CopyButton } from '@/components/ui/copy-button'
+import { PreviewDocumentFrame } from '@/components/ui/preview-document-frame'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { artifactDownloadName, type ArtifactKind } from '@/lib/artifact-detect'
 import { downloadTextFile } from '@/lib/download-text'
 import { ChevronLeft, ChevronRight, Download, ExternalLink } from '@/lib/icons'
+import { pathToFileUrl } from '@/lib/local-preview'
 import { $artifactRegistry, $artifactVersionSelection, findArtifact, selectArtifactVersion } from '@/store/artifacts'
 import { notifyError } from '@/store/notifications'
 import type { PreviewTarget } from '@/store/preview'
@@ -67,7 +69,7 @@ async function openHtmlInBrowser(content: string): Promise<void> {
     throw new Error('Could not write artifact file')
   }
 
-  const fileUrl = `file://${path.startsWith('/') ? '' : '/'}${path.replace(/\\/g, '/')}`
+  const fileUrl = pathToFileUrl(path)
 
   if (bridge.openPreviewInBrowser) {
     await bridge.openPreviewInBrowser(fileUrl)
@@ -101,7 +103,7 @@ function ArtifactLiveView({ content, kind, title }: { content: string; kind: Art
   }
 
   return (
-    <iframe
+    <PreviewDocumentFrame
       className="block size-full border-0 bg-white"
       sandbox="allow-scripts"
       srcDoc={composeArtifactHtml(content)}

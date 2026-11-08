@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/section-states.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -36,6 +36,26 @@ export function SidebarSessionSkeletons() {
   )
 }
 
+interface SessionAreaCounts {
+  cronJobs: number
+  loading: boolean
+  messaging: number
+  profileGroups: number
+  projects: number
+  sessions: number
+}
+
+/** Whether the sidebar renders its session area instead of the blank state. Filtered down to
+ *  nothing still renders it: the empty state is what tells you the filter, not an empty account,
+ *  is why the list is bare. Messaging threads and cron jobs live inside this area too, so a profile
+ *  whose only sessions are threads or scheduled jobs never collapses to the blank state (#63593).
+ *  Every profile keeps a section, chats or not; a lone empty profile keeps the blank state. */
+export function hasSessionArea(counts: SessionAreaCounts): boolean {
+  const { cronJobs, loading, messaging, profileGroups, projects, sessions } = counts
+
+  return loading || sessions > 0 || projects > 0 || messaging > 0 || cronJobs > 0 || profileGroups > 1
+}
+
 export function SidebarBlankState({ onNewProject }: { onNewProject: () => void }) {
   const { t } = useI18n()
   const s = t.sidebar
@@ -54,7 +74,13 @@ export function SidebarBlankState({ onNewProject }: { onNewProject: () => void }
   )
 }
 
-export function SidebarPinnedEmptyState() {
+// Pinned resolves against the filtered list, so a filter can hide every pin.
+// Say so, like the Sessions section does: the shift-click hint reads as "you
+// have no pins" to someone whose pins are all still there (#146510).
+// `filtered` is whether a filter actually narrows the list, not whether any
+// selection is persisted: a stale project id narrows nothing. `archived` is the
+// Archived view, which swaps the pool Pinned resolves from.
+export function SidebarPinnedEmptyState({ archived, filtered }: { archived: boolean; filtered: boolean }) {
   const { t } = useI18n()
 
   return (
@@ -62,7 +88,7 @@ export function SidebarPinnedEmptyState() {
       <span className="grid w-3.5 shrink-0 place-items-center text-(--ui-text-quaternary)">
         <Codicon name="pin" size="0.75rem" />
       </span>
-      <span>{t.sidebar.shiftClickHint}</span>
+      <span>{filtered || archived ? t.sidebar.noFilterMatches : t.sidebar.shiftClickHint}</span>
     </div>
   )
 }

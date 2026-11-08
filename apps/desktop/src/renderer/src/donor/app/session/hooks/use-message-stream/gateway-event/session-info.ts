@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/session-info.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { mergeUsage, usageFromTick } from '@hermes/shared'
+
 import { finalizeInterruptedMessages } from '@/lib/chat-messages'
 import { normalizePersonalityValue } from '@/lib/chat-runtime'
 import { modelOptionsQueryKey } from '@/lib/model-options'
@@ -12,6 +14,7 @@ import { reconcileApprovalModeForProfile } from '@/store/approval-mode'
 import { clearSettledClarifyRequest } from '@/store/clarify'
 import { reconcileSessionCompacting } from '@/store/compaction'
 import { requestDesktopOnboardingForCredentialWarning } from '@/store/onboarding'
+import { pendingSnapshotFence, reconcilePendingSubmissions } from '@/store/pending-submissions'
 import { followActiveSessionCwd } from '@/store/projects'
 import { clearAllPrompts } from '@/store/prompts'
 import {
@@ -139,6 +142,24 @@ function maybeRebindPaneToRebuiltRuntime(ctx: GatewayEventContext): boolean {
   return true
 }
 
+/** Project the runtime's pending-submission receipts onto the durable
+ *  session's composer queue (keyed by stored id when known). */
+function reconcileSessionInfoPendingSubmissions(ctx: GatewayEventContext): void {
+  const { deps, event, payload, sessionId } = ctx
+
+  if (sessionId) {
+    const storedId =
+      payload?.stored_session_id ?? deps.sessionStateByRuntimeIdRef.current.get(sessionId)?.storedSessionId ?? sessionId
+
+    // A canonical frame's own place in the session's event order fences absence-based retirement.
+    reconcilePendingSubmissions(
+      storedId,
+      (payload as Record<string, unknown>)?.pending_submissions,
+      pendingSnapshotFence(event.replay_epoch, event.seq)
+    )
+  }
+}
+
 /** session.info / session.usage / session.title. */
 export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
   const { deps, event, payload, sessionId, explicitSid, isActiveEvent, occurredAt, fromActiveSource } = ctx
@@ -161,6 +182,8 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
     // conversation already on screen — if so, re-bind the pane so every
     // subsequent isActiveEvent gate keeps matching (#93942 scenario B).
     const rebound = maybeRebindPaneToRebuiltRuntime(ctx)
+
+    reconcileSessionInfoPendingSubmissions(ctx)
 
     // Apply session-scoped fields when the event targets the active
     // session, OR when it's a global broadcast and we have no session.
@@ -291,8 +314,7 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
           return {
             ...nextState,
             usage: {
-              ...previousUsage,
-              ...payload.usage,
+              ...mergeUsage({ ...previousUsage }, payload.usage),
               calls: payload.usage.calls ?? previousUsage?.calls ?? 0,
               // session.info is authoritative: omission means unavailable, not
               // "reuse the previous runtime's compression count".
@@ -407,7 +429,17 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
           const withinPreStartGrace =
             typeof armedAt === 'number' && Date.now() - armedAt < PRE_TURN_LIVE_SETTLE_GRACE_MS
 
-          if (state.awaitingResponse && !state.sawAssistantPayload && !state.turnLive && withinPreStartGrace) {
+          // The owner stamps its claimed execution on the event params, not the payload.
+          const authoritative =
+            typeof event.authority_epoch === 'number' && typeof event.execution_generation === 'number'
+
+          if (
+            !authoritative &&
+            state.awaitingResponse &&
+            !state.sawAssistantPayload &&
+            !state.turnLive &&
+            withinPreStartGrace
+          ) {
             return state
           }
 
@@ -484,8 +516,7 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
     if (payload?.usage && (!explicitSid || isActiveEvent)) {
       const usage = payload.usage
       setCurrentUsage(current => ({
-        ...current,
-        ...usage,
+        ...mergeUsage(current, usage),
         compressions: usage.compressions
       }))
     }
@@ -514,16 +545,18 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
     // Live usage tick emitted while a turn is mid-flight (see tui_gateway
     // _start_usage_ticker) so the status-bar context window tracks growth
     // during the turn instead of only jumping at message.complete.
-    if (payload?.usage && sessionId) {
+    const usage = usageFromTick(payload)
+
+    if (usage && sessionId) {
       // Per-session twin first: a focused secondary tile reads this cache,
       // while the primary-only global mirrors the active session.
       updateSessionState(sessionId, state => ({
         ...state,
-        usage: { calls: 0, input: 0, output: 0, total: 0, ...state.usage, ...payload.usage }
+        usage: mergeUsage({ calls: 0, input: 0, output: 0, total: 0, ...state.usage }, usage)
       }))
 
       if (isActiveEvent) {
-        setCurrentUsage(current => ({ ...current, ...payload.usage }))
+        setCurrentUsage(current => mergeUsage(current, usage))
       }
     }
 

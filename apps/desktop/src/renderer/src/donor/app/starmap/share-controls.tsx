@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/starmap/share-controls.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -108,7 +108,7 @@ export function ShareControls({ imported = false, onImport, onResetMap, shareCod
           <div className="group/code relative">
             <textarea
               aria-label={t.starmap.shareTitle}
-              className="h-24 w-full resize-none rounded-md bg-foreground/5 p-2.5 pr-9 font-mono text-xs leading-relaxed break-all text-muted-foreground/90 outline-none transition placeholder:text-muted-foreground/50 focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40"
+              className="h-24 w-full resize-none rounded-md bg-foreground/5 p-2.5 pr-9 font-mono text-xs leading-relaxed break-all text-muted-foreground/90 transition placeholder:text-muted-foreground/50 focus-visible:outline-hidden focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40"
               onChange={e => {
                 setValue(e.target.value)
                 setError(null)

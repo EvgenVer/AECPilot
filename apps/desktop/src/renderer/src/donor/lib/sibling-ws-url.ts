@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/sibling-ws-url.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -45,6 +45,11 @@ export interface SiblingWsRoute {
   profile?: null | string
 }
 
+type AudioSocketPath = '/api/audio/speak-stream' | '/api/audio/transcribe-stream'
+
+const isAudioSocketPath = (path: string): path is AudioSocketPath =>
+  path === '/api/audio/speak-stream' || path === '/api/audio/transcribe-stream'
+
 /**
  * Resolve `ws(s)://<gateway>/<path>` for `route`. `stripGatewayCredential`
  * drops the `?ticket=`/`?token=` the gateway URL carried when the sibling route
@@ -64,6 +69,15 @@ export async function resolveSiblingWsUrl(
 
   const connectionId = route.connectionId?.trim() || null
   const profile = route.profile?.trim() || null
+
+  // A host whose gateway ticket opens only `/api/ws` mints a voice stream its own ticket.
+  if (desktop.getAudioWsUrl && isAudioSocketPath(path)) {
+    return withTimeout(
+      desktop.getAudioWsUrl({ connectionId, path, profile }),
+      RESOLVE_TIMEOUT_MS,
+      'Timed out minting the voice stream WebSocket URL'
+    )
+  }
 
   const conn =
     connectionId && desktop.getConnectionFor

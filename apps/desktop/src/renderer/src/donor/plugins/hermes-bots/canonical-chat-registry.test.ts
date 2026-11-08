@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/canonical-chat-registry.test.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -100,6 +100,26 @@ beforeEach(() => {
 })
 
 describe('the registry row wins, always', () => {
+  it('passes explicit tab intent to the stored canonical chat without creating another session', async () => {
+    const calls = respondWith(method => {
+      if (method === 'session.list') {
+        return { sessions: [{ id: 'root', resolved_id: 'tip', message_count: 10, title: 'Bot Chat' }] }
+      }
+
+      return {}
+    })
+
+    const { openBotCanonicalChat } = await loadModule()
+
+    await expect(openBotCanonicalChat('ops', { intent: 'tab' })).resolves.toEqual({
+      openedId: 'tip', registryId: 'root'
+    })
+    expect(hostMock.openSession).toHaveBeenCalledWith('tip', expect.objectContaining({
+      intent: 'tab', profile: 'ops', workspaceMode: 'bots', workspaceOwnerKey: 'bot:ops'
+    }))
+    expect(calls.map(call => call.method)).toEqual(['session.list'])
+  })
+
   it('resolves the profile\u2019s "Bot Chat" row by exact title and opens it', async () => {
     const calls = respondWith(method => {
       if (method === 'session.list') {

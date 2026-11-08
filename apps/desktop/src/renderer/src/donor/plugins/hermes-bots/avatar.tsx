@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/avatar.tsx
- * Commit:  939e45c91d751fadd94dcd1b873ac3cb44846213 (v2026.9.11)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [4] `blobatarSvg` declared absent — the `blobatar` package is not installed
@@ -211,6 +211,11 @@ export function blobShapeString(seedPart: string, kind: string) {
   return seedPart ? `blobatar:${seedPart}` : 'blobatar'
 }
 
+/** *text* as an HTML attribute value: no quote or angle bracket in it ends the attribute or the tag. */
+function attributeText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 /** Static SVG markup for a blob face, tagged data-bot-face so the roster's
  *  PNG backfill (pushLocalAvatars → rasterizeSvgToPng) still finds it. */
 function blobMarkup(shape: null | string | undefined, name: string, size: number) {
@@ -231,7 +236,8 @@ function blobMarkup(shape: null | string | undefined, name: string, size: number
   }
 
   try {
-    return blobatarSvg(seed, opts).replace('<svg ', '<svg data-bot-face=' + JSON.stringify(name) + ' ')
+    // The name goes in as escaped text, through a replacer so `$&`-style patterns in it stay literal.
+    return blobatarSvg(seed, opts).replace('<svg ', () => `<svg data-bot-face="${attributeText(name)}" `)
   } catch {
     return null
   }

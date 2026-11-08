@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/screen-pane.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [4] dropped the `@novnc/novnc` import — the package is not installed (SPEC C3:
@@ -83,6 +83,14 @@ async function loadRfb(): Promise<
   // EDIT [4]: `@novnc/novnc` is not installed (SPEC C3, D-145) — refuse, and the
   // caller's catch shows the pane's own error state.
   throw new Error('The bot screen viewer (noVNC) is not installed in this build')
+}
+
+/** The viewer hashes its lease id with crypto.subtle and noVNC needs a secure context: over plain
+ *  HTTP from another machine there is neither, so the pane says why instead of a stream. */
+function ScreenNeedsHttps({ label }: { label: string }) {
+  return globalThis.crypto?.subtle ? null : (
+    <div className="absolute inset-0 grid place-items-center p-6 text-center text-xs text-white/70">{label}</div>
+  )
 }
 
 export function BotScreenPane({ bot }: { bot: RosterRow }) {
@@ -190,6 +198,16 @@ export function BotScreenPane({ bot }: { bot: RosterRow }) {
       }
 
       detach()
+
+      // The viewer hashes its lease id with crypto.subtle, and noVNC needs a secure context too.
+      // A Webapp opened over plain HTTP from another machine has neither: never ask the bot for a
+      // viewer there (the pane says why) instead of failing on a missing digest afterwards.
+      if (!globalThis.crypto?.subtle) {
+        setConn('error')
+
+        return
+      }
+
       const generation = attachGeneration.current
       setConn('attaching')
       setError(null)
@@ -570,6 +588,7 @@ export function BotScreenPane({ bot }: { bot: RosterRow }) {
         {conn === 'error' && error ? (
           <div className="absolute inset-x-0 bottom-0 bg-red-950/80 px-3 py-1.5 text-xs text-red-200">{error}</div>
         ) : null}
+        <ScreenNeedsHttps label={t.screen.needsHttps} />
       </div>
     </div>
   )

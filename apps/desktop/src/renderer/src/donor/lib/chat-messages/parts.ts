@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/parts.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -318,6 +318,20 @@ export function partsText(parts: ChatMessagePart[]): string {
     .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => part.type === 'text')
     .map(part => part.text)
     .join('')
+}
+
+/** The bubble's last non-empty text part, trimmed. A hydrated tool-call turn
+ *  folds several messages into one bubble; this is the newest of them. */
+export function lastTextPartText(message: ChatMessage): string {
+  for (let index = message.parts.length - 1; index >= 0; index -= 1) {
+    const part = message.parts[index]
+
+    if (part.type === 'text' && part.text.trim()) {
+      return part.text.trim()
+    }
+  }
+
+  return ''
 }
 
 export function chatMessageText(message: ChatMessage): string {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session-switcher.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,12 @@ let pendingBrowse = false
 let revealTimer: ReturnType<typeof setTimeout> | null = null
 let tabHeld = false
 let closedAt = 0
+// The physical key (`code`) of the keydown being dispatched, and of the one that
+// stepped the switcher: only the step key's keyup ends the hold, so another key
+// lifting mid-hold can't hide the HUD. A missing code on either side releases on
+// any key, as before.
+let keyDown = ''
+let stepKey = ''
 
 function clearRevealTimer(): void {
   if (revealTimer) {
@@ -51,11 +57,20 @@ function scheduleReveal(): void {
   }, SWITCHER_REVEAL_MS)
 }
 
-export function onSwitcherTabDown(): void {
-  tabHeld = true
+export function noteSwitcherKeyDown(code: string): void {
+  keyDown = code
 }
 
-export function onSwitcherTabUp(): void {
+export function onSwitcherTabDown(): void {
+  tabHeld = true
+  stepKey = keyDown
+}
+
+export function onSwitcherTabUp(code = ''): void {
+  if (code && stepKey && code !== stepKey) {
+    return
+  }
+
   tabHeld = false
 
   if (!$switcherOpen.get()) {

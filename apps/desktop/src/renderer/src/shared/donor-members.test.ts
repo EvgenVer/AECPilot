@@ -123,13 +123,9 @@ const UNBRIDGED = [
   // интерфейса хранится своим клиентом (`shared/i18n/config-client.ts`) и
   // задан всегда, так что до этой ветки их `i18n/context.tsx` не доходит.
   'getMachineProfile',
-  // (6) Пределы ПУЛА бэкендов (`store/pool-limits.ts`, их пакет 9.7). Пула у
-  // нас нет: один `hermes serve` на все профили (замечание D-14, задача
-  // 4D-29), так что применять предел не к чему. Решение владельца 2026-09-15
-  // (замечание D-84, SPEC HX27): сам ряд снят из `config-settings.tsx` правкой
-  // [3]; стор и ряд лежат в зоне мёртвыми, члены остаются отказом.
-  'getPoolLimits',
-  'setPoolLimits',
+  // (6) Пределы ПУЛА бэкендов сняты: в 0.23.0 донор убрал и стор, и ряд, и
+  // сигнал (9) ниже (задача T52) — члены `getPoolLimits` / `setPoolLimits` их
+  // код больше не зовёт.
   // (7) Сверка ИХ десктопных плагинов после установки (`plugins-tab.tsx`,
   // `plugin-install-modal.tsx`) — загрузчик их плагинов SPEC HX5, не берём;
   // рядом уже лежит `installDesktopPlugin`.
@@ -147,9 +143,7 @@ const UNBRIDGED = [
   // `windowControls`); `minimizeToTray` и `setF12ShortcutActive` подключены
   // задачей 3G.23.
   //
-  // (9) Сигнал их главного процесса, что пул снимает бэкенд (`use-gateway-boot`) —
-  // пула у нас нет, та же причина, что у группы (6).
-  'onPoolBackendRetiring',
+  // (9) `onPoolBackendRetiring` снят вместе с пулом в 0.23.0 — см. (6).
   // (10) Удаление ИХ десктопного плагина (`contrib/runtime-loader.ts`) — SPEC
   // HX5, группа (1).
   'removeDesktopPlugin'

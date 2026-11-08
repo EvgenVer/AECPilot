@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/billing-banner.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,8 +24,9 @@ function firstLine(text: string): string {
  * one piece with the composer card (no bordered alert-in-a-card). It never
  * disables the composer — slash commands (`/topup`, `/model`, `/login`) stay
  * usable — it only offers recovery: Nous opens Settings → Billing in-app, other
- * providers deep-link out. The sticky toast is the loud surface; this is the calm
- * reminder that outlives it.
+ * providers deep-link out. The failed turn's card also names the wall (it can't
+ * know whether this banner is on screen: a collapsed drawer, a popped-out
+ * composer); a wall in a background chat also raises a sticky toast.
  */
 export function BillingBanner({ sessionId }: { sessionId: null | string }) {
   const active = useStore($billingBlock)

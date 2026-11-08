@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/active-work.ts
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,15 +21,21 @@ import { computed } from 'nanostores'
 import type { HermesActiveWork } from '@/global'
 import { $sessions } from '@/store/session'
 import { $workingSessionIds } from '@/store/session-states'
+import { $voiceStreamPaintOwners } from '@/store/voice-stream-paint'
 
-const $activeWork = computed([$workingSessionIds, $sessions], (workingIds, sessions): HermesActiveWork => {
-  const titleById = new Map(sessions.map(session => [session.id, session.title?.trim() ?? '']))
+const $activeWork = computed(
+  [$workingSessionIds, $sessions, $voiceStreamPaintOwners],
+  (workingIds, sessions, voiceOwners): HermesActiveWork => {
+    const titleById = new Map(sessions.map(session => [session.id, session.title?.trim() ?? '']))
 
-  return {
-    count: workingIds.length,
-    titles: workingIds.map(id => titleById.get(id) ?? '').filter(Boolean)
+    return {
+      count: workingIds.length,
+      titles: workingIds.map(id => titleById.get(id) ?? '').filter(Boolean),
+      // Auto-speak waits for completed replies; only local conversations need live text.
+      ...(voiceOwners > 0 ? { voiceActive: true } : {})
+    }
   }
-})
+)
 
 if (typeof window !== 'undefined') {
   // `$sessions` republishes on unrelated churn (previews, heartbeats), so only

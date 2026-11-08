@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/mcp-brands.tsx
- * Commit:  345cd2b057a452236de401d3534b8502a7465e8d (v2026.9.14)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -108,11 +108,6 @@ export const MCP_BRAND_ICONS: Record<string, McpBrand> = {
   youtube: { Icon: SiYoutube, color: '#FF0000' },
   zapier: { Icon: SiZapier, color: '#FF4A00' }
 }
-
-/** Inline-glyph color for a brand: monochrome marks inherit the surrounding
- *  text color; branded marks use the brand color. */
-export const brandGlyphStyle = (brand: McpBrand): { color: string } | undefined =>
-  brand.monochrome ? undefined : { color: brand.color }
 
 /** The same brand under every spelling a connector arrives with: catalog slug
  *  (`unreal-engine`), registry id (`unreal_engine`), display name (`Unreal

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/composer-utils.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -46,7 +46,9 @@ export const COMPOSER_FOLD_VOICE_PX = 260
 // even with voice folded the row still costs ~150, so the last rung drops the
 // pill AND the voice menu. Both stay reachable — the model by hotkey and the
 // full picker, dictation from any wider pane — and Send fits with room to
-// spare at any width the layout tree allows (~74 all-in).
+// spare for compact desktop targets (~74 all-in). useComposerMetrics budgets
+// larger touch tokens separately and puts menu/Send on separate rows below
+// the two-target floor, retaining their 44px hit areas.
 export const COMPOSER_MINIMAL_PX = 180
 
 // A single editor line is ~28px (--composer-input-min-height 1.625rem + 0.5rem

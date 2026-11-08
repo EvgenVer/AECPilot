@@ -1,12 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-status-drawer.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { $collapsedStatusDrawers, setStatusDrawerCollapsed, statusDrawerKey } from '@/store/composer-status-drawer'
@@ -44,8 +44,14 @@ export function useStatusDrawer(sessionKey: string | null) {
 
   const collapsed = key ? saved : draft.key === draftKey && draft.collapsed
 
+  // Stable ids for the two drawer regions (status stack, coding row) their toggles control.
+  const statusDrawerId = useId()
+  const codingDrawerId = useId()
+
   return {
+    codingDrawerId,
     collapsed,
+    statusDrawerId,
     toggle: () => {
       if (key) {
         setStatusDrawerCollapsed(key, !collapsed)

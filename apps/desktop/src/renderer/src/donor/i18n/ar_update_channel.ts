@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,5 +21,8 @@ export const arUpdateChannel = {
   latestRelease: (v: string) => `أنت على أحدث إصدار مستقر (${v}).`,
   rollbackTitle: (v: string) => `العودة إلى الإصدار المستقر ${v}`,
   rollbackBody: (v: string) => `هذا الإصدار أحدث من الإصدار المستقر ${v}. سيعيد التثبيت Hermes إلى ذلك الإصدار.`,
-  rollbackAction: (v: string) => `العودة إلى ${v}`
+  heldBody: (v: string) =>
+    `هذا الإصدار أحدث من الإصدار المستقر ${v}، وجلساتك تستخدم بالفعل بيئة البوابة الخاصة به التي لا يستطيع ${v} فتحها. سيبقى Hermes على هذا الإصدار حتى يصدر إصدار مستقر أحدث.`,
+  rollbackAction: (v: string) => `العودة إلى ${v}`,
+  allChanges: 'عرض كل التغييرات'
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-hermes-config.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped applyAutoSpeakFromConfig — auto-speak of replies is SPEC HX19
@@ -19,8 +19,11 @@ import { getHermesConfig, getHermesConfigDefaults } from '@/hermes'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '@/lib/chat-runtime'
 import { composerServiceTier } from '@/lib/model-status-label'
 import { normalize } from '@/lib/text'
+import { $busyInputConfig, busyInputOwnerKey, normalizeBusyInputMode } from '@/store/busy-input-mode'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
-import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
+import { $activeGatewayProfile } from '@/store/profile'
+import { localShowReasoning, setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
+import { $connection } from '@/store/session'
 import {
   getComposerSelectionGeneration,
   getCurrentModelSource,
@@ -82,6 +85,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
       const profileRefreshEpoch = profileRefreshEpochRef.current
       const selectionGeneration = getComposerSelectionGeneration()
+      const connection = $connection.get()
+      const profile = $activeGatewayProfile.get()
 
       try {
         const [config, defaults] = await Promise.all([getHermesConfig(), getHermesConfigDefaults().catch(() => ({}))])
@@ -155,8 +160,16 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           return
         }
 
+        if ($connection.get() === connection && $activeGatewayProfile.get() === profile) {
+          $busyInputConfig.set({
+            owner: busyInputOwnerKey(connection?.connectionId, profile),
+            connection,
+            mode: normalizeBusyInputMode(config.display?.busy_input_mode)
+          })
+        }
+
         setDisplayTimestampsFromConfig(config.display?.timestamps)
-        setShowReasoningFromConfig(config.display?.show_reasoning)
+        setShowReasoningFromConfig(localShowReasoning(config.display))
         setShowToolActivityFromConfig(config.display?.tool_progress)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
         setChatFontFamilyFromConfig(config.desktop?.font_family)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/hooks/use-keybinds.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the 'composer.voice' handler — the continuous voice
@@ -39,6 +39,7 @@ import {
 import { handleApprovalKey, releaseApprovalKey } from '@/lib/keybinds/approval-keys'
 import { actionAllowedInInput, comboFromEvent, IS_MAC, isEditableTarget, isFocusWithin } from '@/lib/keybinds/combo'
 import { composerFocusKeysAllowed, isComposerFocusSoftCombo, typeToFocusChar } from '@/lib/keybinds/composer-focus-keys'
+import { markKeybindHandled } from '@/lib/keybinds/handled-keys'
 import { registerBuiltinActionRunner } from '@/lib/keybinds/plugin-actions'
 import { stepReasoningEffort, writeSessionReasoningEffort } from '@/lib/reasoning-step'
 import { openWorktreeDialog } from '@/store/coding-status'
@@ -90,6 +91,7 @@ import {
   $switcherOpen,
   closeSwitcher,
   commitOnCtrlUp,
+  noteSwitcherKeyDown,
   onSwitcherTabDown,
   onSwitcherTabUp,
   openOrAdvanceSwitcher,
@@ -142,6 +144,12 @@ export interface KeybindRuntimeDeps {
 /** A handler returns `false` to decline the chord (see `passthrough`); any other
  *  return value (void, a navigate() promise, …) means it ran. */
 type HandlerMap = Record<string, () => unknown>
+
+const SWITCHER_MODIFIER_KEYS = new Set(['Alt', 'Control', 'Meta', 'Shift'])
+
+function hasWordEraseModifier(event: KeyboardEvent): boolean {
+  return IS_MAC ? event.metaKey && !event.ctrlKey : event.ctrlKey
+}
 
 // Mount once near the top of the app. Owns the single global keydown listener
 // for every rebindable hotkey: it runs the matched action, or — while capture
@@ -474,6 +482,8 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      noteSwitcherKeyDown(event.code)
+
       // An active IME composition owns the keyboard. Windows Chinese IMEs
       // (Microsoft Pinyin, Sogou) use Ctrl+, as their punctuation-mode toggle,
       // so without this guard that keystroke ALSO matched `nav.settings` and
@@ -582,11 +592,12 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
         // dispatcher anyway, plus a chord rebound onto another key with the
         // same bare shape. Returning without preventDefault hands the key to
         // xterm, whose data handler writes the ^W byte to the PTY. Read-only
-        // agent mirrors carry only [data-terminal], so they keep close.
+        // agent mirrors carry only [data-terminal], so they keep close. A
+        // browser tab's ⌃⌘W is the close chord itself, not ^W.
         if (
           actionId === 'view.closeTab' &&
           event.key.toLowerCase() === 'w' &&
-          (IS_MAC ? event.metaKey : event.ctrlKey) &&
+          hasWordEraseModifier(event) &&
           !event.altKey &&
           !event.shiftKey &&
           isFocusWithin('[data-interactive-terminal]')
@@ -608,6 +619,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
           continue
         }
 
+        markKeybindHandled(event)
         recordAction(actionId, 'shortcut')
 
         return
@@ -622,11 +634,12 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
         releaseApprovalKey()
       }
 
-      if (event.key === 'Tab') {
-        onSwitcherTabUp()
-      }
-
-      if (event.key === 'Control') {
+      // The cycle chord is ⌃Tab natively but Alt+] / ⌃⌘] in a browser tab:
+      // releasing its step key ends the hold, and releasing the last
+      // non-Shift modifier commits.
+      if (!SWITCHER_MODIFIER_KEYS.has(event.key)) {
+        onSwitcherTabUp(event.code)
+      } else if (event.key !== 'Shift' && !event.ctrlKey && !event.altKey && !event.metaKey) {
         commitSwitcherRef.current()
       }
     }

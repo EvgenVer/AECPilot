@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] the default profile's display name -> ours (SPEC C12)
@@ -18,9 +18,10 @@
  * store, one writer.
  */
 
-import { atom, host } from '@hermes/plugin-sdk'
+import { atom, host, randomUuid } from '@hermes/plugin-sdk'
 
 import { $botMeta, $lastRoster, botRosterKey } from './data'
+import { stickyGroupEngine } from './group-engine'
 import { groupMemberReferencesConnection, markOrphanedGroupMemberDescriptor } from './hygiene'
 import { displayName } from './labels'
 import { botRosterMeta } from './routing'
@@ -68,6 +69,7 @@ let groupChatSyncTimer: ReturnType<typeof setTimeout> | null = null
 /** One room inside the bounded ui_meta projection: a compacted log plus the
  *  identity fields, without any of `GroupChat`'s runtime/orchestration state. */
 interface GroupChatSyncRoom {
+  engine?: 'desktop'
   holdDetection?: boolean
   image?: null | string
   log: GroupMessage[]
@@ -363,6 +365,7 @@ export function groupChatSyncSnapshot(
           }
         : {}),
       log,
+      ...stickyGroupEngine(room),
       holdDetection: room.holdDetection !== false,
       revision: Math.max(0, Number(room?.syncRevision ?? room?.revision ?? 0)),
       members: (Array.isArray(room.members) ? room.members : []).slice(0, GROUP_CHAT_MAX_MEMBERS).map(member => ({
@@ -390,6 +393,11 @@ export function groupChatSyncSnapshot(
         ...(member?.sourceScoped
           ? {
               sourceScoped: true
+            }
+          : {}),
+        ...(member?.hermesHandleTaken
+          ? {
+              hermesHandleTaken: true
             }
           : {})
       })),
@@ -598,6 +606,8 @@ export function mergeGroupChatSyncSnapshots(
         return byTime || groupChatSyncEntryKey(left).localeCompare(groupChatSyncEntryKey(right))
       }),
       holdDetection,
+      // Set once at creation and never cleared, so either side's mark holds.
+      ...stickyGroupEngine(localRoom, remoteRoom),
       members,
       revision: Math.max(remoteRevision, localRevision),
       ...(omitted > 0
@@ -838,6 +848,7 @@ export function mergeRemoteGroupChatSnapshotIntoRooms(
       externalCursors:
         existing.externalCursors && typeof existing.externalCursors === 'object' ? existing.externalCursors : {},
       members: [...members.values()],
+      ...stickyGroupEngine(existing, projected),
       ...(projectedRoomId || existing.roomId
         ? {
             roomId: existing.roomId || projectedRoomId
@@ -929,6 +940,7 @@ export function durableGroupChatRooms(all: Record<string, GroupChat> = $groupCha
       // name-keyed identity — same field updateGroupChat's inline map
       // already carries.
       roomId: typeof room.roomId === 'string' && room.roomId ? room.roomId : null,
+      ...stickyGroupEngine(room),
       image: room.image || null,
       rosterOrder: room.rosterOrder,
       pinned: room.pinned,
@@ -1646,6 +1658,8 @@ export function updateGroupChat(
         members: Array.isArray(room.members) ? room.members : [],
         // Immutable room identity: the member-session title for new rooms.
         roomId: typeof room.roomId === 'string' && room.roomId ? room.roomId : null,
+        // A Desktop-driven room stays one across reloads (plugin.tsx hydration).
+        ...stickyGroupEngine(room),
         // Room picture (small data URL, same normalization as bot avatars).
         image: room.image || null,
         rosterOrder: room.rosterOrder,
@@ -1712,11 +1726,7 @@ export function setGroupChatImage(group: string, image: null | string | undefine
 }
 
 function groupChatEntryId(): string {
-  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID()
-  }
-
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return randomUuid()
 }
 
 /** The agent loop's "(empty)" terminal sentinel (empty_response_exhausted) is
@@ -1741,9 +1751,17 @@ export function appendGroupChatEntry(
   thread?: null | string,
   images?: Attachment[]
 ): GroupMessage {
+  const priorLog = ($groupChats.get()[group] || {}).log || []
+  const lastEntry = priorLog[priorLog.length - 1]
+
   const entry: GroupMessage = {
     id: groupChatEntryId(),
-    at: Date.now(),
+    // Strictly after the tail: the gateway mirror merge re-sorts the log by
+    // `at` (id breaks ties), and watermarks are log INDICES. Two rows in one
+    // millisecond (or a clock step back) would come back shuffled — a user
+    // follow-up landing under a member's watermark is lost, or a reply moved
+    // past it is fed back as news and re-drives the member.
+    at: Math.max(Date.now(), Number(lastEntry?.at || 0) + 1),
     from,
     // Stored bodies share the prompt's per-line cap (see trimGroupChatLog);
     // cutting here too keeps the duplicate-echo guard comparing like with like.
@@ -1761,9 +1779,6 @@ export function appendGroupChatEntry(
   // loop both committing the same member reply) lands back-to-back and
   // byte-identical. Drop the echo instead of flooding the room. User
   // entries and non-adjacent repeats are never touched.
-  const priorLog = ($groupChats.get()[group] || {}).log || []
-  const lastEntry = priorLog[priorLog.length - 1]
-
   if (isDuplicateGroupAppend(lastEntry, from, entry.text, entry.thread)) {
     return lastEntry
   }

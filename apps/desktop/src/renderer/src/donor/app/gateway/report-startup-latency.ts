@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/gateway/report-startup-latency.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { randomUuid } from '@hermes/shared'
+
 type GatewayRequest = (
   method: 'shared_metrics.startup_latency',
   params: { elapsed_ms: number; launch_id: string; surface: 'desktop_attach' }
@@ -28,7 +30,7 @@ export async function reportStartupLatency(
   // Declared, not env-detected: a URL/cloud backend has no HERMES_DESKTOP to tell it who attached.
   await request('shared_metrics.startup_latency', {
     elapsed_ms: elapsedMs,
-    launch_id: crypto.randomUUID(),
+    launch_id: randomUuid(),
     surface: 'desktop_attach'
   }).catch(() => undefined)
 }

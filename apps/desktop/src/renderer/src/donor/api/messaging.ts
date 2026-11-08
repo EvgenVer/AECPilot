@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/messaging.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,6 +11,9 @@ import type {
   MessagingPlatformUpdate,
   PairingResponse,
   PairingUser,
+  RelayLinkCode,
+  RelayLinkCodeState,
+  RelayLinksResponse,
   TelegramOnboardingApplyResponse,
   TelegramOnboardingStartResponse,
   TelegramOnboardingStatusResponse,
@@ -58,6 +61,42 @@ export function testMessagingPlatform(
     ...profileScoped(profile),
     path: `/api/messaging/platforms/${encodeURIComponent(platformId)}/test`,
     method: 'POST'
+  })
+}
+
+// -- Team Gateway account links -----------------------------------------------
+// A relay-fronted instance reaches Telegram/Discord/Slack only through the shared bot; these mint
+// the one-time `/link <code>` that binds a chat account to this agent. The profile tag picks the
+// backend (a profile may point at another host); the relay itself serves that gateway's own profile.
+
+export function getRelayLinks(profile?: null | string): Promise<RelayLinksResponse> {
+  return hermesApi<RelayLinksResponse>({ ...profileScoped(profile), path: '/api/messaging/relay' })
+}
+
+export function requestRelayLink(platform: string, profile?: null | string): Promise<RelayLinkCode> {
+  return hermesApi<RelayLinkCode>({
+    ...profileScoped(profile),
+    path: `/api/messaging/relay/${encodeURIComponent(platform)}/link`,
+    method: 'POST'
+  })
+}
+
+export function getRelayLinkState(code: string, profile?: null | string): Promise<RelayLinkCodeState> {
+  return hermesApi<RelayLinkCodeState>({
+    ...profileScoped(profile),
+    path: `/api/messaging/relay/link/${encodeURIComponent(code)}`
+  })
+}
+
+export function unlinkRelayAccount(
+  platform: string,
+  platformUserId: string,
+  profile?: null | string
+): Promise<{ unlinked: boolean }> {
+  return hermesApi<{ unlinked: boolean }>({
+    ...profileScoped(profile),
+    path: `/api/messaging/relay/${encodeURIComponent(platform)}/accounts/${encodeURIComponent(platformUserId)}`,
+    method: 'DELETE'
   })
 }
 

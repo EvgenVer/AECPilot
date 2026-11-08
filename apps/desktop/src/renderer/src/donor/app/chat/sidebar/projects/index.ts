@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/projects/index.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 // Public surface of the project/worktree sidebar, consumed by the sidebar root.
 export { EnteredProjectContent } from './entered-content'
+export { enteredProjectLiveRows } from './gateway-project-rows'
 export {
   orderProjectsByIds,
   PROJECT_PREVIEW_COUNT,
@@ -16,6 +17,7 @@ export {
 } from './model'
 export { ProjectBackRow, ProjectOverviewRow } from './overview-row'
 export { ProjectMenu } from './project-menu'
+export { useGatewayProjectTree } from './use-gateway-project-tree'
 export { SidebarWorkspaceGroup } from './workspace-group'
 export {
   excludeProjectSessions,

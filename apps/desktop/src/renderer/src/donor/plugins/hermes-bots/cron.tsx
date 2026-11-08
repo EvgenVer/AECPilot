@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/cron.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -62,7 +62,7 @@ const ROUTINES_KEY = [ID, 'routines']
 /** Last good cron list, same idea as the roster snapshot. */
 const $lastJobs = atom<RoutineJob[]>([])
 
-function showsHandle(name: string, meta: BotMeta | null | undefined, bot?: RosterRow) {
+function showsHandle(name: string, meta: BotMeta | null | undefined, bot?: RosterRow | null) {
   const display = displayName(
     {
       name
@@ -1277,8 +1277,8 @@ export function RoutinesPane() {
                 meta
               )}
             </div>
-            {showsHandle(bot, meta) ? (
-              <span className="shrink-0 font-mono text-[0.65rem] text-(--ui-text-quaternary)">{`@${botHandle(bot)}`}</span>
+            {showsHandle(bot, meta, owner) ? (
+              <span className="shrink-0 font-mono text-[0.65rem] text-(--ui-text-quaternary)">{`@${botHandle(bot, owner)}`}</span>
             ) : null}
           </div>
           <div className="text-[0.65rem] uppercase tracking-wider text-(--ui-text-quaternary)">{c.title}</div>

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/confirm-dialog.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,6 +68,7 @@ export function ConfirmDialog({
   const { t } = useI18n()
   const confirmRef = useRef<HTMLButtonElement>(null)
   const closeTimerRef = useRef<null | number>(null)
+  const unmountedRef = useRef(false)
   const [status, setStatus] = useState<'done' | 'idle' | 'saving'>('idle')
   const [error, setError] = useState<null | string>(null)
   const busy = status === 'saving' || status === 'done'
@@ -91,9 +92,15 @@ export function ConfirmDialog({
   // ReferenceError.
   // The write below is a timer handle, and not a mirror of a reactive value.
   // It happens on unmount only, and it clears the handle this component owns.
+  // An onConfirm that unmounts the caller (disband leaves the room) resolves
+  // after cleanup ran, so the timer must not be armed once unmounted.
   // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
+    unmountedRef.current = false
+
     return () => {
+      unmountedRef.current = true
+
       if (closeTimerRef.current !== null) {
         window.clearTimeout(closeTimerRef.current)
         closeTimerRef.current = null
@@ -123,6 +130,11 @@ export function ConfirmDialog({
 
     try {
       await onConfirm()
+
+      if (unmountedRef.current) {
+        return
+      }
+
       setStatus('done')
       closeTimerRef.current = window.setTimeout(() => {
         closeTimerRef.current = null

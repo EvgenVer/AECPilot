@@ -58,8 +58,9 @@ export async function createServerTray(options: ServerTrayOptions): Promise<Serv
         { type: 'separator' },
         {
           label: mainT('serverTray.copyToken'),
-          click: () => {
-            clipboard.writeText(options.getToken())
+          click: async () => {
+            // Electron 44 (T52): writeText is a Promise; the balloon waits for it.
+            await clipboard.writeText(options.getToken()).catch(() => undefined)
             if (process.platform === 'win32') {
               tray.displayBalloon({
                 title: mainT('serverTray.tooltip'),

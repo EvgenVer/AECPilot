@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/yolo-session.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -9,6 +9,7 @@
  */
 import { $gateway } from '@/store/gateway'
 import { $activeSessionId, setYoloActive } from '@/store/session'
+import { requestForOwnedSession } from '@/store/session-states'
 
 export type GatewayRequester = <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
 
@@ -16,13 +17,17 @@ export type GatewayRequester = <T = unknown>(method: string, params?: Record<str
  * Toggle per-session YOLO (approval bypass) via gateway `config.set` — the same
  * session-scoped flag as the TUI's Shift+Tab. It does NOT touch the global
  * `approvals.mode` config, so CLI / TUI / cron behavior is unaffected.
+ *
+ * The flag lives on the session's OWNER, so the write is routed there;
+ * `requestGateway` is only the ambient fallback for a session the ambient
+ * gateway provably owns.
  */
 export async function setSessionYolo(
   requestGateway: GatewayRequester,
   sessionId: string,
   enabled: boolean
 ): Promise<boolean> {
-  const result = await requestGateway<{ value?: string }>('config.set', {
+  const result = await requestForOwnedSession<{ value?: string }>(sessionId, requestGateway, 'config.set', {
     key: 'yolo',
     session_id: sessionId,
     value: enabled ? '1' : '0'

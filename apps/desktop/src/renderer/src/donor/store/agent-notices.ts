@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/agent-notices.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,7 +31,17 @@ export interface AgentNoticePayload {
   ttl_ms?: null | number
   key?: string
   id?: string
+  /** Full text behind a short `text` (the low-disk auto-prune question): the toast's expandable body. */
+  detail?: string
 }
+
+/** `credits.window_limit` (agent/credits_tracker.py CREDITS_WINDOW_LIMIT_KEY). */
+const WINDOW_LIMIT_KEY = 'credits.window_limit'
+/** `model.large_notice` (tui_gateway/model_switch.py LARGE_MODEL_NOTICE_KEY): switched to a Large model. */
+const LARGE_MODEL_NOTICE_KEY = 'model.large_notice'
+
+/** `credits.window.<gauge id>`: a window plan's 90% heads-up (CREDITS_WINDOW_APPROACH_PREFIX). */
+const WINDOW_APPROACH_PREFIX = 'credits.window.'
 
 const LEVEL_TO_TOAST_KIND: Record<string, NotificationKind> = {
   error: 'error',
@@ -87,6 +97,12 @@ export function noticeAccent(payload: AgentNoticePayload | undefined): string | 
     return 'var(--ui-green)'
   }
 
+  // A window plan's 90% heads-up (`credits.window.<id>`, agent/credits_tracker.py): orange, like the
+  // credits gauge past 75%. Same for the Large-model warning.
+  if (payload?.key?.startsWith(WINDOW_APPROACH_PREFIX) || payload?.key === LARGE_MODEL_NOTICE_KEY) {
+    return 'var(--ui-orange)'
+  }
+
   const frac = usageFraction(payload?.text)
 
   if (frac === null) {
@@ -118,7 +134,9 @@ export function noticeAccent(payload: AgentNoticePayload | undefined): string | 
 export function noticeToToast(payload: AgentNoticePayload | undefined): NotificationInput | null {
   const text = payload?.text?.trim()
 
-  if (!text) {
+  // A window plan's limit line is said by the refused turn's error card (same
+  // sentence, with Open billing / Retry at reset); a toast would say it twice.
+  if (!text || payload?.key === WINDOW_LIMIT_KEY) {
     return null
   }
 
@@ -142,7 +160,8 @@ export function noticeToToast(payload: AgentNoticePayload | undefined): Notifica
     id: payload?.key || payload?.id,
     kind: LEVEL_TO_TOAST_KIND[payload?.level ?? 'info'] ?? 'info',
     message: primary,
-    meta
+    meta,
+    ...(payload?.detail?.trim() ? { detail: payload.detail.trim() } : {})
   }
 }
 
@@ -159,6 +178,11 @@ export function splitMeta(text: string): [primary: string, meta: string | undefi
   }
 
   return [text.slice(0, at), text.slice(at + 3) || undefined]
+}
+
+/** Settings → Model's default-model apply returns the Large-model warning on its response (no session event). */
+export function showLargeModelNotice(text: string): void {
+  showAgentNotice({ key: LARGE_MODEL_NOTICE_KEY, kind: 'ttl', level: 'warn', text, ttl_ms: 8000 })
 }
 
 /** Render a `notification.show` notice as a toast (no-op when it has no text). */
@@ -180,11 +204,12 @@ export function clearAgentNotice(key: string | undefined): void {
   }
 }
 
-// Only these two credit notices are urgent enough to break through as a native
-// OS notification (when Hermes is backgrounded). The escalating usage line
+// Only these credit notices are urgent enough to break through as a native OS
+// notification (when Hermes is backgrounded): access paused, a window plan's
+// limit reached, and access restored. The escalating usage line
 // (`credits.usage`) and the grant-spent notice stay in-app toasts only — they
 // aren't worth interrupting the user's OS for.
-const NATIVE_NOTICE_KEYS = new Set(['credits.depleted', 'credits.restored'])
+const NATIVE_NOTICE_KEYS = new Set(['credits.depleted', WINDOW_LIMIT_KEY, 'credits.restored'])
 
 /**
  * Map a notice to a native OS notification input, or `null` when it isn't one of

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/bot-row.test.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,6 +56,7 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
 
 vi.mock('./canonical-chat', () => ({
   ensureBotMetadata,
+  ensureBotProfile: vi.fn(async (bot: unknown) => bot),
   notifyBotOpenFailure: vi.fn(),
   openBotCanonicalChat: vi.fn(),
   prepareBotSource: vi.fn(),
@@ -146,7 +147,15 @@ describe('the row delegates the open and claims no activation authority', () => 
     fireEvent.click(renderRow(bot))
 
     expect(ensureAgent).not.toHaveBeenCalled()
-    expect(openRosterBot.mock.calls).toEqual([[bot]])
+    expect(openRosterBot.mock.calls).toEqual([[bot, { intent: 'in-place' }]])
+  })
+
+  it.each([{ metaKey: true }, { ctrlKey: true }])('modifier click %j opens the Bot Chat as a stacked tab', modifiers => {
+    const bot = { connectionId: 'local', name: 'research' } as RosterRow
+
+    fireEvent.click(renderRow(bot), modifiers)
+
+    expect(openRosterBot.mock.calls).toEqual([[bot, { intent: 'tab' }]])
   })
 
   it('never resolves a remote default into the same-named local bot', async () => {
@@ -174,6 +183,15 @@ describe('the menu opens the same forever-chat a row click does', () => {
     fireEvent.click(await screen.findByText('Open Bot Chat'))
 
     expect(openRosterBot.mock.calls).toEqual([[bot]])
+  })
+
+  it('"Open Bot Chat in new tab" stacks it beside the current chat', async () => {
+    const bot = { name: 'alpha' } as RosterRow
+
+    fireEvent.contextMenu(renderRow(bot))
+    fireEvent.click(await screen.findByText('Open Bot Chat in new tab'))
+
+    expect(openRosterBot.mock.calls).toEqual([[bot, { intent: 'tab' }]])
   })
 })
 

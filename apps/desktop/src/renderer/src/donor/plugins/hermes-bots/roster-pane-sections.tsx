@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-pane-sections.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,7 +13,7 @@ import type { useBots } from './i18n'
 import type { RosterGroupRow } from './roster-pane-derivation'
 import { GatewayKindGlyph, GatewaySectionHeading, RosterSectionHeader } from './roster-sections'
 import type { ResolvedRosterGatewaySection } from './roster-sections'
-import type { BotMeta, GroupChat, GroupMember, RosterRow } from './types'
+import type { BotMeta, GroupChat, RosterRow } from './types'
 import type { $botSections, SectionDialogState } from './user-sections'
 import {
   deleteBotSection,
@@ -38,7 +38,7 @@ interface RosterSectionRenderersProps {
   toggleRosterSection: (id: string) => void
   setSectionDialog: (value: SectionDialogState) => void
   renderBotRow: (bot: RosterRow, keyPrefix?: string) => ReactNode
-  renderGroupRow: (row: { members: GroupMember[]; name: string }) => ReactNode
+  renderGroupRow: (row: RosterGroupRow) => ReactNode
   sortedGroupRows: RosterGroupRow[]
 }
 

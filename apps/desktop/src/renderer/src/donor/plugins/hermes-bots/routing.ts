@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/routing.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -461,32 +461,61 @@ export function botRosterMeta(bot: RosterRow, metaByName: Record<string, BotMeta
   return own
 }
 
+type TranscriptEntry = { from?: GroupMessageAuthor } | null | undefined
+
+function speaksAs(from: GroupMessageAuthor, bot: Partial<RosterRow>): boolean {
+  return bot.name === from.name && (from.source ? (bot.connectionLabel || bot.connectionId) === from.source : !bot.remoteSource)
+}
+
+/** The row a transcript line's speaker is named from. Seated members first; a
+ *  former member (or a seat whose source has not painted yet) resolves against
+ *  the live roster, else to a row carrying the line's own owner, so a remote
+ *  speaker never falls back to this device's identity ("Hermes" for every
+ *  `default`). Null for user lines. */
+export function groupTranscriptSpeaker(
+  entry: TranscriptEntry,
+  members: RosterRow[],
+  roster: RosterRow[] = []
+): Partial<RosterRow> | null {
+  const from = entry?.from
+
+  if (!from || from.kind === 'user') {
+    return null
+  }
+
+  const known = members.find(bot => speaksAs(from, bot)) || roster.find(bot => speaksAs(from, bot))
+
+  if (known) {
+    return known
+  }
+
+  return from.source ? { connectionLabel: from.source, name: from.name, remoteSource: true } : { name: from.name }
+}
+
 /** Group Chat transcript speaker meta (#96432). Owner-aware: a source-qualified
- *  line looks up the matched member via botRosterMeta, never `allMeta[name]`
+ *  line looks up its speaker's row via botRosterMeta, never `allMeta[name]`
  *  and never `null` just because `entry.from.source` is set. */
 export function groupTranscriptSpeakerMeta(
-  entry: { from?: GroupMessageAuthor } | null | undefined,
+  entry: TranscriptEntry,
   members: RosterRow[],
-  allMeta: Record<string, BotMeta>
+  allMeta: Record<string, BotMeta>,
+  roster: RosterRow[] = []
 ): BotMeta | null | undefined {
-  if (!entry?.from || entry.from.kind === 'user') {
+  const from = entry?.from
+
+  if (!from || from.kind === 'user') {
     return null
   }
 
-  const member =
-    members.find(
-      bot =>
-        bot.name === entry.from?.name &&
-        (entry.from.source ? (bot.connectionLabel || bot.connectionId) === entry.from.source : !bot.remoteSource)
-    ) || null
+  const known = members.find(bot => speaksAs(from, bot)) || roster.find(bot => speaksAs(from, bot))
 
-  if (member) {
-    return botRosterMeta(member, allMeta)
+  if (known) {
+    return botRosterMeta(known, allMeta)
   }
 
-  if (entry.from.source) {
+  if (from.source) {
     return null
   }
 
-  return allMeta?.[entry.from.name] || null
+  return allMeta?.[from.name] || null
 }

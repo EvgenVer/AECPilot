@@ -1060,8 +1060,13 @@ test('содержимое предпросмотра уходит в брауз
   await clearNotifications(page)
 
   // Вкладка называется заголовком СТРАНИЦЫ, а не её адресом: панель берёт имя
-  // у загруженного документа (замерено — `example.com` не нашлось).
-  const browserTab = page.getByRole('tab', { name: /Example Domain/i }).first()
+  // у загруженного документа (замерено — `example.com` не нашлось). С донором 0.23
+  // доступное имя вкладки — их метка вида («Browser», `store/preview.ts`), а заголовок
+  // страницы — только видимый текст, поэтому ищем по тексту (T52).
+  const browserTab = page
+    .getByRole('tab')
+    .filter({ hasText: /Example Domain/i })
+    .first()
 
   await expect(browserTab).toBeVisible({ timeout: 20000 })
   await browserTab.click({ force: true })
@@ -2377,12 +2382,23 @@ test('панель наборов открывается из окна и чес
   })
   await toolsTab.click()
 
-  const web = page.getByRole('button', { name: /^Web\b/ }).first()
+  // С донором 0.23 наборы — карточки в подборках и темах. Человек находит набор
+  // поиском. В узкой средней колонке стенда (правые панели открыты) кнопка-название
+  // сжимается до нуля, а щелчок по середине карточки попадает в её переключатель —
+  // и выключил бы набор. Поэтому дверь открывается с клавиатуры: фокус на название
+  // набора и Enter (T52).
+  await page.getByRole('textbox', { name: /Search tools|Поиск инструментов/ }).fill('Web')
+  const card = page
+    .getByRole('article')
+    .filter({ has: page.getByRole('button', { name: /^Web\b/ }) })
+    .first()
 
-  await expect(web, 'набор `web` обязан быть в списке их экрана «Навыки»').toBeVisible({
+  await expect(card, 'набор `web` обязан быть в списке их экрана «Навыки»').toBeVisible({
     timeout: 30000
   })
-  await web.click()
+  await card.getByRole('button', { name: /^Web\b/ }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 15000 })
 
   // «Search: ddgs» — выбор записан нами и подтверждён живой пробой (3E.2).
   // «Extract: not set» — ровно то, чего мы за человека НЕ решили.

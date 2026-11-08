@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/inflight-turn-journal.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import {
 } from '@/lib/chat-messages'
 import { withoutCoveredAssistantPrefix } from '@/lib/chat-messages/coverage'
 import { isLiveTailReplyId } from '@/lib/spoken-reply'
+import { scheduleStreamWork } from '@/lib/stream-work-clock'
 
 /**
  * Crash-survivable in-flight turn journal.
@@ -48,9 +49,10 @@ const MAX_TEXT_PART_CHARS = 64 * 1024
 const MAX_METADATA_CHARS = 2 * 1024
 const MAX_USER_ATTACHMENT_REFS = 256
 const MAX_USER_ATTACHMENT_REF_CHARS = 64 * 1024
-/** Streaming repaints arrive every ~33ms; localStorage writes are synchronous.
- *  Trailing-edge throttle keeps the journal off the hot path — a crash costs at
- *  most this much of the newest tail. */
+/** Streaming commits arrive every ~33ms; localStorage writes are synchronous.
+ *  Coalesce writes for 400ms, with incoming commits draining overdue timers.
+ *  A native fallback keeps quiet tails independent of hidden paint/timer throttling;
+ *  blocked event loops and OS sleep still prevent a hard crash-loss bound. */
 const PERSIST_THROTTLE_MS = 400
 
 // A renderer can accumulate one entry per session over its lifetime. Sweep the
@@ -908,13 +910,13 @@ export function mergeInFlightMessages(
   }
 }
 
-const persistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const persistTimers = new Map<string, { cancel: () => void; dueAt: number }>()
 const persistLatest = new Map<string, JournalableSessionState>()
 
 /** @internal Test-only reset for module-scoped throttles and sweep state. */
 export function resetInFlightTurnJournalStateForTests(): void {
   for (const timer of persistTimers.values()) {
-    clearTimeout(timer)
+    timer.cancel()
   }
 
   persistTimers.clear()
@@ -1015,13 +1017,22 @@ export function persistInFlightTurnState(state: JournalableSessionState): void {
 
   persistLatest.set(storedSessionId, state)
 
-  if (persistTimers.has(storedSessionId)) {
+  const pending = persistTimers.get(storedSessionId)
+
+  if (pending) {
+    if (performance.now() >= pending.dueAt) {
+      pending.cancel()
+      persistTimers.delete(storedSessionId)
+      persistLatest.delete(storedSessionId)
+      writeSnapshot(storedSessionId, state)
+    }
+
     return
   }
 
-  persistTimers.set(
-    storedSessionId,
-    setTimeout(() => {
+  persistTimers.set(storedSessionId, {
+    dueAt: performance.now() + PERSIST_THROTTLE_MS,
+    cancel: scheduleStreamWork(() => {
       persistTimers.delete(storedSessionId)
       const latest = persistLatest.get(storedSessionId)
 
@@ -1031,7 +1042,7 @@ export function persistInFlightTurnState(state: JournalableSessionState): void {
         writeSnapshot(storedSessionId, latest)
       }
     }, PERSIST_THROTTLE_MS)
-  )
+  })
 }
 
 export function readInFlightTurnJournal(storedSessionId: null | string): InFlightTurnSnapshot | null {
@@ -1086,7 +1097,7 @@ export function clearInFlightTurnJournal(storedSessionId: null | string): void {
   const timer = persistTimers.get(storedSessionId)
 
   if (timer) {
-    clearTimeout(timer)
+    timer.cancel()
     persistTimers.delete(storedSessionId)
   }
 

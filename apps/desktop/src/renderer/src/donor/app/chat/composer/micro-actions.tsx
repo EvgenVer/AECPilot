@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/micro-actions.tsx
- * Commit:  5fc308a70719a83cccdbba4c0e39c23f5a8239d5 (v2026.8.27)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -28,7 +28,7 @@ const PILL = cn(
   composerFloatingPill,
   'max-w-56',
   'disabled:cursor-default disabled:opacity-50 disabled:hover:bg-(--composer-fill)',
-  'focus-visible:bg-(--chrome-action-hover) focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50'
+  'focus-visible:bg-(--chrome-action-hover) focus-visible:text-foreground focus-visible:outline-hidden focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50'
 )
 
 /**

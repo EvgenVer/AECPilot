@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/de_shared_metrics.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,22 +22,18 @@ export const deSharedMetrics = {
     'Agentenqualität: verfehlte Bearbeitungen, fehlerhafte Tool-Aufrufe, festgefahrene Schleifen, Kosten pro Aufgabe',
   collectedMachine: 'Gerät: Betriebssystem, RAM-Bereich, GPU-Typ, Hermes-Version, Nutzung lokaler Modelle',
   sending:
-    'Statistiken bleiben auf diesem Computer, sofern Sie nicht „Teilen“ wählen. Geteilte Statistiken gehen einmal täglich mit einer zufälligen ID für dieses Profil an Nous. Abgesehen von einem einmaligen Hinweis, dass Hermes installiert wurde (erst nach Ihrer Zustimmung gezählt), werden Statistiken von vor Ihrer Zustimmung nie gesendet. Sie können das jederzeit in den Einstellungen ändern.',
+    'Wenn Sie teilen, sendet Hermes Statistiken einmal täglich mit einer zufälligen ID für dieses Profil an Nous. Abgesehen von einem einmaligen Hinweis, dass Hermes installiert wurde, werden Statistiken von vor Ihrer Zustimmung nie gesendet. Sie können das jederzeit in den Einstellungen ändern.',
   readDocs: 'Alle Details lesen',
   share: 'Mit Nous teilen',
-  local: 'Auf diesem Computer behalten',
   off: 'Nein, danke',
   saveFailed: 'Ihre Auswahl konnte nicht gespeichert werden',
-  collectLabel: 'Nutzungsstatistiken erfassen',
-  collectDesc:
-    'Nur Zählwerte, auf diesem Computer gespeichert. Niemals Ihre Nachrichten, Dateien, Pfade oder Fehlertexte.',
   sendLabel: 'Nutzungsstatistiken mit Nous teilen',
   sendDesc:
-    'Sendet Statistiken einmal täglich mit einer zufälligen ID für dieses Profil an Nous. Abgesehen vom einmaligen Installationshinweis werden Statistiken von vor Ihrer Zustimmung nie gesendet. Erfordert aktive Erfassung.',
+    'Nur Zählwerte, einmal täglich mit einer zufälligen ID für dieses Profil gesendet. Niemals Ihre Nachrichten, Dateien, Pfade oder Fehlertexte.',
   unavailable: 'Aktualisieren Sie das Hermes-Backend, um diese Einstellung zu ändern.',
   stripBody: 'Nur Zählwerte. Niemals Ihre Nachrichten oder Dateien.',
   stripReaskBody:
     'Wir fragen noch einmal: Eine frühere Version konnte „Nein danke“ speichern, bevor Sie diese Frage gesehen haben.',
-  stripChoices: { share: 'Mit Nous teilen', local: 'Auf diesem Computer behalten', off: 'Nein danke' },
+  stripChoices: { share: 'Mit Nous teilen', off: 'Nein danke' },
   stripDetails: 'Details'
 }

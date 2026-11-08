@@ -27,7 +27,7 @@
 
 import { registry } from '../../donor/contrib/registry'
 import { translatePlugin } from '../../donor/i18n/plugin-i18n'
-import { getRuntimeI18nLocale } from '../../donor/i18n/runtime'
+import { getRuntimeI18nLocale, subscribeRuntimeI18nLocale } from '../../donor/i18n/runtime'
 import { AEC_I18N_NAMESPACE } from '../../shared/i18n/aec-catalog'
 
 import { RollbackPanel } from './RollbackPanel'
@@ -41,6 +41,15 @@ const changesTitle = (): string =>
 /** Registers the pane. Call from `main.tsx`, after their shell module has been
  *  imported — see the header for why the timing is deliberate. */
 export function registerChangesPane(): void {
+  register()
+  // The runtime locale is still the default while modules load; their shell
+  // only knows the person's language once the I18nProvider has resolved it, so
+  // a title read once at load would stay English (found in T52 e2e). Register
+  // again on every locale change, as the nav pages do.
+  subscribeRuntimeI18nLocale(register)
+}
+
+function register(): void {
   registry.register({
     id: REVIEW_PANE_ID,
     area: 'panes',

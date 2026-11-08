@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/copy-button.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,6 +12,7 @@ import { ContextMenuItem } from '@/components/ui/context-menu'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
+import { writeClipboardText } from '@/lib/clipboard'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Copy, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
@@ -20,26 +21,6 @@ type CopyPayload = string | (() => Promise<string> | string)
 type CopyButtonAppearance = 'button' | 'icon' | 'inline' | 'menu-item' | 'context-menu-item' | 'tool-row'
 type CopyStatus = 'copied' | 'error' | 'idle'
 const COPIED_RESET_MS = 1_500
-
-export async function writeClipboardText(text: string) {
-  if (!text) {
-    return
-  }
-
-  if (window.hermesDesktop?.writeClipboard) {
-    await window.hermesDesktop.writeClipboard(text)
-
-    return
-  }
-
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-
-    return
-  }
-
-  throw new Error('Clipboard API is unavailable')
-}
 
 export interface CopyButtonProps {
   appearance?: CopyButtonAppearance

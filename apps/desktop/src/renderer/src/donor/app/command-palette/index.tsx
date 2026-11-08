@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-palette/index.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet page and the two pet commands (HX1)
@@ -72,9 +72,7 @@ import {
 } from '@/lib/icons'
 import { getServers } from '@/lib/mcp-servers'
 import { normalize } from '@/lib/text'
-import { rollbackSentence } from '@/lib/update-copy'
 import { cn } from '@/lib/utils'
-import { resolveVersionStatus } from '@/lib/version-status'
 import { $repoWorktrees } from '@/store/coding-status'
 import {
   $commandPaletteOpen,
@@ -88,16 +86,11 @@ import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, $pinnedSessionIds, filterVisibleProjects } from '@/store/layout'
 import { toggleBrowserTab } from '@/store/preview'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
-import { $connection, $cronSessions, $messagingSessions, $sessions } from '@/store/session'
+import { $cronSessions, $messagingSessions, $sessions } from '@/store/session'
 import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
 import { $removedSessionIds } from '@/store/session-removal'
 import { runGatewayRestart } from '@/store/system-actions'
 import {
-  $backendUpdateApply,
-  $backendUpdateStatus,
-  $desktopVersion,
-  $updateApply,
-  $updateStatus,
   requestActiveUpdate
 } from '@/store/updates'
 import { canOpenNewWindow, openNewWindow } from '@/store/windows'
@@ -129,6 +122,7 @@ import { HighlightWatcher } from './highlight-watcher'
 import { MarketplaceThemePage } from './marketplace-theme-page'
 // EDIT [3]: the pet palette page, its inline toggle and the two pet commands
 // are HX1.
+import { useUpdateRowLabel } from './use-update-row-label'
 
 interface PaletteItem {
   /** Keybind action id — its live combo renders as a hotkey hint. */
@@ -599,37 +593,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const [page, setPage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // The Update row names the same install the statusbar names — same target
-  // selection, same resolver. Reduced to the label string: an in-flight apply
-  // rewrites these stores on every progress line, and only a changed string
-  // should rebuild the palette's groups.
-  const connection = useStore($connection)
-  const desktopVersion = useStore($desktopVersion)
-  const clientStatus = useStore($updateStatus)
-  const clientApply = useStore($updateApply)
-  const backendStatus = useStore($backendUpdateStatus)
-  const backendApply = useStore($backendUpdateApply)
-
-  const updateVersionLabel = useMemo(() => {
-    const backend = connection?.mode === 'remote'
-    const apply = backend ? backendApply : clientApply
-    const status = backend ? backendStatus : clientStatus
-
-    return resolveVersionStatus({
-      applying: apply.applying || apply.stage === 'restart',
-      behind: status?.behind ?? 0,
-      channel: status?.channel === 'stable' ? 'stable' : 'main',
-      copy: t.shell.statusbar,
-      latestTag: status?.latestTag,
-      remote: backend,
-      rollback: rollbackSentence(status, t.settings.about.channel.rollbackBody),
-      restarting: apply.stage === 'restart',
-      sha: status?.currentSha?.slice(0, 7) ?? null,
-      target: backend ? 'backend' : 'client',
-      updateAvailable: status?.updateAvailable,
-      version: backend ? status?.currentVersion : desktopVersion?.appVersion
-    }).label
-  }, [backendApply, backendStatus, clientApply, clientStatus, connection?.mode, desktopVersion?.appVersion, t])
+  const updateVersionLabel = useUpdateRowLabel()
 
   // cmdk's onSelect doesn't forward the triggering event — keep the last
   // click/keydown modifiers so session rows can honour ⌘-Enter / ⌘-click.
@@ -991,14 +955,19 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             label: cc.restartGateway,
             run: () => void runGatewayRestart()
           },
-          {
-            detail: updateVersionLabel,
-            icon: Download,
-            id: 'cc-update-hermes',
-            keywords: ['update', 'upgrade', 'hermes', 'version', 'system', 'restart'],
-            label: cc.updateHermes,
-            run: () => requestActiveUpdate()
-          },
+          // Hermes Cloud updates its agents itself.
+          ...(updateVersionLabel === null
+            ? []
+            : [
+                {
+                  detail: updateVersionLabel,
+                  icon: Download,
+                  id: 'cc-update-hermes',
+                  keywords: ['update', 'upgrade', 'hermes', 'version', 'system', 'restart'],
+                  label: cc.updateHermes,
+                  run: () => requestActiveUpdate()
+                }
+              ]),
           {
             icon: RefreshCw,
             id: 'cc-reload-window',

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/connectors/connector-row-card.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -87,7 +87,7 @@ export function ConnectorRowCard({
   return (
     <div
       className={cn(
-        'relative flex items-center gap-3 rounded-lg border p-3 transition-colors duration-100',
+        'relative flex items-center gap-3 rounded-lg border p-3 transition-colors duration-500 hover:transition-none',
         selected
           ? 'border-(--theme-primary) bg-(--ui-row-active-background)'
           : 'border-(--ui-stroke-quaternary) bg-(--ui-bg-elevated) hover:bg-(--chrome-action-hover)'
@@ -105,7 +105,7 @@ export function ConnectorRowCard({
       <div className="grid min-w-0 flex-1 gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <button
-            className="min-w-0 truncate text-[0.8125rem] font-semibold text-(--ui-text-primary) outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-[0.1875rem] focus-visible:after:ring-ring/50"
+            className="min-w-0 truncate text-[0.8125rem] font-semibold text-(--ui-text-primary) outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:outline-hidden focus-visible:after:ring-[0.1875rem] focus-visible:after:ring-ring/50"
             onClick={onOpen}
             type="button"
           >

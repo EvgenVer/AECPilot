@@ -120,7 +120,7 @@ test('AC1.5 (AC14) память, расписание и браузер на т�
 
   const browser = await turn(
     page,
-    'Открой https://example.com инструментом browser_navigate (локальный браузер) и ответь только заголовком страницы.',
+    'Открой https://example.com инструментом browser_exec (локальный браузер) и ответь только заголовком страницы.',
     { timeoutMs: 300000, declineForeign: true }
   )
   console.log('AC14 браузер ' + browser.transcript)

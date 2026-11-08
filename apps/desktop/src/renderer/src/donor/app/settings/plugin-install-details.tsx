@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/plugin-install-details.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,7 +21,8 @@ import {
   desktopHalfFromPackage,
   installComponents,
   type InstallModalCopy,
-  type ProbeResult
+  type ProbeResult,
+  skipsDesktopHalf
 } from './plugin-install-run'
 
 const CAPTION = 'text-[length:var(--conversation-caption-font-size)]'
@@ -49,6 +50,8 @@ interface PluginInstallDetailsProps {
   pin: PinState
   force: boolean
   onForceChange: (value: boolean) => void
+  /** Offer Force for a catalog pick too: a partial install proceeds only by replacing both halves. */
+  offerForce?: boolean
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -137,6 +140,10 @@ function ContentsRow({
     components.desktop && {
       title: [copy.desktopLabel, fromPackage ? null : probe.desktopName].filter(Boolean).join(' · '),
       hint: fromPackage ? copy.desktopTargetFromPackage : copy.desktopTarget
+    },
+    skipsDesktopHalf(request, probe) && {
+      title: [copy.desktopLabel, probe.desktopName].filter(Boolean).join(' · '),
+      hint: copy.desktopUnavailable
     }
   ].filter(line => line !== false)
 
@@ -180,7 +187,7 @@ export function PluginInstallDetails(props: PluginInstallDetailsProps) {
           </SelectContent>
         </Select>
       </Row>
-      {!request.catalogName && (
+      {(!request.catalogName || props.offerForce) && (
         <div>
           <label className={cn(CAPTION, 'flex items-center justify-between gap-3 text-foreground')}>
             <span>{copy.forceReinstall}</span>

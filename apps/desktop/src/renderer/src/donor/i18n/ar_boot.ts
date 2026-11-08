@@ -1,10 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_boot.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { arDesktopCommands } from './ar_desktop_commands'
+import { arSessionCommands } from './ar_session_commands'
 import type { TranslationOverrides } from './define-locale'
 
 export const arBoot = {
@@ -80,6 +82,18 @@ export const arBoot = {
       after: ' الخاصة بنا.'
     }
   },
+  promptNotices: {
+    legacySendUnconfirmed:
+      'تعذّر على هذا الخادم تأكيد الإرسال السابق لهذه الرسالة، لذا ربما تم تنفيذها بالفعل. راجع المحادثة قبل إرسالها مرة أخرى.',
+    restoredDraftAttachmentsDropped: 'لم تتم استعادة مرفقات رسالتك غير المرسلة. أرفقها مرة أخرى قبل إرسالها.',
+    mcpReloadDeferred:
+      'هذه المحادثة مشغولة: يُطبَّق تغيير MCP بعد انتهاء دورها وإعادة تحميل MCP مجددًا، أو عند إعادة فتح المحادثة',
+    mcpReloadUnavailable: servers => `تعذّر الاتصال: ${servers}`,
+    compactedTurnUnavailable: 'تم تلخيص هذه الرسالة عند ضغط المحادثة، لذا لم يعد بالإمكان استعادتها أو تحريرها.',
+    staleTurnUnavailable: 'لم تعد هذه الرسالة موجودة في سجل هذه المحادثة.',
+    sessionCommands: arSessionCommands,
+    desktopCommands: arDesktopCommands
+  },
   updates: {
     discontinuedTitle: 'لم يعد إصدار Hermes هذا مدعومًا',
     discontinuedBody: 'لم يعد إصدار Hermes هذا مدعومًا وقد يتوقف عن العمل — ألغِ تثبيته. ستبقى بياناتك على القرص.',
@@ -134,6 +148,8 @@ export const arBoot = {
     versionDetailsTitle: 'تفاصيل الإصدار',
     versionDetailsBody: 'هذا التثبيت مُدار خارج التطبيق. حدّثه بالطريقة نفسها التي استخدمتها لتثبيته.',
     versionDetailsVersion: 'الإصدار',
+    versionDetailsClient: 'هذا الجهاز',
+    versionDetailsBackend: 'الخادم المتصل',
     versionDetailsCommit: 'الالتزام',
     versionDetailsBuildOrigin: 'مصدر البناء',
     versionDetailsDistribution: 'التوزيع',
@@ -346,5 +362,12 @@ export const arBoot = {
   }
 } satisfies Pick<
   TranslationOverrides,
-  'boot' | 'remoteDisplayBanner' | 'butterbar' | 'keepAwakeOffer' | 'updates' | 'install' | 'onboarding'
+  | 'boot'
+  | 'remoteDisplayBanner'
+  | 'butterbar'
+  | 'promptNotices'
+  | 'keepAwakeOffer'
+  | 'updates'
+  | 'install'
+  | 'onboarding'
 >

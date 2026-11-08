@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-view.test.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,6 +68,28 @@ beforeEach(() => {
 })
 
 describe('opening a room', () => {
+  it('uses the canonical room name for the main tab instead of its registry key', async () => {
+    const room = await loadRoom()
+    const { registerCanonicalGroup } = await import('./canonical-group-registry')
+
+    const group = registerCanonicalGroup(
+      { connectionId: 'local', profile: 'default' },
+      { room_id: 'room-id', name: 'Incident response', members: [] }
+    )
+
+    let title = ''
+
+    host.openWorkspace = (_id: string, options: { title: string }) => {
+      title = options.title
+
+      return () => undefined
+    }
+
+    room.view.openGroupChat(group, 'key')
+
+    expect(title).toBe('Incident response')
+  })
+
   it('follows the main-window tab open and close', async () => {
     const room = await loadRoom()
     let onClose: () => void = () => undefined
@@ -78,7 +100,7 @@ describe('opening a room', () => {
       return () => onClose()
     }
 
-    room.view.openGroupChat('Core')
+    room.view.openGroupChat('Core', 'name')
 
     expect(room.chat.$groupChatWorkspace.get()).toBe('Core')
     // #89788: the main tab owns the room, so the pane keeps its roster.
@@ -93,7 +115,7 @@ describe('opening a room', () => {
   it('keeps the in-pane fallback on older hosts and when the door throws', async () => {
     const older = await loadRoom()
 
-    older.view.openGroupChat('Core')
+    older.view.openGroupChat('Core', 'name')
 
     expect(older.chat.$groupChatWorkspace.get()).toBe('Core')
     expect(older.panes.shouldRenderGroupChatInPane('Core')).toBe(true)
@@ -104,7 +126,7 @@ describe('opening a room', () => {
       throw new Error('workspace unavailable')
     }
 
-    failed.view.openGroupChat('Ops')
+    failed.view.openGroupChat('Ops', 'name')
 
     expect(failed.chat.$groupChatWorkspace.get()).toBe('Ops')
     expect(failed.panes.shouldRenderGroupChatInPane('Ops')).toBe(true)
@@ -126,7 +148,7 @@ describe('opening a room', () => {
 
     host.openWorkspace = () => () => undefined
 
-    room.view.openGroupChat('Core')
+    room.view.openGroupChat('Core', 'name')
     unsubscribe()
 
     expect(gateAtSelection).toBe(false)
@@ -136,8 +158,8 @@ describe('opening a room', () => {
     const room = await loadRoom()
     host.openWorkspace = () => () => undefined
 
-    room.view.openGroupChat('Core')
-    room.view.openGroupChat('Ops')
+    room.view.openGroupChat('Core', 'name')
+    room.view.openGroupChat('Ops', 'name')
     room.panes.closeGroupChatMainTab('Core')
 
     expect(room.chat.$groupChatWorkspace.get()).toBe('Ops')

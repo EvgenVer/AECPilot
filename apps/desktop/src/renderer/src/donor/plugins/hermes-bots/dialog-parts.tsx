@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/dialog-parts.tsx
- * Commit:  29112bef099274229cadff79cdff7bf7b99c4b77 (v2026.8.31)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,22 +26,21 @@ export function labeled(label: ReactNode, control: ReactNode) {
   )
 }
 
-interface ResizableFrameProps {
-  children: ReactNode
-  /** CSS `resize` has nothing to drag from without a concrete height, and the
-   *  two surfaces that embed Capabilities budget it different room. */
-  height: number
-  minHeight: number
-}
+// Module-level so the ref callback is stable and fires on mount only.
+const revealOnMount = (el: HTMLDivElement | null) => el?.scrollIntoView?.({ block: 'nearest' })
 
-/** A fixed-height viewport with the native vertical resize handle. */
-export function ResizableFrame({ children, height, minHeight }: ResizableFrameProps) {
+/** The embedded Capabilities viewport: tall enough for the installed list AND
+ *  the Skills Hub picker stacked under it (a fixed few hundred pixels left the
+ *  list a sliver), with the native vertical resize handle. Scrolled into view
+ *  on mount, since it opens below the dialog's identity fields. */
+export function ResizableFrame({ children }: { children: ReactNode }) {
   return (
     <div
       className="resize-y overflow-auto rounded-md border border-(--ui-stroke-secondary)"
+      ref={revealOnMount}
       style={{
-        height,
-        minHeight
+        height: 'min(85vh, 960px)',
+        minHeight: 360
       }}
     >
       {children}

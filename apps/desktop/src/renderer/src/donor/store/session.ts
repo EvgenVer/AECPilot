@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/session.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,15 +12,25 @@ import { setApiRequestLocalMode } from '@/api/client'
 import { lastVisibleMessageIsUser } from '@/app/chat/thread-loading'
 import type { ContextSuggestion } from '@/app/types'
 import type { HermesConnection } from '@/global'
+import { browserPageBasePath, readBrowserDefaultProjectDir } from '@/lib/browser-settings'
 import type { ChatMessage } from '@/lib/chat-messages'
 import {
   activeConnectionScopeSuffix,
   connectionScopeSuffix,
   rescopeConnectionScopedStores
 } from '@/lib/connection-scoped'
+import { hostHas } from '@/lib/host-capabilities'
 import { isMessagingSource } from '@/lib/session-source'
 import type { TileSessionFocusStamp } from '@/lib/session-timer-since'
-import { persistBoolean, persistString, readJson, storedBoolean, storedString, writeJson } from '@/lib/storage'
+import {
+  arraysEqual,
+  persistBoolean,
+  persistString,
+  readJson,
+  storedBoolean,
+  storedString,
+  writeJson
+} from '@/lib/storage'
 import type { SessionInfo, UsageStats } from '@/types/hermes'
 
 import { $removedSessionIds, isSessionRemovalPending, tombstoneRowIds } from './session-removal'
@@ -886,6 +896,13 @@ export function keepFailedProfileMeta<T>(
   return next
 }
 
+/** Whether the last recents scan left `profile` unread: it failed, alone or as part of a failed
+ *  unified read. Its rows may be carried forward, but an empty section for it would claim
+ *  "No sessions yet" about a store nobody could read. */
+export function isSessionProfileUnread(failed: readonly string[], profile: string): boolean {
+  return failed.includes(ALL_PROFILES_SCAN) || failed.includes(profileKeyOf(profile))
+}
+
 /** Raise a session in recents on user send (before stream / turn resolve). */
 export function touchSessionActivity(
   sessionId: string | null | undefined,
@@ -1130,6 +1147,9 @@ export interface ProfileUsage {
 
 export const $sessionProfilesUsage = atom<Record<string, ProfileUsage>>({})
 
+/** Profiles named in the last recents scan's errors (see isSessionProfileUnread). */
+export const $sessionProfilesFailed = atom<string[]>([])
+
 /** Profiles whose state.db the backend reports as structurally corrupt (the list
  *  endpoints' `storage` map, #72046). An empty or partial list for one of these
  *  is a damaged store, not deleted history, and the sidebar says so. */
@@ -1172,7 +1192,14 @@ export const $awaitingResponse = atom(false)
 // resume on the next render/focus/reconnect instead of stranding the window.
 // Null whenever the active route has a healthy (or in-flight) resume.
 export const $resumeFailedSessionId = atom<string | null>(null)
+// Stored-session id whose last resume RPC failed while the REST fallback still
+// painted its history: readable, but bound to no runtime, so a turn running
+// there never streams its reply in. use-resume-reattach re-attempts the resume
+// quietly. Unlike $resumeFailedSessionId it never ends in the exhausted
+// overlay, which would cover the history the window can already show.
+export const $resumeReattachSessionId = atom<string | null>(null)
 export interface SessionResumeRequest {
+  authoritativeSnapshot?: boolean
   ownerRoute?: SessionOwnerRoute
   sequence: number
   sessionId: string
@@ -1505,6 +1532,16 @@ export const setSessionProfilesTruncated = (next: Updater<Record<string, boolean
   updateAtom($sessionProfilesTruncated, next)
 export const setSessionProfilesUsage = (next: Updater<Record<string, ProfileUsage>>) =>
   updateAtom($sessionProfilesUsage, next)
+
+/** Publish the profiles a recents scan reported as failed; unchanged keeps the array identity. */
+export function setSessionProfilesFailed(errors: Array<{ profile?: string }> | undefined | null): void {
+  const next = [...new Set((errors ?? []).map(error => profileKeyOf(error.profile)))].sort()
+
+  if (!arraysEqual($sessionProfilesFailed.get(), next)) {
+    $sessionProfilesFailed.set(next)
+  }
+}
+
 export const setSessionsLoading = (next: Updater<boolean>) => updateAtom($sessionsLoading, next)
 export const setSessionsLoadError = (next: Updater<boolean>) => updateAtom($sessionsLoadError, next)
 
@@ -1589,8 +1626,14 @@ export const markSessionRead = (storedSessionId: string | null | undefined) => {
     return
   }
 
-  const sessions = $sessions.get()
-  const familyIds = new Set<string>(lineageAliases(storedSessionId, sessions))
+  // The family is the opened session's own profile's rows: another profile's same-id session is a
+  // different conversation. Its owner is the first matching row, recents first as selection reads them.
+  // (Local normalize: importing @/store/profile here would be circular.)
+  const profileOf = (row: SessionInfo) => (row.profile ?? '').trim() || 'default'
+  const rows = [...$sessions.get(), ...$messagingSessions.get(), ...$cronSessions.get()]
+  const opened = rows.find(row => sessionMatchesStoredId(row, storedSessionId))
+  const own = opened ? rows.filter(row => profileOf(row) === profileOf(opened)) : rows
+  const familyIds = new Set<string>(lineageAliases(storedSessionId, own))
 
   const lastReadAt = Date.now()
   const nextReadMap = { ...$lastReadAtBySessionId.get() }
@@ -1612,8 +1655,13 @@ export const setFreshDraftReady = (next: Updater<boolean>) => updateAtom($freshD
 export { $freshDraftKey, rotateFreshDraftKey } from './composer'
 
 export const setResumeFailedSessionId = (next: Updater<string | null>) => updateAtom($resumeFailedSessionId, next)
+export const setResumeReattachSessionId = (next: Updater<string | null>) => updateAtom($resumeReattachSessionId, next)
 
-export const requestSessionResume = (sessionId: string, ownerRoute?: SessionOwnerRoute) => {
+export const requestSessionResume = (
+  sessionId: string,
+  ownerRoute?: SessionOwnerRoute,
+  options?: { authoritativeSnapshot?: boolean }
+) => {
   const id = sessionId.trim()
 
   if (!id) {
@@ -1635,6 +1683,7 @@ export const requestSessionResume = (sessionId: string, ownerRoute?: SessionOwne
   }
 
   $sessionResumeRequest.set({
+    ...(options?.authoritativeSnapshot ? { authoritativeSnapshot: true } : {}),
     ...(ownerRoute ? { ownerRoute: { ...ownerRoute } } : {}),
     sequence: ++sessionResumeRequestSequence,
     sessionId: id
@@ -1846,7 +1895,7 @@ export const $currentCwdExplicit = atom(false)
 
 export const setCurrentCwdExplicit = (next: Updater<boolean>) => updateAtom($currentCwdExplicit, next)
 
-export const workspaceCwdForNewSession = (): string => {
+export const workspaceCwdForNewSession = (profile?: string): string => {
   // A bare new chat starts DETACHED — no inherited cwd, so the composer's coding
   // rail (which keys off $currentCwd) shows no branch and the first message runs
   // in the gateway's default rather than silently in the last repo you touched.
@@ -1860,6 +1909,17 @@ export const workspaceCwdForNewSession = (): string => {
   // the wrong workspace was the #57911 symptom. Resume/restore still reads
   // the remembered cwd via ensureDefaultWorkspaceCwd (where it remains
   // remote-keyed and intentionally sticky).
+  //
+  // A browser host stores that default folder per profile. The process cache
+  // holds the folder of the profile the window last synced (boot, a connection
+  // apply, Settings), and a rail switch does not refill it, so a browser new
+  // chat reads its own profile's key and stays detached when it never chose one.
+  const owner = profile?.trim()
+
+  if (owner && hostHas('originScopedPrefs')) {
+    return readBrowserDefaultProjectDir(browserPageBasePath(), owner)
+  }
+
   return getConfiguredDefaultProjectDir()
 }
 

@@ -118,6 +118,9 @@ export interface GatewayClientOptions {
   notConnectedErrorMessage?: string
   requestIdPrefix?: string
   requestTimeoutMs?: number
+  /** Their socket constructor (0.23.0, `openGatewaySocket`). Accepted and never
+   * called: main owns the only socket (SPEC C9). */
+  socketFactory?: (url: string) => unknown
   /** A request handler threw. Theirs answers -32603 and reports here; so does ours. */
   onRequestHandlerError?: (
     error: Error,
@@ -232,14 +235,42 @@ export class GatewayBridge {
    * compute and ours to ignore. */
   async connect(_wsUrl?: string): Promise<void> {
     await this.hydrated
-    if (this.dialed) return
-    this.dialed = true
-    this.emitState()
+    if (!this.dialed) {
+      this.dialed = true
+      this.emitState()
+    }
+    // Core 0.23.0 (task T52): their client counts a dial ready only at the
+    // first `gateway.ready` its own socket delivers, and waits for it before
+    // any request. Main received that frame when IT connected — usually before
+    // this window existed — so every connect() hands the last one on. While
+    // main has none yet, the live frame arrives through `onChatEvent` instead.
+    const ready = await this.api.getGatewayReady?.()
+    if (ready) this.dispatch({ type: 'gateway.ready', payload: ready } as DonorGatewayEvent)
   }
 
   /** No-op, for the same reason — a renderer closing main's socket would take
    * the connection away from every other window. */
   close(): void {}
+
+  /** Their client drops its socket generation here after an ambiguous outcome
+   * (0.23.0: a failed protocol negotiation, a missed heartbeat). There is no
+   * renderer socket to drop; main's client runs its own heartbeat and redial. */
+  invalidate(_message?: string): void {}
+
+  /** Theirs: the dialing client is the Desktop on the backend's own machine,
+   * which their channel then tells the core. Main does the dialing and the
+   * handshake (`client.capabilities` in `shared/gateway/client.ts`), so the
+   * renderer claims nothing — their own default. */
+  protected isDesktopLocal(): boolean {
+    return false
+  }
+
+  /** Theirs: the core admitted `clarify_batch` on `prompt.submit` through
+   * `client.capabilities`. Main's handshake declares `server_requests` only, so
+   * the core asks one card per question, which their composer handles. */
+  protected get backendClarifyBatch(): boolean {
+    return false
+  }
 
   // --8<-- [start:bridge_request]
   request<T = unknown>(

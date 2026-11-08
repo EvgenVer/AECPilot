@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ru_plugins.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -80,7 +80,37 @@ export const ruPluginSettings = {
       versionLabel: 'Версия',
       reviewedPin: sha => (sha ? `Проверенный пин ${sha}` : 'Проверенный пин'),
       latestCommit: 'Последний коммит',
+      sourceMoved: sha =>
+        sha
+          ? `Репозиторий изменился после вашей проверки. Проверьте новую версию (коммит ${sha}) перед установкой.`
+          : 'Репозиторий изменился после вашей проверки. Читаем новую версию…',
+      legacyBackendConfirm:
+        'Этот бэкенд старше приложения и не может гарантировать, что установится именно проверенная вами версия: если репозиторий с тех пор изменился, установится более новая. Обновите бэкенд, чтобы получить эту гарантию.',
+      installAnyway: 'Всё равно установить',
+      partialInstall: sha =>
+        sha
+          ? `Плагин установлен лишь частично: агентная часть установлена на коммите ${sha}, а настольная не смогла последовать за ней, потому что репозиторий изменился после вашей проверки. Включите принудительную переустановку в разделе «Дополнительно», чтобы заменить обе части показанной версией, или отмените, чтобы оставить только агентную часть.`
+          : 'Плагин установлен лишь частично: агентная часть установлена, а настольная не смогла последовать за ней, потому что репозиторий изменился после вашей проверки. Включите принудительную переустановку в разделе «Дополнительно», чтобы заменить обе части показанной версией, или отмените, чтобы оставить только агентную часть.',
       nothingToInstall: 'В этом пакете нечего устанавливать здесь.'
     }
   }
 } satisfies Pick<SettingsOverrides, 'pluginPages' | 'plugins'>
+
+/** Russian copy for the Capabilities ▸ Plugins tab: the page blurb and a plugin's folder access. */
+export const ruPluginsTab = {
+  pageBlurb:
+    'Плагин может расширять приложение, агента или оба сразу — у каждой части свой переключатель.',
+  folderAccess: {
+    title: 'Доступ к папкам',
+    hint: (name: string) => `${name} может читать и изменять файлы в этих папках. Отзыв доступа действует сразу.`,
+    revoke: 'Отозвать',
+    revokeLabel: (path: string) => `Отозвать доступ к ${path}`,
+    revoked: (name: string, path: string) => `${name} больше не может использовать ${path}.`,
+    revokeFailed: (name: string) => `Не удалось отозвать доступ ${name} к папкам`,
+    pickerTitle: (name: string) => `Выберите папку для ${name}`,
+    pickerButton: 'Разрешить доступ',
+    refusedProtected: (name: string) =>
+      `${name} не может использовать эту папку: в ней хранятся настройки, ключи или данные плагинов Hermes. Выберите папку, в которой их нет.`,
+    loadFailed: (name: string) => `Не удалось загрузить папки, открытые для ${name}.`
+  }
+} satisfies NonNullable<NonNullable<TranslationOverrides['skills']>['plugins']>

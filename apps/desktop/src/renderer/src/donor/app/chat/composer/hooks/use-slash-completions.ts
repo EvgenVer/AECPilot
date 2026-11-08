@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-slash-completions.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,8 +26,10 @@ import {
 } from '@/lib/desktop-slash-commands'
 import { $slashCompletionsEpoch, cachedSlashCompletion, hasCachedSlashCompletion } from '@/lib/slash-completion-cache'
 import { normalize } from '@/lib/text'
+import { onboardingChatStore } from '@/store/onboarding-session'
 import { $sessions } from '@/store/session'
 
+import { completionOwner, completionOwnerKey, requestCompletion } from './completion-route'
 import type { CompletionEntry, CompletionPayload } from './use-live-completion-adapter'
 import { useLiveCompletionAdapter } from './use-live-completion-adapter'
 
@@ -63,6 +65,12 @@ function commandText(value: string): string {
 /** How many recent sessions to surface inline before the "Browse all…" entry. */
 const SESSION_INLINE_LIMIT = 7
 
+export interface SlashCompletions {
+  /** Null while this session offers no `/` menu: the onboarding chat before its setup ends. */
+  adapter: Unstable_TriggerAdapter | null
+  loading: boolean
+}
+
 /** Live `/` completions backed by the gateway's `complete.slash` RPC. */
 export function useSlashCompletions(options: {
   gateway: HermesGateway | null
@@ -76,10 +84,7 @@ export function useSlashCompletions(options: {
    *  come from here, not the backend (whose skin list is CLI/TUI-only). */
   skinThemes?: DesktopThemeCommandOption[]
   activeSkin?: string
-}): {
-  adapter: Unstable_TriggerAdapter
-  loading: boolean
-} {
+}): SlashCompletions {
   const { gateway, sessionId, profile, skinThemes, activeSkin } = options
   const { locale } = useI18n()
   const enabled = Boolean(gateway)
@@ -90,8 +95,15 @@ export function useSlashCompletions(options: {
     [sessionId, profile]
   )
 
-  const scopeKey = sessionId ?? (profile ? `profile:${profile}` : '')
-  const catalogKey = scopeKey ? `catalog:${scopeKey}` : 'catalog'
+  // Session-scoped lookups go to the session's owner (#141583); the owner is
+  // resolved per call and folded into every cache key, so an answer from one
+  // backend is never replayed for another.
+  const keysFor = useCallback(() => {
+    const owner = completionOwner(sessionId)
+    const scopeKey = sessionId ? `${completionOwnerKey(owner)}:${sessionId}` : profile ? `profile:${profile}` : ''
+
+    return { catalogKey: scopeKey ? `catalog:${scopeKey}` : 'catalog', owner, scopeKey }
+  }, [sessionId, profile])
 
   // Warm argument_mode before the first `/` so Space treats /review as text.
   useEffect(() => {
@@ -99,8 +111,10 @@ export function useSlashCompletions(options: {
       return
     }
 
+    const { catalogKey, owner } = keysFor()
+
     void cachedSlashCompletion(catalogKey, () =>
-      gateway.request<CommandsCatalogLike>('commands.catalog', sessionParams)
+      requestCompletion<CommandsCatalogLike>(gateway, owner, 'commands.catalog', sessionParams)
     )
       .then(catalog => {
         filterDesktopCommandsCatalog(catalog)
@@ -108,7 +122,7 @@ export function useSlashCompletions(options: {
       .catch(() => {
         // Next keystroke retries; don't block the composer on a warm-up miss.
       })
-  }, [gateway, epoch, catalogKey, sessionParams])
+  }, [gateway, epoch, keysFor, sessionParams])
 
   const fetcher = useCallback(
     async (query: string): Promise<CompletionPayload> => {
@@ -177,11 +191,13 @@ export function useSlashCompletions(options: {
         return { items, query }
       }
 
+      const { catalogKey, owner, scopeKey } = keysFor()
+
       try {
         if (!query) {
           const catalog = filterDesktopCommandsCatalog(
             await cachedSlashCompletion(catalogKey, () =>
-              gateway.request<CommandsCatalogLike>('commands.catalog', sessionParams)
+              requestCompletion<CommandsCatalogLike>(gateway, owner, 'commands.catalog', sessionParams)
             )
           )
 
@@ -223,7 +239,7 @@ export function useSlashCompletions(options: {
         }
 
         const result = await cachedSlashCompletion(`slash:${scopeKey}:${text.toLowerCase()}`, () =>
-          gateway.request<{ items?: CompletionEntry[]; replace_from?: number }>('complete.slash', {
+          requestCompletion<{ items?: CompletionEntry[]; replace_from?: number }>(gateway, owner, 'complete.slash', {
             text,
             ...sessionParams
           })
@@ -296,7 +312,7 @@ export function useSlashCompletions(options: {
         return { items: [], query }
       }
     },
-    [gateway, skinThemes, activeSkin, scopeKey, catalogKey, sessionParams]
+    [gateway, skinThemes, activeSkin, keysFor, sessionParams]
   )
 
   const toItem = useCallback((entry: CompletionEntry, index: number): Unstable_TriggerItem => {
@@ -338,10 +354,16 @@ export function useSlashCompletions(options: {
         return true
       }
 
+      const { catalogKey, scopeKey } = keysFor()
+
       return hasCachedSlashCompletion(query ? `slash:${scopeKey}:${text.toLowerCase()}` : catalogKey)
     },
-    [skinThemes, scopeKey, catalogKey]
+    [skinThemes, keysFor]
   )
 
-  return useLiveCompletionAdapter({ enabled, epoch: `${epoch}:${locale}`, fetcher, isCached, toItem })
+  const live = useLiveCompletionAdapter({ enabled, epoch: `${epoch}:${locale}`, fetcher, isCached, toItem })
+  // Slash commands come after setup: none in the onboarding chat until its run ends.
+  const off = useStore(useMemo(() => onboardingChatStore(sessionId ?? null), [sessionId]))
+
+  return off ? { adapter: null, loading: false } : live
 }

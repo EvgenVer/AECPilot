@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/de_connector_card.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -45,7 +45,7 @@ export const deConnectorCard: TranslationOverrides['connectors'] = {
     allApps: 'Alle Apps',
     receiptConnected: apps => `Verbunden: ${apps}`,
     receiptNone: 'Keine neuen Apps verbunden',
-    receiptTimedOut: 'Nach 5 Minuten geschlossen',
+    receiptTimedOut: 'Nach 10 Minuten geschlossen',
     finishInBrowser: 'Im Browser abschließen',
     signInFailed: 'Verbindung fehlgeschlagen. Zum Wiederholen klicken'
   }

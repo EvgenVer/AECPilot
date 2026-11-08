@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/cron/cron-actions.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -25,7 +25,7 @@ export interface CronMutationRefreshResult<T> extends CronTriggerRefreshResult {
   value: T | null
 }
 
-function cronRequestScope(profile: string): string {
+export function cronRequestScope(profile: string): string {
   return `${getApiRequestConnection() ?? ''}\u0000${profile}`
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-composer-trigger.ts
- * Commit:  fcbd1076a93841fa88855acce810e342a5b78101 (v2026.8.19)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -151,6 +151,9 @@ export function useComposerTrigger({
     setTriggerActiveExplicit(false)
   }, [])
 
+  // A `/` source with no adapter offers no menu (the onboarding chat before its setup ends).
+  const slashOff = !slash.adapter
+
   const refreshTrigger = useCallback(() => {
     const editor = editorRef.current
 
@@ -175,7 +178,8 @@ export function useComposerTrigger({
     }
 
     const before = textBeforeCaret(editor)
-    const found = detectTrigger(before ?? composerPlainText(editor))
+    const typed = detectTrigger(before ?? composerPlainText(editor))
+    const found = slashOff && typed?.kind === '/' ? null : typed
 
     // A text-only command has no completion screen once its prose begins. Mixed
     // commands such as /goal stay live so their finite subcommands can still be
@@ -199,7 +203,7 @@ export function useComposerTrigger({
     if (detected?.kind !== trigger?.kind || detected?.query !== trigger?.query) {
       resetTriggerActive()
     }
-  }, [editorRef, resetTriggerActive, trigger])
+  }, [editorRef, resetTriggerActive, slashOff, trigger])
 
   const triggerAdapter: Unstable_TriggerAdapter | null =
     trigger?.kind === '@'

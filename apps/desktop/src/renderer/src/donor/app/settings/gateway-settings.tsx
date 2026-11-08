@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/gateway-settings.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in the gateway URL placeholder → ours (SPEC C12)
  *   [3] dropped the OS-keychain encryption switch and its state — SPEC HX20
- *       (we always encrypt, C10); `ToggleRow` left the import with it
+ *       (we always encrypt, C10); since v0.23.0 the switch is their
+ *       `KeychainEncryptionSetting`, and its import left with it
  * (no other edits)
  */
 import { isGatewayReauthRequired } from '@hermes/shared'
@@ -29,6 +30,7 @@ import type {
 import { useI18n } from '@/i18n'
 import { reestablishCloudAgentSession } from '@/lib/cloud-agent-session'
 import { ExternalLink } from '@/lib/external-link'
+import { hostHas } from '@/lib/host-capabilities'
 import {
   AlertCircle,
   Check,
@@ -62,6 +64,7 @@ import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton } from './
 import { SETTING_IDS, settingElementId } from './settings-manifest'
 import { enrichSelectedSshHost, selectSshHost } from './ssh-host-selection'
 import { useSettingDeepLink } from './use-setting-deep-link'
+import { WebappGatewaySettings } from './webapp-gateway-settings'
 
 type Mode = 'local' | 'remote' | 'cloud' | 'ssh'
 type AuthMode = 'oauth' | 'token'
@@ -184,6 +187,10 @@ interface GatewaySettingsProps {
 
 export function GatewaySettings({ embedded = false, subpage }: GatewaySettingsProps = {}) {
   useSettingDeepLink('gateway', page => subpage === undefined || page === subpage)
+
+  if (!hostHas('gatewayManagement')) {
+    return <WebappGatewaySettings embedded={embedded} />
+  }
 
   // Recovery always keeps the complete connection form, regardless of a
   // settings destination. Other tasks never mount that form or its probes.
@@ -590,7 +597,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
         notify({
           kind: 'error',
           title: apply ? g.applyFailed : g.saveFailed,
-          message: (errors as Record<string, string>)[sshError] || g.sshErrUnknown
+          message: (errors as Record<string, string>)[sshError] || readableError(err, g.sshErrUnknown).message
         })
       } else {
         notifyError(err, apply ? g.applyFailed : g.saveFailed)
@@ -996,7 +1003,12 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
           unknown: g.sshErrUnknown
         }
 
-        throw new Error(errors[result.sshError || 'unknown'] || result.error || g.sshErrUnknown)
+        // An unclassified failure carries its own cause (the remote probe's error); the generic copy would hide it.
+        throw new Error(
+          (result.sshError && result.sshError !== 'unknown' && errors[result.sshError]) ||
+            result.error ||
+            g.sshErrUnknown
+        )
       }
 
       const message = g.sshReachable(result.host || state.sshHost, result.remotePlatform || '?')
@@ -1456,7 +1468,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
 
       {embedded ? null : (
         <div className="mt-6 grid gap-1">
-          {/* EDIT [3]: their keychain-encryption <ToggleRow /> stood here — SPEC HX20. */}
+          {/* EDIT [3]: their keychain-encryption <KeychainEncryptionSetting /> stood here — SPEC HX20. */}
           <ListRow
             action={
               <Button onClick={() => void window.hermesDesktop?.revealLogs()} size="sm" variant="textStrong">

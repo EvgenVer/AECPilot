@@ -1,13 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/reasoning-step.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { DEFAULT_REASONING_EFFORT, isReasoningEffort } from '@hermes/shared'
 
+import { translateNow } from '@/i18n/runtime'
 import { normalize } from '@/lib/text'
+import { notify } from '@/store/notifications'
 
 /** The level ladder a shortcut steps through: thinking off, then the normal
  *  levels in ascending order. `max`/`ultra` are deliberately absent — they are
@@ -70,11 +72,20 @@ export async function writeSessionReasoningEffort(
   sessionId: string,
   effort: ReasoningStepLevel | 'max' | 'ultra'
 ): Promise<ReasoningStepLevel> {
-  const result = await request<{ value?: unknown }>('config.set', {
+  const result = await request<{ status?: unknown; value?: unknown }>('config.set', {
     key: 'reasoning',
     session_id: sessionId,
     value: effort
   })
+
+  // A level picked while a reply streams is the owner's for the next turn, like a model menu pick.
+  if (result?.status === 'deferred') {
+    notify({
+      id: `model-pick-deferred-${sessionId}`,
+      kind: 'info',
+      message: translateNow('shell.modelMenu.pickDeferred', effort)
+    })
+  }
 
   return normalizeReasoningStepLevel(typeof result?.value === 'string' ? result.value : effort)
 }

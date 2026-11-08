@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/about-settings.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] dropped the update-channel row (`<UpdateChannelRow />`) — their release
@@ -15,6 +15,7 @@ import { UpdateStatusCard, VersionHero } from '@/components/update-status'
 import { VersionDetails } from '@/components/version-details'
 import { useI18n } from '@/i18n'
 import { RefreshCw } from '@/lib/icons'
+import { $cloudOwnsUpdates } from '@/store/cloud-updates'
 import { $connection } from '@/store/session'
 import { $desktopVersion, checkBackendUpdates, refreshDesktopVersion } from '@/store/updates'
 
@@ -50,27 +51,34 @@ function AppUpdatesSettings({ includeUninstall }: AppUpdatesSettingsProps): Reac
   const version = useStore($desktopVersion)
   const connection = useStore($connection)
   const remote = connection?.mode === 'remote'
+  // Hermes Cloud updates its agents itself: no checker, channel or Update button for what it owns.
+  const cloudOwned = useStore($cloudOwnsUpdates)
+  const showBackend = remote && !cloudOwned.backend
 
   // Refresh the running version when About opens or the active gateway changes.
   useEffect((): void => {
     void refreshDesktopVersion()
 
-    if (remote) {
+    if (showBackend) {
       void checkBackendUpdates()
     }
-  }, [connection, remote])
+  }, [connection, showBackend])
 
   return (
     <SettingsContent>
       <VersionHero version={version} />
       <div className="mx-auto mt-4 w-full max-w-2xl">
-        <SectionHeading icon={RefreshCw} title={t.settings.about.updates} />
-        <div className="grid gap-3" id={settingElementId(SETTING_IDS.about.updates)}>
-          <UpdateStatusCard target="client" />
-          {/* EDIT [3]: their <UpdateChannelRow /> stood here — SPEC HX4. */}
-          {/* Client and remote backend updates are independent. Only the client has release notes. */}
-          {remote && <UpdateStatusCard showReleaseNotes={false} target="backend" />}
-        </div>
+        {!cloudOwned.client && (
+          <>
+            <SectionHeading icon={RefreshCw} title={t.settings.about.updates} />
+            <div className="grid gap-3" id={settingElementId(SETTING_IDS.about.updates)}>
+              <UpdateStatusCard target="client" version={version} />
+              {/* EDIT [3]: their <UpdateChannelRow /> stood here — SPEC HX4. */}
+              {/* Client and remote backend updates are independent. Only the client has release notes. */}
+              {showBackend && <UpdateStatusCard showReleaseNotes={false} target="backend" version={version} />}
+            </div>
+          </>
+        )}
         {version && <VersionDetails version={version} />}
         {includeUninstall && <UninstallSection />}
       </div>

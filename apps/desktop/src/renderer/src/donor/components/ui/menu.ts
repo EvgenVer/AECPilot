@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/ui/menu.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,7 +23,7 @@ export const menuMotionClass =
 // Radix rows take real focus (`focus:`), cmdk rows stay behind the input and
 // mark `data-selected="true"`.
 export const menuItemClass =
-  "relative flex items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
+  "relative flex items-center gap-2 rounded-md px-2 py-1 text-xs focus-visible:outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
 
 export const menuItemFocusClass = 'focus:bg-(--ui-control-active-background) focus:text-foreground'
 

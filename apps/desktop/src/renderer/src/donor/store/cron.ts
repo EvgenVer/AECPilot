@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/cron.ts
- * Commit:  e624e9fde561e1add9388384012b295fde669ade (v2026.8.18)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,13 @@ export interface CronJobsScopeToken {
 let cronJobsRequestGeneration = 0
 let cronJobsRequestScope = ''
 let cronJobsScopeGeneration = 0
+// The backend scope (connection + profile) the published list was fetched from; '' once a
+// connection switch wiped it. A cleared cache is not evidence about any backend's jobs.
+let cronJobsSnapshotScope = ''
+
+export function getCronJobsSnapshotScope(): string {
+  return cronJobsSnapshotScope
+}
 
 function activateCronJobsScope(scope: string): void {
   if (scope === cronJobsRequestScope) {
@@ -72,6 +79,7 @@ export function commitCronJobsRequest(request: CronJobsRequest, jobs: CronJob[])
   // Consume the token so neither a duplicate completion nor any older request
   // can publish after this authoritative snapshot.
   cronJobsRequestGeneration += 1
+  cronJobsSnapshotScope = request.scope
   $cronJobs.set(jobs)
 
   return true
@@ -79,6 +87,7 @@ export function commitCronJobsRequest(request: CronJobsRequest, jobs: CronJob[])
 
 export const setCronJobs = (jobs: CronJob[]) => {
   cronJobsRequestGeneration += 1
+  cronJobsSnapshotScope = ''
   $cronJobs.set(jobs)
 }
 

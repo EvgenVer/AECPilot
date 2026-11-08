@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/gateway/hooks/use-connections-registry.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,6 +10,7 @@ import { useEffect } from 'react'
 
 import { $desktopBoot } from '@/store/boot'
 import { initializeConnectionsRegistry, refreshConnectionsRegistry } from '@/store/connections'
+import { keepGatewaysConnected } from '@/store/gateway-persistence'
 import { isAuxiliaryWindow, isPeerInstanceWindow } from '@/store/windows'
 
 const RETRY_DELAYS_MS = [1_000, 2_000]
@@ -86,6 +87,9 @@ export function useConnectionsRegistry(): void {
     // auxiliary windows already have an explicit destination of their own.
     if (!boot.running && !isAuxiliaryWindow() && !isPeerInstanceWindow()) {
       void initializeConnectionsRegistry().catch(() => undefined)
+      // Idempotent: a later re-boot (a connection-mode apply) keeps the other
+      // gateways' sockets instead of dropping and redialing them.
+      keepGatewaysConnected()
     }
   }, [boot.running])
 }

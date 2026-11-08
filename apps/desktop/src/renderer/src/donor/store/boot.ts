@@ -1,14 +1,15 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/boot.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { atom } from 'nanostores'
+import { atom, computed } from 'nanostores'
 
 import type { DesktopBootProgress, UpdateHoldWire } from '@/global'
 import { translateNow } from '@/i18n'
+import { WEBAPP_LAUNCH_REQUIRED } from '@/lib/browser-launch-session'
 
 export interface DesktopBootState extends DesktopBootProgress {
   visible: boolean
@@ -26,6 +27,9 @@ const INITIAL_BOOT_STATE: DesktopBootState = {
 }
 
 export const $desktopBoot = atom<DesktopBootState>(INITIAL_BOOT_STATE)
+
+/** A Webapp tab whose sign-in ended: the sign-in view covers it until it signs in again. */
+export const $webappSignedOut = computed($desktopBoot, boot => Boolean(boot.error?.includes(WEBAPP_LAUNCH_REQUIRED)))
 
 function clampProgress(value: number) {
   if (!Number.isFinite(value)) {

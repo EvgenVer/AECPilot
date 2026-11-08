@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/status-stack/session-control-loop.tsx
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { useI18n } from '@/i18n'
+import { type Translations, useI18n } from '@/i18n'
 import {
   runSessionControlAction,
   type SessionControlAction,
@@ -34,7 +34,7 @@ import {
   type SessionControlLoop
 } from '@/store/session-control'
 
-import { type ConfirmState, formatApproximateTime, formatInterval } from './session-control-utils'
+import { type ConfirmState, formatCountdown, formatInterval, useCountdownClock } from './session-control-utils'
 
 interface LoopSectionProps {
   loop: SessionControlLoop
@@ -42,6 +42,14 @@ interface LoopSectionProps {
   pendingAction: SessionControlAction | null
   onFeedback: (error: string | null, success: string | null) => void
 }
+
+// The gateway re-publishes next_due_at when a wakeup fires and completes; between those the
+// countdown runs on the local clock (it used to be computed once per render and sat frozen).
+const isCountingDown = (loop: SessionControlLoop) =>
+  loop.status === 'active' && !loop.deferred_by_goal && !loop.awaiting_response && loop.next_due_at > 0
+
+const nextRun = (dueAt: number, now: number, ctrl: Translations['statusStack']['control']) =>
+  dueAt * 1_000 <= now ? ctrl.dueWaitingForIdle : ctrl.loopNext(formatCountdown(dueAt, now))
 
 export const SessionControlLoopSection = memo(function SessionControlLoopSection({
   loop,
@@ -96,10 +104,9 @@ export const SessionControlLoopSection = memo(function SessionControlLoopSection
   const runCountLabel =
     loop.times > 0 ? ctrl.loopRunCount(loop.ticks_fired, loop.times) : ctrl.loopRuns(loop.ticks_fired)
 
-  const nextRunLabel =
-    loop.status === 'active' && !loop.deferred_by_goal && loop.next_due_at
-      ? ` · ${ctrl.loopNext(formatApproximateTime(loop.next_due_at))}`
-      : ''
+  const counting = isCountingDown(loop)
+  const now = useCountdownClock(counting)
+  const nextRunLabel = counting ? ` · ${nextRun(loop.next_due_at, now, ctrl)}` : ''
 
   const headerLabel = `${stateLabel} · ${runCountLabel}${nextRunLabel}`
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/mcp.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -78,37 +78,6 @@ export function listMcpServers(): Promise<{ servers: McpServerSummary[] }> {
   return hermesApi<{ servers: McpServerSummary[] }>({
     ...profileScoped(),
     path: '/api/mcp/servers'
-  })
-}
-
-/** Add one server to `mcp_servers` (validated + name-collision-checked
- *  server-side — the same endpoint the dashboard's add form uses). */
-export function addMcpServer(
-  body: {
-    name: string
-    url?: string
-    command?: string
-    args?: string[]
-    env?: Record<string, string>
-    auth?: string
-  },
-  profile?: ProfileScope
-): Promise<McpServerSummary> {
-  return window.hermesDesktop.api<McpServerSummary>({
-    ...capabilityScoped(profile),
-    path: '/api/mcp/servers',
-    method: 'POST',
-    body
-  })
-}
-
-/** Remove one server from `mcp_servers` (the inline setup card's rollback
- *  when a directory install is cancelled after the config write). */
-export function removeMcpServer(name: string, profile?: ProfileScope): Promise<{ ok: boolean }> {
-  return window.hermesDesktop.api<{ ok: boolean }>({
-    ...capabilityScoped(profile),
-    path: `/api/mcp/servers/${encodeURIComponent(name)}`,
-    method: 'DELETE'
   })
 }
 

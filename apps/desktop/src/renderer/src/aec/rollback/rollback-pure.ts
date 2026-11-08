@@ -5,7 +5,7 @@
 // really empty, truncated patch, ambiguous diff) can be pinned by unit tests.
 
 import type { CheckpointScopeInfo, RollbackListing } from '../../../../shared/ipc'
-import type { RollbackCheckpoint } from '../../../../shared/gateway/types'
+import type { RollbackCheckpoint, RollbackRestoreResult } from '../../../../shared/gateway/types'
 
 /** What the screen shows for the current listing.
  *
@@ -170,4 +170,44 @@ export const DIFF_CHANGE_KEY: Record<DiffChange, string> = {
   deleted: 'rollback.change.deleted',
   renamed: 'rollback.change.renamed',
   modified: 'rollback.change.modified'
+}
+
+/** How many paths a restore outcome names before it says "and N more". */
+const OUTCOME_PATH_LIMIT = 3
+
+function listPaths(paths: string[], t: Translate): string {
+  const shown = paths.slice(0, OUTCOME_PATH_LIMIT).join(', ')
+  const rest = paths.length - OUTCOME_PATH_LIMIT
+  return rest > 0 ? `${shown} ${t('rollback.morePaths', rest)}` : shown
+}
+
+/** The sentence the screen shows after `rollback.restore` answered (T52).
+ *
+ * From core 0.23.0 a full restore is "careful": files the person edited after
+ * the agent's last write are kept, files the agent created after the snapshot
+ * are deleted, and when every changed file was the person's the answer is a
+ * `success: true` that restored nothing. So the file lists, not `success`,
+ * say what happened; without them (a classic restore — no agent-write ledger)
+ * the plain sentence stays true. */
+export function describeRestore(
+  result: RollbackRestoreResult,
+  filePath: string | undefined,
+  t: Translate
+): string {
+  if (!result.success) return t('rollback.restoreFailed', result.error ?? t('rollback.noReason'))
+  if (filePath !== undefined) return t('rollback.restoredFile', filePath)
+  const restored = result.restored_files
+  if (restored === undefined) return t('rollback.restoredAll')
+  const parts = [
+    restored.length === 0
+      ? t('rollback.nothingRestored')
+      : t('rollback.restoredCount', restored.length)
+  ]
+  const kept = result.skipped_user_edits ?? []
+  if (kept.length > 0) parts.push(t('rollback.keptUserEdits', listPaths(kept, t)))
+  const oversize = result.skipped_oversize ?? []
+  if (oversize.length > 0) parts.push(t('rollback.keptOversize', listPaths(oversize, t)))
+  const failed = result.failed_deletes ?? []
+  if (failed.length > 0) parts.push(t('rollback.failedDeletes', listPaths(failed, t)))
+  return parts.join(' ')
 }

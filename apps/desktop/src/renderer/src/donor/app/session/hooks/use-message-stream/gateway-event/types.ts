@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/types.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,6 +13,7 @@ import type { GatewayEventPayload } from '@/lib/chat-messages'
 import type { ErrorSurface } from '@/lib/error-surface'
 
 import type { ClientSessionState } from '../../../../types'
+import type { SegmentStamp } from '../segment-identity'
 
 export interface GatewayEventDeps {
   activeGatewayProfile: string
@@ -20,7 +21,7 @@ export interface GatewayEventDeps {
   compactedTurnRef: MutableRefObject<Set<string>>
   lastCwdInfoSessionRef: MutableRefObject<string | null>
   nativeSubagentSessionsRef: MutableRefObject<Set<string>>
-  appendAssistantDelta: (sessionId: string, delta: string, occurredAt?: number) => void
+  appendAssistantDelta: (sessionId: string, delta: string, occurredAt?: number, stamp?: null | SegmentStamp) => void
   appendReasoningDelta: (sessionId: string, delta: string, replace?: boolean, occurredAt?: number) => void
   completeAssistantMessage: (
     sessionId: string,
@@ -41,7 +42,12 @@ export interface GatewayEventDeps {
   ) => void
   flushQueuedDeltas: (sessionId?: string) => void
   dropQueuedDeltas: (sessionId?: string) => void
-  finalizeInterimAssistantMessage: (sessionId: string, text: string, occurredAt?: number) => void
+  finalizeInterimAssistantMessage: (
+    sessionId: string,
+    text: string,
+    occurredAt?: number,
+    stamp?: null | SegmentStamp
+  ) => void
   hydrateFromStoredSession: (
     attempts?: number,
     storedSessionId?: string | null,

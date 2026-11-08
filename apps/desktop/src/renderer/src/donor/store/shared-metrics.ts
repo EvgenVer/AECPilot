@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/shared-metrics.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,12 +15,11 @@ export const SHARED_METRICS_DOCS_URL = 'https://hermes-agent.nousresearch.com/do
 
 export type SharedMetricsConsent = SharedMetricsConsentResult
 
-/** The first-run answers, as the two config opt-ins `hermes setup` writes. */
-export type SharedMetricsChoice = 'local' | 'off' | 'share'
+/** The first-run answers, as the two config opt-ins `hermes setup` writes: each sets both. */
+export type SharedMetricsChoice = 'off' | 'share'
 
 export const SHARED_METRICS_CHOICES: Record<SharedMetricsChoice, { enabled: boolean; send: boolean }> = {
   share: { enabled: true, send: true },
-  local: { enabled: true, send: false },
   off: { enabled: false, send: false }
 }
 

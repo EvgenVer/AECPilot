@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/toolset-config-panel.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the reveal action — plaintext credential read-back (R2); the
@@ -262,7 +262,7 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarField
 
 interface PostSetupRunnerProps {
   toolset: string
-  /** The provider's post_setup hook key (e.g. "camofox", "ddgs"). */
+  /** The provider's post_setup hook key (e.g. "lightpanda", "ddgs"). */
   postSetupKey: string
   /** True when the server reports the install side-effect already satisfied
    *  (provider status === 'ready') — renders the resting "Installed" state

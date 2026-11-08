@@ -6,6 +6,7 @@ const api: AecpilotApi = {
   submitPrompt: (text, truncateBeforeUserOrdinal) =>
     ipcRenderer.invoke('chat:submit', { text, truncateBeforeUserOrdinal }),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
+  getGatewayReady: () => ipcRenderer.invoke('gateway:get-ready'),
   // --8<-- [start:gateway_api]
   gatewayRpc: (method, params, timeoutMs) =>
     ipcRenderer.invoke('gateway:rpc', { method, params, timeoutMs }),
@@ -38,6 +39,11 @@ const api: AecpilotApi = {
   readPreviewText: (path) => ipcRenderer.invoke('preview:read-text', path),
   readPreviewDir: (path) => ipcRenderer.invoke('preview:read-dir', path),
   capturePreview: (payload) => ipcRenderer.invoke('preview:capture', payload),
+  beginPreviewGuestActivity: (webContentsId) =>
+    ipcRenderer.invoke('preview-guest-activity:begin', webContentsId),
+  endPreviewGuestActivity: (token) => ipcRenderer.invoke('preview-guest-activity:end', token),
+  executePreviewGuestScript: (token, code) =>
+    ipcRenderer.invoke('preview-guest-activity:script', token, code),
   readMemoryNotes: () => ipcRenderer.invoke('memory:read-notes'),
   writeMemoryNote: (target, content) =>
     ipcRenderer.invoke('memory:write-note', { content, target }),
@@ -221,6 +227,20 @@ const api: AecpilotApi = {
   selectSavePath: (options) => ipcRenderer.invoke('dialog:select-save-path', options),
   saveImageOut: (source) => ipcRenderer.invoke('save:image', { source }),
   saveFileOut: (payload) => ipcRenderer.invoke('save:file', payload),
+  saveTextFileAs: (request) => ipcRenderer.invoke('save:text', request),
+  preparedSubmissions: {
+    read: () => ipcRenderer.invoke('prepared-submissions:read'),
+    update: (key, entry) => ipcRenderer.invoke('prepared-submissions:update', key, entry),
+    compareAndSet: (key, expected, entry) =>
+      ipcRenderer.invoke('prepared-submissions:compare-and-set', key, expected, entry)
+  },
+  scheduleStreamWorkWake: (token, delayMs) =>
+    ipcRenderer.send('stream-work:wake', { token, delayMs }),
+  onStreamWorkWake: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, token: string): void => callback(token)
+    ipcRenderer.on('stream-work:ready', listener)
+    return () => ipcRenderer.removeListener('stream-work:ready', listener)
+  },
   pickProjectDirectory: () => ipcRenderer.invoke('project:pick-directory'),
   createProject: (dirPath, name, confirmed) =>
     ipcRenderer.invoke('project:create', { dirPath, name, confirmed }),

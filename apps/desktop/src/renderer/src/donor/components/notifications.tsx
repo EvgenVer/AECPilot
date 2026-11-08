@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/notifications.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -367,7 +367,7 @@ function NotificationDetail({ detail }: { detail: string }) {
       <summary className="select-none font-medium text-muted-foreground hover:text-foreground">{copy.details}</summary>
       <div className="mt-1 rounded-md bg-background/65 p-2">
         <pre
-          className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed"
+          className="max-h-32 overflow-y-auto overscroll-contain whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed"
           data-selectable-text="true"
         >
           {detail}

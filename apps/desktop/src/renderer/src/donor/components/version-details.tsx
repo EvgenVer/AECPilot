@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/version-details.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -44,6 +44,20 @@ function ChannelRow({ action }: { action?: ReactNode }) {
         {label}
         {action && <> · {action}</>}
       </dd>
+    </div>
+  )
+}
+
+/** One side of a client/backend pair; a side that did not answer renders nothing. */
+function SideVersionRow({ label, value }: { label: string; value?: string }) {
+  if (!value) {
+    return null
+  }
+
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>v{shortVersion(value)}</dd>
     </div>
   )
 }
@@ -94,6 +108,8 @@ export function VersionDetails({ version, channelAction }: { version: DesktopVer
           {version.dirty && <span className="text-warning"> (!)</span>}
         </dd>
       </div>
+      <SideVersionRow label={u.versionDetailsClient} value={version.clientVersion} />
+      <SideVersionRow label={u.versionDetailsBackend} value={version.backendVersion} />
       {version.commit && (
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">{u.versionDetailsCommit}</dt>

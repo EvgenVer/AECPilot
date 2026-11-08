@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/kanban/api.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -60,6 +60,32 @@ let os: null | PluginOs = null
 /** Selected board slug ('' = the server's current board). Persisted. */
 export const $boardSlug = atom<string>('')
 
+/** Pinned board slugs, in tab order, for the active connection. Persisted. */
+export const $pinnedBoards = atom<string[]>([])
+
+export function setBoardPinned(slug: string, pinned: boolean): void {
+  const current = $pinnedBoards.get()
+
+  if (current.includes(slug) !== pinned) {
+    $pinnedBoards.set(pinned ? [...current, slug] : current.filter(item => item !== slug))
+  }
+}
+
+/** Move `slug` into `target`'s position. */
+export function movePinnedBoard(slug: string, target: string): void {
+  const next = [...$pinnedBoards.get()]
+  const from = next.indexOf(slug)
+  const to = next.indexOf(target)
+
+  if (from < 0 || to < 0 || from === to) {
+    return
+  }
+
+  next.splice(from, 1)
+  next.splice(to, 0, slug)
+  $pinnedBoards.set(next)
+}
+
 /** Whether the "how this board works" intro was dismissed. Persisted. */
 export const $introDismissed = atom<boolean>(false)
 
@@ -77,6 +103,7 @@ const LOCAL_SCOPE = 'local'
 const KANBAN_KEY_ROOT = ['kanban'] as const
 
 const BOARD_SLUG_KEY = 'boardSlug'
+const PINNED_BOARDS_KEY = 'pinnedBoards'
 const INTRO_KEY = 'introDismissed'
 const LANES_KEY = 'lanesByProfile'
 const COLLAPSED_KEY = 'collapsedLanes'
@@ -313,13 +340,25 @@ export function bindApi(
   // The local connection keeps the BARE key (the bare-local rule of
   // lib/connection-scoped: byte-identical storage for single-backend users, and
   // the slug picked before per-connection keys existed survives the upgrade).
-  // Remotes are suffixed by registry id.
-  const slugStorageKey = () => {
+  // Remotes are suffixed by registry id. Pins follow the same rule: boards
+  // belong to a gateway, so each connection keeps its own tabs.
+  const scopedKey = (key: string) => {
     const scope = kanbanConnectionScope()
 
-    return scope === LOCAL_SCOPE ? BOARD_SLUG_KEY : `${BOARD_SLUG_KEY}.${scope}`
+    return scope === LOCAL_SCOPE ? key : `${key}.${scope}`
   }
 
+  const slugStorageKey = () => scopedKey(BOARD_SLUG_KEY)
+
+  const restorePins = () => {
+    const stored = storage.get<unknown>(scopedKey(PINNED_BOARDS_KEY), [])
+    const slugs = Array.isArray(stored) ? stored.filter((s): s is string => typeof s === 'string' && !!s) : []
+
+    $pinnedBoards.set([...new Set(slugs)])
+  }
+
+  restorePins()
+  unsubs.push($pinnedBoards.listen(pins => storage.set(scopedKey(PINNED_BOARDS_KEY), pins)))
   $boardSlug.set(storage.get(slugStorageKey(), ''))
   unsubs.push($boardSlug.listen(slug => storage.set(slugStorageKey(), slug)))
   open($boardSlug.get())
@@ -335,6 +374,7 @@ export function bindApi(
         return
       }
 
+      restorePins()
       const previous = $boardSlug.get()
       $boardSlug.set(storage.get(slugStorageKey(), ''))
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/session-owner-stamp.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,10 +22,15 @@ import type { SessionInfo } from '@/types/hermes'
  * would let a later resume fall back to a same-named local profile
  * ("session not found" on turn two). `local` is never stamped here — a bare
  * local row already routes correctly while local is the primary, and a `local`
- * tag would only pin it against the fail-closed owner resolution. The one
- * exception, `local` serving as a registry SECONDARY, is stamped by its caller
- * (`stampProjectSessions` in store/projects), because there a bare row would
- * route to the remote primary.
+ * tag would only pin it against the fail-closed owner resolution.
+ * Two callers stamp `local` themselves: `local` serving as a registry
+ * SECONDARY (`stampProjectSessions` in store/projects), because there a bare
+ * row would route to the remote primary; and a gateway-served Webapp tab,
+ * whose REST door (`installBrowserDesktopBridge`) tags every listed row with
+ * `local`, the tab's only source, so a listed row and a new chat name the same
+ * owner. A Webapp resume already routed through `local` (the tab's connection
+ * is `mode: 'remote'`, `connectionId: 'local'`, so the ambient owner is
+ * `local`); the tag only replaces the remembered-owner hint.
  */
 export function stampRowsWithOwningConnection(
   sessions: SessionInfo[],

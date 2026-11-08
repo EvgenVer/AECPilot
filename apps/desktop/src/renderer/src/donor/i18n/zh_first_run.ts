@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_first_run.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,8 @@ export const zhFirstRun: FirstRunCopy = {
   skip: '跳过设置',
   skipTip: '结束引导设置并打开新对话。',
   skipFailed: '无法跳过设置',
+  slashOffTitle: '设置期间无法使用斜杠命令',
+  slashOffBody: '设置完成后即可照常使用。',
   localModel: {
     title: '这台电脑可以在本地运行模型',
     text: (model, size) => `${model}（${size}）适合你的硬件。它免费运行，你的对话会留在这台电脑上。`,

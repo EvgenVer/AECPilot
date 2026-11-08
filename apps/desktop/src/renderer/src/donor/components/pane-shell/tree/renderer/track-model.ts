@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/pane-shell/tree/renderer/track-model.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,6 +23,17 @@ import type { GroupNode, LayoutNode } from '../model'
 import { allPaneIds } from '../model'
 
 import type { FloatingAnchor } from './floating-rect'
+
+/** Renders a pane's tab menu as a controlled dropdown on `trigger` (an
+ *  anchor the caller owns). Stays mounted while closed, so a dialog the menu
+ *  opened (rename, delete confirm) outlives the menu. */
+export interface TabActionsMenuProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  trigger: React.ReactElement
+}
+
+export type TabActionsMenu = (props: TabActionsMenuProps) => React.ReactNode
 
 export const MIN_PANE_PX = 80
 
@@ -88,6 +99,11 @@ interface PaneChrome extends PaneSizing {
    *  pin/branch/rename/archive/delete). The wrapper must render `tab` as its
    *  interactive child; the zone's own strip menu still owns non-tab space. */
   tabWrap?: (tab: React.ReactElement) => React.ReactNode
+  /** The SAME tab menu as `tabWrap`'s, opened from a button instead of a
+   *  right-click — the phone tab picker has no strip to right-click. Resolved
+   *  when the picker opens: undefined = no menu for this tab right now (the
+   *  main tab on a fresh draft). */
+  tabActions?: () => TabActionsMenu | undefined
   /** Extra rows at the top of the zone tab menu. Called when the menu opens
    *  against the right-clicked pane — a Browser tab's Open-in-external, without
    *  replacing Reload / Close / the strip. */

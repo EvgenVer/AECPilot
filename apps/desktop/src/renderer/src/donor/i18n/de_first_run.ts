@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/de_first_run.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,8 @@ export const deFirstRun: FirstRunCopy = {
   skip: 'Einrichtung überspringen',
   skipTip: 'Beendet die geführte Einrichtung und öffnet einen neuen Chat.',
   skipFailed: 'Einrichtung konnte nicht übersprungen werden',
+  slashOffTitle: 'Slash-Befehle sind während der Einrichtung aus',
+  slashOffBody: 'Nach der Einrichtung funktionieren sie wie gewohnt.',
   localModel: {
     title: 'Dieser Computer kann ein Modell lokal ausführen',
     text: (model, size) =>

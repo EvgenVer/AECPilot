@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/wiring-routing.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -14,10 +14,6 @@
 
 import type { SessionOwnerRoute, SessionOwnerScope } from '@/store/session-request-router'
 
-import { SETTINGS_ROUTE } from '../routes'
-
-/** The in-app destination for pool-cap recovery. */
-export const POOL_LIMITS_SETTINGS_ROUTE = `${SETTINGS_ROUTE}?tab=config:advanced`
 
 /**
  * Resolve a runtime session id back to its stored id by reverse-scanning the

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/starmap/index.tsx
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 
 import { PageLoader } from '@/components/page-loader'
 import { useI18n } from '@/i18n'
-import { $starmapError, $starmapGraph, $starmapLoading, loadStarmapGraph } from '@/store/starmap'
+import { $starmapError, $starmapGraph, $starmapLoading, watchStarmapGraph } from '@/store/starmap'
 import type { StarmapGraph } from '@/types/hermes'
 
 import { Panel, PanelEmpty } from '../overlays/panel'
@@ -33,9 +33,8 @@ export function StarmapView({ onClose }: { onClose: () => void }) {
   // whenever a fresh profile graph loads in.
   const [imported, setImported] = useState<StarmapGraph | null>(null)
 
-  useEffect(() => {
-    void loadStarmapGraph()
-  }, [])
+  // Loads on open and reloads after a profile/gateway switch while the view stays open.
+  useEffect(() => watchStarmapGraph(), [])
 
   // Drop a stale import when the underlying profile graph changes out from under it.
   useEffect(() => {

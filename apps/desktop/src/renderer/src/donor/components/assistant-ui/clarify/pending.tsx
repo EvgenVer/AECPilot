@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/clarify/pending.tsx
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -89,6 +89,22 @@ export function ClarifyToolPending({
   // Confirm never re-sends an older pick; an answer seen before is left alone,
   // so a later edit on the card stands.
   const [seenLocks, setSeenLocks] = useState<Record<string, null | string>>({})
+
+  // A canonical gateway answers a batch one card at a time through the SAME
+  // mounted tool row: a new live request is a new card, so the previous card's
+  // submit latch, staged picks and seen locks must not carry over (that left
+  // question 2 disabled behind question 1's spinner).
+  const [cardRequestId, setCardRequestId] = useState(request?.requestId)
+
+  if (request?.requestId !== cardRequestId) {
+    setCardRequestId(request?.requestId)
+
+    if (request?.requestId) {
+      setSubmitting(false)
+      setStaged({})
+      setSeenLocks({})
+    }
+  }
 
   useEffect(() => {
     const lockedAnswers = request?.lockedAnswers

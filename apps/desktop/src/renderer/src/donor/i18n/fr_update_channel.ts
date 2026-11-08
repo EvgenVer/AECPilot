@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/fr_update_channel.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,5 +23,8 @@ export const frUpdateChannel = {
   rollbackTitle: (v: string) => `Revenir à la version stable ${v}`,
   rollbackBody: (v: string) =>
     `Cette build est plus récente que la version stable ${v}. L’installer ramène Hermes à cette version.`,
-  rollbackAction: (v: string) => `Revenir à ${v}`
+  heldBody: (v: string) =>
+    `Cette version est plus récente que la version stable ${v}, et vos sessions utilisent déjà son environnement de passerelle, que ${v} ne peut pas ouvrir. Hermes reste sur cette version jusqu’à la prochaine version stable.`,
+  rollbackAction: (v: string) => `Revenir à ${v}`,
+  allChanges: 'Voir toutes les modifications'
 }

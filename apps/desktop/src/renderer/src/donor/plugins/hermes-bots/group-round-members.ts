@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-round-members.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -150,7 +150,46 @@ function prepareGroupRoundMember(context: GroupRoundMemberContext, member: Group
   // the transcript's [attached image: …] marker.
   const deltaImages = visibleDelta.flatMap((e: GroupMessage) => (Array.isArray(e.images) ? e.images : []))
 
-  return { room, memberKey, markKey, prompt, deltaImages, heldIds }
+  // A user entry this turn is about to see for the first time: whatever the
+  // member already posted was written without it, so it answers nothing here.
+  const seesNewUserEntry = visibleDelta.some((entry: GroupMessage) => entry.from?.kind === 'user')
+
+  return { room, memberKey, markKey, prompt, deltaImages, heldIds, seesNewUserEntry }
+}
+
+/** True while the user's explicit address to `member` is unanswered in this
+ *  thread: this turn is the first to see a user entry, or the member has not
+ *  posted since the latest one. Position alone is not enough, because a turn
+ *  that started before a follow-up can land after it. */
+function memberOwesAnswer(
+  context: GroupRoundMemberContext,
+  member: GroupMember,
+  log: GroupMessage[],
+  seesNewUserEntry: boolean
+): boolean {
+  return Boolean(context.addressedKeys?.has(groupMemberKey(member))) &&
+    (seesNewUserEntry || !answeredSinceLastUser(log, member, context.thread))
+}
+
+/** True when `member` has a room entry in `thread` after the latest user entry there. */
+function answeredSinceLastUser(log: GroupMessage[], member: GroupMember, thread: string): boolean {
+  for (let i = log.length - 1; i >= 0; i--) {
+    const entry = log[i]
+
+    if (groupThreadOf(entry) !== thread) {
+      continue
+    }
+
+    if (entry.from?.kind === 'user') {
+      return false
+    }
+
+    if (authoredByMember(entry, member)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 /** Each invocation owns its descriptor, so an old completion cannot clear a newer turn. */
@@ -188,8 +227,11 @@ export async function runGroupRoundMember(
     return false
   }
 
-  const { room, memberKey, markKey, prompt, deltaImages, heldIds } = prepared
+  const { room, memberKey, markKey, prompt, deltaImages, heldIds, seesNewUserEntry } = prepared
   const anchorId = room.log.at(-1)?.id ?? null
+  // Owed only until the member answers: after its reply to the user's address,
+  // a pass on a teammate's reply is ordinary consensus, not noncompliance.
+  const owesAnswer = memberOwesAnswer(context, member, room.log, seesNewUserEntry)
   let reply: null | string = null
   let accepted = false
 
@@ -206,7 +248,7 @@ export async function runGroupRoundMember(
     // `isCurrent()` (not the bare binding): a superseded drive's pass is
     // discarded by the epoch check right below anyway, so nudging it would
     // burn a model call whose result can never be committed.
-    if (context.isCurrent() && reply !== null && isGroupPassText(reply) && context.addressedKeys?.has(memberKey)) {
+    if (context.isCurrent() && reply !== null && isGroupPassText(reply) && owesAnswer) {
       reply = await runVisibleMemberTurn(context, member, `${prompt}${GROUP_ADDRESSED_NUDGE_SUFFIX}`, deltaImages)
     }
 
@@ -311,7 +353,7 @@ export async function runGroupRoundMember(
 
   if (reply !== null && spoke) {
     appendGroupChatEntry(context.group, groupMemberAuthor(member), reply, thread)
-  } else if (reply !== null && context.isCurrent() && context.addressedKeys?.has(memberKey)) {
+  } else if (reply !== null && context.isCurrent() && owesAnswer) {
     // #129443: the nudge was passed on too. Record the noncompliance where
     // the user looks (activity row + roster badge) instead of letting the
     // user's explicit address settle as ordinary quiet consensus. Only a

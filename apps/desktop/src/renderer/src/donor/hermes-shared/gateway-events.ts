@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/gateway-events.ts
- * Commit:  f97608f178d1ffeca59860195ab7da295f7c8e5f (v2026.9.24)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -23,16 +23,37 @@ import type { BackendGatewayEventMap } from './gateway-contract.generated.js'
 
 export * from './gateway-contract.generated.js'
 
+/** Owner-stamped pending prompt on a canonical gateway. */
+export interface CanonicalPromptEvent {
+  execution_generation?: number
+  kind?: 'approval' | 'clarify'
+  prompt_id: string
+  /** Set by the Desktop canonical protocol layer for the named listeners. */
+  request_id?: string
+}
+
 /**
  * Client-local synthetic events. Never emitted by `tui_gateway`; the Ink TUI's `gatewayClient`
  * publishes them into the same handler stream to report transport state.
  */
 export interface ClientLocalGatewayEventMap {
+  /** Canonical gateways (`gateway/session_pending_controls.py`) fan pending prompts out as
+   *  events stamped with the owner's `execution_generation`; Desktop's canonical protocol
+   *  layer projects them onto the named prompt listeners and answers over `approval.respond`
+   *  / `clarify.respond`. Not part of the generated `tui_gateway` contract. */
+  'approval.request': CanonicalPromptEvent & { command?: string; description?: string; choices?: string[]; edit?: unknown }
+  'approval.settled': CanonicalPromptEvent
+  'clarify.request': CanonicalPromptEvent & { question?: string; choices?: string[]; multi_select?: boolean }
+  'clarify.settled': CanonicalPromptEvent
   'dashboard.new_session_requested': { reason?: string }
   'gateway.protocol_error': { preview?: string }
   'gateway.reconnecting': { attempt?: number; delay_ms?: number }
   'gateway.start_timeout': { cwd?: string; python?: string; stderr_tail?: string }
   'gateway.stderr': { line: string }
+  /** Synthetic on the client (a reconnect replay could not cover the gap: epoch changed /
+   * ring truncated) AND emitted by canonical gateways on fanout overflow
+   * (`gateway/session_events.py`); consumers re-resume the session for a snapshot. */
+  'session.replay_gap': { latest_seq?: number; replay_epoch?: string }
 }
 
 export interface GatewayEventMap extends BackendGatewayEventMap, ClientLocalGatewayEventMap {}
@@ -50,6 +71,14 @@ export interface GatewayEvent<K extends GatewayEventName = GatewayEventName> {
   /** Registry connection whose socket delivered the event (renderer-side tag;
    * absent for the local/legacy primary path). */
   connectionId?: string
+  /** Owner execution stamp on canonical gateways: the integer runtime epoch and the claimed
+   * generation, spread onto the params beside `type`/`payload` (`gateway/session_events.py`). */
+  authority_epoch?: number
+  execution_generation?: number
+  /** The owner's admission id for the turn the frame belongs to (same stamp). */
+  admission_id?: string
+  /** Session-scoped replay generation on canonical gateways. */
+  replay_epoch?: string
   payload?: GatewayEventMap[K]
   /** Renderer-side source tag added by the Desktop gateway registry. */
   profile?: string

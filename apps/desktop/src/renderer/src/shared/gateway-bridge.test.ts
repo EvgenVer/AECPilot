@@ -262,6 +262,36 @@ describe('GatewayBridge', () => {
     await expect(bridge.connect()).resolves.toBeUndefined()
     expect(() => bridge.close()).not.toThrow()
   })
+
+  // T52 (core 0.23.0): their client counts a dial ready only at the first
+  // `gateway.ready` ITS socket delivers. Ours never dials — main got that frame
+  // long before this renderer existed — so every connect() hands their client
+  // the last one main saw, or their readiness times out and no request runs.
+  it('connect() replays the last gateway.ready main saw, on every dial', async () => {
+    const ready = { skin: {}, change_events: true, replay_epoch: 'e1' }
+    const readyStub = stubApi('ready')
+    ;(readyStub.api as unknown as Record<string, unknown>).getGatewayReady = vi.fn(
+      async () => ready
+    )
+    const client = new GatewayBridge(readyStub.api)
+    const seen: unknown[] = []
+    client.on('gateway.ready', (event) => seen.push(event.payload))
+
+    await client.connect('ws://ignored')
+    await client.connect('ws://ignored')
+    expect(seen).toEqual([ready, ready])
+  })
+
+  it('connect() replays nothing while main has no gateway.ready yet', async () => {
+    const coldStub = stubApi('connecting')
+    ;(coldStub.api as unknown as Record<string, unknown>).getGatewayReady = vi.fn(async () => null)
+    const client = new GatewayBridge(coldStub.api)
+    const seen: unknown[] = []
+    client.on('gateway.ready', (event) => seen.push(event.payload))
+
+    await client.connect('ws://ignored')
+    expect(seen).toEqual([])
+  })
 })
 
 describe('toDonorState', () => {

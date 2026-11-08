@@ -1,14 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-auto-speak-replies.ts
- * Commit:  d923a5eb487a17c0a68801bba9ef0f56c81040a8 (v0.22.2)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
-import { releaseUnplayedSpokenReply, spokenReplyOf } from '@/lib/spoken-reply'
+import { releaseUnplayedSpokenReply, spokenReplyOf, spokenSegmentKey } from '@/lib/spoken-reply'
 import { playSpeechText } from '@/lib/voice-playback'
 import { ownsAmbientCue } from '@/store/ambient'
 import { notifyError } from '@/store/notifications'
@@ -21,8 +21,63 @@ interface AutoSpeakReply {
   id: string
   pending: boolean
   text: string
+  /** Text that identifies this message within its turn: the bubble's last text
+   *  part. Hydration folds a tool-call turn into one bubble whose full text
+   *  changes, but whose last text part is still this message. Defaults to `text`. */
+  segmentText?: string
   /** Survives the live-id rewrite. Absent callers still speak; they just cannot join an in-flight play. */
   turnKey?: string
+}
+
+// Turns this window speaks for. The window that wins a turn's first message
+// voices every later message of that turn, so a second, idle window cannot
+// start the final reply over the first window's progress update.
+const OWNED_TURNS_MAX = 64
+const ownedTurns = new Set<string>()
+const pendingTurnClaims = new Map<string, Promise<boolean>>()
+
+async function claimSpeech(turnKey: string | undefined, claimKey: string): Promise<boolean> {
+  if (turnKey && !ownedTurns.has(turnKey)) {
+    let claim = pendingTurnClaims.get(turnKey)
+
+    if (!claim) {
+      // An interim and final can arrive before the first IPC claim settles.
+      // They share this window's turn claim, but still claim each message separately.
+      claim = ownsAmbientCue(`speak:turn:${turnKey}`)
+        .then(owns => {
+          if (pendingTurnClaims.get(turnKey) !== claim) {
+            return false
+          }
+
+          if (owns) {
+            ownedTurns.add(turnKey)
+
+            if (ownedTurns.size > OWNED_TURNS_MAX) {
+              ownedTurns.delete(ownedTurns.values().next().value!)
+            }
+          }
+
+          return owns
+        })
+        .finally(() => {
+          if (pendingTurnClaims.get(turnKey) === claim) {
+            pendingTurnClaims.delete(turnKey)
+          }
+        })
+      pendingTurnClaims.set(turnKey, claim)
+    }
+
+    if (!(await claim)) {
+      return false
+    }
+  }
+
+  return ownsAmbientCue(claimKey)
+}
+
+export function clearOwnedSpeechTurnsForTests(): void {
+  ownedTurns.clear()
+  pendingTurnClaims.clear()
 }
 
 interface UseAutoSpeakReplies {
@@ -85,11 +140,24 @@ export function useAutoSpeakReplies({
 
       markSpoken()
       const marked = spokenReplyOf(sessionId)
-      // Only one window voices a given reply when the same chat is open in
-      // several. The claim key is the turn, not the row id: hydration rewrites
-      // the row id, and a second claim would start a second clip.
-      void ownsAmbientCue(`speak:${reply.turnKey ?? reply.id}`).then(owns => {
-        if (!owns || attempt !== attemptSeq) {
+      // Only one window voices a turn when the same chat is open in several:
+      // the turn's owner (see claimSpeech), then once per message. Keys are the
+      // turn and its message text, not the row id: hydration rewrites the row
+      // id, and a second claim would start a second clip. A turn with tool
+      // calls speaks several messages, so the turn alone would let the first
+      // message's claim refuse the final reply.
+      const segmentKey = reply.turnKey ? spokenSegmentKey(reply.turnKey, reply.segmentText ?? reply.text) : null
+      const claimKey = `speak:${segmentKey ?? reply.id}`
+
+      void claimSpeech(reply.turnKey, claimKey).then(owns => {
+        if (attempt !== attemptSeq) {
+          return
+        }
+
+        if (!owns) {
+          // Another window owns this turn, or this message was already voiced.
+          console.debug('[auto-speak] claim already taken', claimKey)
+
           return
         }
 
@@ -98,7 +166,7 @@ export function useAutoSpeakReplies({
           messageId: reply.id,
           profile,
           source: 'read-aloud',
-          ...(reply.turnKey ? { turnKey: reply.turnKey } : {})
+          ...(segmentKey ? { turnKey: segmentKey } : {})
         }).then(
           started => {
             if (!started && attempt === attemptSeq) {

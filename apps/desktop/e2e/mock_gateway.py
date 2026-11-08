@@ -175,6 +175,30 @@ async def handle(connection: ServerConnection) -> None:
         # session it names and the command/text it carries: several sessions
         # live in this mock at once (task 3F.5), and a turn that lands nowhere
         # is unreadable without the id.
+        # Core v0.23.0 legacy contract (task T52): params are extra="forbid"
+        # (`tui_gateway/contracts/base.py`), and `PromptSubmitParams` has no
+        # `submission_id`, so the donor's id is refused with 4000. The donor
+        # retries identityless on exactly this refusal (`submit.ts`
+        # `isPreAdmissionRefusal`) and only then accepts {"status": "streaming"}.
+        # Answering the first try directly made it drop the user bubble and put
+        # the text back into the composer.
+        if method == "prompt.submit" and "submission_id" in (request.get("params") or {}):
+            print("MOCK_RPC_REFUSED prompt.submit submission_id", flush=True)
+            await connection.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": 4000,
+                            "message": "invalid params for prompt.submit: submission_id: "
+                            "Extra inputs are not permitted",
+                        },
+                    }
+                )
+            )
+            continue
+
         if method != "session.active_list":
             params = request.get("params") or {}
             detail = " ".join(

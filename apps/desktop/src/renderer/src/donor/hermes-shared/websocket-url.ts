@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/websocket-url.ts
- * Commit:  3c27eb6234bf91b8ceee9e9071591b31e9b148cb (v2026.8.3)
+ * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -87,8 +87,19 @@ export async function resolveGatewayWsUrl(deps: ResolveGatewayWsUrlDeps, conn: G
     }
   }
 
+  // The Webapp's descriptor URL carries no credential of its own, so a failed mint IS the answer
+  // (a gateway that cannot attach says why); falling back to that URL only fails later, nameless.
+  // Every other descriptor falls back to its cached URL and leaves the retry to the reconnect loop.
+  const mintRequired = nativeDialOf(conn.wsUrl) === BROWSER_NATIVE_DIAL
+
   if (mint) {
-    const fresh = await mint(profile).catch(() => null)
+    const fresh = await mint(profile).catch((error: unknown) => {
+      if (mintRequired) {
+        throw error
+      }
+
+      return null
+    })
 
     if (typeof fresh === 'string') {
       return fresh
@@ -97,9 +108,24 @@ export async function resolveGatewayWsUrl(deps: ResolveGatewayWsUrlDeps, conn: G
     if (fresh?.ok) {
       return fresh.wsUrl
     }
+
+    if (fresh && mintRequired) {
+      throw new Error(fresh.error || 'Could not mint a gateway WebSocket ticket.')
+    }
   }
 
   return conn.wsUrl
+}
+
+/** The `native_dial` value on the browser-hosted Desktop's own socket URL. */
+export const BROWSER_NATIVE_DIAL = 'browser'
+
+function nativeDialOf(wsUrl: string): null | string {
+  try {
+    return new URL(wsUrl).searchParams.get('native_dial')
+  } catch {
+    return null
+  }
 }
 
 export type WebSocketAuthParam = readonly [name: string, value: string]
@@ -127,7 +153,7 @@ function readWindowLocation(): { host: string; protocol: string } {
   return { host: window.location.host, protocol: window.location.protocol }
 }
 
-function normalizeBasePath(basePath: string | undefined): string {
+export function normalizeBasePath(basePath: string | undefined): string {
   if (!basePath) {
     return ''
   }

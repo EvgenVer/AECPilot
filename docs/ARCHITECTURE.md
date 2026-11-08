@@ -65,7 +65,7 @@ flowchart LR
 
 | Part | Responsibility | Built with | Code | Page |
 |---|---|---|---|---|
-| Главный процесс | запуск ядра и соединение с ним, проверка каждого вызова из окна, файловые операции, проект и источники, индексация, расписание сканирования, ключи в safeStorage, трей сервера | Electron 43, TypeScript | `apps/desktop/src/main/` | [Главный процесс](components/main-process.md) |
+| Главный процесс | запуск ядра и соединение с ним, проверка каждого вызова из окна, файловые операции, проект и источники, индексация, расписание сканирования, ключи в safeStorage, трей сервера | Electron 44, TypeScript | `apps/desktop/src/main/` | [Главный процесс](components/main-process.md) |
 | Мост preload | единственный API окна `window.aecpilot` поверх IPC | Electron contextBridge | `apps/desktop/src/preload/` | [Главный процесс](components/main-process.md) |
 | Рендерер: зона донора | интерфейс Hermes Desktop: чат, сессии, настройки, специалисты, предпросмотр, доска | React 19, Tailwind v4, shadcn/Radix, nanostores, React Query | `apps/desktop/src/renderer/src/donor/` | [Окно приложения](components/renderer.md) |
 | Рендерер: наши поверхности | проводник проекта и источников, просмотрщики PDF/DOCX/XLSX/CSV/MD, цитаты, страницы «Индекс», «Память», «Проект», согласия | тот же стек | `apps/desktop/src/renderer/src/aec/`, `shared/` | [Окно приложения](components/renderer.md) |
@@ -81,9 +81,9 @@ flowchart LR
 
 | Layer | Choice | Why, in one line | Decision |
 |---|---|---|---|
-| Агентное ядро | hermes-agent 0.22.2, пин по коммиту `d923a5eb` | готовые агент, инструменты, MCP, память, навыки; без форка; версия 0.2 поднимает на v0.23.0 (план) | [0001](decisions/0001-core-without-fork.md), [0012](decisions/0012-core-0-22-2.md), [0016](decisions/0016-core-0-23-0.md) |
+| Агентное ядро | hermes-agent 0.23.0, пин по коммиту `2bd378ed` (ветка `next/0.2`; выпуск 0.1.0 — 0.22.2, `d923a5eb`) | готовые агент, инструменты, MCP, память, навыки; без форка | [0001](decisions/0001-core-without-fork.md), [0012](decisions/0012-core-0-22-2.md), [0016](decisions/0016-core-0-23-0.md) |
 | Интерфейс | код Hermes Desktop в нашей оболочке, 6 разрешённых правок | их скорость и тесты вместо своих аналогов; право не брать лишнее | [0002](decisions/0002-donor-ui-in-our-shell.md) |
-| Настольная платформа | Electron 43 + React 19 + TypeScript | единственный UI, тот же стек, что у донора | [0003](decisions/0003-desktop-stack.md) |
+| Настольная платформа | Electron 44 + React 19 + TypeScript | единственный UI, тот же стек, что у донора | [0003](decisions/0003-desktop-stack.md) |
 | Хранилище | файлы vault + SQLite FTS5 + LightRAG (NanoVectorDB, JSON, NetworkX) | без серверов, бэкап = копия папки | [0004](decisions/0004-files-first-storage.md) |
 | Индексация | два уровня: поиск всегда, граф по выбору | граф стоит вызова модели на каждый фрагмент | [0005](decisions/0005-two-tier-indexing.md) |
 | Память агента | записка ядра + Mem0 (локальный qdrant) | поиск по смыслу и дата у факта | [0006](decisions/0006-memory-mem0.md) |
