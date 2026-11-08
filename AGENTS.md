@@ -82,8 +82,8 @@ first. When it changes the architecture or the stack, go back to the `design` sk
   database from the settings, and remove only what they created.
 - If the same check fails three times, or an experiment has no clear pass criterion,
   stop and bring the owner options with their cost instead of trying again.
-- Commit after each verified task. Ask the owner before pushing, force-pushing or
-  rewriting history.
+- Commit after each verified task. Push a working branch when you need to; ask the owner
+  before pushing to `main` or `master`, force-pushing or rewriting history.
 - Keep dependencies inside the project: Python in `.venv`, JavaScript through the
   project's package manager; never install globally. Before adding a package, check
   that it exists and is maintained.
