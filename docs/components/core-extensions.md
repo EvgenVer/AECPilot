@@ -108,7 +108,7 @@ flowchart LR
 | `plugins/aec_secret_filter/key_source.py`, `mem0_shared.py`, `mem0_turns.py` | ключи профилям, общий клиент Mem0 |
 | `plugins/aec_secret_filter/shipped_skills.py`, `memory_facts.py` | поставляемые навыки, факты памяти |
 | `skills/aec-qa/SKILL.md`, `skills/aec-wiki/SKILL.md` | навыки агента |
-| `runtime/register-secret-filter.mjs`, `register-aec-roster.mjs` | установка плагина и сервера в профили |
+| `runtime/register-secret-filter.mjs`, `register-aec-roster.mjs` | установка плагина и сервера в профили; при запуске заодно ставит Mem0 и `advanced-delegation`; фильтр и `advanced-delegation` вписывает в `plugins.enabled` (второй — только если человек его не выключил) |
 
 ## Данные
 
