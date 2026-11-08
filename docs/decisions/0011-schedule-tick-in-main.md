@@ -1,7 +1,7 @@
 # 0011 — Тик расписаний — в главном процессе
 
 - Date: 2026-08-19 (SPEC O6, задача 3.6, замер на 0.20.4)
-- Status: accepted
+- Status: superseded by [0017](0017-single-gateway.md) (с версии 0.2; в 0.1.0 действует)
 - Approved by: owner
 
 ## Context

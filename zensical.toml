@@ -43,6 +43,8 @@ nav = [
       "decisions/0014-credentials-storage.md",
       "decisions/0015-licensing.md",
       "decisions/0016-core-0-23-0.md",
+      "decisions/0017-single-gateway.md",
+      "decisions/0018-lira-update-feed.md",
     ] },
   ] },
   "operations.md",
