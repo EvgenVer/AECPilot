@@ -1234,7 +1234,7 @@ pillow-heif», AVIF читает сам Pillow ≥ 11.3, JPEG/PNG не затр�
 
 | Пакет | Версия | Лицензия | Где | Зачем |
 |---|---|---|---|---|
-| `sigma` | 3.0.3 | MIT (jacomyal, yomguithereal) | рендерер | рисует граф сущностей проекта в WebGL — сотни и тысячи узлов без торможения |
+| `sigma` | 4.0.4 (с 2026-11-08, T57; до того 3.0.3) | MIT (jacomyal, yomguithereal) | рендерер | рисует граф сущностей проекта в WebGL — сотни и тысячи узлов без торможения |
 | `graphology` | 0.26.0 | MIT (yomguithereal) | рендерер | модель графа, которую `sigma` читает (её обязательная пара) |
 | `graphology-types` | 0.24.8 | MIT (yomguithereal) | dev | peer-зависимость `graphology` — типы для `tsc` |
 

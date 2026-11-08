@@ -103,7 +103,7 @@ flowchart LR
 | Линтеры | eslint + prettier, ruff | один стиль на весь репозиторий | — |
 | Разбор документов | pypdfium2 (текстовый слой PDF), RapidOCR на onnxruntime с моделью `eslav` (сканы), Docling (DOCX, XLSX), свой разбор TXT/MD/CSV | быстрый текстовый слой, русские сканы за 5,5 с на страницу | [0005](decisions/0005-two-tier-indexing.md) |
 | Просмотрщики | pdfjs-dist (PDF), docx-preview (DOCX), exceljs в главном процессе (XLSX), Milkdown (Markdown) | у донора просмотрщиков этих форматов нет (UR3) | — |
-| Граф в окне | sigma 3 + graphology, раскладка d3-force, по выгрузке `aec-rag` | своя поверхность на открытой библиотеке (UR44); в версии 0.2 — sigma 4 (план) | [0016](decisions/0016-core-0-23-0.md) |
+| Граф в окне | sigma 4 + graphology, раскладка d3-force, по выгрузке `aec-rag` | своя поверхность на открытой библиотеке (UR44); sigma 4 с версии 0.2 (T57) | [0016](decisions/0016-core-0-23-0.md) |
 
 Менее крупные решения (зависимости, их версии и веттинг) — [plan-details.md](plan-details.md)
 §«Selected dependencies» и §«Stack & package managers».

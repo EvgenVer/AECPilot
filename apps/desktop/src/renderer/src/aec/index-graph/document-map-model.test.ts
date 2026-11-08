@@ -52,7 +52,7 @@ describe('карта документов — модель (3L.9)', () => {
     expect(nodeView(graph, 's/b', data('s/b'), 'игИ', null).highlighted).toBe(true)
     expect(nodeView(graph, 's/c', data('s/c'), 'игИ', null).label).toBe('')
 
-    expect(nodeView(graph, 's/b', data('s/b'), '', 's/a')).toEqual(data('s/b'))
+    expect(nodeView(graph, 's/b', data('s/b'), '', 's/a')).toEqual({})
     expect(nodeView(graph, 's/c', data('s/c'), '', 's/a').label).toBe('')
     expect(edgeHidden(graph, '2', 's/a')).toBe(true)
     expect(edgeHidden(graph, '0', 's/a')).toBe(false)

@@ -2,11 +2,16 @@
 // sigma draws (WebGL), d3-force lays the picture out live, the search dims what
 // does not match, and hovering a node leaves only it and its neighbours lit —
 // the way Obsidian's graph behaves.
+//
+// sigma 4 (task T57): labels and the hover box are drawn in WebGL from display
+// fields, not by a canvas callback. The theme's colours therefore travel through
+// the node reducer (`labelColor`, `backdropColor`), and a search match is shown the
+// way sigma 3 drew `highlighted`: its label and its box always on.
 
 import type Graph from 'graphology'
 import { type RefObject, useEffect, useRef } from 'react'
 import type Sigma from 'sigma'
-import type { NodeHoverDrawingFunction } from 'sigma/rendering'
+import type { NodeDisplayData } from 'sigma/types'
 
 const DIM = '#d4d4d8'
 
@@ -40,34 +45,11 @@ export function themeColors(element: Element): ThemeColors {
   return { background: transparent(background) ? '#fff' : background, text }
 }
 
-/** sigma's hover — a box under the hovered node and its label — in the theme's
- *  colours instead of its fixed white. */
-export function drawHover(colors: () => ThemeColors): NodeHoverDrawingFunction {
-  return (context, data, settings) => {
-    const size = settings.labelSize
-    const padding = 2
-    const { background, text } = colors()
-    context.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`
-    context.fillStyle = background
-    context.shadowBlur = 8
-    context.shadowColor = 'rgba(0, 0, 0, 0.5)'
-    context.beginPath()
-    context.arc(data.x, data.y, data.size + padding, 0, Math.PI * 2)
-    context.fill()
-    if (data.label) {
-      const width = context.measureText(data.label).width + 5
-      context.fillRect(
-        data.x + data.size,
-        data.y - size / 2 - padding,
-        width + 3,
-        size + 2 * padding
-      )
-    }
-    context.shadowBlur = 0
-    if (!data.label) return
-    context.fillStyle = text
-    context.fillText(data.label, data.x + data.size + 3, data.y + size / 3)
-  }
+/** The theme's colours as sigma 4 display fields: the label in the theme's text,
+ *  the box under a hovered node (sigma's «backdrop») in its background instead of
+ *  the fixed white. */
+export function themeDisplay(colors: ThemeColors): Partial<NodeDisplayData> {
+  return { backdropColor: colors.background, labelColor: colors.text }
 }
 
 export interface CanvasHandlers {
@@ -76,27 +58,34 @@ export interface CanvasHandlers {
   onClickStage?: () => void
 }
 
-/** How a node is shown: dimmed and unlabelled when the search does not match
- *  it, or when another node is hovered and it is not a neighbour. */
+/** How a node is shown, as changes to its display: dimmed and unlabelled when the
+ *  search does not match it, or when another node is hovered and it is not a
+ *  neighbour; a search match keeps its label and box on. `attributes` are the
+ *  node's own (label, code) — sigma 4 gives the reducer them apart from the
+ *  display data. */
 export function nodeView(
   graph: Graph,
   node: string,
-  data: Record<string, unknown>,
+  attributes: Record<string, unknown>,
   query: string,
   hovered: null | string
-): Record<string, unknown> {
+): Partial<NodeDisplayData> {
   const needle = query.trim().toLowerCase()
   const matches =
     !needle ||
-    String(data.label ?? '')
+    String(attributes.label ?? '')
       .toLowerCase()
       .includes(needle) ||
-    String(data.code ?? '')
+    String(attributes.code ?? '')
       .toLowerCase()
       .includes(needle)
   const near = hovered === null || node === hovered || graph.areNeighbors(node, hovered)
-  if (matches && near) return needle ? { ...data, highlighted: true } : data
-  return { ...data, color: DIM, label: '' }
+  if (matches && near) {
+    return needle
+      ? { backdropVisibility: 'visible', highlighted: true, labelVisibility: 'visible' }
+      : {}
+  }
+  return { color: DIM, label: '' }
 }
 
 /** While a node is hovered, only its own edges are drawn. */
@@ -139,17 +128,25 @@ export function useGraphCanvas(
         const element = container.current
         let colors = themeColors(element)
         renderer = new SigmaRenderer(graph, element, {
-          // A collapsed panel leaves the box zero-sized for a moment; sigma
-          // would throw instead of waiting for it to come back.
-          allowInvalidContainer: true,
-          defaultDrawNodeHover: drawHover(() => colors),
-          edgeReducer: (edge, data) =>
-            edgeHidden(graph, edge, hovered) ? { ...data, hidden: true } : data,
-          enableEdgeEvents: true,
-          labelColor: { color: colors.text },
-          labelRenderedSizeThreshold: 6,
-          nodeReducer: (node, data) => nodeView(graph, node, data, queryRef.current, hovered),
-          renderEdgeLabels: false
+          edgeReducer: (edge) => (edgeHidden(graph, edge, hovered) ? { visibility: 'hidden' } : {}),
+          nodeReducer: (node, _data, attributes) => ({
+            ...themeDisplay(colors),
+            ...nodeView(graph, node, attributes, queryRef.current, hovered)
+          }),
+          settings: {
+            // A collapsed panel leaves the box zero-sized for a moment; sigma
+            // would throw instead of waiting for it to come back.
+            allowInvalidContainer: true,
+            enableEdgeEvents: true,
+            // sigma 4 drags nodes by default; here d3-force owns the positions.
+            enableNodeDrag: false,
+            // sigma 4 measures node sizes in graph coordinates by default, so
+            // the layout spreading out swelled every node; sigma 3 drew them in
+            // screen pixels, as the sizes the views give are meant.
+            itemSizesReference: 'screen',
+            labelRenderedSizeThreshold: 6,
+            renderEdgeLabels: false
+          }
         })
         rendererRef.current = renderer
         renderer.on('clickNode', ({ node }) => handlersRef.current.onClickNode?.(node))
@@ -166,7 +163,7 @@ export function useGraphCanvas(
         // The theme is the `dark` class on <html>; switching it repaints labels.
         const theme = new MutationObserver(() => {
           colors = themeColors(element)
-          renderer?.setSetting('labelColor', { color: colors.text })
+          renderer?.refresh()
         })
         theme.observe(document.documentElement, { attributeFilter: ['class'], attributes: true })
         stopTheme = () => theme.disconnect()
