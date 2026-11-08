@@ -78,7 +78,8 @@ export function installBeingRequested(request: {
 
   if (path === '/api/mcp/servers') {
     const args = Array.isArray(body.args) ? body.args.filter((a) => typeof a === 'string') : []
-    const command = [text(body.command), ...args].join(' ').trim()
+    // A server by address has no command: the address is what the person checks (T55).
+    const command = [text(body.command) || text(body.url), ...args].join(' ').trim()
     const envKeys = envKeysOf(body.env)
     return {
       kind: 'mcp-server',
@@ -176,4 +177,40 @@ export function mcpPutRequest(changed: McpServerFacts[]): InstallRequest | null 
 export function envKeysOf(env: unknown): string[] {
   if (!env || typeof env !== 'object' || Array.isArray(env)) return []
   return Object.keys(env as Record<string, unknown>).sort()
+}
+
+/** What a catalog entry will run, as the core describes it (`GET /api/mcp/catalog`,
+ *  task T55): the launch command or the address, and — for an entry the core clones and
+ *  builds first — where from and with which steps. Their trust model asks the person to
+ *  look at exactly these before installing; the catalog list does not show them. */
+export interface CatalogLaunch {
+  command: string
+  source: string
+  buildFrom: string
+  bootstrap: string[]
+}
+
+export function catalogLaunchOf(entry: {
+  command?: string | null
+  args?: unknown
+  url?: string | null
+  source?: string | null
+  install_url?: string | null
+  install_ref?: string | null
+  bootstrap?: unknown
+}): CatalogLaunch {
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  const command = [entry.command || entry.url || '', ...strings(entry.args)].join(' ').trim()
+  const buildFrom = entry.install_url
+    ? entry.install_ref
+      ? `${entry.install_url} @ ${entry.install_ref}`
+      : entry.install_url
+    : ''
+  return {
+    command,
+    source: entry.source ?? '',
+    buildFrom,
+    bootstrap: buildFrom === '' ? [] : strings(entry.bootstrap)
+  }
 }

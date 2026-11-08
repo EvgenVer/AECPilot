@@ -27,6 +27,7 @@ import {
 import { useAecT } from '../../shared/i18n'
 
 import type { SkillDetails } from './details'
+import type { CatalogLaunch } from './install-consent-pure'
 import { $installConsent } from './store'
 
 export default function InstallConsentDialog(): React.JSX.Element | null {
@@ -36,11 +37,20 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
   // сброс при смене вопроса — это сравнение при отрисовке, а не `setState`
   // внутри эффекта: последнее вызывает каскад перерисовок и на секунду
   // показывает описание одного пакета в диалоге о другом.
-  const [loaded, setLoaded] = useState<{ id: string; details?: SkillDetails; failed?: true }>({
+  const [loaded, setLoaded] = useState<{
+    id: string
+    details?: SkillDetails
+    launch?: CatalogLaunch
+    failed?: true
+  }>({
     id: ''
   })
 
-  const identifier = question?.kind === 'skill' ? question.label : ''
+  // Описание берётся у ядра для скила (предпросмотр) и для сервера из каталога —
+  // как он запустится (задача T55): команда или адрес и шаги сборки.
+  const kind = question?.kind
+  const label = question?.label ?? ''
+  const identifier = kind === 'skill' || kind === 'mcp-catalog' ? `${kind}:${label}` : ''
 
   useEffect(() => {
     if (identifier === '') return undefined
@@ -50,9 +60,13 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
     // Загрузчик подтягивается лениво: он тянет за собой их клиент целиком, а
     // диалог показывается редко и должен появляться сразу.
     import('./details')
-      .then(({ loadSkillDetails }) => loadSkillDetails(identifier))
-      .then((details) => {
-        if (!cancelled) setLoaded({ id: identifier, details })
+      .then(async ({ loadMcpCatalogDetails, loadSkillDetails }) =>
+        kind === 'mcp-catalog'
+          ? { launch: await loadMcpCatalogDetails(label) }
+          : { details: await loadSkillDetails(label) }
+      )
+      .then((result) => {
+        if (!cancelled) setLoaded({ id: identifier, ...result })
       })
       .catch(() => {
         if (!cancelled) setLoaded({ id: identifier, failed: true })
@@ -61,9 +75,10 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [identifier])
+  }, [identifier, kind, label])
 
   const details = loaded.id === identifier ? loaded.details : undefined
+  const launch = loaded.id === identifier ? loaded.launch : undefined
   const failed = loaded.id === identifier && loaded.failed === true
 
   if (!question) return null
@@ -118,6 +133,33 @@ export default function InstallConsentDialog(): React.JSX.Element | null {
                     ? t('install.toolsUnrestricted')
                     : t('install.tools', details.tools.join(', '))}
                 </p>
+              </>
+            )}
+          </div>
+        )}
+
+        {question.kind === 'mcp-catalog' && (
+          <div className="flex flex-col gap-2 text-xs text-(--ui-text-secondary)">
+            {!launch && !failed && <p>{t('common.loading')}</p>}
+            {failed && <p>{t('install.catalogPreviewFailed')}</p>}
+            {launch && (
+              <>
+                {launch.source !== '' && <p>{t('install.catalogSource', launch.source)}</p>}
+                {launch.command !== '' && (
+                  <p className="rounded bg-(--ui-bg-tertiary) p-2 font-mono text-xs break-all text-(--ui-text-primary)">
+                    {launch.command}
+                  </p>
+                )}
+                {launch.buildFrom !== '' && (
+                  <>
+                    <p>{t('install.catalogBuild', launch.buildFrom)}</p>
+                    {launch.bootstrap.length > 0 && (
+                      <p className="rounded bg-(--ui-bg-tertiary) p-2 font-mono text-xs break-all whitespace-pre-wrap text-(--ui-text-primary)">
+                        {launch.bootstrap.join(String.fromCharCode(10))}
+                      </p>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>

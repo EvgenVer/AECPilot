@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  catalogLaunchOf,
   envKeysOf,
   installBeingRequested,
   mcpPutRequest,
@@ -36,6 +37,46 @@ describe('что считается установкой', () => {
         body: { name: 'filesystem', env: { API_KEY: 'sk-secret' }, enable: true }
       })
     ).toEqual({ kind: 'mcp-catalog', label: 'filesystem', envKeys: ['API_KEY'] })
+  })
+
+  it('сервер по адресу показывает адрес (T55)', () => {
+    expect(
+      installBeingRequested({
+        method: 'POST',
+        path: '/api/mcp/servers',
+        body: { name: 'remote', url: 'http://127.0.0.1:8765/mcp' }
+      })
+    ).toEqual({ kind: 'mcp-server', label: 'remote', command: 'http://127.0.0.1:8765/mcp' })
+  })
+
+  it('запись каталога: команда или адрес, источник и шаги сборки (T55)', () => {
+    expect(
+      catalogLaunchOf({
+        command: 'npx',
+        args: ['-y', 'revit-mcp'],
+        url: null,
+        source: 'official',
+        install_url: null,
+        install_ref: null,
+        bootstrap: []
+      })
+    ).toEqual({ command: 'npx -y revit-mcp', source: 'official', buildFrom: '', bootstrap: [] })
+    expect(
+      catalogLaunchOf({
+        command: null,
+        args: [],
+        url: 'https://mcp.example.test/sse',
+        source: 'community',
+        install_url: 'https://git.example.test/x',
+        install_ref: 'v2',
+        bootstrap: ['make']
+      })
+    ).toEqual({
+      command: 'https://mcp.example.test/sse',
+      source: 'community',
+      buildFrom: 'https://git.example.test/x @ v2',
+      bootstrap: ['make']
+    })
   })
 
   it('сервер, заданный командой, приносит с собой команду запуска', () => {

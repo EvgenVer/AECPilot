@@ -687,6 +687,10 @@ export const aecLocales: PluginLocaleBundles = {
       previewFailed:
         'The core did not describe this package. Installing without knowing what is inside is your call.',
       env: (keys: string) => `Environment it receives: ${keys} (values are not shown)`,
+      catalogSource: (source: string) => `From the core's catalog · source: ${source}`,
+      catalogBuild: (url: string) => `Before it starts, it is fetched and built from ${url}:`,
+      catalogPreviewFailed:
+        'The core did not say how this server starts. Adding it without seeing the command is your call.',
       confirm: 'Install',
       declined: 'Not installed — you did not confirm it.'
     },
@@ -1547,6 +1551,10 @@ export const aecLocales: PluginLocaleBundles = {
         'Инструменты не ограничены — скил сможет обратиться к любому, который есть у агента.',
       previewFailed: 'Ядро не описало этот пакет. Ставить, не зная содержимого, — ваше решение.',
       env: (keys: string) => `Получит переменные окружения: ${keys} (значения не показаны)`,
+      catalogSource: (source: string) => `Из каталога ядра · источник: ${source}`,
+      catalogBuild: (url: string) => `Перед запуском будет скачан и собран из ${url}:`,
+      catalogPreviewFailed:
+        'Ядро не сообщило, как этот сервер запускается. Добавлять его, не видя команды, — ваше решение.',
       confirm: 'Установить',
       declined: 'Не установлено — вы не подтвердили установку.'
     },

@@ -8,9 +8,9 @@
 // из списка: список рисует страница хаба, и доверять её словам о том, что
 // внутри пакета, — значит спрашивать у продавца, стоит ли покупать.
 
-import { previewSkillHub } from '../../donor/hermes'
+import { getMcpCatalog, previewSkillHub } from '../../donor/hermes'
 
-import { requiredToolsOf } from './install-consent-pure'
+import { type CatalogLaunch, catalogLaunchOf, requiredToolsOf } from './install-consent-pure'
 
 export interface SkillDetails {
   name: string
@@ -34,4 +34,13 @@ export async function loadSkillDetails(identifier: string): Promise<SkillDetails
     tools: requiredToolsOf(preview.skill_md),
     fileCount: Array.isArray(preview.files) ? preview.files.length : 0
   }
+}
+
+/** How a catalog MCP server starts, read from the core's catalog (task T55). Throws when
+ *  the core does not list the entry: the dialog then says so, and still asks. */
+export async function loadMcpCatalogDetails(name: string): Promise<CatalogLaunch> {
+  const catalog = await getMcpCatalog()
+  const entry = catalog.entries.find((item) => item.name === name)
+  if (!entry) throw new Error(`MCP catalog has no entry "${name}"`)
+  return catalogLaunchOf(entry)
 }

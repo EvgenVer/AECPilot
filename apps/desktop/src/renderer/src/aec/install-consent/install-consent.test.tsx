@@ -23,10 +23,18 @@ vi.mock('../../shared/gateway-bridge', async (importOriginal) => ({
 }))
 
 const loadSkillDetails = vi.fn()
+const loadMcpCatalogDetails = vi.fn()
 
 vi.mock('./details', () => ({
-  loadSkillDetails: (identifier: string) => loadSkillDetails(identifier)
+  loadSkillDetails: (identifier: string) => loadSkillDetails(identifier),
+  loadMcpCatalogDetails: (name: string) => loadMcpCatalogDetails(name)
 }))
+
+const CATALOG_INSTALL = {
+  path: '/api/mcp/catalog/install',
+  method: 'POST',
+  body: { name: 'revit', env: { REVIT_TOKEN: 'secret-value' } }
+}
 
 const INSTALL = {
   path: '/api/skills/hub/install',
@@ -103,6 +111,41 @@ describe('гейт доверия на установку', () => {
     renderDialog()
 
     await vi.waitFor(() => expect(screen.getByText(/не ограничены/i)).toBeTruthy())
+  })
+
+  test('сервер из каталога: до подтверждения видна команда запуска и шаги сборки (T55)', async () => {
+    loadMcpCatalogDetails.mockReset().mockResolvedValue({
+      command: 'uv run revit-mcp --stdio',
+      source: 'official',
+      buildFrom: 'https://example.test/revit-mcp @ v1.2.0',
+      bootstrap: ['uv sync', 'uv run build']
+    })
+    const bridge = createHermesDesktopBridge()
+    void bridge.api(CATALOG_INSTALL)
+    await vi.waitFor(() => expect($installConsent.get()).not.toBeNull())
+
+    renderDialog()
+
+    await vi.waitFor(() => expect(screen.getByText('uv run revit-mcp --stdio')).toBeTruthy())
+    expect(screen.getByText(/example\.test\/revit-mcp @ v1\.2\.0/)).toBeTruthy()
+    expect(screen.getByText(/uv sync/)).toBeTruthy()
+    expect(screen.getByText(/REVIT_TOKEN/)).toBeTruthy()
+    expect(screen.queryByText(/secret-value/)).toBeNull()
+    expect(loadMcpCatalogDetails).toHaveBeenCalledWith('revit')
+    expect(rest).not.toHaveBeenCalled()
+  })
+
+  test('ядро не сказало, как запускается сервер из каталога, — это видно (T55)', async () => {
+    loadMcpCatalogDetails.mockReset().mockRejectedValue(new Error('нет записи'))
+    const bridge = createHermesDesktopBridge()
+    const call = bridge.api(CATALOG_INSTALL)
+    await vi.waitFor(() => expect($installConsent.get()).not.toBeNull())
+
+    renderDialog()
+
+    await vi.waitFor(() => expect(screen.getByText(/не сообщило, как этот сервер/i)).toBeTruthy())
+    $installConsent.get()!.answer(false)
+    await expect(call).rejects.toThrow(installDeclined())
   })
 
   test('ядро не описало пакет — это сказано, и подтверждение всё равно нужно', async () => {
