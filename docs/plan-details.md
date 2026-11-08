@@ -1187,7 +1187,9 @@ cryptography 50.0.1 → 50.0.2. Лицензии не сменились. Про
 `electron/clipboard-image.ts`). Аудит 2026-11-07: `mermaid` ушёл из дерева; `katex` 0.16.47
 остаётся только под `remark-math > micromark-extension-math` — запись GHSA-238p-pmpm-9mq7 в
 `pnpm-workspace.yaml` пока нужна; две новые умеренные находки в сборочной цепочке
-`get-windows > node-gyp` (`glob` GHSA-g3hv-75wg-m249, `minimatch`) — в «Technical debt».
+`get-windows > node-gyp` (`glob` GHSA-3g3m-2fjr-6pw4, `minimatch` GHSA-g3hv-75wg-m249) —
+исправлены только в следующих мажорах, в поставку не попадают; записаны в `ignoreGhsas` с тем
+же обоснованием и теми же поводами снять, что у `tar` (2026-11-08).
 
 **Объявлены прямыми 2026-10-07 задачей 3H.12** (общее «го» владельца на фазу 3H) —
 `pypdfium2>=5.12,<6` и `numpy>=2,<3` в `mcp/aec_rag/pyproject.toml`. Новых пакетов нет: оба
