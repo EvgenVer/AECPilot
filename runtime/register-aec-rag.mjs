@@ -47,6 +47,23 @@ const TOP_LEVEL_LINE_RE = /^\S/;
  * one that does not is replaced wholesale — the key is ours to manage, the
  * rest of `skills:` is not.
  */
+/** The value of one `    - <scalar>` list line: double-quoted (JSON escapes),
+ *  single-quoted (`''` is a quote) or plain. `null` when it is not a list item. */
+function listItemValue(line) {
+  const match = /^\s+-\s+(.*?)\s*$/.exec(line);
+  if (!match) return null;
+  const raw = match[1];
+  if (raw.startsWith('"')) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  if (raw.startsWith("'") && raw.endsWith("'") && raw.length >= 2) return raw.slice(1, -1).replace(/''/g, "'");
+  return raw;
+}
+
 export function mergeSkillsDirIntoConfigYaml(yamlText, directory) {
   const entry = `    - ${JSON.stringify(directory)}`;
   const block = ["skills:", "  external_dirs:", entry];
@@ -92,10 +109,11 @@ export function mergeSkillsDirIntoConfigYaml(yamlText, directory) {
   }
 
   const items = sectionLines.slice(listStart + 1, listEnd);
-  // Compared against the *quoted* form: on Windows the path is written with
-  // JSON-escaped backslashes, so a raw `includes(directory)` never matches its
-  // own output and the same directory is appended on every open.
-  const already = items.some((line) => line.includes(JSON.stringify(directory)));
+  // Compared as a YAML scalar, in every form it can take: our own output is the
+  // JSON-quoted form (escaped backslashes), and the core rewrites config.yaml with
+  // the plain or single-quoted form. Matching only one form appended the same
+  // directory again on every open (task T50: four copies in runtime/e2e-profile).
+  const already = items.some((line) => listItemValue(line) === directory);
   if (already) {
     return { text: yamlText, changed: false };
   }

@@ -130,6 +130,18 @@ describe("mergeSkillsDirIntoConfigYaml", () => {
     expect(second.text).toBe(first.text);
   });
 
+  // Found in runtime/e2e-profile on 2026-11-07 (task T50): the core rewrites config.yaml
+  // with the path unquoted, the next open did not recognise it and appended the quoted
+  // form again — four copies of the same directory after a few cycles.
+  it("recognises the directory the core rewrote without quotes", () => {
+    const before = ["skills:", "  external_dirs:", "    - C:\\repo\\skills", "    - 'C:\\repo\\skills'", ""].join("\n");
+
+    const { text, changed } = mergeSkillsDirIntoConfigYaml(before, "C:\\repo\\skills");
+
+    expect(changed).toBe(false);
+    expect(text).toBe(before);
+  });
+
   it("keeps a directory somebody else configured", () => {
     const before = ["skills:", "  external_dirs:", '    - "D:\\\\мои-скилы"', ""].join("\n");
 
