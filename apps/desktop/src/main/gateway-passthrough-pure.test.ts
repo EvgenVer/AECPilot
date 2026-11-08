@@ -114,6 +114,11 @@ describe('checkRestCall', () => {
     expect(checkRestCall(undefined, '/api/status').method).toBe('GET')
   })
 
+  it('refuses the raw config.yaml write — it would carry any key as plain text (review T54)', () => {
+    expect(() => checkRestCall('PUT', '/api/config/raw')).toThrow(/not available/)
+    expect(checkRestCall('GET', '/api/config/raw').method).toBe('GET')
+  })
+
   it('refuses the plaintext secret-read route (rule R2)', () => {
     expect(() => checkRestCall('POST', '/api/env/reveal')).toThrow(/rule R2/)
   })
@@ -532,6 +537,32 @@ describe('guardDelegationRouteKeys (задача T54, UR48, C10)', () => {
     expect(() =>
       guardDelegationRouteKeys('PUT', '/api/delegation/backends/model%5Fmap?profile=a', body)
     ).toThrow(/config\.yaml/)
+  })
+
+  it('ключ, вложенный в запасного провайдера или переопределения маршрута, тоже отказ (ревью T54)', () => {
+    const fallback = {
+      options: [
+        route({
+          fallback_providers: [{ provider: 'openrouter', model: 'y', api_key: 'sk-live-1' }]
+        })
+      ]
+    }
+    expect(() => guardDelegationRouteKeys('PUT', MODEL_MAP, fallback)).toThrow(/config\.yaml/)
+    const overrides = {
+      options: [route({ request_overrides: { extra: { api_key: 'sk-live-2' } } })]
+    }
+    expect(() => guardDelegationRouteKeys('PUT', MODEL_MAP, overrides)).toThrow(/config\.yaml/)
+    const masked = {
+      options: [
+        route({ fallback_providers: [{ provider: 'p', model: 'm', api_key: '«redacted:sk-…9» ' }] })
+      ]
+    }
+    expect(guardDelegationRouteKeys('PUT', MODEL_MAP, masked)).toBe(masked)
+  })
+
+  it('маска со строкой внутри не считается маской — как у ядра (ревью T54)', () => {
+    const body = { options: [route({ api_key: 'sk-\n...1234' })] }
+    expect(() => guardDelegationRouteKeys('PUT', MODEL_MAP, body)).toThrow(/config\.yaml/)
   })
 
   it('убирает ключи из раздела delegation общего сохранения настроек, остальное не трогает', () => {

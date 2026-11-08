@@ -86,6 +86,11 @@ describe('isPluginDisabledInConfigYaml', () => {
     expect(isPluginDisabledInConfigYaml(yaml, DELEGATION_PLUGIN_ID)).toBe(false)
     expect(isPluginDisabledInConfigYaml('', DELEGATION_PLUGIN_ID)).toBe(false)
   })
+
+  it('reads a list written without the extra indent (PyYAML, by hand) — review T54', () => {
+    const yaml = 'plugins:\n  enabled:\n  - aec-secret-filter\n  disabled:\n  - advanced-delegation\n'
+    expect(isPluginDisabledInConfigYaml(yaml, DELEGATION_PLUGIN_ID)).toBe(true)
+  })
 })
 
 describe('plugins.enabled for advanced-delegation', () => {
@@ -96,5 +101,19 @@ describe('plugins.enabled for advanced-delegation', () => {
       'model: x\nplugins:\n  enabled:\n    - aec-secret-filter\n    - advanced-delegation\n'
     )
     expect(mergePluginEnabledIntoConfigYaml(both.text, DELEGATION_PLUGIN_ID).changed).toBe(false)
+  })
+
+  it('keeps a list without the extra indent valid and does not repeat a present item — review T54', () => {
+    const yaml = 'plugins:\n  enabled:\n  - aec-secret-filter\n  disabled:\n  - spotify\n'
+    const merged = mergePluginEnabledIntoConfigYaml(yaml, DELEGATION_PLUGIN_ID)
+    expect(merged.text).toBe(
+      'plugins:\n  enabled:\n  - aec-secret-filter\n  - advanced-delegation\n  disabled:\n  - spotify\n'
+    )
+    expect(mergePluginEnabledIntoConfigYaml(yaml, 'aec-secret-filter').changed).toBe(false)
+  })
+
+  it('fills an empty flow list instead of adding a second `enabled:` — review T54', () => {
+    const merged = mergePluginEnabledIntoConfigYaml('plugins:\n  enabled: []\n  disabled: []\n')
+    expect(merged.text).toBe('plugins:\n  enabled:\n    - aec-secret-filter\n  disabled: []\n')
   })
 })

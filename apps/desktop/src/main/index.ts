@@ -4069,6 +4069,12 @@ ipcMain.handle(
 
     // Task T54: a subagent route never carries a model key into config.yaml (C10).
     const body = guardDelegationRouteKeys(method, path, payload?.body)
+    if (body !== payload?.body) {
+      console.warn(
+        'aecpilot: model keys under `delegation` were left out of a settings save (C10); ' +
+          'a subagent route that had one now uses its provider’s key'
+      )
+    }
 
     try {
       const result = await hermesRest(restTarget(), path, {

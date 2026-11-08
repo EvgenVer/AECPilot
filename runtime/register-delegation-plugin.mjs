@@ -71,7 +71,8 @@ export function isPluginDisabledInConfigYaml(yamlText, pluginId) {
   for (let i = start + 1; i < lines.length; i++) {
     const line = lines[i]
     if (/^\S/.test(line)) break
-    if (/^ {2}\S/.test(line)) {
+    // A key of `plugins:`; a list item may sit at the same indent (`  - x`, PyYAML).
+    if (/^ {2}[^\s-]/.test(line)) {
       const inline = line.match(/^ {2}disabled:\s*\[(.*)\]\s*(#.*)?$/)
       if (inline) {
         return inline[1]

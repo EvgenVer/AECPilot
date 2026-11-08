@@ -56,7 +56,10 @@ export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
   { method: 'POST', path: '/api/dashboard/agent-plugins/update-all' },
   { method: 'PUT', path: '/api/dashboard/plugins/auto-update' },
   { method: 'POST', path: '/api/webapp-access/start' },
-  { method: 'POST', path: '/api/webapp-access/restart' }
+  { method: 'POST', path: '/api/webapp-access/restart' },
+  // Task T54 (review): the raw config.yaml write replaces the whole file from text, so a
+  // model key in it would land there as plain text (C10). Their window never calls it.
+  { method: 'PUT', path: '/api/config/raw' }
 ]
 // --8<-- [end:denied_methods]
 
@@ -143,7 +146,20 @@ export function classifyEnvWrite(
  * stored key" (`web_routers/_common.py::is_redacted_credential_preview`): its
  * `«redacted…»` sentinel, `***`, or the legacy `abcd...wxyz` mask. */
 function isCredentialPreview(value: string): boolean {
-  return value.startsWith('«redacted') || value === '***' || /^.{4}\.\.\..{4}$/s.test(value)
+  return value.startsWith('«redacted') || value === '***' || /^.{4}\.\.\..{4}$/.test(value)
+}
+
+/** True when a real (not preview) `api_key` sits anywhere under a value: a route's own
+ *  key, or one inside its `fallback_providers` or `request_overrides` — the core keeps
+ *  those fields as sent (review T54). */
+function hasPlainApiKey(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasPlainApiKey)
+  if (value === null || typeof value !== 'object') return false
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) =>
+    key === 'api_key'
+      ? typeof item === 'string' && item.trim() !== '' && !isCredentialPreview(item.trim())
+      : hasPlainApiKey(item)
+  )
 }
 
 /** Every `api_key` under a value, dropped; `removed` counts the non-empty ones. */
@@ -195,13 +211,7 @@ export function guardDelegationRouteKeys(method: string, path: string, body: unk
 
   if (route === '/api/delegation/backends/model_map') {
     const options = (body as { options?: unknown } | null)?.options
-    const plain = Array.isArray(options)
-      ? options.some((option) => {
-          const key = (option as { api_key?: unknown } | null)?.api_key
-          return typeof key === 'string' && key.trim() !== '' && !isCredentialPreview(key)
-        })
-      : false
-    if (plain) throw new Error(mainT('gateway.delegationKeyRefused'))
+    if (hasPlainApiKey(options)) throw new Error(mainT('gateway.delegationKeyRefused'))
     return body
   }
 

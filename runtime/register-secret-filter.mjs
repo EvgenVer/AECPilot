@@ -65,7 +65,11 @@ export const PLUGIN_SOURCE_DIR = path.join(REPO_ROOT, "plugins", "aec_secret_fil
 const PLUGINS_SECTION_RE = /^plugins:\s*(#.*)?$/;
 const ENABLED_LIST_RE = /^ {2}enabled:\s*(#.*)?$/;
 const TOP_LEVEL_LINE_RE = /^\S/;
-const SECOND_LEVEL_LINE_RE = /^ {2}\S/;
+// A key of `plugins:`. A list item may sit at the same indent (`  - x`: PyYAML or a
+// hand edit; the core's own writer indents items by 4), so `-` does not end a list.
+const SECOND_LEVEL_LINE_RE = /^ {2}[^\s-]/;
+// `  enabled: []` or `  enabled: [a, b]` — the flow form ruamel writes for an empty list.
+const ENABLED_FLOW_RE = /^ {2}enabled:\s*\[(.*)\]\s*(#.*)?$/;
 
 /**
  * Вносит `plugins.enabled: [… , aec-secret-filter]` в текст `config.yaml`,
@@ -95,6 +99,25 @@ export function mergePluginEnabledIntoConfigYaml(yamlText, pluginId = PLUGIN_ID)
   }
 
   const section = lines.slice(sectionStart + 1, sectionEnd);
+
+  // The flow form becomes a block list with the same items plus ours (review T54).
+  const flowAt = section.findIndex((line) => ENABLED_FLOW_RE.test(line));
+  if (flowAt !== -1) {
+    const present = section[flowAt]
+      .match(ENABLED_FLOW_RE)[1]
+      .split(",")
+      .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
+      .filter(Boolean);
+    if (present.includes(pluginId)) return { text: yamlText, changed: false };
+    const block = ["  enabled:", ...[...present, pluginId].map((item) => `    - ${item}`)];
+    const next = [...section.slice(0, flowAt), ...block, ...section.slice(flowAt + 1)];
+    return {
+      text:
+        [...lines.slice(0, sectionStart + 1), ...next, ...lines.slice(sectionEnd)].join("\n") + "\n",
+      changed: true,
+    };
+  }
+
   const listStart = section.findIndex((line) => ENABLED_LIST_RE.test(line));
 
   if (listStart === -1) {
@@ -120,10 +143,12 @@ export function mergePluginEnabledIntoConfigYaml(yamlText, pluginId = PLUGIN_ID)
     return { text: yamlText, changed: false };
   }
 
+  // Ours takes the indent of the items already there, so the list stays one list.
+  const indent = items.find((line) => /^\s*-/.test(line))?.match(/^(\s*)-/)[1] ?? "    ";
   const next = [
     ...section.slice(0, listStart + 1),
     ...items,
-    entry,
+    `${indent}- ${pluginId}`,
     ...section.slice(listEnd),
   ];
 
