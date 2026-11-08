@@ -7,6 +7,7 @@ import {
   classifyEnvWrite,
   describeRpcFailure,
   explainProfileDeleteFailure,
+  guardDelegationRouteKeys,
   markUntrustedPageText,
   sanitizeRpcParams
 } from './gateway-passthrough-pure'
@@ -500,5 +501,69 @@ describe('classifyEnvWrite: an encoded route is still the env route', () => {
     expect(
       classifyEnvWrite('PUT', '/api/%65nv', { key: 'OPENAI_API_KEY', value: 'sk-x' }).action
     ).toBe('store')
+  })
+})
+
+describe('guardDelegationRouteKeys (задача T54, UR48, C10)', () => {
+  const MODEL_MAP = '/api/delegation/backends/model_map'
+  const route = (extra: Record<string, unknown>) => ({
+    name: 'fast',
+    description: 'quick search',
+    provider: 'openrouter',
+    model: 'x/y',
+    ...extra
+  })
+
+  it('пропускает маршрут без ключа и маршрут с маской ядра', () => {
+    const body = {
+      options: [route({}), route({ name: 'deep', api_key: '«redacted:sk-…1234»' })],
+      default: 'fast'
+    }
+    expect(guardDelegationRouteKeys('PUT', MODEL_MAP, body)).toBe(body)
+    const legacy = {
+      options: [route({ api_key: 'sk-a...1234' }), route({ name: 'b', api_key: '***' })]
+    }
+    expect(guardDelegationRouteKeys('PUT', MODEL_MAP, legacy)).toBe(legacy)
+  })
+
+  it('отказывает маршруту с настоящим ключом, и закодированный путь не обходит отказ', () => {
+    const body = { options: [route({ api_key: 'sk-live-0123456789' })] }
+    expect(() => guardDelegationRouteKeys('PUT', MODEL_MAP, body)).toThrow(/config\.yaml/)
+    expect(() =>
+      guardDelegationRouteKeys('PUT', '/api/delegation/backends/model%5Fmap?profile=a', body)
+    ).toThrow(/config\.yaml/)
+  })
+
+  it('убирает ключи из раздела delegation общего сохранения настроек, остальное не трогает', () => {
+    const body = {
+      config: {
+        model: { default: 'm' },
+        delegation: {
+          api_key: 'sk-hand-written',
+          max_iterations: 5,
+          backends: { model_map: { options: [route({ api_key: 'sk-x' })] } }
+        }
+      },
+      profile: 'smeta'
+    }
+    expect(guardDelegationRouteKeys('PUT', '/api/config', body)).toEqual({
+      config: {
+        model: { default: 'm' },
+        delegation: { max_iterations: 5, backends: { model_map: { options: [route({})] } } }
+      },
+      profile: 'smeta'
+    })
+  })
+
+  it('не трогает другие маршруты, другие методы и настройки без ключей', () => {
+    const body = { config: { delegation: { max_iterations: 5 } } }
+    expect(guardDelegationRouteKeys('PUT', '/api/config', body)).toBe(body)
+    const plain = { options: [route({ api_key: 'sk-live' })] }
+    expect(guardDelegationRouteKeys('GET', MODEL_MAP, plain)).toBe(plain)
+    expect(
+      guardDelegationRouteKeys('PUT', '/api/delegation/backend', { backend: 'model_map' })
+    ).toEqual({
+      backend: 'model_map'
+    })
   })
 })

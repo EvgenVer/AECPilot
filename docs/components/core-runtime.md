@@ -113,6 +113,27 @@ MCP-серверов и плагинов. С ядра 0.23 к ним добав�
 (`runtime/register-mem0-plugin.mjs`). Хранилище — локальный qdrant внутри профиля
 ([решение 0006](../decisions/0006-memory-mem0.md)).
 
+### Маршруты субагентов
+
+С версии 0.2 агент может поручить подзадачу субагенту на другой модели («быстрый поиск» на
+дешёвой, ответ на сильной) или в профиле специалиста (UR48). Это официальный плагин ядра
+`advanced-delegation`: режимы `delegation.backend: model_map` (маршруты по моделям) и
+`profile_routes` (маршруты по профилям). Модель видит только имена маршрутов и их описания.
+
+Плагин не ставится из сети. `setup.mjs` держит его на `DELEGATION_PLUGIN_SHA` — том коммите,
+который проверил каталог самого ядра, — в `runtime/.delegation-plugin-src`, а главный процесс
+при старте копирует его в `plugins/advanced-delegation` каждого профиля и включает в
+`plugins.enabled` (`runtime/register-delegation-plugin.mjs`, вызов из
+`register-secret-filter.mjs`). Плагин, выключенный человеком (`plugins.disabled`), обратно
+не включается.
+
+Маршрут ссылается на настроенного провайдера, ключ берётся из его настроек. Сам плагин умеет
+хранить `api_key` маршрута в `config.yaml` открытым текстом — у нас это закрыто в мосте
+(`guardDelegationRouteKeys` в `apps/desktop/src/main/gateway-passthrough-pure.ts`): маршрут с
+настоящим ключом не сохраняется, а из общего сохранения настроек ключи раздела `delegation`
+вырезаются. Окно маршрутов донора ключ и не вводит — оно возвращает маску ядра. Проверка на
+ядре без модели — `runtime/delegation-routes-probe.mjs`.
+
 ### Шлюз команд `hermes`
 
 Расписания специалистов донора запускают `hermes -p <специалист> chat …`, поэтому
@@ -145,6 +166,7 @@ MCP-серверов и плагинов. С ядра 0.23 к ним добав�
 | `runtime/serve.mjs` | запуск, проверка готовности и остановка `hermes serve`; `node runtime/serve.mjs smoke` |
 | `runtime/default-soul.mjs` | наш `SOUL.md` по умолчанию (помощник инженера-конструктора) |
 | `runtime/memory-config.mjs`, `register-mem0-plugin.mjs` | память Mem0 |
+| `runtime/register-delegation-plugin.mjs` | маршруты субагентов (`advanced-delegation`) |
 | `runtime/register-aec-*.mjs`, `register-secret-filter.mjs` | регистрация наших MCP-серверов и плагина в профиле |
 | `runtime/bin/hermes`, `hermes_gate.py` | шлюз команд `hermes` для терминала агента |
 | `runtime/contract-snapshot.mjs`, `contract-diff.mjs`, `donor-report.mjs` | инструменты подъёма пина |

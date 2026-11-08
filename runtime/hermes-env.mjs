@@ -82,6 +82,15 @@ export const MEM0_PLUGIN_SHA = "43849c6e9d4d773b83a8144b6373aedc67241a5d";
 export const MEM0_PLUGIN_SUBDIR = "integrations/hermes-plugin-mem0";
 export const MEM0_PLUGIN_VERSION = "1.3.0";
 
+// Subagent routes (UR48, task T54): the official `advanced-delegation` plugin, at the
+// commit the core's own catalog reviewed (`plugin-catalog/advanced-delegation.yaml` at
+// the core pin). Shipped and copied into every profile like Mem0, never installed from
+// the network. No Python dependencies of its own.
+export const DELEGATION_PLUGIN_REPO = "https://github.com/NousResearch/hermes-official-plugins";
+export const DELEGATION_PLUGIN_SHA = "e404b6816b20237a82f6fbe2749b5a576cf75dba";
+export const DELEGATION_PLUGIN_SUBDIR = "advanced-delegation";
+export const DELEGATION_PLUGIN_VERSION = "1.0.0";
+
 /**
  * Two layouts, one set of names (tasks T21, T40; SPEC UR40).
  *
@@ -176,6 +185,10 @@ export const HERMES_SRC_DIR = IS_INSTALLED_LAYOUT
 // MEM0_PLUGIN_SUBDIR is populated. Detached, never edited, gitignored.
 export const MEM0_PLUGIN_CHECKOUT_DIR = path.join(RUNTIME_DIR, ".mem0-plugin-src");
 export const MEM0_PLUGIN_DIR = path.join(MEM0_PLUGIN_CHECKOUT_DIR, ...MEM0_PLUGIN_SUBDIR.split("/"));
+
+// Sparse checkout of the official plugins repository at DELEGATION_PLUGIN_SHA (T54).
+export const DELEGATION_PLUGIN_CHECKOUT_DIR = path.join(RUNTIME_DIR, ".delegation-plugin-src");
+export const DELEGATION_PLUGIN_DIR = path.join(DELEGATION_PLUGIN_CHECKOUT_DIR, DELEGATION_PLUGIN_SUBDIR);
 
 // Isolated HERMES_HOME: keeps the dev profile out of the user's home
 // directory, so it never touches an existing personal Hermes install/profile.

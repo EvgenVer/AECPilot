@@ -19,6 +19,7 @@ runtime/.hermes-venv/
 runtime/.hermes-src/
 runtime/.hermes-venv-*/
 runtime/.mem0-plugin-src/
+runtime/.delegation-plugin-src/
 runtime/uv-constraints.txt
 runtime/uv-overrides-effective.txt
 runtime/dev-profile/

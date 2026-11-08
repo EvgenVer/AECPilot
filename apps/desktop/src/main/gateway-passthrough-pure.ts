@@ -139,6 +139,87 @@ export function classifyEnvWrite(
   return { action: 'store', envVar: key, value: text }
 }
 
+/** A display-only credential preview the core hands out and takes back as "keep the
+ * stored key" (`web_routers/_common.py::is_redacted_credential_preview`): its
+ * `«redacted…»` sentinel, `***`, or the legacy `abcd...wxyz` mask. */
+function isCredentialPreview(value: string): boolean {
+  return value.startsWith('«redacted') || value === '***' || /^.{4}\.\.\..{4}$/s.test(value)
+}
+
+/** Every `api_key` under a value, dropped; `removed` counts the non-empty ones. */
+function withoutApiKeys(value: unknown): { value: unknown; removed: number } {
+  if (Array.isArray(value)) {
+    let removed = 0
+    const items = value.map((item) => {
+      const next = withoutApiKeys(item)
+      removed += next.removed
+      return next.value
+    })
+    return { value: items, removed }
+  }
+  if (value === null || typeof value !== 'object') return { value, removed: 0 }
+  let removed = 0
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (key === 'api_key') {
+      if (typeof item === 'string' && item.trim() !== '') removed += 1
+      continue
+    }
+    const next = withoutApiKeys(item)
+    removed += next.removed
+    out[key] = next.value
+  }
+  return { value: out, removed }
+}
+
+/**
+ * Subagent routes never carry a model key into `config.yaml` (task T54, UR48, rule
+ * C10). A model route names a configured provider; its key stays where that
+ * provider keeps it (our encrypted store, reaching the core through its spawn env).
+ *
+ * - `PUT /api/delegation/backends/model_map` — the routes editor of their window.
+ *   It never types a key: it round-trips the core's preview, which the core reads as
+ *   "keep the stored one". A route with a real key is refused, whoever sent it.
+ * - `PUT /api/config` — their generic settings save deep-merges the whole config,
+ *   which the core returns UNmasked, so a key someone hand-wrote into
+ *   `delegation` comes back in it. Refusing would lock that person out of every
+ *   setting; instead each `api_key` under `delegation` is dropped from the body.
+ *   A dropped mapping key keeps what is stored (deep merge); a dropped key inside
+ *   the routes list removes it from the file, which is the rule's own direction.
+ *
+ * Returns the body to forward.
+ */
+export function guardDelegationRouteKeys(method: string, path: string, body: unknown): unknown {
+  if (method !== 'PUT') return body
+  const route = canonicalRoute(path)
+
+  if (route === '/api/delegation/backends/model_map') {
+    const options = (body as { options?: unknown } | null)?.options
+    const plain = Array.isArray(options)
+      ? options.some((option) => {
+          const key = (option as { api_key?: unknown } | null)?.api_key
+          return typeof key === 'string' && key.trim() !== '' && !isCredentialPreview(key)
+        })
+      : false
+    if (plain) throw new Error(mainT('gateway.delegationKeyRefused'))
+    return body
+  }
+
+  if (route === '/api/config') {
+    const config = (body as { config?: unknown } | null)?.config
+    if (config === null || typeof config !== 'object' || !('delegation' in config)) return body
+    const delegation = (config as Record<string, unknown>).delegation
+    const stripped = withoutApiKeys(delegation)
+    if (stripped.removed === 0) return body
+    return {
+      ...(body as Record<string, unknown>),
+      config: { ...(config as Record<string, unknown>), delegation: stripped.value }
+    }
+  }
+
+  return body
+}
+
 const RPC_METHOD_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i
 const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 

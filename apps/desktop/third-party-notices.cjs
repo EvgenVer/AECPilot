@@ -467,6 +467,18 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
   )
   if (fs.existsSync(mem0))
     out.push(`Плагин памяти Mem0 / the Mem0 memory plugin — Apache-2.0: ${rel(appOutDir, mem0)}`)
+  // Task T54: subagent routes.
+  const delegation = path.join(
+    appOutDir,
+    'runtime',
+    '.delegation-plugin-src',
+    'advanced-delegation',
+    'LICENSE'
+  )
+  if (fs.existsSync(delegation))
+    out.push(
+      `Плагин маршрутов субагентов / the Advanced Delegation plugin — MIT: ${rel(appOutDir, delegation)}`
+    )
 
   const runtimes = [
     [

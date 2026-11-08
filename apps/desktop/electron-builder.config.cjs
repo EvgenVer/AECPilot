@@ -126,10 +126,14 @@ const RUNTIME_FILTER = [
   // (`register-mem0-plugin.mjs` reads it from this very relative path).
   '.mem0-plugin-src/integrations/hermes-plugin-mem0/**',
   '!.mem0-plugin-src/integrations/hermes-plugin-mem0/tests/**',
+  // The `advanced-delegation` plugin at its pin (task T54, `register-delegation-plugin.mjs`).
+  '.delegation-plugin-src/advanced-delegation/**',
+  '!.delegation-plugin-src/advanced-delegation/tests/**',
   // Our scripts' caches only: `core/**/__pycache__` is the bytecode their PM bakes
   // (`bake_bytecode`) and ships on purpose.
   '!bin/__pycache__/**',
-  '!.mem0-plugin-src/**/__pycache__/**'
+  '!.mem0-plugin-src/**/__pycache__/**',
+  '!.delegation-plugin-src/**/__pycache__/**'
 ]
 
 /** @type {import('app-builder-lib').Configuration} */

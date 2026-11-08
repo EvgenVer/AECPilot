@@ -17,6 +17,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { RUNTIME_DIR } from "./hermes-env.mjs";
+import {
+  DELEGATION_PLUGIN_ID,
+  installDelegationPlugin,
+  isPluginDisabledInConfigYaml,
+} from "./register-delegation-plugin.mjs";
 import { installMem0Plugin } from "./register-mem0-plugin.mjs";
 import { SKILLS_DIR } from "./register-aec-rag.mjs";
 
@@ -217,6 +222,15 @@ export function installSecretFilter(hermesHomeDir) {
     changed = true;
   }
 
+  // Task T54 (UR48): subagent routes. Every profile gets the plugin for the same reason
+  // as Mem0 — the core finds user plugins only under the profile's own `plugins/`.
+  const delegation = installDelegationPlugin(hermesHomeDir);
+  if (delegation.missing) {
+    console.error("aecpilot: advanced-delegation source missing — run `node runtime/setup.mjs`");
+  } else if (delegation.changed) {
+    changed = true;
+  }
+
   const configPath = path.join(hermesHomeDir, "config.yaml");
   let yamlText = "";
   try {
@@ -226,8 +240,13 @@ export function installSecretFilter(hermesHomeDir) {
   }
 
   const enabled = mergePluginEnabledIntoConfigYaml(yamlText);
-  const merged = mergeKeySourceIntoConfigYaml(enabled.text);
-  if (enabled.changed || merged.changed) {
+  // Switched on once it is in the profile — unless the person switched it off.
+  const routes =
+    delegation.missing || isPluginDisabledInConfigYaml(enabled.text, DELEGATION_PLUGIN_ID)
+      ? { text: enabled.text, changed: false }
+      : mergePluginEnabledIntoConfigYaml(enabled.text, DELEGATION_PLUGIN_ID);
+  const merged = mergeKeySourceIntoConfigYaml(routes.text);
+  if (enabled.changed || routes.changed || merged.changed) {
     fs.writeFileSync(configPath, merged.text, "utf-8");
     changed = true;
   }

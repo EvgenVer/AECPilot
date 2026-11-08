@@ -28,6 +28,12 @@ import {
   HERMES_REPO,
   HERMES_SHA,
   HERMES_VERSION,
+  DELEGATION_PLUGIN_CHECKOUT_DIR,
+  DELEGATION_PLUGIN_DIR,
+  DELEGATION_PLUGIN_REPO,
+  DELEGATION_PLUGIN_SHA,
+  DELEGATION_PLUGIN_SUBDIR,
+  DELEGATION_PLUGIN_VERSION,
   MEM0_PLUGIN_CHECKOUT_DIR,
   MEM0_PLUGIN_DIR,
   MEM0_PLUGIN_REPO,
@@ -144,6 +150,39 @@ function fetchMem0Plugin() {
   }
 }
 
+/** The `advanced-delegation` plugin at its pin (task T54): the same sparse, blobless,
+ * commit-not-tag checkout as Mem0 — their repository holds many plugins. */
+function fetchDelegationPlugin() {
+  const dir = DELEGATION_PLUGIN_CHECKOUT_DIR;
+  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(`${dir}/.git`)) {
+    run("git", ["init", "--quiet"], dir);
+    run("git", ["remote", "add", "origin", DELEGATION_PLUGIN_REPO], dir);
+  }
+  run("git", ["config", "core.longpaths", "true"], dir);
+  run("git", ["sparse-checkout", "set", "--no-cone", `/${DELEGATION_PLUGIN_SUBDIR}/`], dir);
+
+  if (headSha(dir) === DELEGATION_PLUGIN_SHA && fs.existsSync(`${DELEGATION_PLUGIN_DIR}/__init__.py`)) {
+    console.log(`   already at ${DELEGATION_PLUGIN_SHA} — skipping fetch`);
+    return;
+  }
+  run(
+    "git",
+    ["fetch", "--depth", "1", "--no-tags", "--filter=blob:none", "origin", DELEGATION_PLUGIN_SHA],
+    dir,
+  );
+  run("git", ["checkout", "--detach", "--force", DELEGATION_PLUGIN_SHA], dir);
+
+  const head = headSha(dir);
+  if (head !== DELEGATION_PLUGIN_SHA) {
+    throw new Error(`advanced-delegation checkout landed on ${head}, expected ${DELEGATION_PLUGIN_SHA}`);
+  }
+  const manifest = fs.readFileSync(`${DELEGATION_PLUGIN_DIR}/plugin.yaml`, "utf-8");
+  if (!manifest.includes(`version: ${DELEGATION_PLUGIN_VERSION}`)) {
+    throw new Error(`advanced-delegation at ${DELEGATION_PLUGIN_SHA} is not version ${DELEGATION_PLUGIN_VERSION}`);
+  }
+}
+
 /** Constraints = the exact versions the core's own `uv.lock` resolved at the pin
  * (task T20.1). Without them a plain `pip install -e` resolves the core's ranges
  * against today's index, and the venv runs versions upstream never tested
@@ -228,6 +267,10 @@ console.log(
   `== 3/${STEPS}: fetching Mem0 plugin ${MEM0_PLUGIN_VERSION} at ${MEM0_PLUGIN_SHA.slice(0, 12)}`,
 );
 fetchMem0Plugin();
+console.log(
+  `   + advanced-delegation ${DELEGATION_PLUGIN_VERSION} at ${DELEGATION_PLUGIN_SHA.slice(0, 12)}`,
+);
+fetchDelegationPlugin();
 writeConstraints();
 writeOverrides();
 
@@ -312,3 +355,4 @@ console.log("\nDone.");
 console.log(`HERMES_BIN=${HERMES_BIN}`);
 console.log(`HERMES_HOME=${HERMES_HOME_DIR}`);
 console.log(`MEM0_PLUGIN_DIR=${MEM0_PLUGIN_DIR}`);
+console.log(`DELEGATION_PLUGIN_DIR=${DELEGATION_PLUGIN_DIR}`);

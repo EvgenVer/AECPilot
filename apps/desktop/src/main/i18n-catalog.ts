@@ -305,6 +305,9 @@ const ru = {
     'Профиль не удалён: ядро держит его базу открытой, пока в этом запуске ' +
     'была сессия этого профиля. Закройте сессию и перезапустите приложение, ' +
     'затем повторите удаление.',
+  'gateway.delegationKeyRefused':
+    'Маршрут не сохранён: ключ модели в маршруте лёг бы в config.yaml открытым текстом. ' +
+    'Выберите в маршруте настроенного провайдера — ключ останется в его настройках.',
   'yolo.noLiveSession': 'нет живой сессии — YOLO переключается только в её пределах',
   'secretFilter.notLoaded':
     'Фильтр секретов не загрузился, поэтому ход не отправлен: без него агент мог бы ' +
@@ -668,6 +671,9 @@ const en: Catalog = {
     'The profile was not deleted: the core keeps its database open while this ' +
     'profile had a session in this run. Close the session and restart the app, ' +
     'then repeat the deletion.',
+  'gateway.delegationKeyRefused':
+    'The route was not saved: a model key in a route would land in config.yaml as plain text. ' +
+    'Pick a configured provider for the route — its key stays in that provider’s settings.',
   'yolo.noLiveSession': 'no live session — YOLO can only be toggled within one',
   'secretFilter.notLoaded':
     'The secret filter did not load, so the turn was not sent: without it the agent could ' +

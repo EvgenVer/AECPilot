@@ -237,6 +237,7 @@ import {
   checkRpcAction,
   checkRpcCall,
   classifyEnvWrite,
+  guardDelegationRouteKeys,
   describeRpcFailure,
   explainProfileDeleteFailure,
   markUntrustedPageText,
@@ -4066,10 +4067,13 @@ ipcMain.handle(
     const envWrite = classifyEnvWrite(method, path, payload?.body)
     if (envWrite.action !== 'forward') return captureCredentialWrite(envWrite)
 
+    // Task T54: a subagent route never carries a model key into config.yaml (C10).
+    const body = guardDelegationRouteKeys(method, path, payload?.body)
+
     try {
       const result = await hermesRest(restTarget(), path, {
         method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-        ...(payload?.body === undefined ? {} : { body: payload.body }),
+        ...(body === undefined ? {} : { body }),
         ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
       })
       // Их страница профилей создаёт специалиста REST-ом — тот же шаг, что у

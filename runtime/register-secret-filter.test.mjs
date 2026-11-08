@@ -106,6 +106,28 @@ describe("установка в профиль", () => {
     expect(installSecretFilter(dir).changed).toBe(false);
   });
 
+  it("ставит и включает плагин маршрутов субагентов (T54)", () => {
+    const dir = home();
+    installSecretFilter(dir);
+
+    expect(fs.existsSync(path.join(dir, "plugins", "advanced-delegation", "model_map.py"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "plugins", "advanced-delegation", "tests"))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, "config.yaml"), "utf-8")).toContain(
+      "  enabled:\n    - aec-secret-filter\n    - advanced-delegation\n",
+    );
+  });
+
+  it("выключенный человеком плагин маршрутов не включается обратно (T54)", () => {
+    const dir = home();
+    const config = "plugins:\n  enabled:\n    - aec-secret-filter\n  disabled:\n    - advanced-delegation\n";
+    fs.writeFileSync(path.join(dir, "config.yaml"), config, "utf-8");
+    installSecretFilter(dir);
+
+    const text = fs.readFileSync(path.join(dir, "config.yaml"), "utf-8");
+    expect(text).not.toContain("  enabled:\n    - aec-secret-filter\n    - advanced-delegation");
+    expect(text).toContain("  disabled:\n    - advanced-delegation\n");
+  });
+
   it("правка исходника доезжает в профиль", () => {
     const dir = home();
     installSecretFilter(dir);
