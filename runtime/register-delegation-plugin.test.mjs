@@ -88,7 +88,8 @@ describe('isPluginDisabledInConfigYaml', () => {
   })
 
   it('reads a list written without the extra indent (PyYAML, by hand) — review T54', () => {
-    const yaml = 'plugins:\n  enabled:\n  - aec-secret-filter\n  disabled:\n  - advanced-delegation\n'
+    const yaml =
+      'plugins:\n  enabled:\n  - aec-secret-filter\n  disabled:\n  - advanced-delegation\n'
     expect(isPluginDisabledInConfigYaml(yaml, DELEGATION_PLUGIN_ID)).toBe(true)
   })
 })
