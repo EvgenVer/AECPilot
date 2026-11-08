@@ -172,6 +172,39 @@ function writeConstraints() {
   );
 }
 
+/** Overrides = ours (`uv-overrides.txt`) plus the core's own `[tool.uv]
+ * override-dependencies` at the pin (task T51). Since 0.23.0 the core holds versions that
+ * way — `Pillow==13.0.0` over `browser-harness`'s exact `pillow==12.3.0`, `cryptography`,
+ * `pynacl` — and `uv pip install` reads `[tool.uv]` of no project: without these lines
+ * the resolution is impossible (measured, `runtime/contracts/measure-0.23.0.md`).
+ * Generated from the pinned tree on every run, like the constraints; gitignored. The
+ * file name stays relative to RUNTIME_DIR (uv splits `--override` at whitespace). */
+const EFFECTIVE_OVERRIDES = "uv-overrides-effective.txt";
+
+function writeOverrides() {
+  const read = spawnSync(
+    DEV_PYTHON_BIN,
+    [
+      "-I",
+      "-c",
+      "import sys, tomllib; d = tomllib.load(open(sys.argv[1], 'rb'));" +
+        " print('\\n'.join(d.get('tool', {}).get('uv', {}).get('override-dependencies', [])))",
+      path.join(HERMES_SRC_DIR, "pyproject.toml"),
+    ],
+    { encoding: "utf-8" },
+  );
+  if (read.status !== 0) {
+    throw new Error(`reading the core's [tool.uv] overrides failed: ${(read.stderr ?? "").slice(-300)}`);
+  }
+  const core = read.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const ours = fs.readFileSync(path.join(RUNTIME_DIR, "uv-overrides.txt"), "utf-8");
+  fs.writeFileSync(
+    path.join(RUNTIME_DIR, EFFECTIVE_OVERRIDES),
+    `${ours.trimEnd()}\n\n# The core's [tool.uv] override-dependencies at ${HERMES_SHA} (setup.mjs, writeOverrides).\n${core.join("\n")}\n`,
+  );
+  console.log(`  core overrides: ${core.length ? core.join(", ") : "none"}`);
+}
+
 const STAGE_PAYLOAD = !process.argv.includes("--no-payload");
 const STEPS = STAGE_PAYLOAD ? 8 : 5;
 
@@ -196,6 +229,7 @@ console.log(
 );
 fetchMem0Plugin();
 writeConstraints();
+writeOverrides();
 
 console.log(`== 4/${STEPS}: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
 // Editable is not a preference — upstream's build backend raises on any wheel or
@@ -239,7 +273,7 @@ run(
     "--python",
     VENV_DIR,
     "--override",
-    "uv-overrides.txt",
+    EFFECTIVE_OVERRIDES,
     "--constraint",
     "uv-constraints.txt",
     "-r",
