@@ -37,7 +37,6 @@ import DataProvidersDialog from './aec/data-providers/DataProvidersDialog'
 import GraphAccessDialog from './aec/settings/GraphAccessDialog'
 import { ScanWatcher } from './aec/scan/ScanWatcher'
 // Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
-import './aec/cron-runner/register'
 // Задача 3.8а: уведомление и строка состояния для инструкций проекта.
 import './aec/project-skills/register'
 import ProjectSkillsDialog from './aec/project-skills/ProjectSkillsDialog'

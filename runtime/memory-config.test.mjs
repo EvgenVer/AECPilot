@@ -152,18 +152,14 @@ describe("D-85: каталог mem0 внутри профиля, а не ~/.mem0
     expect(env.MEM0_DIR).toBe(path.join("C:\\profile", MEM0_DIR_NAME));
   });
 
-  it("два других запуска ядра из main-процесса называют тот же каталог", () => {
-    // Main-процесс этот модуль статически не импортирует, имя продублировано —
-    // читается исходник, чтобы дубликаты не разъехались молча.
-    const cron = fs.readFileSync(
-      path.join(RUNTIME_DIR, "..", "apps", "desktop", "src", "main", "cron-runner-pure.ts"),
-      "utf-8",
-    );
+  it("единый шлюз получает memoryEnv, а memory-facts.py называет тот же каталог", () => {
+    // T53.3: наш тик (`cron-runner-pure.ts`) удалён — окружение шлюза собирает
+    // `serve.mjs::gatewayEnv` из `memoryEnv`. Скрипт фактов модуль не импортирует, имя
+    // продублировано — читается исходник, чтобы дубликаты не разъехались молча.
+    const serve = fs.readFileSync(path.join(RUNTIME_DIR, "serve.mjs"), "utf-8");
     const facts = fs.readFileSync(path.join(RUNTIME_DIR, "memory-facts.py"), "utf-8");
 
-    // С 3F.D1 окружение запуска собирает `cronRunnerSpawnEnv` в `cron-runner-pure.ts`.
-    expect(cron).toContain(`MEM0_DIR: join(homeDir, '${MEM0_DIR_NAME}')`);
-    expect(cron).toContain("MEM0_TELEMETRY: 'false'");
+    expect(serve).toMatch(/function gatewayEnv[\s\S]*memoryEnv\(/);
     expect(facts).toContain(`os.environ.setdefault("MEM0_DIR", os.path.join(home, "${MEM0_DIR_NAME}"))`);
   });
 });

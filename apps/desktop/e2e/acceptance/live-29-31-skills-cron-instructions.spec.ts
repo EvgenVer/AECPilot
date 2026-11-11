@@ -13,7 +13,6 @@
 // карточка, — через мост. Если сети нет, позиции снимаются с прогона с
 // причиной: зелёный на недоступном хабе ничего не доказывает.
 
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -25,7 +24,6 @@ import {
   hideFirstRunSurfaces,
   mainWindow,
   openProject,
-  reopenRecentProject,
   standFixture
 } from '../lib/app'
 
@@ -273,49 +271,14 @@ test('29.6.1 «Обновить установленные»: диалог пр�
 
 // ───────────────────────── Блок 30. Задачи по расписанию ─────────────────────
 //
-// Смысл блока — то, чего заглушка показать не может: их планировщик тикает
-// только в отдельном процессе (`gateway run`), который мы поднимаем по решению
-// человека. Поэтому здесь и живое ядро, и настоящие процессы Windows.
+// Смысл блока — то, чего заглушка показать не может: рутины запускает планировщик
+// ядра внутри единого шлюза (решение 0017, T53.3), пока открыто окно, а каждую можно
+// поставить на паузу на её экране. Общего выключателя «Расписания» больше нет.
 //
 // Позиция 30.7 (рутина у ОДНОГО специалиста) стоит в спеке реестра
 // `live-37-roster.spec.ts`: там уже заведены трое, а «её нет у двух других»
 // проверяется только при них. Счётчик покрытия ищет позицию по НОМЕРУ в имени
 // теста, а не по файлу.
-
-/** Дочерние процессы приложения — «второй процесс в диспетчере задач». */
-function children(): { pid: number; name: string; commandLine: string }[] {
-  const out = execFileSync(
-    'powershell',
-    [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      join(__dirname, '..', 'lib', 'desktop-probe.ps1'),
-      '-Action',
-      'children',
-      '-Pid2',
-      String(stand.get().app.process().pid)
-    ],
-    { encoding: 'utf-8' }
-  )
-  return (JSON.parse(out) as { children: { pid: number; name: string; commandLine: string }[] })
-    .children
-}
-
-/** Сколько в поддереве процессов запускателя расписаний — и кто вообще там
- *  есть. Список нужен при расхождении: «ноль» без него не говорит, кого не
- *  нашли. Считается «больше нуля», а не «ровно один»: один запускатель — это
- *  три процесса ОС (`hermes.exe`, его питон, консольный хост), и сколько
- *  именно — устройство ядра, а не обещание продукта. Обещание — что процесс
- *  ПОЯВИЛСЯ при включении и ПРОПАЛ при выключении. */
-function cronProcesses(): { count: number; seen: string[] } {
-  const all = children()
-  return {
-    count: all.filter((proc) => /\bgateway\b.*\brun\b/.test(proc.commandLine)).length,
-    seen: all.map((proc) => `${proc.name} ${proc.commandLine}`.trim().slice(0, 120))
-  }
-}
 
 /** Уведомление приложения (не системный тост) по куску заголовка. Две роли, а
  *  не одна: тревожное уведомление их оболочка помечает `alert`, спокойное —
@@ -324,13 +287,9 @@ function notice(page: Page, text: RegExp) {
   return page.locator('[role="status"], [role="alert"]').filter({ hasText: text })
 }
 
-/** Строка состояния «Расписания: работают» — она же выключатель. */
-function cronBadge(page: Page) {
-  return page.getByRole('button', { name: 'Расписания: работают' })
-}
-
 interface CronJobRow {
   id: string
+  state?: string
   next_run_at?: null | string
   last_run_at?: null | string
 }
@@ -343,7 +302,37 @@ async function cronJob(page: Page): Promise<CronJobRow | undefined> {
   return jobs.find((job) => job.id === cronJobId)
 }
 
-test('30.1.1 в палитре есть строка «Задачи по расписанию: запускать или нет»', async () => {
+/** Тот же вызов, что делает кнопка «Пауза»/«Продолжить» на их экране расписаний
+ *  (`donor/api/cron.ts`). */
+async function cronAction(page: Page, action: 'pause' | 'resume'): Promise<void> {
+  await page.evaluate(
+    async ({ id, verb }) => {
+      const bridge = (
+        window as unknown as { hermesDesktop: { api: (r: unknown) => Promise<unknown> } }
+      ).hermesDesktop
+      await bridge.api({
+        path: `/api/cron/jobs/${encodeURIComponent(id)}/${verb}`,
+        method: 'POST',
+        body: {}
+      })
+    },
+    { id: cronJobId, verb: action }
+  )
+}
+
+/** Ждать, пока задача сработает после отметки `since` (или впервые). */
+async function firedAfter(page: Page, since: null | string, message: string): Promise<void> {
+  // Расписание «каждую минуту»; запас — на минуту до тика и на сам запуск.
+  await expect
+    .poll(async () => (await cronJob(page))?.last_run_at ?? null, {
+      timeout: 240000,
+      intervals: [5000],
+      message
+    })
+    .not.toBe(since)
+}
+
+test('30.1.1 в палитре нет общего выключателя «запускать или нет»', async () => {
   const page = await ui()
   await goto(page, '#/')
   await page.keyboard.press('Control+k')
@@ -351,18 +340,17 @@ test('30.1.1 в палитре есть строка «Задачи по рас�
   await expect(palette).toBeVisible()
   await page.keyboard.type('расписан')
   await page.waitForTimeout(400)
-  await expect(palette).toContainText('Задачи по расписанию: запускать или нет')
-})
-
-test('30.1.2 рядом написано текущее состояние — «выключены»', async () => {
-  const page = await ui()
-  const palette = page.getByRole('dialog').last()
-  await expect(palette).toContainText('Расписания: выключены')
+  await expect(palette).not.toContainText('запускать или нет')
   await page.keyboard.press('Escape')
   await expect(palette).toBeHidden()
 })
 
-test('30.2.1 заведена задача → предложение «Запускать по расписанию»', async () => {
+test('30.1.2 в окне нет строки «Расписания: …»', async () => {
+  const page = await ui()
+  await expect(page.getByText(/^Расписания: /)).toHaveCount(0)
+})
+
+test('30.2.1 заведена задача «каждую минуту» — предложения что-то включить нет', async () => {
   const page = await ui()
 
   // Задача БЕЗ хода модели: `no_agent` + скрипт. Проверяется, что планировщик
@@ -375,9 +363,33 @@ test('30.2.1 заведена задача → предложение «Запу
   const scripts = join(stand.get().profileDir!, 'scripts')
   mkdirSync(scripts, { recursive: true })
   writeFileSync(join(scripts, 'e2e-tick.py'), 'print("tick")\n', 'utf-8')
-  // С 0.21.5 стопка держит несколько уведомлений и сворачивает прежние под
-  // верхнее — предложение легло бы под отказ из 29.4 и не было бы видно.
   await clearNotifications(page)
+
+  // Шлюз ядра отвечает по REST, как только поднят; холодный старт — до минуты. Не дождались —
+  // в сообщении строки главного процесса про шлюз, по ним видно, что с ним было.
+  try {
+    await expect
+      .poll(
+        () =>
+          rest<unknown[]>(page, '/api/cron/jobs').then(
+            (jobs) => Array.isArray(jobs),
+            () => false
+          ),
+        { timeout: 120000, intervals: [2000] }
+      )
+      .toBe(true)
+  } catch (error) {
+    const gatewayLines = stand
+      .get()
+      .mainOutput()
+      .split(/\r?\n/)
+      .filter((line) => /gateway|ensure|backend/i.test(line))
+      .slice(-30)
+      .join('\n')
+    throw new Error(`REST шлюза не ответил за 120 с; главный процесс:\n${gatewayLines}`, {
+      cause: error
+    })
+  }
 
   cronJobId = await page.evaluate(async () => {
     const bridge = (
@@ -398,43 +410,16 @@ test('30.2.1 заведена задача → предложение «Запу
   })
   expect(cronJobId, 'ядро завело задачу').not.toBe('')
 
-  const offer = notice(page, /Задачи по расписанию сейчас никто не запускает/)
-  await expect(offer).toBeVisible({ timeout: 30000 })
-  await expect(offer.getByRole('button', { name: 'Запускать по расписанию' })).toBeVisible()
+  await page.waitForTimeout(3000)
+  await expect(notice(page, /никто не запускает/)).toHaveCount(0)
 })
 
-test('30.3.1 после нажатия кнопки внизу слева появилось «Расписания: работают»', async () => {
-  const page = await ui()
-  expect(cronProcesses(), 'до включения запускателя нет').toMatchObject({ count: 0 })
-
-  await notice(page, /никто не запускает/)
-    .getByRole('button', { name: 'Запускать по расписанию' })
-    .click()
-  await expect(cronBadge(page)).toBeVisible({ timeout: 30000 })
-})
-
-test('30.3.2 появился второй процесс — запускатель расписаний', async () => {
-  // Диспетчер задач глазами ОС: процесс, порождённый приложением, с `gateway
-  // run` в командной строке. Имя (`hermes`/`python`) зависит от того, как
-  // поставлено ядро, поэтому сверяется команда, а не имя.
-  await expect
-    .poll(() => cronProcesses().count, { timeout: 30000, message: 'запускатель поднялся' })
-    .toBeGreaterThan(0)
-})
-
-test('30.4.1 задача сработала сама: появился «последний запуск», «следующий» сдвинулся', async () => {
+test('30.3.1 задача сработала сама: появился «последний запуск», «следующий» сдвинулся', async () => {
   const page = await ui()
   const start = await cronJob(page)
   expect(start, 'заведённая задача в списке').toBeTruthy()
 
-  // Расписание «каждую минуту»; запас — на минуту до тика и на сам запуск.
-  await expect
-    .poll(async () => (await cronJob(page))?.last_run_at ?? null, {
-      timeout: 240000,
-      intervals: [5000],
-      message: 'задача сработала сама'
-    })
-    .not.toBe(null)
+  await firedAfter(page, null, 'задача сработала сама')
 
   const job = (await cronJob(page))!
   expect(
@@ -443,45 +428,33 @@ test('30.4.1 задача сработала сама: появился «пос
   ).toBeGreaterThan(new Date(start!.next_run_at ?? 0).getTime())
 })
 
-test('30.5.1 щелчок по строке состояния: надпись исчезла', async () => {
+test('30.4.1 пауза на экране задачи: задача числится на паузе', async () => {
   const page = await ui()
-  await cronBadge(page).click()
-  await expect(cronBadge(page)).toBeHidden({ timeout: 30000 })
+  await cronAction(page, 'pause')
+  await expect.poll(async () => (await cronJob(page))?.state).toBe('paused')
 })
 
-test('30.5.2 второй процесс пропал', async () => {
-  await expect
-    .poll(() => cronProcesses().count, { timeout: 30000, message: 'запускатель погашен' })
-    .toBe(0)
+test('30.4.2 на паузе задача не срабатывает две минуты подряд', async () => {
+  const page = await ui()
+  const paused = (await cronJob(page))?.last_run_at ?? null
+  // Две полные минуты «каждой минуты» — два тика, которых быть не должно.
+  await page.waitForTimeout(130000)
+  expect((await cronJob(page))?.last_run_at ?? null, 'последний запуск не сдвинулся').toBe(paused)
 })
 
-test('30.6.1 «Расписания: работают» вернулось само после перезапуска', async () => {
-  let page = await ui()
+test('30.5.1 «Продолжить»: задача снова срабатывает сама', async () => {
+  const page = await ui()
+  const before = (await cronJob(page))?.last_run_at ?? null
+  await cronAction(page, 'resume')
+  await firedAfter(page, before, 'после «Продолжить» задача сработала')
 
-  // Включить обратно — через палитру, тем же выключателем, что у человека.
-  // С донором 0.22.2 на «расписан» первым встаёт переход на их страницу
-  // «Расписания» — набирается начало нашей команды.
-  await page.keyboard.press('Control+k')
-  await page.keyboard.type('запускать или нет')
-  await page.waitForTimeout(400)
-  await page.keyboard.press('Enter')
-  await expect(cronBadge(page)).toBeVisible({ timeout: 30000 })
-
-  await stand.get().relaunch()
-  page = await mainWindow(stand.get())
-  await hideFirstRunSurfaces(page)
-
-  // С 3G.20 (D-89) последний проект открывается сам.
-  await reopenRecentProject(page)
-
-  await expect(cronBadge(page), 'выбор пережил перезапуск').toBeVisible({ timeout: 120000 })
-  await expect
-    .poll(() => cronProcesses().count, { timeout: 60000, message: 'запускатель поднялся сам' })
-    .toBeGreaterThan(0)
-
-  // Дальше блок 31 — гасим, чтобы чужой процесс не жил до конца прогона.
-  await cronBadge(page).click()
-  await expect(cronBadge(page)).toBeHidden({ timeout: 30000 })
+  // Дальше блок 31 — задача больше не нужна.
+  await page.evaluate(async (id) => {
+    const bridge = (
+      window as unknown as { hermesDesktop: { api: (r: unknown) => Promise<unknown> } }
+    ).hermesDesktop
+    await bridge.api({ path: `/api/cron/jobs/${encodeURIComponent(id)}`, method: 'DELETE' })
+  }, cronJobId)
 })
 
 // ──────────────────── Блок 31. Инструкции проекта для агента ─────────────────

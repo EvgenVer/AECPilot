@@ -150,7 +150,7 @@ export const VERDICTS = {
  * difference stays measured instead of looking like a hole. */
 export const NOT_A_CARD = {
   cli: "их собственный терминал — вход ядра, а не канал нашего окна",
-  cron: "расписания; наш тик — aec/cron-runner/**, инструмент `cronjob` уже разобран на оси инструментов (UR18)",
+  cron: "расписания; тикает планировщик ядра в едином шлюзе (решение 0017), инструмент `cronjob` уже разобран на оси инструментов (UR18)",
 };
 
 /** Asks the core for its own entrances — the very catalog their Channels page

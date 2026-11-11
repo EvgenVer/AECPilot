@@ -41,10 +41,9 @@ import {
 } from '../aec/install-consent/install-consent-pure'
 import { askInstallConsent } from '../aec/install-consent/store'
 import { askWebhookConsent } from '../aec/webhook-consent/store'
+import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import { cronContinuityEnabled } from '../aec/cron-continuity/store'
 import { withContinuity } from '../aec/cron-continuity/continuity-pure'
-import { cronWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
-import { noticeCronHasNoTick } from '../aec/cron-tick-notice/notice'
 
 import { noticePreviewLeftSandbox } from '../aec/preview-export/left-sandbox-notice'
 import { localPreviewTarget } from '../donor/lib/local-preview'
@@ -420,13 +419,7 @@ const IMPLEMENTED: Record<string, unknown> = {
       return askMcpPutConsent<T>(request)
     }
 
-    // Task 3.6 (O6). The core ticks schedules only inside its messenger
-    // gateway, which we do not run — measured, not read. Until we host a tick
-    // of our own, saving a job builds an expectation that never comes true, so
-    // the person is told at the moment the expectation forms. The call itself
-    // is not blocked: the job IS saved and "run now" works.
     const cronWrite = cronWriteKind({ method, path: request.path })
-    noticeCronHasNoTick(cronWrite)
 
     // Task 3.5а (UR18). Continuity is a field on the job (`context_from`) that
     // their editor never writes — it is not on their screen at all. Our switch

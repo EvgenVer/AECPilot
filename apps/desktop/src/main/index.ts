@@ -133,13 +133,6 @@ import {
   projectSkillsView,
   setProjectSkillsTrust
 } from './project-skills'
-import {
-  cronRunnerState,
-  onCronRunnerChanged,
-  restoreCronRunner,
-  setCronRunner,
-  stopCronRunner
-} from './cron-runner'
 import { hideQuickEntry, registerQuickEntry, unregisterQuickEntry } from './quick-entry'
 import { loadAgentLanguage, saveAgentLanguage } from './agent-language'
 import { loadUiLanguage, registerUiLanguageIpc } from './ui-language'
@@ -5280,12 +5273,6 @@ ipcMain.handle('project-skills:trust', (_event, trusted: unknown) =>
   setProjectSkillsTrust(currentProject?.vaultPath, trusted === true)
 )
 
-// Задача 3.6а. Кто запускает задачи по расписанию. Разбор — docs/plan-details.md §«Свой тик
-// расписаний»: тикает их планировщик в отдельном процессе, и человек решает,
-// поднимать ли его.
-ipcMain.handle('cron-runner:get', () => cronRunnerState())
-ipcMain.handle('cron-runner:set', (_event, on: unknown) => setCronRunner(on))
-
 // Задача 3.29. Журнал приложения. Три глагола их контракта: открыть папку,
 // отдать хвост (их экран восстановления после неудачного старта показывает
 // последние строки) и записать падение рендерера — единственную запись,
@@ -6902,26 +6889,6 @@ app
             // because GatewayClient errors do not include the url; keep that
             // invariant if you touch it.
             await connectGateway(serveHandle.wsUrl)
-
-            // Задача 3.6а. Их планировщик живёт в отдельном процессе, и человек
-            // решает, поднимать ли его. Поднимается ПОСЛЕ шлюза: задача,
-            // стрельнувшая раньше, чем ядро готово, не найдёт, к чему обратиться.
-            const { HERMES_BIN, withOurHermesOnPath } = (await import(
-              /* @vite-ignore */ pathToFileURL(
-                join(__dirname, '../../../../runtime/hermes-env.mjs')
-              ).href
-            )) as {
-              HERMES_BIN: string
-              withOurHermesOnPath: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv
-            }
-
-            const runner = restoreCronRunner({
-              binary: HERMES_BIN,
-              withOurHermesOnPath,
-              homeDir: HERMES_HOME_DIR,
-              userDataDir: app.getPath('userData')
-            })
-            if (runner.enabled) console.log('aecpilot: cron runner restored')
           }
         } catch (error: unknown) {
           // Backend failing to start must not take the window down — the chat
@@ -7019,10 +6986,6 @@ app
     // blocker comes back from main's own copy of the preference.
     if (restoreKeepAwake()) console.log('aecpilot: keep-awake restored')
 
-    // Задача 3.6а: состояние планировщика видно в интерфейсе, поэтому его смена
-    // доезжает до окна сама — включая неожиданный выход процесса.
-    onCronRunnerChanged((state) => broadcastToWindows('cron-runner:changed', state))
-
     // Задача 3.24: обе стороны должны знать, открыта ли лента, — иначе
     // переключатель в заголовке главного окна расходится с правдой, когда её
     // закрыли из неё самой.
@@ -7071,9 +7034,6 @@ let quitting = false
 app.on('will-quit', () => {
   unregisterQuickEntry()
   releaseKeepAwake()
-  // Задача 3.6а: осиротевший планировщик, продолжающий запускать задачи агента
-  // после закрытия окна, — это не «работа в фоне», а потеря контроля.
-  stopCronRunner()
   // Задача 3.12: та же причина, но на чужой машине — ядро, оставшееся там
   // работать после закрытия окна, не остановит уже никто.
   void stopSshTunnel()

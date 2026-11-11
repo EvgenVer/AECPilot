@@ -39,7 +39,7 @@ import type {
   GatewayEvent as DonorTypedEvent,
   GatewayEventName
 } from '../donor/hermes-shared/gateway-events'
-import { cronBotChatAdd, cronRpcWriteKind } from '../aec/cron-tick-notice/cron-tick-notice-pure'
+import { cronBotChatAdd } from '../aec/cron-tick-notice/cron-tick-notice-pure'
 import {
   markProvidersWithoutKey,
   noKeyRefusal,
@@ -283,14 +283,8 @@ export class GatewayBridge {
       return Promise.reject(new DOMException('Aborted', 'AbortError'))
     }
 
-    // D-135: рутина специалиста заводится этим путём, а не REST — то же
-    // предложение включить расписания, что в шиме (`hermes-desktop-shim.ts`).
-    // Импорт ленивый: `notice` тянет их хранилища, а те — этот модуль.
-    const cronWrite = cronRpcWriteKind(method, params)
-    if (cronWrite) {
-      void import('../aec/cron-tick-notice/notice').then((m) => m.noticeCronHasNoTick(cronWrite))
-    }
-    // D-163: где будет виден результат такой рутины.
+    // D-163: где будет виден результат рутины специалиста (она заводится этим путём,
+    // D-135). Импорт ленивый: `notice` тянет их хранилища, а те — этот модуль.
     if (cronBotChatAdd(method, params)) {
       void import('../aec/cron-tick-notice/notice').then((m) => m.noticeBotChatResult())
     }

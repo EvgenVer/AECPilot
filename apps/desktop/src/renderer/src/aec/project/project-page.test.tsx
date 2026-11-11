@@ -8,7 +8,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
-import { $cronRunner } from '../cron-runner/store'
 import { $projectSkills } from '../project-skills/store'
 
 import ProjectPage from './ProjectPage'
@@ -32,7 +31,6 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   $projectSkills.set({ ...$projectSkills.get(), state: 'none' })
-  $cronRunner.set({ enabled: false, running: false })
 })
 
 function renderPage(): void {
@@ -65,11 +63,17 @@ describe('страница «Проект»', () => {
     await waitFor(() => expect(openProject).toHaveBeenCalledWith('D:\\p\\school'))
   })
 
-  it('показывает значки инструкций проекта и расписаний', async () => {
+  it('показывает значок инструкций проекта', async () => {
     $projectSkills.set({ ...$projectSkills.get(), state: 'trusted', skills: [{}, {}] } as never)
-    $cronRunner.set({ enabled: true, running: true })
     renderPage()
     expect(await screen.findByText('Инструкции проекта: 2')).toBeTruthy()
-    expect(screen.getByText('Расписания: работают')).toBeTruthy()
+  })
+
+  // T53.3 (решение 0017): рутины запускает планировщик ядра в едином шлюзе, у каждой —
+  // своя пауза на её экране. Общего выключателя «Расписания» больше нет.
+  it('общего выключателя расписаний на странице нет', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: 'Нагатинская' })
+    expect(screen.queryByText(/^Расписания:/)).toBeNull()
   })
 })

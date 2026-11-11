@@ -1483,9 +1483,6 @@ export interface AecpilotApi {
   onPreviewNav(callback: (command: 'back' | 'forward' | 'reload') => void): () => void
   getProjectSkills(): Promise<ProjectSkillsView>
   setProjectSkillsTrust(trusted: boolean): Promise<ProjectSkillsView>
-  getCronRunner(): Promise<{ enabled: boolean; running: boolean }>
-  setCronRunner(on: boolean): Promise<{ enabled: boolean; running: boolean }>
-  onCronRunnerChanged(cb: (state: { enabled: boolean; running: boolean }) => void): () => void
   /** Тема рамки окна и подложки до первой отрисовки (задача 3.26, находка
    * D-42). Без ответа — `send`, а не `invoke`: их контракт объявляет этот член
    * возвращающим `void`, и промис на его месте убивал приложение (см.

@@ -92,9 +92,9 @@ export const aecLocales: PluginLocaleBundles = {
       // Task 3H.28 (D-191): the project page and its sidebar row.
       pageTitle: 'Project',
       navLabel: (name: string) => `Project: ${name}`,
-      pageBadges: 'Project instructions and schedules',
+      pageBadges: 'Project instructions',
       pageBadgesHint:
-        'The same badges as in the status bar: they show up when the project has instructions or schedules are on.',
+        'The same badge as in the status bar: it shows up when the project has instructions.',
       scanLabel: 'How often to check the sources for changes',
       scanUnit: 'minutes',
       scanHint:
@@ -879,20 +879,6 @@ export const aecLocales: PluginLocaleBundles = {
       botChatTitle: 'Where the routine result appears',
       botChatBody:
         'The result goes to the specialist’s chat. If that chat is already open, the result appears after your next message there or when you reopen the chat.',
-      noTickTitle: 'Scheduled jobs are not being run',
-      noTickBody:
-        'Running them needs a background process, and it is off. The job is saved and "Run now" works, but the time shown as the next run will pass without anything happening.',
-      runner: {
-        enable: 'Run scheduled jobs',
-        command: 'Scheduled jobs: run them / leave them off',
-        on: 'Schedules: on',
-        off: 'Schedules: off',
-        broken: 'Schedules: not running',
-        turnOff: 'Stop running scheduled jobs',
-        brokenTitle: 'Scheduled jobs are on, but nothing is running them',
-        brokenBody:
-          'The background process that runs them is not alive — it either failed to start or exited. Jobs will not fire until it is back. Details are in the app log.'
-      },
       continuityLabel: 'Schedules remember the previous run',
       continuityHint:
         'Each scheduled run starts with the previous run’s answer in front of it, so it reports what CHANGED instead of everything from scratch. Turn it off and every run starts blind — cheaper, but a nightly rescan will keep re-reporting the same findings.'
@@ -963,9 +949,9 @@ export const aecLocales: PluginLocaleBundles = {
       settingsTitle: 'Настройки проекта',
       pageTitle: 'Проект',
       navLabel: (name: string) => `Проект: ${name}`,
-      pageBadges: 'Инструкции проекта и расписания',
+      pageBadges: 'Инструкции проекта',
       pageBadgesHint:
-        'Те же значки, что в строке состояния: появляются, когда в проекте есть инструкции или включены расписания.',
+        'Тот же значок, что в строке состояния: появляется, когда в проекте есть инструкции.',
       scanLabel: 'Как часто проверять источники на изменения',
       scanUnit: 'минут',
       scanHint:
@@ -1739,20 +1725,6 @@ export const aecLocales: PluginLocaleBundles = {
       botChatTitle: 'Где появится результат рутины',
       botChatBody:
         'Результат придёт в чат специалиста. Если этот чат уже открыт, результат появится в нём после вашей реплики или когда вы переоткроете чат.',
-      noTickTitle: 'Задачи по расписанию сейчас никто не запускает',
-      noTickBody:
-        'Для запуска нужен фоновый процесс, и он выключен. Задача сохранена, кнопка «запустить сейчас» работает, но время, показанное как следующий запуск, пройдёт без последствий.',
-      runner: {
-        enable: 'Запускать по расписанию',
-        command: 'Задачи по расписанию: запускать или нет',
-        on: 'Расписания: работают',
-        off: 'Расписания: выключены',
-        broken: 'Расписания: не работают',
-        turnOff: 'Перестать запускать задачи по расписанию',
-        brokenTitle: 'Расписания включены, но их никто не запускает',
-        brokenBody:
-          'Фоновый процесс, который их запускает, не жив — он либо не поднялся, либо завершился. Пока его нет, задачи не сработают. Подробности в журнале приложения.'
-      },
       continuityLabel: 'Расписания помнят прошлый запуск',
       continuityHint:
         'Каждый запуск по расписанию начинается с ответа предыдущего, поэтому задача докладывает, что ИЗМЕНИЛОСЬ, а не всё заново. Выключите — и каждый запуск стартует вслепую: дешевле, но ночной перескан будет каждый раз сообщать одно и то же.'

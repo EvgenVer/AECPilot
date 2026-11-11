@@ -42,7 +42,7 @@ export const MEMORY_ENV = Object.freeze({ MEM0_TELEMETRY: "false" });
  *  и в ОДИН файл с любым другим экземпляром Hermes на этой машине. Плагин ядра
  *  `history_db_path` из `mem0.json` не пробрасывает, так что конфигом это не
  *  задать — только окружением, и тоже при импорте. Имя каталога продублировано
- *  в `apps/desktop/src/main/cron-runner.ts` и `runtime/memory-facts.py` (main-процесс
+ *  в `runtime/memory-facts.py` (main-процесс
  *  этот модуль статически не импортирует) — прибито тестом, читающим их текст. */
 export const MEM0_DIR_NAME = "mem0";
 

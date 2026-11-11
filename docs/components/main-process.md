@@ -50,8 +50,9 @@ flowchart LR
    (`armProfiles`).
 6. Запуск `hermes serve` (`runtime/serve.mjs`, функция `startServe`), ожидание до
    4 минут первого кадра шлюза (`waitHealthy`) и подключение клиента (`connectGateway`).
-7. Планировщик расписаний ядра, если человек его включил (`cron-runner.ts`,
-   [решение 0011](../decisions/0011-schedule-tick-in-main.md)).
+7. Расписаний отдельно не поднимаем: с версии 0.2 рутины запускает планировщик ядра в
+   едином шлюзе, у каждой — своя пауза на её экране
+   ([решение 0017](../decisions/0017-single-gateway.md), T53.3).
 8. Окно, трей, быстрый ввод по горячей клавише, сторож сна и пробуждения. В режиме
    сервера вместо окна — значок в трее (`server-tray.ts`) и слежение за проектом
    сервера, см. [сценарий «сервер и клиент»](../flows/server-client.md).
@@ -193,7 +194,7 @@ Python). `scan-runner.ts` запускает `aec-rag scan`, `ingest-runner.ts` 
 | `apps/desktop/src/main/llm-settings.ts` | модель, адрес и ключи провайдеров в safeStorage |
 | `apps/desktop/src/main/connection.ts`, `ssh.ts`, `remote-project-pure.ts` | подключение к ядру по адресу и по SSH, проект на сервере |
 | `apps/desktop/src/main/server-tray.ts`, `server-token.ts`, `server-keys-window.ts` | роль сервера: трей, постоянный токен, окно ключей |
-| `apps/desktop/src/main/cron-runner.ts` | процесс расписаний ядра |
+| `apps/desktop/src/main/core-gateway.ts`, `local-gateway.ts`, `local-gateway-python.ts` | единый шлюз ядра: `ensure`, `stop`, билеты |
 | `apps/desktop/src/main/data-root-pure.ts` | раскладка `<root>/data` установленной программы |
 
 Правило модулей: решение без побочных действий живёт в файле `*-pure.ts` и тестируется

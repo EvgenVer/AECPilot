@@ -76,7 +76,7 @@ flowchart LR
 | `data-providers/`, `model-keys/`, `settings/` | провайдеры индекса и памяти, ключи, доступ Microsoft Graph |
 | `rollback/` | панель «Изменения»: откат правок агента по снимкам (UR14) |
 | `install-consent/`, `webhook-consent/`, `channels-disclosure/` | согласия перед установкой навыка или MCP-сервера (команда или адрес, для сервера из каталога — ещё источник и шаги сборки, взятые у ядра), вебхуком, внешним каналом |
-| `cron-runner/`, `cron-tick-notice/`, `cron-continuity/` | расписания |
+| `cron-tick-notice/`, `cron-continuity/` | расписания: подсказка о результате рутины специалиста, «помнить прошлый запуск» |
 
 ### Цитата в ответе
 

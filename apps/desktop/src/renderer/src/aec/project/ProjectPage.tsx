@@ -1,7 +1,7 @@
 // Страница «Проект» (задача 3H.28, D-191, решение владельца 2026-10-08).
 //
 // В простом режиме донор прячет строку состояния, а с ней — меню проекта и
-// значки инструкций и расписаний. Какой проект открыт, должно быть видно всегда:
+// значок инструкций. Какой проект открыт, должно быть видно всегда:
 // им ограничены все файловые операции, сканы и ходы агента. Их строка боковой
 // панели умеет только вести на маршрут, поэтому вход — строка «Проект: <имя>»,
 // а действия меню — здесь. Шапка — как у страницы «Индекс».
@@ -11,7 +11,6 @@ import { useStore } from '@nanostores/react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import { $cronContinuity, setCronContinuity } from '../cron-continuity/store'
-import { CronRunnerBadge } from '../cron-runner/CronRunnerBadge'
 import { ProjectSkillsBadge } from '../project-skills/ProjectSkillsBadge'
 
 import { useProjectActions } from './use-project-actions'
@@ -63,7 +62,6 @@ export default function ProjectPage(): React.JSX.Element {
             <p className="text-xs text-(--ui-text-secondary)">{t('project.pageBadgesHint')}</p>
             <div className="flex flex-wrap gap-4">
               <ProjectSkillsBadge />
-              <CronRunnerBadge />
             </div>
           </div>
 

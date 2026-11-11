@@ -144,14 +144,6 @@ const api: AecpilotApi = {
   },
   getProjectSkills: () => ipcRenderer.invoke('project-skills:get'),
   setProjectSkillsTrust: (trusted) => ipcRenderer.invoke('project-skills:trust', trusted),
-  getCronRunner: () => ipcRenderer.invoke('cron-runner:get'),
-  setCronRunner: (on) => ipcRenderer.invoke('cron-runner:set', on),
-  onCronRunnerChanged: (cb) => {
-    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
-      cb(state)
-    ipcRenderer.on('cron-runner:changed', listener)
-    return () => ipcRenderer.removeListener('cron-runner:changed', listener)
-  },
   setNativeTheme: (mode) => ipcRenderer.send('theme:set-native', mode),
   revealLogs: () => ipcRenderer.invoke('log:reveal'),
   getRecentLogs: () => ipcRenderer.invoke('log:recent'),

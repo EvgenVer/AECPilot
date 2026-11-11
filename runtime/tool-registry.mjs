@@ -69,7 +69,7 @@ export const VERDICTS = {
   // Пять имён переименованы ядром 0.21.2 (задача 3.B4): `cronjob` → `cronjob_manage`,
   // `todo` → `todo_list`, `tip` → `show_tip`, `process` → `process_manage`,
   // `tour` → `gui_tour`. Вердикты те же — переехали за именами.
-  cronjob_manage: { status: "ours", where: "UR18, наш тик — aec/cron-runner/**, поверхность их плагина — cron.tsx" },
+  cronjob_manage: { status: "ours", where: "UR18, тикает планировщик ядра в едином шлюзе (решение 0017), поверхность их плагина — cron.tsx" },
   session_search: { status: "ours", where: "инструмент ядра поверх сессий, которые у нас уже есть" },
   // С 0.21.3 (задача 3.B5в) вопросы ядра окну — ЗАПРОСЫ сервера к клиенту
   // (`tui_gateway/server_requests.py`), не события: обработчики лежат в их

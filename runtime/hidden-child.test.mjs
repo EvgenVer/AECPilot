@@ -41,7 +41,7 @@ describe("D-198 скрытая консоль у процессов прилож
     });
   });
 
-  for (const rel of ["serve.mjs", "../apps/desktop/src/main/cron-runner.ts"]) {
+  for (const rel of ["serve.mjs", "../apps/desktop/src/main/local-gateway-python.ts"]) {
     it(`каждый запуск процесса в ${rel} — со скрытой консолью`, () => {
       const calls = spawnCalls(path.join(here, rel));
       expect(calls.length).toBeGreaterThan(0);

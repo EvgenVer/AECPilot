@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { cronBotChatAdd, cronRpcWriteKind, cronWriteKind } from './cron-tick-notice-pure'
+import { cronBotChatAdd, cronWriteKind } from './cron-tick-notice-pure'
 
-// Предупреждение должно попасть в момент, когда человек строит ожидание
-// («задача будет запускаться сама»), и не мешаться там, где ожидания нет.
-// Замер, из которого всё это следует, — `runtime/cron-tick-probe.mjs`.
-
-describe('cronWriteKind: какой вызов заслуживает предупреждения', () => {
+describe('cronWriteKind: какой вызов заводит или включает расписание', () => {
   it('создание задачи — заслуживает', () => {
     expect(cronWriteKind({ method: 'POST', path: '/api/cron/jobs' })).toBe('create')
   })
@@ -46,30 +42,6 @@ describe('cronWriteKind: какой вызов заслуживает преду
   it('чужие маршруты не задевает', () => {
     expect(cronWriteKind({ method: 'POST', path: '/api/sessions' })).toBeNull()
     expect(cronWriteKind({ method: 'POST', path: '/api/cronx/jobs' })).toBeNull()
-  })
-})
-
-describe('cronRpcWriteKind: тот же вопрос для записи через RPC ядра', () => {
-  it('рутина специалиста (`cron.manage add`) — создание', () => {
-    expect(
-      cronRpcWriteKind('cron.manage', {
-        action: 'add',
-        name: '[bot:smeta] Отметка',
-        profile: 'smeta'
-      })
-    ).toBe('create')
-  })
-
-  it('включение обратно — resume', () => {
-    expect(cronRpcWriteKind('cron.manage', { action: 'resume', name: 'abc123' })).toBe('resume')
-  })
-
-  it('список, пауза, удаление и чужие методы — нет', () => {
-    expect(cronRpcWriteKind('cron.manage', { action: 'list' })).toBeNull()
-    expect(cronRpcWriteKind('cron.manage', {})).toBeNull()
-    expect(cronRpcWriteKind('cron.manage', { action: 'pause', name: 'abc123' })).toBeNull()
-    expect(cronRpcWriteKind('cron.manage', { action: 'remove', name: 'abc123' })).toBeNull()
-    expect(cronRpcWriteKind('session.list', { action: 'add' })).toBeNull()
   })
 })
 
