@@ -152,7 +152,10 @@ function runtimeConnection(
     // SPEC C9: пусто и всегда будет пусто — токен живёт в главном процессе.
     token: '',
     // Сокет открывает main; их `connect()` у нас пустышка (см. gateway-bridge).
-    wsUrl: 'ws://ipc/api/ws'
+    // `native_dial` (задача T53.2, решение 0017): main на едином шлюзе ядра, и их
+    // `HermesGateway` переходит на канонический протокол поверх нашего моста —
+    // так же, как у них на прямом сокете. Адрес по-прежнему никто не набирает.
+    wsUrl: view?.coreWire === 'canonical' ? 'ws://ipc/api/ws?native_dial=main' : 'ws://ipc/api/ws'
   }
 
   if (!view || view.mode === 'local') {

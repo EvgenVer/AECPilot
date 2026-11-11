@@ -53,6 +53,56 @@ describe('hermesRest transport', () => {
     })
   })
 
+  // Decision 0017 (T53.2): on the single gateway a fresh one-use ticket rides each request,
+  // minted for the final URL — after the path got its profile selector.
+  it('on a gateway target sends a fresh ticket per request and no session token', async () => {
+    const seen: Array<{ url?: string; ticket: unknown; token: unknown }> = []
+    const served = await serve((req, res) => {
+      seen.push({
+        url: req.url,
+        ticket: req.headers['x-hermes-gateway-ticket'],
+        token: req.headers[SESSION_TOKEN_HEADER.toLowerCase()]
+      })
+      res.end('{}')
+    })
+    const minted: string[] = []
+    const target = {
+      ...served,
+      token: '',
+      grant: async (url: string, method: string) => {
+        minted.push(`${method} ${new URL(url).pathname}${new URL(url).search}`)
+        return { headers: { 'X-Hermes-Gateway-Ticket': `t${minted.length}` } }
+      },
+      scopePath: (path: string) => `${path}?profile=default`
+    }
+    await hermesRest(target, '/api/cron/jobs')
+    await hermesRest(target, '/api/cron/jobs')
+    expect(minted).toEqual([
+      'GET /api/cron/jobs?profile=default',
+      'GET /api/cron/jobs?profile=default'
+    ])
+    expect(seen).toEqual([
+      { url: '/api/cron/jobs?profile=default', ticket: 't1', token: undefined },
+      { url: '/api/cron/jobs?profile=default', ticket: 't2', token: undefined }
+    ])
+  })
+
+  // T53.2 review: a grant that found the gateway again on a new port sends the request there.
+  it('sends the request to the base address the grant answered', async () => {
+    const served = await serve((req, res) => res.end(JSON.stringify({ url: req.url })))
+    const target = {
+      host: '',
+      port: 0,
+      token: '',
+      baseUrl: 'http://127.0.0.1:9',
+      grant: async () => ({
+        headers: { 'X-Hermes-Gateway-Ticket': 't' },
+        baseUrl: `http://${served.host}:${served.port}`
+      })
+    }
+    expect(await hermesRest(target, '/api/status')).toEqual({ url: '/api/status' })
+  })
+
   it('turns an HTTP error into the core detail with the token redacted', async () => {
     const target = await serve((_req, res) => {
       res.statusCode = 409

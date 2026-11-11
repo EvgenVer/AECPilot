@@ -221,7 +221,18 @@ import type {
   SkillRow
 } from '../shared/ipc'
 import { classifyAttachment, IMAGE_DIALOG_EXTENSIONS } from '../shared/attachments'
-import { GatewayClient } from '../shared/gateway/client'
+import { GatewayClient, type GatewayDial } from '../shared/gateway/client'
+import {
+  gatewayDial,
+  ensureLocalGatewayAgain,
+  gatewayRestTarget,
+  localGatewayActive,
+  localGatewayEndpoint,
+  startLocalGateway,
+  stopLocalGateway,
+  type GatewayModule
+} from './core-gateway'
+import { coreWire, windowProfile, type CoreWire } from './core-gateway-pure'
 import {
   EMPTY_WATERMARK,
   noteEvent,
@@ -374,7 +385,7 @@ interface ServeHandle {
   token: string
 }
 
-interface ServeModule {
+interface ServeModule extends GatewayModule {
   startServe: (opts?: {
     port?: number
     host?: string
@@ -752,7 +763,10 @@ function followWindowSession(method: string, value: unknown): void {
 }
 
 let serveHandle: ServeHandle | undefined
-let gatewayUrl: string | undefined
+/** What main's socket dials: a fixed URL (`serve`, a remote core, the e2e mock) or, on the
+ *  single gateway (decision 0017), a fresh ticketed dial per attempt. */
+type GatewayTarget = string | { dial: () => Promise<GatewayDial> }
+let gatewayUrl: GatewayTarget | undefined
 let stopServeFn: ServeModule['stopServe'] | undefined
 let gateway: GatewayClient | undefined
 let sessionId: string | undefined
@@ -1238,12 +1252,12 @@ let replayWatermark: ReplayWatermark = EMPTY_WATERMARK
  * normal `hermes serve` startup path and the `AEC_GATEWAY_URL` e2e override
  * (task 0.16), which points this at a mock gateway instead of spawning
  * `hermes serve`. */
-async function connectGateway(url: string): Promise<void> {
+async function connectGateway(url: GatewayTarget): Promise<void> {
   // SECURITY: the url embeds the gateway auth token. It is remembered HERE, in
   // main, so a re-dial after the machine wakes (task 3.28) has something to
   // dial; it never crosses IPC and is never logged.
   gatewayUrl = url
-  gateway = new GatewayClient({ url })
+  gateway = new GatewayClient(typeof url === 'string' ? { url } : { dial: url.dial })
   replayWatermark = EMPTY_WATERMARK
   lastGatewayReady = null
   gateway.onEvent((event: GatewayEvent) => {
@@ -1334,6 +1348,14 @@ async function connectGateway(url: string): Promise<void> {
 async function catchUpAfterReconnect(): Promise<void> {
   const client = gateway
   if (!client) return
+
+  // Задача T53.2 (решение 0017): на едином шлюзе догон ведёт их `HermesGateway` в окне —
+  // каноническим `session.events.since` с эпохой и номером кадра своей подписки. Наш
+  // прежний догон (`last_seen`) шлюз отверг бы как неверные параметры.
+  if (windowWire() === 'canonical') {
+    console.info('aecpilot: догон событий ведёт окно (единый шлюз)')
+    return
+  }
 
   const plan = planCatchUp(replayWatermark, Boolean(sessionId))
   if (plan.action === 'skip') {
@@ -2010,7 +2032,7 @@ async function ensureSession(): Promise<string> {
     const project = currentProject
     ensureSessionPromise = gateway
       .request('session.create', {
-        source: 'aecpilot-desktop',
+        source: sessionSource(),
         // Task 1.20 (docs/history/specs/workspace-sources.md § API — "working dir агента
         // = vault"): only sent when a project is open, so a Phase 0-style
         // chat with no project keeps falling back to the gateway's own
@@ -3113,6 +3135,10 @@ function restTarget(): RestTarget | undefined {
     return { host: '', port: 0, token: remote.token, baseUrl: remote.baseUrl }
   }
 
+  // Задача T53.2 (решение 0017): своё ядро — единый шлюз, билет на каждый запрос.
+  const singleGateway = gatewayRestTarget(() => windowProfile(sessionProfile))
+  if (singleGateway) return singleGateway
+
   if (serveHandle) {
     return { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
   }
@@ -3413,7 +3439,7 @@ async function newSession(): Promise<{ sessionId: string }> {
   const project = currentProject
   const epoch = sessionEpoch
   const result = await gateway.request('session.create', {
-    source: 'aecpilot-desktop',
+    source: sessionSource(),
     ...(project ? { cwd: project.vaultPath } : {}),
     ...(sessionProfile ? { profile: sessionProfile } : {})
   })
@@ -4199,6 +4225,9 @@ async function reconnectForConnection(): Promise<ReconnectOutcome> {
   // как подключаться: два агента на тех же файлах это два индекса и два
   // расписания.
   const stopLocal = async (): Promise<void> => {
+    // Задача T53.2: и единый шлюз (решение 0017) — свои расписания на этой машине,
+    // пока работаем с ядром на той, означали бы второго агента на тех же задачах.
+    if (localGatewayActive()) await stopLocalGateway()
     if (serveHandle && stopServeFn) {
       const handle = serveHandle
       serveHandle = undefined
@@ -4333,7 +4362,30 @@ async function restartBackendNow(
 
   holdGatewayState = options.keepConnection === true
   try {
-    const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
+    const {
+      startServe,
+      waitHealthy,
+      stopServe,
+      ensureGateway,
+      stopGateway,
+      ticketRuntime,
+      HERMES_HOME_DIR
+    } = await loadServeModule()
+
+    if (currentRole() === 'full') {
+      // Задача T53.2 (решение 0017): ключ доходит до шлюза только окружением при его
+      // запуске — как и до `serve`. Поэтому аккуратная остановка (`gateway stop`, не kill)
+      // и снова `ensure`.
+      gateway?.close()
+      await stopLocalGateway()
+      if (configOverride) applyModelConfigOverride(HERMES_HOME_DIR, configOverride)
+      await startLocalGateway({ ensureGateway, stopGateway, ticketRuntime }, () => buildExtraEnv())
+      sessionId = undefined
+      sessionEpoch += 1
+      ensureSessionPromise = undefined
+      await connectGateway({ dial: gatewayDial })
+      return { ok: true, restarted: true }
+    }
 
     if (serveHandle && stopServeFn) {
       const oldHandle = serveHandle
@@ -4957,7 +5009,50 @@ ipcMain.handle('ambient:claim', (_event, key: unknown) => claimCue(ambientClaims
 
 // Задача 3.12 (SPEC UR20). К какому ядру подключено приложение. Токен живёт
 // только здесь: окну отдаётся признак «задан» и четыре последних знака.
-ipcMain.handle('connection:get', () => connectionView())
+/** Задача T53.2 (обзор): первый `ensure` не уложился в срок — шлюз, возможно, ещё
+ *  поднимается. Несколько повторов с паузой, затем подключение; остановка шлюза (выход,
+ *  перезапуск) обрывает повторы — `ensureLocalGatewayAgain` тогда отказывает. */
+const GATEWAY_RETRY_ATTEMPTS = 3
+const GATEWAY_RETRY_DELAY_MS = 15_000
+
+async function connectWhenGatewayReady(): Promise<void> {
+  for (let attempt = 1; attempt <= GATEWAY_RETRY_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, GATEWAY_RETRY_DELAY_MS))
+    // В очереди перезапусков (обзор T53.2): перезапуск ядра, начатый сохранением ключа, сам
+    // подключает окно; повтор рядом с ним завёл бы второй живой клиент шлюза.
+    const run = restartQueue.then(async (): Promise<boolean> => {
+      if (!localGatewayActive() || (gateway && gatewayState !== 'closed')) return true
+      await ensureLocalGatewayAgain()
+      await connectGateway({ dial: gatewayDial })
+      console.log(`aecpilot: core gateway connected on retry ${attempt}`)
+      return true
+    })
+    restartQueue = run.catch(() => undefined)
+    try {
+      if (await run) return
+    } catch (error: unknown) {
+      console.error(`aecpilot: core gateway retry ${attempt} FAIL`, error)
+    }
+  }
+}
+
+/** `source` сеанса, который заводит главный процесс (быстрый ввод и наши команды). Канонический
+ *  контракт шлюза принимает только свои значения (`gui`, `cli`, …) — как у их окна, `gui`. */
+function sessionSource(): string {
+  return windowWire() === 'canonical' ? 'gui' : 'aecpilot-desktop'
+}
+
+/** Задача T53.2 (решение 0017): на каком протоколе окно говорит с ядром. Решается заранее,
+ *  по тому, ГДЕ ядро, — окно узнаёт это до того, как шлюз поднялся. */
+function windowWire(): CoreWire {
+  return coreWire({
+    role: currentRole(),
+    mode: connectionMode(),
+    gatewayOverride: Boolean(process.env.AEC_GATEWAY_URL)
+  })
+}
+
+ipcMain.handle('connection:get', () => ({ ...connectionView(), coreWire: windowWire() }))
 
 // Задача 3.12. Имена из `~/.ssh/config` — те, что человек уже настроил сам.
 // Приватные ключи при этом не открываются: `IdentityFile` для нас путь, а не
@@ -6721,7 +6816,15 @@ app
         console.warn('aecpilot: client installation without a server connection — no local core')
       } else {
         try {
-          const { startServe, waitHealthy, stopServe, HERMES_HOME_DIR } = await loadServeModule()
+          const {
+            startServe,
+            waitHealthy,
+            stopServe,
+            ensureGateway,
+            stopGateway,
+            ticketRuntime,
+            HERMES_HOME_DIR
+          } = await loadServeModule()
           stopServeFn = stopServe
 
           // Task 0.15: apply any saved model/endpoint override to the profile's
@@ -6756,53 +6859,70 @@ app
           // нет только благодаря этой строке.
           await armProfiles()
 
-          serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
+          if (currentRole() === 'full') {
+            // Задача T53.2 (решение 0017): окно на едином шлюзе ядра, как у Hermes. Шлюз
+            // сам ведёт расписания, поэтому наш планировщик (решение 0011) не нужен.
+            try {
+              await startLocalGateway({ ensureGateway, stopGateway, ticketRuntime }, () =>
+                buildExtraEnv()
+              )
+              await connectGateway({ dial: gatewayDial })
+            } catch (error: unknown) {
+              // Первый запуск после установки бывает дольше срока `ensure` (60 с): шлюз
+              // ещё поднимается. Окно открывается, а подключение догоняет в фоне.
+              console.error('aecpilot: core gateway first start FAIL', error)
+              void connectWhenGatewayReady()
+            }
+          } else {
+            serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
 
-          // startServe only spawns the process — the gateway WS endpoint isn't
-          // accepting connections yet. Wait until it's healthy before connecting:
-          // GatewayClient does not retry a failed *initial* connect (auto-reconnect
-          // only engages after the first successful 'ready'), so connecting too
-          // early leaves the app permanently disconnected.
-          //
-          // Four minutes rather than the 30 s this used to allow. The budget is
-          // for the FIRST launch after an install, and 30 s turned out to be
-          // thin: measured on this machine, a warm start is 2.1 s, a start with
-          // the core's bytecode cache wiped is 8.5 s — and the one run that
-          // actually blew the limit was the first launch after writing the
-          // core's 217 MB to disk, which no measurement here reproduces (a
-          // virus scanner reading a freshly written tree is the standing
-          // suspect). Waiting costs nothing when the gateway is quick; giving
-          // up early costs the user a window that never connects, with only a
-          // console line to say why. Surfacing the wait in the UI belongs to
-          // the migrated shell (task 1.8.15), not to a screen we are replacing.
-          await waitHealthy(serveHandle, 240000)
+            // startServe only spawns the process — the gateway WS endpoint isn't
+            // accepting connections yet. Wait until it's healthy before connecting:
+            // GatewayClient does not retry a failed *initial* connect (auto-reconnect
+            // only engages after the first successful 'ready'), so connecting too
+            // early leaves the app permanently disconnected.
+            //
+            // Four minutes rather than the 30 s this used to allow. The budget is
+            // for the FIRST launch after an install, and 30 s turned out to be
+            // thin: measured on this machine, a warm start is 2.1 s, a start with
+            // the core's bytecode cache wiped is 8.5 s — and the one run that
+            // actually blew the limit was the first launch after writing the
+            // core's 217 MB to disk, which no measurement here reproduces (a
+            // virus scanner reading a freshly written tree is the standing
+            // suspect). Waiting costs nothing when the gateway is quick; giving
+            // up early costs the user a window that never connects, with only a
+            // console line to say why. Surfacing the wait in the UI belongs to
+            // the migrated shell (task 1.8.15), not to a screen we are replacing.
+            await waitHealthy(serveHandle, 240000)
 
-          // SECURITY: serveHandle.wsUrl embeds the gateway auth token
-          // (?token=…). It stays in the main process only — never send it over
-          // IPC and never log this url or any error that could carry it. The
-          // `gateway connect FAIL` log inside connectGateway is safe only
-          // because GatewayClient errors do not include the url; keep that
-          // invariant if you touch it.
-          await connectGateway(serveHandle.wsUrl)
+            // SECURITY: serveHandle.wsUrl embeds the gateway auth token
+            // (?token=…). It stays in the main process only — never send it over
+            // IPC and never log this url or any error that could carry it. The
+            // `gateway connect FAIL` log inside connectGateway is safe only
+            // because GatewayClient errors do not include the url; keep that
+            // invariant if you touch it.
+            await connectGateway(serveHandle.wsUrl)
 
-          // Задача 3.6а. Их планировщик живёт в отдельном процессе, и человек
-          // решает, поднимать ли его. Поднимается ПОСЛЕ шлюза: задача,
-          // стрельнувшая раньше, чем ядро готово, не найдёт, к чему обратиться.
-          const { HERMES_BIN, withOurHermesOnPath } = (await import(
-            /* @vite-ignore */ pathToFileURL(join(__dirname, '../../../../runtime/hermes-env.mjs'))
-              .href
-          )) as {
-            HERMES_BIN: string
-            withOurHermesOnPath: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv
+            // Задача 3.6а. Их планировщик живёт в отдельном процессе, и человек
+            // решает, поднимать ли его. Поднимается ПОСЛЕ шлюза: задача,
+            // стрельнувшая раньше, чем ядро готово, не найдёт, к чему обратиться.
+            const { HERMES_BIN, withOurHermesOnPath } = (await import(
+              /* @vite-ignore */ pathToFileURL(
+                join(__dirname, '../../../../runtime/hermes-env.mjs')
+              ).href
+            )) as {
+              HERMES_BIN: string
+              withOurHermesOnPath: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv
+            }
+
+            const runner = restoreCronRunner({
+              binary: HERMES_BIN,
+              withOurHermesOnPath,
+              homeDir: HERMES_HOME_DIR,
+              userDataDir: app.getPath('userData')
+            })
+            if (runner.enabled) console.log('aecpilot: cron runner restored')
           }
-
-          const runner = restoreCronRunner({
-            binary: HERMES_BIN,
-            withOurHermesOnPath,
-            homeDir: HERMES_HOME_DIR,
-            userDataDir: app.getPath('userData')
-          })
-          if (runner.enabled) console.log('aecpilot: cron runner restored')
         } catch (error: unknown) {
           // Backend failing to start must not take the window down — the chat
           // just won't be able to connect yet (see task 0.8).
@@ -6986,7 +7106,7 @@ app.on('before-quit', (event) => {
   //
   // Только когда ядро НАШЕ (`serveHandle`): при удалённом ядре ход идёт на
   // чужой машине, наш выход его не прерывает, и терять нечего.
-  if (!quitting && serveHandle) {
+  if (!quitting && (serveHandle || localGatewayEndpoint())) {
     const prompt = quitPromptFor(mergeActiveWork(activeWorkByWindow.values()))
     if (prompt && !confirmQuitDespiteWork(prompt)) {
       event.preventDefault()
@@ -7001,6 +7121,18 @@ app.on('before-quit', (event) => {
 
   // Задача 3G.23: выход принят — закрытие окна больше не прячет его в трей.
   minimizeToTray?.beginQuit()
+
+  // Задача T53.2 (решение 0017): единый шлюз живёт вместе с окном — при выходе его
+  // аккуратно останавливает `gateway stop` (ядро дожидается хода и закрывает базы), а не kill.
+  if (!quitting && localGatewayActive()) {
+    event.preventDefault()
+    quitting = true
+    gateway?.close()
+    stopLocalGateway()
+      .catch((error: unknown) => console.error('aecpilot: gateway stop FAIL', error))
+      .finally(() => app.quit())
+    return
+  }
 
   if (quitting || !serveHandle || !stopServeFn) return
   event.preventDefault()

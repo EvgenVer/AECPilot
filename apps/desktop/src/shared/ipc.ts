@@ -119,6 +119,9 @@ export interface ConnectionView {
   sshKeyPath: string
   sshRemoteHermesPath: string
   sshRemoteProfile: string
+  /** Задача T53.2 (решение 0017): `canonical` — своё ядро, единый шлюз; окно включает
+   * канонический протокол их клиента. Есть только в ответе `connection:get`. */
+  coreWire?: 'canonical' | 'legacy'
 }
 
 /** Облако (`cloud`) исключено — SPEC HX3. */

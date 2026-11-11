@@ -33,7 +33,15 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureOurSoul } from "./default-soul.mjs";
-import { gatewayLockDir, HERMES_BIN, HERMES_HOME_DIR, withOurHermesOnPath } from "./hermes-env.mjs";
+import {
+  gatewayLockDir,
+  HERMES_BIN,
+  HERMES_HOME_DIR,
+  HERMES_SRC_DIR,
+  PYTHON_ARGS,
+  PYTHON_BIN,
+  withOurHermesOnPath,
+} from "./hermes-env.mjs";
 import { warnIfToolsetsNarrowed } from "./narrowed-toolsets.mjs";
 
 // Re-exported so callers that already dynamically import this module (the
@@ -407,4 +415,98 @@ if (isMain && process.argv[2] === "smoke") {
 } else if (isMain) {
   console.error("usage: node runtime/serve.mjs smoke");
   process.exitCode = 1;
+}
+
+// ------------------------------------------------------------- the single gateway (0017)
+//
+// The window no longer runs `hermes serve`: it asks the core for its one gateway, as their
+// Desktop 0.23 does (decision 0017, measured by task T53.1 —
+// `runtime/contracts/single-gateway-0.23.0.md`). `gateway ensure` starts a detached
+// `gateway run` (or finds the running one) and answers with a credential-free endpoint;
+// every socket and REST request then carries a one-use ticket minted over the core's
+// named pipe (`apps/desktop/src/main/local-gateway-python.ts`). The gateway inherits the
+// environment of the `ensure` client when it starts — the provider keys of `extraEnv`
+// reach it exactly as they reach `serve` today, and only at start, so a key change means
+// `stopGateway` and `ensureGateway` again.
+
+/** `ensure`'s own startup deadline is 60 s (hermes_cli/gateway_runtime.py
+ *  DEFAULT_ENSURE_TIMEOUT); the client gets their margin on top (local-gateway.ts:
+ *  GATEWAY_ENSURE_CLIENT_GRACE_MS). Measured cold starts: 5.5–29.7 s (T53.1). */
+export const GATEWAY_ENSURE_TIMEOUT_MS = 75_000;
+/** `gateway stop` drains turns before it exits: 6.5–18.5 s measured (T53.1). */
+export const GATEWAY_STOP_TIMEOUT_MS = 90_000;
+
+/** The gateway's environment: everything `serve` gets except its session token, plus the
+ *  profile multiplexer that group rooms need (a room seats this machine's profiles). */
+export function gatewayEnv(extraEnv = {}) {
+  return {
+    ...withOurHermesOnPath(process.env),
+    HERMES_HOME: HERMES_HOME_DIR,
+    // D-164: our own gateway lock dir — not shared with a separate Hermes.
+    HERMES_GATEWAY_LOCK_DIR: gatewayLockDir(HERMES_HOME_DIR),
+    GATEWAY_MULTIPLEX_PROFILES: "true",
+    HERMES_TUI_CHECKPOINTS: "1",
+    ...memoryEnv(HERMES_HOME_DIR),
+    PYTHONIOENCODING: "utf-8",
+    ...extraEnv,
+  };
+}
+
+function runGatewayVerb(args, env, timeoutMs) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const child = spawn(HERMES_BIN, args, hiddenChild({ env, stdio: ["ignore", "pipe", "pipe"] }));
+    let stdout = "";
+    let stderr = "";
+    let expired = false;
+    // Only the bounded CLI client is ours; the detached gateway it starts is never killed here.
+    const timer = setTimeout(() => {
+      expired = true;
+      child.kill();
+    }, timeoutMs);
+    child.stdout.on("data", (data) => {
+      stdout = (stdout + data).slice(0, 65536);
+    });
+    child.stderr.on("data", (data) => {
+      stderr = (stderr + data).slice(-4096);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ code: 7, stdout, stderr: `${stderr}
+${error.message}`.trim(), ms: Date.now() - started });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const note = expired ? `
+hermes ${args.join(" ")} timed out after ${timeoutMs} ms` : "";
+      resolve({ code: expired ? code || 7 : (code ?? 7), stdout, stderr: `${stderr}${note}`.trim(), ms: Date.now() - started });
+    });
+  });
+}
+
+/** `hermes gateway ensure --json` → `{ code, stdout, stderr, ms }`; the verdict is read by
+ *  main (`local-gateway.ts`). Prepares the profile the way `startServe` does first. */
+export async function ensureGateway({ extraEnv = {}, timeoutMs = GATEWAY_ENSURE_TIMEOUT_MS } = {}) {
+  if (!fs.existsSync(HERMES_BIN)) {
+    throw new Error(`hermes binary not found at ${HERMES_BIN} — run 'node runtime/setup.mjs' first`);
+  }
+  fs.mkdirSync(HERMES_HOME_DIR, { recursive: true });
+  ensureOurSoul(HERMES_HOME_DIR);
+  warnIfToolsetsNarrowed(HERMES_HOME_DIR);
+  const result = await runGatewayVerb(["gateway", "ensure", "--json"], gatewayEnv(extraEnv), timeoutMs);
+  appendLog(`gateway ensure: exit ${result.code} in ${result.ms} ms`);
+  return result;
+}
+
+/** `hermes gateway stop`: the core drains and stops this profile's gateway (never another
+ *  install's — the verb is scoped to HERMES_HOME). */
+export async function stopGateway({ timeoutMs = GATEWAY_STOP_TIMEOUT_MS } = {}) {
+  const result = await runGatewayVerb(["gateway", "stop"], gatewayEnv(), timeoutMs);
+  appendLog(`gateway stop: exit ${result.code} in ${result.ms} ms`);
+  return result;
+}
+
+/** The interpreter that mints tickets: the core's own, with its source tree importable. */
+export function ticketRuntime() {
+  return { command: PYTHON_BIN, args: [...PYTHON_ARGS], cwd: HERMES_SRC_DIR, env: gatewayEnv() };
 }

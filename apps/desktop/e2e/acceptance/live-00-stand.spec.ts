@@ -4,39 +4,12 @@
 // Ходов модели здесь нет.
 
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { mainWindow, openProject, standFixture } from '../lib/app'
-import { e2eProfileDir, PROFILE_PREFIX } from '../lib/core'
+import { e2eProfileDir, PROFILE_PREFIX, profileGatewayEnsure } from '../lib/core'
 
 const stand = standFixture({ mode: 'live', label: 'live-00-stand' })
-
-/** Живые процессы ядра с профилем в командной строке. */
-function hermesProcessesWith(fragment: string): number[] {
-  if (process.platform !== 'win32') return []
-  try {
-    const output = execFileSync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-Command',
-        "Get-CimInstance Win32_Process -Filter \"Name='hermes.exe' OR Name='python.exe'\" | " +
-          'Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress'
-      ],
-      { encoding: 'utf8' }
-    )
-    const parsed: unknown = JSON.parse(output.trim() || 'null')
-    const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
-    return rows
-      .filter((row) =>
-        String((row as { CommandLine?: string }).CommandLine ?? '').includes(fragment)
-      )
-      .map((row) => Number((row as { ProcessId: number }).ProcessId))
-  } catch {
-    return []
-  }
-}
 
 test('живой стенд: ядро поднято во временном профиле, композер жив', async () => {
   const current = stand.get()
@@ -50,15 +23,19 @@ test('живой стенд: ядро поднято во временном п�
   const page = await mainWindow(current)
   await openProject(current, page)
 
-  // Ядро слушает НАШ порт, журнал ядра пишется во временный профиль.
+  // Журнал запуска пишется во временный профиль: шлюз поднят через `ensure`.
   const log = join(current.profileDir!, 'serve.log')
   expect(existsSync(log), 'serve.log должен появиться во временном профиле').toBe(true)
-  expect(readFileSync(log, 'utf-8')).toContain(`port=${current.servePort}`)
+  expect(readFileSync(log, 'utf-8')).toMatch(/gateway ensure: exit 0/)
 })
 
-test('живой стенд: процесс ядра идёт с временным профилем', async () => {
+// Задача T53.2 (решение 0017): ядро приложения — единый шлюз, поднятый `gateway ensure`.
+test('живой стенд: шлюз ядра работает во временном профиле и только на петле', async () => {
   const current = stand.get()
-  // Командная строка `hermes serve --port <наш порт>`: ядро — то, что поднял
-  // именно этот стенд, а не приложение разработчика рядом.
-  expect(hermesProcessesWith(`--port ${current.servePort}`).length).toBeGreaterThan(0)
+  const answer = profileGatewayEnsure(current.profileDir!)
+  expect(answer.state).toBe('ready')
+  const endpoint = answer.endpoint as { api_origin: string; profile_id: string }
+  // C11: порты шлюза — только 127.0.0.1.
+  expect(new URL(endpoint.api_origin).hostname).toBe('127.0.0.1')
+  expect(endpoint.profile_id.toLowerCase()).toContain(PROFILE_PREFIX.toLowerCase())
 })

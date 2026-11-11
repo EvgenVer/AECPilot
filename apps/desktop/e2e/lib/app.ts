@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { SHIPPED_SKILLS_COPY, prepareProfile, removeProfile } from './core'
+import { SHIPPED_SKILLS_COPY, prepareProfile, removeProfile, stopProfileGateway } from './core'
 import { record } from './evidence'
 
 export const desktopDir = join(__dirname, '..', '..')
@@ -414,6 +414,8 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
       for (const pid of listElectronPids()) {
         if (!preExisting.has(pid)) killProcessTree(pid)
       }
+      // Живой режим: шлюз ядра — не потомок Electron (T53.2), добивание дерева его не задевает.
+      if (!mock && profileDir) stopProfileGateway(profileDir)
     }
   }
 

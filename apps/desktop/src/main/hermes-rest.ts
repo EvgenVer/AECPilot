@@ -56,15 +56,20 @@ export async function hermesRest<T = unknown>(
   if (!target) throw new Error(REST_UNAVAILABLE_MESSAGE)
 
   const { method = 'GET', body, query, timeoutMs = DEFAULT_TIMEOUT_MS } = options
-  const url = buildRestUrl(target, path, query)
+  const restPath = target.scopePath ? target.scopePath(path, method) : path
+  let url = buildRestUrl(target, restPath, query)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   let response: { status: number; raw: string }
   try {
+    const grant = target.grant ? await target.grant(url, method, body) : undefined
+    if (grant?.baseUrl && grant.baseUrl !== target.baseUrl) {
+      url = buildRestUrl({ ...target, baseUrl: grant.baseUrl }, restPath, query)
+    }
     response = await send(url, {
       method,
-      headers: buildRestHeaders(target, body !== undefined),
+      headers: { ...buildRestHeaders(target, body !== undefined), ...grant?.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal
     })

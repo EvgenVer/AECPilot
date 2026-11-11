@@ -22,6 +22,18 @@ export interface RestTarget {
    * Локальное всегда `http://host:port`, а удалённое может стоять за TLS, и
    * собирать его схему из полей значило бы догадываться. */
   baseUrl?: string
+  /** The core's single gateway (decision 0017, task T53.2): no token, a one-use ticket per
+   * request instead. Given the absolute URL, the method and the body, it answers the auth
+   * headers to send (`X-Hermes-Gateway-Ticket`) and, when the gateway had to be found again,
+   * its new base address. A retry must ask again — a ticket admits one request. */
+  grant?: (
+    url: string,
+    method: string,
+    body: unknown
+  ) => Promise<{ headers: Record<string, string>; baseUrl?: string }>
+  /** Rewrites the path before the URL is built (the gateway's explicit profile selector,
+   * `scopeGatewayRestPath`). */
+  scopePath?: (path: string, method: string) => string
 }
 
 /** Their auth header. The legacy `Bearer` form is also accepted by the server,
@@ -50,7 +62,9 @@ export function buildRestUrl(
 
 export function buildRestHeaders(target: RestTarget, hasBody: boolean): Record<string, string> {
   return {
-    [SESSION_TOKEN_HEADER]: target.token,
+    // A gateway target carries a ticket instead (`grant`); an empty token header there
+    // would be a second, meaningless credential.
+    ...(target.grant ? {} : { [SESSION_TOKEN_HEADER]: target.token }),
     Accept: 'application/json',
     ...(hasBody ? { 'Content-Type': 'application/json' } : {})
   }

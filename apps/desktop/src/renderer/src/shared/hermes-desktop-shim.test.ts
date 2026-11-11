@@ -43,6 +43,37 @@ describe('hermes-desktop shim: getConnection — чьи файлы показы�
     expect(conn.remoteKind).toBeUndefined()
   })
 
+  // Задача T53.2 (решение 0017): их `HermesGateway` включает канонический протокол ровно
+  // тогда, когда адрес несёт `native_dial`; сокет при этом по-прежнему у main.
+  it('своё ядро на едином шлюзе — адрес-заглушка несёт native_dial, токена нет', async () => {
+    withConnectionView({
+      mode: 'local',
+      remoteUrl: '',
+      sshHost: '',
+      sshUser: '',
+      coreWire: 'canonical'
+    })
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(new URL(String(conn.wsUrl)).searchParams.has('native_dial')).toBe(true)
+    expect(conn.token).toBe('')
+  })
+
+  it('прежний протокол — адрес без native_dial', async () => {
+    withConnectionView({
+      mode: 'local',
+      remoteUrl: '',
+      sshHost: '',
+      sshUser: '',
+      coreWire: 'legacy'
+    })
+
+    const conn = await createHermesDesktopBridge().getConnection()
+
+    expect(new URL(String(conn.wsUrl)).searchParams.has('native_dial')).toBe(false)
+  })
+
   it('ядро по адресу — режим удалённый, и видно, где оно', async () => {
     withConnectionView({
       mode: 'remote',

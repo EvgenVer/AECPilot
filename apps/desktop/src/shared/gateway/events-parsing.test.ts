@@ -24,12 +24,14 @@ class FakeWebSocket {
   static OPEN = 1
 
   url: string
+  protocols: string[] | undefined
   readyState = FakeWebSocket.OPEN
   sent: string[] = []
   private listeners: Record<string, Listener[]> = {}
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string[]) {
     this.url = url
+    this.protocols = protocols
     FakeWebSocket.instances.push(this)
   }
 
@@ -436,6 +438,70 @@ describe('GatewayClient reconnect/backoff', () => {
 
     await vi.advanceTimersByTimeAsync(60000)
     expect(FakeWebSocket.instances).toHaveLength(1) // no reconnect attempt scheduled
+  })
+
+  // Decision 0017: a single-gateway ticket admits one socket, so every attempt dials anew.
+  it('asks dial() again before every connection attempt and passes its subprotocols', async () => {
+    // @ts-expect-error — fake transport is intentionally not a full WebSocket
+    globalThis.WebSocket = FakeWebSocket
+    let minted = 0
+    const client = new GatewayClient({
+      dial: async () => {
+        minted += 1
+        return {
+          url: 'ws://127.0.0.1:1/api/ws',
+          protocols: ['hermes-gateway-v1', `hermes-gateway-ticket.t${minted}`]
+        }
+      }
+    })
+    void client.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    const first = FakeWebSocket.instances[0]
+    expect(first.protocols).toEqual(['hermes-gateway-v1', 'hermes-gateway-ticket.t1'])
+    first.emit(frame('gateway.ready'))
+
+    first.emitClose()
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(FakeWebSocket.instances).toHaveLength(2)
+    expect(FakeWebSocket.instances[1].protocols).toEqual([
+      'hermes-gateway-v1',
+      'hermes-gateway-ticket.t2'
+    ])
+  })
+
+  it('rejects connect() when the first dial fails, and opens no socket', async () => {
+    // @ts-expect-error — fake transport is intentionally not a full WebSocket
+    globalThis.WebSocket = FakeWebSocket
+    const client = new GatewayClient({
+      dial: async () => {
+        throw new Error('Gateway ticket bootstrap failed')
+      }
+    })
+
+    await expect(client.connect()).rejects.toThrow(
+      'gateway dial failed: Gateway ticket bootstrap failed'
+    )
+    expect(FakeWebSocket.instances).toHaveLength(0)
+  })
+
+  it('settles connect() when close() lands while the dial is still being minted', async () => {
+    // @ts-expect-error — fake transport is intentionally not a full WebSocket
+    globalThis.WebSocket = FakeWebSocket
+    let release: (dial: { url: string }) => void = () => undefined
+    const client = new GatewayClient({ dial: () => new Promise((resolve) => (release = resolve)) })
+    const connecting = client.connect()
+
+    client.close()
+    release({ url: 'ws://127.0.0.1:1/api/ws' })
+
+    await expect(connecting).rejects.toThrow('gateway client closed')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(FakeWebSocket.instances).toHaveLength(0)
+  })
+
+  it('refuses to build without a url or a dial', () => {
+    expect(() => new GatewayClient({})).toThrow('needs a url or a dial')
   })
 
   it('respects reconnectMaxAttempts and ends in closed state', async () => {

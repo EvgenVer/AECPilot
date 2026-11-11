@@ -9,6 +9,7 @@
 // `pnpm dev` (решение владельца 2026-10-06): ручная приёмка начинается с чистого
 // старта и не видит ничего, что накопили прогоны, а прогоны — её данных.
 
+import { execFileSync, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
@@ -97,6 +98,57 @@ function copyShippedSkills(profile: string): void {
 
 /** Удалить временный профиль. Базы ядра могут отпускаться с задержкой после
  *  выхода процесса — несколько попыток, затем честное предупреждение. */
+/** `hermes` того же ядра, что поднимает приложение (`runtime/hermes-env.mjs::HERMES_BIN`):
+ *  поставка, если она собрана (`runtime/core/manifest.json`), иначе dev-venv. */
+function coreHermes(): string {
+  return existsSync(join(repoRoot, 'runtime', 'core', 'manifest.json'))
+    ? join(repoRoot, 'runtime', 'core', 'bin', 'hermes.exe')
+    : join(repoRoot, 'runtime', '.hermes-venv', 'Scripts', 'hermes.exe')
+}
+
+/** Задача T53.2 (решение 0017): своё ядро приложения — единый шлюз ядра, отдельный
+ *  процесс, который Electron не держит потомком (он отцеплен, чтобы пережить окно). Приложение
+ *  останавливает его само при выходе; если выход прервали (`app.close()` не уложился и
+ *  дерево Electron добито), шлюз временного профиля остался бы сиротой. `gateway stop`
+ *  действует только на профиль из `HERMES_HOME` и отвечает «не запущен», если шлюза нет. */
+export function stopProfileGateway(dir: string): void {
+  if (!dir.includes(PROFILE_PREFIX)) {
+    throw new Error(`отказ останавливать шлюз не временного профиля: ${dir}`)
+  }
+  const hermes = coreHermes()
+  if (!existsSync(hermes)) {
+    console.warn(`[e2e] нечем остановить шлюз профиля ${dir}: нет ${hermes}`)
+    return
+  }
+  spawnSync(hermes, ['gateway', 'stop'], {
+    env: { ...process.env, HERMES_HOME: dir, HERMES_GATEWAY_LOCK_DIR: join(dir, 'gateway-locks') },
+    timeout: 120_000,
+    windowsHide: true,
+    stdio: 'ignore'
+  })
+}
+
+/** Задача T53.2: адрес единого шлюза временного профиля — у самого ядра. `gateway ensure`
+ *  отвечает адресом работающего шлюза и нового не поднимает; командная строка шлюза профиля
+ *  не называет (`HERMES_HOME` — в окружении), поэтому иначе его не найти. */
+export function profileGatewayEnsure(dir: string): Record<string, unknown> {
+  if (!dir.includes(PROFILE_PREFIX)) {
+    throw new Error(`отказ спрашивать шлюз не временного профиля: ${dir}`)
+  }
+  const output = execFileSync(coreHermes(), ['gateway', 'ensure', '--json'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HERMES_HOME: dir,
+      HERMES_GATEWAY_LOCK_DIR: join(dir, 'gateway-locks'),
+      GATEWAY_MULTIPLEX_PROFILES: 'true'
+    },
+    timeout: 120_000,
+    windowsHide: true
+  })
+  return JSON.parse(output) as Record<string, unknown>
+}
+
 export function removeProfile(dir: string): void {
   if (!dir.includes(PROFILE_PREFIX)) {
     throw new Error(`отказ удалять не временный профиль: ${dir}`)

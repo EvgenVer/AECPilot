@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { hideFirstRunSurfaces, mainWindow, openProject, standFixture } from '../lib/app'
+import { profileGatewayEnsure } from '../lib/core'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -104,16 +105,35 @@ test('38.19.2 в выборе лица в карточке нет питомца
 
 let listenerPids: number[] = []
 
+/** Задача T53.2 (решение 0017): шлюз ядра отцеплен от Electron (переживает окно по замыслу
+ *  ядра), поэтому в дереве приложения его нет — его процесс находится по порту, который
+ *  назвал сам шлюз. */
+function gatewayPortAndPid(): { port: number; pid: number } {
+  const answer = profileGatewayEnsure(stand.get().profileDir!)
+  const port = Number(new URL((answer.endpoint as { api_origin: string }).api_origin).port)
+  const out = execFileSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-Command',
+      `(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess`
+    ],
+    { encoding: 'utf-8' }
+  ).trim()
+  return { port, pid: Number(out) }
+}
+
 test('38.20.1 слушает только петля 127.0.0.1 — шлюз ядра', async () => {
   await ui()
-  const sockets = listening(appPids())
+  const core = gatewayPortAndPid()
+  const sockets = listening([...appPids(), core.pid])
   console.log('38.20.1 ' + JSON.stringify(sockets))
   expect(sockets.length, 'шлюз ядра слушает').toBeGreaterThan(0)
   expect(
     sockets.filter((socket) => socket.addr !== '127.0.0.1'),
     'ни 0.0.0.0, ни ::, ни адреса машины в сети'
   ).toEqual([])
-  expect(sockets.map((socket) => socket.port)).toContain(stand.get().servePort)
+  expect(sockets.map((socket) => socket.port)).toContain(core.port)
   listenerPids = [...new Set(sockets.map((socket) => socket.pid))]
 })
 

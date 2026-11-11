@@ -17,8 +17,19 @@ import type {
   GatewayServerResponseFrame
 } from './types'
 
-export interface GatewayClientOptions {
+/** One dial of the core's single gateway (decision 0017): the URL and the WebSocket
+ * subprotocols that carry a one-use ticket. A ticket admits one socket only, so a
+ * reconnect needs a fresh one — `dial` is asked again before every attempt. */
+export interface GatewayDial {
   url: string
+  protocols?: string[]
+}
+
+export interface GatewayClientOptions {
+  /** A fixed URL (`hermes serve`, the remote server, the e2e mock). */
+  url?: string
+  /** A fresh dial per connection attempt (the single gateway); wins over `url`. */
+  dial?: () => Promise<GatewayDial>
   /** Default timeout (ms) for `request()` calls that don't override it. */
   requestTimeoutMs?: number
   /** Reconnect backoff floor (ms). Default 500. */
@@ -161,7 +172,8 @@ function openRequestsOf(result: unknown): GatewayServerRequest[] {
 /** JSON-RPC/WebSocket client for tui_gateway: connect, typed request/response
  * matching, typed event dispatch, and auto-reconnect with backoff. */
 export class GatewayClient {
-  private readonly url: string
+  private readonly url: string | undefined
+  private readonly dial: (() => Promise<GatewayDial>) | undefined
   private readonly defaultRequestTimeoutMs: number
   private readonly reconnectMinDelayMs: number
   private readonly reconnectMaxDelayMs: number
@@ -184,6 +196,8 @@ export class GatewayClient {
 
   constructor(options: GatewayClientOptions) {
     this.url = options.url
+    this.dial = options.dial
+    if (!this.url && !this.dial) throw new Error('GatewayClient needs a url or a dial')
     this.defaultRequestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
     this.reconnectMinDelayMs = options.reconnectMinDelayMs ?? DEFAULT_RECONNECT_MIN_DELAY_MS
     this.reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS
@@ -217,7 +231,13 @@ export class GatewayClient {
     }
     this.ws?.close()
     this.ws = undefined
-    this.rejectAllPending(new Error('gateway client closed'))
+    const closed = new Error('gateway client closed')
+    this.rejectAllPending(closed)
+    // A connect() still waiting — on a dial being minted, or on a socket that never got
+    // to `gateway.ready` — is settled here: nothing else would ever settle it (T53.2 review).
+    this.connectReject?.(closed)
+    this.connectReject = undefined
+    this.connectResolve = undefined
     this.setState('closed')
   }
 
@@ -302,9 +322,34 @@ export class GatewayClient {
   private openSocket(): void {
     this.setState(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting')
 
+    if (!this.dial) {
+      this.openSocketWith({ url: this.url ?? '' })
+      return
+    }
+    const dial = this.dial
+    dial().then(
+      (target) => {
+        // Closed while the ticket was being minted: the dial is spent unused.
+        if (this.manualClose) return
+        this.openSocketWith(target)
+      },
+      (error: unknown) => {
+        if (this.manualClose) return
+        this.handleDisconnect(
+          new Error(
+            `gateway dial failed: ${error instanceof Error ? error.message : String(error)}`
+          )
+        )
+      }
+    )
+  }
+
+  private openSocketWith(target: GatewayDial): void {
     let ws: WebSocket
     try {
-      ws = new WebSocket(this.url)
+      ws = target.protocols?.length
+        ? new WebSocket(target.url, target.protocols)
+        : new WebSocket(target.url)
     } catch (error) {
       this.handleDisconnect(
         new Error(`gateway socket construction failed: ${(error as Error).message}`)
