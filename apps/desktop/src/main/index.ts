@@ -7162,9 +7162,11 @@ app.on('before-quit', (event) => {
   const handle = serveHandle
   const stopServeNow = stopServeFn
   const withGateway = localGatewayActive()
+  // Ничего не запущено — выход идёт сам, но флаг ставится всё равно: перезапуск сервера
+  // между остановкой и новым стартом (обзор T53.4) должен увидеть выход и не поднять ядро.
+  quitting = true
   if (!withGateway && !(handle && stopServeNow)) return
   event.preventDefault()
-  quitting = true
   gateway?.close()
   serveHandle = undefined
   void Promise.all([
