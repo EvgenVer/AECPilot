@@ -74,6 +74,8 @@ export interface LaunchOptions {
   providerKeyInStore?: boolean
   /** Дополнительное окружение приложения. */
   env?: Record<string, string>
+  /** Ключи командной строки приложения (T53.4: `--server` — роль сервера). */
+  args?: string[]
   /** Имя для файлов журналов в `test-results/` (обычно имя спеки). */
   label?: string
 }
@@ -318,11 +320,15 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
       packaged
         ? {
             executablePath: packaged,
-            args: [`--user-data-dir=${userDataDir}`],
+            args: [`--user-data-dir=${userDataDir}`, ...(options.args ?? [])],
             cwd: dirname(packaged),
             env
           }
-        : { args: ['.', `--user-data-dir=${userDataDir}`], cwd: desktopDir, env }
+        : {
+            args: ['.', `--user-data-dir=${userDataDir}`, ...(options.args ?? [])],
+            cwd: desktopDir,
+            env
+          }
     )
     // Окно рабочего размера: в низком окне нижние строки боковой панели
     // перехватывает прокручиваемый контейнер (замер smoke, 3D.3).

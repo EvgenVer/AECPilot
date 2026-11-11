@@ -3128,8 +3128,12 @@ function restTarget(): RestTarget | undefined {
     return { host: '', port: 0, token: remote.token, baseUrl: remote.baseUrl }
   }
 
-  // Задача T53.2 (решение 0017): своё ядро — единый шлюз, билет на каждый запрос.
-  const singleGateway = gatewayRestTarget(() => windowProfile(sessionProfile))
+  // Задача T53.2 (решение 0017): своё ядро — единый шлюз, билет на каждый запрос. На
+  // сервере (T53.4) шлюз тоже работает, но окно сервера, как и клиенты, говорит с `serve`.
+  const singleGateway =
+    windowWire() === 'canonical'
+      ? gatewayRestTarget(() => windowProfile(sessionProfile))
+      : undefined
   if (singleGateway) return singleGateway
 
   if (serveHandle) {
@@ -4385,8 +4389,14 @@ async function restartBackendNow(
       serveHandle = undefined
       await stopServeFn(oldHandle)
     }
+    // Задача T53.4: на сервере рядом с `serve` живёт единый шлюз; ключ доходит до него
+    // только окружением при запуске, поэтому он перезапускается вместе с `serve`.
+    await stopLocalGateway()
 
     if (configOverride) applyModelConfigOverride(HERMES_HOME_DIR, configOverride)
+    if (currentRole() === 'server') {
+      await startServerGateway({ ensureGateway, stopGateway, ticketRuntime })
+    }
     serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
     stopServeFn = stopServe
     // Без числа — окно берётся из `serve.mjs` (`HEALTH_TIMEOUT_MS`), где рядом
@@ -5026,6 +5036,18 @@ async function connectWhenGatewayReady(): Promise<void> {
     } catch (error: unknown) {
       console.error(`aecpilot: core gateway retry ${attempt} FAIL`, error)
     }
+  }
+}
+
+/** Задача T53.4 (решение 0017): единый шлюз на сервере. Окну сервера он не нужен — сокет
+ *  клиентов идёт в `serve`, а `serve` пересылает шлюзу комнаты, — поэтому только `ensure`,
+ *  без билетов. Ошибка не роняет старт: без шлюза `serve` держит комнаты сам. */
+async function startServerGateway(mod: GatewayModule): Promise<void> {
+  try {
+    await startLocalGateway(mod, () => buildExtraEnv())
+    console.log('aecpilot: server core gateway ready')
+  } catch (error: unknown) {
+    console.error('aecpilot: server core gateway start FAIL', error)
   }
 }
 
@@ -6861,6 +6883,11 @@ app
               void connectWhenGatewayReady()
             }
           } else {
+            // Задача T53.4 (решение 0017): на сервере работает единый шлюз ядра — он ведёт
+            // комнаты и расписания, — а рядом `serve` с постоянным токеном для клиентов.
+            // `serve` сам пересылает шлюзу вызовы комнат (замер T50, шаг B). Не поднялся
+            // шлюз — `serve` всё равно стартует: окно клиентов важнее, комнаты он подхватит.
+            await startServerGateway({ ensureGateway, stopGateway, ticketRuntime })
             serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
 
             // startServe only spawns the process — the gateway WS endpoint isn't
@@ -7084,22 +7111,22 @@ app.on('before-quit', (event) => {
 
   // Задача T53.2 (решение 0017): единый шлюз живёт вместе с окном — при выходе его
   // аккуратно останавливает `gateway stop` (ядро дожидается хода и закрывает базы), а не kill.
-  if (!quitting && localGatewayActive()) {
-    event.preventDefault()
-    quitting = true
-    gateway?.close()
-    stopLocalGateway()
-      .catch((error: unknown) => console.error('aecpilot: gateway stop FAIL', error))
-      .finally(() => app.quit())
-    return
-  }
-
-  if (quitting || !serveHandle || !stopServeFn) return
+  // Задача T53.4: на сервере работают оба — шлюз и `serve` рядом с ним.
+  if (quitting) return
+  const handle = serveHandle
+  const stopServeNow = stopServeFn
+  const withGateway = localGatewayActive()
+  if (!withGateway && !(handle && stopServeNow)) return
   event.preventDefault()
   quitting = true
-  const handle = serveHandle
+  gateway?.close()
   serveHandle = undefined
-  stopServeFn(handle)
-    .catch(() => {})
-    .finally(() => app.quit())
+  void Promise.all([
+    withGateway
+      ? stopLocalGateway().catch((error: unknown) =>
+          console.error('aecpilot: gateway stop FAIL', error)
+        )
+      : undefined,
+    handle && stopServeNow ? stopServeNow(handle).catch(() => {}) : undefined
+  ]).finally(() => app.quit())
 })
