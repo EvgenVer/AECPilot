@@ -16,7 +16,7 @@ sequenceDiagram
   actor U as Инженер
   participant W as Окно (чат донора)
   participant M as Главный процесс
-  participant C as Ядро hermes serve
+  participant C as Единый шлюз ядра
   participant L as Провайдер модели
   participant R as aec-rag (MCP)
   U->>W: вопрос в чате

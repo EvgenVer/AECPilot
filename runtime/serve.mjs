@@ -439,6 +439,7 @@ export const GATEWAY_STOP_TIMEOUT_MS = 90_000;
 /** The gateway's environment: everything `serve` gets except its session token, plus the
  *  profile multiplexer that group rooms need (a room seats this machine's profiles). */
 export function gatewayEnv(extraEnv = {}) {
+  // --8<-- [start:gateway_env]
   return {
     ...withOurHermesOnPath(process.env),
     HERMES_HOME: HERMES_HOME_DIR,
@@ -450,6 +451,7 @@ export function gatewayEnv(extraEnv = {}) {
     PYTHONIOENCODING: "utf-8",
     ...extraEnv,
   };
+  // --8<-- [end:gateway_env]
 }
 
 function runGatewayVerb(args, env, timeoutMs) {

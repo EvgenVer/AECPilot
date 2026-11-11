@@ -13,7 +13,7 @@
 ```mermaid
 flowchart LR
   main[Главный процесс] -->|пишет запуск в config.yaml| profile[(Профиль ядра)]
-  core[Ядро hermes serve] -->|читает config.yaml| profile
+  core[Единый шлюз ядра] -->|читает config.yaml| profile
   core -->|stdio MCP: sources_*| src[aec-sources]
   src -->|--project| pj[(.aecpilot/project.json)]
   src -->|только чтение| folders[(Папки источников)]
