@@ -14,7 +14,8 @@
   (ручной прогон платный — только с согласия владельца). T53.1–T53.5 закрыты 2026-11-11
 - Next step: итог обзора, затем T53; T66, T62 —
   решения [0017](decisions/0017-single-gateway.md), [0018](decisions/0018-lira-update-feed.md)
-- Waiting for the owner: записи фраз из `eval/dictation-phrases.md` в `eval/samples/dictation/`
+- Waiting for the owner: согласие и бюджет на платный ручной прогон T53 (комната с лидом,
+  один-два хода модели); записи фраз из `eval/dictation-phrases.md` в `eval/samples/dictation/`
   (T58); как сервер Lira связывается с приложением — пока не решено (T61)
 - Решения интервью 2026-11-08: T53 — один шлюз, как у Hermes (живёт с окном, сервер — шлюз +
   `serve`, расписания ядра с паузой по одной; Lira — своя лента с загрузкой по согласию); `microsoft-office` — дополнения
