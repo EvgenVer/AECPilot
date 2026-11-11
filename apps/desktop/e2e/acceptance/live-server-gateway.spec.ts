@@ -138,6 +138,13 @@ test('выход сервера останавливает шлюз (gateway sto
   await stand.get().app.close()
 
   expect(serveLog()).toMatch(/gateway stop: exit 0/)
+  // `serve` сервера тоже остановлен: его порт свободен.
+  await expect
+    .poll(() => pidListeningOn(stand.get().servePort!), {
+      timeout: 60000,
+      message: 'порт serve освобождён'
+    })
+    .toBe(0)
   await expect
     .poll(() => processAlive(gatewayPid), { timeout: 60000, message: 'процесс шлюза завершён' })
     .toBe(false)

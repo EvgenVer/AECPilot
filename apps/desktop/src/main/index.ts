@@ -4397,7 +4397,7 @@ async function restartBackendNow(
     if (currentRole() === 'server') {
       await startServerGateway({ ensureGateway, stopGateway, ticketRuntime })
     }
-    serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
+    serveHandle = await startServeUnlessQuitting(startServe, stopServe)
     stopServeFn = stopServe
     // Без числа — окно берётся из `serve.mjs` (`HEALTH_TIMEOUT_MS`), где рядом
     // лежит замер холодного старта. Здесь стояло 30000, и это ровно тот случай,
@@ -5041,14 +5041,60 @@ async function connectWhenGatewayReady(): Promise<void> {
 
 /** Задача T53.4 (решение 0017): единый шлюз на сервере. Окну сервера он не нужен — сокет
  *  клиентов идёт в `serve`, а `serve` пересылает шлюзу комнаты, — поэтому только `ensure`,
- *  без билетов. Ошибка не роняет старт: без шлюза `serve` держит комнаты сам. */
+ *  без билетов. Ошибка не роняет старт: без шлюза `serve` держит комнаты сам, а шлюз
+ *  догоняет в фоне — расписания сервера идут только в нём (T53.3).
+ *  Выход, начатый во время `ensure`, обрывает старт: `serve` после него стал бы сиротой
+ *  (обзор T53.4). */
 async function startServerGateway(mod: GatewayModule): Promise<void> {
   try {
     await startLocalGateway(mod, () => buildExtraEnv())
     console.log('aecpilot: server core gateway ready')
   } catch (error: unknown) {
-    console.error('aecpilot: server core gateway start FAIL', error)
+    if (!quitting) {
+      console.error('aecpilot: server core gateway start FAIL', error)
+      void retryServerGateway()
+    }
   }
+  if (quitting) throw new Error(QUITTING)
+}
+
+const QUITTING = 'App is quitting'
+const SERVER_GATEWAY_RETRIES = 3
+const SERVER_GATEWAY_RETRY_MS = 30_000
+
+/** Шлюз сервера не поднялся с первого раза (холодный первый старт дольше срока `ensure`):
+ *  ещё три `ensure` того же шлюза с паузой. Без него на сервере не идут рутины. */
+async function retryServerGateway(): Promise<void> {
+  for (let attempt = 1; attempt <= SERVER_GATEWAY_RETRIES; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, SERVER_GATEWAY_RETRY_MS))
+    if (quitting || !localGatewayActive() || localGatewayEndpoint()) return
+    try {
+      await ensureLocalGatewayAgain()
+      console.log(`aecpilot: server core gateway ready on retry ${attempt}`)
+      return
+    } catch (error: unknown) {
+      console.error(`aecpilot: server core gateway retry ${attempt} FAIL`, error)
+    }
+  }
+  console.error(
+    'aecpilot: server core gateway is not running — routines and group rooms of this server ' +
+      'wait for the next restart'
+  )
+}
+
+/** `serve` сервера — только если выход не начался; начался, пока `serve` поднимался, —
+ *  остановить его сразу: `before-quit` уже прошёл и его не увидит. */
+async function startServeUnlessQuitting(
+  start: ServeModule['startServe'],
+  stop: ServeModule['stopServe']
+): Promise<ServeHandle> {
+  if (quitting) throw new Error(QUITTING)
+  const handle = await start({ extraEnv: buildExtraEnv(), token: serveToken() })
+  if (quitting) {
+    await stop(handle).catch(() => undefined)
+    throw new Error(QUITTING)
+  }
+  return handle
 }
 
 /** `source` сеанса, который заводит главный процесс (быстрый ввод и наши команды). Канонический
@@ -6888,7 +6934,7 @@ app
             // `serve` сам пересылает шлюзу вызовы комнат (замер T50, шаг B). Не поднялся
             // шлюз — `serve` всё равно стартует: окно клиентов важнее, комнаты он подхватит.
             await startServerGateway({ ensureGateway, stopGateway, ticketRuntime })
-            serveHandle = await startServe({ extraEnv: buildExtraEnv(), token: serveToken() })
+            serveHandle = await startServeUnlessQuitting(startServe, stopServe)
 
             // startServe only spawns the process — the gateway WS endpoint isn't
             // accepting connections yet. Wait until it's healthy before connecting:
