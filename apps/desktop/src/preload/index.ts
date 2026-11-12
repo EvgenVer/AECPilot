@@ -3,8 +3,6 @@ import type { AecpilotApi } from '../shared/ipc'
 
 const api: AecpilotApi = {
   showWelcome: process.env.AEC_SHOW_WELCOME === '1',
-  submitPrompt: (text, truncateBeforeUserOrdinal) =>
-    ipcRenderer.invoke('chat:submit', { text, truncateBeforeUserOrdinal }),
   getGatewayState: () => ipcRenderer.invoke('gateway:get-state'),
   getGatewayReady: () => ipcRenderer.invoke('gateway:get-ready'),
   // --8<-- [start:gateway_api]
@@ -308,7 +306,6 @@ const api: AecpilotApi = {
   configureToolsets: (action, names) => ipcRenderer.invoke('tools:configure', { action, names }),
   listPlugins: () => ipcRenderer.invoke('plugins:list'),
   togglePlugin: (payload) => ipcRenderer.invoke('plugins:toggle', payload),
-  listProcesses: () => ipcRenderer.invoke('processes:list'),
   killProcess: (payload) => ipcRenderer.invoke('processes:kill', payload),
   checkRuntime: () => ipcRenderer.invoke('setup:runtime-check'),
   listSkills: () => ipcRenderer.invoke('skills:list'),
@@ -329,18 +326,11 @@ const api: AecpilotApi = {
   testMcpServer: (name) => ipcRenderer.invoke('mcp:test', { name }),
   reloadMcpServers: (confirm) => ipcRenderer.invoke('mcp:reload', { confirm }),
   listActiveSessions: () => ipcRenderer.invoke('sessions:list-active'),
-  activateSession: (liveId) => ipcRenderer.invoke('sessions:activate', liveId),
-  deleteSession: (payload) => ipcRenderer.invoke('sessions:delete', payload),
   getSessionMessages: (storedId) => ipcRenderer.invoke('sessions:messages', storedId),
   statArtifact: (value) => ipcRenderer.invoke('artifacts:stat', value),
   revealArtifact: (value) => ipcRenderer.invoke('artifacts:reveal', value),
   previewArtifact: (value) => ipcRenderer.invoke('artifacts:preview', value),
-  renameSession: (payload) => ipcRenderer.invoke('sessions:rename', payload),
-  branchSession: (name) => ipcRenderer.invoke('sessions:branch', { name }),
-  getSessionUsage: () => ipcRenderer.invoke('session:usage'),
   getContextBreakdown: () => ipcRenderer.invoke('session:context-breakdown'),
-  compressSession: (focusTopic) => ipcRenderer.invoke('session:compress', { focusTopic }),
-  undoTurn: () => ipcRenderer.invoke('session:undo'),
   steerSession: (text) => ipcRenderer.invoke('session:steer', text),
   getCommandCatalog: () => ipcRenderer.invoke('commands:catalog'),
   dispatchCommand: (name, arg) => ipcRenderer.invoke('commands:dispatch', { name, arg }),

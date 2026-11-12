@@ -248,7 +248,6 @@ import {
   sanitizeRpcParams
 } from './gateway-passthrough-pure'
 import type {
-  AgentProcessEntry,
   GatewayConnectionState,
   GatewayEvent,
   GatewayEventFrame,
@@ -2537,41 +2536,6 @@ ipcMain.handle('preview:resolve-target', (_event, payload: unknown) => {
     : { ok: false, error: resolved.error }
 })
 
-// The composer's one way in. Since hermes 0.19.0 the answer matters: a prompt
-// sent mid-turn is no longer refused but QUEUED (or steered), and the caller is
-// the one that tells the user which happened (task 1.6.B5.26).
-//
-// `truncateBeforeUserOrdinal` (task 1.6.B5.27) re-runs from an edited message.
-// It is validated as a non-negative integer here rather than passed through:
-// their handler rejects a negative value with 4018 precisely because Python's
-// negative indexing would otherwise truncate the session to its last turn, and
-// this app should not be the thing that gets close to that.
-ipcMain.handle('chat:submit', async (_event, payload: unknown) => {
-  const raw =
-    typeof payload === 'string'
-      ? { text: payload }
-      : ((payload ?? {}) as {
-          text?: unknown
-          truncateBeforeUserOrdinal?: unknown
-        })
-  const text = raw.text
-  if (typeof text !== 'string') throw new Error('invalid prompt text')
-  const ordinal = raw.truncateBeforeUserOrdinal
-  if (ordinal !== undefined && ordinal !== null) {
-    if (typeof ordinal !== 'number' || !Number.isInteger(ordinal) || ordinal < 0) {
-      throw new Error('invalid message ordinal')
-    }
-  }
-  const activeSessionId = await ensureSession()
-  if (!gateway) throw new Error('cannot submit prompt — gateway is not connected')
-  await ensureSecretFilter('prompt.submit', { session_id: activeSessionId })
-  return gateway.request('prompt.submit', {
-    session_id: activeSessionId,
-    text,
-    ...(typeof ordinal === 'number' ? { truncate_before_user_ordinal: ordinal } : {})
-  })
-})
-
 // --- Quick entry: the global-hotkey capture window (task 3.15) --------------
 //
 // Its window has no gateway of its own and no session state; it hands text
@@ -3130,11 +3094,10 @@ function restTarget(): RestTarget | undefined {
 
   // Задача T53.2 (решение 0017): своё ядро — единый шлюз, билет на каждый запрос. На
   // сервере (T53.4) шлюз тоже работает, но окно сервера, как и клиенты, говорит с `serve`.
-  const singleGateway =
-    windowWire() === 'canonical'
-      ? gatewayRestTarget(() => windowProfile(sessionProfile))
-      : undefined
-  if (singleGateway) return singleGateway
+  // Запрос, пришедший до готовности шлюза, ждёт его, а не отказывает (техдолг T53.3).
+  if (windowWire() === 'canonical') {
+    return gatewayRestTarget(() => windowProfile(sessionProfile))
+  }
 
   if (serveHandle) {
     return { host: serveHandle.host, port: serveHandle.port, token: serveHandle.token }
@@ -3351,30 +3314,6 @@ ipcMain.handle('plugins:toggle', async (_event, payload: unknown) => {
   }
 })
 
-// Two sources, deliberately kept apart in the result: `process.list` is
-// session-scoped and killable, `agents.list` is every session's processes and
-// is observation only (their `process.kill` answers 4044 for a process owned
-// by another session).
-ipcMain.handle('processes:list', async () => {
-  if (!gateway) throw new Error('no gateway connection')
-  const activeSessionId = await ensureSession()
-  const own = await gateway.request('process.list', { session_id: activeSessionId })
-  let others: AgentProcessEntry[] = []
-  try {
-    const all = await gateway.request('agents.list', {})
-    others = Array.isArray(all.processes) ? all.processes : []
-  } catch (error: unknown) {
-    // The cross-session view is extra context, not the point of the tab —
-    // losing it must not empty the list of the user's own processes.
-    console.error('aecpilot: agents.list failed', error)
-  }
-  const ownIds = new Set((own.processes ?? []).map((entry) => entry.session_id))
-  return {
-    own: Array.isArray(own.processes) ? own.processes : [],
-    others: others.filter((entry) => !ownIds.has(entry.session_id))
-  }
-})
-
 // Stops one process. `confirmed` is checked here for the same reason as
 // `rollback:restore`: the confirmation step must not be skippable from the
 // renderer. There is no "stop everything" channel — `process.stop` is
@@ -3492,31 +3431,6 @@ ipcMain.handle('sessions:list-active', async () => {
   })
 })
 
-// Attaching to another live session (task 1.6.B5.9). Their handler deliberately
-// does NOT close the one we were on, so both stay in the live list — that is
-// what makes these sessions parallel rather than a switch.
-ipcMain.handle('sessions:activate', async (_event, liveId: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  if (typeof liveId !== 'string' || liveId === '') throw new Error('invalid session id')
-  const result = await gateway.request('session.activate', { session_id: liveId })
-  sessionId = result.session_id
-  sessionEpoch += 1
-  ensureSessionPromise = undefined
-  return { sessionId: result.session_id, messages: result.messages ?? [] }
-})
-
-// DESTRUCTIVE and irreversible: their handler removes the DB row AND the
-// on-disk transcript files. `confirmed` is checked here, not only in the
-// renderer, for the same reason as `rollback:restore` — a stray call in the
-// renderer must not be able to reach it.
-ipcMain.handle('sessions:delete', async (_event, payload: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  const { storedId, confirmed } = (payload ?? {}) as { storedId?: unknown; confirmed?: unknown }
-  if (confirmed !== true) throw new Error('session.delete requires explicit confirmation')
-  if (typeof storedId !== 'string' || storedId === '') throw new Error('invalid session id')
-  return gateway.request('session.delete', { session_id: storedId })
-})
-
 // The transcript of a STORED session (task 1.6.B7.3, the artifacts tab).
 //
 // Over REST, and rule R1 ("REST only where RPC does not reach") is satisfied
@@ -3544,115 +3458,9 @@ ipcMain.handle('sessions:messages', async (_event, storedId: unknown) => {
   return { messages: Array.isArray(result.messages) ? result.messages : [] }
 })
 
-/** The live sid of `storedId` if the gateway is holding that session open, else
- * `undefined`. `session.active_list` is the only place the two ids appear
- * side by side (`id` + `session_key`). */
-async function liveSidForStored(storedId: string): Promise<string | undefined> {
-  if (!gateway) return undefined
-  const { sessions } = await gateway.request('session.active_list', {
-    ...(sessionId ? { current_session_id: sessionId } : {})
-  })
-  return sessions.find((row) => row.session_key === storedId)?.id
-}
-
-// Renaming (task 1.6.B5.7). `session.title` resolves a LIVE sid, so a session
-// that is only a database row has to be resumed first — that is a property of
-// their handler, not a choice here.
-//
-// Resuming for a rename does NOT switch this window to that session: `sessionId`
-// is left alone, and the resumed session simply becomes one more live session in
-// the gateway. Renaming something in a list should not move the user out of the
-// conversation they are in.
-ipcMain.handle('sessions:rename', async (_event, payload: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  const { storedId, title } = (payload ?? {}) as { storedId?: unknown; title?: unknown }
-  if (typeof storedId !== 'string' || storedId === '') throw new Error('invalid session id')
-  if (typeof title !== 'string' || title.trim() === '') throw new Error('invalid session title')
-
-  let liveId = await liveSidForStored(storedId)
-  if (!liveId) {
-    const resumed = await gateway.request('session.resume', {
-      session_id: storedId,
-      ...(sessionProfile ? { profile: sessionProfile } : {})
-    })
-    liveId = resumed.session_id
-  }
-  const result = await gateway.request('session.title', { session_id: liveId, title: title.trim() })
-  return { title: result.title ?? title.trim(), pending: result.pending === true }
-})
-
-// Branching (task 1.6.B5.10). Two things their answer does not give us and this
-// handler recovers: the branch's STORED key (needed to tag it against the
-// project — read back from `session.active_list`) and its history (unchanged
-// from the parent's, which the renderer already shows).
-ipcMain.handle('sessions:branch', async (_event, payload: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  const { name } = (payload ?? {}) as { name?: unknown }
-  const activeSessionId = await ensureSession()
-  const project = currentProject
-  const result = await gateway.request('session.branch', {
-    session_id: activeSessionId,
-    ...(typeof name === 'string' && name.trim() !== '' ? { name: name.trim() } : {})
-  })
-  sessionId = result.session_id
-  sessionEpoch += 1
-  ensureSessionPromise = undefined
-  if (project) {
-    // Best-effort: an untagged branch would simply not show up in this
-    // project's list until it is renamed/reopened — worth trying, never worth
-    // failing the branch over.
-    try {
-      const { sessions } = await gateway.request('session.active_list', {
-        current_session_id: result.session_id
-      })
-      const stored = sessions.find((row) => row.id === result.session_id)?.session_key
-      if (stored) tagSessionProject(stored, project.vaultPath)
-    } catch (error: unknown) {
-      console.error('aecpilot: could not tag the new branch against the project', error)
-    }
-  }
-  return { sessionId: result.session_id, title: result.title }
-})
-
-ipcMain.handle('session:usage', async () => {
-  if (!gateway) throw new Error('gateway is not connected')
-  return gateway.request('session.usage', { session_id: await ensureSession() })
-})
-
 ipcMain.handle('session:context-breakdown', async () => {
   if (!gateway) throw new Error('gateway is not connected')
   return gateway.request('session.context_breakdown', { session_id: await ensureSession() })
-})
-
-// Manual compression (task 1.6.B5.13). The transcript is redrawn from
-// `session.history`, NOT from `session.compress`'s own `messages`: that field
-// carries the agent's raw history (`content`, `tool_calls`), not the
-// `{role, text}` shape every other path in this app speaks, so rendering it
-// would produce empty bubbles. See `SessionCompressResult`.
-ipcMain.handle('session:compress', async (_event, payload: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  const { focusTopic } = (payload ?? {}) as { focusTopic?: unknown }
-  const activeSessionId = await ensureSession()
-  const result = await gateway.request('session.compress', {
-    session_id: activeSessionId,
-    ...(typeof focusTopic === 'string' && focusTopic.trim() !== ''
-      ? { focus_topic: focusTopic.trim() }
-      : {})
-  })
-  const history = await gateway.request('session.history', { session_id: activeSessionId })
-  return {
-    status: result.status ?? '',
-    beforeMessages: result.before_messages ?? 0,
-    afterMessages: result.after_messages ?? 0,
-    beforeTokens: result.before_tokens ?? 0,
-    afterTokens: result.after_tokens ?? 0,
-    messages: history.messages ?? []
-  }
-})
-
-ipcMain.handle('session:undo', async () => {
-  if (!gateway) throw new Error('gateway is not connected')
-  return gateway.request('session.undo', { session_id: await ensureSession() })
 })
 
 ipcMain.handle('session:steer', async (_event, text: unknown) => {

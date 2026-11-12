@@ -34,7 +34,9 @@ describe('checkRpcCall', () => {
 describe('checkRpcAction (ядро 0.23.0, задача T52)', () => {
   it('отказывает в самообновлении плагинов и их десктопной половине (0012 п. 6, HX5)', () => {
     for (const action of ['update_all', 'auto_update', 'install_desktop', 'remove_desktop']) {
-      expect(() => checkRpcAction('plugins.manage', { action })).toThrow(/not available/)
+      expect(() => checkRpcAction('plugins.manage', { action })).toThrow(
+        action === 'update_all' ? /проверку доверия|trust check/ : /not available/
+      )
     }
   })
 

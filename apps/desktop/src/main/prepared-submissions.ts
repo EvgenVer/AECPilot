@@ -6,8 +6,9 @@
 //
 // Adapted from Hermes Desktop (MIT) `apps/desktop/electron/prepared-submissions.ts`
 // at 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19. Changes: their `writeSecretFileAtomic`
-// (`hardening.ts`) is replaced by `writePrivateFileAtomic` below; IPC registration
-// lives in `index.ts` under our `prepared-submissions:*` channels.
+// (`hardening.ts`) is replaced by `writePrivateFileAtomic` below, whose rename retries a
+// moment's lock by an antivirus (`renameWithRetry`); IPC registration lives in `index.ts`
+// under our `prepared-submissions:*` channels.
 
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -101,9 +102,31 @@ function writePrivateFileAtomic(file: string, text: string): void {
   const temp = `${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
   try {
     fs.writeFileSync(temp, text, { encoding: 'utf8', mode: 0o600 })
-    fs.renameSync(temp, file)
+    renameWithRetry(temp, file)
   } catch (error) {
     fs.rmSync(temp, { force: true })
     throw error
+  }
+}
+
+/** Codes Windows gives a rename over a file an antivirus or the search indexer holds open
+ *  for a moment. The journal write is synchronous, so the pause is synchronous too. */
+const TRANSIENT_RENAME = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const RENAME_DELAYS_MS = [20, 50, 100, 200]
+
+export function renameWithRetry(
+  from: string,
+  to: string,
+  rename: (from: string, to: string) => void = fs.renameSync
+): void {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      rename(from, to)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (!TRANSIENT_RENAME.has(code) || attempt >= RENAME_DELAYS_MS.length) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_DELAYS_MS[attempt])
+    }
   }
 }

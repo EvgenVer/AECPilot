@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from 'vitest'
-import { preparedJournal } from './prepared-submissions'
+import { preparedJournal, renameWithRetry } from './prepared-submissions'
 
 test('acknowledged journal mutations survive reopening with exact payload and origin isolation', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prepared-journal-'))
@@ -47,4 +47,37 @@ test('a corrupt journal is quarantined with its bytes kept, and the origin can s
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
+})
+
+function locked(code: string): Error {
+  return Object.assign(new Error(`${code}: operation not permitted, rename`), { code })
+}
+
+test('a rename an antivirus holds for a moment is retried, not lost (T52 review)', () => {
+  const calls: string[] = []
+  renameWithRetry('a.tmp', 'a.json', (from) => {
+    calls.push(from)
+    if (calls.length < 3) throw locked(calls.length === 1 ? 'EPERM' : 'EBUSY')
+  })
+  expect(calls).toHaveLength(3)
+})
+
+test('a rename that stays locked, or fails for another reason, still throws', () => {
+  let tries = 0
+  expect(() =>
+    renameWithRetry('a.tmp', 'a.json', () => {
+      tries += 1
+      throw locked('EBUSY')
+    })
+  ).toThrow('EBUSY')
+  expect(tries, 'four retries after the first try').toBe(5)
+
+  tries = 0
+  expect(() =>
+    renameWithRetry('a.tmp', 'a.json', () => {
+      tries += 1
+      throw locked('ENOENT')
+    })
+  ).toThrow('ENOENT')
+  expect(tries).toBe(1)
 })

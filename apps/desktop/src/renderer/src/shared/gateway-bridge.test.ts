@@ -282,6 +282,21 @@ describe('GatewayBridge', () => {
     expect(seen).toEqual([ready, ready])
   })
 
+  it('connect() does not replay a ready the live frame delivered meanwhile (T52 review)', async () => {
+    const ready = { skin: {}, change_events: true, replay_epoch: 'e1' }
+    const raceStub = stubApi('ready')
+    ;(raceStub.api as unknown as Record<string, unknown>).getGatewayReady = vi.fn(async () => {
+      raceStub.emitEvent({ type: 'gateway.ready', payload: ready } as unknown as GatewayEvent)
+      return ready
+    })
+    const client = new GatewayBridge(raceStub.api)
+    const seen: unknown[] = []
+    client.on('gateway.ready', (event) => seen.push(event.payload))
+
+    await client.connect('ws://ignored')
+    expect(seen, 'one readiness for one dial').toEqual([ready])
+  })
+
   it('connect() replays nothing while main has no gateway.ready yet', async () => {
     const coldStub = stubApi('connecting')
     ;(coldStub.api as unknown as Record<string, unknown>).getGatewayReady = vi.fn(async () => null)

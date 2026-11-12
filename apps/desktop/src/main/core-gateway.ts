@@ -10,6 +10,7 @@
 import type { GatewayDial } from '../shared/gateway/client'
 import type { RestTarget } from './hermes-rest-pure'
 import { scopeGatewayRestPath } from './core-gateway-pure'
+import { mainT } from './i18n'
 import {
   gatewayEndpointFromEnsure,
   isStaleLocalGatewayError,
@@ -111,7 +112,32 @@ export async function startLocalGateway(
   mint: Mint = mintGatewayTicketWithPython
 ): Promise<GatewayEndpoint> {
   state = { mod, extraEnv, mint, endpoint: undefined, ensuring: undefined }
+  for (const wake of startWaiters.splice(0)) wake()
   return ensure(state)
+}
+
+/** Base address of a REST target made before the gateway answered; the grant replaces it. */
+const PENDING_ORIGIN = 'http://127.0.0.1'
+/** How long a REST request made before the gateway was started waits for that start: the
+ *  window opens while main still prepares the profile (filters, plugins) before `ensure`. */
+export const GATEWAY_START_WAIT_MS = 90_000
+
+let startWaiters: Array<() => void> = []
+
+/** Resolves once `startLocalGateway` has run (at once when it already has). */
+export function gatewayStarted(waitMs = GATEWAY_START_WAIT_MS): Promise<void> {
+  if (state) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const wake = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      startWaiters = startWaiters.filter((waiter) => waiter !== wake)
+      reject(new Error(mainT('common.coreStillStarting')))
+    }, waitMs)
+    startWaiters.push(wake)
+  })
 }
 
 /** One more `ensure` of the gateway this app started — after a first start that timed out
@@ -179,17 +205,22 @@ export async function gatewayDial(): Promise<GatewayDial> {
 
 /** The REST target of the local gateway: the ticket rides `X-Hermes-Gateway-Ticket`, and the
  *  routes that need an explicit profile get the one the window works in. A grant that had to
- *  ensure again answers the new origin too: the ticket is for that gateway, not the old port. */
-export function gatewayRestTarget(windowProfile: () => string): RestTarget | undefined {
+ *  ensure again answers the new origin too: the ticket is for that gateway, not the old port.
+ *
+ *  The window asks for REST as soon as it opens — before the gateway was started or while its
+ *  first `ensure` still runs. Such a request waits for the gateway (`ticket` ensures when there
+ *  is no endpoint yet) instead of failing: the base address is only a placeholder until the
+ *  grant answers the real one. */
+export function gatewayRestTarget(windowProfile: () => string): RestTarget {
   const endpoint = state?.endpoint
-  if (!endpoint) return undefined
   return {
     host: '',
     port: 0,
     token: '',
-    baseUrl: endpoint.api_origin.replace(/\/$/, ''),
+    baseUrl: (endpoint?.api_origin ?? PENDING_ORIGIN).replace(/\/$/, ''),
     scopePath: (path, method) => scopeGatewayRestPath(path, method, windowProfile()),
     grant: async (url, method, body) => {
+      await gatewayStarted()
       const route = nativeGrantRoute(url, body, method)
       const granted = await ticket(route, nativeGrantPurpose(url, method), method)
       return {

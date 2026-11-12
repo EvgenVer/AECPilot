@@ -278,6 +278,11 @@ export function checkRpcAction(method: string, params: Record<string, unknown>):
     throw new Error(`gateway RPC: "/plugins ${slash.arg.trim()}" is not available to the renderer`)
   }
   if (denied && typeof params.action === 'string' && denied.includes(params.action)) {
+    // Their Plugins tab shows «Update all» (a vendored row, kept verbatim): its refusal is
+    // what the person reads under «could not update», so it says why and what to do.
+    if (method === 'plugins.manage' && params.action === 'update_all') {
+      throw new Error(mainT('plugins.updateAllRefused'))
+    }
     throw new Error(
       `gateway RPC: "${method}" action "${params.action}" is not available to the renderer`
     )

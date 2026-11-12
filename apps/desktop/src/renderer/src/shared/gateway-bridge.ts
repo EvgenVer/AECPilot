@@ -192,6 +192,8 @@ export class GatewayBridge {
   private readonly onRequestHandlerError: GatewayClientOptions['onRequestHandlerError']
   /** Their clients start undialed; ours (the shared bridge, tests) do not. */
   private dialed: boolean
+  /** Live `gateway.ready` frames seen; `connect()` skips its replay when one arrived meanwhile. */
+  private liveReadyCount = 0
   private readonly hydrated: Promise<void>
 
   constructor(optionsOrApi?: GatewayClientOptions | Window['aecpilot']) {
@@ -209,6 +211,7 @@ export class GatewayBridge {
 
     this.disposers.push(
       this.api.onChatEvent((event: GatewayEvent) => {
+        if ((event as { type?: string }).type === 'gateway.ready') this.liveReadyCount += 1
         this.dispatch(event as DonorGatewayEvent)
       }),
       this.api.onGatewayState((state) => {
@@ -244,8 +247,13 @@ export class GatewayBridge {
     // any request. Main received that frame when IT connected — usually before
     // this window existed — so every connect() hands the last one on. While
     // main has none yet, the live frame arrives through `onChatEvent` instead.
+    // A live frame that arrived while we asked main already reached their client — the
+    // same ready twice would be harmless, but it is a second readiness for one dial.
+    const liveBefore = this.liveReadyCount
     const ready = await this.api.getGatewayReady?.()
-    if (ready) this.dispatch({ type: 'gateway.ready', payload: ready } as DonorGatewayEvent)
+    if (ready && this.liveReadyCount === liveBefore) {
+      this.dispatch({ type: 'gateway.ready', payload: ready } as DonorGatewayEvent)
+    }
   }
 
   /** No-op, for the same reason — a renderer closing main's socket would take

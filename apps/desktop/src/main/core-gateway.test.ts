@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   gatewayDial,
   gatewayRestTarget,
+  gatewayStarted,
   localGatewayActive,
   startLocalGateway,
   stopLocalGateway,
@@ -145,7 +146,7 @@ describe('single gateway state (T53.2)', () => {
         return 'fresh'
       }
     )
-    const target = gatewayRestTarget(() => 'default')!
+    const target = gatewayRestTarget(() => 'default')
 
     const grant = await target.grant!('http://127.0.0.1:1/api/status', 'GET', undefined)
 
@@ -153,6 +154,56 @@ describe('single gateway state (T53.2)', () => {
       headers: { 'X-Hermes-Gateway-Ticket': 'fresh' },
       baseUrl: 'http://127.0.0.1:2'
     })
+  })
+
+  it('a REST request made before the gateway started waits for it, not «e2e mode»', async () => {
+    // Technical debt of T53.3: the window asks for REST while main still prepares the profile.
+    const target = gatewayRestTarget(() => 'default')
+    expect(target.baseUrl, 'a placeholder until the grant answers').toBe('http://127.0.0.1')
+    let granted: Awaited<ReturnType<NonNullable<typeof target.grant>>> | undefined
+    const granting = target.grant!('http://127.0.0.1/api/status', 'GET', undefined).then(
+      (value) => (granted = value)
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(granted).toBeUndefined()
+
+    const { mod, log } = fakeCore([ready(endpointAt(7))])
+    await startLocalGateway(
+      mod,
+      () => ({}),
+      async () => 'first'
+    )
+    await granting
+
+    expect(log).toEqual(['ensure'])
+    expect(granted).toEqual({
+      headers: { 'X-Hermes-Gateway-Ticket': 'first' },
+      baseUrl: 'http://127.0.0.1:7'
+    })
+  })
+
+  it('a REST request during the first ensure shares it instead of failing', async () => {
+    let release: (value: ReturnType<typeof ready>) => void = () => undefined
+    const { mod, log } = fakeCore([new Promise((resolve) => (release = resolve))])
+    const starting = startLocalGateway(
+      mod,
+      () => ({}),
+      async () => 't'
+    )
+    const granting = gatewayRestTarget(() => 'default').grant!(
+      'http://127.0.0.1/api/status',
+      'GET',
+      undefined
+    )
+    release(ready(endpointAt(3)))
+    await starting
+
+    expect((await granting).baseUrl).toBe('http://127.0.0.1:3')
+    expect(log, 'one ensure for both').toEqual(['ensure'])
+  })
+
+  it('a gateway never started: the wait ends with a plain «still starting»', async () => {
+    await expect(gatewayStarted(10)).rejects.toThrow(/запускается|still starting/)
   })
 
   it('reads the new key on every ensure, not the one of the first start', async () => {

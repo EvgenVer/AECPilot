@@ -24,6 +24,10 @@ const ru = {
   'common.noGatewayLc': 'нет связи со шлюзом',
   'common.emptyPath': 'Пустой путь',
   'common.noCoreConnectionLc': 'нет связи с ядром',
+  'common.coreStillStarting':
+    'Ядро всё ещё запускается — повторите через минуту. Если не поможет, перезапустите приложение',
+  'plugins.updateAllRefused':
+    'В AECPilot плагины не обновляются все разом: каждое обновление проходит проверку доверия. Обновите нужный плагин в его карточке',
   'licenses.noticesMissing':
     'Файла лицензий нет: он собирается вместе с установщиком и лежит в папке установленной программы',
 
@@ -400,6 +404,10 @@ const en: Catalog = {
   'common.noGatewayLc': 'no connection to the gateway',
   'common.emptyPath': 'Empty path',
   'common.noCoreConnectionLc': 'no connection to the core',
+  'common.coreStillStarting':
+    'The core is still starting — try again in a minute. If that does not help, restart the app',
+  'plugins.updateAllRefused':
+    'AECPilot does not update all plugins at once: each update goes through the trust check. Update the plugin from its card',
   'licenses.noticesMissing':
     'There is no license file here: it is built with the installer and lives in the folder of the installed program',
 

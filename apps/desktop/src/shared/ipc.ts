@@ -3,7 +3,6 @@
 // these methods, contextBridge-exposed as `window.aecpilot`.
 
 import type {
-  AgentProcessEntry,
   CommandDispatchResult,
   CommandsCatalogResult,
   ConfigSetResult,
@@ -14,19 +13,15 @@ import type {
   GatewayServerRequest,
   GatewayServerResponse,
   HistoryMessage,
-  LiveSessionId,
   LiveSessionSummary,
   ModelOptionsResult,
   PluginRow,
-  ProcessEntry,
   ProcessKillResult,
-  PromptSubmitResult,
   RollbackCheckpoint,
   RollbackDiffResult,
   RollbackRestoreResult,
   RuntimeCheckResult,
   SessionSummary,
-  SessionUsageResult,
   SlashCompletionItem,
   StoredSessionId,
   ToolsConfigureResult,
@@ -896,18 +891,6 @@ export interface AecpilotApi {
    * this is a dev-only flag to preview the Welcome screen; the normal
    * autostart-into-shell flow (and e2e) is unaffected when it's unset. */
   showWelcome: boolean
-  /** Submits a prompt to the (lazily created) chat session. Resolves once the
-   * gateway has accepted it; rejects on failure.
-   *
-   * Since hermes 0.19.0 (task 1.6.B5.26) acceptance has three shapes and only
-   * one of them means "streaming now": `queued` (runs as the next turn) and
-   * `steered` (folded into the running turn) are ALSO successes. The composer
-   * shows which one happened instead of keeping a queue of its own.
-   *
-   * `truncateBeforeUserOrdinal` (task 1.6.B5.27) re-runs from an edited user
-   * message: it counts USER messages only, and the gateway rejects an
-   * out-of-range value with 4018 rather than truncating to something else. */
-  submitPrompt(text: string, truncateBeforeUserOrdinal?: number): Promise<PromptSubmitResult>
   /** Subscribes to streamed gateway events for the active chat session.
    * Returns an unsubscribe function. */
   onChatEvent(cb: (event: GatewayEvent) => void): () => void
@@ -1885,11 +1868,6 @@ export interface AecpilotApi {
     enable: boolean
     confirmed?: boolean
   }): Promise<{ ok: boolean; unchanged: boolean; plugin: PluginRow | null }>
-  /** Background processes (task 1.6.B2a.4): `own` are this session's, killable;
-   * `others` come from `agents.list` and are observation-only — the gateway
-   * refuses a cross-session kill (4044) and this app offers no button for it
-   * (decision R8). */
-  listProcesses(): Promise<{ own: ProcessEntry[]; others: AgentProcessEntry[] }>
   /** Stops one background process of the current session (task 1.6.B2a.5).
    * `confirmed` is checked in main. `status` distinguishes `killed` /
    * `already_exited` / `not_found`, all of which resolve rather than reject. */
@@ -2020,18 +1998,6 @@ export interface AecpilotApi {
    * question from `listSessions`, which reads the database. `current` marks the
    * one this window is attached to. */
   listActiveSessions(): Promise<{ sessions: LiveSessionSummary[] }>
-  /** Attaches to another LIVE session without closing the current one (task
-   * 1.6.B5.9). */
-  activateSession(liveId: LiveSessionId): Promise<{
-    sessionId: LiveSessionId
-    messages: HistoryMessage[]
-  }>
-  /** DESTRUCTIVE and irreversible — drops the row and its transcript files
-   * (task 1.6.B5.4). `confirmed` is checked in main. A live session is refused
-   * by the gateway with 4023, which arrives as a rejection carrying its text. */
-  deleteSession(payload: { storedId: StoredSessionId; confirmed: true }): Promise<{
-    deleted: string
-  }>
   /** The raw transcript of a STORED session (task 1.6.B7.3). Over REST, and
    * both halves of the reason are measured: `session.history` resolves a LIVE
    * sid and answers 4001 for a stored id, and even when it does answer it has
@@ -2073,32 +2039,9 @@ export interface AecpilotApi {
   previewArtifact(
     value: string
   ): Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>
-  /** Renames a session (task 1.6.B5.7). A session that is not currently live
-   * cannot be renamed directly — main resumes it first, because their
-   * `session.title` resolves a LIVE sid. `pending: true` means the name will
-   * apply once the session has its first message; that is a success. */
-  renameSession(payload: { storedId: StoredSessionId; title: string }): Promise<{
-    title: string
-    pending: boolean
-  }>
-  /** Forks the current session (task 1.6.B5.10). Refused by the gateway (4008)
-   * when the session has no turns yet, so the caller disables the control
-   * instead. The new session becomes the active one and is tagged against the
-   * open project. */
-  branchSession(name?: string): Promise<{ sessionId: LiveSessionId; title: string }>
-  /** Token spend of the active session (task 1.6.B5.11). Missing
-   * `context_used`/`context_max` means "unknown", never 0 %. */
-  getSessionUsage(): Promise<SessionUsageResult>
   /** What is filling the context window (task 1.6.B5.12). Their `color` field
    * is ignored — see `ContextBreakdownCategory`. */
   getContextBreakdown(): Promise<ContextBreakdownResult>
-  /** Compresses the active session's context (task 1.6.B5.13). Refused by the
-   * gateway mid-turn (4009), so the caller disables the control. */
-  compressSession(focusTopic?: string): Promise<CompressOutcome>
-  /** Drops the last turn from the gateway's in-memory history (task
-   * 1.6.B5.15). The transcript in the database keeps it — the turn comes back
-   * on the next resume, and the UI says so. Refused mid-turn (4009). */
-  undoTurn(): Promise<{ removed: number }>
   /** Injects a note into the RUNNING turn (task 1.6.B5.16). `rejected` is a
    * normal answer: the agent declined it. Error 4010 means this agent has no
    * steering at all. */
