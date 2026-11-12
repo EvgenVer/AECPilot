@@ -8,12 +8,24 @@
 // проходит граф SDK на сервере Vite и трансформирует каждый файл в окружении,
 // из которого jsdom-тесты их потом берут (`client`). Импорт в setup-файле не
 // годится — модуль исполнился бы раньше их `vi.mock` и разошёлся бы с ним.
+import fs from 'node:fs'
+import path from 'node:path'
+
 import type { TestProject } from 'vitest/node'
 
+//
+// Ядро 0.23 (техдолг T53.4, 2026-11-11): граф вырос и за пределы SDK — модули самого
+// плагина (`data`, `profile-ops`, `shared`) тестов `hermes-bots`. Прогрев только SDK
+// оставлял их первому `beforeAll`: один файл группы — 48 с из 60, два подряд в холодном
+// прогоне — тайм-аут. Теперь проходится и граф каждого тестового файла группы.
 export default async function warmDonorSdk(project: TestProject): Promise<void> {
   const environment = project.vite.environments.client
-  const entry = await environment.pluginContainer.resolveId('@hermes/plugin-sdk')
-  if (!entry) return
+  const sdk = await environment.pluginContainer.resolveId('@hermes/plugin-sdk')
+  // Адрес файла для сервера Vite — от корня проекта, как его запрашивает сам тест.
+  const files = project.config.include
+    .filter((file) => fs.existsSync(path.resolve(project.config.root, file)))
+    .map((file) => `/${file.replace(/\\/g, '/')}`)
+  const entries = [...(sdk ? [sdk.id] : []), ...files]
 
   const seen = new Set<string>()
   const walk = async (url: string): Promise<void> => {
@@ -28,5 +40,5 @@ export default async function warmDonorSdk(project: TestProject): Promise<void> 
     const next = [...(node?.importedModules ?? [])].map((dep) => dep.url)
     await Promise.all(next.filter((dep) => !dep.includes('node_modules')).map(walk))
   }
-  await walk(entry.id)
+  for (const entry of entries) await walk(entry)
 }

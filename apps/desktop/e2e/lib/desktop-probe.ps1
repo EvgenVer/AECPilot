@@ -52,7 +52,15 @@ Add-Type -Namespace Win32 -Name Probe -MemberDefinition @"
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 [DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point p);
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+[DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
 "@ -ReferencedAssemblies System.Drawing
+
+# Координаты точек и снимок — в физических пикселях: спека переводит окно Electron в них
+# (`screen.dipToScreenPoint`). Процесс без осведомлённости о DPI Windows видит в
+# логических пикселях, и при масштабе 125% точка «середина окна» уезжала на четверть
+# вправо-вниз — hit-test отвечал чужим окном (техдолг: 12.1.1 падал на этой машине).
+# -4 = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2.
+[void][Win32.Probe]::SetProcessDpiAwarenessContext([IntPtr]-4)
 
 function Describe-Window([IntPtr]$h) {
   $sb = New-Object System.Text.StringBuilder 512
