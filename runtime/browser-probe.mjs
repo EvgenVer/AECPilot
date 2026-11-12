@@ -137,8 +137,15 @@ try:
         + "wait_for_load()\\n"
         + "fill_input('input[name=q]', %r)\\n" % typed
         + "js(\\"document.querySelector('button').click()\\")\\n"
-        + "wait_for_load()\\n"
-        + "print('ECHO_TEXT=' + js('document.body.innerText'))"
+        # После щелчка wait_for_load() может вернуться ещё до перехода — под нагрузкой
+        # проба читала старую страницу (1 из 4 прогонов T51). Ждём сам ответ, до 15 с.
+        + "import time\\n"
+        + "for _ in range(75):\\n"
+        + "    text = js('document.body.innerText') or ''\\n"
+        + "    if 'ECHO ' in text:\\n"
+        + "        break\\n"
+        + "    time.sleep(0.2)\\n"
+        + "print('ECHO_TEXT=' + text)"
     )
     out["form_ok"] = bool(form.get("success"))
     out["echo_ok"] = ("ECHO " + typed) in str(form.get("output", ""))

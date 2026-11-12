@@ -39,6 +39,42 @@ import path from "node:path";
 /** Верхнеуровневый ключ в их YAML: строка начинается с самого имени. */
 const NARROWING_KEY = /^platform_toolsets:/;
 
+/** Полный набор их CLI: список, в котором он есть, ничего не сужает. Так выглядит
+ *  собственное умолчание приложения `cli: [hermes-cli, kanban]` (D-129). */
+const FULL_CLI_TOOLSET = "hermes-cli";
+
+/**
+ * Наборы платформы `cli` из блока `platform_toolsets`, начатого строкой `start`.
+ * Понимает обе записи YAML: `cli: [a, b]` и `cli:` со списком `- a` строками ниже.
+ * Блок кончается первой непустой строкой без отступа.
+ */
+function cliToolsets(lines, start) {
+  const block = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() && !/^\s/.test(line)) break;
+    block.push(line);
+  }
+  const at = block.findIndex((line) => /^\s+cli:/.test(line));
+  if (at < 0) return [];
+  const inline = block[at].match(/cli:\s*\[(.*)\]/);
+  if (inline) return inline[1].split(",").map(cleanItem).filter(Boolean);
+  const keyIndent = block[at].match(/^\s*/)[0].length;
+  const items = [];
+  for (const line of block.slice(at + 1)) {
+    if (!line.trim()) continue;
+    const item = line.match(/^(\s*)-\s*(.+)$/);
+    // `- x` на том же отступе, что `cli:`, — тоже список `cli` (так пишет YAML ядра);
+    // следующий ключ платформы (`telegram:`) кончает список.
+    if (!item || item[1].length < keyIndent) break;
+    items.push(cleanItem(item[2]));
+  }
+  return items;
+}
+
+function cleanItem(token) {
+  return token.replace(/#.*$/, "").trim().replace(/^["']|["']$/g, "");
+}
+
 /**
  * Ищет в `config.yaml` профиля блок, сужающий набор инструментов агента.
  *
@@ -49,8 +85,10 @@ const NARROWING_KEY = /^platform_toolsets:/;
  * @returns {null | string} текст предупреждения либо `null`, если всё чисто.
  */
 export function narrowingWarning(configText) {
-  const line = configText.split("\n").find((entry) => NARROWING_KEY.test(entry));
-  if (!line) return null;
+  const lines = configText.split("\n").map((entry) => entry.replace(/\r$/, ""));
+  const start = lines.findIndex((entry) => NARROWING_KEY.test(entry));
+  if (start < 0) return null;
+  if (cliToolsets(lines, start).includes(FULL_CLI_TOOLSET)) return null;
 
   return [
     "aecpilot: профиль ядра содержит `platform_toolsets` — набор инструментов агента СУЖЕН.",

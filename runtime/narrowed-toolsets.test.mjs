@@ -32,6 +32,18 @@ describe("сторож сужения наборов", () => {
     expect(narrowingWarning("  platform_toolsets: вложенный, не тот ключ\n")).toBeNull();
   });
 
+  it("список с полным набором hermes-cli — не сужение (умолчание приложения, D-129)", () => {
+    expect(narrowingWarning("platform_toolsets:\n  cli:\n  - hermes-cli\n  - kanban\nmodel:\n  x: 1\n")).toBeNull();
+    expect(narrowingWarning("platform_toolsets:\n  cli:\n    - hermes-cli\n    - kanban\n")).toBeNull();
+    expect(narrowingWarning("platform_toolsets:\n  cli: [hermes-cli, kanban]\n")).toBeNull();
+    expect(narrowingWarning("platform_toolsets:\r\n  cli:\r\n  - 'hermes-cli'\r\n")).toBeNull();
+  });
+
+  it("hermes-cli у другой платформы не спасает узкий cli", () => {
+    expect(narrowingWarning("platform_toolsets:\n  cli:\n  - file\n  telegram:\n  - hermes-cli\n")).toMatch(/СУЖЕН/);
+    expect(narrowingWarning("platform_toolsets:\n  telegram: [hermes-cli]\n")).toMatch(/СУЖЕН/);
+  });
+
   it("файл не трогается — сторож только говорит", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "aec-narrowed-"));
     const file = path.join(home, "config.yaml");
