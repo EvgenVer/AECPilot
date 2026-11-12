@@ -171,7 +171,13 @@ export const CORE_OPT_OUTS: readonly CoreOptOut[] = [
   // Веб-приложение шлюза — слушающий порт и вход через Nous (HX33).
   { path: ['webapp', 'enabled'], value: false, what: 'the web-app opt-out' },
   // Daybreak — тариф Codex с удалённой конфигурацией (HX35).
-  { path: ['agent', 'daybreak'], value: false, what: 'the Daybreak opt-out' }
+  { path: ['agent', 'daybreak'], value: false, what: 'the Daybreak opt-out' },
+  // T53 (UR47): обмен между ботами без человека ограничен — в комнатах и в `message_agent`
+  // (`gateway/bot_loop_guard.py`, `agent/bot_chain.py`). У ядра уже включено и 4 —
+  // закреплено, чтобы смена их умолчания не сняла предел молча; своё значение человека
+  // не трогаем (ключ пишется, только когда его нет).
+  { path: ['gateway', 'bot_loop_guard', 'enabled'], value: true, what: 'the bot loop guard' },
+  { path: ['gateway', 'bot_loop_guard', 'max_hops'], value: 4, what: 'the bot hop limit' }
 ]
 
 /** UR5 (решение владельца 2026-10-15, интервью вопрос 12): навык ответа по

@@ -139,6 +139,9 @@ flowchart LR
 MCP-серверов и плагинов. С ядра 0.23 к ним добавились отказы от самообновления плагинов
 (`plugins.auto_apply`), веб-приложения (`webapp.enabled`), Daybreak (`agent.daybreak`) и
 ленивой доустановки пакетов (`security.allow_lazy_installs`) — `apps/desktop/src/main/agent-defaults-pure.ts`.
+С T53 закреплён и предел обмена между ботами без человека в комнатах:
+`gateway.bot_loop_guard.enabled: true` и `max_hops: 4` — как у ядра, но смена их умолчания
+не снимет предел молча (UR47).
 Большинство правил дописывает умолчание, не трогая уже
 выбранного человеком (`applyConfigDefault` в `apps/desktop/src/main/index.ts`).
 

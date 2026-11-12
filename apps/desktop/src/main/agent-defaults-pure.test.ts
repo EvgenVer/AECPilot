@@ -196,8 +196,24 @@ describe('умолчания ядра 0.22, закрытые в профиле (
       // Daybreak (HX35) — закреплены, хотя у ядра уже выключены
       'plugins.auto_apply': false,
       'webapp.enabled': false,
-      'agent.daybreak': false
+      'agent.daybreak': false,
+      // T53 (UR47): предел обмена между ботами — включён, 4 перехода
+      'gateway.bot_loop_guard.enabled': true,
+      'gateway.bot_loop_guard.max_hops': 4
     })
+  })
+
+  it('предел обмена ботов пишется в раздел gateway и не трогает значение человека (T53)', () => {
+    let text = 'gateway:\n  trust_env: true\n'
+    for (const { path, value } of CORE_OPT_OUTS.filter((o) => o.path[0] === 'gateway')) {
+      text = ensureNestedScalar(text, path[0], path[1], path[2]!, value).text
+    }
+    expect(text).toContain('  trust_env: true\n')
+    expect(text).toContain('  bot_loop_guard:\n')
+    expect(text).toMatch(/ {4}enabled: true\n/)
+    expect(text).toMatch(/ {4}max_hops: 4\n/)
+    const mine = text.replace('max_hops: 4', 'max_hops: 2')
+    expect(ensureNestedScalar(mine, 'gateway', 'bot_loop_guard', 'max_hops', 4).changed).toBe(false)
   })
 
   it('трёхуровневый ключ пишется рядом со списком defer и не трогает выбор человека', () => {

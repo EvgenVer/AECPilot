@@ -149,6 +149,30 @@ export function profileGatewayEnsure(dir: string): Record<string, unknown> {
   return JSON.parse(output) as Record<string, unknown>
 }
 
+/** Задача T53 (UR47): как ядро читает и применяет `gateway.bot_loop_guard` профиля —
+ *  их же `load_settings` и `BotLoopGuard` на Python ядра (`bot-loop-guard-check.py`).
+ *  Без модели и сети; ничего не пишет. */
+export function profileBotLoopGuard(dir: string): {
+  enabled: boolean
+  max_hops: number
+  states: string[]
+} {
+  if (!dir.includes(PROFILE_PREFIX)) {
+    throw new Error(`отказ читать настройки не временного профиля: ${dir}`)
+  }
+  // Python ядра: в установленном ядре — `runtime/core/venv`, у `bin/` своего нет.
+  const python = existsSync(join(repoRoot, 'runtime', 'core', 'manifest.json'))
+    ? join(repoRoot, 'runtime', 'core', 'venv', 'Scripts', 'python.exe')
+    : join(repoRoot, 'runtime', '.hermes-venv', 'Scripts', 'python.exe')
+  const output = execFileSync(python, [join(__dirname, 'bot-loop-guard-check.py')], {
+    encoding: 'utf8',
+    env: { ...process.env, HERMES_HOME: dir },
+    timeout: 120_000,
+    windowsHide: true
+  })
+  return JSON.parse(output.trim().split('\n').pop() ?? '{}')
+}
+
 export function removeProfile(dir: string): void {
   if (!dir.includes(PROFILE_PREFIX)) {
     throw new Error(`отказ удалять не временный профиль: ${dir}`)
