@@ -26,6 +26,10 @@ two differences only, both decided by the owner:
   does in development (`mem0-plugin-requirements.txt`, task T20.3).
 * **`pillow-heif`** is removed from the environment and from the shipped uv
   cache: its Windows wheel is GPLv2 (SPEC C3, owner decision 2026-09-15).
+* **Documents.** The document skills' libraries (the core's `documents` and
+  `documents-pdf` extras) ship in a separate `docs-env/` beside the core's venv, not
+  in it: the agent gets that interpreter, never the core's (task T66, owner decision
+  2026-11-12; `docs_env.py`).
 
 Nothing of the core's code is edited: the snapshot is `git archive` of the pinned
 commit in `runtime/.hermes-src` (SPEC C1). One data file of the payload is: the
@@ -304,7 +308,16 @@ def child(args) -> int:
         return code
     gate_launcher(out)
     drop_set_aside(out)
-    return settle(out)
+    code = settle(out)
+    if code:
+        return code
+    # Task T66: the document skills' own environment, offline (docs_env.py).
+    from docs_env import build as build_docs_env
+    from docs_env import folder_size
+
+    launcher = build_docs_env(out, out / "hermes-agent", Path(args.cache).resolve())
+    print(f"ok docs-env ({folder_size(launcher.parent) / 1048576:.1f} MiB)", flush=True)
+    return 0
 
 
 GATE_LAUNCHER = """#!/bin/sh

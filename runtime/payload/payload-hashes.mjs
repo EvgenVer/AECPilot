@@ -111,7 +111,9 @@ export function collectVersions(runtimeDir = RUNTIME_DIR) {
       target: manifest.target,
       tools,
       extras: JSON.parse(fs.readFileSync(path.join(core, 'enabled-features.json'), 'utf-8')).extras,
-      python: distributions(path.join(core, manifest.runtime.sitePackages))
+      python: distributions(path.join(core, manifest.runtime.sitePackages)),
+      // Task T66: the document skills' environment (docs_env.py), versions of the core's lock.
+      documents: distributions(path.join(core, 'docs-env', 'site'))
     },
     mcp: {
       // Asked of the interpreter itself: its C headers are pruned at staging (T43.1).

@@ -7,6 +7,12 @@ and installed an MCP server past the consent card. So this gate lets through `ch
 (with `-p/--profile` before it) and `--version`/`--help`, and refuses everything else
 with a message the agent can relay. Direct `hermes.exe ...` and `python -m hermes_cli`
 are refused by the core itself (`approvals.deny`, written by the app).
+
+One more command is answered here, without the core (task T66, owner 2026-11-12): the
+document skills ask `hermes pm environment documents --extra documents --extra
+documents-pdf` for their interpreter, and upstream builds it from the network. The payload
+carries that environment already (`runtime/payload/docs_env.py`), so the gate prints its
+launcher — a bare interpreter, the core is not on its path — and nothing else of `pm`.
 """
 
 import os
@@ -18,6 +24,40 @@ REFUSAL = (
     "`hermes -p <специалист> chat ...`. Настройки ядра (MCP, плагины, навыки, каналы, "
     "конфиг) меняет человек в окне приложения — назовите ему путь, а не выполняйте сами.\n"
 )
+
+DOCS_COMMAND = [
+    "pm",
+    "environment",
+    "documents",
+    "--extra",
+    "documents",
+    "--extra",
+    "documents-pdf",
+]
+DOCS_MISSING = (
+    "AECPilot: окружение библиотек документов не установлено (нет runtime/core/docs-env). "
+    "Переустановите приложение или, в разработке, выполните `node runtime/setup.mjs`.\n"
+)
+
+
+def runtime_dir() -> str:
+    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+
+
+def docs_request(args: list[str]) -> bool:
+    """Exactly the skills' command: the two extras in either order, nothing else."""
+    if args[:3] != DOCS_COMMAND[:3] or len(args) != len(DOCS_COMMAND):
+        return False
+    rest = args[3:]
+    return rest[0::2] == ["--extra", "--extra"] and sorted(rest[1::2]) == sorted(
+        ["documents", "documents-pdf"]
+    )
+
+
+def docs_python() -> str | None:
+    """The documents environment's launcher, forward slashes (bash runs it on Windows)."""
+    launcher = os.path.join(runtime_dir(), "core", "docs-env", "python")
+    return launcher.replace("\\", "/") if os.path.isfile(launcher) else None
 
 
 def allowed(args: list[str]) -> bool:
@@ -37,7 +77,7 @@ def allowed(args: list[str]) -> bool:
 
 
 def core_binary() -> str:
-    runtime = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+    runtime = runtime_dir()
     # The staged core payload (installed tree, or a working copy after setup.mjs,
     # task T21.2): its launcher, as its manifest names it.
     manifest = os.path.join(runtime, "core", "manifest.json")
@@ -56,6 +96,15 @@ def core_binary() -> str:
 
 def main() -> int:
     args = sys.argv[1:]
+    if docs_request(args):
+        launcher = docs_python()
+        if launcher is None:
+            sys.stderr.buffer.write(DOCS_MISSING.encode("utf-8"))
+            sys.stderr.flush()
+            return 1
+        sys.stdout.write(launcher + "\n")
+        sys.stdout.flush()
+        return 0
     if not allowed(args):
         # UTF-8 bytes: the core's terminal decodes output as UTF-8, a Windows console
         # codepage would turn the Russian text into mojibake for the agent.

@@ -485,6 +485,11 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
       "Python ядра / the core's Python",
       path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
     ],
+    // T66: the document skills' own libraries (runtime/payload/docs_env.py).
+    [
+      'Библиотеки документов / the documents environment',
+      path.join(appOutDir, 'runtime', 'core', 'docs-env', 'site')
+    ],
     [
       "Python MCP-серверов / the MCP servers' Python",
       path.join(appOutDir, 'runtime', 'mcp', 'python', 'Lib', 'site-packages')

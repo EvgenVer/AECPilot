@@ -42,6 +42,13 @@ flowchart LR
 модели и `ffmpeg` (его сборка под GPL); пакет `pillow-heif` удаляется (колесо под GPLv2).
 Снимок кода ядра — `git archive` закреплённого коммита, без правок.
 
+**Библиотеки документов** (`runtime/payload/docs_env.py`, решение
+[0019](../decisions/0019-documents-environment.md)) — третья часть payload ядра,
+`runtime/core/docs-env/`: дополнения ядра `documents` и `documents-pdf` (Word, Excel,
+PowerPoint, PDF для навыка `microsoft-office`) в своей папке `site/`, версии — из `uv.lock`
+ядра, и запускатель `python` — интерпретатор поставки без ядра в пути. Собирается тем же
+`stage_core.py` после сборки ядра; ≈61 МБ.
+
 **Наши MCP-серверы** (`runtime/payload/stage-mcp.mjs`) — автономный CPython 3.12
 (python-build-standalone) со всеми зависимостями в его собственном `site-packages`:
 переносимая папка без абсолютных путей сборочной машины. Версии — из нашего `uv.lock`
@@ -49,7 +56,8 @@ flowchart LR
 скачиваются при сборке, поэтому распознавание сканов в установленной программе не
 требует сети. Серверы запускаются как `python -s -m aec_rag` и т. п.
 
-`runtime/payload/payload-versions.json` записывает версии обоих payload; `setup.mjs`
+`runtime/payload/payload-versions.json` записывает версии обоих payload (у ядра — и
+библиотек документов, `core.documents`); `setup.mjs`
 сверяет с ним хеши после сборки.
 
 ### Что попадает в установщик

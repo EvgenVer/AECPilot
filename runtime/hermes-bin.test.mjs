@@ -2,6 +2,7 @@
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -136,6 +137,135 @@ describe('the wrappers', () => {
       expect(text).not.toMatch(/API_KEY|HERMES_HOME=/)
     }
   })
+})
+
+// Task T66 (owner 2026-11-12): the document skills get their interpreter from the gate,
+// a separate environment of the payload — never the core's, never from the network.
+describe('the documents environment (T66)', () => {
+  const venvPython = path.join(RUNTIME_DIR, '.hermes-venv', 'Scripts', 'python.exe')
+  it.skipIf(!fs.existsSync(venvPython))("the gate answers only the skills' exact command", () => {
+    const code = [
+      'import sys',
+      `sys.path.insert(0, ${JSON.stringify(AEC_BIN_DIR)})`,
+      'from hermes_gate import allowed, docs_request',
+      'D = ["pm", "environment", "documents"]',
+      'cases = [',
+      '  D + ["--extra", "documents", "--extra", "documents-pdf"],',
+      '  D + ["--extra", "documents-pdf", "--extra", "documents"],',
+      '  D + ["--extra", "documents"],',
+      '  D + ["--extra", "documents", "--extra", "documents-pdf", "--extra", "mcp"],',
+      '  D + ["--requirement", "requests", "--extra", "documents-pdf"],',
+      '  ["pm", "environment", "other", "--extra", "documents", "--extra", "documents-pdf"],',
+      '  ["pm", "install", "--extra", "documents", "--extra", "documents-pdf"],',
+      '  ["-p", "x", "pm", "environment", "documents", "--extra", "documents", "--extra", "documents-pdf"],',
+      ']',
+      "print(''.join('1' if docs_request(c) else '0' for c in cases))",
+      // The rest of `pm` stays refused.
+      "print(''.join('1' if allowed(c) else '0' for c in cases))"
+    ].join('\n')
+    const out = execFileSync(venvPython, ['-c', code], { encoding: 'utf-8' }).trim().split(/\r?\n/)
+
+    expect(out[0]).toBe('11' + '000000')
+    expect(out[1]).toBe('00000000')
+  })
+
+  const core = path.join(RUNTIME_DIR, 'core')
+  const gitDir = fs.existsSync(path.join(core, 'tools'))
+    ? fs.readdirSync(path.join(core, 'tools')).find((name) => name.startsWith('git-'))
+    : undefined
+  const bash = gitDir && path.join(core, 'tools', gitDir, 'bin', 'bash.exe')
+  const ready =
+    !!bash && fs.existsSync(bash) && fs.existsSync(path.join(core, 'docs-env', 'python'))
+
+  it.skipIf(!ready)(
+    "the skill's own block finds the interpreter offline and builds .docx and .xlsx",
+    () => {
+      const skill = path.join(
+        RUNTIME_DIR,
+        '.hermes-src',
+        'skills',
+        'productivity',
+        'microsoft-office'
+      )
+      const text = fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf-8').replace(/\r\n/g, '\n')
+      const start = text.indexOf('  ```bash\n  python -c "import docx, pptx, openpyxl"')
+      expect(
+        start,
+        "the skill's Prerequisites block (a core upgrade that changes it fails here)"
+      ).toBeGreaterThan(0)
+      const body = text.slice(text.indexOf('\n', start) + 1, text.indexOf('  ```\n', start + 10))
+      const block = body.replace(/^ {2}/gm, '')
+      expect(block).toContain(
+        'PY="$(hermes pm environment documents --extra documents --extra documents-pdf)"'
+      )
+
+      // A copy of the skill: its scripts would write bytecode into the core checkout.
+      const work = fs.mkdtempSync(path.join(os.tmpdir(), 'aec-t66-'))
+      try {
+        fs.cpSync(path.join(skill, 'scripts'), path.join(work, 'scripts'), { recursive: true })
+        fs.writeFileSync(
+          path.join(work, 'doc.json'),
+          JSON.stringify({
+            blocks: [
+              { type: 'heading', text: 'Пояснительная записка', level: 1 },
+              { type: 'table', header: ['Марка', 'Класс'], rows: [['КЖ', 'B25']] }
+            ]
+          })
+        )
+        fs.writeFileSync(
+          path.join(work, 'book.json'),
+          JSON.stringify({
+            sheets: [
+              {
+                name: 'Смета',
+                rows: [
+                  ['Позиция', 'Сумма'],
+                  ['Плиты', 120]
+                ]
+              }
+            ]
+          })
+        )
+        const script = [
+          block,
+          '"$PY" scripts/docx_create.py doc.json out.docx',
+          '"$PY" scripts/xlsx_create.py book.json out.xlsx',
+          '"$PY" scripts/docx_read.py --text out.docx',
+          '"$PY" -c "import importlib.util as u; print(\'core:\', u.find_spec(\'hermes_cli\'))"',
+          'echo "PY=$PY"'
+        ].join('\n')
+        fs.writeFileSync(path.join(work, 'run.sh'), script)
+        const usrBin = path.join(core, 'tools', gitDir, 'usr', 'bin')
+        const out = execFileSync(bash, ['run.sh'], {
+          cwd: work,
+          encoding: 'utf-8',
+          env: {
+            SYSTEMROOT: process.env.SYSTEMROOT,
+            TEMP: work,
+            TMP: work,
+            // No `python` of the machine: the block must take the `hermes` branch.
+            PATH: [AEC_BIN_DIR, usrBin].join(path.delimiter),
+            // Any download would fail here.
+            HTTP_PROXY: 'http://127.0.0.1:9',
+            HTTPS_PROXY: 'http://127.0.0.1:9',
+            UV_OFFLINE: '1',
+            PYTHONDONTWRITEBYTECODE: '1',
+            // As the core's terminal sets it (`tools/environments/local.py`).
+            PYTHONUTF8: '1'
+          }
+        })
+
+        expect(out).toMatch(/PY=.*\/core\/docs-env\/python\s*$/m)
+        expect(out).toContain('Пояснительная записка')
+        expect(out).toContain('core: None')
+        expect(fs.statSync(path.join(work, 'out.docx')).size).toBeGreaterThan(1000)
+        expect(fs.statSync(path.join(work, 'out.xlsx')).size).toBeGreaterThan(1000)
+      } finally {
+        fs.rmSync(work, { recursive: true, force: true })
+      }
+    },
+    60000
+  )
 })
 
 describe('gatewayLockDir (D-164)', () => {
