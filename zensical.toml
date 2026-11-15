@@ -18,6 +18,7 @@ nav = [
       "components/aec-rag.md",
       "components/core-extensions.md",
       "components/packaging.md",
+      "components/revit-mcp.md",
     ] },
     { "Сценарии" = [
       "flows/question-with-citation.md",

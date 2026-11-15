@@ -218,14 +218,14 @@ test('29.4.1 сервер MCP вручную: диалог с командой �
   // в поля, «Сохранить» дописывает ОДНУ запись в `mcp.json` (тот же PUT, что и
   // раньше, D-101). Их русский каталог этот экран ещё не переводит.
   await page
-    .getByRole('button', { name: /^(Add your own|Добавить свой)$/ })
+    .getByRole('button', { name: /^(Add your own|Добавить сво[йё])$/ })
     .first()
     .click()
   const form = page.getByRole('dialog').last()
   await form
     .getByPlaceholder(/server-filesystem/)
     .fill('npx -y @modelcontextprotocol/server-filesystem C:/aec-e2e')
-  await form.getByLabel(/^(Name|Имя)$/).fill('e2e-filesystem')
+  await form.getByLabel(/^(Name|Имя|Название)$/).fill('e2e-filesystem')
   await form
     .getByRole('button', { name: /^(Save|Сохранить)$/ })
     .first()
