@@ -1,11 +1,18 @@
 {
   "extraKnownMarketplaces": {
     "agents-toolkit": {
-      "source": { "source": "github", "repo": "EvgenVer/Agents-tollkit" }
+      "source": {
+        "source": "github",
+        "repo": "EvgenVer/Agents-tollkit"
+      }
     }
   },
   "enabledPlugins": {
     "studio@agents-toolkit": true
+  },
+  "env": {
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "4",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
   },
   "permissions": {
     "deny": [
