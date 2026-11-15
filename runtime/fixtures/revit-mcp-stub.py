@@ -5,8 +5,9 @@ The model is a small in-memory document that lives as long as the server process
 write that went through is visible to the next read and a refused one is not.
 
 - `get_document_info`, `list_elements`, `get_element` — read-only (`readOnlyHint`);
-- `set_element_parameter`, `delete_element` — write-capable (no read-only hint; delete is
-  `destructiveHint`): on a `trust: untrusted` server the core asks the person first.
+- `set_element_parameter`, `delete_element` — write-capable (`readOnlyHint: false` and
+  nothing else, as every write tool of the Autodesk server — it sets no `destructiveHint`,
+  T67): on a `trust: untrusted` server the core asks the person first.
 
 Tool names are ours, not Autodesk's: the check is the read/write split and the question
 before a write, which is what the core decides from the annotations.
@@ -61,7 +62,10 @@ def get_element(element_id: str) -> str:
     return json.dumps(element, ensure_ascii=False) if element else f"no element {element_id}"
 
 
-@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+WRITE = ToolAnnotations(readOnlyHint=False)
+
+
+@server.tool(annotations=WRITE)
 def set_element_parameter(element_id: str, name: str, value: str) -> str:
     """Changes one parameter of one element in the model."""
     element = MODEL["elements"].get(element_id)
@@ -71,7 +75,7 @@ def set_element_parameter(element_id: str, name: str, value: str) -> str:
     return f"{element_id}.{name} = {value}"
 
 
-@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@server.tool(annotations=WRITE)
 def delete_element(element_id: str) -> str:
     """Deletes one element from the model."""
     return (

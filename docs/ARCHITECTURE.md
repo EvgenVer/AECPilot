@@ -99,7 +99,7 @@ SSH и мок-шлюз e2e остаются на прежнем протокол
 | `aec-rag` | индексация, гибридный поиск с цитатами, граф знаний, проверка выдержек, вики | Python 3.12, Docling, pdfium, RapidOCR, LightRAG, SQLite FTS5 | `mcp/aec_rag/` | [aec-rag](components/aec-rag.md) |
 | `aec-roster` | «спросить специалиста» по имени из любого чата | Python 3.12, MCP SDK 2 | `mcp/aec_roster/` | [Специалисты и плагин фильтра](components/core-extensions.md) |
 | Фильтр секретов | плагин ядра: секрет не уходит в память; ключи провайдеров из safeStorage; копия поставляемых навыков | Python, плагин hermes | `plugins/aec_secret_filter/` | [Специалисты и плагин фильтра](components/core-extensions.md) |
-| Навыки | `aec-qa` (ответ по документам), `aec-wiki` (вики проекта) | Markdown, agentskills.io | `skills/` | [Специалисты и плагин фильтра](components/core-extensions.md) |
+| Навыки | `aec-qa` (ответ по документам), `aec-wiki` (вики проекта), `aec-revit` (правило записи в модель Revit) | Markdown, agentskills.io | `skills/` | [Специалисты и плагин фильтра](components/core-extensions.md) |
 | Поставка | сборка payload ядра и Python MCP, установщик NSIS, удаление | electron-builder 26, NSIS, PM-payload донора | `runtime/payload/`, `apps/desktop/electron-builder.config.cjs`, `apps/desktop/build/` | [Установка и поставка](components/packaging.md) |
 
 ## Stack

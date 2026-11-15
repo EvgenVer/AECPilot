@@ -10,8 +10,8 @@
 - **плагин `aec-secret-filter`** — не даёт секрету уйти в память агента, отдаёт ключи
   провайдеров каждому профилю, защищает поставляемые навыки и обслуживает страницу
   «Память»;
-- **навыки `aec-qa` и `aec-wiki`** — инструкции агенту: как отвечать по документам со
-  ссылками и как вести вики проекта.
+- **навыки `aec-qa`, `aec-wiki` и `aec-revit`** — инструкции агенту: как отвечать по
+  документам со ссылками, как вести вики проекта и когда менять модель Revit без переспроса.
 
 ## Место в архитектуре
 
@@ -20,7 +20,7 @@ flowchart LR
   core[Ядро] -->|pre_tool_call, обёртка синхронизации памяти| filter[Плагин aec-secret-filter]
   core -->|stdio MCP: ask_specialist| roster[aec-roster]
   roster -->|hermes -p имя chat -Q| spec[Ядро в профиле специалиста]
-  core -->|читает SKILL.md| skills[skills/aec-qa, skills/aec-wiki]
+  core -->|читает SKILL.md| skills[skills/aec-qa, skills/aec-wiki, skills/aec-revit]
   filter -->|ключи по именам| secrets[(Секреты профиля)]
   main[Главный процесс] -->|снимок роестра, регистрация| roster
   main -->|копирует плагин в каждый профиль| filter
@@ -93,7 +93,11 @@ flowchart LR
 `skills/aec-qa/SKILL.md` — ответ только по найденному в документах, каждое утверждение со
 ссылкой `[src: <источник>/<путь>#<место>](#cite)`, проверка дословных выдержек до ответа,
 какой инструмент `aec-rag` для какого вопроса. `skills/aec-wiki/SKILL.md` — ведение вики
-проекта (адаптация навыка `llm-wiki` ядра). Ядро читает их из папки программы
+проекта (адаптация навыка `llm-wiki` ядра). `skills/aec-revit/SKILL.md` — работа с моделью
+Revit через сервер Autodesk: явную просьбу инженера изменить модель выполнять без
+переспроса, своё решение — планом на согласие ([решение 0020](../decisions/0020-revit-write-rule.md),
+[Revit MCP](revit-mcp.md)). `aec-qa` и `aec-revit` загружены в каждой сессии
+(`skills.auto_load`, `apps/desktop/src/main/agent-defaults-pure.ts`). Ядро читает их из папки программы
 (`skills.external_dirs` профиля). Изменения навыков проверяются прогоном
 (`eval/`), а не тестами на наличие строк.
 
@@ -107,7 +111,7 @@ flowchart LR
 | `plugins/aec_secret_filter/secrets.py` | шаблоны секретов |
 | `plugins/aec_secret_filter/key_source.py`, `mem0_shared.py`, `mem0_turns.py` | ключи профилям, общий клиент Mem0 |
 | `plugins/aec_secret_filter/shipped_skills.py`, `memory_facts.py` | поставляемые навыки, факты памяти |
-| `skills/aec-qa/SKILL.md`, `skills/aec-wiki/SKILL.md` | навыки агента |
+| `skills/aec-qa/SKILL.md`, `skills/aec-wiki/SKILL.md`, `skills/aec-revit/SKILL.md` | навыки агента |
 | `runtime/register-secret-filter.mjs`, `register-aec-roster.mjs` | установка плагина и сервера в профили; при запуске заодно ставит Mem0 и `advanced-delegation`; фильтр и `advanced-delegation` вписывает в `plugins.enabled` (второй — только если человек его не выключил) |
 
 ## Данные

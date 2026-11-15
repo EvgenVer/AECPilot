@@ -301,6 +301,7 @@ import {
   CORE_OPT_OUTS,
   DEFERRED_TOOLS,
   DISABLED_SKILLS,
+  PREVIOUS_AUTO_LOAD_SKILLS,
   PREVIOUS_DEFERRED_TOOLS
 } from './agent-defaults-pure'
 import { MEM0_DISTRIBUTIONS, distributionsInstalled } from './core-packages-pure'
@@ -1683,7 +1684,11 @@ function applyCoreOptOuts(homeDir: string): void {
   applyConfigMerge(homeDir, 'tools', 'the deferred tools', (text) =>
     ensureNestedList(text, 'tools', 'tool_search', 'defer', DEFERRED_TOOLS)
   )
-  // UR5 (T20.5): навык ответа по источникам загружен в каждой новой сессии.
+  // UR5 (T20.5): навык ответа по источникам загружен в каждой новой сессии; T70 (UR51) —
+  // и правило записи в Revit. Наш прежний список заменяется новым, свой — нет.
+  applyConfigMerge(homeDir, 'skills', 'the auto-loaded skills upgrade', (text) =>
+    upgradeSectionList(text, 'skills', 'auto_load', PREVIOUS_AUTO_LOAD_SKILLS, AUTO_LOAD_SKILLS)
+  )
   applyConfigMerge(homeDir, 'skills', 'the auto-loaded skills', (text) =>
     ensureSectionList(text, 'skills', 'auto_load', AUTO_LOAD_SKILLS)
   )

@@ -13,9 +13,13 @@ Checks (exit code 0 when all pass):
 2. a write on `revit` asks first, and the question names the element and the value;
 3. an answered "deny" blocks the write — the model is unchanged on the next read;
 4. an answered "accept" lets it through — the next read sees the new value;
-5. a destructive tool (`delete_element`) asks as well.
-
-Measured, not a pass criterion: whether a write on `revit_plain` asks (`plain_write_asked`).
+5. a deleting tool (`delete_element`) asks as well;
+6. decision 0020 (UR51, 2026-11-15): a server as the MCP window writes it (`revit_plain`, no
+   `trust`) writes WITHOUT a question from the program — the write rule is the agent's
+   (skill `aec-revit`), so an engineer's explicit request is not asked again;
+7. when the profile pins skills (`skills.auto_load`, as the app writes it), the core renders
+   `aec-revit` into every new session with its write rule. Without `auto_load` the check is
+   reported as skipped (a bare e2e-profile copy).
 
 The approval surface is replaced by a recorder (`request_elicitation_consent`), as in
 `mcp-features-probe.py`: in the app the same question goes to the window.
@@ -88,10 +92,20 @@ def main() -> int:
         "mcp__revit_plain__set_element_parameter",
         {"element_id": "F-201", "name": "Thickness", "value": "250"},
     )
-    result["measured"] = {
-        "plain_write_asked": len(asked) > before_plain,
-        "plain_write_result": plain[:120],
-    }
+    checks["plain_server_writes_without_program_question"] = (
+        len(asked) == before_plain and "F-201.Thickness = 250" in plain
+    )
+
+    from agent.skill_commands import build_auto_load_prompt, resolve_auto_load_skills
+
+    if resolve_auto_load_skills():
+        prompt, loaded, missing = build_auto_load_prompt()
+        checks["write_rule_skill_pinned"] = (
+            "aec-revit" in loaded and "Правило записи" in prompt and "aec-revit" not in missing
+        )
+        result["skills"] = {"loaded": loaded, "missing": missing}
+    else:
+        result["skills"] = "skipped: no skills.auto_load in this profile"
     result["reads"] = {"after_deny": after_deny[:160], "after_accept": after_accept[:160]}
     result["asked"] = asked
     result["ok"] = all(checks.values())

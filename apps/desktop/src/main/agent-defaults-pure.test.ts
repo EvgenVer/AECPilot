@@ -9,7 +9,8 @@ import {
   ensureNestedList,
   ensureNestedScalar,
   ensureSectionList,
-  upgradeNestedList
+  upgradeNestedList,
+  upgradeSectionList
 } from './config-yaml-pure'
 import {
   APPROVAL_DENY,
@@ -19,10 +20,12 @@ import {
   DEFERRED_TOOLS,
   DISABLED_SKILLS,
   KANBAN_TOOLS,
+  PREVIOUS_AUTO_LOAD_SKILLS,
   PREVIOUS_DEFERRED_TOOLS
 } from './agent-defaults-pure'
 
 const HERMES_SRC = join(__dirname, '..', '..', '..', '..', 'runtime', '.hermes-src')
+const REPO_SKILLS = join(__dirname, '..', '..', '..', '..', 'skills')
 
 describe('DEFERRED_TOOLS', () => {
   it('= их умолчание + 15 kanban_* + browser_exec; сейф — один browser_vault из их списка', () => {
@@ -225,8 +228,34 @@ describe('умолчания ядра 0.22, закрытые в профиле (
   })
 
   it('aec-qa закреплён загруженным (UR5)', () => {
-    expect(AUTO_LOAD_SKILLS).toEqual(['aec-qa'])
+    expect(AUTO_LOAD_SKILLS).toContain('aec-qa')
     expect(DISABLED_SKILLS).not.toContain('aec-qa')
+  })
+
+  it('aec-revit закреплён загруженным, его навык лежит в skills/ (T70, UR51)', () => {
+    expect(AUTO_LOAD_SKILLS).toEqual(['aec-qa', 'aec-revit'])
+    expect(DISABLED_SKILLS).not.toContain('aec-revit')
+    const skill = readFileSync(join(REPO_SKILLS, 'aec-revit', 'SKILL.md'), 'utf-8')
+    expect(skill).toMatch(/^name: aec-revit$/m)
+  })
+
+  it('профиль с нашим прежним auto_load получает aec-revit, свой список человека — нет', () => {
+    const ours = 'skills:\n  auto_load:\n    - aec-qa\n  disabled: []\n'
+    const upgraded = upgradeSectionList(
+      ours,
+      'skills',
+      'auto_load',
+      PREVIOUS_AUTO_LOAD_SKILLS,
+      AUTO_LOAD_SKILLS
+    )
+    expect(upgraded.text).toBe(
+      'skills:\n  auto_load:\n    - aec-qa\n    - aec-revit\n  disabled: []\n'
+    )
+    const own = 'skills:\n  auto_load:\n    - aec-qa\n    - my-skill\n'
+    expect(
+      upgradeSectionList(own, 'skills', 'auto_load', PREVIOUS_AUTO_LOAD_SKILLS, AUTO_LOAD_SKILLS)
+        .text
+    ).toBe(own)
   })
 })
 

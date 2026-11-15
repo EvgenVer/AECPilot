@@ -46,6 +46,8 @@ nav = [
       "decisions/0016-core-0-23-0.md",
       "decisions/0017-single-gateway.md",
       "decisions/0018-lira-update-feed.md",
+      "decisions/0019-documents-environment.md",
+      "decisions/0020-revit-write-rule.md",
     ] },
   ] },
   "operations.md",
