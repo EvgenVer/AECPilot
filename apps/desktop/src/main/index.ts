@@ -2275,7 +2275,7 @@ ipcMain.handle('artifacts:stat', async (_event, value: unknown) => {
     }
   }
 
-  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  const resolved = resolveArtifactPath(projectFenceRoots(currentProject?.vaultPath), value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   try {
     const info = await fs.promises.stat(resolved.absPath)
@@ -2307,7 +2307,7 @@ ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
   // объяснить, а не открывать пустую папку.
   if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
 
-  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  const resolved = resolveArtifactPath(projectFenceRoots(currentProject?.vaultPath), value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   try {
     await fs.promises.stat(resolved.absPath)
@@ -2315,6 +2315,34 @@ ipcMain.handle('artifacts:reveal', async (_event, value: unknown) => {
     return { ok: false, error: mainT('preview.fileGone') }
   }
   shell.showItemInFolder(resolved.absPath)
+  return { ok: true }
+})
+
+// Task T72 (owner's remark 4): their `revealPath` — «Открыть содержащую папку» on
+// a file card and in their file menus. Fence in `reveal-path-pure.ts`: the
+// project and its connected source folders, checked again after `realpath`.
+// Their contract is a boolean; a refusal travels as `error` and the shim
+// raises it, so their card shows the reason instead of "not on this computer".
+ipcMain.handle('shell:reveal-path', async (_event, value: unknown) => {
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+
+  const vaultPath = currentProject?.vaultPath
+  const projectRoots = projectFenceRoots(vaultPath)
+  const sourceRoots = vaultPath
+    ? listProjectSources(vaultPath).flatMap((source) => projectFenceRoots(source.root_path))
+    : []
+  const decided = decideReveal(projectRoots, sourceRoots, value)
+  if (!decided.ok) return decided
+
+  try {
+    const realPath = await fs.promises.realpath(decided.absPath)
+    if (!revealAllowed(projectRoots, sourceRoots, realPath)) {
+      return { ok: false, error: revealOutsideError() }
+    }
+  } catch {
+    return { ok: false, error: mainT('preview.fileGone') }
+  }
+  shell.showItemInFolder(decided.absPath)
   return { ok: true }
 })
 
@@ -2331,7 +2359,7 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
     return readRemoteDataUrl(restTarget(), path)
   }
 
-  const resolved = resolveArtifactPath(currentProject?.vaultPath, value)
+  const resolved = resolveArtifactPath(projectFenceRoots(currentProject?.vaultPath), value)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   if (!resolved.insideProject) return { ok: false, error: previewOutsideProjectError() }
   if (!isPreviewableImage(resolved.absPath)) {
@@ -2342,7 +2370,7 @@ ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
     // hole — a link inside the vault pointing anywhere on disk would otherwise
     // read those bytes into the window. Same layering as `vault-fs.ts`.
     const realPath = await fs.promises.realpath(resolved.absPath)
-    if (!isInside(currentProject?.vaultPath, realPath)) {
+    if (!isInside(projectFenceRoots(currentProject?.vaultPath), realPath)) {
       return { ok: false, error: previewOutsideProjectError() }
     }
     const info = await fs.promises.stat(realPath)
@@ -2377,7 +2405,7 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
     return { ok: false, error: mainT('preview.remoteNoWatch') }
   }
 
-  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  const decided = decideWatch(projectFenceRoots(currentProject?.vaultPath), value, wasPickedByUser)
   if (!decided.ok) return { ok: false, error: decided.error }
 
   try {
@@ -2385,7 +2413,7 @@ ipcMain.handle('preview:watch', async (event, value: unknown) => {
     // внутри проекта, ведущая наружу, иначе дала бы слежение за чужим файлом.
     // Слой тот же, что у `artifacts:preview`.
     const realPath = await fs.promises.realpath(decided.absPath)
-    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+    if (!realPathAllowed(projectFenceRoots(currentProject?.vaultPath), realPath, wasPickedByUser)) {
       return { ok: false, error: watchOutsideError() }
     }
 
@@ -2416,7 +2444,11 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
   if (typeof value?.content !== 'string')
     return { ok: false, error: mainT('preview.nothingToSave') }
 
-  const decided = decideWrite(currentProject?.vaultPath, value.path, wasPickedByUser)
+  const decided = decideWrite(
+    projectFenceRoots(currentProject?.vaultPath),
+    value.path,
+    wasPickedByUser
+  )
   if (!decided.ok) return { ok: false, error: decided.error }
 
   try {
@@ -2424,7 +2456,9 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
     // файла ему не нужно ни разу; `realpath` заодно закрывает дыру со ссылкой
     // наружу — на несуществующем пути он и отвечает отказом.
     const realPath = await fs.promises.realpath(decided.absPath)
-    if (!realPathWritable(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+    if (
+      !realPathWritable(projectFenceRoots(currentProject?.vaultPath), realPath, wasPickedByUser)
+    ) {
       return { ok: false, error: writeOutsideError() }
     }
 
@@ -2450,12 +2484,12 @@ ipcMain.handle('preview:write-text', async (_event, payload: unknown) => {
 ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
   if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
 
-  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  const decided = decideWatch(projectFenceRoots(currentProject?.vaultPath), value, wasPickedByUser)
   if (!decided.ok) return { ok: false, error: decided.error }
 
   try {
     const realPath = await fs.promises.realpath(decided.absPath)
-    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+    if (!realPathAllowed(projectFenceRoots(currentProject?.vaultPath), realPath, wasPickedByUser)) {
       return { ok: false, error: watchOutsideError() }
     }
 
@@ -2488,12 +2522,12 @@ ipcMain.handle('preview:read-text', async (_event, value: unknown) => {
 ipcMain.handle('preview:read-dir', async (_event, value: unknown) => {
   if (filesAreRemote()) return { entries: [], error: filesLiveOnCoreMachine() }
 
-  const decided = decideWatch(currentProject?.vaultPath, value, wasPickedByUser)
+  const decided = decideWatch(projectFenceRoots(currentProject?.vaultPath), value, wasPickedByUser)
   if (!decided.ok) return { entries: [], error: decided.error }
 
   try {
     const realPath = await fs.promises.realpath(decided.absPath)
-    if (!realPathAllowed(currentProject?.vaultPath, realPath, wasPickedByUser)) {
+    if (!realPathAllowed(projectFenceRoots(currentProject?.vaultPath), realPath, wasPickedByUser)) {
       return { entries: [], error: watchOutsideError() }
     }
 
@@ -4777,7 +4811,7 @@ ipcMain.handle('attachments:save-paste', async (_event, payload: unknown) => {
 ipcMain.handle('preview:open-external', async (_event, value: unknown) => {
   const decision = decideOpenPreviewExternal(
     value,
-    { attachmentsDir: ATTACHMENTS_DIR, projectRoot: currentProject?.vaultPath },
+    { attachmentsDir: ATTACHMENTS_DIR, projectRoot: projectFenceRoots(currentProject?.vaultPath) },
     wasPickedByUser
   )
 
@@ -5191,7 +5225,7 @@ ipcMain.handle('save:image', async (event, payload: unknown) => {
   const { source } = (payload ?? {}) as { source?: unknown }
   return saveImageOut(
     BrowserWindow.fromWebContents(event.sender) ?? undefined,
-    currentProject?.vaultPath,
+    projectFenceRoots(currentProject?.vaultPath),
     source
   )
 })
@@ -5200,7 +5234,7 @@ ipcMain.handle('save:file', async (event, payload: unknown) => {
   const request = (payload ?? {}) as { path?: unknown; suggestedName?: unknown }
   return saveFileOut(
     BrowserWindow.fromWebContents(event.sender) ?? undefined,
-    currentProject?.vaultPath,
+    projectFenceRoots(currentProject?.vaultPath),
     request
   )
 })

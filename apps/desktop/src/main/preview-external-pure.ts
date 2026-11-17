@@ -20,7 +20,7 @@
 import { pathToFileURL } from 'node:url'
 
 import { isInsideAttachmentsDir } from './attachments'
-import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { isInside, resolveArtifactPath, type ProjectRoots } from './artifact-files-pure'
 import { decideExternalLink } from './external-link-policy'
 import { mainT } from './i18n'
 
@@ -34,7 +34,7 @@ export type ExternalPreviewDecision =
 export interface ExternalPreviewScope {
   /** Куда `saveImageBuffer` кладёт выгруженное содержимое вкладки. */
   attachmentsDir: string
-  projectRoot?: string
+  projectRoot?: ProjectRoots
 }
 
 /** Сетевой адрес отдаём общей политике: правило «что можно отдать ОС» одно на

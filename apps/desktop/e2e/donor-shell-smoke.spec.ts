@@ -11,7 +11,15 @@
 
 import { test, expect, _electron } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
@@ -31,6 +39,7 @@ let mockOutput = ''
 let app: ElectronApplication
 let preExistingElectronPids = new Set<number>()
 let projectDir = ''
+let projectBase = ''
 let userDataDir = ''
 /** Временная копия профиля автотестов — см. `launchStand` в `lib/app.ts`. */
 let hermesHome = ''
@@ -359,7 +368,16 @@ test.beforeAll(async () => {
   // (empty) directory — filtered out, list empty, nothing to see. The first test
   // still walks the create-project IPC on this same folder, so nothing about
   // what it proves changes.
-  projectDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  //
+  // Task T71: the project folder is a JUNCTION to the real one, with a Cyrillic
+  // name, the way the owner's projects can be reached. The preview and the
+  // right-panel tree compared the file's real path with the folder as written
+  // and refused every file of such a project; every preview test below now
+  // walks that road.
+  projectBase = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-'))
+  mkdirSync(join(projectBase, 'настоящий-ЮП'))
+  projectDir = join(projectBase, 'ЮП')
+  symlinkSync(join(projectBase, 'настоящий-ЮП'), projectDir, 'junction')
   await fetch(`http://127.0.0.1:${mockRestPort}/api/_mock/cwd`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -426,7 +444,7 @@ test.afterAll(async () => {
     } catch {
       // Журнал — не цель прогона: не сумели записать, значит не сумели.
     }
-    if (projectDir) rmSync(projectDir, { force: true, recursive: true })
+    if (projectBase) rmSync(projectBase, { force: true, recursive: true })
     if (userDataDir) rmSync(userDataDir, { force: true, recursive: true })
     if (hermesHome) removeProfile(hermesHome)
   }
@@ -880,6 +898,22 @@ test('правка файла на диске перерисовывает пр�
 
   await expect.poll(() => guestText(app, 'live.html'), { timeout: 60000 }).toContain('VERSIYA DVA')
 
+  // T71: the right-panel tree reads the project folder through the same fence.
+  // The project is a junction here, and the folder the core reports may be the
+  // real one — both must list the file, with no refusal.
+  const realProject = realpathSync.native(projectDir)
+  for (const folder of [projectDir, realProject]) {
+    const listed = await page.evaluate((dir) => window.aecpilot.readPreviewDir(dir), folder)
+    expect(listed.error, `дерево правой панели обязано читать ${folder}`).toBeUndefined()
+    expect(listed.entries.map((entry: { name: string }) => entry.name)).toContain('live.html')
+  }
+  // Read, not watch: a watcher opened here would outlive the tab closed below.
+  const viaReal = await page.evaluate(
+    (path) => window.aecpilot.readPreviewText(path),
+    join(realProject, 'live.html')
+  )
+  expect(viaReal.ok, 'файл проекта по настоящему пути — тоже свой').toBe(true)
+
   // Слежение за тем, чего главный процесс человеку не показывал, — отказ.
   // Проверяется через мост, потому что у окна другого пути к этому правилу нет.
   const outside = join(tmpdir(), 'aecpilot-e2e-ne-pokazyvali.html')
@@ -1244,6 +1278,69 @@ test('a file the agent made goes out where the person chose, and only from insid
 
   rmSync(outsideDir, { force: true, recursive: true })
   await assertRendererAlive(page, 'end of test 5')
+})
+
+// Task T72 (owner's remark 4): «Открыть содержащую папку» on a file the agent
+// made. Their card calls `revealPath`; Explorer is stood in for by a recorder,
+// so the run proves the path that reaches `shell.showItemInFolder`, and that a
+// path outside the project never does.
+test('«открыть содержащую папку» показывает файл проекта и отказывает чужому', async () => {
+  const page = await mainWindow()
+
+  await app.evaluate(({ shell }) => {
+    const bag = globalThis as unknown as { revealed?: string[] }
+    bag.revealed = []
+    shell.showItemInFolder = ((path: string) => {
+      bag.revealed?.push(path)
+    }) as never
+  })
+
+  mkdirSync(join(projectDir, 'workspace', 'tasks', 'notes'), { recursive: true })
+  const inside = join(projectDir, 'workspace', 'tasks', 'notes', 'T-003.docx')
+  writeFileSync(inside, 'docx bytes')
+  const outsideDir = mkdtempSync(join(tmpdir(), 'aecpilot-e2e-reveal-'))
+  const outside = join(outsideDir, 'чужой.docx')
+  writeFileSync(outside, 'x')
+
+  type RevealBridge = { revealPath: (path: string) => Promise<boolean> }
+  const reveal = (path: string): Promise<string> =>
+    page.evaluate(
+      (target) =>
+        (window as unknown as { hermesDesktop: RevealBridge }).hermesDesktop
+          .revealPath(target)
+          .then(
+            (ok) => `ok:${ok}`,
+            (error: Error) => `error:${error.message}`
+          ),
+      path
+    )
+
+  expect(await reveal(inside)).toBe('ok:true')
+  expect(await reveal('workspace/tasks/notes/T-003.docx'), 'relative to the project').toBe(
+    'ok:true'
+  )
+  const refused = await reveal(outside)
+  expect(refused).toMatch(/^error:.*проекта/)
+
+  const revealed = (await app.evaluate(
+    () => (globalThis as unknown as { revealed?: string[] }).revealed ?? []
+  )) as string[]
+  expect(revealed).toEqual([inside, inside])
+
+  rmSync(outsideDir, { force: true, recursive: true })
+})
+
+// Task T73 (owner's remark 1): the vault tab is standing chrome — no ✕ on it.
+// (No right-click here: the zone menu left the next test without a composer.)
+test('вкладку Vault нельзя закрыть крестиком', async () => {
+  const page = await mainWindow()
+
+  await hideFirstRunSurfaces(page)
+  await clearNotifications(page)
+
+  const tab = page.getByRole('tab', { name: /^Vault/ })
+  await expect(tab, 'вкладка хранилища на полосе').toBeVisible({ timeout: 20000 })
+  await expect(tab.getByRole('button', { name: /^(Закрыть|Close)$/ })).toHaveCount(0)
 })
 
 test('the app hears the machine: battery, wake-up, and a notification it can show', async () => {

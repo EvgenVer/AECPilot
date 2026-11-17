@@ -15,7 +15,7 @@
 // расписанию правок чужого файла узнаётся больше, чем кажется, и проверить это
 // изнутри окна нельзя — значит решение принимает главный процесс.
 
-import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { isInside, resolveArtifactPath, type ProjectRoots } from './artifact-files-pure'
 import { mainT } from './i18n'
 
 export function watchOutsideError(): string {
@@ -29,7 +29,7 @@ export type WatchDecision = { ok: true; absPath: string } | { ok: false; error: 
  * `pickedByUser` — отдельным параметром, а не импортом: решение должно быть
  * проверяемым без состояния процесса. */
 export function decideWatch(
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   value: unknown,
   pickedByUser: (candidate: string) => boolean
 ): WatchDecision {
@@ -46,7 +46,7 @@ export function decideWatch(
 /** Тот же забор после `realpath`: ссылка внутри проекта, ведущая наружу, иначе
  * обошла бы лексическую проверку. Слой тот же, что у `artifacts:preview`. */
 export function realPathAllowed(
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   realPath: string,
   pickedByUser: (candidate: string) => boolean
 ): boolean {

@@ -69,6 +69,10 @@ function register_aec_explorer(): void {
     data: {
       placement: 'left',
       collapsible: true,
+      // Task T73 (owner's remark 1 on 0.1.0): the vault tab is standing chrome,
+      // like their sessions tab — no ✕, shown and hidden from the zone menu and
+      // ⌘K. A closed vault tab had no way back short of a restart.
+      hideOnly: true,
       width: '260px',
       minWidth: '200px',
       maxWidth: '480px'

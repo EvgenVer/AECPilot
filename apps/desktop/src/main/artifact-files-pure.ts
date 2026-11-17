@@ -10,6 +10,21 @@
 import { isAbsolute, normalize, relative, resolve, sep } from 'node:path'
 import { mainT } from './i18n'
 
+/** The project fence: the project folder as written, and — when it differs —
+ * the same folder after `realpath` (task T71). One string is accepted too, so
+ * a caller with no disk access keeps working. See `project-fence.ts`. */
+export type ProjectRoots = string | readonly string[] | undefined
+
+function rootList(roots: ProjectRoots): readonly string[] {
+  if (roots === undefined) return []
+  return typeof roots === 'string' ? [roots] : roots
+}
+
+/** The folder a relative path is resolved against: the project as written. */
+export function primaryRoot(roots: ProjectRoots): string | undefined {
+  return rootList(roots)[0]
+}
+
 export type ArtifactPathResult =
   { ok: true; absPath: string; insideProject: boolean } | { ok: false; error: string }
 
@@ -51,9 +66,10 @@ function stripFileScheme(value: string): string {
  * go through `decideExternalLink`. Sending one down the file path would be the
  * start of a scheme-confusion bug. */
 export function resolveArtifactPath(
-  projectRoot: string | undefined,
+  projectRoots: ProjectRoots,
   value: unknown
 ): ArtifactPathResult {
+  const projectRoot = primaryRoot(projectRoots)
   if (typeof value !== 'string' || value.trim() === '') {
     return { ok: false, error: mainT('artifact.pathMissing') }
   }
@@ -73,17 +89,20 @@ export function resolveArtifactPath(
     ? normalize(candidate)
     : resolve(projectRoot as string, candidate)
 
-  return { ok: true, absPath, insideProject: isInside(projectRoot, absPath) }
+  return { ok: true, absPath, insideProject: isInside(projectRoots, absPath) }
 }
 
-/** Lexical containment: `absPath` is `root` itself or below it.
+/** Lexical containment: `absPath` is one of the roots itself or below it.
  *
  * Lexical only — the real-path (symlink) check belongs to the caller that
- * touches the disk, exactly as `vault-fs.ts` layers it. */
-export function isInside(root: string | undefined, absPath: string): boolean {
-  if (!root) return false
-  const rel = relative(resolve(root), absPath)
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+ * touches the disk, exactly as `vault-fs.ts` layers it. That caller compares
+ * a REAL path, so it must pass the project's real root as well (T71). */
+export function isInside(roots: ProjectRoots, absPath: string): boolean {
+  return rootList(roots).some((root) => {
+    if (!root) return false
+    const rel = relative(resolve(root), absPath)
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+  })
 }
 
 export function isPreviewableImage(absPath: string): boolean {

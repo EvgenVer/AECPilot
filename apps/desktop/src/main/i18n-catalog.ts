@@ -137,6 +137,8 @@ const ru = {
     'В браузере открывается только страница проекта, выбранный вами файл или то, что предпросмотр сам выгрузил',
   'preview.watchOutside': 'Следить можно только за файлом внутри проекта или выбранным в диалоге',
   'preview.writeOutside': 'Сохранять можно только в файл внутри проекта или выбранный в диалоге',
+  'reveal.outside':
+    'Показать в папке можно только файл внутри проекта или в подключённой папке источников',
   'artifact.pathMissing': 'путь не указан',
   'artifact.isLink': 'это ссылка, а не файл',
   'artifact.controlChars': 'путь содержит управляющие символы',
@@ -517,6 +519,8 @@ const en: Catalog = {
     'Only a file inside the project or one picked in the dialog can be watched',
   'preview.writeOutside':
     'Only a file inside the project or one picked in the dialog can be saved to',
+  'reveal.outside':
+    'Only a file inside the project or a connected source folder can be shown in its folder',
   'artifact.pathMissing': 'no path specified',
   'artifact.isLink': 'this is a link, not a file',
   'artifact.controlChars': 'the path contains control characters',

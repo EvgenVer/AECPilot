@@ -2033,6 +2033,10 @@ export interface AecpilotApi {
   /** Highlights the file in the OS file manager. Allowed outside the project;
    * refused when the file is gone, with an explanation. */
   revealArtifact(value: string): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Task T72: their `revealPath`. Shows the file in the OS file manager —
+   * only inside the project or a connected source folder (symlinks resolved);
+   * anything else is refused with an explanation. */
+  revealPath(value: string): Promise<{ ok: true } | { ok: false; error: string }>
   /** Reads a raster image into a data-URL. Inside the project only (symlinks
    * resolved), size-capped, and `svg` is excluded on purpose — it is markup
    * with script capability. */

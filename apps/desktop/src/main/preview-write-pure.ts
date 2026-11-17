@@ -18,7 +18,7 @@
 // «следить можно только...» в ответ на «сохранить» — это ложь о том, что он
 // пытался сделать.
 
-import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { isInside, resolveArtifactPath, type ProjectRoots } from './artifact-files-pure'
 import { mainT } from './i18n'
 
 export function writeOutsideError(): string {
@@ -32,7 +32,7 @@ export type WriteDecision = { ok: true; absPath: string } | { ok: false; error: 
  * `pickedByUser` — параметром, а не импортом: решение должно проверяться без
  * состояния процесса. */
 export function decideWrite(
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   value: unknown,
   pickedByUser: (candidate: string) => boolean
 ): WriteDecision {
@@ -49,7 +49,7 @@ export function decideWrite(
 /** Тот же забор после `realpath`: ссылка внутри проекта, ведущая наружу, иначе
  * обошла бы лексическую проверку и дала бы запись в чужой файл. */
 export function realPathWritable(
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   realPath: string,
   pickedByUser: (candidate: string) => boolean
 ): boolean {

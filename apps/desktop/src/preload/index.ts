@@ -329,6 +329,7 @@ const api: AecpilotApi = {
   getSessionMessages: (storedId) => ipcRenderer.invoke('sessions:messages', storedId),
   statArtifact: (value) => ipcRenderer.invoke('artifacts:stat', value),
   revealArtifact: (value) => ipcRenderer.invoke('artifacts:reveal', value),
+  revealPath: (value) => ipcRenderer.invoke('shell:reveal-path', value),
   previewArtifact: (value) => ipcRenderer.invoke('artifacts:preview', value),
   getContextBreakdown: () => ipcRenderer.invoke('session:context-breakdown'),
   steerSession: (text) => ipcRenderer.invoke('session:steer', text),

@@ -12,7 +12,7 @@ import * as fs from 'node:fs/promises'
 import { Buffer } from 'node:buffer'
 import { BrowserWindow, dialog, type SaveDialogOptions } from 'electron'
 
-import { isInside, resolveArtifactPath } from './artifact-files-pure'
+import { isInside, resolveArtifactPath, type ProjectRoots } from './artifact-files-pure'
 import {
   classifySaveSource,
   planSaveDialog,
@@ -81,7 +81,7 @@ async function writeWhereChosen(
  * принадлежность проекту, затем `realpath`. Без второго слоя ссылка, лежащая
  * внутри проекта, вынесла бы наружу любой файл, на который она указывает. */
 async function resolveInsideProject(
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   value: unknown
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const resolved = resolveArtifactPath(projectRoot, value)
@@ -115,7 +115,7 @@ export function selectSavePath(
  * инструмента и в лупе скрепки. `source` — это `src` того самого `<img>`. */
 export async function saveImageOut(
   window: BrowserWindow | undefined,
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   source: unknown
 ): Promise<SaveOutcome> {
   const classified = classifySaveSource(source)
@@ -151,7 +151,7 @@ export async function saveImageOut(
  * ветка — не копирование, а выкачивание через соединение; её и добавит 3.13b. */
 export async function saveFileOut(
   window: BrowserWindow | undefined,
-  projectRoot: string | undefined,
+  projectRoot: ProjectRoots,
   payload: { path?: unknown; suggestedName?: unknown }
 ): Promise<SaveOutcome> {
   const resolved = await resolveInsideProject(projectRoot, payload.path)

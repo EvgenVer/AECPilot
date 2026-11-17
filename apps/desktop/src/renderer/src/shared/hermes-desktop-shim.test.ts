@@ -518,3 +518,24 @@ describe('hermes-desktop shim: saveImageFromUrl и адрес blob: (T20.10)', (
     expect(saveImageOut).not.toHaveBeenCalled()
   })
 })
+
+// Task T72: «Открыть содержащую папку» goes to our bridge; a refusal of the
+// fence reaches their card as an error with the reason, not as `false`.
+describe('hermes-desktop shim: revealPath (T72)', () => {
+  it('a file inside the fence — true, and the path reaches the bridge', async () => {
+    const revealPath = vi.fn().mockResolvedValue({ ok: true })
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { revealPath } }
+
+    await expect(createHermesDesktopBridge().revealPath!('workspace/a.docx')).resolves.toBe(true)
+    expect(revealPath).toHaveBeenCalledWith('workspace/a.docx')
+  })
+
+  it('outside the fence — an error carrying the reason', async () => {
+    const revealPath = vi.fn().mockResolvedValue({ ok: false, error: 'только файл проекта' })
+    ;(globalThis as unknown as { window: unknown }).window = { aecpilot: { revealPath } }
+
+    await expect(createHermesDesktopBridge().revealPath!('C:/x')).rejects.toThrow(
+      'только файл проекта'
+    )
+  })
+})

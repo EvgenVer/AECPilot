@@ -106,7 +106,7 @@ const UNBRIDGED = [
   'readFileDataUrlForAttach',
   'repairBootstrap',
   'resetBootstrap',
-  'revealPath',
+  // `revealPath` снят задачей T72: мост его отдаёт (`shell:reveal-path`).
   'sanitizeWorkspaceCwd',
   // `setSecretStorageEncryption` снят задачей T20.8: их переключатель
   // шифрования секретов (SPEC HX20) убран из `gateway-settings.tsx` правкой [3].
