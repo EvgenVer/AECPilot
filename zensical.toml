@@ -48,6 +48,7 @@ nav = [
       "decisions/0018-lira-update-feed.md",
       "decisions/0019-documents-environment.md",
       "decisions/0020-revit-write-rule.md",
+      "decisions/0021-index-providers-split.md",
     ] },
   ] },
   "operations.md",
