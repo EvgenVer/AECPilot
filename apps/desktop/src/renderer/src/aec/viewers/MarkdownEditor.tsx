@@ -33,6 +33,16 @@ import { unescapeWikiLinks } from './wikilink-pure'
  *  мало, чтобы правка не потерялась, если человек сразу переключился. */
 const SAVE_AFTER_MS = 1000
 
+/** Куда ложится своя правка, если вкладку закрыли, не решив, чья версия
+ *  остаётся (T74): `заметки.md` → `заметки (моя правка).md` рядом. */
+export function minePath(relPath: string): string {
+  const dot = relPath.lastIndexOf('.')
+  const slash = relPath.lastIndexOf('/')
+  return dot > slash
+    ? `${relPath.slice(0, dot)} (моя правка)${relPath.slice(dot)}`
+    : `${relPath} (моя правка)`
+}
+
 type Saving = 'clean' | 'dirty' | 'saved' | { error: string }
 
 /** Задача T74 (UR56): файл на диске изменил кто-то другой (агент), пока в окне
@@ -76,18 +86,78 @@ export function MarkdownEditor(): React.JSX.Element | null {
      *  редактор. Событие о своей же записи сравнивается с ним и пропускается. */
     let rawOnDisk = ''
 
-    const save = async (): Promise<void> => {
-      const work = pending.current
-      if (!work) return
-      pending.current = null
-      rawOnDisk = work.text
-      const result = await window.aecpilot.writeVaultFile(work.rel, work.text)
-      if (result.ok) onDisk = work.text
-      setSaving(result.ok ? 'saved' : { error: result.error })
-    }
+    /** Плашка «чья версия» открыта: пока человек не решил, ничего не пишется. */
+    let conflictOpen = false
 
     /** Поставить в редактор текст с диска, не считая это правкой человека. */
     let showOnDisk: ((text: string) => void) | null = null
+
+    /** Чужая версия на диске при своей правке в окне — решает человек. */
+    const raiseConflict = (theirs: string): void => {
+      rawOnDisk = theirs
+      conflictOpen = true
+      if (timer) clearTimeout(timer)
+      setConflict({
+        keepMine: () => {
+          conflictOpen = false
+          setConflict(null)
+          const mine = readLive?.()
+          if (mine !== undefined) pending.current = { rel: request.relPath, text: mine }
+          void save()
+        },
+        takeTheirs: () => {
+          conflictOpen = false
+          setConflict(null)
+          pending.current = null
+          showOnDisk?.(theirs)
+          setSaving('clean')
+        }
+      })
+    }
+
+    const save = async (): Promise<void> => {
+      const work = pending.current
+      if (!work || conflictOpen) return
+      // Ревью T84: перед записью — что сейчас на диске. Агент мог записать файл
+      // за мгновение до сохранения, и его событие пришло бы уже после нашей
+      // записи и совпало бы с ней — правка агента пропала бы без вопроса.
+      const before = await window.aecpilot.readDocument(work.rel)
+      if (cancelled && !unmounting) return
+      if (before.ok) {
+        const current = decodeText(before.bytes).text
+        if (current !== rawOnDisk && current !== work.text) {
+          if (unmounting) {
+            await keepBoth(work.text)
+            return
+          }
+          raiseConflict(current)
+          return
+        }
+      }
+      if (pending.current === work) pending.current = null
+      rawOnDisk = work.text
+      const result = await window.aecpilot.writeVaultFile(work.rel, work.text)
+      if (result.ok) onDisk = work.text
+      if (!unmounting) setSaving(result.ok ? 'saved' : { error: result.error })
+    }
+
+    /** Ушли с вкладки, не решив, чья версия: файл агента не трогается, своя
+     *  правка ложится рядом копией — потерять нельзя ни одну. */
+    const keepBoth = async (mine: string): Promise<void> => {
+      pending.current = null
+      const copy = minePath(request.relPath)
+      const slash = copy.lastIndexOf('/')
+      // Запись в хранилище идёт только в существующий файл — копию заводим.
+      // Уже есть (закрывали так раньше) — заводить не нужно, пишем поверх неё.
+      await window.aecpilot.createVaultFile(
+        slash > 0 ? copy.slice(0, slash) : undefined,
+        copy.slice(slash + 1)
+      )
+      await window.aecpilot.writeVaultFile(copy, mine)
+    }
+
+    /** Вкладку закрывают — в `save` уже нельзя трогать состояние компонента. */
+    let unmounting = false
 
     // Задача T74 (UR56): файл изменили снаружи (агент). Своих правок нет —
     // текст подменяется молча; есть — спрашиваем, чья версия остаётся. Ничья
@@ -100,27 +170,14 @@ export function MarkdownEditor(): React.JSX.Element | null {
         if (cancelled || !read.ok || !readLive || !showOnDisk) return
         const theirs = decodeText(read.bytes).text
         if (theirs === rawOnDisk) return
-        rawOnDisk = theirs
         const mine = readLive()
         const dirty = pending.current !== null || mine !== onDisk
-        if (!dirty) {
+        if (!dirty && !conflictOpen) {
+          rawOnDisk = theirs
           showOnDisk(theirs)
           return
         }
-        if (timer) clearTimeout(timer)
-        setConflict({
-          keepMine: () => {
-            setConflict(null)
-            pending.current = { rel: request.relPath, text: readLive?.() ?? mine }
-            void save()
-          },
-          takeTheirs: () => {
-            setConflict(null)
-            pending.current = null
-            showOnDisk?.(theirs)
-            setSaving('clean')
-          }
-        })
+        raiseConflict(theirs)
       })()
     })
 
@@ -161,12 +218,19 @@ export function MarkdownEditor(): React.JSX.Element | null {
           ctx.get(listen.listenerCtx).markdownUpdated((_ctx, markdown, previous) => {
             // Первое событие приходит на загрузку документа, а не на правку.
             if (previous === undefined) return
-            // Текст, поставленный с диска (T74), — не правка человека.
-            if (unescapeWikiLinks(markdown) === onDisk) return
+            // Текст совпал с диском — поставлен с диска (T74) или правку
+            // отменили (Ctrl+Z): записывать нечего, и прежняя запись отменяется.
+            if (unescapeWikiLinks(markdown) === onDisk) {
+              pending.current = null
+              if (timer) clearTimeout(timer)
+              setSaving('clean')
+              return
+            }
             pending.current = { rel, text: unescapeWikiLinks(markdown) }
             setSaving('dirty')
             if (timer) clearTimeout(timer)
-            timer = setTimeout(() => void save(), SAVE_AFTER_MS)
+            // Пока открыт вопрос «чья версия», набор не пишется на диск.
+            if (!conflictOpen) timer = setTimeout(() => void save(), SAVE_AFTER_MS)
           })
         })
         .use(commonmark)
@@ -201,6 +265,7 @@ export function MarkdownEditor(): React.JSX.Element | null {
 
     return () => {
       cancelled = true
+      unmounting = true
       unsubscribe()
       setConflict(null)
       if (timer) clearTimeout(timer)
@@ -217,7 +282,8 @@ export function MarkdownEditor(): React.JSX.Element | null {
           // Редактор уже мёртв — остаётся то, что успел отдать слушатель.
         }
       }
-      void save()
+      if (conflictOpen && pending.current) void keepBoth(pending.current.text)
+      else void save()
       void editor?.destroy()
     }
   }, [request])

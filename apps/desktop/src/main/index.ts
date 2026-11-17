@@ -105,7 +105,7 @@ import {
   type WindowPlan
 } from './windows-pure'
 import { projectFenceRoots } from './project-fence'
-import { locateDocument } from './document-locate-pure'
+import { isNetworkPath, locateDocument } from './document-locate-pure'
 import { startVaultWatch, type VaultWatch } from './vault-watch'
 import { decideReveal, revealAllowed, revealOutsideError } from './reveal-path-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
@@ -2372,11 +2372,13 @@ ipcMain.handle('document:locate', async (_event, payload: unknown) => {
   }))
   const roots = projectFenceRoots(vaultPath)
   let located = locateDocument(resolved.absPath, roots, sources)
-  if (!located) {
+  // Сетевой путь вне проекта не трогаем на диске: realpath постучался бы на чужой
+  // сервер SMB (ревью T84).
+  if (!located && !isNetworkPath(resolved.absPath)) {
     const real = await fs.promises.realpath(resolved.absPath).catch(() => null)
     if (real) located = locateDocument(real, roots, sources)
   }
-  return located ? { ok: true, ...located } : { ok: false, error: revealOutsideError() }
+  return located ? { ok: true, ...located } : { ok: false, error: mainT('document.outside') }
 })
 
 ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {

@@ -155,6 +155,8 @@ describe('reloadDocuments (T74)', () => {
     const after = $tabs.get()
     expect(after[0].token).not.toBe(before[0])
     expect(after[0].locator).toEqual({ page: 3 })
+    // Ревью T84: перечитанный документ остаётся там, где его читали.
+    expect(after[0].reload).toBe(true)
     expect(after[1].token).toBe(before[1]) // md перечитывает себя сам
     expect(after[2].token).toBe(before[2]) // источник — не vault
   })

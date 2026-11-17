@@ -142,6 +142,9 @@ export function DocxViewer(): React.JSX.Element | null {
         // К разделу — после того, как масштаб «по ширине» встал (эффект ниже):
         // прокрутка до смены масштаба уводила заголовок из кадра.
         pendingHeading.current = request.locator.heading ?? null
+        // Новый запрос открывает документ с начала: панель прокрутки живёт
+        // дольше документа, и без этого он открывался там, где читали прежний.
+        if (scrollRef.current) scrollRef.current.scrollTop = 0
         setState({ ready: true, token: request.token })
       } catch (cause: unknown) {
         if (cancelled) return

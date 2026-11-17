@@ -139,6 +139,7 @@ const ru = {
   'preview.writeOutside': 'Сохранять можно только в файл внутри проекта или выбранный в диалоге',
   'reveal.outside':
     'Показать в папке можно только файл внутри проекта или в подключённой папке источников',
+  'document.outside': 'Файл вне проекта и его папок источников — окно документов его не откроет',
   'artifact.pathMissing': 'путь не указан',
   'artifact.isLink': 'это ссылка, а не файл',
   'artifact.controlChars': 'путь содержит управляющие символы',
@@ -521,6 +522,8 @@ const en: Catalog = {
     'Only a file inside the project or one picked in the dialog can be saved to',
   'reveal.outside':
     'Only a file inside the project or a connected source folder can be shown in its folder',
+  'document.outside':
+    'The file is outside the project and its source folders, so the document window cannot open it',
   'artifact.pathMissing': 'no path specified',
   'artifact.isLink': 'this is a link, not a file',
   'artifact.controlChars': 'the path contains control characters',

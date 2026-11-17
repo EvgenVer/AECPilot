@@ -39,6 +39,13 @@ function imageElement(
   return img
 }
 
+/** Ревью T84: blob-адрес картинки держит её байты, пока его не освободят, —
+ *  освобождается, когда ProseMirror снимает картинку. */
+function releaseImage(dom: globalThis.Node): void {
+  const src = (dom as HTMLImageElement).src
+  if (src?.startsWith('blob:')) URL.revokeObjectURL(src)
+}
+
 function decorateEmbeds(doc: Node, fromRel: string): DecorationSet {
   const decorations: Decoration[] = []
   doc.descendants((node, position) => {
@@ -50,7 +57,7 @@ function decorateEmbeds(doc: Node, fromRel: string): DecorationSet {
         Decoration.widget(
           position + 1 + link.end,
           () => imageElement(fromRel, { name: link.target }, link.label),
-          { key: `embed:${link.target}`, side: 1 }
+          { destroy: releaseImage, key: `embed:${link.target}`, side: 1 }
         )
       )
     }
@@ -87,7 +94,8 @@ export function vaultLinkPlugin(fromRel: string) {
                 img.alt = alt
                 return { dom: img }
               }
-              return { dom: imageElement(fromRel, { path: src }, alt) }
+              const dom = imageElement(fromRel, { path: src }, alt)
+              return { destroy: () => releaseImage(dom), dom }
             }
           }
         },

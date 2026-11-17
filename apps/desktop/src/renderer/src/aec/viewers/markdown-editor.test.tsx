@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { AecI18nProvider } from '../../shared/i18n'
 
-import { MarkdownEditor } from './MarkdownEditor'
+import { MarkdownEditor, minePath } from './MarkdownEditor'
 import { closeAllDocuments, openDocument } from './viewer-store'
 
 /**
@@ -177,4 +177,11 @@ describe('редактор markdown', () => {
     )
     expect(readDocument).toHaveBeenCalledWith('media/схема.png')
   })
+})
+
+// Ревью T84: вкладку закрыли при открытом вопросе «чья версия» — своя правка
+// ложится копией рядом, файл агента не трогается.
+test('копия своей правки — рядом, с пометкой в имени', () => {
+  expect(minePath('notes/ссылки.md')).toBe('notes/ссылки (моя правка).md')
+  expect(minePath('wiki.v2/README')).toBe('wiki.v2/README (моя правка)')
 })

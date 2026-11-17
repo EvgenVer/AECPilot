@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { locateDocument } from './document-locate-pure'
+import { isNetworkPath, locateDocument } from './document-locate-pure'
 
 // Задача T77 (UR55): ссылка агента на файл проекта — пара «корень + путь» для
 // окна документов; чужой файл — `null`, его открывает предпросмотр.
@@ -39,5 +39,12 @@ describe('locateDocument', () => {
     expect(locateDocument('C:\\Users\\x\\отчёт.pdf', vault, sources)).toBeNull()
     expect(locateDocument('D:\\Проекты\\ЮП\\..\\чужой\\a.md', vault, sources)).toBeNull()
     expect(locateDocument('D:\\Проекты\\ЮП', vault, sources)).toBeNull()
+  })
+
+  it('сетевые пути распознаются, локальные — нет', () => {
+    expect(isNetworkPath('\\\\evil\\share\\a.pdf')).toBe(true)
+    expect(isNetworkPath('\\\\?\\C:\\a.pdf')).toBe(true)
+    expect(isNetworkPath('//evil/share/a.pdf')).toBe(true)
+    expect(isNetworkPath('C:\\p\\a.pdf')).toBe(false)
   })
 })

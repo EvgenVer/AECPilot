@@ -961,6 +961,53 @@ test('T74 правка в окне и правка агента: «Взять в
   await assertRendererAlive(page, 'T74 conflict')
 })
 
+test('T74 набор при открытой плашке не пишется на диск (ревью T84)', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', LINKS_MD)
+  await typeAtEnd(page, ' третья моя')
+  writeFileSync(file, '# Ссылки\n\nтретья версия агента\n', 'utf-8')
+  const banner = page.getByRole('alert').filter({ hasText: /изменили снаружи|changed outside/ })
+  await expect(banner).toBeVisible({ timeout: 15000 })
+  // Набор, пока вопрос не решён: пауза сохранения прошла, а файл агента цел.
+  await typeAtEnd(page, ' и ещё')
+  await page.waitForTimeout(2000)
+  expect(readFileSync(file, 'utf-8')).toBe('# Ссылки\n\nтретья версия агента\n')
+  await banner.getByRole('button', { name: /Взять версию агента|Take the agent/ }).click()
+  await page.waitForTimeout(1500)
+  expect(readFileSync(file, 'utf-8')).toContain('третья версия агента')
+  await expect(editor(page)).toContainText('третья версия агента')
+})
+
+test('T74 вкладку закрыли, не решив: файл агента цел, своя правка — копией рядом', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', LINKS_MD)
+  const copy = join(stand.get().projectDir, 'notes', 'ссылки (моя правка).md')
+  await typeAtEnd(page, ' правка перед уходом')
+  writeFileSync(file, '# Ссылки\n\nчетвёртая версия агента\n', 'utf-8')
+  const banner = page.getByRole('alert').filter({ hasText: /изменили снаружи|changed outside/ })
+  await expect(banner).toBeVisible({ timeout: 15000 })
+  await viewerTab(page, LINKS_MD).locator('xpath=following-sibling::button[1]').click()
+  await expect.poll(() => existsSync(copy), { timeout: 15000 }).toBe(true)
+  expect(readFileSync(copy, 'utf-8')).toContain('правка перед уходом')
+  expect(readFileSync(file, 'utf-8')).toBe('# Ссылки\n\nчетвёртая версия агента\n')
+})
+
+test('T74 Ctrl+Z после сохранения не записывает отменённое (ревью T84)', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', LINKS_MD)
+  await openFromTree(page, `notes/${LINKS_MD}`)
+  await expect(editor(page)).toContainText('четвёртая версия агента', { timeout: 30000 })
+  await typeAtEnd(page, ' сохранённое')
+  await expect.poll(() => readFileSync(file, 'utf-8'), { timeout: 15000 }).toContain('сохранённое')
+  await typeAtEnd(page, ' отменённое')
+  // Отмена — после того, как их слушатель отдал набор (200 мс), но до записи (1 с).
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Control+z')
+  await expect(editor(page)).not.toContainText('отменённое')
+  await page.waitForTimeout(2000)
+  expect(readFileSync(file, 'utf-8')).not.toContain('отменённое')
+})
+
 test('T77 ссылка агента на Word проекта открывает окно документов', async () => {
   const page = await ui()
   const docx = join(stand.get().projectDir, 'media', 'записка.docx')

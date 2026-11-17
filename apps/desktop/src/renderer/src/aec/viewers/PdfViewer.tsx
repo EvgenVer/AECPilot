@@ -195,6 +195,13 @@ export function PdfViewer(): React.JSX.Element {
   const [paneWidth, setPaneWidth] = useState(800)
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  // Ревью T84: ленты нет, пока окно пустое, а экземпляр компонента живёт дальше —
+  // слушатели вешаются, когда лента появилась, а не один раз при подъёме.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
+  const attachScroller = useCallback((node: HTMLDivElement | null): void => {
+    scrollRef.current = node
+    setScroller(node)
+  }, [])
   const pageElements = useRef(new Map<number, HTMLDivElement>())
   const setPageElement = useCallback((number: number, element: HTMLDivElement | null) => {
     if (element) pageElements.current.set(number, element)
@@ -234,14 +241,12 @@ export function PdfViewer(): React.JSX.Element {
 
   // Ширина панели — для масштаба «по ширине».
   useEffect(() => {
-    const scroller = scrollRef.current
-    if (!scroller) return
-    setPaneWidth(scroller.clientWidth || 800)
-    if (typeof ResizeObserver === 'undefined') return
+    if (!scroller || typeof ResizeObserver === 'undefined') return
+    // Первый замер приходит от самого наблюдателя: он сообщает размер сразу.
     const observer = new ResizeObserver(() => setPaneWidth(scroller.clientWidth || 800))
     observer.observe(scroller)
     return () => observer.disconnect()
-  }, [])
+  }, [scroller])
 
   // Load whenever a new request arrives. `token` is part of it so asking for
   // the same file twice re-lands on the cited page.
@@ -272,7 +277,7 @@ export function PdfViewer(): React.JSX.Element {
           },
           token: request.token
         })
-        setPage(Math.min(requestedPage(request), proxy.numPages))
+        if (!request.reload) setPage(Math.min(requestedPage(request), proxy.numPages))
       } catch (cause: unknown) {
         if (cancelled) return
         setState({
@@ -295,8 +300,21 @@ export function PdfViewer(): React.JSX.Element {
   useEffect(() => {
     if (!document || !request || landedToken.current === request.token) return
     landedToken.current = request.token
-    scrollToPage(Math.min(requestedPage(request), document.pages))
+    // Перечитанный файл (T74) остаётся на той странице, где его читали: её
+    // держит эффект масштаба ниже.
+    // Прокрутка ленты — работа с DOM; счётчик страниц ставится вместе с ней.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    if (!request.reload) scrollToPage(Math.min(requestedPage(request), document.pages))
   }, [document, request, scrollToPage])
+
+  // Прежний документ pdf.js освобождается, когда его страницы уже сняты: при
+  // живом обновлении (T74) файл перечитывается на каждую запись агента.
+  useEffect(() => {
+    const proxy = document?.proxy
+    return () => {
+      void proxy?.destroy?.()
+    }
+  }, [document])
 
   // Масштаб сменился — оставаться на той же странице.
   const pageNow = useRef(page)
@@ -330,7 +348,6 @@ export function PdfViewer(): React.JSX.Element {
     scaleNow.current = scale
   }, [scale])
   useEffect(() => {
-    const scroller = scrollRef.current
     if (!scroller) return
     const onWheel = (event: WheelEvent): void => {
       if (!event.ctrlKey) return
@@ -339,7 +356,7 @@ export function PdfViewer(): React.JSX.Element {
     }
     scroller.addEventListener('wheel', onWheel, { passive: false })
     return () => scroller.removeEventListener('wheel', onWheel)
-  }, [])
+  }, [scroller])
 
   const jumpTo = useCallback(
     (found: Match[], forQuery: string, from: number): void => {
@@ -552,7 +569,7 @@ export function PdfViewer(): React.JSX.Element {
         className="bg-muted/40 relative flex-1 overflow-auto p-3"
         data-testid="pdf-scroll"
         onScroll={onScroll}
-        ref={scrollRef}
+        ref={attachScroller}
       >
         {loading ? (
           <div className="text-muted-foreground text-sm">{t('viewer.opening')}</div>
