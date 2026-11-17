@@ -22,6 +22,24 @@ describe("aecRagEnv (task 3G.3, D-154)", () => {
     expect(env).not.toHaveProperty("OPENAI_API_KEY");
   });
 
+  // Ревью T84: ядро чистит окружение сервера MCP — доходят только переменные из
+  // его блока env. Ключ отдельного провайдера разбора (T80) обязан быть там же.
+  it("references the separate extraction key too, keyless extraction adds nothing", () => {
+    const env = aecRagEnv(
+      {
+        AEC_RAG_BASE_URL: "http://127.0.0.1:11434/v1",
+        AEC_RAG_KEY_ENV: "",
+        AEC_RAG_EXTRACTION_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        AEC_RAG_EXTRACTION_KEY_ENV: "GEMINI_API_KEY",
+      },
+      "C:\\home",
+    );
+    expect(env.GEMINI_API_KEY).toBe("${env:GEMINI_API_KEY}");
+    expect(Object.keys(env)).not.toContain("");
+    const keyless = aecRagEnv({ AEC_RAG_EXTRACTION_KEY_ENV: "" }, "C:\\home");
+    expect(Object.keys(keyless).sort()).toEqual(["AEC_HERMES_HOME", "AEC_RAG_EXTRACTION_KEY_ENV"]);
+  });
+
   it("without a provider writes only the home path", () => {
     expect(aecRagEnv({}, "C:\\home")).toEqual({ AEC_HERMES_HOME: "C:\\home" });
   });

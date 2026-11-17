@@ -91,3 +91,34 @@ def test_a_relative_escape_into_the_source_is_refused(project):
     vault, source = project
     verdict = decide("write_file", {"path": f"../{source.name}/лист.pdf", "content": "x"}, vault)
     assert verdict is not None and verdict["action"] == "block"
+
+
+# Ревью T84: перенос в формате ядра (`*** Move File: a -> b`) и заголовки с
+# несколькими пробелами — ядро их разбирает (`tools/patch_parser.py`), значит и
+# страж обязан. Обе стороны переноса: вынести файл из источника — тоже удалить его там.
+def test_core_move_out_of_a_source_is_refused(project):
+    vault, source = project
+    move = f"*** Move File: {source / 'лист.pdf'} -> {vault / 'лист.pdf'}"
+    text = f"*** Begin Patch\n{move}\n*** End Patch"
+    verdict = decide("patch", {"mode": "patch", "patch": text}, vault)
+    assert verdict is not None and verdict["action"] == "block"
+
+
+def test_core_move_into_a_source_is_refused(project):
+    vault, source = project
+    text = f"*** Begin Patch\n*** Move File: notes.md -> {source / 'notes.md'}\n*** End Patch"
+    verdict = decide("patch", {"mode": "patch", "patch": text}, vault)
+    assert verdict is not None and verdict["action"] == "block"
+
+
+def test_header_with_extra_spaces_is_refused(project):
+    vault, source = project
+    text = f"*** Begin Patch\n*** Delete  File: {source / 'лист.pdf'}\n*** End Patch"
+    verdict = decide("patch", {"mode": "patch", "patch": text}, vault)
+    assert verdict is not None and verdict["action"] == "block"
+
+
+def test_project_json_that_is_not_an_object_does_not_crash(project):
+    vault, source = project
+    (vault / ".aecpilot" / "project.json").write_text("[]", encoding="utf-8")
+    assert decide("write_file", {"path": str(source / "a.md"), "content": "x"}, vault) is None

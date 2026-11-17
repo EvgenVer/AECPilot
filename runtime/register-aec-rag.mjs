@@ -142,10 +142,16 @@ export function mergeSkillsDirIntoConfigYaml(yamlText, directory) {
  * server answers every call with «провайдер не задан».
  */
 export function aecRagEnv(ragEnv, hermesHomeDir) {
-  const keyEnv = ragEnv.AEC_RAG_KEY_ENV;
+  // Task T80: the extraction model may come from another provider with its own
+  // key. The core strips an MCP server's environment to its env block, so that
+  // key is referenced here too, or the server never sees it.
+  const keyRefs = {};
+  for (const keyEnv of [ragEnv.AEC_RAG_KEY_ENV, ragEnv.AEC_RAG_EXTRACTION_KEY_ENV]) {
+    if (keyEnv) keyRefs[keyEnv] = `\${env:${keyEnv}}`;
+  }
   return {
     ...ragEnv,
-    ...(keyEnv ? { [keyEnv]: `\${env:${keyEnv}}` } : {}),
+    ...keyRefs,
     AEC_HERMES_HOME: hermesHomeDir,
   };
 }

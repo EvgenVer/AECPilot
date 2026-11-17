@@ -23,11 +23,14 @@ from typing import Any
 
 _WRITE_TOOLS = frozenset({"write_file", "patch"})
 
-# V4A-заплатка (`patch` в режиме `patch`): цели названы в заголовках. `Move to`
-# переносит файл — запрещена и цель переноса, и сам источник переноса.
-_V4A_HEADER = re.compile(
-    r"^\*\*\*\s*(?:Update File|Delete File|Add File|Move to)\s*:\s*(.+?)\s*$", re.MULTILINE
-)
+# V4A-заплатка (`patch` в режиме `patch`): цели названы в заголовках. Образцы —
+# те же, что у разборщика ядра (`tools/patch_parser.py`, `_OP_MARKERS`): что
+# разберёт ядро, то обязан увидеть и страж. Перенос (`Move File: a -> b`) —
+# запрещены обе стороны: вынести файл из источника значит удалить его там.
+# `Move to:` — старый вид заголовка переноса; оставлен на случай подъёма пина.
+_V4A_HEADER = re.compile(r"^\*\*\*\s*(?:Update|Add|Delete)\s+File:\s*(.+?)\s*$", re.MULTILINE)
+_V4A_MOVE = re.compile(r"^\*\*\*\s*Move\s+File:\s*(.+?)\s*->\s*(.+?)\s*$", re.MULTILINE)
+_V4A_MOVE_TO = re.compile(r"^\*\*\*\s*Move\s+to\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def _targets(tool_name: str, args: Any) -> list[str]:
@@ -40,7 +43,11 @@ def _targets(tool_name: str, args: Any) -> list[str]:
     if tool_name == "patch":
         text = args.get("patch")
         if isinstance(text, str):
+            text = text.replace("\r\n", "\n")
             out.extend(match.group(1) for match in _V4A_HEADER.finditer(text))
+            out.extend(match.group(1) for match in _V4A_MOVE_TO.finditer(text))
+            for match in _V4A_MOVE.finditer(text):
+                out.extend((match.group(1), match.group(2)))
     return out
 
 
@@ -63,6 +70,8 @@ def source_roots(vault: Path) -> list[tuple[str, str]]:
     try:
         config = json.loads((vault / ".aecpilot" / "project.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return []
+    if not isinstance(config, dict):
         return []
     roots: list[tuple[str, str]] = []
     for source in config.get("sources") or []:
