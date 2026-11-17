@@ -35,7 +35,7 @@ import json
 import logging
 from typing import Any
 
-from . import key_source, memory_facts, shipped_skills
+from . import key_source, memory_facts, shipped_skills, sources_guard
 from .mem0_shared import install_mem0_backend
 from .secrets import find_secrets, redact_secrets, refusal_message
 
@@ -82,9 +82,17 @@ _VAULT_PREFIX = "browser_vault_"
 _VAULT_REFUSAL = "Сейф паролей браузера в AECPilot не используется: вход на сайт выполняет человек."
 
 
-def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> dict[str, str] | None:
+def _on_pre_tool_call(
+    tool_name: str = "", args: Any = None, task_id: str = "", **_: Any
+) -> dict[str, str] | None:
     if tool_name == _VAULT_TOOL or tool_name.startswith(_VAULT_PREFIX):
         return {"action": "block", "message": _VAULT_REFUSAL}
+
+    # Задача T78 (UR52): папки источников — только для чтения (`sources_guard.py`).
+    if tool_name in ("write_file", "patch"):
+        return sources_guard.before_file_write(
+            tool_name, args, resolve=sources_guard.core_resolver(task_id)
+        )
 
     # Задача T20.11: правка поставляемого навыка — в копию в профиле (`shipped_skills.py`).
     if tool_name == "skill_manage":
@@ -284,6 +292,9 @@ _PRODUCT_SECTION = (
     "- Project documents: call mcp__aec_rag__rag_query via tool_call directly, no "
     "tool_search first; sources: mcp__aec_sources__sources_list, "
     "mcp__aec_sources__sources_tree, mcp__aec_sources__sources_read.\n"
+    "- Source file the index lacks: mcp__aec_sources__sources_extract (PDF/Word/Excel "
+    "text, pages=[a, b]), then your own means. Never write, delete or move inside source "
+    "folders (terminal too); save results in the vault.\n"
     "- OS windows: read_window_below, read_terminal, desktop_preview via tool_call directly."
 )
 

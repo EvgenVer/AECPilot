@@ -3,8 +3,8 @@
 Contract: docs/history/specs/workspace-sources.md (API contracts). Tools are read-only by
 construction; no write/delete tools exist for sources.
 
-All 4 read-only tools (sources_list/sources_tree/sources_read/sources_stat)
-are implemented here. Every path-taking tool reuses
+All read-only tools (sources_list/sources_tree/sources_read/sources_extract/
+sources_stat) are implemented here. Every path-taking tool reuses
 ``aec_sources.paths.resolve_in_root`` (task 1.10) for anti-traversal.
 """
 
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 from aec_sources.audit import log_rejected
 from aec_sources.config import SourceRoot
+from aec_sources.extract import EXTRACT_MAX_CHARS, extract_text
 from aec_sources.fs import list_directory, list_roots_status, read_file_range, stat_path
 from aec_sources.paths import PathOutsideSourceError, resolve_in_root
 
@@ -30,7 +31,7 @@ class _AuditingMCPServer(MCPServer):
     """MCPServer that also journals calls to tool names it doesn't register at
     all — e.g. an agent guessing at a write/delete tool
     (``sources_write``/``sources_delete``/...) that simply doesn't exist,
-    read-only by construction (docs/history/specs/workspace-sources.md). Calls to the 4
+    read-only by construction (docs/history/specs/workspace-sources.md). Calls to the
     registered tools are journaled from inside their bodies instead (see
     ``_resolve`` below), since only there is the source/path context
     available; here we only see the raw ``name``.
@@ -64,7 +65,7 @@ def build_server(
     logs_dir: Path | None = None,
     config_error: str | None = None,
 ) -> MCPServer:
-    """Construct the aec-sources MCP server with the 4 read-only tools registered.
+    """Construct the aec-sources MCP server with its read-only tools registered.
 
     ``roots`` are the configured source roots (parsed from project.json).
     ``logs_dir`` is the project's rejected-attempts journal directory (see
@@ -164,6 +165,33 @@ def build_server(
             ) from exc
 
     # --8<-- [end:sources_read]
+    # Task T78 (UR52): a PDF, Word or Excel source read as TEXT without the index.
+    # `sources_read` returns bytes as UTF-8 — for a PDF that is `%PDF-1.4 ...`.
+    # The reader is the indexer's own (`aec_rag.parse`), so the agent sees the
+    # same text the index would, page by page, with the scanned pages recognised.
+    @server.tool(
+        description=(
+            "Extract the TEXT of a PDF, Word (.docx), Excel (.xlsx/.csv), Markdown or "
+            "plain-text file in a source root — use it for a document the index does not "
+            "cover yet. PDF pages are labelled [страница N]; pass pages=[first, last] "
+            "(1-based, inclusive) to read part of a long PDF. Output is capped at "
+            f"{EXTRACT_MAX_CHARS} characters; the cap and the page count are reported."
+        )
+    )
+    def sources_extract(source_id: str, path: str, pages: list[int] | None = None) -> str:
+        source = _find_root(source_id)
+        target = _resolve(source, path, "sources_extract")
+        if target.is_dir():
+            raise ToolError(f"path is not a file in source {source_id!r}: {path!r}")
+        try:
+            return extract_text(target, pages)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        except OSError as exc:
+            raise ToolError(
+                f"unable to read path in source {source_id!r}: {path!r} ({type(exc).__name__})"
+            ) from exc
+
     @server.tool(
         description=(
             "Get file/directory metadata (size, mtime) for a path in a source root. "

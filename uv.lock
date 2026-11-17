@@ -86,11 +86,15 @@ name = "aec-sources"
 version = "0.1.0"
 source = { editable = "mcp/aec_sources" }
 dependencies = [
+    { name = "aec-rag" },
     { name = "mcp" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mcp", specifier = ">=2.3,<3" }]
+requires-dist = [
+    { name = "aec-rag", editable = "mcp/aec_rag" },
+    { name = "mcp", specifier = ">=2.3,<3" },
+]
 
 [[package]]
 name = "aecpilot"

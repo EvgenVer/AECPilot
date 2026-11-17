@@ -46,18 +46,19 @@ def error_text(result):
     return "\n".join(block.text for block in result.content if hasattr(block, "text"))
 
 
-# --- 1. tools/list: exactly the 4 contract tools, no write-like name --------
+# --- 1. tools/list: exactly the 5 contract tools (T78 added sources_extract), no
+# write-like name ---------------------------------------------------------------
 
 
 @pytest.mark.anyio
-async def test_tools_list_is_exactly_four_read_only_tools():
+async def test_tools_list_is_exactly_five_read_only_tools():
     server = build_server()
 
     async with connected_session(server) as client:
         result = await client.list_tools()
 
     names = {tool.name for tool in result.tools}
-    assert len(result.tools) == 4
+    assert len(result.tools) == 5
     for name in names:
         lowered = name.lower()
         assert not any(bad in lowered for bad in WRITE_LIKE_SUBSTRINGS), name

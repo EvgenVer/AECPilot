@@ -92,6 +92,22 @@ describe("установка в профиль", () => {
     expect(PLUGIN_FILES).toContain("shipped_skills.py");
   });
 
+  // Задача T78: модуль, который плагин импортирует, но которого нет в списке,
+  // в профиль не уезжает — и в установленном приложении плагин падает на импорте
+  // целиком (а с ним фильтр секретов). Список сверяется с импортами всех модулей.
+  it("каждый модуль, который импортирует плагин, есть в списке копирования", () => {
+    const source = PLUGIN_SOURCE_DIR;
+    const modules = new Set();
+    for (const file of PLUGIN_FILES.filter((name) => name.endsWith(".py"))) {
+      const text = fs.readFileSync(path.join(source, file), "utf-8");
+      for (const match of text.matchAll(/^\s*from \.(\w*) import ([\w, ]+)/gm)) {
+        if (match[1]) modules.add(`${match[1]}.py`);
+        else for (const name of match[2].split(",")) modules.add(`${name.trim()}.py`);
+      }
+    }
+    for (const module of modules) expect(PLUGIN_FILES, module).toContain(module);
+  });
+
   it("тесты плагина в профиль НЕ уезжают — там нет pytest", () => {
     const dir = home();
     installSecretFilter(dir);

@@ -398,6 +398,8 @@ def test_разделы_промпта_продукт_и_память(monkeypatc
     assert "mcp__aec_rag__rag_query" in product
     # D-123: окна ОС — тот же отложенный набор.
     assert "read_window_below" in product
-    # Бюджет 200 + одобренные владельцем подсказки D-168 и D-123.
-    assert len(product) // 4 < 250
+    # T78 (UR52): чтение источника без индекса и запрет записи в источники.
+    assert "mcp__aec_sources__sources_extract" in product
+    # Бюджет 200 + одобренные владельцем подсказки D-168, D-123 и UR52 (T78).
+    assert len(product) // 4 < 300
     assert "mem0_add" in ctx.sections["aec-memory-routing"]
