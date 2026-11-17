@@ -22,6 +22,7 @@ import { useAecT } from '../../shared/i18n'
 import { gfmTableInputPlugin } from './gfm-table-input'
 import { decodeText } from './text-decode'
 import { citationLinkPlugin } from './citation-link-plugin'
+import { imageTitlePlugin, vaultLinkPlugin } from './vault-link-plugin'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument } from './viewer-store'
 import { openWikiPage } from './wikilink-open'
@@ -34,12 +35,17 @@ const SAVE_AFTER_MS = 1000
 
 type Saving = 'clean' | 'dirty' | 'saved' | { error: string }
 
+/** Задача T74 (UR56): файл на диске изменил кто-то другой (агент), пока в окне
+ *  лежит несохранённая правка. Решает человек: чья версия остаётся. */
+type Conflict = { keepMine: () => void; takeTheirs: () => void } | null
+
 export function MarkdownEditor(): React.JSX.Element | null {
   const t = useAecT()
   const request = useStore($openDocument)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [state, setState] = useState<{ error?: string; token: number }>({ token: 0 })
   const [saving, setSaving] = useState<Saving>('clean')
+  const [conflict, setConflict] = useState<Conflict>(null)
 
   // Правка, ещё не доехавшая до диска, и путь, которому она принадлежит.
   // Вместе, одним объектом: разъехавшись, они запишут текст одного файла в
@@ -66,14 +72,57 @@ export function MarkdownEditor(): React.JSX.Element | null {
      *  уход с вкладки выглядел бы правкой. */
     let onDisk = ''
 
+    /** Сырой текст файла, каким его последний раз прочитал или записал этот
+     *  редактор. Событие о своей же записи сравнивается с ним и пропускается. */
+    let rawOnDisk = ''
+
     const save = async (): Promise<void> => {
       const work = pending.current
       if (!work) return
       pending.current = null
+      rawOnDisk = work.text
       const result = await window.aecpilot.writeVaultFile(work.rel, work.text)
       if (result.ok) onDisk = work.text
       setSaving(result.ok ? 'saved' : { error: result.error })
     }
+
+    /** Поставить в редактор текст с диска, не считая это правкой человека. */
+    let showOnDisk: ((text: string) => void) | null = null
+
+    // Задача T74 (UR56): файл изменили снаружи (агент). Своих правок нет —
+    // текст подменяется молча; есть — спрашиваем, чья версия остаётся. Ничья
+    // правка не теряется без решения человека.
+    const unsubscribe = window.aecpilot.onVaultChanged((paths) => {
+      const rel = request.relPath.toLowerCase()
+      if (!paths.some((path) => path.toLowerCase() === rel)) return
+      void (async () => {
+        const read = await window.aecpilot.readDocument(request.relPath)
+        if (cancelled || !read.ok || !readLive || !showOnDisk) return
+        const theirs = decodeText(read.bytes).text
+        if (theirs === rawOnDisk) return
+        rawOnDisk = theirs
+        const mine = readLive()
+        const dirty = pending.current !== null || mine !== onDisk
+        if (!dirty) {
+          showOnDisk(theirs)
+          return
+        }
+        if (timer) clearTimeout(timer)
+        setConflict({
+          keepMine: () => {
+            setConflict(null)
+            pending.current = { rel: request.relPath, text: readLive?.() ?? mine }
+            void save()
+          },
+          takeTheirs: () => {
+            setConflict(null)
+            pending.current = null
+            showOnDisk?.(theirs)
+            setSaving('clean')
+          }
+        })
+      })()
+    })
 
     void (async () => {
       const read = await window.aecpilot.readDocument(request.relPath)
@@ -82,6 +131,7 @@ export function MarkdownEditor(): React.JSX.Element | null {
         setState({ error: read.error, token: request.token })
         return
       }
+      rawOnDisk = decodeText(read.bytes).text
 
       const [
         { Editor, defaultValueCtx, remarkStringifyOptionsCtx, rootCtx },
@@ -89,7 +139,7 @@ export function MarkdownEditor(): React.JSX.Element | null {
         { gfm },
         { history },
         listen,
-        { getMarkdown }
+        { getMarkdown, replaceAll }
       ] = await Promise.all([
         import('@milkdown/kit/core'),
         import('@milkdown/kit/preset/commonmark'),
@@ -111,6 +161,8 @@ export function MarkdownEditor(): React.JSX.Element | null {
           ctx.get(listen.listenerCtx).markdownUpdated((_ctx, markdown, previous) => {
             // Первое событие приходит на загрузку документа, а не на правку.
             if (previous === undefined) return
+            // Текст, поставленный с диска (T74), — не правка человека.
+            if (unescapeWikiLinks(markdown) === onDisk) return
             pending.current = { rel, text: unescapeWikiLinks(markdown) }
             setSaving('dirty')
             if (timer) clearTimeout(timer)
@@ -123,6 +175,9 @@ export function MarkdownEditor(): React.JSX.Element | null {
         .use(wikilinkPlugin((wanted) => void openWikiPage(wanted)))
         // Ссылка на источник `[src: …](#cite)` открывает документ, как фишка в чате.
         .use(citationLinkPlugin())
+        // T75 (UR55): `[текст](путь)` открывает файл, картинки vault видны.
+        .use(vaultLinkPlugin(rel))
+        .use(imageTitlePlugin)
         // Таблица, набранная разметкой, становится таблицей (D-94).
         .use(gfmTableInputPlugin)
         // История своя у ProseMirror; без неё Ctrl+Z в редакторе не работает.
@@ -137,11 +192,17 @@ export function MarkdownEditor(): React.JSX.Element | null {
       const live = editor
       readLive = () => unescapeWikiLinks(live.action(getMarkdown()))
       onDisk = readLive()
+      showOnDisk = (text: string) => {
+        live.action(replaceAll(text))
+        onDisk = readLive?.() ?? text
+      }
       setState({ token: request.token })
     })()
 
     return () => {
       cancelled = true
+      unsubscribe()
+      setConflict(null)
       if (timer) clearTimeout(timer)
       // Несохранённое дописывается при уходе: переключение вкладки не должно
       // стоить последней секунды набора. Их слушатель отдаёт markdown с
@@ -179,6 +240,29 @@ export function MarkdownEditor(): React.JSX.Element | null {
                 : ''}
         </span>
       </ViewerHeader>
+
+      {conflict ? (
+        <div
+          className="border-border flex flex-wrap items-center gap-2 border-b bg-amber-500/10 px-3 py-2 text-xs"
+          role="alert"
+        >
+          <span className="text-foreground">{t('viewer.conflict')}</span>
+          <button
+            className="hover:bg-muted rounded border px-2 py-0.5"
+            onClick={conflict.takeTheirs}
+            type="button"
+          >
+            {t('viewer.conflictTakeTheirs')}
+          </button>
+          <button
+            className="hover:bg-muted rounded border px-2 py-0.5"
+            onClick={conflict.keepMine}
+            type="button"
+          >
+            {t('viewer.conflictKeepMine')}
+          </button>
+        </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {!settled && !state.error ? (

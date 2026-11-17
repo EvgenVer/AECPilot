@@ -104,6 +104,10 @@ import {
   windowUrl,
   type WindowPlan
 } from './windows-pure'
+import { projectFenceRoots } from './project-fence'
+import { locateDocument } from './document-locate-pure'
+import { startVaultWatch, type VaultWatch } from './vault-watch'
+import { decideReveal, revealAllowed, revealOutsideError } from './reveal-path-pure'
 import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
@@ -1202,6 +1206,8 @@ async function openRemoteProject(
 
   const project: OpenProject = { name, vaultPath: serverPath }
   currentProject = project
+  // The files live on the core's machine: a local watcher would watch nothing.
+  watchProjectFolder(null)
   saveRemoteProject(project)
   resetActiveSessionForProjectSwitch()
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('project:opened', project)
@@ -2344,6 +2350,33 @@ ipcMain.handle('shell:reveal-path', async (_event, value: unknown) => {
   }
   shell.showItemInFolder(decided.absPath)
   return { ok: true }
+})
+
+// Задача T77 (UR55): файл, на который сослался агент, — документ проекта? Тогда
+// окно документов получает пару «корень + путь» (оно читает только так), а
+// ссылка вне хранилища и источников остаётся предпросмотру. Путь сверяется и как
+// написан, и после realpath: агент мог назвать файл через соединение папок.
+ipcMain.handle('document:locate', async (_event, payload: unknown) => {
+  if (filesAreRemote()) return { ok: false, error: filesLiveOnCoreMachine() }
+  const vaultPath = currentProject?.vaultPath
+  if (!vaultPath) return { ok: false, error: mainT('chat.projectNotOpen') }
+  const { target, baseDir } = (payload ?? {}) as { baseDir?: unknown; target?: unknown }
+  const resolved = resolveArtifactPath(
+    typeof baseDir === 'string' && baseDir !== '' ? baseDir : vaultPath,
+    target
+  )
+  if (!resolved.ok) return { ok: false, error: resolved.error }
+  const sources = listProjectSources(vaultPath).map((source) => ({
+    roots: projectFenceRoots(source.root_path),
+    sourceId: source.id
+  }))
+  const roots = projectFenceRoots(vaultPath)
+  let located = locateDocument(resolved.absPath, roots, sources)
+  if (!located) {
+    const real = await fs.promises.realpath(resolved.absPath).catch(() => null)
+    if (real) located = locateDocument(real, roots, sources)
+  }
+  return located ? { ok: true, ...located } : { ok: false, error: revealOutsideError() }
 })
 
 ipcMain.handle('artifacts:preview', async (_event, value: unknown) => {
@@ -5376,6 +5409,7 @@ ipcMain.handle('project:create', async (_event, payload: unknown) => {
   if (!result.ok) return result
 
   currentProject = result.project
+  watchProjectFolder(result.project.vaultPath)
   // Задача 3.8а (UR29): в конфиге ядра стоят каталоги скилов РОВНО текущего
   // проекта — и только если он доверен и не менялся. Отсюда и «скилы одного
   // проекта не видны в другом», и «отзыв доверия отключает их немедленно».
@@ -5450,11 +5484,27 @@ ipcMain.handle('project:open', async (_event, payload: unknown) => {
   return result
 })
 
+// Task T74 (UR56): the open project's folder is watched, and every window
+// hears which files changed (`vault:changed`) — the vault tree and an open
+// document refresh on their own. One watcher at a time: a project switch
+// replaces it. Details in `vault-watch.ts`.
+let vaultWatch: VaultWatch | null = null
+
+function watchProjectFolder(vaultPath: string | null): void {
+  vaultWatch?.close()
+  vaultWatch = null
+  if (!vaultPath) return
+  vaultWatch = startVaultWatch(vaultPath, (paths) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('vault:changed', paths)
+  })
+}
+
 // --8<-- [start:activate_project]
 /** Everything `project:open` does once the project has been read — shared with
  * the restore at start-up (task 3G.20, D-89), so both open a project the same way. */
 async function activateOpenedProject(project: OpenProject): Promise<void> {
   currentProject = project
+  watchProjectFolder(filesAreRemote() ? null : project.vaultPath)
   // Задача 3.8а (UR29): в конфиге ядра стоят каталоги скилов РОВНО текущего
   // проекта — и только если он доверен и не менялся. Отсюда и «скилы одного
   // проекта не видны в другом», и «отзыв доверия отключает их немедленно».

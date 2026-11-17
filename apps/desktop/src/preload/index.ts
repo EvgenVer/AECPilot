@@ -176,6 +176,13 @@ const api: AecpilotApi = {
   },
   setPreviewGuestHidden: (webContentsId, hidden) =>
     ipcRenderer.send('preview-guest:hidden', { webContentsId, hidden: Boolean(hidden) }),
+  // Task T74 (UR56): which vault files changed on disk — the tree and open
+  // documents refresh themselves.
+  onVaultChanged: (cb) => {
+    const listener = (_event: unknown, paths: string[]): void => cb(paths)
+    ipcRenderer.on('vault:changed', listener)
+    return () => ipcRenderer.removeListener('vault:changed', listener)
+  },
   onExternalOpenFailed: (cb) => {
     const listener = (_event: unknown, payload: { url: string; message?: string }): void =>
       cb(payload)
@@ -330,6 +337,7 @@ const api: AecpilotApi = {
   statArtifact: (value) => ipcRenderer.invoke('artifacts:stat', value),
   revealArtifact: (value) => ipcRenderer.invoke('artifacts:reveal', value),
   revealPath: (value) => ipcRenderer.invoke('shell:reveal-path', value),
+  locateDocument: (target, baseDir) => ipcRenderer.invoke('document:locate', { target, baseDir }),
   previewArtifact: (value) => ipcRenderer.invoke('artifacts:preview', value),
   getContextBreakdown: () => ipcRenderer.invoke('session:context-breakdown'),
   steerSession: (text) => ipcRenderer.invoke('session:steer', text),

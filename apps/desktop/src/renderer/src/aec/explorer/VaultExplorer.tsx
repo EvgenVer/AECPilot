@@ -35,6 +35,7 @@ import { NamePrompt } from './NamePrompt'
 import { useConfirm } from './useConfirm'
 import { indexMark } from './project-index-pure'
 import { SourcesPanel } from './SourcesPanel'
+import { mentionInChat } from './mention-in-chat'
 
 /** Folders the user has opened. Collapsed is the default: a vault's top level
  * is the map, and expanding everything on load buries it. */
@@ -205,6 +206,18 @@ function TreeRow({
             >
               {t('explorer.reveal')}
             </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() =>
+                void mentionInChat(
+                  () => window.aecpilot.getVaultEntryPath(node.path),
+                  node.name,
+                  isDir,
+                  t('explorer.mentionFailed')
+                )
+              }
+            >
+              {t('explorer.mention')}
+            </ContextMenuItem>
             {/* Task 3K.5 (SPEC UR45): nothing of the project is indexed unless
                 a person picks it here. The graph is built over indexed text
                 only, so it is offered where something is marked. */}
@@ -343,6 +356,10 @@ export function VaultExplorer() {
       void reload()
     })
   }, [reload])
+
+  // Task T74 (UR56): a file the agent created or removed shows up without a
+  // click. Only the tree is re-read; what is expanded stays expanded.
+  useEffect(() => window.aecpilot.onVaultChanged(() => void reload()), [reload])
 
   const toggle = useCallback((path: string) => {
     setExpanded((current) => ({ ...current, [path]: !current[path] }))

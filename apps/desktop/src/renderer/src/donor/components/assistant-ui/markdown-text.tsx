@@ -10,6 +10,11 @@
  *       both ours, both living in aec/citations. SPEC UR3 requires a citation
  *       to open our viewer, and this table is where a link's destination is
  *       decided.
+ *   [3] One more branch in the same dispatch (task T77, UR55): a link to a
+ *       document (md, PDF, Word, Excel, text) goes to our document window
+ *       (`aec/viewers/DocumentLink`) before the preview branches; a file outside
+ *       the project falls back to their `PreviewAttachment` inside that
+ *       component. Web pages, HTML and images keep their branches unchanged.
  */
 
 'use client'
@@ -37,6 +42,8 @@ import { defaultRemarkPlugins } from 'streamdown'
 
 import { CitationChip } from '../../../aec/citations/CitationLink'
 import { isCitationHref, parseCitationLabel } from '../../../aec/citations/citation-pure'
+import { DocumentLink } from '../../../aec/viewers/DocumentLink'
+import { documentTargetFromHref } from '../../../aec/viewers/document-link-pure'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { ExpandableBlock } from '@/components/chat/expandable-block'
@@ -327,6 +334,16 @@ function MarkdownLink({ children, className, href, ...props }: ComponentProps<'a
     if (citation) {
       return <CitationChip citation={citation} />
     }
+  }
+
+  const documentTarget = documentTargetFromHref(href)
+
+  if (documentTarget) {
+    return (
+      <DocumentLink target={documentTarget}>
+        {childrenToText(children).trim() ? children : undefined}
+      </DocumentLink>
+    )
   }
 
   const mediaPath = mediaPathFromMarkdownHref(href)

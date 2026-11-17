@@ -292,9 +292,10 @@ _PRODUCT_SECTION = (
     "- Project documents: call mcp__aec_rag__rag_query via tool_call directly, no "
     "tool_search first; sources: mcp__aec_sources__sources_list, "
     "mcp__aec_sources__sources_tree, mcp__aec_sources__sources_read.\n"
-    "- Source file the index lacks: mcp__aec_sources__sources_extract (PDF/Word/Excel "
-    "text, pages=[a, b]), then your own means. Never write, delete or move inside source "
-    "folders (terminal too); save results in the vault.\n"
+    "- Source file the index lacks: mcp__aec_sources__sources_extract, then your own "
+    "means. Never write, delete or move inside source folders (terminal too); save results "
+    "in the vault.\n"
+    "- @path:`…` in a message = a file or folder the person means.\n"
     "- OS windows: read_window_below, read_terminal, desktop_preview via tool_call directly."
 )
 

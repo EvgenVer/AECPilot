@@ -10,6 +10,7 @@
 // сломанная цитата, а не как отсутствующий просмотрщик.
 
 import { useStore } from '@nanostores/react'
+import { useEffect } from 'react'
 
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
@@ -25,6 +26,7 @@ import {
   $openDocument,
   $tabs,
   closeTab,
+  reloadDocuments,
   selectDocument,
   tabKey,
   type DocumentRequest
@@ -129,8 +131,14 @@ function Unsupported({
   )
 }
 
+/** md vault-файл правится в редакторе и перечитывает себя сам (T74). */
+const isEditable = (tab: DocumentRequest): boolean =>
+  !tab.sourceId && /\.(md|markdown)$/i.test(tab.relPath)
+
 export function DocumentViewer(): React.JSX.Element {
   const request = useStore($openDocument)
+  // Задача T74 (UR56): файл, изменённый агентом, перечитывается на экране сам.
+  useEffect(() => window.aecpilot.onVaultChanged((paths) => reloadDocuments(paths, isEditable)), [])
   // Пустой просмотрщик показывает PDF-вид: у него есть своё «кликните ссылку в
   // ответе», и заводить второй пустой экран не за чем.
   const format = request && BY_FORMAT.find((candidate) => candidate.match.test(request.relPath))

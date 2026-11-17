@@ -10,7 +10,14 @@
 // тестом, нужны следующему.
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { copyFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync
+} from 'node:fs'
 import { cpSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -150,9 +157,9 @@ function searchBox(page: Page): Locator {
   return page.getByRole('searchbox', { name: /Поиск по документу|Search the document/ })
 }
 
-/** Прокручиваемый контейнер вокруг холста PDF. */
+/** Прокручиваемая лента PDF (T76: страниц-холстов в ней много). */
 function pdfScroller(page: Page): Locator {
-  return page.locator('canvas').locator('xpath=ancestor::div[contains(@class,"overflow-auto")][1]')
+  return page.getByTestId('pdf-scroll')
 }
 
 test('подготовка: проект открыт, источник подключён', async () => {
@@ -790,4 +797,215 @@ test('21.6.1 [[тп-1]] строчными ведёт на существующ�
     /^тп-1\.md$/i.test(name)
   )
   expect(pages).toEqual([`${SAMPLE.wikiPage}.md`])
+})
+
+// ── Поправки 0.1.0 (UR55, UR56): T74–T76 ────────────────────────────────────
+
+/** 1×1 PNG — картинка, которую браузер действительно декодирует. */
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+)
+
+const LINKS_MD = 'ссылки.md'
+
+test('T76 PDF листается лентой: колесо меняет страницу в счётчике', async () => {
+  const page = await ui()
+  const chip = await answerWith(page, SAMPLE.pdf, 'p1')
+  await chip.click()
+  await expect(pageCounter(page)).toHaveText(`1 / ${SAMPLE.pdfPages}`, { timeout: 60000 })
+  // Все страницы — в одной прокручиваемой ленте.
+  await expect(page.locator('[data-testid="pdf-scroll"] [data-page]')).toHaveCount(SAMPLE.pdfPages)
+  const scroller = page.getByTestId('pdf-scroll')
+  const box = (await scroller.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let i = 0; i < 6; i += 1) await page.mouse.wheel(0, 900)
+  await expect
+    .poll(async () => Number((await pageCounter(page).textContent())?.split('/')[0].trim()))
+    .toBeGreaterThan(1)
+})
+
+test('T76 PDF: Ctrl+колесо меняет масштаб, щелчок по процентам — «по ширине»', async () => {
+  const page = await ui()
+  const scroller = page.getByTestId('pdf-scroll')
+  const box = (await scroller.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.keyboard.down('Control')
+  await page.mouse.wheel(0, -100)
+  await page.keyboard.up('Control')
+  const percent = page.getByRole('button', { name: /^\d+%$/ })
+  await expect(percent).toBeVisible({ timeout: 10000 })
+  // Масштаб окна при этом не тронут: Ctrl+колесо съедено просмотрщиком.
+  expect(await page.evaluate(() => window.aecpilot.zoomFactor())).toBeCloseTo(1, 2)
+  await percent.click()
+  await expect(page.getByRole('button', { name: /^(По ширине|Fit width)$/ })).toBeVisible()
+})
+
+test('T76 Word вписан в ширину панели, Ctrl+колесо меняет масштаб', async () => {
+  const page = await ui()
+  await expandSourceA(page)
+  await openFromTree(page, SAMPLE.docx)
+  const scroller = page.getByTestId('docx-scroll')
+  await expect(scroller.locator('section.docx').first()).toBeVisible({ timeout: 60000 })
+  const fits = async (): Promise<boolean> =>
+    scroller.evaluate((node) => node.scrollWidth <= node.clientWidth + 2)
+  await expect.poll(fits).toBe(true)
+  const zoomBefore = await scroller.locator('[data-zoom]').getAttribute('data-zoom')
+  const box = (await scroller.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.keyboard.down('Control')
+  await page.mouse.wheel(0, -100)
+  await page.mouse.wheel(0, -100)
+  await page.keyboard.up('Control')
+  await expect
+    .poll(() => scroller.locator('[data-zoom]').getAttribute('data-zoom'))
+    .not.toBe(zoomBefore)
+})
+
+test('T74 файл, созданный снаружи, появляется в дереве сам', async () => {
+  const page = await ui()
+  const project = stand.get().projectDir
+  mkdirSync(join(project, 'media'), { recursive: true })
+  writeFileSync(join(project, 'media', 'схема.png'), PNG_1PX)
+  copyFileSync(join(sample.sourceA, SAMPLE.docx), join(project, 'media', 'записка.docx'))
+  copyFileSync(join(sample.sourceA, SAMPLE.pdf), join(project, 'media', 'план.pdf'))
+  writeFileSync(
+    join(project, 'notes', LINKS_MD),
+    [
+      '# Ссылки',
+      '',
+      'Лист — [[план.pdf]], записка — [записку](../media/записка.docx).',
+      '',
+      '![](../media/схема.png)',
+      '',
+      'И вставка ![[схема.png]].',
+      ''
+    ].join('\n'),
+    'utf-8'
+  )
+  // Ни одного нажатия «обновить»: строка приходит по наблюдению за папкой.
+  await expect(row(page, `notes/${LINKS_MD}`)).toBeVisible({ timeout: 30000 })
+})
+
+test('T75 картинки ![](путь) и ![[имя]] видны в md', async () => {
+  const page = await ui()
+  await openFromTree(page, `notes/${LINKS_MD}`)
+  await expect(editor(page)).toContainText('Ссылки', { timeout: 30000 })
+  const images = editor(page).locator('img[data-vault-image]')
+  await expect(images).toHaveCount(2)
+  await expect
+    .poll(() =>
+      images.evaluateAll((nodes) =>
+        nodes.every((node) => (node as HTMLImageElement).naturalWidth > 0)
+      )
+    )
+    .toBe(true)
+})
+
+test('T75 [[файл.pdf]] открывает PDF в окне документов', async () => {
+  const page = await ui()
+  await viewerTab(page, LINKS_MD).click()
+  await editor(page).locator('[data-wikilink="план.pdf"]').first().click()
+  await expect(viewerTab(page, 'план.pdf')).toBeVisible({ timeout: 30000 })
+  await expect(pageCounter(page)).toHaveText(`1 / ${SAMPLE.pdfPages}`, { timeout: 60000 })
+})
+
+test('T75 [текст](путь) открывает Word в окне документов', async () => {
+  const page = await ui()
+  await viewerTab(page, LINKS_MD).click()
+  await editor(page).locator('a', { hasText: 'записку' }).click()
+  await expect(viewerTab(page, 'записка.docx')).toBeVisible({ timeout: 30000 })
+  await expect(page.getByTestId('docx-scroll').locator('section.docx').first()).toBeVisible({
+    timeout: 60000
+  })
+})
+
+test('T74 открытый документ перечитывается, когда файл меняют снаружи', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', 'живой.txt')
+  writeFileSync(file, 'версия один', 'utf-8')
+  await openFromTree(page, 'notes/живой.txt')
+  await expect(page.locator('pre')).toContainText('версия один', { timeout: 30000 })
+  writeFileSync(file, 'версия агента', 'utf-8')
+  await expect(page.locator('pre')).toContainText('версия агента', { timeout: 30000 })
+})
+
+test('T74 правка в окне и правка агента: «Оставить мою» сохраняет мою', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', LINKS_MD)
+  await viewerTab(page, LINKS_MD).click()
+  await typeAtEnd(page, ' моя правка')
+  // Агент пишет в тот же файл, пока моя правка ещё не сохранена (пауза 1 с).
+  writeFileSync(file, '# Ссылки\n\nверсия агента\n', 'utf-8')
+  const banner = page.getByRole('alert').filter({ hasText: /изменили снаружи|changed outside/ })
+  await expect(banner).toBeVisible({ timeout: 15000 })
+  await banner.getByRole('button', { name: /Оставить мою|Keep mine/ }).click()
+  await expect(banner).toHaveCount(0)
+  await expect.poll(() => readFileSync(file, 'utf-8'), { timeout: 15000 }).toContain('моя правка')
+  await expect(editor(page)).toContainText('моя правка')
+})
+
+test('T74 правка в окне и правка агента: «Взять версию агента» берёт его', async () => {
+  const page = await ui()
+  const file = join(stand.get().projectDir, 'notes', LINKS_MD)
+  await typeAtEnd(page, ' ещё моя')
+  writeFileSync(file, '# Ссылки\n\nвторая версия агента\n', 'utf-8')
+  const banner = page.getByRole('alert').filter({ hasText: /изменили снаружи|changed outside/ })
+  await expect(banner).toBeVisible({ timeout: 15000 })
+  await banner.getByRole('button', { name: /Взять версию агента|Take the agent/ }).click()
+  await expect(editor(page)).toContainText('вторая версия агента', { timeout: 15000 })
+  await expect(editor(page)).not.toContainText('ещё моя')
+  // Подождать паузу сохранения: на диске осталась версия агента.
+  await page.waitForTimeout(1500)
+  expect(readFileSync(file, 'utf-8')).toContain('вторая версия агента')
+  await assertRendererAlive(page, 'T74 conflict')
+})
+
+test('T77 ссылка агента на Word проекта открывает окно документов', async () => {
+  const page = await ui()
+  const docx = join(stand.get().projectDir, 'media', 'записка.docx')
+  await send(page, `say: Записка лежит тут: [записка](<${docx.replace(/\\/g, '/')}>).`)
+  const link = page.locator('[data-document-link]').last()
+  await expect(link).toBeEnabled({ timeout: 60000 })
+  await clearNotifications(page)
+  await link.click()
+  await expect(viewerTab(page, 'записка.docx')).toBeVisible({ timeout: 30000 })
+  await expect(page.getByTestId('docx-scroll').locator('section.docx').first()).toBeVisible({
+    timeout: 60000
+  })
+})
+
+test('T77 ссылка агента на документ вне проекта остаётся предпросмотру', async () => {
+  const page = await ui()
+  await send(page, 'say: Чужой файл: [внешний](C:/нет-такой-папки/внешний.pdf).')
+  // Не кнопка окна документов, а карточка их предпросмотра с именем файла.
+  await expect(page.getByText('внешний.pdf').last()).toBeVisible({ timeout: 60000 })
+  await expect(page.locator('[data-document-link="C:/нет-такой-папки/внешний.pdf"]')).toHaveCount(0)
+})
+
+test('T79 «Упомянуть в чате»: две плашки, агенту — адреса', async () => {
+  const page = await ui()
+  const composer = await reviveStrandedSession(page)
+  await clearNotifications(page)
+  await row(page, `notes/${LINKS_MD}`).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^(Упомянуть в чате|Mention in chat)$/ }).click()
+  await row(page, 'notes').first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^(Упомянуть в чате|Mention in chat)$/ }).click()
+  const chips = composer.locator('[data-ref-kind="path"]')
+  await expect(chips).toHaveCount(2)
+  await expect(chips.first()).toHaveText(LINKS_MD)
+  await expect(chips.last()).toHaveText('notes/')
+  await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
+  // В отправленном — адреса (вид `@path:`, его ядро не раскрывает), а не
+  // содержимое файла: сообщение в ленте — тот же текст, что ушёл ядру.
+  const project = stand.get().projectDir
+  const sent = async (): Promise<string> =>
+    page
+      .locator('[data-slot="aui_directive-text"]', { hasText: '@path:' })
+      .last()
+      .evaluate((node) => node.parentElement?.textContent ?? '')
+  await expect.poll(sent, { timeout: 30000 }).toContain(join(project, 'notes', LINKS_MD))
+  expect((await sent()).match(/@path:/g)).toHaveLength(2)
+  expect(await sent()).toContain(join(project, 'notes'))
+  await expect(page.getByText('--- Attached Context ---')).toHaveCount(0)
 })

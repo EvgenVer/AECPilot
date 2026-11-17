@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, it, test } from 'vitest'
 
 import {
   $activeTab,
@@ -8,6 +8,7 @@ import {
   closeDocument,
   closeTab,
   openDocument,
+  reloadDocuments,
   requestedPage,
   selectDocument,
   setAfterOpenDocument,
@@ -135,5 +136,36 @@ describe('файл проекта в индексе (3K.6)', () => {
     open('wiki/КР.md', undefined, 'project')
 
     expect($tabs.get()).toHaveLength(1)
+  })
+})
+
+// Задача T74 (UR56): файл, изменённый на диске, перечитывается во вкладке.
+describe('reloadDocuments (T74)', () => {
+  it('перечитывает вкладку изменённого файла, не трогая остальные и место в документе', () => {
+    closeAllDocuments()
+    openDocument({ locator: { page: 3 }, relPath: 'workspace/notes/T-003.docx' })
+    openDocument({ locator: {}, relPath: 'wiki/ТП-1.md' })
+    openDocument({ locator: {}, relPath: 'ТУ.pdf', sourceId: 's1' })
+    const before = $tabs.get().map((tab) => tab.token)
+
+    reloadDocuments(['Workspace/Notes/T-003.docx', 'wiki/ТП-1.md', 'ТУ.pdf'], (tab) =>
+      tab.relPath.endsWith('.md')
+    )
+
+    const after = $tabs.get()
+    expect(after[0].token).not.toBe(before[0])
+    expect(after[0].locator).toEqual({ page: 3 })
+    expect(after[1].token).toBe(before[1]) // md перечитывает себя сам
+    expect(after[2].token).toBe(before[2]) // источник — не vault
+  })
+
+  it('изменение папки задевает файлы под ней; «.» и чужие пути — ничего', () => {
+    closeAllDocuments()
+    openDocument({ locator: {}, relPath: 'workspace/notes/a.txt' })
+    const before = $tabs.get()[0].token
+    reloadDocuments(['.', 'wiki'])
+    expect($tabs.get()[0].token).toBe(before)
+    reloadDocuments(['workspace/notes'])
+    expect($tabs.get()[0].token).not.toBe(before)
   })
 })

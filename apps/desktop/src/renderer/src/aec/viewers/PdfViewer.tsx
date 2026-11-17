@@ -1,10 +1,16 @@
-// The PDF viewer a citation opens (task 2.14; поиск и зум — задача 4.1).
+// The PDF viewer a citation opens (task 2.14; поиск и зум — задача 4.1;
+// сплошная прокрутка и Ctrl+колесо — задача T76, UR55).
 //
 // What this must get right above everything else is the one thing AC1 measures:
 // the page a citation points at is the page that appears. Задача 4.1 добавила
-// то, без чего просмотрщик остаётся демонстрационным: масштаб (лист чертежа
-// нечитаем «по ширине») и поиск по тексту (в ТУ на сорок страниц ссылка
-// приводит на страницу, а искомое место надо ещё найти глазами).
+// масштаб и поиск по тексту.
+//
+// Задача T76 (замечание владельца 5 на 0.1.0): документ читается ЛЕНТОЙ, как в
+// любом просмотрщике PDF, — колесо листает страницы подряд, а не одну страницу с
+// кнопками; Ctrl+колесо меняет масштаб. Страница рисуется, когда подъезжает к
+// полю зрения (`IntersectionObserver`): сорок листов чертежа холстами сразу —
+// это сотни мегабайт памяти ради страниц, которых человек не увидит. Счётчик
+// «N из M» следует за прокруткой, а стрелки, ссылка и поиск прокручивают ленту.
 //
 // Вкладки живут этажом выше, в `DocumentViewer`: они общие для всех форматов.
 
@@ -23,11 +29,14 @@ import {
   type SearchablePage,
   type TextPiece
 } from './pdf-search'
+import { nextZoomStep, pageAtOffset } from './pdf-scroll-pure'
 import { ViewerHeader } from './ViewerHeader'
 import { $openDocument, requestedPage } from './viewer-store'
 
 type LoadedDocument = {
   pages: number
+  /** Размер первой страницы при масштабе 1 — заготовка для ещё не нарисованных. */
+  base: { height: number; width: number }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs types are loaded lazily
   proxy: any
 }
@@ -43,25 +52,22 @@ async function loadPdfjs() {
 
 /** What has been loaded, and for which request. Keeping the token in the state
  *  is what makes «loading» a derived value rather than a third flag to keep in
- *  sync: the viewer is loading exactly while the state it holds is not the
- *  state that was asked for. */
+ *  sync. */
 type ViewerState = {
   document?: LoadedDocument
   error?: string
   token: number
 }
 
-/** Ступени масштаба. Ряд, а не свободное число: кнопка «+» должна давать
- *  предсказуемый шаг, а 100% и 200% — попадать точно. */
-const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]
-
 /** `null` — по ширине панели; так документ открывается по умолчанию. */
 type Zoom = number | null
 
 type Rect = { left: number; top: number; width: number; height: number }
 
-/** Прямоугольник куска текста в координатах холста. Точен при повороте 0 и
- *  достаточен при любом другом: подсветка обводит слово, а не измеряет его. */
+/** Промежуток между страницами ленты, px. */
+const PAGE_GAP = 12
+
+/** Прямоугольник куска текста в координатах холста. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs viewport
 function pieceRect(piece: TextPiece, viewport: any): Rect {
   const [x1, y1] = viewport.convertToViewportPoint(piece.x, piece.y + piece.height)
@@ -74,31 +80,130 @@ function pieceRect(piece: TextPiece, viewport: any): Rect {
   }
 }
 
+type PageHighlight = { active: boolean; pieces: TextPiece[] }
+
+/** Одна страница ленты. До первого появления в поле зрения — пустая заготовка
+ *  размера первой страницы; нарисованная — холст своего размера. */
+function PdfPage({
+  activeRef,
+  base,
+  highlights,
+  number,
+  proxy,
+  scale,
+  setElement
+}: {
+  activeRef: React.RefObject<HTMLDivElement | null>
+  base: { height: number; width: number }
+  highlights: PageHighlight[]
+  number: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs document
+  proxy: any
+  scale: number
+  setElement: (number: number, element: HTMLDivElement | null) => void
+}): React.JSX.Element {
+  const holderRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Без наблюдателя (старый движок, тесты) страница видна сразу: лишняя память
+  // лучше пустой страницы.
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs viewport
+  const [viewport, setViewport] = useState<any>(null)
+
+  useEffect(() => {
+    const holder = holderRef.current
+    if (!holder || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setVisible(true)
+      },
+      { rootMargin: '800px 0px' }
+    )
+    observer.observe(holder)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!visible) return
+    let cancelled = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs render task
+    let task: any = null
+    void (async () => {
+      const page = await proxy.getPage(number)
+      if (cancelled) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const next = page.getViewport({ scale })
+      canvas.width = Math.floor(next.width)
+      canvas.height = Math.floor(next.height)
+      const context = canvas.getContext('2d')
+      if (!context) return
+      task = page.render({ canvas, canvasContext: context, viewport: next })
+      try {
+        await task.promise
+      } catch {
+        return // отменён новой отрисовкой — не ошибка
+      }
+      if (!cancelled) setViewport(next)
+    })()
+    return () => {
+      cancelled = true
+      task?.cancel?.()
+    }
+  }, [visible, proxy, number, scale])
+
+  const width = viewport?.width ?? base.width * scale
+  const height = viewport?.height ?? base.height * scale
+
+  return (
+    <div
+      className="relative mx-auto bg-white shadow-sm"
+      data-page={number}
+      ref={(element) => {
+        holderRef.current = element
+        setElement(number, element)
+      }}
+      style={{ height, width }}
+    >
+      <canvas className="block" ref={canvasRef} />
+      {viewport
+        ? highlights.flatMap((highlight, index) =>
+            highlight.pieces.map((piece, at) => (
+              <div
+                className={
+                  highlight.active
+                    ? 'pointer-events-none absolute bg-amber-400/60'
+                    : 'pointer-events-none absolute bg-amber-300/30'
+                }
+                key={`${index}-${at}`}
+                ref={highlight.active && at === 0 ? activeRef : undefined}
+                style={pieceRect(piece, viewport)}
+              />
+            ))
+          )
+        : null}
+    </div>
+  )
+}
+
 export function PdfViewer(): React.JSX.Element {
   const t = useAecT()
   const request = useStore($openDocument)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [state, setState] = useState<ViewerState>({ token: 0 })
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState<Zoom>(null)
+  const [paneWidth, setPaneWidth] = useState(800)
 
-  // Поиск. Текст вытаскивается один раз на документ и только когда о нём
-  // попросили: getTextContent по каждой странице стоит заметно, а большинство
-  // открытий просмотрщика — «посмотреть на место из ссылки», без поиска.
-  //
-  // Запрос и курсор привязаны к документу и к запросу СВОИМ полем, а не
-  // сбрасываются эффектом на смену документа: чужой запрос в строке — это
-  // «совпадений нет» там, где искать никто не просил, а сброс через эффект даёт
-  // лишний проход рендера на каждое открытие ссылки.
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const pageElements = useRef(new Map<number, HTMLDivElement>())
+  const setPageElement = useCallback((number: number, element: HTMLDivElement | null) => {
+    if (element) pageElements.current.set(number, element)
+    else pageElements.current.delete(number)
+  }, [])
+
   const [search, setSearch] = useState<{ key: string; query: string }>({ key: '', query: '' })
   const [cursor, setCursor] = useState<{ query: string; at: number }>({ query: '', at: 0 })
   const [text, setText] = useState<{ token: number; pages: SearchablePage[] } | null>(null)
-
-  // Вьюпорт последней отрисовки — по нему подсветка переводит координаты PDF в
-  // пиксели холста. Держится в состоянии, потому что подсветка рисуется в том
-  // же проходе, что и всё остальное.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs viewport
-  const [viewport, setViewport] = useState<any>(null)
 
   const settled = request !== null && state.token === request.token
   const document = settled ? state.document : undefined
@@ -108,13 +213,38 @@ export function PdfViewer(): React.JSX.Element {
   const documentKey = request ? `${request.sourceId ?? ''} ${request.relPath}` : ''
   const query = search.key === documentKey ? search.query : ''
   const searching = query.trim().length >= MIN_QUERY
-  // «Достаём текст» — это не отдельный флаг, а то же самое, что «ищем, но
-  // текста этого документа ещё нет».
   const extracting = searching && text?.token !== request?.token
 
+  const scale = document ? (zoom ?? Math.max(0.2, (paneWidth - 24) / document.base.width)) : 1
+
+  /** Прокрутить ленту к странице. Счётчик ставится сразу, а событие прокрутки,
+   *  которое вызовет эта прокрутка, пропускается: у последних страниц лента
+   *  упирается в низ, и счётчик по положению показал бы предыдущую — а человек
+   *  просил именно эту. */
+  const ignoreNextScroll = useRef(false)
+  const scrollToPage = useCallback((number: number): void => {
+    setPage(number)
+    const element = pageElements.current.get(number)
+    const scroller = scrollRef.current
+    if (!element || !scroller) return
+    const before = scroller.scrollTop
+    scroller.scrollTop = element.offsetTop - PAGE_GAP
+    if (scroller.scrollTop !== before) ignoreNextScroll.current = true
+  }, [])
+
+  // Ширина панели — для масштаба «по ширине».
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    setPaneWidth(scroller.clientWidth || 800)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setPaneWidth(scroller.clientWidth || 800))
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [])
+
   // Load whenever a new request arrives. `token` is part of it so asking for
-  // the same file twice re-lands on the cited page instead of leaving the
-  // reader wherever they had scrolled to.
+  // the same file twice re-lands on the cited page.
   useEffect(() => {
     if (!request) return
 
@@ -132,7 +262,16 @@ export function PdfViewer(): React.JSX.Element {
         const pdfjs = await loadPdfjs()
         const proxy = await pdfjs.getDocument({ data: new Uint8Array(result.bytes) }).promise
         if (cancelled) return
-        setState({ document: { pages: proxy.numPages, proxy }, token: request.token })
+        const first = (await proxy.getPage(1)).getViewport({ scale: 1 })
+        if (cancelled) return
+        setState({
+          document: {
+            base: { height: first.height, width: first.width },
+            pages: proxy.numPages,
+            proxy
+          },
+          token: request.token
+        })
         setPage(Math.min(requestedPage(request), proxy.numPages))
       } catch (cause: unknown) {
         if (cancelled) return
@@ -150,63 +289,77 @@ export function PdfViewer(): React.JSX.Element {
     }
   }, [request])
 
-  // Draw the current page. По умолчанию — по ширине панели: инженер читает лист
-  // чертежа, и фиксированный масштаб либо режет его, либо ужимает текст до
-  // нечитаемого. Явный масштаб отменяет подгонку.
+  // После загрузки — на страницу из ссылки. Отдельным эффектом: заготовки
+  // страниц появляются в DOM только после того, как документ лёг в состояние.
+  const landedToken = useRef(0)
   useEffect(() => {
-    if (!document || !canvasRef.current) return
+    if (!document || !request || landedToken.current === request.token) return
+    landedToken.current = request.token
+    scrollToPage(Math.min(requestedPage(request), document.pages))
+  }, [document, request, scrollToPage])
 
-    let cancelled = false
-    void (async () => {
-      const rendered = await document.proxy.getPage(page)
-      if (cancelled) return
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const available = canvas.parentElement?.parentElement?.clientWidth ?? 800
-      const base = rendered.getViewport({ scale: 1 })
-      const scale = zoom ?? Math.max(0.2, (available - 24) / base.width)
-      const next = rendered.getViewport({ scale })
-      canvas.width = Math.floor(next.width)
-      canvas.height = Math.floor(next.height)
-      const context = canvas.getContext('2d')
-      if (!context) return
-      await rendered.render({ canvas, canvasContext: context, viewport: next }).promise
-      if (cancelled) return
-      setViewport(next)
-    })()
+  // Масштаб сменился — оставаться на той же странице.
+  const pageNow = useRef(page)
+  useEffect(() => {
+    pageNow.current = page
+  }, [page])
+  useEffect(() => {
+    if (document) scrollToPage(pageNow.current)
+  }, [scale, document, scrollToPage])
 
-    return () => {
-      cancelled = true
-    }
-  }, [document, page, zoom])
-
-  /** Встать на ближайшее совпадение вперёд от страницы `from`. Ближайшее, а не
-   *  первое в документе: читатель ищет то, что у него перед глазами, и прыжок
-   *  на первую страницу он воспримет как промах поиска.
-   *
-   *  Страница передаётся аргументом, а не берётся из состояния: иначе разбор
-   *  текста перезапускался бы на каждое перелистывание. */
-  const jumpTo = useCallback((found: Match[], forQuery: string, from: number): void => {
-    if (!found.length) {
-      setCursor({ query: forQuery, at: 0 })
+  // Счётчик следует за прокруткой.
+  const onScroll = (): void => {
+    if (ignoreNextScroll.current) {
+      ignoreNextScroll.current = false
       return
     }
-    const at = matchNearPage(found, from)
-    setCursor({ query: forQuery, at })
-    setPage(found[at].page)
+    const scroller = scrollRef.current
+    if (!scroller || !document) return
+    const tops: number[] = []
+    for (let number = 1; number <= document.pages; number += 1) {
+      tops.push(pageElements.current.get(number)?.offsetTop ?? 0)
+    }
+    const at = pageAtOffset(tops, scroller.scrollTop + scroller.clientHeight / 3)
+    if (at !== page) setPage(at)
+  }
+
+  // Ctrl+колесо — масштаб. Слушатель не пассивный: иначе `preventDefault` не
+  // остановит масштаб всего окна, который Electron делает на тот же жест.
+  const scaleNow = useRef(scale)
+  useEffect(() => {
+    scaleNow.current = scale
+  }, [scale])
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const onWheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey) return
+      event.preventDefault()
+      setZoom(nextZoomStep(scaleNow.current, event.deltaY < 0 ? 1 : -1))
+    }
+    scroller.addEventListener('wheel', onWheel, { passive: false })
+    return () => scroller.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Запрос и страница на момент КОНЦА разбора, а не его начала. В зависимости
-  // эффекта их класть нельзя: разбор сорокастраничного документа перезапускался
-  // бы на каждую букву запроса и на каждое перелистывание.
+  const jumpTo = useCallback(
+    (found: Match[], forQuery: string, from: number): void => {
+      if (!found.length) {
+        setCursor({ query: forQuery, at: 0 })
+        return
+      }
+      const at = matchNearPage(found, from)
+      setCursor({ query: forQuery, at })
+      scrollToPage(found[at].page)
+    },
+    [scrollToPage]
+  )
+
   const latest = useRef({ query, page })
   useEffect(() => {
     latest.current = { query, page }
   }, [query, page])
 
   // Текст достаётся ровно один раз на документ, при первом непустом запросе.
-  // Прыжок на найденное делается здесь же, в колбэке: для первого запроса это
-  // единственный момент, когда совпадения впервые становятся известны.
   useEffect(() => {
     if (!document || !request || !searching) return
     if (text?.token === request.token) return
@@ -256,30 +409,28 @@ export function PdfViewer(): React.JSX.Element {
     if (!matches.length) return
     const next = (at + matches.length) % matches.length
     setCursor({ query, at: next })
-    setPage(matches[next].page)
+    scrollToPage(matches[next].page)
   }
 
-  // Подсветка: все совпадения на открытой странице, текущее — ярче.
-  const highlights = useMemo<{ rect: Rect; active: boolean }[]>(() => {
-    if (!viewport || !text || !matches.length) return []
-    const source = text.pages.find((candidate) => candidate.page === page)
-    if (!source) return []
-
-    return matches
-      .map((match, index) => ({ match, index }))
-      .filter((entry) => entry.match.page === page)
-      .flatMap((entry) =>
-        entry.match.pieces
-          .map((piece) => source.pieces[piece])
-          .filter(Boolean)
-          .map((piece) => ({ rect: pieceRect(piece, viewport), active: entry.index === current }))
-      )
-  }, [viewport, text, matches, page, current])
+  // Подсветка по страницам: все совпадения, текущее — ярче.
+  const highlightsByPage = useMemo(() => {
+    const byPage = new Map<number, PageHighlight[]>()
+    if (!text || !matches.length) return byPage
+    matches.forEach((match, index) => {
+      const source = text.pages.find((candidate) => candidate.page === match.page)
+      if (!source) return
+      const pieces = match.pieces.map((piece) => source.pieces[piece]).filter(Boolean)
+      const list = byPage.get(match.page) ?? []
+      list.push({ active: index === current, pieces })
+      byPage.set(match.page, list)
+    })
+    return byPage
+  }, [text, matches, current])
 
   const activeHighlight = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     activeHighlight.current?.scrollIntoView({ block: 'center', inline: 'center' })
-  }, [current, page, viewport])
+  }, [current, highlightsByPage])
 
   if (!request) {
     return (
@@ -289,18 +440,17 @@ export function PdfViewer(): React.JSX.Element {
     )
   }
 
+  const pageNumbers = document ? Array.from({ length: document.pages }, (_, i) => i + 1) : []
+
   return (
     <div className="flex h-full flex-col">
-      {/* Имя файла — в общей шапке: полоса вкладок появляется только со второго
-          документа, и без шапки открытый в одиночку файл оставался бы
-          безымянным. */}
       <ViewerHeader relPath={request.relPath} />
 
       <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
         <Button
           aria-label={t('viewer.previous')}
           disabled={!document || page <= 1}
-          onClick={() => setPage((at) => Math.max(1, at - 1))}
+          onClick={() => scrollToPage(Math.max(1, page - 1))}
           size="sm"
           variant="ghost"
         >
@@ -312,7 +462,7 @@ export function PdfViewer(): React.JSX.Element {
         <Button
           aria-label={t('viewer.next')}
           disabled={!document || page >= (document?.pages ?? 1)}
-          onClick={() => setPage((at) => Math.min(document?.pages ?? at, at + 1))}
+          onClick={() => scrollToPage(Math.min(document?.pages ?? page, page + 1))}
           size="sm"
           variant="ghost"
         >
@@ -324,12 +474,7 @@ export function PdfViewer(): React.JSX.Element {
         <Button
           aria-label={t('viewer.zoomOut')}
           disabled={!document}
-          onClick={() =>
-            setZoom((at) => {
-              const from = at ?? 1
-              return [...ZOOM_STEPS].reverse().find((step) => step < from - 0.001) ?? ZOOM_STEPS[0]
-            })
-          }
+          onClick={() => setZoom(nextZoomStep(zoom ?? 1, -1))}
           size="sm"
           variant="ghost"
         >
@@ -347,14 +492,7 @@ export function PdfViewer(): React.JSX.Element {
         <Button
           aria-label={t('viewer.zoomIn')}
           disabled={!document}
-          onClick={() =>
-            setZoom((at) => {
-              const from = at ?? 1
-              return (
-                ZOOM_STEPS.find((step) => step > from + 0.001) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]
-              )
-            })
-          }
+          onClick={() => setZoom(nextZoomStep(zoom ?? 1, 1))}
           size="sm"
           variant="ghost"
         >
@@ -369,9 +507,6 @@ export function PdfViewer(): React.JSX.Element {
             onChange={(event) => {
               const next = event.target.value
               setSearch({ key: documentKey, query: next })
-              // Текст этого документа уже разобран — значит совпадения нового
-              // запроса известны прямо сейчас, и прыжок делается здесь, а не
-              // эффектом на изменение состояния.
               if (text?.token === request.token) jumpTo(findMatches(text.pages, next), next, page)
             }}
             onKeyDown={(event) => {
@@ -413,7 +548,12 @@ export function PdfViewer(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-3">
+      <div
+        className="bg-muted/40 relative flex-1 overflow-auto p-3"
+        data-testid="pdf-scroll"
+        onScroll={onScroll}
+        ref={scrollRef}
+      >
         {loading ? (
           <div className="text-muted-foreground text-sm">{t('viewer.opening')}</div>
         ) : null}
@@ -426,21 +566,22 @@ export function PdfViewer(): React.JSX.Element {
             </div>
           </div>
         ) : null}
-        <div className="relative mx-auto w-fit">
-          <canvas className="block" ref={canvasRef} />
-          {highlights.map((highlight, index) => (
-            <div
-              className={
-                highlight.active
-                  ? 'pointer-events-none absolute bg-amber-400/60'
-                  : 'pointer-events-none absolute bg-amber-300/30'
-              }
-              key={index}
-              ref={highlight.active ? activeHighlight : undefined}
-              style={highlight.rect}
-            />
-          ))}
-        </div>
+        {document ? (
+          <div className="flex w-fit min-w-full flex-col" style={{ gap: PAGE_GAP }}>
+            {pageNumbers.map((number) => (
+              <PdfPage
+                activeRef={activeHighlight}
+                base={document.base}
+                highlights={highlightsByPage.get(number) ?? []}
+                key={`${request.token}-${number}`}
+                number={number}
+                proxy={document.proxy}
+                scale={scale}
+                setElement={setPageElement}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   )

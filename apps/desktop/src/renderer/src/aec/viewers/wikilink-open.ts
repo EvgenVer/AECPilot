@@ -4,7 +4,8 @@
 // вызывает плагин ProseMirror, и проверять его удобнее без поднятого редактора.
 
 import { openDocument } from './viewer-store'
-import { findPage, pageFileName } from './wikilink-pure'
+import { linkFileName } from './vault-link-pure'
+import { findPage } from './wikilink-pure'
 
 /** Страница ищется по имени во всём vault, а если её нет — заводится в `wiki/`,
  *  пустой, и сразу открывается.
@@ -14,7 +15,9 @@ import { findPage, pageFileName } from './wikilink-pure'
  *  переход значит мешать. Пустой файл ничего не портит, а lint (задача 4.11)
  *  потом покажет его как сироту. */
 export async function openWikiPage(target: string): Promise<void> {
-  const fileName = pageFileName(target)
+  // Задача T75 (UR55): `[[файл.pdf]]`, `[[файл.docx]]` — файл по имени, как в
+  // Obsidian; без расширения — страница вики.
+  const fileName = linkFileName(target)
   if (!fileName) return
 
   const existing = findPage(await window.aecpilot.getVaultTree(), fileName)
@@ -22,6 +25,9 @@ export async function openWikiPage(target: string): Promise<void> {
     openDocument({ locator: {}, relPath: existing })
     return
   }
+  // Файла с расширением нет — ничего не заводим: пустой «PDF» был бы порчей,
+  // а не обычным ходом работы вики.
+  if (!/\.(md|markdown)$/i.test(fileName)) return
 
   const created = await window.aecpilot.createVaultFile('wiki', fileName)
   if (created.ok) openDocument({ locator: {}, relPath: `wiki/${fileName}` })

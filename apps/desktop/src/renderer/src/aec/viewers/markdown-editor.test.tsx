@@ -48,9 +48,28 @@ beforeEach(() => {
   writeVaultFile.mockResolvedValue({ ok: true })
   Object.defineProperty(window, 'aecpilot', {
     configurable: true,
-    value: { readDocument, writeVaultFile }
+    value: {
+      getVaultTree: vi.fn().mockResolvedValue([
+        {
+          children: [{ name: 'схема.png', path: 'media/схема.png', type: 'file' }],
+          name: 'media',
+          path: 'media',
+          type: 'dir'
+        }
+      ]),
+      onVaultChanged: (cb: (paths: string[]) => void) => {
+        vaultChanged = cb
+        return () => {
+          vaultChanged = null
+        }
+      },
+      readDocument,
+      writeVaultFile
+    }
   })
 })
+
+let vaultChanged: ((paths: string[]) => void) | null = null
 
 afterEach(() => {
   cleanup()
@@ -103,5 +122,59 @@ describe('редактор markdown', () => {
     show()
 
     await waitFor(() => expect(screen.getByText(/Файл не найден/)).toBeTruthy())
+  })
+
+  // Задача T74 (UR56): файл изменили снаружи, своих правок нет — текст
+  // подменяется сам, без вопроса и без записи на диск.
+  test('изменённый агентом файл без правок в окне перечитывается сам', async () => {
+    openDocument({ locator: {}, relPath: 'wiki/страница.md' })
+    show()
+    await waitFor(() => expect(screen.getByText('Кабельный журнал')).toBeTruthy())
+
+    readDocument.mockResolvedValue({
+      bytes: bytesOf('# Новая версия агента'),
+      name: 'страница.md',
+      ok: true,
+      path: 'C:/p/страница.md',
+      size: 10
+    })
+    vaultChanged?.(['wiki/страница.md'])
+
+    await waitFor(() => expect(screen.getByText('Новая версия агента')).toBeTruthy())
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(writeVaultFile).not.toHaveBeenCalled()
+  })
+
+  test('чужой файл в событии не трогает открытый', async () => {
+    openDocument({ locator: {}, relPath: 'wiki/страница.md' })
+    show()
+    await waitFor(() => expect(screen.getByText('Кабельный журнал')).toBeTruthy())
+    const reads = readDocument.mock.calls.length
+    vaultChanged?.(['wiki/другая.md'])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(readDocument.mock.calls.length).toBe(reads)
+  })
+
+  // Задача T75 (UR55): картинки vault — байтами через мост, по пути и по имени.
+  test('![](путь) и ![[имя]] показывают картинку из vault', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:картинка')
+    readDocument.mockImplementation(async (rel: string) =>
+      rel.endsWith('.md')
+        ? {
+            bytes: bytesOf('![план](../media/схема.png)\n\nи ![[схема.png]]'),
+            name: 'страница.md',
+            ok: true,
+            path: 'C:/p/страница.md',
+            size: 10
+          }
+        : { bytes: new ArrayBuffer(4), name: 'схема.png', ok: true, path: 'C:/p/x', size: 4 }
+    )
+    openDocument({ locator: {}, relPath: 'wiki/страница.md' })
+    show()
+
+    await waitFor(() =>
+      expect(document.querySelectorAll('img[data-vault-image][src="blob:картинка"]').length).toBe(2)
+    )
+    expect(readDocument).toHaveBeenCalledWith('media/схема.png')
   })
 })

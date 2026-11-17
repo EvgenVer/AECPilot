@@ -463,6 +463,7 @@ describe('действия по документу (3L.6)', () => {
     expect(await menuOf(row)).toEqual([
       'Индексировать',
       'Убрать из индекса',
+      'Упомянуть в чате',
       'Добавить в граф знаний'
     ])
   })
@@ -495,7 +496,11 @@ describe('действия по документу (3L.6)', () => {
     await waitFor(() =>
       expect(within(row).getByRole('img', { name: 'убран из индекса' })).toBeTruthy()
     )
-    expect(await menuOf(row)).toEqual(['Индексировать', 'Добавить в граф знаний'])
+    expect(await menuOf(row)).toEqual([
+      'Индексировать',
+      'Упомянуть в чате',
+      'Добавить в граф знаний'
+    ])
     await act(async () => {
       screen.getByRole('menuitem', { name: 'Индексировать' }).click()
     })
@@ -523,6 +528,7 @@ describe('действия по документу (3L.6)', () => {
     expect(await menuOf(row)).toEqual([
       'Продолжить распознавание сканов',
       'Убрать из индекса',
+      'Упомянуть в чате',
       'Добавить в граф знаний'
     ])
   })

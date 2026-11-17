@@ -63,6 +63,7 @@ beforeEach(() => {
     includeInIndex,
     excludeFromIndex,
     onProjectOpened: () => () => {},
+    onVaultChanged: () => () => {},
     // Задача 3L.6: опись и список убранного — для меню и значков деревьев.
     getIndexInventory,
     indexDocument,

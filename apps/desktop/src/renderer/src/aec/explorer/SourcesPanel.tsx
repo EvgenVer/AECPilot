@@ -37,6 +37,7 @@ import { openIndexPage } from '../workspace-pages'
 
 import { GraphAddDialog } from './GraphAddDialog'
 import { askGraphAdd, indexTarget } from './graph-add-store'
+import { mentionInChat } from './mention-in-chat'
 import { useConfirm } from './useConfirm'
 
 const SOURCES_KEY = ['aec', 'sources'] as const
@@ -205,6 +206,18 @@ function SourceNodes({
                     </ContextMenuItem>
                   ))
                 )}
+                <ContextMenuItem
+                  onSelect={() =>
+                    void mentionInChat(
+                      () => window.aecpilot.getSourceEntryPath(sourceId, node.path),
+                      node.name,
+                      node.type === 'dir',
+                      t('explorer.mentionFailed')
+                    )
+                  }
+                >
+                  {t('explorer.mention')}
+                </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() =>
                     askGraphAdd({

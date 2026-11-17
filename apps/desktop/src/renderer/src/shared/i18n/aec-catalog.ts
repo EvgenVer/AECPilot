@@ -122,6 +122,8 @@ export const aecLocales: PluginLocaleBundles = {
       renamePrompt: 'New name',
       deleteConfirm: 'Delete this entry?',
       reveal: 'Show in Explorer',
+      mention: 'Mention in chat',
+      mentionFailed: 'Could not mention it in the chat',
       includeInIndex: 'Include in the index',
       excludeFromIndex: 'Remove from the index',
       excludeConfirm:
@@ -395,6 +397,9 @@ export const aecLocales: PluginLocaleBundles = {
       saving: 'Saving…',
       saved: 'Saved',
       saveFailed: (reason: string) => `Not saved: ${reason}`,
+      conflict: 'The file was changed outside the app while you were editing it.',
+      conflictTakeTheirs: 'Take the agent’s version',
+      conflictKeepMine: 'Keep mine',
       sheetEmpty: 'The sheet is empty.',
       sheetTruncated: (shown: number, total: number) => `First ${shown} rows of ${total}`
     },
@@ -982,6 +987,8 @@ export const aecLocales: PluginLocaleBundles = {
       renamePrompt: 'Новое имя',
       deleteConfirm: 'Удалить эту запись?',
       reveal: 'Показать в проводнике',
+      mention: 'Упомянуть в чате',
+      mentionFailed: 'Не удалось упомянуть в чате',
       includeInIndex: 'Включить в индекс',
       excludeFromIndex: 'Убрать из индекса',
       excludeConfirm: 'Убрать из поиска и графа знаний? Сам файл останется на месте.',
@@ -1251,6 +1258,9 @@ export const aecLocales: PluginLocaleBundles = {
       saving: 'Сохраняю…',
       saved: 'Сохранено',
       saveFailed: (reason: string) => `Не сохранено: ${reason}`,
+      conflict: 'Файл изменили снаружи, пока вы его правили.',
+      conflictTakeTheirs: 'Взять версию агента',
+      conflictKeepMine: 'Оставить мою',
       sheetEmpty: 'Лист пуст.',
       sheetTruncated: (shown: number, total: number) => `Первые ${shown} строк из ${total}`
     },

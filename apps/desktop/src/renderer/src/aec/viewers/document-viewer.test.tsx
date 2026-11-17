@@ -39,7 +39,10 @@ beforeEach(() => {
   // `window.aecpilot` всплывает необработанным отказом и пачкает прогон.
   Object.defineProperty(window, 'aecpilot', {
     configurable: true,
-    value: { readDocument: vi.fn().mockResolvedValue({ error: 'нет моста', ok: false }) }
+    value: {
+      onVaultChanged: () => () => undefined,
+      readDocument: vi.fn().mockResolvedValue({ error: 'нет моста', ok: false })
+    }
   })
 })
 

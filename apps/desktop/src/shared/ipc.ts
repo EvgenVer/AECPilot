@@ -1532,6 +1532,10 @@ export interface AecpilotApi {
   /** Задача T42.3: вкладка браузера ушла из виду / вернулась — жесты её не листают. */
   setPreviewGuestHidden(webContentsId: number, hidden: boolean): void
   /** Задача T42.2: ОС не открыла разрешённую ссылку (их `external-open-failed`). */
+  /** Task T74 (UR56): vault-relative paths (with `/`) that changed on disk —
+   *  created, written, renamed or removed by the agent or anyone else. `.` means
+   *  "something in the vault changed". `.aecpilot/` is never reported. */
+  onVaultChanged(cb: (paths: string[]) => void): () => void
   onExternalOpenFailed(cb: (payload: { url: string; message?: string }) => void): () => void
   /** Slash-command completions for what is being typed (task 1.6.8). Never
    * rejects: a disconnected gateway or a failed call comes back as an empty
@@ -2042,6 +2046,13 @@ export interface AecpilotApi {
    * only inside the project or a connected source folder (symlinks resolved);
    * anything else is refused with an explanation. */
   revealPath(value: string): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Task T77 (UR55): a file the agent linked to, as the document window's pair
+   * "root + path" — the vault (no `sourceId`) or a connected source. A file
+   * outside both is an error, and the link stays with the preview. */
+  locateDocument(
+    target: string,
+    baseDir?: string
+  ): Promise<{ ok: true; relPath: string; sourceId?: string } | { ok: false; error: string }>
   /** Reads a raster image into a data-URL. Inside the project only (symlinks
    * resolved), size-capped, and `svg` is excluded on purpose — it is markup
    * with script capability. */

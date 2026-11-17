@@ -400,6 +400,8 @@ def test_разделы_промпта_продукт_и_память(monkeypatc
     assert "read_window_below" in product
     # T78 (UR52): чтение источника без индекса и запрет записи в источники.
     assert "mcp__aec_sources__sources_extract" in product
+    # Задача T79 (UR54): упоминание из дерева приходит адресом, не содержимым.
+    assert "@path:" in product
     # Бюджет 200 + одобренные владельцем подсказки D-168, D-123 и UR52 (T78).
     assert len(product) // 4 < 300
     assert "mem0_add" in ctx.sections["aec-memory-routing"]
