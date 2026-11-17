@@ -167,6 +167,52 @@ describe('окно «Индекс и память»', () => {
     )
   })
 
+  // Задача T80 (UR53): эмбеддинги — локальный сервер без ключа, разбор — другой
+  // провайдер. Поля ключа для адреса без переменной нет; ключ облака разбора — есть.
+  it('разбор — другим провайдером, эмбеддинги — локальным адресом без ключа', async () => {
+    show()
+    fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
+      target: { value: 'custom' }
+    })
+    fireEvent.change(screen.getByLabelText('Адрес (base_url)'), {
+      target: { value: 'http://127.0.0.1:8090/v1' }
+    })
+    fireEvent.change(screen.getByLabelText('Модель эмбеддингов'), { target: { value: 'bge-m3' } })
+    fireEvent.click(screen.getByLabelText('Разбирать документы другим провайдером'))
+    fireEvent.change(screen.getByLabelText('Провайдер разбора документов'), {
+      target: { value: 'openai-api' }
+    })
+    fireEvent.change(screen.getByLabelText('Модель разбора документов'), {
+      target: { value: 'gpt-5-mini' }
+    })
+    // Ключ нужен только облаку разбора; у локального адреса поля ключа нет.
+    expect(screen.getByText('OPENAI_API_KEY')).toBeTruthy()
+    expect(screen.queryByText('GEMINI_API_KEY')).toBeNull()
+
+    listDataModels.mockResolvedValue({ ok: true, models: ['gpt-5-mini', 'gpt-5'] })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Список моделей' }).at(-1)!)
+    await waitFor(() =>
+      expect(listDataModels).toHaveBeenCalledWith(expect.anything(), 'extraction')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
+    await waitFor(() =>
+      expect(saveDataProviders).toHaveBeenCalledWith(
+        {
+          rag: {
+            provider: 'custom',
+            base_url: 'http://127.0.0.1:8090/v1',
+            embedding: 'bge-m3',
+            extraction: 'gpt-5-mini',
+            extraction_provider: 'openai-api'
+          },
+          memory: { provider: 'rag' }
+        },
+        false
+      )
+    )
+  })
+
   it('агент по подписке назван словами, и причина отказа видна', () => {
     $dataProviders.set(
       state({

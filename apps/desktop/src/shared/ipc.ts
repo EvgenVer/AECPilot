@@ -769,6 +769,11 @@ export interface DataProvidersFile {
     key_env?: string
     embedding?: string
     extraction?: string
+    /** Task T80 (UR53): the extraction model from another provider; absent — the
+     *  same as the embeddings. `custom` takes its own address and, optionally, key. */
+    extraction_provider?: 'agent' | 'gemini' | 'openai-api' | 'custom'
+    extraction_base_url?: string
+    extraction_key_env?: string
   }
   memory: {
     provider: 'rag' | 'agent' | 'gemini' | 'openai-api' | 'custom'
@@ -1709,7 +1714,7 @@ export interface AecpilotApi {
    *  только чтение. Отказ словами; окно тогда оставляет поле для ввода руками. */
   listDataModels(
     choice: DataProvidersFile,
-    section: 'rag' | 'memory'
+    section: 'rag' | 'extraction' | 'memory'
   ): Promise<{ error?: string; models?: string[]; ok: boolean }>
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void

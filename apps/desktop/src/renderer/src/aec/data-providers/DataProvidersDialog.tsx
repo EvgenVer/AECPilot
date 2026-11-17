@@ -45,7 +45,7 @@ import {
 type RagChoice = DataProvidersFile['rag']
 type MemoryChoice = DataProvidersFile['memory']
 type Preset = DataProvidersState['presets'][number]
-type Section = 'rag' | 'memory'
+type Section = 'rag' | 'extraction' | 'memory'
 
 const inputClass =
   'min-w-0 flex-1 rounded border border-(--ui-border) bg-(--ui-bg-primary) p-1.5 text-xs text-(--ui-text-primary)'
@@ -60,7 +60,9 @@ const selectClass = `${inputClass} [.dark_&]:[color-scheme:dark] [&_option]:bg-p
 /** Пустые поля не едут в файл: «не задано» и «пустая строка» — одно и то же. */
 function clean<T extends object>(value: T): T {
   return Object.fromEntries(
-    Object.entries(value).filter(([, v]) => !(typeof v === 'string' && v.trim() === ''))
+    Object.entries(value).filter(
+      ([, v]) => v !== undefined && !(typeof v === 'string' && v.trim() === '')
+    )
   ) as T
 }
 
@@ -201,6 +203,9 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   if (!open) return null
 
   const separate = draft.memory.provider !== 'rag'
+  // Задача T80 (UR53): модель разбора — у другого провайдера, чем эмбеддинги.
+  // Эмбеддинги могут стоять на локальном сервере без ключа, а разбор — у облака.
+  const extractionSeparate = !!draft.rag.extraction_provider
   const touched = (): void => {
     setMessage('')
     setWarnings([])
@@ -224,6 +229,14 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
     state,
     draft.rag.provider === 'agent' ? (state.agentProvider ?? '') : draft.rag.provider
   )
+  const extractionPreset = extractionSeparate
+    ? presetOf(
+        state,
+        draft.rag.extraction_provider === 'agent'
+          ? (state.agentProvider ?? '')
+          : (draft.rag.extraction_provider ?? '')
+      )
+    : ragPreset
   const memoryPresetId =
     draft.memory.provider === 'rag'
       ? draft.rag.provider
@@ -238,6 +251,9 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   // У «как у агента» при агенте по подписке провайдера нет — и моделей тоже.
   const agentUsable = !!state.agentProvider && !isSubscriptionProvider(state.agentProvider)
   const ragHasProvider = draft.rag.provider !== 'agent' || agentUsable
+  const extractionHasProvider = extractionSeparate
+    ? draft.rag.extraction_provider !== 'agent' || agentUsable
+    : ragHasProvider
   const memoryHasProvider =
     draft.memory.provider === 'rag'
       ? ragHasProvider
@@ -245,8 +261,12 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
 
   // Ключи, которые нужны выбору; «как у агента» своих не добавляет.
   const neededKeys: string[] = []
-  for (const choice of [draft.rag, draft.memory]) {
+  const keyed: { provider: string; key_env?: string }[] = [draft.rag, draft.memory]
+  if (draft.rag.extraction_provider)
+    keyed.push({ provider: draft.rag.extraction_provider, key_env: draft.rag.extraction_key_env })
+  for (const choice of keyed) {
     if (choice.provider === 'agent' || choice.provider === 'rag') continue
+    // Свой адрес без имени переменной — локальный сервер без ключа: поля ключа нет.
     const name =
       choice.provider === 'custom'
         ? (choice.key_env ?? '')
@@ -367,6 +387,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                     id="data-rag-key-env"
                     label={t('dataProviders.keyEnv')}
                     onChange={(value) => setRag({ ...draft.rag, key_env: value.toUpperCase() })}
+                    placeholder={t('dataProviders.keyEnvNone')}
                     value={draft.rag.key_env ?? ''}
                   />
                 </div>
@@ -382,16 +403,93 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                       placeholder={ragPreset?.embedding}
                       value={draft.rag.embedding ?? ''}
                     />
-                    <Field
-                      id="data-rag-extraction"
-                      label={t('dataProviders.extraction')}
-                      models={models.rag}
-                      onChange={(value) => setRag({ ...draft.rag, extraction: value })}
-                      placeholder={ragPreset?.extraction}
-                      value={draft.rag.extraction ?? ''}
-                    />
+                    {!extractionSeparate && (
+                      <Field
+                        id="data-rag-extraction"
+                        label={t('dataProviders.extraction')}
+                        models={models.rag}
+                        onChange={(value) => setRag({ ...draft.rag, extraction: value })}
+                        placeholder={ragPreset?.extraction}
+                        value={draft.rag.extraction ?? ''}
+                      />
+                    )}
                   </div>
                   {modelsRow('rag')}
+                </>
+              )}
+              <label className="flex items-center gap-2 text-xs text-(--ui-text-primary)">
+                <input
+                  checked={extractionSeparate}
+                  onChange={(event) => {
+                    setRag({
+                      ...draft.rag,
+                      extraction: undefined,
+                      extraction_provider: event.target.checked ? 'agent' : undefined,
+                      extraction_base_url: undefined,
+                      extraction_key_env: undefined
+                    })
+                    forget('extraction')
+                  }}
+                  type="checkbox"
+                />
+                {t('dataProviders.extractionSeparate')}
+              </label>
+              {extractionSeparate && (
+                <>
+                  <label
+                    className="text-xs font-semibold text-(--ui-text-primary)"
+                    htmlFor="data-extraction"
+                  >
+                    {t('dataProviders.extractionLabel')}
+                  </label>
+                  <select
+                    className={selectClass}
+                    id="data-extraction"
+                    onChange={(event) => {
+                      setRag({
+                        ...draft.rag,
+                        extraction_provider: event.target.value as RagChoice['extraction_provider'],
+                        extraction_base_url: undefined,
+                        extraction_key_env: undefined
+                      })
+                      forget('extraction')
+                    }}
+                    value={draft.rag.extraction_provider}
+                  >
+                    {options(true)}
+                  </select>
+                  {draft.rag.extraction_provider === 'custom' && (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Field
+                        id="data-extraction-base-url"
+                        label={t('dataProviders.baseUrl')}
+                        onChange={(value) => setRag({ ...draft.rag, extraction_base_url: value })}
+                        value={draft.rag.extraction_base_url ?? ''}
+                      />
+                      <Field
+                        id="data-extraction-key-env"
+                        label={t('dataProviders.keyEnv')}
+                        onChange={(value) =>
+                          setRag({ ...draft.rag, extraction_key_env: value.toUpperCase() })
+                        }
+                        placeholder={t('dataProviders.keyEnvNone')}
+                        value={draft.rag.extraction_key_env ?? ''}
+                      />
+                    </div>
+                  )}
+                  {extractionHasProvider && (
+                    <>
+                      <Field
+                        id="data-rag-extraction"
+                        label={t('dataProviders.extraction')}
+                        models={models.extraction}
+                        onChange={(value) => setRag({ ...draft.rag, extraction: value })}
+                        placeholder={extractionPreset?.extraction}
+                        value={draft.rag.extraction ?? ''}
+                      />
+                      {modelsRow('extraction')}
+                    </>
+                  )}
                 </>
               )}
             </section>
@@ -440,6 +538,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                         onChange={(value) =>
                           setMemory({ ...draft.memory, key_env: value.toUpperCase() })
                         }
+                        placeholder={t('dataProviders.keyEnvNone')}
                         value={draft.memory.key_env ?? ''}
                       />
                     </div>

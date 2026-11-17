@@ -65,7 +65,7 @@ export async function saveDataChoice(
 /** Модели провайдера раздела (задача 3G.52) или отказ словами. */
 export async function listModels(
   choice: DataProvidersFile,
-  section: 'rag' | 'memory'
+  section: 'rag' | 'extraction' | 'memory'
 ): Promise<{ ok: true; models: string[] } | { ok: false; error: string }> {
   const answer = await window.aecpilot.listDataModels(choice, section)
   return answer.ok && answer.models

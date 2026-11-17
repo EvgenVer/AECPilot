@@ -104,7 +104,9 @@ export function resolveProvider(profile: ProfileProvider): ResolvedProvider {
   const baseUrl = preset.baseUrl ?? (profile.baseUrl ?? '').trim()
   const keyEnvVar = preset.keyEnvVar ?? (profile.keyEnvVar ?? '').trim()
   if (!baseUrl) return { ok: false, reason: mainT('provider.noBaseUrl') }
-  if (!keyEnvVar) return { ok: false, reason: mainT('provider.noKeyVar') }
+  // Task T80 (UR53): a custom address may have no key — a local server (Ollama,
+  // LM Studio) takes none. A preset always names its own variable.
+  if (!keyEnvVar && id !== 'custom') return { ok: false, reason: mainT('provider.noKeyVar') }
   return { ok: true, id, baseUrl, keyEnvVar, models: preset.models }
 }
 
@@ -252,6 +254,12 @@ export interface RagChoice {
   /** Empty — the preset's model. */
   embedding?: string
   extraction?: string
+  /** Task T80 (UR53, decision 0021): the extraction model from another provider.
+   *  Absent — the same provider as the embeddings. */
+  extractionProvider?: 'agent' | PresetProviderId
+  /** `custom` extraction only. */
+  extractionBaseUrl?: string
+  extractionKeyEnvVar?: string
 }
 
 export interface MemoryChoice {
@@ -303,6 +311,10 @@ export function parseDataProviders(json: string | null): DataProviders {
   const memory = record(record(raw).memory)
   const ragProviderId =
     rag.provider === 'agent' || isPresetProviderId(rag.provider) ? rag.provider : 'agent'
+  const extractionProviderId =
+    rag.extraction_provider === 'agent' || isPresetProviderId(rag.extraction_provider)
+      ? rag.extraction_provider
+      : undefined
   const memoryProviderId =
     memory.provider === 'rag' || memory.provider === 'agent' || isPresetProviderId(memory.provider)
       ? memory.provider
@@ -314,7 +326,10 @@ export function parseDataProviders(json: string | null): DataProviders {
       baseUrl: text(rag.base_url),
       keyEnvVar: text(rag.key_env),
       embedding: text(rag.embedding),
-      extraction: text(rag.extraction)
+      extraction: text(rag.extraction),
+      extractionProvider: extractionProviderId,
+      extractionBaseUrl: extractionProviderId ? text(rag.extraction_base_url) : undefined,
+      extractionKeyEnvVar: extractionProviderId ? text(rag.extraction_key_env) : undefined
     }),
     memory: withoutEmpty({
       provider: memoryProviderId,
@@ -363,24 +378,35 @@ export function ragProvider(agent: ProfileProvider, choices: DataProviders): Rag
   const choice = choices.rag
   const resolved = resolveChoice(agent, choice)
   if (!resolved.ok) return resolved
+  // Task T80: the extraction model may come from its own provider.
+  const extractionResolved = choice.extractionProvider
+    ? resolveChoice(agent, {
+        provider: choice.extractionProvider,
+        baseUrl: choice.extractionBaseUrl,
+        keyEnvVar: choice.extractionKeyEnvVar
+      })
+    : resolved
+  if (!extractionResolved.ok) return extractionResolved
   const embedding = choice.embedding ?? resolved.models?.embedding
   // Graph extraction runs on the agent's model of the preset (owner, 2026-09-28).
-  const extraction = choice.extraction ?? resolved.models?.agent
+  const extraction = choice.extraction ?? extractionResolved.models?.agent
   if (!embedding || !extraction) {
     return {
       ok: false,
       reason: mainT('provider.noRagModels', settingsPlace())
     }
   }
-  return {
-    ok: true,
-    env: {
-      AEC_RAG_BASE_URL: resolved.baseUrl,
-      AEC_RAG_KEY_ENV: resolved.keyEnvVar,
-      AEC_RAG_EMBEDDING_MODEL: embedding,
-      AEC_RAG_EXTRACTION_MODEL: extraction
-    }
+  const env: Record<string, string> = {
+    AEC_RAG_BASE_URL: resolved.baseUrl,
+    AEC_RAG_KEY_ENV: resolved.keyEnvVar,
+    AEC_RAG_EMBEDDING_MODEL: embedding
   }
+  if (choice.extractionProvider) {
+    env.AEC_RAG_EXTRACTION_BASE_URL = extractionResolved.baseUrl
+    env.AEC_RAG_EXTRACTION_KEY_ENV = extractionResolved.keyEnvVar
+  }
+  env.AEC_RAG_EXTRACTION_MODEL = extraction
+  return { ok: true, env }
 }
 
 export type MemoryResolution =
@@ -433,7 +459,10 @@ export function serializeDataProviders(choices: DataProviders): {
       base_url: rag.baseUrl,
       key_env: rag.keyEnvVar,
       embedding: rag.embedding,
-      extraction: rag.extraction
+      extraction: rag.extraction,
+      extraction_provider: rag.extractionProvider,
+      extraction_base_url: rag.extractionBaseUrl,
+      extraction_key_env: rag.extractionKeyEnvVar
     }) as Record<string, string>,
     memory: withoutEmpty({
       provider: memory.provider,
@@ -450,7 +479,14 @@ export function serializeDataProviders(choices: DataProviders): {
  *  «as RAG» add none — the agent's key is the agent screen's business. */
 export function dataKeyEnvVars(choices: DataProviders): string[] {
   const names: string[] = []
-  for (const choice of [choices.rag, choices.memory]) {
+  const rag = choices.rag
+  const extraction = rag.extractionProvider
+    ? {
+        provider: rag.extractionProvider,
+        keyEnvVar: rag.extractionKeyEnvVar
+      }
+    : null
+  for (const choice of [rag, ...(extraction ? [extraction] : []), choices.memory]) {
     if (choice.provider === 'agent' || choice.provider === 'rag') continue
     const name =
       choice.provider === 'custom' ? choice.keyEnvVar : PROVIDER_PRESETS[choice.provider].keyEnvVar
@@ -466,9 +502,20 @@ export function dataKeyEnvVars(choices: DataProviders): string[] {
 export function dataSectionProvider(
   agent: ProfileProvider,
   choices: DataProviders,
-  section: 'rag' | 'memory'
+  section: 'rag' | 'extraction' | 'memory'
 ): ResolvedProvider {
   if (section === 'rag') return resolveChoice(agent, choices.rag)
+  if (section === 'extraction') {
+    // Task T80: the extraction model's own provider, or the embeddings' one.
+    const rag = choices.rag
+    return rag.extractionProvider
+      ? resolveChoice(agent, {
+          provider: rag.extractionProvider,
+          baseUrl: rag.extractionBaseUrl,
+          keyEnvVar: rag.extractionKeyEnvVar
+        })
+      : resolveChoice(agent, rag)
+  }
   const memory = choices.memory
   return resolveChoice(
     agent,

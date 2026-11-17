@@ -67,6 +67,12 @@ def with_keys_from_env(oss_config: dict, secret: Callable[[str], str] = _secret)
             continue
         config = dict(block["config"])
         name = config.pop("api_key_env", None)
+        if name == "":
+            # Задача T80: свой адрес без ключа. Заглушка, а не пусто: пустой ключ
+            # их клиент OpenAI заменил бы на OPENAI_API_KEY из окружения.
+            config.setdefault("api_key", "no-key")
+            out[section] = {**block, "config": config}
+            continue
         if not name:
             continue
         if not config.get("api_key"):

@@ -71,11 +71,10 @@ describe('resolveProvider', () => {
     })
   })
 
-  it('refuses a custom address without base_url or key variable', () => {
+  // T80 (UR53) changed the rule: a custom address without a key is a local
+  // server and resolves (see provider-presets-split.test.ts); no address — no.
+  it('refuses a custom address without base_url', () => {
     expect(resolveProvider({ provider: 'custom', keyEnvVar: 'X_API_KEY' })).toMatchObject({
-      ok: false
-    })
-    expect(resolveProvider({ provider: 'custom', baseUrl: 'http://h/v1' })).toMatchObject({
       ok: false
     })
   })

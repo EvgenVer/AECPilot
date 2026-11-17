@@ -33,7 +33,7 @@ def test_storage_key_normalises_the_path(tmp_path) -> None:
 # Задача 3G.4 (D-157): ключ провайдера памяти — по имени переменной.
 def keyed(name: str | None) -> dict:
     llm = {"model": "m", "openai_base_url": "https://g/"}
-    if name:
+    if name is not None:
         llm["api_key_env"] = name
     return {
         "llm": {"provider": "openai", "config": llm},
@@ -65,6 +65,18 @@ def test_missing_key_is_refused_by_name_not_replaced_with_openai() -> None:
 def test_config_without_a_variable_name_passes_as_is() -> None:
     plain = keyed(None)
     assert with_keys_from_env(plain, secret=lambda _name: "x") == plain
+
+
+# Задача T80 (UR53): свой адрес без ключа (Ollama, LM Studio). Пустое имя
+# переменной — это «ключа нет», а не «не указано»: без заглушки клиент OpenAI
+# внутри Mem0 молча взял бы OPENAI_API_KEY из окружения и отправил его на
+# этот адрес.
+def test_empty_variable_name_is_a_keyless_server_not_the_openai_key() -> None:
+    resolved = with_keys_from_env(keyed(""), secret=lambda _name: "чужой-ключ")
+    for section in ("llm", "embedder"):
+        config = resolved[section]["config"]
+        assert config["api_key"] == "no-key"
+        assert "api_key_env" not in config
 
 
 # Задача T20.6: на месте их класса — наследник, а не функция. Их модуль зовёт

@@ -37,6 +37,15 @@ EMBEDDING_MODEL_ENV = "AEC_RAG_EMBEDDING_MODEL"
 # LightRAG calls an LLM per chunk to pull out entities and relations, so this is
 # the model that decides what an ingest costs.
 EXTRACTION_MODEL_ENV = "AEC_RAG_EXTRACTION_MODEL"
+# Task T80 (UR53, decision 0021): the extraction model may come from ANOTHER
+# provider than the embeddings. When these two are set they apply to the
+# extraction calls; when not, extraction uses the shared address and key above.
+EXTRACTION_BASE_URL_ENV = "AEC_RAG_EXTRACTION_BASE_URL"
+EXTRACTION_KEY_ENV_NAME_ENV = "AEC_RAG_EXTRACTION_KEY_ENV"
+# A local OpenAI-compatible server (Ollama, LM Studio) has no key. The app then
+# passes an address and an EMPTY key-variable name; the OpenAI client refuses an
+# empty key, the local server ignores whatever it gets — so it gets this.
+NO_KEY_PLACEHOLDER = "no-key"
 # Why there is no provider, in words, when the app could not resolve one (task
 # 3G.49, D-172): an agent on a subscription has no key this server could use. The
 # refusal carries the reason and where to choose, instead of «not set».
@@ -292,28 +301,44 @@ def write_fingerprint(vault: Path | str, settings: RagSettings) -> None:
     )
 
 
-def api_key() -> str:
-    """The provider key, from the process environment and nowhere else.
+def _role_env(role: str, shared: str, extraction: str) -> str:
+    """The variable for ``role``: extraction's own when the app set it."""
+    if role == "extraction" and os.environ.get(extraction, "").strip():
+        return extraction
+    return shared
+
+
+def base_url(role: str = "embedding") -> str:
+    """The provider's OpenAI-compatible address for ``role`` (``embedding`` or
+    ``extraction``; see ``BASE_URL_ENV`` and ``EXTRACTION_BASE_URL_ENV``)."""
+    url = os.environ.get(_role_env(role, BASE_URL_ENV, EXTRACTION_BASE_URL_ENV), "").strip()
+    if not url:
+        raise _no_provider("провайдер индекса не задан: не указан адрес")
+    return url
+
+
+def api_key(role: str = "embedding") -> str:
+    """The provider key for ``role``, from the process environment and nowhere else.
 
     The desktop app keeps it in safeStorage and injects it when it spawns this
     server (PLAN rule R2); it is never read from a file here and never written
-    to one. Which variable holds it is the provider's, passed by name.
+    to one. Which variable holds it is the provider's, passed by name. No name
+    with an address set is a local server without a key (T80): the placeholder.
     """
-    name = os.environ.get(KEY_ENV_NAME_ENV, "").strip()
+    name_env = _role_env(role, KEY_ENV_NAME_ENV, EXTRACTION_KEY_ENV_NAME_ENV)
+    if role == "extraction" and name_env == KEY_ENV_NAME_ENV:
+        # Extraction's own address without its own key variable: a keyless
+        # local server, not the embeddings' key sent to another provider.
+        if os.environ.get(EXTRACTION_BASE_URL_ENV, "").strip():
+            return NO_KEY_PLACEHOLDER
+    name = os.environ.get(name_env, "").strip()
     if not name:
-        raise _no_provider("провайдер индекса не задан: не указана переменная ключа")
+        base_url(role)  # no address either — the refusal says «не задан»
+        return NO_KEY_PLACEHOLDER
     key = os.environ.get(name, "").strip()
     if not key:
         raise RagIndexError(f"переменная окружения {name} не задана")
     return key
-
-
-def base_url() -> str:
-    """The provider's OpenAI-compatible address (see ``BASE_URL_ENV``)."""
-    url = os.environ.get(BASE_URL_ENV, "").strip()
-    if not url:
-        raise _no_provider("провайдер индекса не задан: не указан адрес")
-    return url
 
 
 async def measure_embedding_dim(model: str) -> int:
@@ -325,7 +350,10 @@ async def measure_embedding_dim(model: str) -> int:
     from lightrag.llm.openai import openai_embed
 
     vectors = await openai_embed.func(
-        ["проба ширины вектора"], model=model, api_key=api_key(), base_url=base_url()
+        ["проба ширины вектора"],
+        model=model,
+        api_key=api_key("embedding"),
+        base_url=base_url("embedding"),
     )
     return int(len(vectors[0]))
 
@@ -349,8 +377,8 @@ def _default_embedding_func(settings: RagSettings):
         return await openai_embed.func(
             texts,
             model=settings.embedding_model,
-            api_key=api_key(),
-            base_url=base_url(),
+            api_key=api_key("embedding"),
+            base_url=base_url("embedding"),
             embedding_dim=settings.embedding_dim,
         )
 
@@ -395,8 +423,8 @@ def _default_llm_func(settings: RagSettings):
             settings.extraction_model,
             prompt,
             system_prompt=system_prompt,
-            api_key=api_key(),
-            base_url=base_url(),
+            api_key=api_key("extraction"),
+            base_url=base_url("extraction"),
             **kwargs,
         )
 

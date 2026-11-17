@@ -4470,13 +4470,15 @@ async function providerRequest(
   if (!/^https?:\/\//i.test(baseUrl)) {
     return { ok: false, error: mainT('provider.notHttp', baseUrl) }
   }
-  const key = buildProviderKeyEnv()[keyEnvVar] ?? process.env[keyEnvVar]
-  if (!key) return { ok: false, error: mainT('provider.keyNotSet', keyEnvVar) }
+  // Task T80: a custom address without a key variable is a local server (Ollama,
+  // LM Studio) — asked without an Authorization header.
+  const key = keyEnvVar ? (buildProviderKeyEnv()[keyEnvVar] ?? process.env[keyEnvVar]) : ''
+  if (keyEnvVar && !key) return { ok: false, error: mainT('provider.keyNotSet', keyEnvVar) }
   try {
     const response = await fetch(baseUrl.replace(/\/+$/, '') + path, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
-        Authorization: `Bearer ${key}`,
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -4524,7 +4526,11 @@ ipcMain.handle('data-providers:models', async (_event, payload: unknown) => {
   }
   const { agent } = readDataProviderInputs(profileDir)
   const choices = parseDataProviders(JSON.stringify(choice ?? null))
-  const resolved = dataSectionProvider(agent, choices, section === 'memory' ? 'memory' : 'rag')
+  const resolved = dataSectionProvider(
+    agent,
+    choices,
+    section === 'memory' ? 'memory' : section === 'extraction' ? 'extraction' : 'rag'
+  )
   if (!resolved.ok) return { ok: false, error: resolved.reason }
   const answer = await providerRequest(resolved.baseUrl, resolved.keyEnvVar, '/models')
   if (!answer.ok) return answer
@@ -4535,12 +4541,14 @@ ipcMain.handle('data-providers:models', async (_event, payload: unknown) => {
 ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
   const { choice, confirmed } = (payload ?? {}) as { choice?: unknown; confirmed?: unknown }
   const choices = parseDataProviders(JSON.stringify(choice ?? null))
-  for (const section of [choices.rag, choices.memory]) {
-    if (section.keyEnvVar && !isCredentialEnvVarName(section.keyEnvVar)) {
-      return {
-        ok: false,
-        error: mainT('provider.badKeyVarName', section.keyEnvVar)
-      }
+  const keyNames = [
+    choices.rag.keyEnvVar,
+    choices.rag.extractionKeyEnvVar,
+    choices.memory.keyEnvVar
+  ]
+  for (const name of keyNames) {
+    if (name && !isCredentialEnvVarName(name)) {
+      return { ok: false, error: mainT('provider.badKeyVarName', name) }
     }
   }
   let profileDir: string
