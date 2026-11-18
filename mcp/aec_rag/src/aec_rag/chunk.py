@@ -39,6 +39,23 @@ def _is_table_line(line: str) -> bool:
     return line.lstrip().startswith("|")
 
 
+_PADDING = re.compile(r"[ \t]{2,}")
+_DASH_RUN = re.compile(r"-{4,}")
+
+
+def _squeeze_table_line(line: str) -> str:
+    """Drop the column alignment Docling pads a table with.
+
+    Measured 2026-11-17 (task T83): a docx table comes out with every column
+    padded to its widest cell by spaces and the separator by dashes. The padding
+    carries no meaning, yet a padded header — repeated on every piece of a cut
+    table — made chunks of up to 52 000 characters at a nominal 2000, past a
+    local embedding model's window. Runs of spaces become one space, runs of
+    dashes three; the cells themselves are untouched.
+    """
+    return _DASH_RUN.sub("---", _PADDING.sub(" ", line)).strip()
+
+
 def _blocks(markdown: str) -> list[tuple[str, bool]]:
     """Split ``markdown`` into ``(text, is_table)`` blocks.
 
@@ -60,7 +77,7 @@ def _blocks(markdown: str) -> list[tuple[str, bool]]:
             buffer_is_table = is_table
             if not line.strip():
                 continue
-        buffer.append(line)
+        buffer.append(_squeeze_table_line(line) if is_table else line)
 
     text = "\n".join(buffer).strip()
     if text:

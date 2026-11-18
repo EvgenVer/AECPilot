@@ -186,3 +186,31 @@ def test_a_row_past_the_ceiling_is_cut_rather_than_taking_the_document_down():
     # Nothing of the row is lost — only its line breaks change.
     joined = " ".join(" ".join(c.text.splitlines()[2:]) for c in chunks)
     assert joined.count("слово") == 400
+
+
+def test_a_docx_table_padded_with_spaces_and_dashes_stays_within_the_window():
+    """Measured 2026-11-17 (T83 bench): Docling renders a docx table with every
+    column padded to its widest cell by spaces, and the separator by dashes. The
+    padded header ran to thousands of characters and was repeated on every piece,
+    so the index handed out chunks of up to 52 000 characters at a nominal 2000 —
+    past a local embedding model's 8192-token window, where one refused chunk
+    takes the whole document down."""
+    from aec_rag.chunk import ROW_HARD_LIMIT_FACTOR
+
+    max_chars = 2000
+    pad = " " * 3000
+    header = f"| Пункт{pad}| Требование{pad}|"
+    separator = f"|{'-' * 3005}|{'-' * 3010}|"
+    rows = [f"| {n}{pad}| Насос К-{n} мощностью {n * 5} кВт{pad}|" for n in range(1, 30)]
+    parsed = document(
+        ParsedSegment(locator={"page": 2}, markdown="\n".join([header, separator, *rows]))
+    )
+
+    chunks = chunk_document(parsed, max_chars=max_chars)
+
+    assert all(len(chunk.text) <= max_chars * ROW_HARD_LIMIT_FACTOR for chunk in chunks)
+    assert all(len(chunk.text) <= max_chars for chunk in chunks)
+    assert all("  " not in chunk.text and "----" not in chunk.text for chunk in chunks)
+    joined = "\n".join(chunk.text for chunk in chunks)
+    assert all(f"Насос К-{n} мощностью {n * 5} кВт" in joined for n in range(1, 30))
+    assert all(chunk.text.startswith("| Пункт | Требование |") for chunk in chunks)
