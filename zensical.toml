@@ -49,6 +49,7 @@ nav = [
       "decisions/0019-documents-environment.md",
       "decisions/0020-revit-write-rule.md",
       "decisions/0021-index-providers-split.md",
+      "decisions/0022-local-embeddings-process.md",
     ] },
   ] },
   "operations.md",

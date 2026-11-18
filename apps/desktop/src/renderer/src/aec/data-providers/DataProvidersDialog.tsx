@@ -31,6 +31,7 @@ import {
 } from '../../donor/components/ui/select'
 import { useAecT } from '../../shared/i18n'
 import { CloseOnEscape } from '../CloseOnEscape'
+import { LocalEmbeddingsPanel } from './LocalEmbeddingsPanel'
 import type { DataProvidersFile, DataProvidersState } from '../../../../shared/ipc'
 
 import {
@@ -203,6 +204,9 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
   if (!open) return null
 
   const separate = draft.memory.provider !== 'rag'
+  // Задача T83: эмбеддинги от своей локальной модели. Она только строит векторы,
+  // поэтому модель разбора тогда всегда у отдельного провайдера.
+  const local = draft.rag.provider === 'local'
   // Задача T80 (UR53): модель разбора — у другого провайдера, чем эмбеддинги.
   // Эмбеддинги могут стоять на локальном сервере без ключа, а разбор — у облака.
   const extractionSeparate = !!draft.rag.extraction_provider
@@ -239,7 +243,9 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
     : ragPreset
   const memoryPresetId =
     draft.memory.provider === 'rag'
-      ? draft.rag.provider
+      ? local
+        ? (draft.rag.extraction_provider ?? 'agent')
+        : draft.rag.provider
       : draft.memory.provider === 'agent'
         ? (state.agentProvider ?? '')
         : draft.memory.provider
@@ -250,13 +256,15 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
 
   // У «как у агента» при агенте по подписке провайдера нет — и моделей тоже.
   const agentUsable = !!state.agentProvider && !isSubscriptionProvider(state.agentProvider)
-  const ragHasProvider = draft.rag.provider !== 'agent' || agentUsable
+  const ragHasProvider = !local && (draft.rag.provider !== 'agent' || agentUsable)
   const extractionHasProvider = extractionSeparate
     ? draft.rag.extraction_provider !== 'agent' || agentUsable
     : ragHasProvider
   const memoryHasProvider =
     draft.memory.provider === 'rag'
-      ? ragHasProvider
+      ? local
+        ? extractionHasProvider
+        : ragHasProvider
       : draft.memory.provider !== 'agent' || agentUsable
 
   // Ключи, которые нужны выбору; «как у агента» своих не добавляет.
@@ -309,7 +317,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
     </div>
   )
 
-  const options = (withCustom: boolean): React.JSX.Element[] => [
+  const options = (withCustom: boolean, withLocal = false): React.JSX.Element[] => [
     <option key="agent" value="agent">
       {t('dataProviders.optAgent')}
     </option>,
@@ -323,6 +331,13 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
       ? [
           <option key="custom" value="custom">
             {t('dataProviders.optCustom')}
+          </option>
+        ]
+      : []),
+    ...(withLocal
+      ? [
+          <option key="local" value="local">
+            {t('dataProviders.optLocal')}
           </option>
         ]
       : [])
@@ -368,13 +383,20 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                 className={selectClass}
                 id="data-rag"
                 onChange={(event) => {
-                  setRag({ provider: event.target.value as RagChoice['provider'] })
+                  const provider = event.target.value as RagChoice['provider']
+                  setRag(
+                    provider === 'local'
+                      ? { provider, extraction_provider: draft.rag.extraction_provider ?? 'agent' }
+                      : { provider }
+                  )
                   forget('rag')
+                  forget('extraction')
                 }}
                 value={draft.rag.provider}
               >
-                {options(true)}
+                {options(true, true)}
               </select>
+              {local && <LocalEmbeddingsPanel />}
               {draft.rag.provider === 'custom' && (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Field
@@ -420,6 +442,7 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
               <label className="flex items-center gap-2 text-xs text-(--ui-text-primary)">
                 <input
                   checked={extractionSeparate}
+                  disabled={local}
                   onChange={(event) => {
                     setRag({
                       ...draft.rag,
@@ -434,6 +457,11 @@ export default function DataProvidersDialog(): React.JSX.Element | null {
                 />
                 {t('dataProviders.extractionSeparate')}
               </label>
+              {local && (
+                <p className="text-xs text-(--ui-text-secondary)">
+                  {t('dataProviders.local.needsExtraction')}
+                </p>
+              )}
               {extractionSeparate && (
                 <>
                   <label

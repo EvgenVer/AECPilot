@@ -373,6 +373,8 @@ import {
 } from './vault-fs'
 import type { ScanReportEnvelope } from '../shared/ipc'
 import { mainT } from './i18n'
+import { LocalEmbeddings, localTargetSync } from './local-embeddings'
+import { LOCAL_PROVIDER } from './local-embeddings-pure'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -445,8 +447,47 @@ function readDataProviderInputs(hermesHome: string): {
 function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
   if (!hermesHome) return {}
   const { agent, choices } = readDataProviderInputs(hermesHome)
-  const rag = ragProvider(agent, choices)
+  const rag = ragProvider(agent, choices, localTargetSync(hermesHome))
   return rag.ok ? rag.env : { AEC_RAG_UNAVAILABLE: rag.reason }
+}
+
+// --- Локальная модель эмбеддингов (задача T83, UR53) ------------------------
+//
+// Решения владельца 2026-11-18: процесс ведёт приложение (поднимает, когда выбрана
+// локальная модель, гасит при выходе), модель лежит в своей папке ядра
+// `aec/embedding-models`. Движок — сборка llama.cpp ядра (UR39). См.
+// `local-embeddings.ts`.
+const localEmbeddings = new LocalEmbeddings({
+  hermesHome: async () => (await loadServeModule()).HERMES_HOME_DIR,
+  python: async () => (await loadServeModule()).ticketRuntime(),
+  rest: (path, options) => hermesRest(restTarget(), path, { ...options, timeoutMs: 60_000 }),
+  remoteReason: () =>
+    remoteTarget() !== undefined || connectionMode() === 'ssh' || currentRole() === 'client'
+      ? mainT('local.remote')
+      : null,
+  onChange: () => {
+    void localEmbeddings
+      .status()
+      .then((status) => broadcastToWindows('local-embeddings:changed', status))
+      .catch(() => {})
+  }
+})
+
+/** Локальная модель выбрана — поднять процесс; нет — погасить, освободив память
+ *  видеокарты. Порт мог смениться (прежний занят): открытый проект тогда получает
+ *  новый адрес тем же путём, что и смену провайдера. */
+async function syncLocalEmbeddings(): Promise<void> {
+  const hermesHome = (await loadServeModule()).HERMES_HOME_DIR
+  const { choices } = readDataProviderInputs(hermesHome)
+  if (choices.rag.provider !== LOCAL_PROVIDER) {
+    localEmbeddings.stop()
+    return
+  }
+  const before = localTargetSync(hermesHome)?.baseUrl
+  await localEmbeddings.ensureRunning()
+  if (currentProject && localTargetSync(hermesHome)?.baseUrl !== before) {
+    await registerAecSourcesForProject(currentProject.vaultPath)
+  }
 }
 
 /** Задачи 3G.4 (D-157), 3G.46 (D-172): провайдер второго слоя памяти — свой, если
@@ -4440,7 +4481,7 @@ ipcMain.handle('data-providers:get', async (): Promise<DataProvidersState> => {
   const { agent, choices } = profileDir
     ? readDataProviderInputs(profileDir)
     : { agent: { provider: null }, choices: DEFAULT_DATA_PROVIDERS }
-  const rag = ragProvider(agent, choices)
+  const rag = ragProvider(agent, choices, profileDir ? localTargetSync(profileDir) : null)
   const memory = memoryProvider(agent, choices)
   const stored = new Set(storedProviderKeyNames())
   const keyNames = [
@@ -4598,7 +4639,13 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
   const { agent, choices: saved } = readDataProviderInputs(profileDir)
   let next = keepMeasuredWidth(agent, saved, choices)
   if (confirmed !== true) {
-    const warnings = embeddingChangeWarnings({ agent, saved, next, index: openIndexEmbedding() })
+    const warnings = embeddingChangeWarnings({
+      agent,
+      saved,
+      next,
+      index: openIndexEmbedding(),
+      local: localTargetSync(profileDir)
+    })
     if (warnings.length > 0) return { ok: false, warnings }
   }
   const probe = embeddingProbeTarget(agent, next)
@@ -4634,7 +4681,57 @@ ipcMain.handle('data-providers:save', async (_event, payload: unknown) => {
   // (ядро перечитывает MCP), профиль памяти переписывается. Без проекта — при
   // следующем открытии, тем же путём.
   if (currentProject) await registerAecSourcesForProject(currentProject.vaultPath)
+  // Задача T83: выбрана локальная модель — процесс поднимается; выбор снят — гаснет.
+  await syncLocalEmbeddings().catch((error: unknown) =>
+    console.error('aecpilot: local embeddings sync FAIL', error)
+  )
   return { ok: true }
+})
+
+// --- Локальная модель эмбеддингов: окно «Индекс и память» (задача T83) ----------
+
+/** После новой модели меняется имя модели в окружении индекса — открытый проект
+ *  получает его сразу. */
+async function afterLocalModelChange(answer: { ok: boolean; error?: string }) {
+  if (answer.ok && currentProject) await registerAecSourcesForProject(currentProject.vaultPath)
+  return answer
+}
+
+ipcMain.handle('local-embeddings:status', () => localEmbeddings.status(true))
+ipcMain.handle('local-embeddings:setup', async () =>
+  afterLocalModelChange(await localEmbeddings.setup())
+)
+ipcMain.handle('local-embeddings:search', async (_event, query: unknown) => {
+  try {
+    return { ok: true, hits: await localEmbeddings.search(String(query ?? '').slice(0, 200)) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+ipcMain.handle('local-embeddings:files', async (_event, repo: unknown) => {
+  try {
+    return { ok: true, files: await localEmbeddings.files(String(repo ?? '').slice(0, 200)) }
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+ipcMain.handle('local-embeddings:download', async (_event, payload: unknown) => {
+  const { repo, paths } = (payload ?? {}) as { repo?: unknown; paths?: unknown }
+  const list = Array.isArray(paths) ? paths.map(String).slice(0, 16) : []
+  return afterLocalModelChange(await localEmbeddings.downloadOther(String(repo ?? ''), list))
+})
+ipcMain.handle('local-embeddings:pick-file', async (event) => {
+  const owner = BrowserWindow.fromWebContents(event.sender)
+  const options = {
+    title: mainT('local.pickTitle'),
+    properties: ['openFile' as const],
+    filters: [{ name: 'GGUF', extensions: ['gguf'] }]
+  }
+  const picked = owner
+    ? await dialog.showOpenDialog(owner, options)
+    : await dialog.showOpenDialog(options)
+  if (picked.canceled || picked.filePaths.length === 0) return { ok: false }
+  return afterLocalModelChange(await localEmbeddings.useFile(picked.filePaths[0]))
 })
 
 // --- Экран памяти, слой 1 и автозапись (задача 5.4) ------------------------
@@ -6749,6 +6846,14 @@ app
       console.error('aecpilot: could not restore the last project', error)
     }
 
+    // Задача T83: выбрана локальная модель эмбеддингов — процесс поднимается сразу, не
+    // дожидаясь ядра (ему нужен только движок). Не ждём: окно открывается без него.
+    if (process.env.AEC_SMOKE !== '1') {
+      void syncLocalEmbeddings().catch((error: unknown) =>
+        console.error('aecpilot: local embeddings start FAIL', error)
+      )
+    }
+
     // AEC_SMOKE: fast UI-only smoke test — skip the hermes backend entirely.
     if (process.env.AEC_SMOKE !== '1') {
       // AEC_GATEWAY_URL (task 0.16, Playwright e2e): point the gateway
@@ -7012,6 +7117,8 @@ let quitting = false
 // but not on a quit that hangs on the backend shutdown below — and a shortcut
 // still held by a closing app is a shortcut nobody else can take.
 app.on('will-quit', () => {
+  // Задача T83: локальная модель эмбеддингов не переживает приложение.
+  localEmbeddings.stop()
   unregisterQuickEntry()
   releaseKeepAwake()
   // Задача 3.12: та же причина, но на чужой машине — ядро, оставшееся там

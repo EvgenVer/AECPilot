@@ -1,0 +1,189 @@
+// Local embedding model inside the app (task T83, UR53; owner decisions 2026-11-18:
+// the app owns the process, the model lives in its own folder). The rules, with
+// no I/O — the process, the download and the core calls live in
+// `local-embeddings.ts`.
+//
+// WHAT IS WHOSE. The llama.cpp engine is the core's: its pinned build (UR39),
+// installed by the core's own `/api/local-models/runtime/install` job into the
+// core's package store, one copy shared with local chat models. The embedding
+// model is ours: it lives in `<core home>/aec/embedding-models`, NOT in the
+// core's `models/` folder — there it would show up in the chat model picker as a
+// model nobody can talk to. The core's router cannot serve it anyway: its
+// children run without `--embeddings`.
+
+import { join } from 'node:path'
+
+/** The model the T83 bench chose (eval/reports/embedding-bench.md): top-5 hit
+ *  0.85 on the Russian documents of `eval/`, MIT. Pinned to a revision with its
+ *  SHA256, so «Скачать» always fetches the file the bench measured. */
+export const RECOMMENDED_EMBEDDING = {
+  id: 'bge-m3',
+  repo: 'gpustack/bge-m3-GGUF',
+  revision: '2d48f1737679ad900d5c26c5aad5410e9c70fdca',
+  file: 'bge-m3-Q8_0.gguf',
+  sizeBytes: 634_553_760,
+  sha256: '950f4a8e5e19477a6d3c26d2f162233c20002c601f75e4b002e3239997821167',
+  license: 'MIT'
+} as const
+
+/** The `rag.provider` value of «Локальная модель» in `aec-providers.json`. */
+export const LOCAL_PROVIDER = 'local'
+
+/** Preferred port; a busy one gives way to a free port, kept in the state file so
+ *  the address written into the index server's environment stays the same. */
+export const DEFAULT_LOCAL_PORT = 47821
+
+/** The context the server is started with — what the bench ran. The chunker's
+ *  ceiling (8 000 characters, ~3 000 tokens) stays inside it. */
+export const LOCAL_CONTEXT_TOKENS = 8192
+
+/** Chunks per second, measured by the T83 bench on the owner's machine (RTX 3050,
+ *  bge-m3 Q8_0): 11.5 on the GPU build, 0.92 on the CPU. */
+export const MEASURED_SPEED = { gpu: 11.5, cpu: 0.92 } as const
+
+/** The bench's corpus: 13 documents of `eval/` — the example the estimate names. */
+export const BENCH_CORPUS_CHUNKS = 1669
+
+export interface LocalModel {
+  /** The name the server answers to (`--alias`) and the index records. */
+  id: string
+  path: string
+  source: 'download' | 'file'
+  repo?: string
+}
+
+export interface LocalEmbeddingState {
+  model?: LocalModel
+  port?: number
+  /** The running server, to stop a leftover after a crash. */
+  pid?: number
+}
+
+export function localEmbeddingsHome(hermesHome: string): string {
+  return join(hermesHome, 'aec')
+}
+
+export function localModelsDir(hermesHome: string): string {
+  return join(localEmbeddingsHome(hermesHome), 'embedding-models')
+}
+
+export function localStatePath(hermesHome: string): string {
+  return join(localEmbeddingsHome(hermesHome), 'local-embeddings.json')
+}
+
+export function localBaseUrl(port: number): string {
+  return `http://127.0.0.1:${port}/v1`
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined
+
+const port = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 && value < 65536
+    ? value
+    : undefined
+
+/** The state file; a missing or broken one reads as «nothing chosen». */
+export function parseLocalState(json: string | null): LocalEmbeddingState {
+  let raw: unknown = null
+  try {
+    raw = json ? JSON.parse(json) : null
+  } catch {
+    raw = null
+  }
+  const state = record(raw)
+  const model = record(state.model)
+  const id = text(model.id)
+  const path = text(model.path)
+  const out: LocalEmbeddingState = {}
+  if (id && path && isGgufPath(path)) {
+    out.model = {
+      id,
+      path,
+      source: model.source === 'file' ? 'file' : 'download',
+      ...(text(model.repo) ? { repo: text(model.repo) } : {})
+    }
+  }
+  if (port(state.port)) out.port = port(state.port)
+  if (typeof state.pid === 'number' && Number.isInteger(state.pid) && state.pid > 0) {
+    out.pid = state.pid
+  }
+  return out
+}
+
+export function isGgufPath(path: string): boolean {
+  return /\.gguf$/i.test(path.trim())
+}
+
+/** `bge-m3-Q8_0.gguf` → `bge-m3-Q8_0`; the recommended file keeps its short name. */
+export function modelIdForFile(fileName: string): string {
+  const base = fileName.replace(/^.*[\\/]/, '')
+  if (base === RECOMMENDED_EMBEDDING.file) return RECOMMENDED_EMBEDDING.id
+  return base.replace(/(?:-\d{5}-of-\d{5})?\.gguf$/i, '')
+}
+
+/** A Hugging Face file address. Repo and path come from the core's search, which
+ *  the renderer passes back — checked here, not trusted. */
+export function hfFileUrl(repo: string, path: string, revision = 'main'): string | null {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.includes('..')) return null
+  if (!isGgufPath(path) || path.split('/').some((part) => part === '..' || part === '')) {
+    return null
+  }
+  if (!/^[\w.-]+$/.test(revision)) return null
+  const encoded = path.split('/').map(encodeURIComponent).join('/')
+  return `https://huggingface.co/${repo}/resolve/${revision}/${encoded}`
+}
+
+/** The engine command line — what the T83 bench measured, plus the alias the
+ *  index asks for and the layers on the GPU when the build has one. */
+export function llamaServerArgs(input: {
+  modelPath: string
+  alias: string
+  port: number
+  gpu: boolean
+}): string[] {
+  const window = String(LOCAL_CONTEXT_TOKENS)
+  return [
+    '-m',
+    input.modelPath,
+    '--embeddings',
+    '--alias',
+    input.alias,
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(input.port),
+    '-c',
+    window,
+    '-b',
+    window,
+    '-ub',
+    window,
+    '-np',
+    '1',
+    ...(input.gpu ? ['-ngl', '99'] : [])
+  ]
+}
+
+/** Minutes to embed `chunks` fragments, rounded up; never «0». */
+export function embedMinutes(chunks: number, gpu: boolean): number {
+  const seconds = chunks / (gpu ? MEASURED_SPEED.gpu : MEASURED_SPEED.cpu)
+  return Math.max(1, Math.ceil(seconds / 60))
+}
+
+/** The engine build the core picks (`binaries.select_backend`): a GPU build means
+ *  the measured GPU speed. */
+export function isGpuBackend(backend: string | null): boolean {
+  return backend !== null && backend !== 'cpu'
+}
+
+/** Image name of a process we may stop as a leftover — only our engine. */
+export function isEngineImage(name: string): boolean {
+  return /^llama-server(\.exe)?$/i.test(name.trim())
+}

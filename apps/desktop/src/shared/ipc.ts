@@ -760,11 +760,52 @@ export interface GraphAccessState {
   }
 }
 
+/** Локальная модель эмбеддингов (задача T83, UR53): движок llama.cpp ядра и
+ *  модель в своей папке, процесс ведёт приложение. */
+export interface LocalEmbeddingsProgress {
+  /** `engine` — задание ядра ставит движок; `model` — качаем файл модели;
+   *  `start` — поднимаем процесс. */
+  step: 'engine' | 'model' | 'start'
+  detail: string
+  doneBytes: number
+  totalBytes: number | null
+}
+
+export interface LocalEmbeddingsStatus {
+  /** Ядро на другой машине: локальная модель недоступна, пункт выключен со словами. */
+  remote: boolean
+  remoteReason: string | null
+  engine: { installed: boolean; backend: string | null; gpuName: string | null }
+  model: { id: string; path: string; source: 'download' | 'file'; repo?: string } | null
+  running: boolean
+  baseUrl: string | null
+  busy: boolean
+  progress: LocalEmbeddingsProgress | null
+  error: string | null
+  /** Оценка до выбора: скорость, замеренная T83, для сборки, которую выберет ядро. */
+  estimate: { gpu: boolean; chunksPerMinute: number; benchChunks: number; benchMinutes: number }
+  recommended: { id: string; repo: string; file: string; sizeBytes: number; license: string }
+}
+
+export interface LocalModelSearchHit {
+  repo: string
+  downloads: number
+  likes: number
+  gated: boolean
+}
+
+export interface LocalModelFile {
+  label: string
+  paths: string[]
+  totalBytes: number
+}
+
 /** Провайдеры RAG и памяти (задачи 3G.46–3G.47, D-172) в форме файла
  *  `aec-providers.json` профиля: только имена переменных ключей, без значений. */
 export interface DataProvidersFile {
   rag: {
-    provider: 'agent' | 'gemini' | 'openai-api' | 'custom'
+    /** `local` — задача T83: эмбеддинги от своей локальной модели. */
+    provider: 'agent' | 'gemini' | 'openai-api' | 'custom' | 'local'
     base_url?: string
     key_env?: string
     embedding?: string
@@ -1720,6 +1761,20 @@ export interface AecpilotApi {
     choice: DataProvidersFile,
     section: 'rag' | 'extraction' | 'memory'
   ): Promise<{ error?: string; models?: string[]; ok: boolean }>
+  /** Задача T83 (UR53): локальная модель эмбеддингов — состояние, «Скачать»
+   *  (движок ядра и рекомендованная модель), поиск по Hugging Face средствами ядра,
+   *  загрузка найденной модели, выбор файла с диска. */
+  getLocalEmbeddings(): Promise<LocalEmbeddingsStatus>
+  setupLocalEmbeddings(): Promise<{ error?: string; ok: boolean }>
+  searchLocalModels(
+    query: string
+  ): Promise<{ error?: string; hits?: LocalModelSearchHit[]; ok: boolean }>
+  listLocalModelFiles(
+    repo: string
+  ): Promise<{ error?: string; files?: LocalModelFile[]; ok: boolean }>
+  downloadLocalModel(repo: string, paths: string[]): Promise<{ error?: string; ok: boolean }>
+  pickLocalModelFile(): Promise<{ error?: string; ok: boolean }>
+  onLocalEmbeddings(cb: (state: LocalEmbeddingsStatus) => void): () => void
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a

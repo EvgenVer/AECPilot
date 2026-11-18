@@ -364,6 +364,23 @@ const ru = {
     `агент работает через «${raw}» — у этого входа нет адреса с ключом для индекса и памяти; выберите провайдера в ${place}`,
   'provider.noRagModels': (place: string) =>
     `у своего адреса не выбраны модели RAG — укажите их в ${place}`,
+  'provider.localNotReady': (place: string) =>
+    `локальная модель эмбеддингов не скачана — нажмите «Скачать» в ${place}`,
+  'provider.localNeedsExtraction': (place: string) =>
+    `локальная модель только строит векторы — выберите модель разбора у другого провайдера в ${place}`,
+  'local.remote':
+    'локальная модель работает только со своим ядром на этом компьютере; при подключении к серверу её ставят на сервере',
+  'local.engineMissing': 'движок llama.cpp не установлен — нажмите «Скачать»',
+  'local.modelMissing': (path: string) => `файл модели не найден: ${path}`,
+  'local.startFailed': (detail: string) => `локальная модель не запустилась: ${detail}`,
+  'local.downloadFailed': (detail: string) => `загрузка не удалась: ${detail}`,
+  'local.checksum':
+    'скачанный файл не совпал с контрольной суммой — загрузка удалена, попробуйте ещё раз',
+  'local.notGguf': 'выберите файл модели в формате .gguf',
+  'local.badSource': 'адрес модели не из Hugging Face',
+  'local.busy': 'загрузка уже идёт',
+  'local.pickTitle': 'Файл модели эмбеддингов (.gguf)',
+  'local.engineJob': (detail: string) => `движок llama.cpp: ${detail}`,
   'provider.noMemoryModels': (place: string) =>
     `у своего адреса не выбраны модели памяти — укажите их в ${place}`,
   'provider.dimsUnknown': (model: string, place: string) =>
@@ -738,6 +755,22 @@ const en: Catalog = {
     `the agent works through “${raw}” — this sign-in has no address with a key for the index and memory; choose a provider in ${place}`,
   'provider.noRagModels': (place) =>
     `no RAG models are chosen for the custom address — set them in ${place}`,
+  'provider.localNotReady': (place) =>
+    `the local embedding model is not downloaded — press “Download” in ${place}`,
+  'provider.localNeedsExtraction': (place) =>
+    `the local model only builds vectors — choose an extraction model from another provider in ${place}`,
+  'local.remote':
+    'the local model works only with this computer’s own core; when connected to a server it is set up on the server',
+  'local.engineMissing': 'the llama.cpp engine is not installed — press “Download”',
+  'local.modelMissing': (path) => `model file not found: ${path}`,
+  'local.startFailed': (detail) => `the local model did not start: ${detail}`,
+  'local.downloadFailed': (detail) => `download failed: ${detail}`,
+  'local.checksum': 'the downloaded file did not match its checksum — it was removed, try again',
+  'local.notGguf': 'choose a model file in the .gguf format',
+  'local.badSource': 'the model address is not a Hugging Face one',
+  'local.busy': 'a download is already running',
+  'local.pickTitle': 'Embedding model file (.gguf)',
+  'local.engineJob': (detail) => `llama.cpp engine: ${detail}`,
   'provider.noMemoryModels': (place) =>
     `no memory models are chosen for the custom address — set them in ${place}`,
   'provider.dimsUnknown': (model, place) =>

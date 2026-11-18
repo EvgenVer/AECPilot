@@ -14,6 +14,7 @@
 // SECURITY: only variable NAMES live here, never values.
 
 import { mainT } from './i18n'
+import { LOCAL_PROVIDER } from './local-embeddings-pure'
 
 /** The core's provider ids we have a preset for (`hermes_cli/auth.py`). */
 export const PRESET_PROVIDER_IDS = ['gemini', 'openai-api', 'custom'] as const
@@ -247,7 +248,9 @@ export function ragProviderEnv(resolved: ResolvedProvider): Record<string, strin
 // Only variable NAMES are stored, never values (C10).
 
 export interface RagChoice {
-  provider: 'agent' | PresetProviderId
+  /** Task T83 (UR53): `local` — the embedding model the app runs itself
+   *  (`local-embeddings.ts`); it embeds only, so extraction then needs its own provider. */
+  provider: 'agent' | PresetProviderId | typeof LOCAL_PROVIDER
   /** `custom` only. */
   baseUrl?: string
   keyEnvVar?: string
@@ -310,7 +313,9 @@ export function parseDataProviders(json: string | null): DataProviders {
   const rag = record(record(raw).rag)
   const memory = record(record(raw).memory)
   const ragProviderId =
-    rag.provider === 'agent' || isPresetProviderId(rag.provider) ? rag.provider : 'agent'
+    rag.provider === 'agent' || rag.provider === LOCAL_PROVIDER || isPresetProviderId(rag.provider)
+      ? rag.provider
+      : 'agent'
   const extractionProviderId =
     rag.extraction_provider === 'agent' || isPresetProviderId(rag.extraction_provider)
       ? rag.extraction_provider
@@ -373,10 +378,38 @@ function resolveChoice(
 export type RagResolution =
   { ok: true; env: Record<string, string> } | { ok: false; reason: string }
 
+/** The app's own embedding server (task T83) as the resolution sees it: where it
+ *  answers and the model it serves. `null` — no model downloaded or picked. */
+export interface LocalEmbeddingTarget {
+  baseUrl: string
+  model: string
+}
+
+/** The extraction choice — its own provider, or the embeddings' one. */
+function extractionChoice(rag: RagChoice): {
+  provider: 'agent' | PresetProviderId
+  baseUrl?: string
+  keyEnvVar?: string
+} | null {
+  if (rag.extractionProvider) {
+    return {
+      provider: rag.extractionProvider,
+      baseUrl: rag.extractionBaseUrl,
+      keyEnvVar: rag.extractionKeyEnvVar
+    }
+  }
+  return rag.provider === LOCAL_PROVIDER ? null : { ...rag, provider: rag.provider }
+}
+
 /** Environment for `aec-rag` from the RAG choice: names and addresses only. */
-export function ragProvider(agent: ProfileProvider, choices: DataProviders): RagResolution {
+export function ragProvider(
+  agent: ProfileProvider,
+  choices: DataProviders,
+  local: LocalEmbeddingTarget | null = null
+): RagResolution {
   const choice = choices.rag
-  const resolved = resolveChoice(agent, choice)
+  if (choice.provider === LOCAL_PROVIDER) return localRagProvider(agent, choice, local)
+  const resolved = resolveChoice(agent, { ...choice, provider: choice.provider })
   if (!resolved.ok) return resolved
   // Task T80: the extraction model may come from its own provider.
   const extractionResolved = choice.extractionProvider
@@ -407,6 +440,35 @@ export function ragProvider(agent: ProfileProvider, choices: DataProviders): Rag
   }
   env.AEC_RAG_EXTRACTION_MODEL = extraction
   return { ok: true, env }
+}
+
+/** Task T83: embeddings from the app's own server (no key: the index sends the
+ *  `no-key` placeholder, T80), extraction from the provider chosen for it. */
+function localRagProvider(
+  agent: ProfileProvider,
+  choice: RagChoice,
+  local: LocalEmbeddingTarget | null
+): RagResolution {
+  if (!local) return { ok: false, reason: mainT('provider.localNotReady', settingsPlace()) }
+  const extractionTarget = extractionChoice(choice)
+  if (!extractionTarget) {
+    return { ok: false, reason: mainT('provider.localNeedsExtraction', settingsPlace()) }
+  }
+  const extractionResolved = resolveChoice(agent, extractionTarget)
+  if (!extractionResolved.ok) return extractionResolved
+  const extraction = choice.extraction ?? extractionResolved.models?.agent
+  if (!extraction) return { ok: false, reason: mainT('provider.noRagModels', settingsPlace()) }
+  return {
+    ok: true,
+    env: {
+      AEC_RAG_BASE_URL: local.baseUrl,
+      AEC_RAG_KEY_ENV: '',
+      AEC_RAG_EMBEDDING_MODEL: local.model,
+      AEC_RAG_EXTRACTION_BASE_URL: extractionResolved.baseUrl,
+      AEC_RAG_EXTRACTION_KEY_ENV: extractionResolved.keyEnvVar,
+      AEC_RAG_EXTRACTION_MODEL: extraction
+    }
+  }
 }
 
 export type MemoryResolution =
@@ -488,6 +550,7 @@ export function dataKeyEnvVars(choices: DataProviders): string[] {
     : null
   for (const choice of [rag, ...(extraction ? [extraction] : []), choices.memory]) {
     if (choice.provider === 'agent' || choice.provider === 'rag') continue
+    if (choice.provider === LOCAL_PROVIDER) continue
     const name =
       choice.provider === 'custom' ? choice.keyEnvVar : PROVIDER_PRESETS[choice.provider].keyEnvVar
     if (name && !names.includes(name)) names.push(name)
@@ -504,23 +567,38 @@ export function dataSectionProvider(
   choices: DataProviders,
   section: 'rag' | 'extraction' | 'memory'
 ): ResolvedProvider {
-  if (section === 'rag') return resolveChoice(agent, choices.rag)
+  const rag = choices.rag
+  // Task T83: the local server lists no models — its one model is the downloaded file.
+  const localOnly = (): ResolvedProvider => ({
+    ok: false,
+    reason: mainT('provider.localNotReady', settingsPlace())
+  })
+  if (section === 'rag') {
+    return rag.provider === LOCAL_PROVIDER
+      ? localOnly()
+      : resolveChoice(agent, { ...rag, provider: rag.provider })
+  }
   if (section === 'extraction') {
     // Task T80: the extraction model's own provider, or the embeddings' one.
-    const rag = choices.rag
-    return rag.extractionProvider
-      ? resolveChoice(agent, {
-          provider: rag.extractionProvider,
-          baseUrl: rag.extractionBaseUrl,
-          keyEnvVar: rag.extractionKeyEnvVar
-        })
-      : resolveChoice(agent, rag)
+    const target = extractionChoice(rag)
+    return target ? resolveChoice(agent, target) : localOnly()
   }
+  return resolveChoice(agent, memorySource(choices))
+}
+
+/** Where memory takes its provider from. «As RAG» with local embeddings follows
+ *  the extraction provider (task T83): memory needs a model that writes facts, and
+ *  its store keeps its own embeddings — the local server serves the index only. */
+function memorySource(choices: DataProviders): {
+  provider: 'agent' | PresetProviderId
+  baseUrl?: string
+  keyEnvVar?: string
+} {
   const memory = choices.memory
-  return resolveChoice(
-    agent,
-    memory.provider === 'rag' ? choices.rag : { ...memory, provider: memory.provider }
-  )
+  if (memory.provider !== 'rag') return { ...memory, provider: memory.provider }
+  const rag = choices.rag
+  if (rag.provider !== LOCAL_PROVIDER) return { ...rag, provider: rag.provider }
+  return extractionChoice(rag) ?? { provider: 'agent' }
 }
 
 /** Model ids from an OpenAI-compatible `GET /models` answer. Gemini's compatible
@@ -602,10 +680,12 @@ export function embeddingChangeWarnings(input: {
   saved: DataProviders
   next: DataProviders
   index: { builtWith: string | null; projectModel: string | null }
+  /** Task T83: the app's own embedding server, when one is ready. */
+  local?: LocalEmbeddingTarget | null
 }): string[] {
   const { agent, saved, next, index } = input
   const warnings: string[] = []
-  const rag = ragProvider(agent, next)
+  const rag = ragProvider(agent, next, input.local ?? null)
   const to = rag.ok ? rag.env.AEC_RAG_EMBEDDING_MODEL : null
   const from = (index.builtWith ?? '').trim()
   if (from && to && to !== from && !(index.projectModel ?? '').trim()) {

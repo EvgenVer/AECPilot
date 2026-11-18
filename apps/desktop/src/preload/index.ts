@@ -292,6 +292,19 @@ const api: AecpilotApi = {
     ipcRenderer.invoke('data-providers:save', { choice, confirmed }),
   listDataModels: (choice, section) =>
     ipcRenderer.invoke('data-providers:models', { choice, section }),
+  getLocalEmbeddings: () => ipcRenderer.invoke('local-embeddings:status'),
+  setupLocalEmbeddings: () => ipcRenderer.invoke('local-embeddings:setup'),
+  searchLocalModels: (query) => ipcRenderer.invoke('local-embeddings:search', query),
+  listLocalModelFiles: (repo) => ipcRenderer.invoke('local-embeddings:files', repo),
+  downloadLocalModel: (repo, paths) =>
+    ipcRenderer.invoke('local-embeddings:download', { repo, paths }),
+  pickLocalModelFile: () => ipcRenderer.invoke('local-embeddings:pick-file'),
+  onLocalEmbeddings: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
+      cb(state)
+    ipcRenderer.on('local-embeddings:changed', listener)
+    return () => ipcRenderer.removeListener('local-embeddings:changed', listener)
+  },
   onGraphAddState: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
       cb(state)

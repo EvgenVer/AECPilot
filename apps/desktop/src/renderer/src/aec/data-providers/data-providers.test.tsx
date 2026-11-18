@@ -315,4 +315,73 @@ describe('окно «Индекс и память»', () => {
       )
     )
   })
+
+  it('локальная модель (T83): оценка времени до выбора, «Скачать», разбор — у отдельного провайдера', async () => {
+    const status = {
+      remote: false,
+      remoteReason: null,
+      engine: { installed: false, backend: 'cuda', gpuName: 'nvidia NVIDIA GeForce RTX 3050' },
+      model: null,
+      running: false,
+      baseUrl: null,
+      busy: false,
+      progress: null,
+      error: null,
+      estimate: { gpu: true, chunksPerMinute: 690, benchChunks: 1669, benchMinutes: 3 },
+      recommended: {
+        id: 'bge-m3',
+        repo: 'gpustack/bge-m3-GGUF',
+        file: 'bge-m3-Q8_0.gguf',
+        sizeBytes: 634553760,
+        license: 'MIT'
+      }
+    }
+    const setupLocalEmbeddings = vi.fn().mockResolvedValue({ ok: true })
+    Object.assign(window.aecpilot, {
+      getLocalEmbeddings: vi.fn().mockResolvedValue(status),
+      onLocalEmbeddings: vi.fn().mockReturnValue(() => {}),
+      setupLocalEmbeddings
+    })
+    show()
+    fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
+      target: { value: 'local' }
+    })
+    expect(await screen.findByText(/около 690 фрагментов в минуту/)).toBeTruthy()
+    expect(screen.getByText(/около 3 мин/)).toBeTruthy()
+    expect(screen.getByText(/Видеокарта: nvidia NVIDIA GeForce RTX 3050/)).toBeTruthy()
+    // Векторы — локально; поля модели эмбеддингов облака нет, разбор — отдельно.
+    expect(screen.queryByLabelText('Модель эмбеддингов')).toBeNull()
+    const separate = screen.getByLabelText(
+      'Разбирать документы другим провайдером'
+    ) as HTMLInputElement
+    expect(separate.checked).toBe(true)
+    expect(separate.disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать bge-m3 (635 МБ, MIT)' }))
+    await waitFor(() => expect(setupLocalEmbeddings).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбор' }))
+    await waitFor(() =>
+      expect(saveDataProviders).toHaveBeenCalledWith(
+        { rag: { provider: 'local', extraction_provider: 'agent' }, memory: { provider: 'rag' } },
+        false
+      )
+    )
+  })
+
+  it('локальная модель при ядре на сервере выключена словами (T83, UR20)', async () => {
+    Object.assign(window.aecpilot, {
+      getLocalEmbeddings: vi.fn().mockResolvedValue({
+        remote: true,
+        remoteReason: 'локальная модель работает только со своим ядром на этом компьютере'
+      }),
+      onLocalEmbeddings: vi.fn().mockReturnValue(() => {})
+    })
+    show()
+    fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
+      target: { value: 'local' }
+    })
+    expect(await screen.findByTestId('local-embeddings-remote')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Скачать/ })).toBeNull()
+  })
 })
