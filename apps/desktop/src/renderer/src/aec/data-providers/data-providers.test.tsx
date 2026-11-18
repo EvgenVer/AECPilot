@@ -384,4 +384,49 @@ describe('окно «Индекс и память»', () => {
     expect(await screen.findByTestId('local-embeddings-remote')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Скачать/ })).toBeNull()
   })
+
+  it('новая локальная модель при построенном индексе — вопрос до смены, затем «Продолжить всё равно» (ревью T84)', async () => {
+    const pickLocalModelFile = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        warnings: [
+          'Индекс построен моделью «bge-m3», с этим выбором — «other». Нужна полная повторная индексация.'
+        ]
+      })
+      .mockResolvedValueOnce({ ok: true })
+    Object.assign(window.aecpilot, {
+      getLocalEmbeddings: vi.fn().mockResolvedValue({
+        remote: false,
+        remoteReason: null,
+        engine: { installed: true, backend: 'cpu', gpuName: null },
+        model: { id: 'bge-m3', path: 'C:/m/bge-m3-Q8_0.gguf', source: 'download' },
+        running: true,
+        baseUrl: 'http://127.0.0.1:47821/v1',
+        busy: false,
+        progress: null,
+        error: null,
+        estimate: { gpu: false, chunksPerMinute: 55, benchChunks: 1669, benchMinutes: 31 },
+        recommended: {
+          id: 'bge-m3',
+          repo: 'gpustack/bge-m3-GGUF',
+          file: 'bge-m3-Q8_0.gguf',
+          sizeBytes: 634553760,
+          license: 'MIT'
+        }
+      }),
+      onLocalEmbeddings: vi.fn().mockReturnValue(() => {}),
+      pickLocalModelFile
+    })
+    show()
+    fireEvent.change(screen.getByLabelText('Поиск по документам (RAG)'), {
+      target: { value: 'local' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Из файла…' }))
+    expect(await screen.findByTestId('local-embeddings-warning')).toBeTruthy()
+    expect(pickLocalModelFile).toHaveBeenLastCalledWith(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить всё равно' }))
+    await waitFor(() => expect(pickLocalModelFile).toHaveBeenLastCalledWith(true))
+    await waitFor(() => expect(screen.queryByTestId('local-embeddings-warning')).toBeNull())
+  })
 })

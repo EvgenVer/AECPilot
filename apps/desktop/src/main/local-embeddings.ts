@@ -42,7 +42,10 @@ import {
   DEFAULT_LOCAL_PORT,
   embedMinutes,
   hfFileUrl,
+  downloadedModelId,
   isEngineImage,
+  isOurServerLine,
+  modelFileIn,
   isGgufPath,
   isGpuBackend,
   llamaServerArgs,
@@ -75,6 +78,10 @@ export interface LocalEmbeddingsDeps {
   ) => Promise<T>
   /** `null` — the core is ours; text — why the local model cannot be used here. */
   remoteReason: () => string | null
+  /** Whether «Локальная модель» is the SAVED choice (review T84): the panel may
+   *  download before the person saves, and must not leave a server holding GPU
+   *  memory for a choice they then cancel. */
+  chosen: () => Promise<boolean>
   onChange: () => void
 }
 
@@ -106,10 +113,10 @@ print(json.dumps({
 
 const HEALTH_TIMEOUT_MS = 180_000
 const POLL_MS = 1000
+const STALL_MS = 60_000
 
 export class LocalEmbeddings {
   private child: ChildProcess | null = null
-  private childPort: number | null = null
   private probe: EngineProbe | null = null
   private busy = false
   private progress: LocalEmbeddingsProgress | null = null
@@ -129,16 +136,10 @@ export class LocalEmbeddings {
   }
 
   private async writeState(state: LocalEmbeddingState): Promise<void> {
-    const path = localStatePath(await this.deps.hermesHome())
+    this.home = await this.deps.hermesHome()
+    const path = localStatePath(this.home)
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, JSON.stringify(state, null, 2) + '\n', 'utf-8')
-  }
-
-  /** Where the index reaches the server and the model it serves; `null` — no model.
-   *  The address is the kept port even before the process is up: the index server's
-   *  environment must not change with every start. */
-  async target(): Promise<{ baseUrl: string; model: string } | null> {
-    return localTargetSync(await this.deps.hermesHome())
   }
 
   private setProgress(progress: LocalEmbeddingsProgress | null): void {
@@ -289,7 +290,7 @@ export class LocalEmbeddings {
         source: 'download',
         repo: RECOMMENDED_EMBEDDING.repo
       })
-      await this.startNow()
+      await this.startIfChosen()
     })
   }
 
@@ -301,18 +302,21 @@ export class LocalEmbeddings {
       if (urls.some((url) => url === null)) throw new Error(mainT('local.badSource'))
       if (!(await this.engine()).binary) await this.installEngine()
       const dir = join(localModelsDir(await this.deps.hermesHome()), repo.replace('/', '__'))
-      const files = paths.map((path) => join(dir, path.replace(/^.*\//, '')))
+      const files = paths.map((path) => modelFileIn(dir, path))
+      if (files.some((file) => file === null)) throw new Error(mainT('local.badSource'))
       for (const [index, url] of urls.entries()) {
-        if (!existsSync(files[index]))
-          await downloadFile(url as string, files[index], null, (p) => this.setProgress(p))
+        const file = files[index] as string
+        if (!existsSync(file)) {
+          await downloadFile(url as string, file, null, (p) => this.setProgress(p))
+        }
       }
       await this.chooseModel({
-        id: modelIdForFile(files[0]),
-        path: files[0],
+        id: downloadedModelId(repo, paths[0]),
+        path: files[0] as string,
         source: 'download',
         repo
       })
-      await this.startNow()
+      await this.startIfChosen()
     })
   }
 
@@ -322,7 +326,7 @@ export class LocalEmbeddings {
       if (!isGgufPath(path) || !existsSync(path)) throw new Error(mainT('local.notGguf'))
       if (!(await this.engine()).binary) await this.installEngine()
       await this.chooseModel({ id: modelIdForFile(path), path, source: 'file' })
-      await this.startNow()
+      await this.startIfChosen()
     })
   }
 
@@ -361,15 +365,22 @@ export class LocalEmbeddings {
     await this.job(() => this.startNow())
   }
 
+  private async startIfChosen(): Promise<void> {
+    if (await this.deps.chosen()) await this.startNow()
+  }
+
   private async startNow(): Promise<void> {
     if (this.child && this.child.exitCode === null) return
     const state = await this.readState()
     const model = state.model
     if (!model) throw new Error(mainT('provider.localNotReady', ''))
     if (!existsSync(model.path)) throw new Error(mainT('local.modelMissing', model.path))
-    const engine = await this.engine()
-    if (!engine.binary) throw new Error(mainT('local.engineMissing'))
-    await stopLeftover(state.pid)
+    let engine = await this.engine()
+    // The cached probe may be stale: the engine removed on the core's screen or moved
+    // by a pin lift (review T84).
+    if (engine.binary && !existsSync(engine.binary)) engine = await this.engine(true)
+    if (!engine.binary || !existsSync(engine.binary)) throw new Error(mainT('local.engineMissing'))
+    await stopLeftover(state.pid, state.port)
     const port = await pickPort(state.port ?? DEFAULT_LOCAL_PORT)
     this.setProgress({ step: 'start', detail: model.id, doneBytes: 0, totalBytes: null })
     this.stderrTail = ''
@@ -383,21 +394,25 @@ export class LocalEmbeddings {
       }),
       { cwd: dirname(engine.binary), windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] }
     )
+    // Without a listener a failed spawn is an uncaught exception in the main process.
+    let spawnError: Error | null = null
+    child.on('error', (error) => {
+      spawnError = error
+    })
     child.stderr?.on('data', (chunk: Buffer) => {
       this.stderrTail = (this.stderrTail + chunk.toString('utf-8')).slice(-2000)
     })
     child.on('exit', () => {
       if (this.child === child) {
         this.child = null
-        this.childPort = null
+        void this.forgetPid()
         this.deps.onChange()
       }
     })
     this.child = child
-    this.childPort = port
-    await this.writeState({ ...state, port, pid: child.pid })
+    await this.writeState({ ...state, port, ...(child.pid ? { pid: child.pid } : {}) })
     try {
-      await waitHealthy(port, child)
+      await waitHealthy(port, child, () => spawnError)
     } catch (error: unknown) {
       this.stop()
       const tail = this.stderrTail.trim().split(/\r?\n/).slice(-3).join(' ')
@@ -406,16 +421,20 @@ export class LocalEmbeddings {
     }
   }
 
-  /** Synchronous on purpose: called from `will-quit`, where nothing awaits. */
+  /** Synchronous on purpose: called from `will-quit`, where nothing awaits. The
+   *  recorded number goes too — a clean stop leaves nothing to look for next start. */
   stop(): void {
     const child = this.child
     this.child = null
-    this.childPort = null
     if (child && child.exitCode === null) child.kill()
+    if (child && this.home) forgetPidSync(this.home)
   }
 
-  get port(): number | null {
-    return this.childPort
+  private home: string | null = null
+
+  private async forgetPid(): Promise<void> {
+    this.home = this.home ?? (await this.deps.hermesHome())
+    forgetPidSync(this.home)
   }
 }
 
@@ -443,11 +462,33 @@ export async function downloadFile(
   const part = dest + '.part'
   mkdirSync(dirname(dest), { recursive: true })
   const have = existsSync(part) ? statSync(part).size : 0
+  // A download that stops receiving is aborted, not left holding the panel busy
+  // (review T84); the `.part` resumes on the next press.
+  const controller = new AbortController()
+  let stall = setTimeout(() => controller.abort(), STALL_MS)
+  const alive = (): void => {
+    clearTimeout(stall)
+    stall = setTimeout(() => controller.abort(), STALL_MS)
+  }
   const response = await fetch(url, {
     headers: have > 0 ? { Range: `bytes=${have}-` } : {},
-    redirect: 'follow'
+    redirect: 'follow',
+    signal: controller.signal
+  }).catch((error: unknown) => {
+    clearTimeout(stall)
+    throw new Error(
+      mainT('local.downloadFailed', error instanceof Error ? error.message : String(error))
+    )
   })
+  // 416: the server has nothing past the end — the `.part` was finished before a quit
+  // cut the check and the rename short. Verify it instead of failing forever.
+  if (response.status === 416 && have > 0) {
+    clearTimeout(stall)
+    await verifyAndPlace(part, dest, sha256)
+    return
+  }
   if (!response.ok || !response.body) {
+    clearTimeout(stall)
     throw new Error(mainT('local.downloadFailed', `HTTP ${response.status}`))
   }
   const resumed = response.status === 206
@@ -458,6 +499,7 @@ export async function downloadFile(
   let lastTick = 0
   const body = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream)
   body.on('data', (chunk: Buffer) => {
+    alive()
     done += chunk.length
     const now = Date.now()
     if (now - lastTick > 500) {
@@ -470,7 +512,19 @@ export async function downloadFile(
       })
     }
   })
-  await pipeline(body, createWriteStream(part, { flags: resumed ? 'a' : 'w' }))
+  try {
+    await pipeline(body, createWriteStream(part, { flags: resumed ? 'a' : 'w' }))
+  } catch (error: unknown) {
+    throw new Error(
+      mainT('local.downloadFailed', error instanceof Error ? error.message : String(error))
+    )
+  } finally {
+    clearTimeout(stall)
+  }
+  await verifyAndPlace(part, dest, sha256)
+}
+
+async function verifyAndPlace(part: string, dest: string, sha256: string | null): Promise<void> {
   if (sha256) {
     const hash = createHash('sha256')
     await pipeline(createReadStream(part), hash)
@@ -496,9 +550,15 @@ async function pickPort(preferred: number): Promise<number> {
   return (await tryListen(preferred)) ?? (await tryListen(0)) ?? preferred
 }
 
-async function waitHealthy(port: number, child: ChildProcess): Promise<void> {
+async function waitHealthy(
+  port: number,
+  child: ChildProcess,
+  spawnError: () => Error | null
+): Promise<void> {
   const deadline = Date.now() + HEALTH_TIMEOUT_MS
   while (Date.now() < deadline) {
+    const failed = spawnError()
+    if (failed) throw failed
     if (child.exitCode !== null) throw new Error(`exit ${child.exitCode}`)
     try {
       const response = await fetch(`http://127.0.0.1:${port}/health`, {
@@ -513,16 +573,53 @@ async function waitHealthy(port: number, child: ChildProcess): Promise<void> {
   throw new Error('health timeout')
 }
 
-/** A server left by a crashed run: stopped only while its number is still ours. */
-async function stopLeftover(pid: number | undefined): Promise<void> {
-  if (!pid) return
+/** A server left by a crashed run: stopped only while its number is still ours — the
+ *  engine's image AND our command line (`--embeddings` on the kept port). The core's
+ *  own chat router runs the same executable; its number must never be taken for ours. */
+async function stopLeftover(pid: number | undefined, port: number | undefined): Promise<void> {
+  if (!pid || !port) return
   const image = await processImage(pid)
-  if (image && isEngineImage(image)) {
+  const line = image && isEngineImage(image) ? await processCommandLine(pid) : null
+  if (line && isOurServerLine(line, port)) {
     try {
       process.kill(pid)
     } catch {
       // already gone
     }
+  }
+}
+
+function processCommandLine(pid: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      execFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          `(Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(pid)}').CommandLine`
+        ],
+        { windowsHide: true, timeout: 15_000 },
+        (error, stdout) => resolve(error ? null : stdout.trim() || null)
+      )
+    } else {
+      execFile('ps', ['-p', String(pid), '-o', 'args='], (error, stdout) => {
+        resolve(error ? null : stdout.trim() || null)
+      })
+    }
+  })
+}
+
+function forgetPidSync(hermesHome: string): void {
+  try {
+    const path = localStatePath(hermesHome)
+    const state = parseLocalState(readFileSync(path, 'utf-8'))
+    if (state.pid === undefined) return
+    delete state.pid
+    writeFileSync(path, JSON.stringify(state, null, 2) + '\n', 'utf-8')
+  } catch {
+    // no state file — nothing recorded
   }
 }
 

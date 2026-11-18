@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../donor/components/ui/button'
 import { useAecT } from '../../shared/i18n'
 import type {
+  LocalModelAnswer,
   LocalEmbeddingsStatus,
   LocalModelFile,
   LocalModelSearchHit
@@ -30,6 +31,11 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
   const [hits, setHits] = useState<LocalModelSearchHit[] | null>(null)
   const [repo, setRepo] = useState('')
   const [files, setFiles] = useState<LocalModelFile[] | null>(null)
+  // Review T84: a new model would change the saved index model — asked first.
+  const [pending, setPending] = useState<{
+    warnings: string[]
+    retry: () => Promise<LocalModelAnswer>
+  } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -51,9 +57,22 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
     )
   }
 
-  const run = async (work: () => Promise<{ error?: string; ok: boolean }>): Promise<void> => {
+  const run = async (work: (confirmed: boolean) => Promise<LocalModelAnswer>): Promise<void> => {
     setError('')
-    const answer = await work()
+    setPending(null)
+    const answer = await work(false)
+    if (answer.warnings?.length) {
+      setPending({ warnings: answer.warnings, retry: () => work(true) })
+      return
+    }
+    if (!answer.ok && answer.error) setError(answer.error)
+  }
+
+  const confirm = async (): Promise<void> => {
+    const retry = pending?.retry
+    setPending(null)
+    if (!retry) return
+    const answer = await retry()
     if (!answer.ok && answer.error) setError(answer.error)
   }
 
@@ -124,7 +143,7 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-2">
         <Button
           disabled={status.busy}
-          onClick={() => void run(() => window.aecpilot.setupLocalEmbeddings())}
+          onClick={() => void run((confirmed) => window.aecpilot.setupLocalEmbeddings(confirmed))}
           size="sm"
           variant="secondary"
         >
@@ -145,7 +164,7 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
         </Button>
         <Button
           disabled={status.busy}
-          onClick={() => void run(() => window.aecpilot.pickLocalModelFile())}
+          onClick={() => void run((confirmed) => window.aecpilot.pickLocalModelFile(confirmed))}
           size="sm"
           variant="ghost"
         >
@@ -206,7 +225,9 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
                   disabled={status.busy}
                   key={file.label}
                   onClick={() =>
-                    void run(() => window.aecpilot.downloadLocalModel(repo, file.paths))
+                    void run((confirmed) =>
+                      window.aecpilot.downloadLocalModel(repo, file.paths, confirmed)
+                    )
                   }
                   size="sm"
                   variant="ghost"
@@ -216,6 +237,27 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {pending && (
+        <div
+          className="flex flex-col gap-1 rounded border border-amber-500/50 p-2"
+          data-testid="local-embeddings-warning"
+        >
+          {pending.warnings.map((warning) => (
+            <p className="text-xs text-(--ui-text-primary)" key={warning}>
+              {warning}
+            </p>
+          ))}
+          <div className="flex gap-2">
+            <Button onClick={() => void confirm()} size="sm" variant="secondary">
+              {t('dataProviders.local.continueAnyway')}
+            </Button>
+            <Button onClick={() => setPending(null)} size="sm" variant="ghost">
+              {t('dataProviders.local.cancel')}
+            </Button>
+          </div>
         </div>
       )}
 

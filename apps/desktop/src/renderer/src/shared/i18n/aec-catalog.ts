@@ -628,7 +628,9 @@ export const aecLocales: PluginLocaleBundles = {
         files: 'Files',
         pickFile: (label: string, mb: number) => `${label} — ${mb} MB`,
         needsExtraction:
-          'The local model only builds vectors: parsing documents uses the provider chosen below.'
+          'The local model only builds vectors: parsing documents uses the provider chosen below.',
+        continueAnyway: 'Continue anyway',
+        cancel: 'Cancel'
       },
       baseUrl: 'Address (base_url)',
       keyEnv: 'Key variable name',
@@ -1520,7 +1522,9 @@ export const aecLocales: PluginLocaleBundles = {
         files: 'Файлы',
         pickFile: (label: string, mb: number) => `${label} — ${mb} МБ`,
         needsExtraction:
-          'Локальная модель только строит векторы: документы разбирает провайдер, выбранный ниже.'
+          'Локальная модель только строит векторы: документы разбирает провайдер, выбранный ниже.',
+        continueAnyway: 'Продолжить всё равно',
+        cancel: 'Отмена'
       },
       baseUrl: 'Адрес (base_url)',
       keyEnv: 'Имя переменной ключа',

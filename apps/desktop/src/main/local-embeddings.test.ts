@@ -27,6 +27,11 @@ beforeEach(async () => {
     const range = request.headers.range
     ranges.push(range)
     const match = range ? /bytes=(\d+)-/.exec(range) : null
+    if (match && Number(match[1]) >= payload.length) {
+      response.writeHead(416)
+      response.end()
+      return
+    }
     if (match) {
       const from = Number(match[1])
       response.writeHead(206, { 'Content-Length': String(payload.length - from) })
@@ -59,6 +64,14 @@ describe('model download (T83)', () => {
     writeFileSync(dest + '.part', payload.subarray(0, 40_000))
     await downloadFile(`${base}/m.gguf`, dest, sha, () => {})
     expect(ranges).toEqual(['bytes=40000-'])
+    expect(readFileSync(dest).equals(payload)).toBe(true)
+  })
+
+  it('takes a finished .part the server answers 416 for: verified and placed, not stuck (review T84)', async () => {
+    const dest = join(dir, 'm.gguf')
+    writeFileSync(dest + '.part', payload)
+    await downloadFile(`${base}/m.gguf`, dest, sha, () => {})
+    expect(ranges).toEqual([`bytes=${payload.length}-`])
     expect(readFileSync(dest).equals(payload)).toBe(true)
   })
 

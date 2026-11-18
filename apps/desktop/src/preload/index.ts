@@ -293,12 +293,12 @@ const api: AecpilotApi = {
   listDataModels: (choice, section) =>
     ipcRenderer.invoke('data-providers:models', { choice, section }),
   getLocalEmbeddings: () => ipcRenderer.invoke('local-embeddings:status'),
-  setupLocalEmbeddings: () => ipcRenderer.invoke('local-embeddings:setup'),
+  setupLocalEmbeddings: (confirmed) => ipcRenderer.invoke('local-embeddings:setup', confirmed),
   searchLocalModels: (query) => ipcRenderer.invoke('local-embeddings:search', query),
   listLocalModelFiles: (repo) => ipcRenderer.invoke('local-embeddings:files', repo),
-  downloadLocalModel: (repo, paths) =>
-    ipcRenderer.invoke('local-embeddings:download', { repo, paths }),
-  pickLocalModelFile: () => ipcRenderer.invoke('local-embeddings:pick-file'),
+  downloadLocalModel: (repo, paths, confirmed) =>
+    ipcRenderer.invoke('local-embeddings:download', { repo, paths, confirmed }),
+  pickLocalModelFile: (confirmed) => ipcRenderer.invoke('local-embeddings:pick-file', confirmed),
   onLocalEmbeddings: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
       cb(state)

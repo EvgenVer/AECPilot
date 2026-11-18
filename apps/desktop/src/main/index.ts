@@ -374,7 +374,12 @@ import {
 import type { ScanReportEnvelope } from '../shared/ipc'
 import { mainT } from './i18n'
 import { LocalEmbeddings, localTargetSync } from './local-embeddings'
-import { LOCAL_PROVIDER } from './local-embeddings-pure'
+import {
+  downloadedModelId,
+  LOCAL_PROVIDER,
+  modelIdForFile,
+  RECOMMENDED_EMBEDDING
+} from './local-embeddings-pure'
 
 interface ServeHandle {
   proc: ChildProcess
@@ -447,8 +452,18 @@ function readDataProviderInputs(hermesHome: string): {
 function ragEnvFromProfile(hermesHome: string | null): Record<string, string> {
   if (!hermesHome) return {}
   const { agent, choices } = readDataProviderInputs(hermesHome)
-  const rag = ragProvider(agent, choices, localTargetSync(hermesHome))
+  // Review T84: with the core elsewhere the local server is never started here — the
+  // index then gets the reason in words, not a 127.0.0.1 address nobody answers.
+  const local = localRemoteReason() ? null : localTargetSync(hermesHome)
+  const rag = ragProvider(agent, choices, local)
   return rag.ok ? rag.env : { AEC_RAG_UNAVAILABLE: rag.reason }
+}
+
+/** Why the local embedding model cannot run with this connection; `null` — it can. */
+function localRemoteReason(): string | null {
+  return remoteTarget() !== undefined || connectionMode() === 'ssh' || currentRole() === 'client'
+    ? mainT('local.remote')
+    : null
 }
 
 // --- Локальная модель эмбеддингов (задача T83, UR53) ------------------------
@@ -461,10 +476,10 @@ const localEmbeddings = new LocalEmbeddings({
   hermesHome: async () => (await loadServeModule()).HERMES_HOME_DIR,
   python: async () => (await loadServeModule()).ticketRuntime(),
   rest: (path, options) => hermesRest(restTarget(), path, { ...options, timeoutMs: 60_000 }),
-  remoteReason: () =>
-    remoteTarget() !== undefined || connectionMode() === 'ssh' || currentRole() === 'client'
-      ? mainT('local.remote')
-      : null,
+  remoteReason: localRemoteReason,
+  chosen: async () =>
+    readDataProviderInputs((await loadServeModule()).HERMES_HOME_DIR).choices.rag.provider ===
+    LOCAL_PROVIDER,
   onChange: () => {
     void localEmbeddings
       .status()
@@ -4697,10 +4712,27 @@ async function afterLocalModelChange(answer: { ok: boolean; error?: string }) {
   return answer
 }
 
+/** Review T84: a new local model while «Локальная модель» is the saved choice changes
+ *  the index's embedding model at once — asked BEFORE, as the save asks (3G.52). */
+async function localModelWarnings(nextId: string, confirmed: unknown): Promise<string[]> {
+  if (confirmed === true) return []
+  const hermesHome = (await loadServeModule()).HERMES_HOME_DIR
+  if (readDataProviderInputs(hermesHome).choices.rag.provider !== LOCAL_PROVIDER) return []
+  const index = openIndexEmbedding()
+  const from = (index.builtWith ?? '').trim()
+  if (!from || from === nextId || (index.projectModel ?? '').trim()) return []
+  return [mainT('provider.warnIndexModel', from, nextId)]
+}
+
+/** The file picked before a warning, reused when the person confirms. */
+let pendingLocalModelFile: string | null = null
+
 ipcMain.handle('local-embeddings:status', () => localEmbeddings.status(true))
-ipcMain.handle('local-embeddings:setup', async () =>
-  afterLocalModelChange(await localEmbeddings.setup())
-)
+ipcMain.handle('local-embeddings:setup', async (_event, confirmed: unknown) => {
+  const warnings = await localModelWarnings(RECOMMENDED_EMBEDDING.id, confirmed)
+  if (warnings.length > 0) return { ok: false, warnings }
+  return afterLocalModelChange(await localEmbeddings.setup())
+})
 ipcMain.handle('local-embeddings:search', async (_event, query: unknown) => {
   try {
     return { ok: true, hits: await localEmbeddings.search(String(query ?? '').slice(0, 200)) }
@@ -4716,11 +4748,26 @@ ipcMain.handle('local-embeddings:files', async (_event, repo: unknown) => {
   }
 })
 ipcMain.handle('local-embeddings:download', async (_event, payload: unknown) => {
-  const { repo, paths } = (payload ?? {}) as { repo?: unknown; paths?: unknown }
+  const { repo, paths, confirmed } = (payload ?? {}) as {
+    repo?: unknown
+    paths?: unknown
+    confirmed?: unknown
+  }
   const list = Array.isArray(paths) ? paths.map(String).slice(0, 16) : []
-  return afterLocalModelChange(await localEmbeddings.downloadOther(String(repo ?? ''), list))
+  const name = String(repo ?? '')
+  if (list.length > 0) {
+    const warnings = await localModelWarnings(downloadedModelId(name, list[0]), confirmed)
+    if (warnings.length > 0) return { ok: false, warnings }
+  }
+  return afterLocalModelChange(await localEmbeddings.downloadOther(name, list))
 })
-ipcMain.handle('local-embeddings:pick-file', async (event) => {
+ipcMain.handle('local-embeddings:pick-file', async (event, confirmed: unknown) => {
+  if (confirmed === true && pendingLocalModelFile) {
+    const file = pendingLocalModelFile
+    pendingLocalModelFile = null
+    return afterLocalModelChange(await localEmbeddings.useFile(file))
+  }
+  pendingLocalModelFile = null
   const owner = BrowserWindow.fromWebContents(event.sender)
   const options = {
     title: mainT('local.pickTitle'),
@@ -4731,7 +4778,13 @@ ipcMain.handle('local-embeddings:pick-file', async (event) => {
     ? await dialog.showOpenDialog(owner, options)
     : await dialog.showOpenDialog(options)
   if (picked.canceled || picked.filePaths.length === 0) return { ok: false }
-  return afterLocalModelChange(await localEmbeddings.useFile(picked.filePaths[0]))
+  const file = picked.filePaths[0]
+  const warnings = await localModelWarnings(modelIdForFile(file), false)
+  if (warnings.length > 0) {
+    pendingLocalModelFile = file
+    return { ok: false, warnings }
+  }
+  return afterLocalModelChange(await localEmbeddings.useFile(file))
 })
 
 // --- Экран памяти, слой 1 и автозапись (задача 5.4) ------------------------

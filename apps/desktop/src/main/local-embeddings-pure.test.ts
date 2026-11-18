@@ -1,12 +1,17 @@
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import {
+  downloadedModelId,
   embedMinutes,
   hfFileUrl,
   isEngineImage,
+  isOurServerLine,
   isGpuBackend,
   llamaServerArgs,
   localModelsDir,
+  modelFileIn,
   modelIdForFile,
   parseLocalState,
   RECOMMENDED_EMBEDDING
@@ -84,6 +89,37 @@ describe('local embeddings (T83)', () => {
     expect(hfFileUrl('a/b', 'm.exe')).toBeNull()
     expect(hfFileUrl('evil.com/x?y', 'm.gguf')).toBeNull()
     expect(hfFileUrl('a/b/c', 'm.gguf')).toBeNull()
+  })
+
+  it('never lets a repo file name leave the models folder (review T84: backslash traversal)', () => {
+    expect(hfFileUrl('a/b', '..\\..\\..\\evil.gguf')).toBeNull()
+    expect(hfFileUrl('a/b', 'C:evil.gguf')).toBeNull()
+    expect(hfFileUrl('a/b', 'sub/\u0001x.gguf')).toBeNull()
+    const dir = join('C:\\h', 'aec', 'embedding-models', 'a__b')
+    expect(modelFileIn(dir, '..\\..\\..\\evil.gguf')).toBeNull()
+    // Only the last segment is used: it lands inside, and the address refuses `..` anyway.
+    expect(modelFileIn(dir, '../evil.gguf')).toBe(join(dir, 'evil.gguf'))
+    expect(hfFileUrl('a/b', '../evil.gguf')).toBeNull()
+    expect(modelFileIn(dir, 'sub/model-Q8_0.gguf')).toBe(join(dir, 'model-Q8_0.gguf'))
+  })
+
+  it('names a model from another repo by repo and file: two repos never share an id', () => {
+    expect(downloadedModelId('a/b', 'm-Q8_0.gguf')).toBe('a/b/m-Q8_0')
+    expect(downloadedModelId('c/d', 'm-Q8_0.gguf')).not.toBe(
+      downloadedModelId('a/b', 'm-Q8_0.gguf')
+    )
+  })
+
+  it('takes for a leftover only our embedding server, never the core chat router', () => {
+    const ours = `"C:\\t\\llama-server.exe" ${llamaServerArgs({ modelPath: 'C:\\m\\x.gguf', alias: 'bge-m3', port: 47821, gpu: true }).join(' ')}`
+    expect(isOurServerLine(ours, 47821)).toBe(true)
+    expect(isOurServerLine(ours, 47822)).toBe(false)
+    expect(
+      isOurServerLine(
+        '"C:\\t\\llama-server.exe" --models-dir C:\\m --port 47821 --host 127.0.0.1',
+        47821
+      )
+    ).toBe(false)
   })
 
   it('stops only our engine as a leftover, never a process that reused the number', () => {

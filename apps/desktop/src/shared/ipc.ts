@@ -787,6 +787,12 @@ export interface LocalEmbeddingsStatus {
   recommended: { id: string; repo: string; file: string; sizeBytes: number; license: string }
 }
 
+export interface LocalModelAnswer {
+  ok: boolean
+  error?: string
+  warnings?: string[]
+}
+
 export interface LocalModelSearchHit {
   repo: string
   downloads: number
@@ -1765,15 +1771,17 @@ export interface AecpilotApi {
    *  (движок ядра и рекомендованная модель), поиск по Hugging Face средствами ядра,
    *  загрузка найденной модели, выбор файла с диска. */
   getLocalEmbeddings(): Promise<LocalEmbeddingsStatus>
-  setupLocalEmbeddings(): Promise<{ error?: string; ok: boolean }>
+  /** Смена модели при сохранённом «local» — вопрос до записи: без `confirmed` ответ
+   *  несёт `warnings` и ничего не меняет (ревью T84, как 3G.52). */
+  setupLocalEmbeddings(confirmed?: boolean): Promise<LocalModelAnswer>
   searchLocalModels(
     query: string
   ): Promise<{ error?: string; hits?: LocalModelSearchHit[]; ok: boolean }>
   listLocalModelFiles(
     repo: string
   ): Promise<{ error?: string; files?: LocalModelFile[]; ok: boolean }>
-  downloadLocalModel(repo: string, paths: string[]): Promise<{ error?: string; ok: boolean }>
-  pickLocalModelFile(): Promise<{ error?: string; ok: boolean }>
+  downloadLocalModel(repo: string, paths: string[], confirmed?: boolean): Promise<LocalModelAnswer>
+  pickLocalModelFile(confirmed?: boolean): Promise<LocalModelAnswer>
   onLocalEmbeddings(cb: (state: LocalEmbeddingsStatus) => void): () => void
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void

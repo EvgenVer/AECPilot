@@ -11,7 +11,7 @@
 // model nobody can talk to. The core's router cannot serve it anyway: its
 // children run without `--embeddings`.
 
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 
 /** The model the T83 bench chose (eval/reports/embedding-bench.md): top-5 hit
  *  0.85 on the Russian documents of `eval/`, MIT. Pinned to a revision with its
@@ -132,12 +132,31 @@ export function modelIdForFile(fileName: string): string {
  *  the renderer passes back — checked here, not trusted. */
 export function hfFileUrl(repo: string, path: string, revision = 'main'): string | null {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.includes('..')) return null
-  if (!isGgufPath(path) || path.split('/').some((part) => part === '..' || part === '')) {
-    return null
-  }
+  // Review T84: every segment from an allow-list — a backslash, a drive colon or a
+  // control character would let the local file name step out of the models folder.
+  if (!isGgufPath(path) || !path.split('/').every(isSafeSegment)) return null
   if (!/^[\w.-]+$/.test(revision)) return null
   const encoded = path.split('/').map(encodeURIComponent).join('/')
   return `https://huggingface.co/${repo}/resolve/${revision}/${encoded}`
+}
+
+function isSafeSegment(segment: string): boolean {
+  return /^[\w. -]+$/.test(segment) && segment !== '.' && segment !== '..'
+}
+
+/** Where a repo file lands: its last segment inside `dir`, or `null` when the name
+ *  is not a plain file name or would resolve outside `dir`. */
+export function modelFileIn(dir: string, repoPath: string): string | null {
+  const name = repoPath.split('/').pop() ?? ''
+  if (!isSafeSegment(name) || !isGgufPath(name)) return null
+  const file = resolve(dir, name)
+  return file.startsWith(resolve(dir) + sep) ? file : null
+}
+
+/** A model from another repo is named by repo and file: the index fingerprint must
+ *  see a different model even when two repos ship the same file name. */
+export function downloadedModelId(repo: string, repoPath: string): string {
+  return `${repo}/${modelIdForFile(repoPath.split('/').pop() ?? repoPath)}`
 }
 
 /** The engine command line — what the T83 bench measured, plus the alias the
@@ -181,6 +200,15 @@ export function embedMinutes(chunks: number, gpu: boolean): number {
  *  the measured GPU speed. */
 export function isGpuBackend(backend: string | null): boolean {
   return backend !== null && backend !== 'cpu'
+}
+
+/** Our embedding server's command line: `--embeddings` and the kept port. The core's
+ *  chat router runs the same executable without either (review T84). */
+export function isOurServerLine(commandLine: string, port: number): boolean {
+  return (
+    /(?:^|\s)--embeddings(?:\s|$)/.test(commandLine) &&
+    new RegExp(`(?:^|\\s)--port\\s+"?${port}"?(?:\\s|$)`).test(commandLine)
+  )
 }
 
 /** Image name of a process we may stop as a leftover — only our engine. */

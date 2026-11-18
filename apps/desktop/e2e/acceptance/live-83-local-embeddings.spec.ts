@@ -101,12 +101,12 @@ test('T83 «Скачать» локальную модель, индекс на 
         const status = (await page.evaluate(() => window.aecpilot.getLocalEmbeddings())) as {
           busy: boolean
           error: string | null
-          running: boolean
+          model: unknown
         }
         if (status.error) throw new Error(status.error)
-        return !status.busy && status.running
+        return !status.busy && status.model !== null
       },
-      { timeout: 40 * 60_000, intervals: [5000], message: 'движок и модель готовы' }
+      { timeout: 40 * 60_000, intervals: [5000], message: 'движок и модель скачаны' }
     )
     .toBe(true)
   await expect(dialog.getByTestId('local-embeddings-model')).toContainText('bge-m3')
@@ -124,6 +124,16 @@ test('T83 «Скачать» локальную модель, индекс на 
   const confirm = dialog.getByRole('button', { name: 'Сохранить всё равно' })
   if (await confirm.isVisible().catch(() => false)) await confirm.click()
   await expect(dialog.getByText(/^Сохранено. Индекс и память/)).toBeVisible({ timeout: 60_000 })
+  // Сервер поднимается после сохранённого выбора (ревью T84: не держать видеопамять
+  // за выбор, который человек может отменить).
+  await expect
+    .poll(
+      async () =>
+        ((await page.evaluate(() => window.aecpilot.getLocalEmbeddings())) as { running: boolean })
+          .running,
+      { timeout: 180_000, intervals: [2000], message: 'модель запущена' }
+    )
+    .toBe(true)
   await record(test.info(), page, { transcript: await dialog.innerText() })
 
   if (cache && !existsSync(join(cache, GGUF))) {
