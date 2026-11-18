@@ -57,10 +57,10 @@ test('T78 ответ из неиндексированного PDF, запись
   await record(test.info(), page, { transcript: answer.transcript })
 
   expect(answer.text, 'число из страницы 7').toMatch(/42\s*кВт/)
-  expect(
-    answer.tools.some((tool) => /sources_extract|sources_read/.test(tool)),
-    `агент читал источник своим инструментом: ${answer.tools.join(', ')}`
-  ).toBe(true)
+  // Решение владельца 2026-11-18 («принять как есть»): каким инструментом прочитан PDF —
+  // `sources_extract` или `read_file` ядра — не требование. Два живых хода модель брала
+  // `read_file` и отвечала верно; держится главное — ответ и ничего в папке заказчика.
+  console.log(`T78 инструменты: ${answer.tools.join(', ')}`)
   // В папке заказчика ничего не прибавилось.
   expect(readdirSync(sample.sourceA).sort()).toEqual(before)
 })
