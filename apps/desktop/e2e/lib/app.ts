@@ -392,6 +392,16 @@ export async function launchStand(options: LaunchOptions): Promise<Stand> {
         if (mock) {
           writeFileSync(join(desktopDir, 'test-results', `${label}-mock-output.log`), mock.output())
         }
+        // T78: the temporary live profile is removed below, and with it the
+        // core's own log of which tools the model saw and called — the one
+        // record a failed live (paid) turn is analysed from.
+        const agentLog = profileDir ? join(profileDir, 'logs', 'agent.log') : ''
+        if (agentLog && existsSync(agentLog)) {
+          writeFileSync(
+            join(desktopDir, 'test-results', `${label}-agent.log`),
+            readFileSync(agentLog)
+          )
+        }
       } catch {
         // журнал — не цель прогона
       }
