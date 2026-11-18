@@ -140,7 +140,9 @@ def score(chunks, qs, chunk_vectors, question_vectors) -> dict:
     return {"hit@1": at1 / n, "hit@5": at5 / n, "mrr@10": mrr / n}
 
 
-def run_model(engine: Path, name: str, gguf: Path, chunks, qs) -> dict:
+def run_model(
+    engine: Path, name: str, gguf: Path, chunks, qs, extra: list[str] | None = None
+) -> dict:
     port = free_port()
     server = subprocess.Popen(
         [
@@ -160,6 +162,7 @@ def run_model(engine: Path, name: str, gguf: Path, chunks, qs) -> dict:
             "8192",
             "-np",
             "1",
+            *(extra or []),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -209,6 +212,8 @@ def main() -> None:
     parser.add_argument("--model", action="append", required=True)
     parser.add_argument("--cache", type=Path, default=Path("embedding-bench-corpus.json"))
     parser.add_argument("--out", type=Path)
+    # Например `--server-arg=-ngl --server-arg=99` — слои на видеокарту (сборка Vulkan/CUDA).
+    parser.add_argument("--server-arg", action="append", default=[])
     args = parser.parse_args()
 
     print("Разбор корпуса…", flush=True)
@@ -219,7 +224,7 @@ def main() -> None:
     for spec in args.model:
         name, path = spec.split("=", 1)
         print(f"Модель {name}…", flush=True)
-        result = run_model(args.engine, name, Path(path), chunks, qs)
+        result = run_model(args.engine, name, Path(path), chunks, qs, args.server_arg)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         results.append(result)
     if args.out:
