@@ -56,6 +56,18 @@ function stripFileScheme(value: string): string {
   }
 }
 
+/** Task T71: on Windows the agent's terminal is Git Bash, so its working folder
+ * and the paths in its output read `/d/Projects/x` (WSL: `/mnt/d/Projects/x`).
+ * Node takes that for `\d\Projects\x` on the current drive, and every file of a
+ * project on drive D was refused as "outside the project". A single letter
+ * after the first slash is a drive there; any other rooted path is left alone. */
+function fromPosixDrive(value: string): string {
+  if (process.platform !== 'win32') return value
+  const match = /^\/(?:mnt\/)?([A-Za-z])(?:\/(.*))?$/.exec(value)
+  if (!match) return value
+  return `${match[1].toUpperCase()}:\\${(match[2] ?? '').replace(/\//g, '\\')}`
+}
+
 /** Resolves an artifact's `value` to an absolute path on this machine.
  *
  * `projectRoot` is both the base for a relative path (the agent's cwd IS the
@@ -80,7 +92,7 @@ export function resolveArtifactPath(
   // eslint-disable-next-line no-control-regex -- deliberate: a control char in a path is never legitimate
   if (/[\x00-\x1f]/.test(raw)) return { ok: false, error: mainT('artifact.controlChars') }
 
-  const candidate = stripFileScheme(raw)
+  const candidate = fromPosixDrive(stripFileScheme(raw))
   if (!isAbsolute(candidate) && !projectRoot) {
     return { ok: false, error: mainT('artifact.relativeNoProject') }
   }

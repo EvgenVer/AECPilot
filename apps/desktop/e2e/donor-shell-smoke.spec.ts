@@ -902,7 +902,13 @@ test('правка файла на диске перерисовывает пр�
   // The project is a junction here, and the folder the core reports may be the
   // real one — both must list the file, with no refusal.
   const realProject = realpathSync.native(projectDir)
-  for (const folder of [projectDir, realProject]) {
+  // T71, причина у владельца: терминал агента — Git Bash, и папка сеанса
+  // приходит как `/c/Users/…`. Она тоже обязана читаться.
+  const gitBash = projectDir.replace(
+    /^([A-Za-z]):/,
+    (_, drive: string) => `/${drive.toLowerCase()}`
+  )
+  for (const folder of [projectDir, realProject, gitBash.replace(/\\/g, '/')]) {
     const listed = await page.evaluate((dir) => window.aecpilot.readPreviewDir(dir), folder)
     expect(listed.error, `дерево правой панели обязано читать ${folder}`).toBeUndefined()
     expect(listed.entries.map((entry: { name: string }) => entry.name)).toContain('live.html')

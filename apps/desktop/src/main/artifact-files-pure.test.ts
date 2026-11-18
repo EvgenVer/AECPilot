@@ -39,6 +39,25 @@ describe('resolveArtifactPath', () => {
     })
   })
 
+  // Задача T71, причина у владельца (проект на обычном диске D): терминал агента
+  // на Windows — Git Bash, и рабочая папка сеанса и пути в его выводе приходят
+  // как `/d/Проекты/ЮП/…`. Node читал это как `\d\…` на текущем диске — и
+  // предпросмотр, и дерево правой панели отказывали каждому файлу проекта.
+  it.runIf(process.platform === 'win32')('reads a Git Bash path /d/… as drive D:', () => {
+    expect(resolveArtifactPath(ROOT, '/d/proj/vault/workspace/tasks/x.docx')).toEqual({
+      ok: true,
+      absPath: resolve(ROOT, 'workspace/tasks/x.docx'),
+      insideProject: true
+    })
+    expect(resolveArtifactPath(ROOT, '/D/proj/vault')).toMatchObject({ insideProject: true })
+    // `/mnt/d/…` — тот же диск в записи WSL.
+    expect(resolveArtifactPath(ROOT, '/mnt/d/proj/vault/a.md')).toMatchObject({
+      absPath: resolve(ROOT, 'a.md')
+    })
+    // Не буква диска — обычный путь от корня текущего диска, как раньше.
+    expect(resolveArtifactPath(ROOT, '/data/a.md')).toMatchObject({ insideProject: false })
+  })
+
   it('decodes percent-escapes in a file:// url', () => {
     expect(resolveArtifactPath(ROOT, 'file:///D:/proj/vault/my%20plan.md')).toMatchObject({
       absPath: resolve(ROOT, 'my plan.md')
