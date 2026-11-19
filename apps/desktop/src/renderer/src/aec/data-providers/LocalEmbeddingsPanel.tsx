@@ -115,6 +115,14 @@ export function LocalEmbeddingsPanel(): React.JSX.Element {
           ? t('dataProviders.local.engine', status.engine.backend ?? '')
           : t('dataProviders.local.engineNone')}
       </p>
+      {!status.engine.installed && (
+        <p
+          className="text-xs text-(--ui-text-secondary)"
+          data-testid="local-embeddings-engine-note"
+        >
+          {t('dataProviders.local.engineRestartNote')}
+        </p>
+      )}
       <p className="text-xs text-(--ui-text-primary)">
         {status.engine.gpuName
           ? t('dataProviders.local.gpu', status.engine.gpuName)

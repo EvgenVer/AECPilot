@@ -349,6 +349,11 @@ describe('окно «Индекс и память»', () => {
     expect(await screen.findByText(/около 690 фрагментов в минуту/)).toBeTruthy()
     expect(screen.getByText(/около 3 мин/)).toBeTruthy()
     expect(screen.getByText(/Видеокарта: nvidia NVIDIA GeForce RTX 3050/)).toBeTruthy()
+    // Движок ставит задание ядра, которое может перезапустить его чат-модель — сказано
+    // до «Скачать» (техдолг ревью T84).
+    expect(screen.getByTestId('local-embeddings-engine-note').textContent).toMatch(
+      /локальная модель для чата, она один раз перезапустится/
+    )
     // Векторы — локально; поля модели эмбеддингов облака нет, разбор — отдельно.
     expect(screen.queryByLabelText('Модель эмбеддингов')).toBeNull()
     const separate = screen.getByLabelText(
@@ -423,6 +428,8 @@ describe('окно «Индекс и память»', () => {
       target: { value: 'local' }
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Из файла…' }))
+    // Движок уже стоит — предупреждать о его установке не о чем.
+    expect(screen.queryByTestId('local-embeddings-engine-note')).toBeNull()
     expect(await screen.findByTestId('local-embeddings-warning')).toBeTruthy()
     expect(pickLocalModelFile).toHaveBeenLastCalledWith(false)
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить всё равно' }))

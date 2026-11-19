@@ -57,6 +57,9 @@ export interface LocalEmbeddingState {
   port?: number
   /** The running server, to stop a leftover after a crash. */
   pid?: number
+  /** The app process that started it (technical debt 2026-11-18): a second app on
+   *  the same profile uses that server instead of stopping it as a leftover. */
+  owner?: number
 }
 
 export function localEmbeddingsHome(hermesHome: string): string {
@@ -114,7 +117,41 @@ export function parseLocalState(json: string | null): LocalEmbeddingState {
   if (typeof state.pid === 'number' && Number.isInteger(state.pid) && state.pid > 0) {
     out.pid = state.pid
   }
+  if (typeof state.owner === 'number' && Number.isInteger(state.owner) && state.owner > 0) {
+    out.owner = state.owner
+  }
   return out
+}
+
+/** Crashes counted for the restart rule: three within ten minutes and the server is
+ *  left down with the reason in the window (technical debt 2026-11-18). */
+export const CRASH_WINDOW_MS = 10 * 60_000
+export const CRASH_LIMIT = 3
+
+/** Whether a server that exited on its own is started again, given the times of its
+ *  crashes so far (this one included). */
+export function shouldRestart(crashes: number[], now: number): boolean {
+  return crashes.filter((at) => now - at < CRASH_WINDOW_MS).length < CRASH_LIMIT
+}
+
+/** The Hugging Face model API answer (`/api/models/<repo>/revision/main?blobs=true`):
+ *  the commit to pin and the SHA256 of each wanted file (its LFS object id). A file
+ *  without one gets `null` — the caller refuses it rather than download unchecked. */
+export function parseHfRevision(
+  raw: unknown,
+  paths: string[]
+): { revision: string; sha256: Record<string, string | null> } | null {
+  const info = record(raw)
+  const revision = text(info.sha)
+  if (!revision || !/^[0-9a-f]{40}$/.test(revision)) return null
+  const siblings = Array.isArray(info.siblings) ? info.siblings.map(record) : []
+  const sha256: Record<string, string | null> = {}
+  for (const path of paths) {
+    const entry = siblings.find((sibling) => sibling.rfilename === path)
+    const oid = text(record(entry?.lfs).sha256)
+    sha256[path] = oid && /^[0-9a-f]{64}$/.test(oid) ? oid : null
+  }
+  return { revision, sha256 }
 }
 
 export function isGgufPath(path: string): boolean {

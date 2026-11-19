@@ -381,6 +381,12 @@ const ru = {
   'local.busy': 'загрузка уже идёт',
   'local.pickTitle': 'Файл модели эмбеддингов (.gguf)',
   'local.engineJob': (detail: string) => `движок llama.cpp: ${detail}`,
+  'local.enginePaused':
+    'загрузка движка приостановлена в окне локальных моделей ядра — продолжите её там, и установка пойдёт дальше',
+  'local.noChecksum': (path: string) =>
+    `Hugging Face не дал контрольную сумму файла ${path} — без неё модель не скачивается`,
+  'local.crashed': (detail: string) =>
+    `локальная модель падала трижды за 10 минут и больше не перезапускается: ${detail}`,
   'provider.noMemoryModels': (place: string) =>
     `у своего адреса не выбраны модели памяти — укажите их в ${place}`,
   'provider.dimsUnknown': (model: string, place: string) =>
@@ -771,6 +777,12 @@ const en: Catalog = {
   'local.busy': 'a download is already running',
   'local.pickTitle': 'Embedding model file (.gguf)',
   'local.engineJob': (detail) => `llama.cpp engine: ${detail}`,
+  'local.enginePaused':
+    'the engine download is paused in the core’s local models screen — resume it there and the install goes on',
+  'local.noChecksum': (path) =>
+    `Hugging Face gave no checksum for ${path} — the model is not downloaded without one`,
+  'local.crashed': (detail) =>
+    `the local model crashed three times in 10 minutes and is no longer restarted: ${detail}`,
   'provider.noMemoryModels': (place) =>
     `no memory models are chosen for the custom address — set them in ${place}`,
   'provider.dimsUnknown': (model, place) =>

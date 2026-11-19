@@ -605,6 +605,8 @@ export const aecLocales: PluginLocaleBundles = {
         remote: (reason: string) => `Unavailable: ${reason}`,
         engine: (backend: string) => `llama.cpp engine: installed (${backend})`,
         engineNone: 'llama.cpp engine: not installed — “Download” installs it',
+        engineRestartNote:
+          'The core installs the engine the way its own local models screen does: if a local chat model of the core is running, it restarts once on the new engine.',
         gpu: (name: string) => `Graphics card: ${name}`,
         gpuNone: 'No graphics card found — the model will run on the processor',
         model: (id: string) => `Model: ${id}`,
@@ -1499,6 +1501,8 @@ export const aecLocales: PluginLocaleBundles = {
         remote: (reason: string) => `Недоступно: ${reason}`,
         engine: (backend: string) => `Движок llama.cpp: установлен (${backend})`,
         engineNone: 'Движок llama.cpp: не установлен — «Скачать» поставит его',
+        engineRestartNote:
+          'Движок ставит ядро, как в своём окне локальных моделей: если у ядра работает локальная модель для чата, она один раз перезапустится на новом движке.',
         gpu: (name: string) => `Видеокарта: ${name}`,
         gpuNone: 'Видеокарта не найдена — модель будет работать на процессоре',
         model: (id: string) => `Модель: ${id}`,

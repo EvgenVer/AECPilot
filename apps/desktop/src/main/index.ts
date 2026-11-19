@@ -6065,6 +6065,12 @@ async function beginIngest(
   { full, paths, rebuild }: { full: boolean; paths?: string[]; rebuild: boolean }
 ): Promise<{ error?: string; started: boolean }> {
   const { IngestStoppedError, runIngest } = await import('./ingest-runner')
+  // Задача T83, техдолг 2026-11-18: локальная модель могла упасть или остаться у
+  // закрытого второго окна — индексация сначала поднимает её, а не падает на каждом
+  // фрагменте. Ошибка запуска видна в окне «Индекс и память».
+  await syncLocalEmbeddings().catch((error: unknown) =>
+    console.error('aecpilot: local embeddings sync before ingest FAIL', error)
+  )
   const abort = new AbortController()
   ingestAbort = abort
 

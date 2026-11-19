@@ -54,8 +54,10 @@ import {
   localStatePath,
   MEASURED_SPEED,
   modelIdForFile,
+  parseHfRevision,
   parseLocalState,
   RECOMMENDED_EMBEDDING,
+  shouldRestart,
   type LocalEmbeddingState,
   type LocalModel
 } from './local-embeddings-pure'
@@ -83,9 +85,25 @@ export interface LocalEmbeddingsDeps {
    *  memory for a choice they then cancel. */
   chosen: () => Promise<boolean>
   onChange: () => void
+  /** The Hugging Face model API answer for a repo; the default asks huggingface.co
+   *  (tests stand in for it). */
+  hfRevision?: (repo: string) => Promise<unknown>
+  /** The engine probe; the default asks the core's Python (tests stand in for it). */
+  probeEngine?: () => Promise<EngineProbe>
 }
 
-interface EngineProbe {
+async function hfRevisionFromHub(repo: string): Promise<unknown> {
+  const response = await fetch(
+    `https://huggingface.co/api/models/${repo}/revision/main?blobs=true`,
+    {
+      signal: AbortSignal.timeout(30_000)
+    }
+  )
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export interface EngineProbe {
   binary: string | null
   backend: string | null
   gpuName: string | null
@@ -114,6 +132,18 @@ print(json.dumps({
 const HEALTH_TIMEOUT_MS = 180_000
 const POLL_MS = 1000
 const STALL_MS = 60_000
+const RESTART_DELAY_MS = 2000
+
+/** Whether a process with this number is alive (the owner of a server, see `owner`). */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error: unknown) {
+    // EPERM: alive, only not ours to signal.
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
 
 export class LocalEmbeddings {
   private child: ChildProcess | null = null
@@ -122,6 +152,10 @@ export class LocalEmbeddings {
   private progress: LocalEmbeddingsProgress | null = null
   private error: string | null = null
   private stderrTail = ''
+  /** A server another app on this profile started and still owns: used, never stopped. */
+  private borrowedPort: number | null = null
+  private crashes: number[] = []
+  private restartTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly deps: LocalEmbeddingsDeps) {}
 
@@ -163,7 +197,7 @@ export class LocalEmbeddings {
         gpuName: probe?.gpuName ?? null
       },
       model: state.model ?? null,
-      running: this.child !== null && this.child.exitCode === null,
+      running: (this.child !== null && this.child.exitCode === null) || this.borrowedPort !== null,
       baseUrl: state.model ? localBaseUrl(state.port ?? DEFAULT_LOCAL_PORT) : null,
       busy: this.busy,
       progress: this.progress,
@@ -188,6 +222,7 @@ export class LocalEmbeddings {
 
   private async engine(force = false): Promise<EngineProbe> {
     if (this.probe && !force) return this.probe
+    if (this.deps.probeEngine) return (this.probe = await this.deps.probeEngine())
     const python = await this.deps.python()
     const out = await new Promise<string>((resolve, reject) => {
       execFile(
@@ -231,8 +266,18 @@ export class LocalEmbeddings {
         totalBytes: job.total_bytes ?? null
       })
       if (job.status === 'done') break
-      if (job.status === 'error' || job.status === 'paused') {
+      if (job.status === 'error') {
         throw new Error(mainT('local.engineJob', job.error ?? job.detail ?? job.status))
+      }
+      // Paused on the core's own local-models screen (technical debt 2026-11-18): not
+      // a failure — the job resumes there, and this one waits for it, saying why.
+      if (job.status === 'paused') {
+        this.setProgress({
+          step: 'engine',
+          detail: mainT('local.enginePaused'),
+          doneBytes: job.done_bytes ?? 0,
+          totalBytes: job.total_bytes ?? null
+        })
       }
     }
     const probe = await this.engine(true)
@@ -300,14 +345,30 @@ export class LocalEmbeddings {
       if (paths.length === 0) throw new Error(mainT('local.notGguf'))
       const urls = paths.map((path) => hfFileUrl(repo, path))
       if (urls.some((url) => url === null)) throw new Error(mainT('local.badSource'))
-      if (!(await this.engine()).binary) await this.installEngine()
       const dir = join(localModelsDir(await this.deps.hermesHome()), repo.replace('/', '__'))
       const files = paths.map((path) => modelFileIn(dir, path))
       if (files.some((file) => file === null)) throw new Error(mainT('local.badSource'))
-      for (const [index, url] of urls.entries()) {
+      // Pinned like the recommended model (technical debt 2026-11-18): the commit the
+      // repo is at now and each file's SHA256 from Hugging Face's own record, so what
+      // lands is what the hub lists, and a later push to the repo cannot change it.
+      const answer = await (this.deps.hfRevision ?? hfRevisionFromHub)(repo).catch(
+        (error: unknown) => {
+          throw new Error(
+            mainT('local.downloadFailed', error instanceof Error ? error.message : String(error))
+          )
+        }
+      )
+      const pin = parseHfRevision(answer, paths)
+      if (!pin) throw new Error(mainT('local.badSource'))
+      const missing = paths.find((path) => !pin.sha256[path])
+      if (missing) throw new Error(mainT('local.noChecksum', missing))
+      if (!(await this.engine()).binary) await this.installEngine()
+      for (const [index, path] of paths.entries()) {
         const file = files[index] as string
+        const url = hfFileUrl(repo, path, pin.revision)
+        if (!url) throw new Error(mainT('local.badSource'))
         if (!existsSync(file)) {
-          await downloadFile(url as string, file, null, (p) => this.setProgress(p))
+          await downloadFile(url, file, pin.sha256[path] ?? null, (p) => this.setProgress(p))
         }
       }
       await this.chooseModel({
@@ -372,6 +433,20 @@ export class LocalEmbeddings {
   private async startNow(): Promise<void> {
     if (this.child && this.child.exitCode === null) return
     const state = await this.readState()
+    // Another app on this profile started the server and is still running (technical
+    // debt 2026-11-18): use it — never stop it as a leftover nor start a second one.
+    // When that app quits, the next start here (indexing runs one) starts our own.
+    if (
+      state.owner &&
+      state.owner !== process.pid &&
+      alive(state.owner) &&
+      state.port &&
+      (await healthy(state.port))
+    ) {
+      this.borrowedPort = state.port
+      return
+    }
+    this.borrowedPort = null
     const model = state.model
     if (!model) throw new Error(mainT('provider.localNotReady', ''))
     if (!existsSync(model.path)) throw new Error(mainT('local.modelMissing', model.path))
@@ -380,7 +455,11 @@ export class LocalEmbeddings {
     // by a pin lift (review T84).
     if (engine.binary && !existsSync(engine.binary)) engine = await this.engine(true)
     if (!engine.binary || !existsSync(engine.binary)) throw new Error(mainT('local.engineMissing'))
-    await stopLeftover(state.pid, state.port)
+    // A server whose app is still alive is that app's, even while it is starting up.
+    const othersAlive = !!state.owner && state.owner !== process.pid && alive(state.owner)
+    if (!othersAlive) await stopLeftover(state.pid, state.port)
+    if (this.restartTimer) clearTimeout(this.restartTimer)
+    this.restartTimer = null
     const port = await pickPort(state.port ?? DEFAULT_LOCAL_PORT)
     this.setProgress({ step: 'start', detail: model.id, doneBytes: 0, totalBytes: null })
     this.stderrTail = ''
@@ -406,11 +485,17 @@ export class LocalEmbeddings {
       if (this.child === child) {
         this.child = null
         void this.forgetPid()
+        this.onCrash()
         this.deps.onChange()
       }
     })
     this.child = child
-    await this.writeState({ ...state, port, ...(child.pid ? { pid: child.pid } : {}) })
+    await this.writeState({
+      ...state,
+      port,
+      owner: process.pid,
+      ...(child.pid ? { pid: child.pid } : {})
+    })
     try {
       await waitHealthy(port, child, () => spawnError)
     } catch (error: unknown) {
@@ -421,9 +506,33 @@ export class LocalEmbeddings {
     }
   }
 
+  /** A server that exited on its own (not through `stop`) is started again after a
+   *  pause, up to three times in ten minutes; then it stays down with the reason in
+   *  the window (technical debt 2026-11-18: before, only a saved choice or the next
+   *  app start brought it back, and every search failed until then). */
+  private onCrash(): void {
+    const now = Date.now()
+    this.crashes = [...this.crashes, now]
+    if (!shouldRestart(this.crashes, now)) {
+      const tail = this.stderrTail.trim().split(/\r?\n/).slice(-3).join(' ')
+      this.error = mainT('local.crashed', tail || 'exit')
+      return
+    }
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null
+      void this.deps
+        .chosen()
+        .then((chosen) => (chosen ? this.ensureRunning() : undefined))
+        .catch(() => {})
+    }, RESTART_DELAY_MS)
+  }
+
   /** Synchronous on purpose: called from `will-quit`, where nothing awaits. The
    *  recorded number goes too — a clean stop leaves nothing to look for next start. */
   stop(): void {
+    if (this.restartTimer) clearTimeout(this.restartTimer)
+    this.restartTimer = null
+    this.borrowedPort = null
     const child = this.child
     this.child = null
     if (child && child.exitCode === null) child.kill()
@@ -548,6 +657,17 @@ async function pickPort(preferred: number): Promise<number> {
       })
     })
   return (await tryListen(preferred)) ?? (await tryListen(0)) ?? preferred
+}
+
+async function healthy(port: number): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`, {
+      signal: AbortSignal.timeout(3000)
+    })
+    return response.ok
+  } catch {
+    return false
+  }
 }
 
 async function waitHealthy(
