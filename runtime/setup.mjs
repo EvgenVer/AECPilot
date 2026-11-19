@@ -349,6 +349,8 @@ if (STAGE_PAYLOAD) {
   const hashes = path.join(RUNTIME_DIR, "payload", "payload-hashes.mjs");
   run(process.execPath, [hashes, "record"], RUNTIME_DIR);
   run(process.execPath, [hashes, "versions"], RUNTIME_DIR);
+  // The copy now matches our sources: `pnpm dev` / `pnpm app` refresh it when they drift.
+  run(process.execPath, [path.join(RUNTIME_DIR, "payload", "mcp-fresh.mjs"), "--stamp"], RUNTIME_DIR);
 }
 
 console.log("\nDone.");

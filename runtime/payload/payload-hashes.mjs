@@ -175,19 +175,22 @@ function argValue(name) {
   return at > 0 ? process.argv[at + 1] : undefined
 }
 
+/** Re-hashes one staged payload (`core` or `mcp`) into its shipped `payload-hashes.json`. */
+export async function recordPayload(name, runtimeDir = RUNTIME_DIR) {
+  const dir = path.join(runtimeDir, name)
+  const filesHashed = await hashTree(dir)
+  fs.writeFileSync(
+    path.join(dir, HASHES_NAME),
+    `${JSON.stringify({ schema: 1, files: filesHashed }, null, 1)}\n`
+  )
+  console.log(`${name}: ${Object.keys(filesHashed).length} files hashed`)
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 if (isMain) {
   const command = process.argv[2]
   if (command === 'record') {
-    for (const name of PAYLOADS) {
-      const dir = path.join(RUNTIME_DIR, name)
-      const filesHashed = await hashTree(dir)
-      fs.writeFileSync(
-        path.join(dir, HASHES_NAME),
-        `${JSON.stringify({ schema: 1, files: filesHashed }, null, 1)}\n`
-      )
-      console.log(`${name}: ${Object.keys(filesHashed).length} files hashed`)
-    }
+    for (const name of PAYLOADS) await recordPayload(name)
   } else if (command === 'versions') {
     const actual = collectVersions(path.resolve(argValue('--runtime') ?? RUNTIME_DIR))
     if (process.argv.includes('--write')) {
