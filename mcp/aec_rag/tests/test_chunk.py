@@ -214,3 +214,48 @@ def test_a_docx_table_padded_with_spaces_and_dashes_stays_within_the_window():
     joined = "\n".join(chunk.text for chunk in chunks)
     assert all(f"Насос К-{n} мощностью {n * 5} кВт" in joined for n in range(1, 30))
     assert all(chunk.text.startswith("| Пункт | Требование |") for chunk in chunks)
+
+
+def test_squeezing_keeps_the_text_of_a_cell_and_a_dash_cell():
+    """Technical debt of the T84 review (2026-11-18): the padding squeeze also
+    collapsed double spaces inside a cell and turned a cell of dashes (a «нет
+    данных» mark in a ТЗ) into `---`. Only the padding around the cell borders
+    is alignment; what is inside the cell is the document's text."""
+    pad = " " * 40
+    header = f"| Пункт{pad}| Значение{pad}|"
+    separator = f"|{'-' * 46}|{'-' * 49}|"
+    row = f"| 1.  Ввод{pad}| -----{pad}|"
+    parsed = document(
+        ParsedSegment(locator={"page": 1}, markdown="\n".join([header, separator, row]))
+    )
+
+    (chunk,) = chunk_document(parsed, max_chars=2000)
+
+    lines = chunk.text.splitlines()
+    assert lines[0] == "| Пункт | Значение |"
+    assert lines[1] == "|---|---|"
+    assert lines[2] == "| 1.  Ввод | ----- |"
+
+
+def test_a_long_header_and_a_dense_row_together_stay_under_the_ceiling():
+    """Technical debt of the T84 review: the row ceiling (`ROW_HARD_LIMIT_FACTOR`)
+    did not count the header repeated before it, so a long header plus a dense row
+    went past it. Measured 2026-11-19 with bge-m3: a row of symbols is 1.16
+    characters per token, so 8000 characters is about 6900 tokens — the whole
+    chunk, header included, has to stay under the ceiling to fit the 8192 window."""
+    from aec_rag.chunk import ROW_HARD_LIMIT_FACTOR
+
+    max_chars = 2000
+    header = "| " + " | ".join(f"Колонка {n}" for n in range(300)) + " |"
+    separator = "|" + "---|" * 300
+    row = "| " + " | ".join("±±" for _ in range(3000)) + " |"
+    parsed = document(
+        ParsedSegment(locator={"page": 3}, markdown="\n".join([header, separator, row]))
+    )
+
+    chunks = chunk_document(parsed, max_chars=max_chars)
+
+    assert len(header) > 3000
+    assert all(len(chunk.text) <= max_chars * ROW_HARD_LIMIT_FACTOR for chunk in chunks)
+    assert all(chunk.text.startswith("| Колонка 0 |") for chunk in chunks)
+    assert sum(chunk.text.count("±±") for chunk in chunks) == 3000

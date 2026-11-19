@@ -39,21 +39,34 @@ def _is_table_line(line: str) -> bool:
     return line.lstrip().startswith("|")
 
 
-_PADDING = re.compile(r"[ \t]{2,}")
-_DASH_RUN = re.compile(r"-{4,}")
+_CELL_BORDER = re.compile(r"(?<!\\)\|")
+_SEPARATOR_CELL = re.compile(r"(:?)-{3,}(:?)")
 
 
-def _squeeze_table_line(line: str) -> str:
+def _squeeze_table_line(line: str, *, separator: bool) -> str:
     """Drop the column alignment Docling pads a table with.
 
     Measured 2026-11-17 (task T83): a docx table comes out with every column
     padded to its widest cell by spaces and the separator by dashes. The padding
     carries no meaning, yet a padded header — repeated on every piece of a cut
     table — made chunks of up to 52 000 characters at a nominal 2000, past a
-    local embedding model's window. Runs of spaces become one space, runs of
-    dashes three; the cells themselves are untouched.
+    local embedding model's window.
+
+    Only the alignment goes (technical debt of the T84 review, 2026-11-19): the
+    spaces around each cell border become one, and the dashes of the separator
+    row three. Inside a cell nothing changes — a double space or a cell of dashes
+    is the document's own text.
     """
-    return _DASH_RUN.sub("---", _PADDING.sub(" ", line)).strip()
+    line = line.strip()
+    # The separator is the table's second line only: a later row of dashes is data.
+    if separator:
+        return _SEPARATOR_CELL.sub(r"\1---\2", re.sub(r"[ \t]+", "", line))
+    # Cell borders are the unescaped pipes; `\|` inside a cell is text.
+    parts = _CELL_BORDER.split(line)
+    closed = len(parts) > 2 and parts[-1].strip() == ""
+    cells = [part.strip(" \t") for part in (parts[1:-1] if closed else parts[1:])]
+    body = "|".join(f" {cell} " if cell else " " for cell in cells)
+    return f"{parts[0].strip()}|{body}{'|' if closed else ''}".rstrip()
 
 
 def _blocks(markdown: str) -> list[tuple[str, bool]]:
@@ -77,7 +90,11 @@ def _blocks(markdown: str) -> list[tuple[str, bool]]:
             buffer_is_table = is_table
             if not line.strip():
                 continue
-        buffer.append(_squeeze_table_line(line) if is_table else line)
+        if is_table:
+            separator = len(buffer) == 1 and bool(_TABLE_SEPARATOR.match(line))
+            buffer.append(_squeeze_table_line(line, separator=separator))
+        else:
+            buffer.append(line)
 
     text = "\n".join(buffer).strip()
     if text:
@@ -161,8 +178,16 @@ def _split_table(text: str, max_chars: int) -> list[str]:
         current = list(header)
         length = sum(len(line) + 1 for line in current)
 
+    # The ceiling holds for the whole piece, the header repeated before the row
+    # included (technical debt of the T84 review, 2026-11-19: measured with bge-m3,
+    # a dense row of symbols is 1.16 characters per token — 8000 characters of
+    # piece is about 6900 tokens, inside the 8192 window; header plus an 8000-
+    # character row was not). A header past the ceiling itself still leaves each
+    # row its ordinary limit.
+    header_length = sum(len(line) + 1 for line in header)
+    row_limit = max(max_chars, hard_limit - header_length)
     for row in body:
-        for part in _split_row(row, hard_limit):
+        for part in _split_row(row, row_limit):
             if len(current) > len(header) and length + len(part) + 1 > max_chars:
                 flush()
             current.append(part)
