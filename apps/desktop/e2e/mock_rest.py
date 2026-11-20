@@ -304,6 +304,51 @@ def visible_sessions() -> list[dict]:
     ]
 
 
+# --- The gateway's door, shared by both halves (T53 debt, 2026-11-20) ---------
+#
+# On the canonical wire every socket and every REST request carries a one-use
+# ticket (T53.1: a reused one is refused). The socket half spends its tickets
+# here too, so the two halves keep one ledger. `_WIRES` is the wire each socket
+# opened on, in order; `_REST_PLAIN` the API requests that came WITHOUT a
+# ticket — on the gateway each of those would be a 401.
+TICKET_HEADER = "X-Hermes-Gateway-Ticket"
+_TICKETS_SPENT: set[str] = set()
+_WIRES: list[str] = []
+_REST_TICKETED = 0
+_REST_PLAIN: list[str] = []
+
+
+def spend_ticket(ticket: str) -> bool:
+    """True the first time a ticket is shown, False every time after."""
+    with _LOCK:
+        if ticket in _TICKETS_SPENT:
+            return False
+        _TICKETS_SPENT.add(ticket)
+        return True
+
+
+def note_wire(wire: str) -> None:
+    with _LOCK:
+        _WIRES.append(wire)
+
+
+def _scope_refusal(method: str, route: str, query: dict[str, list[str]]) -> str | None:
+    """The two routes a native-http ticket opens only with an explicit profile
+    (`hermes_cli/dashboard_auth/native_http.py::_check_profile_scope`; T53.1
+    measured 403 without, 200 with)."""
+    if (route == "/api/cron/jobs" or route.startswith("/api/cron/jobs/")) and not query.get(
+        "profile"
+    ):
+        return "profile"
+    if (
+        route == "/api/profiles/sessions/sidebar"
+        and method == "GET"
+        and not query.get("recents_profile")
+    ):
+        return "recents_profile"
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     # HTTP/1.1, not the stdlib default of 1.0. Under 1.0 every response closes
     # the connection, and main's `fetch` — which keeps sockets alive — reuses a
@@ -364,12 +409,54 @@ class Handler(BaseHTTPRequestHandler):
     def _archived(self) -> str:
         return self._query().get("archived", ["exclude"])[0]
 
+    def _admitted(self, method: str) -> bool:
+        """The ticket check of the canonical wire, for core routes only (not the
+        test's `/api/_mock/*` controls, not the preview's guest pages). A request
+        without a ticket is the legacy wire and passes, but is written down."""
+        global _REST_TICKETED
+        route = urlparse(self.path).path
+        if not route.startswith("/api/") or route.startswith("/api/_mock/"):
+            return True
+        ticket = self.headers.get(TICKET_HEADER)
+        if not ticket:
+            with _LOCK:
+                _REST_PLAIN.append(f"{method} {route}")
+            return True
+        if not spend_ticket(ticket):
+            print(f"MOCK_REST_REFUSED ticket reused {method} {route}", flush=True)
+            self._send(401, {"detail": "gateway ticket already used"})
+            return False
+        missing = _scope_refusal(method, route, self._query())
+        if missing:
+            print(f"MOCK_REST_REFUSED no {missing} {method} {self.path}", flush=True)
+            self._send(403, {"detail": f"native-http ticket needs an explicit {missing}"})
+            return False
+        with _LOCK:
+            _REST_TICKETED += 1
+        return True
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib signature
         route = urlparse(self.path).path
         # Printed so a test can tell "the app never asked" from "the app asked
         # and we answered nothing" — the two look identical in the sidebar, and
         # the first run of this fixture was exactly that confusion.
         print(f"MOCK_REST_GET {self.path}", flush=True)
+        if not self._admitted("GET"):
+            return
+
+        # Test control: which wire each socket opened on and how the REST
+        # requests were authorised — the proof a canonical run really was one.
+        if route == "/api/_mock/wire":
+            with _LOCK:
+                self._send(
+                    200,
+                    {
+                        "ws": list(_WIRES),
+                        "rest_ticketed": _REST_TICKETED,
+                        "rest_plain": list(_REST_PLAIN),
+                    },
+                )
+            return
 
         # Their readiness probe. The SHAPE matters: `StatusResponse`
         # (types/hermes.ts) is what the connection chip and the boot sequence
@@ -683,6 +770,8 @@ class Handler(BaseHTTPRequestHandler):
 
         body = self._body()
         route = urlparse(self.path).path
+        if not self._admitted("PUT"):
+            return
 
         if route == "/api/_mock/rollback":
             mode = body.get("mode")
@@ -711,6 +800,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         route = urlparse(self.path).path
         body = self._body()
+        if not self._admitted("PATCH"):
+            return
         match = SESSION_PATH.match(route)
 
         if not match:
@@ -737,6 +828,8 @@ class Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
         body = self._body()
         print(f"MOCK_REST_POST {route}", flush=True)
+        if not self._admitted("POST"):
+            return
 
         # Тестовая ручка (задача 3E.25), а не поверхность ядра: просит сокетную
         # половину послать `preview.open`. Сегмент `_mock` в пути — чтобы её
@@ -778,6 +871,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802 - stdlib signature
         self._body()
+        if not self._admitted("DELETE"):
+            return
         self._send(404, {"detail": "No such API endpoint"})
 
 

@@ -16,7 +16,9 @@ export default defineConfig({
   // `AEC_ACCEPTANCE_LIVE=1`. Живому ядру нужен холодный старт ≈30 с на файл
   // спеки и медленные ходы, отсюда свой потолок времени.
   projects: [
-    { name: 'smoke', testMatch: /donor-shell-smoke\.spec\.ts$/ },
+    // `legacy-wire-smoke` (T53 debt, 2026-11-20): the one fast check of the legacy wire, now
+    // that the mock — and so every other fast test — speaks the canonical one.
+    { name: 'smoke', testMatch: /(donor-shell|legacy-wire)-smoke\.spec\.ts$/ },
     { name: 'acceptance', testMatch: /acceptance[\\/]blocks-.*\.spec\.ts$/ },
     {
       name: 'acceptance-live',

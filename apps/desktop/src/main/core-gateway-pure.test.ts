@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { coreWire, scopeGatewayRestPath, windowProfile } from './core-gateway-pure'
+import {
+  coreWire,
+  mockGatewayDial,
+  mockGatewayRestTarget,
+  scopeGatewayRestPath,
+  windowProfile
+} from './core-gateway-pure'
 import {
   assertLocalGatewayEndpoint,
   gatewayEndpointFromEnsure,
@@ -24,16 +30,46 @@ const endpoint: GatewayEndpoint = {
 }
 
 describe('which wire the window speaks (decision 0017)', () => {
-  it('a full installation working locally is on the single gateway', () => {
-    expect(coreWire({ role: 'full', mode: 'local', gatewayOverride: false })).toBe('canonical')
+  it('a full installation working locally is on the single gateway — the e2e mock too', () => {
+    expect(coreWire({ role: 'full', mode: 'local', forceLegacy: false })).toBe('canonical')
   })
 
-  it('the server role, a remote or ssh core and the e2e mock keep the legacy wire', () => {
-    expect(coreWire({ role: 'server', mode: 'local', gatewayOverride: false })).toBe('legacy')
-    expect(coreWire({ role: 'client', mode: 'local', gatewayOverride: false })).toBe('legacy')
-    expect(coreWire({ role: 'full', mode: 'remote', gatewayOverride: false })).toBe('legacy')
-    expect(coreWire({ role: 'full', mode: 'ssh', gatewayOverride: false })).toBe('legacy')
-    expect(coreWire({ role: 'full', mode: 'local', gatewayOverride: true })).toBe('legacy')
+  it('the server role and a remote or ssh core keep the legacy wire', () => {
+    expect(coreWire({ role: 'server', mode: 'local', forceLegacy: false })).toBe('legacy')
+    expect(coreWire({ role: 'client', mode: 'local', forceLegacy: false })).toBe('legacy')
+    expect(coreWire({ role: 'full', mode: 'remote', forceLegacy: false })).toBe('legacy')
+    expect(coreWire({ role: 'full', mode: 'ssh', forceLegacy: false })).toBe('legacy')
+  })
+
+  it('the e2e mock asked for the legacy wire gets it', () => {
+    expect(coreWire({ role: 'full', mode: 'local', forceLegacy: true })).toBe('legacy')
+  })
+})
+
+describe('the e2e mock on the canonical wire', () => {
+  it('dials with the subprotocol and a fresh ticket per attempt', async () => {
+    let n = 0
+    const dial = mockGatewayDial('ws://127.0.0.1:9/api/ws', () => `t${++n}`)
+    expect(await dial()).toEqual({
+      url: 'ws://127.0.0.1:9/api/ws',
+      protocols: ['hermes-gateway-v1', 'hermes-gateway-ticket.t1']
+    })
+    expect((await dial()).protocols[1]).toBe('hermes-gateway-ticket.t2')
+  })
+
+  it('grants a fresh ticket per REST request and scopes the profile routes', async () => {
+    let n = 0
+    const target = mockGatewayRestTarget(
+      'http://127.0.0.1:9/',
+      () => 'kzh',
+      () => `r${++n}`
+    )
+    expect(target.baseUrl).toBe('http://127.0.0.1:9')
+    expect(target.scopePath?.('/api/cron/jobs', 'GET')).toBe('/api/cron/jobs?profile=kzh')
+    const first = await target.grant?.('http://127.0.0.1:9/api/sessions', 'GET', undefined)
+    const second = await target.grant?.('http://127.0.0.1:9/api/sessions', 'GET', undefined)
+    expect(first?.headers).toEqual({ 'X-Hermes-Gateway-Ticket': 'r1' })
+    expect(second?.headers).toEqual({ 'X-Hermes-Gateway-Ticket': 'r2' })
   })
 })
 

@@ -6,20 +6,24 @@
 // their `HermesGateway` then speaks the canonical protocol over our bridge. Everything
 // else keeps the wire it has today: a server installation still runs `serve` with its
 // persistent token for the client over the tunnel (T53.4 adds the gateway beside it), a
-// remote or SSH connection reaches that `serve`, and the e2e mock (`AEC_GATEWAY_URL`) is a
-// legacy gateway. Decided up front so the window can be told before the core is up.
+// remote or SSH connection reaches that `serve`. The e2e mock (`AEC_GATEWAY_URL`) stands in
+// for the core of the installation it runs as, so it gets the same wire — canonical for a
+// full installation (decision of 2026-11-20); `AEC_GATEWAY_WIRE=legacy` keeps one fast check
+// of the legacy wire. Decided up front so the window can be told before the core is up.
 
+import type { GatewayDial } from '../shared/gateway/client'
 import type { AppRole } from './install-mode-pure'
+import type { RestTarget } from './hermes-rest-pure'
 
 export type CoreWire = 'canonical' | 'legacy'
 
 export function coreWire(input: {
   role: AppRole
   mode: 'local' | 'remote' | 'ssh'
-  /** `AEC_GATEWAY_URL` set: the e2e mock stands in for the core. */
-  gatewayOverride: boolean
+  /** The e2e mock asked for the legacy wire (`AEC_GATEWAY_URL` with `AEC_GATEWAY_WIRE=legacy`). */
+  forceLegacy: boolean
 }): CoreWire {
-  if (input.gatewayOverride) return 'legacy'
+  if (input.forceLegacy) return 'legacy'
   if (input.mode !== 'local') return 'legacy'
   return input.role === 'full' ? 'canonical' : 'legacy'
 }
@@ -49,4 +53,39 @@ export function scopeGatewayRestPath(restPath: string, method: string, profile: 
  *  under `profiles/`. */
 export function windowProfile(sessionProfile: string | undefined): string {
   return sessionProfile && sessionProfile.trim() ? sessionProfile.trim() : 'default'
+}
+
+/** The canonical wire's subprotocol and the prefix of the protocol that carries the ticket
+ *  (`gateway/session_contract.py`, their `openGatewaySocket`). */
+export const CANONICAL_GATEWAY_PROTOCOL = 'hermes-gateway-v1'
+export const GATEWAY_TICKET_PROTOCOL_PREFIX = 'hermes-gateway-ticket.'
+export const GATEWAY_TICKET_HEADER = 'X-Hermes-Gateway-Ticket'
+
+/** The e2e mock on the canonical wire: the same dial as the gateway's — the subprotocol and a
+ *  fresh one-use ticket per connection attempt, which the mock refuses to see twice. Only the
+ *  minting differs: the real ticket comes from the core's own client over its named pipe, which
+ *  the mock does not have. */
+export function mockGatewayDial(url: string, mint: () => string): () => Promise<GatewayDial> {
+  return async () => ({
+    url,
+    protocols: [CANONICAL_GATEWAY_PROTOCOL, `${GATEWAY_TICKET_PROTOCOL_PREFIX}${mint()}`]
+  })
+}
+
+/** The e2e mock's REST on the canonical wire: like `gatewayRestTarget` — a fresh ticket per
+ *  request and the profile selector on the routes that need it — at the mock's own address. */
+export function mockGatewayRestTarget(
+  baseUrl: string,
+  windowProfile: () => string,
+  mint: () => string
+): RestTarget {
+  const base = baseUrl.replace(/\/$/, '')
+  return {
+    host: '',
+    port: 0,
+    token: '',
+    baseUrl: base,
+    scopePath: (path, method) => scopeGatewayRestPath(path, method, windowProfile()),
+    grant: async () => ({ headers: { [GATEWAY_TICKET_HEADER]: mint() }, baseUrl: base })
+  }
 }

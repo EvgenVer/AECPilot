@@ -229,7 +229,13 @@ import {
   stopLocalGateway,
   type GatewayModule
 } from './core-gateway'
-import { coreWire, windowProfile, type CoreWire } from './core-gateway-pure'
+import {
+  coreWire,
+  mockGatewayDial,
+  mockGatewayRestTarget,
+  windowProfile,
+  type CoreWire
+} from './core-gateway-pure'
 import {
   EMPTY_WATERMARK,
   noteEvent,
@@ -2689,7 +2695,14 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
     if (target === 'new') await newSession()
     const activeSessionId = await ensureSession()
     await ensureSecretFilter('prompt.submit', { session_id: activeSessionId })
-    await gateway.request('prompt.submit', { session_id: activeSessionId, text })
+    // The single gateway admits identified input only (`session_controls.submission`): without
+    // a `submission_id` it refuses 4001 invalid_params. The legacy contract refuses the key, so
+    // it rides only on the canonical wire (found by the canonical e2e mock, 2026-11-20).
+    await gateway.request('prompt.submit', {
+      session_id: activeSessionId,
+      text,
+      ...(windowWire() === 'canonical' ? { submission_id: randomUUID() } : {})
+    })
     // The answer arrives in the main window, so bring it forward — otherwise a
     // prompt fired from another app looks like it went nowhere.
     for (const win of BrowserWindow.getAllWindows()) {
@@ -3226,6 +3239,12 @@ function restTarget(): RestTarget | undefined {
   // сервере (T53.4) шлюз тоже работает, но окно сервера, как и клиенты, говорит с `serve`.
   // Запрос, пришедший до готовности шлюза, ждёт его, а не отказывает (техдолг T53.3).
   if (windowWire() === 'canonical') {
+    // e2e: the mock stands in for the gateway — the same tickets and profile selectors, its
+    // own address (the ticket is checked there, not minted by the core's client).
+    const mockRest = process.env.AEC_GATEWAY_URL ? process.env.AEC_GATEWAY_REST_URL : undefined
+    if (mockRest) {
+      return mockGatewayRestTarget(mockRest, () => windowProfile(sessionProfile), randomUUID)
+    }
     return gatewayRestTarget(() => windowProfile(sessionProfile))
   }
 
@@ -5149,7 +5168,9 @@ function windowWire(): CoreWire {
   return coreWire({
     role: currentRole(),
     mode: connectionMode(),
-    gatewayOverride: Boolean(process.env.AEC_GATEWAY_URL)
+    // The e2e mock stands in for this installation's core and speaks its wire; one smoke
+    // check asks for the legacy wire to keep it covered (`AEC_GATEWAY_WIRE=legacy`).
+    forceLegacy: Boolean(process.env.AEC_GATEWAY_URL) && process.env.AEC_GATEWAY_WIRE === 'legacy'
   })
 }
 
@@ -6923,7 +6944,12 @@ app
 
       if (process.env.AEC_GATEWAY_URL) {
         console.warn('aecpilot: AEC_GATEWAY_URL override active — skipping hermes serve')
-        await connectGateway(process.env.AEC_GATEWAY_URL)
+        // The mock answers the wire this installation's core would: canonical dials it like
+        // the gateway — subprotocol and a fresh one-use ticket per attempt.
+        const mockUrl = process.env.AEC_GATEWAY_URL
+        await connectGateway(
+          windowWire() === 'canonical' ? { dial: mockGatewayDial(mockUrl, randomUUID) } : mockUrl
+        )
       } else if (connectionMode() === 'ssh') {
         // Задача 3.12: ядро поднимается на той машине. Отказ здесь не должен
         // мешать окну открыться — человек увидит его и сможет починить

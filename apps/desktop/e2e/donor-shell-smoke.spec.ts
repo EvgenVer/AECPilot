@@ -716,6 +716,88 @@ test('their shell paints and the composer goes live over our bridge', async () =
   await assertRendererAlive(page, 'end of test 1')
 })
 
+/** What the mock saw of the wire: each socket's protocol, and how the REST requests were
+ *  authorised (`/api/_mock/wire`, a test control of `mock_rest.py`). */
+async function mockWire(): Promise<{ ws: string[]; rest_ticketed: number; rest_plain: string[] }> {
+  const response = await fetch(`http://127.0.0.1:${restPort}/api/_mock/wire`)
+  return response.json()
+}
+
+// The T53 debt, closed by the owner's decision of 2026-11-20. The installed app (a full
+// installation, its own core) speaks the single gateway's CANONICAL protocol; until now the
+// mock answered only the legacy one, so this whole fast suite never saw the path the person
+// uses. The mock now answers the wire the client asks for in the handshake, as the core does,
+// and this test is the proof that the suite really runs on the canonical one: the window was
+// told so, their client switched its adapter on, the mock opened every socket with the
+// subprotocol and a one-use ticket, the window's session verbs arrived in the owner's closed
+// shapes, a turn was admitted with a receipt, and every REST request carried its own ticket.
+test('the window speaks the canonical gateway protocol to the mock, as the installed app does', async () => {
+  const page = await mainWindow()
+
+  const view = await page.evaluate(() => window.aecpilot.getConnection())
+  expect(view.coreWire, 'main decides the wire before the core is up').toBe('canonical')
+  // Their `HermesGateway` turns its canonical adapter on from the address (`native_dial`).
+  const descriptor = (await page.evaluate(() =>
+    (
+      window as unknown as { hermesDesktop: { getConnection(): Promise<{ wsUrl: string }> } }
+    ).hermesDesktop.getConnection()
+  )) as { wsUrl: string }
+  expect(descriptor.wsUrl).toContain('native_dial')
+
+  // The mock has no model provider, so their first-run card stands over the composer.
+  await hideFirstRunSurfaces(page)
+  await page.getByRole('textbox', { name: /Message|Сообщение/ }).click()
+  await page.keyboard.type('canonical ping')
+  await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
+  await expect(page.getByText('PONG', { exact: true }).last()).toBeVisible({ timeout: 30000 })
+
+  expect(mockOutput).toContain('MOCK_WIRE canonical')
+  expect(mockOutput).not.toContain('MOCK_WIRE legacy')
+  // `source: gui` and a `request_id` — the create only their canonical adapter sends.
+  expect(mockOutput).toMatch(/MOCK_RPC session\.create wire=canonical source='gui' request_id=yes/)
+  // The admission path: refused without a `submission_id`, answered with a receipt.
+  expect(mockOutput).toMatch(/MOCK_RPC prompt\.submit session_id='e2e-\d+' text='canonical ping'/)
+  expect(mockOutput).not.toContain('MOCK_CONTRACT_DRIFT')
+
+  const wire = await mockWire()
+  expect(wire.ws.length).toBeGreaterThan(0)
+  expect(new Set(wire.ws)).toEqual(new Set(['canonical']))
+  expect(wire.rest_ticketed, 'REST went through the gateway ticket').toBeGreaterThan(0)
+  expect(wire.rest_plain, 'REST requests the gateway would refuse 401').toEqual([])
+  await assertRendererAlive(page, 'canonical wire')
+})
+
+// Quick entry (task 3.15) sends from MAIN, not through their adapter: main itself must speak
+// the canonical wire there. Found by the canonical mock (2026-11-20): main sent `prompt.submit`
+// without a `submission_id`, which the gateway refuses (`session_controls.submission`). The
+// OS chord is not pressed here (block 12 does that, and needs an unlocked desktop): a window
+// with the quick-entry preload calls the same `quick:submit` the capture window calls.
+test('quick entry sends into the current session over the canonical wire', async () => {
+  const result = await app.evaluate(async ({ app: electronApp, BrowserWindow }) => {
+    const win = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload: `${electronApp.getAppPath()}/out/preload/quick-entry.js`,
+        contextIsolation: true,
+        sandbox: true
+      }
+    })
+    try {
+      await win.loadURL('about:blank')
+      return (await win.webContents.executeJavaScript(
+        "window.quickEntry.submit('say: быстрый ввод канон', 'current')"
+      )) as { ok: boolean; error?: string }
+    } finally {
+      win.destroy()
+    }
+  })
+  expect(result, JSON.stringify(result)).toEqual({ ok: true })
+  await waitForMockLine(
+    /MOCK_RPC prompt\.submit session_id='e2e-\d+' text='say: быстрый ввод канон'/
+  )
+  expect(mockOutput).not.toContain('MOCK_CANONICAL_REFUSED prompt.submit')
+})
+
 // Task 3.3 (SPEC UR16/HX6). Runs against the app and project the test above
 // left open — this file has one worker and one `beforeAll` boot, so order is
 // the dependency and there is nothing to re-create.
@@ -1580,9 +1662,17 @@ test('the MCP consent request reaches the window and the answer reaches the gate
       })
   )
 
-  await page.evaluate(() =>
-    window.aecpilot.gatewayRpc('prompt.submit', { text: 'mcp', session_id: 'e2e-1' })
-  )
+  // The raw call speaks the wire main is on — canonical since the mock learned it (T53 debt,
+  // 2026-11-20): the gateway admits a turn only into a session this socket attached, and only
+  // with an identity. Their adapter does both for the composer; a raw call must do them itself.
+  await page.evaluate(async () => {
+    await window.aecpilot.gatewayRpc('session.resume', { session_id: 'e2e-1' })
+    await window.aecpilot.gatewayRpc('prompt.submit', {
+      text: 'mcp',
+      session_id: 'e2e-1',
+      submission_id: crypto.randomUUID()
+    })
+  })
 
   const request = (await received) as {
     op_id: string
@@ -2559,4 +2649,25 @@ test('язык ответов агента доезжает в SOUL нового
   await expect.poll(() => soulOf('unset-case'), { timeout: 15000 }).toBe(`${BASE} unset-case`)
 
   await assertRendererAlive(page, 'agent language in SOUL')
+})
+
+// The whole run on the canonical wire (T53 debt, 2026-11-20). Last on purpose: by now every
+// surface of this file has talked to the mock. A verb the gateway does not serve (`-32601` on
+// the real one) means a caller bypassed their canonical adapter; a refused shape means a
+// caller the gateway would refuse; a drift means the mock answered a shape the pinned core's
+// contract does not have; a REST request without a ticket would be a 401 on the gateway.
+test('the whole run stayed on the canonical wire: no unserved verb, no refusal, no drift', async () => {
+  const page = await mainWindow()
+  const lines = (marker: string): string[] =>
+    mockOutput.split(/\r?\n/).filter((line) => line.startsWith(marker))
+  expect(lines('MOCK_CANONICAL_NOT_SERVED'), 'verbs the gateway answers -32601').toEqual([])
+  expect(lines('MOCK_CANONICAL_REFUSED'), 'requests the gateway refuses').toEqual([])
+  expect(lines('MOCK_CANONICAL_UNSUPPORTED'), 'mutations the mock does not model').toEqual([])
+  expect(lines('MOCK_CONTRACT_DRIFT'), 'answers off the core contract').toEqual([])
+  expect(lines('MOCK_WS_REFUSED'), 'sockets the gateway would not open').toEqual([])
+  expect(lines('MOCK_REST_REFUSED'), 'REST the gateway would refuse').toEqual([])
+  const wire = await mockWire()
+  expect(new Set(wire.ws)).toEqual(new Set(['canonical']))
+  expect(wire.rest_plain).toEqual([])
+  await assertRendererAlive(page, 'whole run on the canonical wire')
 })

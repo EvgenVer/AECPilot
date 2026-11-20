@@ -24,6 +24,22 @@ of the wire protocol to drive the chat panel through one full turn:
 The sidebar's session list does NOT travel this socket — it is REST. That
 half lives in `mock_rest.py` and starts on its own port here (task 3.16).
 
+TWO WIRES, chosen by the handshake as the core chooses them (owner's decision
+2026-11-20, closing the T53 debt). A client that offers the subprotocol
+`hermes-gateway-v1` with a one-use ticket (`hermes-gateway-ticket.<t>`) gets the
+single gateway's CANONICAL wire — what the installed app speaks to its own
+core: `gateway.ready` says `session_authority`, the session verbs follow the
+core's closed contracts (`tui_gateway/contracts/canonical_sessions.py`),
+`prompt.submit` answers an admission receipt, and every session event carries
+`replay_epoch`/`seq` (and, inside a turn, `authority_epoch`,
+`execution_generation`, `admission_id`) — shapes taken from the frames the core
+itself captured (`apps/desktop/src/lib/execution-authority.frames.json` in
+their tree). Requests are checked against the PINNED core's own contract
+registry, imported from the core checkout, and so are this mock's own answers:
+a lifted pin that changes a contract fails here, not in the person's hands. A
+client that offers no subprotocol gets the LEGACY wire of `hermes serve`, which
+the server role, a remote and an SSH connection still speak.
+
 Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 """
 
@@ -32,6 +48,7 @@ import json
 import queue
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -39,14 +56,18 @@ from mock_rest import (
     FORM_PAGE_SERVED,
     PREVIEW_OPEN_REQUESTS,
     current_cwd,
+    note_wire,
     register_session,
     remember_message,
     rollback_mode,
     serve_in_thread,
+    spend_ticket,
     transcript_messages,
     visible_sessions,
 )
 from websockets.asyncio.server import ServerConnection, serve
+from websockets.datastructures import Headers
+from websockets.http11 import Request, Response
 
 # The first session — the one the REST half lists as «e2e» from the start.
 # Every `session.create` after it mints the next id (`e2e-2`, …), so a test can
@@ -154,11 +175,549 @@ async def take_answer(connection: ServerConnection, frame: dict) -> None:
     print(f"{label} " + json.dumps(result.get("value") or ""), flush=True)
 
 
+# --- The canonical wire (the single gateway) --------------------------------
+
+CANONICAL_PROTOCOL = "hermes-gateway-v1"
+TICKET_PROTOCOL_PREFIX = "hermes-gateway-ticket."
+# One owner run: the replay epoch a reconnecting window compares, and the
+# authority epoch every turn frame carries.
+REPLAY_EPOCH = uuid.uuid4().hex
+AUTHORITY_EPOCH = 1
+INSTANCE_ID = "mock-gateway"
+
+
+def _load_contracts() -> dict:
+    """The pinned core's contract registry — the same tables its dispatcher
+    checks (`gateway/session_controls.py::dispatch`). Imported from the core
+    checkout this venv installs; it writes nothing and reads no profile."""
+    from tui_gateway.contracts.registry import CANONICAL_METHODS, canonical_param_problems
+
+    return {"methods": CANONICAL_METHODS, "problems": canonical_param_problems}
+
+
+CONTRACTS = _load_contracts()
+
+# The 15 legacy verbs the gateway does not serve (T53.1, `ws_legacy_fallback.py`):
+# it holds the sessions itself and answers -32601. The donor's canonical adapter
+# translates or survives each of them; one that still arrives is a finding.
+NOT_SERVED = frozenset(
+    {
+        "session.activate",
+        "session.archive",
+        "session.branch",
+        "session.branch_stored",
+        "session.branch_whole",
+        "session.close",
+        "session.compress",
+        "session.cwd.set",
+        "session.delete",
+        "session.status",
+        "session.title",
+        "session.undo",
+        "session.usage",
+        "session.workspace.move",
+        "agents.list",
+    }
+)
+
+# Per stored session: the CAS revision, the execution generation, its title and
+# archive flag (what `session.mutate` edits), the event stream's last sequence
+# and the frames it carried (`session.events.since` replays them).
+STATE: dict[str, dict] = {}
+# Per session: the admission of the turn now running.
+TURNS: dict[str, dict] = {}
+_admissions = 0
+_subscriptions = 0
+
+
+def session_state(session_id: str) -> dict:
+    return STATE.setdefault(
+        session_id,
+        {
+            "revision": 1,
+            "generation": 0,
+            "title": None,
+            "archived": False,
+            "seq": 0,
+            "frames": [],
+        },
+    )
+
+
+def is_canonical(connection: ServerConnection) -> bool:
+    return connection.subprotocol == CANONICAL_PROTOCOL
+
+
+def _offered_protocols(headers: Headers) -> list[str]:
+    return [
+        item.strip()
+        for value in headers.get_all("Sec-WebSocket-Protocol")
+        for item in value.split(",")
+        if item.strip()
+    ]
+
+
+def check_handshake(connection: ServerConnection, request: Request) -> Response | None:
+    """The gateway's door (T53.1): a canonical dial without a ticket does not
+    open, and a ticket opens one socket only. A dial offering no subprotocol is
+    the legacy `serve` wire and opens as before."""
+    offered = _offered_protocols(request.headers)
+    if CANONICAL_PROTOCOL not in offered:
+        return None
+    tickets = [
+        p[len(TICKET_PROTOCOL_PREFIX) :] for p in offered if p.startswith(TICKET_PROTOCOL_PREFIX)
+    ]
+    if len(tickets) != 1 or not tickets[0]:
+        print("MOCK_WS_REFUSED no ticket", flush=True)
+        return connection.respond(401, "gateway ticket required\n")
+    if not spend_ticket(tickets[0]):
+        print("MOCK_WS_REFUSED ticket reused", flush=True)
+        return connection.respond(401, "gateway ticket already used\n")
+    return None
+
+
+async def send_result(connection: ServerConnection, request_id, result) -> None:
+    await connection.send(json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result}))
+
+
+async def send_error(
+    connection: ServerConnection, request_id, code: int, message: str, data=None
+) -> None:
+    error: dict = {"code": code, "message": message}
+    if data is not None:
+        error["data"] = data
+    await connection.send(json.dumps({"jsonrpc": "2.0", "id": request_id, "error": error}))
+
+
+async def refuse(
+    connection: ServerConnection, request_id, method: str, reason: str, **data
+) -> None:
+    """A typed refusal as the owner sends it: code 4001, the reason as the
+    message and in `data` (`session_controls._refusal_data`)."""
+    print(
+        f"MOCK_CANONICAL_REFUSED {method} {reason} {json.dumps(data, ensure_ascii=False)}",
+        flush=True,
+    )
+    await send_error(connection, request_id, 4001, reason, {"reason": reason, **data})
+
+
+async def checked_result(connection: ServerConnection, request_id, method: str, result) -> None:
+    """Answer — after checking the answer against the core's result model. A
+    mock that drifts from the contract would teach the window a shape the
+    gateway never sends; the line makes that drift a failure to read."""
+    contract = CONTRACTS["methods"].get(method)
+    if contract is not None:
+        try:
+            contract.result.model_validate(result)
+        except Exception as exc:  # pydantic.ValidationError
+            first = str(exc).splitlines()[:3]
+            print(f"MOCK_CONTRACT_DRIFT result of {method}: {' | '.join(first)}", flush=True)
+    await send_result(connection, request_id, result)
+
+
+def canonical_info(session_id: str) -> dict:
+    """`CanonicalSnapshotInfo`: the protocol stamp the donor reports instead of
+    the legacy `desktop_contract`, and the session's title."""
+    info: dict = {
+        "desktop_protocol": CANONICAL_PROTOCOL,
+        "model": "mock-model",
+        "profile_name": "default",
+    }
+    title = session_state(session_id)["title"]
+    if title:
+        info["title"] = title
+    return info
+
+
+def canonical_snapshot(session_id: str, *, omit_messages: bool = False) -> dict:
+    """`CanonicalSnapshot` — what `session.create` and `session.resume` answer."""
+    global _subscriptions
+    _subscriptions += 1
+    state = session_state(session_id)
+    messages = transcript_messages(session_id)
+    snapshot = {
+        "session_id": session_id,
+        "stored_session_id": session_id,
+        "messages": [] if omit_messages else messages,
+        "message_count": len(messages),
+        "running": session_id in TURNS,
+        "authority_epoch": AUTHORITY_EPOCH,
+        "replay_epoch": REPLAY_EPOCH,
+        "last_sequence": state["seq"],
+        "subscription_id": f"sub-{_subscriptions}",
+        "revision": state["revision"],
+        "execution_generation": state["generation"],
+        "pending": [],
+        "prompts": [],
+        "info": canonical_info(session_id),
+    }
+    if omit_messages:
+        snapshot["messages_omitted"] = True
+    return snapshot
+
+
+def session_info_payload(session_id: str, *, running: bool, pending: list | None = None) -> dict:
+    """The owner's `session.info` fanout (captured frames): the fences a viewer's
+    next mutation must present, and whether a turn runs."""
+    state = session_state(session_id)
+    return {
+        "stored_session_id": session_id,
+        "pending": pending or [],
+        "desktop_protocol": CANONICAL_PROTOCOL,
+        "running": running,
+        "execution_generation": state["generation"],
+        "revision": state["revision"],
+    }
+
+
+async def emit(
+    connection: ServerConnection,
+    event_type: str,
+    payload: dict | None = None,
+    *,
+    session_id: str | None = None,
+    pause: float = 0.03,
+) -> None:
+    """One event to the window, in the wire this connection speaks. Canonical
+    frames carry the session stream's epoch and sequence, and a turn's frames
+    its admission and generation — the window fences on both."""
+    sid = session_id or ACTIVE_SESSION
+    params: dict = {"type": event_type, "session_id": sid}
+    if payload is not None:
+        params["payload"] = payload
+    if is_canonical(connection):
+        state = session_state(sid)
+        turn = TURNS.get(sid)
+        if turn is not None:
+            params = {
+                "authority_epoch": AUTHORITY_EPOCH,
+                "execution_generation": turn["generation"],
+                "admission_id": turn["admission_id"],
+                **params,
+            }
+        state["seq"] += 1
+        params["replay_epoch"] = REPLAY_EPOCH
+        params["seq"] = state["seq"]
+        state["frames"].append(params)
+    await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
+    if pause:
+        await asyncio.sleep(pause)
+
+
+def admission(session_id: str, admission_id: str, sequence: int, status: str, generation) -> dict:
+    """`AdmissionStatus` (`gateway/session_contract.py::AdmissionReceipt`)."""
+    return {
+        "admission_id": admission_id,
+        "ref": {"profile_id": "default", "session_id": session_id},
+        "sequence": sequence,
+        "status": status,
+        "outcome": None,
+        "authority_epoch": AUTHORITY_EPOCH,
+        "execution_generation": generation,
+    }
+
+
+async def begin_canonical_turn(
+    connection: ServerConnection, session_id: str, text: str, input_id: str
+) -> None:
+    """The owner starts the admitted turn: a new execution generation, and the
+    `session.info` that shows it running with its admission `started`."""
+    turn = TURNS[session_id]
+    state = session_state(session_id)
+    state["generation"] = turn["generation"]
+    row = {
+        **admission(
+            session_id, turn["admission_id"], turn["sequence"], "started", turn["generation"]
+        ),
+        "input_id": input_id,
+        "text": text,
+    }
+    await emit(
+        connection,
+        "session.info",
+        session_info_payload(session_id, running=True, pending=[row]),
+        session_id=session_id,
+    )
+
+
+async def handle_canonical(connection: ServerConnection, request: dict, attached: set[str]) -> bool:
+    """The session verbs the gateway serves itself. True when answered here;
+    False sends the request on to the shared handlers — the legacy fallback
+    the gateway keeps for everything else (rollback, models, projects, …)."""
+    global ACTIVE_SESSION, _admissions
+    request_id = request["id"]
+    method = request["method"]
+    params = request.get("params") or {}
+
+    if method in NOT_SERVED:
+        print(f"MOCK_CANONICAL_NOT_SERVED {method}", flush=True)
+        await send_error(
+            connection,
+            request_id,
+            -32601,
+            f"unknown method: {method}",
+            {"reason": "unknown_method"},
+        )
+        return True
+
+    contract = CONTRACTS["methods"].get(method)
+    if contract is None:
+        return False
+    # The owner's own home is implicit for the strict verbs (`_PROFILE_IMPLICIT`):
+    # the window always names its profile, and only `default` lives here.
+    checked = dict(params)
+    if checked.get("profile") in ("default", None):
+        checked.pop("profile", None)
+    elif method in (
+        "session.create",
+        "session.resume",
+        "prompt.submit",
+        "session.list",
+        "session.mutate",
+    ):
+        await refuse(connection, request_id, method, "profile_mismatch", field="profile")
+        return True
+    problems = CONTRACTS["problems"](contract, checked)
+    if problems:
+        await refuse(connection, request_id, method, "invalid_params", fields=problems)
+        return True
+
+    sid = checked.get("session_id")
+    if method == "session.create":
+        # The window's create in the owner's closed shape — `source: gui` and a
+        # `request_id`, which only their canonical adapter sends.
+        print(
+            f"MOCK_RPC session.create wire=canonical source={checked.get('source')!r} "
+            f"request_id={'yes' if checked.get('request_id') else 'no'}",
+            flush=True,
+        )
+        session_id = new_session_id()
+        session_state(session_id)
+        attached.add(session_id)
+        if checked.get("title"):
+            session_state(session_id)["title"] = checked["title"]
+        await checked_result(connection, request_id, method, canonical_snapshot(session_id))
+        return True
+
+    if method == "session.resume":
+        if not isinstance(sid, str) or not sid:
+            await refuse(connection, request_id, method, "invalid_params", fields=["session_id"])
+            return True
+        ACTIVE_SESSION = sid
+        register_session(sid)
+        attached.add(sid)
+        snapshot = canonical_snapshot(sid, omit_messages=checked.get("omit_messages") is True)
+        await checked_result(connection, request_id, method, snapshot)
+        return True
+
+    if method == "session.list":
+        rows = [
+            {
+                "session_id": row["id"],
+                "id": row["id"],
+                "title": row.get("title") or "",
+                "source": row.get("source"),
+                "started_at": row.get("started_at"),
+                "message_count": row.get("message_count", 0),
+                "running": row["id"] in TURNS,
+            }
+            for row in visible_sessions()
+        ]
+        await checked_result(
+            connection,
+            request_id,
+            method,
+            {"sessions": rows, "scope": checked.get("scope", "live")},
+        )
+        return True
+
+    if method == "prompt.submit":
+        # `session_controls.submission`: a stranger to the session is refused,
+        # and so is input without an identity — the owner admits identified
+        # input only (a retry must be recognisable as the same send).
+        if sid not in attached:
+            await refuse(connection, request_id, method, "permission_denied")
+            return True
+        input_id = checked.get("submission_id") or checked.get("input_id")
+        if not isinstance(input_id, str) or not input_id:
+            await refuse(connection, request_id, method, "invalid_params", fields=["submission_id"])
+            return True
+        if sid in TURNS:
+            # One turn at a time here; the gateway would queue it FIFO.
+            await refuse(connection, request_id, method, "session_busy")
+            return True
+        _admissions += 1
+        state = session_state(sid)
+        admission_id = uuid.uuid4().hex
+        TURNS[sid] = {
+            "admission_id": admission_id,
+            "generation": state["generation"] + 1,
+            "sequence": _admissions,
+        }
+        ACTIVE_SESSION = sid
+        await checked_result(
+            connection,
+            request_id,
+            method,
+            admission(sid, admission_id, _admissions, "queued", None),
+        )
+        text = checked.get("text") or ""
+        print(f"MOCK_RPC prompt.submit session_id={sid!r} text={text[:40]!r}", flush=True)
+        await begin_canonical_turn(connection, sid, text, input_id)
+        await run_turn(connection, text)
+        return True
+
+    if method == "session.mutate":
+        state = session_state(sid) if isinstance(sid, str) else None
+        if state is None or sid not in attached:
+            await refuse(connection, request_id, method, "permission_denied")
+            return True
+        if checked["expected_revision"] != state["revision"]:
+            await refuse(
+                connection,
+                request_id,
+                method,
+                "revision_conflict",
+                revision=state["revision"],
+                execution_generation=state["generation"],
+            )
+            return True
+        operation = checked["operation"]
+        payload = checked.get("payload") or {}
+        projection: dict = {}
+        if operation == "rename":
+            state["title"] = str(payload.get("title") or "")
+            projection = {"title": state["title"]}
+        elif operation == "archive":
+            state["archived"] = bool(payload.get("archived"))
+            projection = {"archived": state["archived"]}
+        elif operation in ("model", "reasoning", "workspace"):
+            projection = dict(payload)
+        else:
+            print(f"MOCK_CANONICAL_UNSUPPORTED session.mutate {operation}", flush=True)
+            await refuse(connection, request_id, method, "unsupported_control", field="operation")
+            return True
+        state["revision"] += 1
+        receipt = {
+            "session_id": sid,
+            "operation": operation,
+            "revision": state["revision"],
+            **projection,
+        }
+        print(f"MOCK_RPC session.mutate session_id={sid!r} operation={operation!r}", flush=True)
+        await checked_result(connection, request_id, method, receipt)
+        await emit(connection, "session.updated", dict(receipt), session_id=sid, pause=0)
+        return True
+
+    if method == "session.interrupt":
+        state = session_state(sid)
+        turn = TURNS.get(sid)
+        if turn is not None and checked["execution_generation"] != turn["generation"]:
+            await refuse(
+                connection,
+                request_id,
+                method,
+                "stale_generation",
+                execution_generation=turn["generation"],
+            )
+            return True
+        handle = {
+            "ref": {"profile_id": "default", "session_id": sid},
+            "instance_id": INSTANCE_ID,
+            "authority_epoch": AUTHORITY_EPOCH,
+            "revision": state["revision"],
+            "execution_generation": state["generation"],
+            "execution_state": "running" if turn else "idle",
+        }
+        await checked_result(connection, request_id, method, handle)
+        return True
+
+    if method == "session.events.since":
+        # Replay of the session's stream after the window's cursor — what a
+        # reconnecting window asks before it trusts its transcript.
+        state = session_state(sid)
+        epoch = checked.get("replay_epoch")
+        after = checked.get("last_sequence") or checked.get("last_seen") or 0
+        same_epoch = epoch in (None, REPLAY_EPOCH)
+        events = [frame for frame in state["frames"] if frame["seq"] > after] if same_epoch else []
+        replay = {
+            "events": events,
+            "latest_seq": state["seq"],
+            "last_sequence": state["seq"],
+            "epoch": REPLAY_EPOCH,
+            "replay_epoch": REPLAY_EPOCH,
+            "truncated": False,
+            "snapshot_required": not same_epoch,
+            "count": len(events),
+        }
+        print(
+            f"MOCK_RPC session.events.since session_id={sid!r} after={after} count={len(events)}",
+            flush=True,
+        )
+        await checked_result(connection, request_id, method, replay)
+        return True
+
+    if method in ("approval.respond", "clarify.respond"):
+        print(f"MOCK_RPC {method} " + json.dumps(checked, ensure_ascii=False), flush=True)
+        await checked_result(
+            connection,
+            request_id,
+            method,
+            {"status": "resolved", "prompt_id": checked["prompt_id"]},
+        )
+        return True
+
+    # A canonical verb this mock does not serve: its params passed the core's
+    # check, the answer is the honest "not here" instead of a guess.
+    print(f"MOCK_UNKNOWN_METHOD {method}", flush=True)
+    await send_error(connection, request_id, -32601, f"method not found: {method}")
+    return True
+
+
+async def run_turn(connection: ServerConnection, text: str) -> None:
+    """The scripted answers, by the prompt's first word — one table for both
+    wires."""
+    remember_message(ACTIVE_SESSION, "user", text)
+    if text.startswith("slow:"):
+        # The person sends and walks away mid-turn (block 27): the
+        # answer lands three seconds later, in whatever state the
+        # window is in by then.
+        await asyncio.sleep(3)
+        text = text[5:].strip()
+    if text.startswith("turn"):
+        await stream_full_turn(connection, text)
+    elif text.startswith("artifact"):
+        await stream_artifact_turn(connection)
+    elif text.startswith("mcp"):
+        await stream_mcp_setup(connection)
+    elif text.startswith("say:"):
+        await stream_say(connection, text[4:].strip())
+    elif text.startswith("edit:"):
+        await stream_edit_turn(connection, text[5:].strip())
+    else:
+        await stream_pong(connection)
+
+
 async def handle(connection: ServerConnection) -> None:
     global ACTIVE_SESSION
-    await connection.send(
-        json.dumps({"jsonrpc": "2.0", "method": "event", "params": {"type": "gateway.ready"}})
-    )
+    canonical = is_canonical(connection)
+    wire = "canonical" if canonical else "legacy"
+    note_wire(wire)
+    print(f"MOCK_WIRE {wire}", flush=True)
+    # Sessions attached over THIS socket: the gateway refuses a submit into a
+    # session the connection never created or resumed.
+    attached: set[str] = set()
+    ready: dict = {"type": "gateway.ready"}
+    if canonical:
+        # `tui_gateway/ws.py`: the authority-bound socket's first frame.
+        ready["payload"] = {
+            "skin": {},
+            "change_events": True,
+            "heartbeat": True,
+            "replay_epoch": REPLAY_EPOCH,
+            "session_authority": True,
+        }
+    await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": ready}))
 
     asyncio.create_task(stream_drive_turn(connection))
     asyncio.create_task(push_preview_open(connection))
@@ -170,6 +729,8 @@ async def handle(connection: ServerConnection) -> None:
             continue
         request_id = request["id"]
         method = request["method"]
+        if canonical and await handle_canonical(connection, request, attached):
+            continue
         # Every RPC by name, so a failed test's stdout shows what the window
         # actually asked (the polling `session.active_list` excluded). With the
         # session it names and the command/text it carries: several sessions
@@ -261,25 +822,7 @@ async def handle(connection: ServerConnection) -> None:
             target = (request.get("params") or {}).get("session_id")
             if isinstance(target, str) and target:
                 ACTIVE_SESSION = target
-            remember_message(ACTIVE_SESSION, "user", text)
-            if text.startswith("slow:"):
-                # The person sends and walks away mid-turn (block 27): the
-                # answer lands three seconds later, in whatever state the
-                # window is in by then.
-                await asyncio.sleep(3)
-                text = text[5:].strip()
-            if text.startswith("turn"):
-                await stream_full_turn(connection, text)
-            elif text.startswith("artifact"):
-                await stream_artifact_turn(connection)
-            elif text.startswith("mcp"):
-                await stream_mcp_setup(connection)
-            elif text.startswith("say:"):
-                await stream_say(connection, text[4:].strip())
-            elif text.startswith("edit:"):
-                await stream_edit_turn(connection, text[5:].strip())
-            else:
-                await stream_pong(connection)
+            await run_turn(connection, text)
         elif method == "rollback.list":
             # Newest first — the shape `list_checkpoints` gives THROUGH the
             # gateway: hash, timestamp, and an always-empty message (their
@@ -410,19 +953,7 @@ async def handle(connection: ServerConnection) -> None:
                     }
                 )
             )
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "event",
-                        "params": {
-                            "type": "message.complete",
-                            "session_id": ACTIVE_SESSION,
-                            "payload": {"text": "", "status": "complete"},
-                        },
-                    }
-                )
-            )
+            await emit(connection, "message.complete", {"text": "", "status": "complete"}, pause=0)
             await settle_turn(connection, "")
         elif method == "session.close":
             await connection.send(
@@ -459,29 +990,21 @@ async def settle_turn(connection: ServerConnection, answer: str) -> None:
     """
     if answer:
         remember_message(ACTIVE_SESSION, "assistant", answer)
-    await connection.send(
-        json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "method": "event",
-                "params": {
-                    "type": "session.info",
-                    "session_id": ACTIVE_SESSION,
-                    "payload": {"running": False, **SESSION_INFO},
-                },
-            }
-        )
-    )
-    await asyncio.sleep(0.03)
+    if is_canonical(connection):
+        # The captured frames: the turn's last frame is the owner's idle
+        # `session.info` — the admission gone from `pending`, the revision one
+        # up (a turn advances it without a `session.updated`).
+        state = session_state(ACTIVE_SESSION)
+        state["revision"] += 1
+        await emit(connection, "session.info", session_info_payload(ACTIVE_SESSION, running=False))
+        TURNS.pop(ACTIVE_SESSION, None)
+        return
+    await emit(connection, "session.info", {"running": False, **SESSION_INFO})
 
 
 async def stream_pong(connection: ServerConnection) -> None:
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     await push("message.start")
     await push("message.delta", {"text": "PO"})
@@ -501,11 +1024,7 @@ async def stream_say(connection: ServerConnection, answer: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     await push("message.start")
     await push("message.delta", {"text": answer})
@@ -524,11 +1043,7 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     await push("message.start")
     await push(
@@ -563,11 +1078,7 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     tool_id = f"call_{prompt[-1]}"
     await push("reasoning.delta", {"text": "**Проверяю источники**\n\nСверю отметки по ТЗ."})
@@ -651,11 +1162,7 @@ async def stream_edit_turn(connection: ServerConnection, relpath: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     cwd = current_cwd()
     path = relpath.replace("\\", "/")
@@ -747,11 +1254,7 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     into an artifact card, and the card into a sandboxed preview tab (UR22)."""
 
     async def push(event_type: str, payload: dict | None = None) -> None:
-        params: dict = {"type": event_type, "session_id": ACTIVE_SESSION}
-        if payload is not None:
-            params["payload"] = payload
-        await connection.send(json.dumps({"jsonrpc": "2.0", "method": "event", "params": params}))
-        await asyncio.sleep(0.03)
+        await emit(connection, event_type, payload)
 
     await push("message.start")
     await push("message.delta", {"text": ARTIFACT_ANSWER})
@@ -781,19 +1284,7 @@ async def push_preview_open(connection: ServerConnection) -> None:
             continue
 
         try:
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "event",
-                        "params": {
-                            "type": "preview.open",
-                            "session_id": ACTIVE_SESSION,
-                            "payload": {"url": url},
-                        },
-                    }
-                )
-            )
+            await emit(connection, "preview.open", {"url": url}, pause=0)
         except Exception:
             return
 
@@ -892,7 +1383,18 @@ async def main() -> None:
     # hand-rolling HTTP inside the websockets handshake — cost with no bearing
     # on what the tests prove, since the app is told both addresses anyway.
     rest_port = serve_in_thread()
-    async with serve(handle, "127.0.0.1", port):
+    # A client offering `hermes-gateway-v1` is answered with it (the canonical
+    # wire); a client offering none opens without one (legacy). Not the
+    # `subprotocols=` list: with it, websockets refuses a client offering none.
+    async with serve(
+        handle,
+        "127.0.0.1",
+        port,
+        select_subprotocol=lambda _connection, offered: (
+            CANONICAL_PROTOCOL if CANONICAL_PROTOCOL in offered else None
+        ),
+        process_request=check_handshake,
+    ):
         print(f"MOCK_REST_READY {rest_port}", flush=True)
         print(f"MOCK_READY {port}", flush=True)
         await asyncio.Future()  # run forever, until the process is killed
