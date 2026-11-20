@@ -44,6 +44,7 @@ Usage: <venv python> mock_gateway.py [port]  (default port 18790)
 """
 
 import asyncio
+import contextvars
 import json
 import queue
 import sys
@@ -56,6 +57,7 @@ from mock_rest import (
     FORM_PAGE_SERVED,
     PREVIEW_OPEN_REQUESTS,
     current_cwd,
+    known_session,
     note_wire,
     register_session,
     remember_message,
@@ -67,6 +69,7 @@ from mock_rest import (
 )
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.datastructures import Headers
+from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Request, Response
 
 # The first session — the one the REST half lists as «e2e» from the start.
@@ -190,9 +193,13 @@ def _load_contracts() -> dict:
     """The pinned core's contract registry — the same tables its dispatcher
     checks (`gateway/session_controls.py::dispatch`). Imported from the core
     checkout this venv installs; it writes nothing and reads no profile."""
-    from tui_gateway.contracts.registry import CANONICAL_METHODS, canonical_param_problems
+    from tui_gateway.contracts.registry import (
+        CANONICAL_METHODS,
+        METHODS,
+        canonical_param_problems,
+    )
 
-    return {"methods": CANONICAL_METHODS, "problems": canonical_param_problems}
+    return {"methods": CANONICAL_METHODS, "legacy": METHODS, "problems": canonical_param_problems}
 
 
 CONTRACTS = _load_contracts()
@@ -220,6 +227,34 @@ NOT_SERVED = frozenset(
     }
 )
 
+# Methods the core serves on both wires that the mock does not model yet: the
+# window gets -32601 and takes its fallback (a gap older than the canonical wire,
+# measured over the whole fast run on 2026-11-20). Kept as an explicit list so a
+# method the window starts calling later is a visible MOCK_UNKNOWN_METHOD.
+NOT_MODELLED = frozenset(
+    {
+        "client.capabilities",
+        "command.dispatch",
+        "commands.catalog",
+        "complete.path",
+        "config.get",
+        "file.attach",
+        "free_tier.status",
+        "mcp.servers.status",
+        "plugins.manage",
+        "process.list",
+        "profiles.list",
+        "projects.list",
+        "reload.mcp",
+        "session.control.read",
+        "setup.runtime_check",
+        "setup.status",
+        "slash.exec",
+        "subagent.list",
+        "subagent.roster",
+    }
+)
+
 # Per stored session: the CAS revision, the execution generation, its title and
 # archive flag (what `session.mutate` edits), the event stream's last sequence
 # and the frames it carried (`session.events.since` replays them).
@@ -230,11 +265,33 @@ _admissions = 0
 _subscriptions = 0
 
 
+# The session a turn's frames belong to. Set inside each turn's task, so a
+# `session.resume` of another chat while a turn streams (or waits on a person)
+# cannot re-address its frames — the global `ACTIVE_SESSION` could (review of
+# 9fb6fdc). Outside a turn, the session the window last named.
+TURN_SESSION: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "turn_session", default=None
+)
+
+
+def current_session() -> str:
+    return TURN_SESSION.get() or ACTIVE_SESSION
+
+
+# Per session: the FIFO the owner keeps (one turn runs, the next waits), and
+# the task of the running turn — a `session.interrupt` cancels it.
+LOCKS: dict[str, asyncio.Lock] = {}
+TURN_TASKS: dict[str, asyncio.Task] = {}
+# A turn waiting on the person's `connection.respond` (the MCP consent card).
+CONSENTS: dict[str, asyncio.Event] = {}
+
+
 def session_state(session_id: str) -> dict:
     return STATE.setdefault(
         session_id,
         {
-            "revision": 1,
+            # The captured frames: a fresh session sits at revision 0.
+            "revision": 0,
             "generation": 0,
             "title": None,
             "archived": False,
@@ -305,7 +362,7 @@ async def checked_result(connection: ServerConnection, request_id, method: str, 
     """Answer — after checking the answer against the core's result model. A
     mock that drifts from the contract would teach the window a shape the
     gateway never sends; the line makes that drift a failure to read."""
-    contract = CONTRACTS["methods"].get(method)
+    contract = CONTRACTS["methods"].get(method) or CONTRACTS["legacy"].get(method)
     if contract is not None:
         try:
             contract.result.model_validate(result)
@@ -381,13 +438,22 @@ async def emit(
     """One event to the window, in the wire this connection speaks. Canonical
     frames carry the session stream's epoch and sequence, and a turn's frames
     its admission and generation — the window fences on both."""
-    sid = session_id or ACTIVE_SESSION
+    sid = session_id or current_session()
     params: dict = {"type": event_type, "session_id": sid}
     if payload is not None:
         params["payload"] = payload
     if is_canonical(connection):
         state = session_state(sid)
         turn = TURNS.get(sid)
+        if turn is not None and event_type == "message.complete" and payload is not None:
+            # The owner's completion names its admission and outcome, and
+            # carries the text as `content` too (captured frames).
+            params["payload"] = {
+                "content": payload.get("text", ""),
+                "admission_id": turn["admission_id"],
+                "outcome": "interrupted" if payload.get("status") == "interrupted" else "completed",
+                **payload,
+            }
         if turn is not None:
             params = {
                 "authority_epoch": AUTHORITY_EPOCH,
@@ -417,27 +483,57 @@ def admission(session_id: str, admission_id: str, sequence: int, status: str, ge
     }
 
 
-async def begin_canonical_turn(
-    connection: ServerConnection, session_id: str, text: str, input_id: str
-) -> None:
-    """The owner starts the admitted turn: a new execution generation, and the
-    `session.info` that shows it running with its admission `started`."""
-    turn = TURNS[session_id]
-    state = session_state(session_id)
-    state["generation"] = turn["generation"]
-    row = {
-        **admission(
-            session_id, turn["admission_id"], turn["sequence"], "started", turn["generation"]
-        ),
-        "input_id": input_id,
-        "text": text,
+def pending_row(session_id: str, turn: dict, status: str, generation) -> dict:
+    return {
+        **admission(session_id, turn["admission_id"], turn["sequence"], status, generation),
+        "input_id": turn["input_id"],
+        "text": turn["text"],
     }
-    await emit(
-        connection,
-        "session.info",
-        session_info_payload(session_id, running=True, pending=[row]),
-        session_id=session_id,
-    )
+
+
+async def canonical_turn(connection: ServerConnection, session_id: str, turn: dict) -> None:
+    """One admitted turn, as the owner runs it — off the socket's read loop, so
+    the window can interrupt it, answer a prompt or edit metadata meanwhile.
+    The session's FIFO keeps a second submit queued behind the first."""
+    TURN_SESSION.set(session_id)
+    lock = LOCKS.setdefault(session_id, asyncio.Lock())
+    try:
+        async with lock:
+            state = session_state(session_id)
+            turn["generation"] = state["generation"] + 1
+            state["generation"] = turn["generation"]
+            TURNS[session_id] = turn
+            TURN_TASKS[session_id] = asyncio.current_task()
+            try:
+                # Captured order: the turn's first frame, then the owner's
+                # `session.info` that shows it running with its admission started.
+                await emit(connection, "message.start")
+                await emit(
+                    connection,
+                    "session.info",
+                    session_info_payload(
+                        session_id,
+                        running=True,
+                        pending=[pending_row(session_id, turn, "started", turn["generation"])],
+                    ),
+                )
+                print(
+                    f"MOCK_TURN_STARTED session_id={session_id!r} generation={turn['generation']}",
+                    flush=True,
+                )
+                await run_turn(connection, turn["text"], started=True)
+            except asyncio.CancelledError:
+                # `session.interrupt`: the turn ends where it stood.
+                print(f"MOCK_TURN_INTERRUPTED session_id={session_id!r}", flush=True)
+                await emit(connection, "message.complete", {"text": "", "status": "interrupted"})
+                await settle_turn(connection, "")
+    except Exception as exc:  # the socket went away mid-turn
+        print(f"MOCK_TURN_ABORTED session_id={session_id!r} {type(exc).__name__}", flush=True)
+    finally:
+        if TURNS.get(session_id) is turn:
+            TURNS.pop(session_id, None)
+        if TURN_TASKS.get(session_id) is asyncio.current_task():
+            TURN_TASKS.pop(session_id, None)
 
 
 async def handle_canonical(connection: ServerConnection, request: dict, attached: set[str]) -> bool:
@@ -503,6 +599,9 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
         if not isinstance(sid, str) or not sid:
             await refuse(connection, request_id, method, "invalid_params", fields=["session_id"])
             return True
+        if not known_session(sid):
+            await refuse(connection, request_id, method, "not_found")
+            return True
         ACTIVE_SESSION = sid
         register_session(sid)
         attached.add(sid)
@@ -522,6 +621,9 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
                 "running": row["id"] in TURNS,
             }
             for row in visible_sessions()
+            # `live`: what the owner holds now — sessions created or attached
+            # this run; `stored`: every row of the database.
+            if checked.get("scope", "live") == "stored" or row["id"] in STATE
         ]
         await checked_result(
             connection,
@@ -542,29 +644,33 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
         if not isinstance(input_id, str) or not input_id:
             await refuse(connection, request_id, method, "invalid_params", fields=["submission_id"])
             return True
-        if sid in TURNS:
-            # One turn at a time here; the gateway would queue it FIFO.
-            await refuse(connection, request_id, method, "session_busy")
-            return True
         _admissions += 1
-        state = session_state(sid)
-        admission_id = uuid.uuid4().hex
-        TURNS[sid] = {
-            "admission_id": admission_id,
-            "generation": state["generation"] + 1,
+        text = checked.get("text") or ""
+        turn = {
+            "admission_id": uuid.uuid4().hex,
             "sequence": _admissions,
+            "input_id": input_id,
+            "text": text,
         }
         ACTIVE_SESSION = sid
         await checked_result(
             connection,
             request_id,
             method,
-            admission(sid, admission_id, _admissions, "queued", None),
+            admission(sid, turn["admission_id"], turn["sequence"], "queued", None),
         )
-        text = checked.get("text") or ""
         print(f"MOCK_RPC prompt.submit session_id={sid!r} text={text[:40]!r}", flush=True)
-        await begin_canonical_turn(connection, sid, text, input_id)
-        await run_turn(connection, text)
+        print(f"MOCK_ADMISSION queued session_id={sid!r}", flush=True)
+        # Captured order: the owner shows the admission queued before it runs.
+        await emit(
+            connection,
+            "session.info",
+            session_info_payload(
+                sid, running=sid in TURNS, pending=[pending_row(sid, turn, "queued", None)]
+            ),
+            session_id=sid,
+        )
+        asyncio.create_task(canonical_turn(connection, sid, turn))
         return True
 
     if method == "session.mutate":
@@ -582,7 +688,22 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
                 execution_generation=state["generation"],
             )
             return True
+        expected_generation = checked.get("expected_generation")
+        if expected_generation is not None and expected_generation != state["generation"]:
+            await refuse(
+                connection,
+                request_id,
+                method,
+                "stale_generation",
+                revision=state["revision"],
+                execution_generation=state["generation"],
+            )
+            return True
         operation = checked["operation"]
+        if operation == "workspace" and sid in TURNS:
+            # Moving a running session is refused mid-turn (contract doc).
+            await refuse(connection, request_id, method, "session_busy")
+            return True
         payload = checked.get("payload") or {}
         projection: dict = {}
         if operation == "rename":
@@ -613,6 +734,11 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
         state = session_state(sid)
         turn = TURNS.get(sid)
         if turn is not None and checked["execution_generation"] != turn["generation"]:
+            print(
+                f"MOCK_INTERRUPT_FENCE sent={checked['execution_generation']} "
+                f"current={turn['generation']}",
+                flush=True,
+            )
             await refuse(
                 connection,
                 request_id,
@@ -629,7 +755,15 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
             "execution_generation": state["generation"],
             "execution_state": "running" if turn else "idle",
         }
+        print(
+            f"MOCK_RPC session.interrupt session_id={sid!r} "
+            f"generation={checked['execution_generation']} running={turn is not None}",
+            flush=True,
+        )
         await checked_result(connection, request_id, method, handle)
+        task = TURN_TASKS.get(sid)
+        if task is not None:
+            task.cancel()
         return True
 
     if method == "session.events.since":
@@ -658,6 +792,16 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
         return True
 
     if method in ("approval.respond", "clarify.respond"):
+        generation = session_state(sid)["generation"] if isinstance(sid, str) else None
+        if checked.get("execution_generation") != generation:
+            await refuse(
+                connection,
+                request_id,
+                method,
+                "stale_generation",
+                execution_generation=generation,
+            )
+            return True
         print(f"MOCK_RPC {method} " + json.dumps(checked, ensure_ascii=False), flush=True)
         await checked_result(
             connection,
@@ -668,16 +812,20 @@ async def handle_canonical(connection: ServerConnection, request: dict, attached
         return True
 
     # A canonical verb this mock does not serve: its params passed the core's
-    # check, the answer is the honest "not here" instead of a guess.
-    print(f"MOCK_UNKNOWN_METHOD {method}", flush=True)
-    await send_error(connection, request_id, -32601, f"method not found: {method}")
-    return True
+    # check; the shared handlers answer it or name it.
+    return False
 
 
-async def run_turn(connection: ServerConnection, text: str) -> None:
+# A canonical turn emits its own `message.start` before the started
+# `session.info` (captured order); the scripted streams then skip theirs.
+TURN_STARTED: contextvars.ContextVar[bool] = contextvars.ContextVar("turn_started", default=False)
+
+
+async def run_turn(connection: ServerConnection, text: str, *, started: bool = False) -> None:
     """The scripted answers, by the prompt's first word — one table for both
-    wires."""
-    remember_message(ACTIVE_SESSION, "user", text)
+    wires. `started`: the canonical turn already sent its `message.start`."""
+    remember_message(current_session(), "user", text)
+    TURN_STARTED.set(started)
     if text.startswith("slow:"):
         # The person sends and walks away mid-turn (block 27): the
         # answer lands three seconds later, in whatever state the
@@ -723,257 +871,289 @@ async def handle(connection: ServerConnection) -> None:
     asyncio.create_task(push_preview_open(connection))
 
     async for raw in connection:
-        request = json.loads(raw)
-        if "method" not in request:
-            await take_answer(connection, request)
-            continue
-        request_id = request["id"]
-        method = request["method"]
-        if canonical and await handle_canonical(connection, request, attached):
-            continue
-        # Every RPC by name, so a failed test's stdout shows what the window
-        # actually asked (the polling `session.active_list` excluded). With the
-        # session it names and the command/text it carries: several sessions
-        # live in this mock at once (task 3F.5), and a turn that lands nowhere
-        # is unreadable without the id.
-        # Core v0.23.0 legacy contract (task T52): params are extra="forbid"
-        # (`tui_gateway/contracts/base.py`), and `PromptSubmitParams` has no
-        # `submission_id`, so the donor's id is refused with 4000. The donor
-        # retries identityless on exactly this refusal (`submit.ts`
-        # `isPreAdmissionRefusal`) and only then accepts {"status": "streaming"}.
-        # Answering the first try directly made it drop the user bubble and put
-        # the text back into the composer.
-        if method == "prompt.submit" and "submission_id" in (request.get("params") or {}):
-            print("MOCK_RPC_REFUSED prompt.submit submission_id", flush=True)
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {
-                            "code": 4000,
-                            "message": "invalid params for prompt.submit: submission_id: "
-                            "Extra inputs are not permitted",
-                        },
-                    }
+        request_id = None
+        try:
+            request = json.loads(raw)
+            if "method" not in request:
+                await take_answer(connection, request)
+                continue
+            request_id = request["id"]
+            method = request["method"]
+            if canonical and await handle_canonical(connection, request, attached):
+                continue
+            # Every RPC by name, so a failed test's stdout shows what the window
+            # actually asked (the polling `session.active_list` excluded). With the
+            # session it names and the command/text it carries: several sessions
+            # live in this mock at once (task 3F.5), and a turn that lands nowhere
+            # is unreadable without the id.
+            # Core v0.23.0 legacy contract (task T52): params are extra="forbid"
+            # (`tui_gateway/contracts/base.py`), and `PromptSubmitParams` has no
+            # `submission_id`, so the donor's id is refused with 4000. The donor
+            # retries identityless on exactly this refusal (`submit.ts`
+            # `isPreAdmissionRefusal`) and only then accepts {"status": "streaming"}.
+            # Answering the first try directly made it drop the user bubble and put
+            # the text back into the composer.
+            if method == "prompt.submit" and "submission_id" in (request.get("params") or {}):
+                print("MOCK_RPC_REFUSED prompt.submit submission_id", flush=True)
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "error": {
+                                "code": 4000,
+                                "message": "invalid params for prompt.submit: submission_id: "
+                                "Extra inputs are not permitted",
+                            },
+                        }
+                    )
                 )
-            )
-            continue
+                continue
 
-        if method != "session.active_list":
-            params = request.get("params") or {}
-            detail = " ".join(
-                f"{key}={str(params[key])[:40]!r}"
-                for key in ("session_id", "command", "text")
-                if isinstance(params.get(key), str)
-            )
-            print(f"MOCK_RPC {method} {detail}".rstrip(), flush=True)
+            if method != "session.active_list":
+                params = request.get("params") or {}
+                detail = " ".join(
+                    f"{key}={str(params[key])[:40]!r}"
+                    for key in ("session_id", "command", "text")
+                    if isinstance(params.get(key), str)
+                )
+                print(f"MOCK_RPC {method} {detail}".rstrip(), flush=True)
 
-        if method == "session.create":
-            response = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": session_result(new_session_id()),
-            }
-            await connection.send(json.dumps(response))
-        elif method == "session.resume":
-            # Added 2026-09-08 after a FLAKE, not a theory: with no handler here
-            # the window answered `-32601 method not found`, the chat pane fell
-            # into "Couldn't load this session" and every later test that needs
-            # the composer died — while the run before and after passed on the
-            # same build. The window asks this whenever it loses the live
-            # runtime ref (a reconnect, a renderer crash, a timed-out request),
-            # so a mock without it makes the suite flaky by construction. A real
-            # gateway rebinds the stored session; nothing to rebuild here — the
-            # transcript lives in the window.
-            wanted = (request.get("params") or {}).get("session_id")
-            if isinstance(wanted, str) and wanted:
-                ACTIVE_SESSION = wanted
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": session_result(ACTIVE_SESSION),
-                    }
-                )
-            )
-        elif method == "session.activate":
-            # Switching to a session that is still LIVE in the gateway (their
-            # sidebar asks this, not `session.resume`, for a row it knows is
-            # running or was just left). Same answer: the ids and the history.
-            wanted = (request.get("params") or {}).get("session_id")
-            if isinstance(wanted, str) and wanted:
-                ACTIVE_SESSION = wanted
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": session_result(ACTIVE_SESSION),
-                    }
-                )
-            )
-        elif method == "prompt.submit":
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}})
-            )
-            text = (request.get("params") or {}).get("text") or ""
-            target = (request.get("params") or {}).get("session_id")
-            if isinstance(target, str) and target:
-                ACTIVE_SESSION = target
-            await run_turn(connection, text)
-        elif method == "rollback.list":
-            # Newest first — the shape `list_checkpoints` gives THROUGH the
-            # gateway: hash, timestamp, and an always-empty message (their
-            # handler drops the core's reason/files_changed). The snapshots an
-            # `edit:` prompt took come before the static pair; the test's
-            # `PUT /api/_mock/rollback` can empty the list or switch it off.
-            mode = rollback_mode()
-            if mode == "disabled":
-                result = {"enabled": False, "checkpoints": []}
-            elif mode == "empty":
-                result = {"enabled": True, "checkpoints": []}
-            else:
-                result = {
-                    "enabled": True,
-                    "checkpoints": [
-                        {"hash": edit["hash"], "timestamp": edit["timestamp"], "message": ""}
-                        for edit in reversed(EDITS)
-                    ]
-                    + STATIC_CHECKPOINTS,
+            if method == "session.create":
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": session_result(new_session_id()),
                 }
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
-            )
-        elif method == "rollback.diff":
-            wanted = (request.get("params") or {}).get("hash")
-            edit = next((item for item in EDITS if item["hash"] == wanted), None)
-            if edit is None:
-                result = {"stat": STATIC_STAT, "diff": STATIC_DIFF}
+                await connection.send(json.dumps(response))
+            elif method == "session.resume":
+                # Added 2026-09-08 after a FLAKE, not a theory: with no handler here
+                # the window answered `-32601 method not found`, the chat pane fell
+                # into "Couldn't load this session" and every later test that needs
+                # the composer died — while the run before and after passed on the
+                # same build. The window asks this whenever it loses the live
+                # runtime ref (a reconnect, a renderer crash, a timed-out request),
+                # so a mock without it makes the suite flaky by construction. A real
+                # gateway rebinds the stored session; nothing to rebuild here — the
+                # transcript lives in the window.
+                wanted = (request.get("params") or {}).get("session_id")
+                if isinstance(wanted, str) and wanted:
+                    ACTIVE_SESSION = wanted
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": session_result(ACTIVE_SESSION),
+                        }
+                    )
+                )
+            elif method == "session.activate":
+                # Switching to a session that is still LIVE in the gateway (their
+                # sidebar asks this, not `session.resume`, for a row it knows is
+                # running or was just left). Same answer: the ids and the history.
+                wanted = (request.get("params") or {}).get("session_id")
+                if isinstance(wanted, str) and wanted:
+                    ACTIVE_SESSION = wanted
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": session_result(ACTIVE_SESSION),
+                        }
+                    )
+                )
+            elif method == "prompt.submit":
+                await connection.send(
+                    json.dumps(
+                        {"jsonrpc": "2.0", "id": request_id, "result": {"status": "streaming"}}
+                    )
+                )
+                text = (request.get("params") or {}).get("text") or ""
+                target = (request.get("params") or {}).get("session_id")
+                if isinstance(target, str) and target:
+                    ACTIVE_SESSION = target
+                await run_turn(connection, text)
+            elif method == "rollback.list":
+                # Newest first — the shape `list_checkpoints` gives THROUGH the
+                # gateway: hash, timestamp, and an always-empty message (their
+                # handler drops the core's reason/files_changed). The snapshots an
+                # `edit:` prompt took come before the static pair; the test's
+                # `PUT /api/_mock/rollback` can empty the list or switch it off.
+                mode = rollback_mode()
+                if mode == "disabled":
+                    result = {"enabled": False, "checkpoints": []}
+                elif mode == "empty":
+                    result = {"enabled": True, "checkpoints": []}
+                else:
+                    result = {
+                        "enabled": True,
+                        "checkpoints": [
+                            {"hash": edit["hash"], "timestamp": edit["timestamp"], "message": ""}
+                            for edit in reversed(EDITS)
+                        ]
+                        + STATIC_CHECKPOINTS,
+                    }
+                await connection.send(
+                    json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+                )
+            elif method == "rollback.diff":
+                wanted = (request.get("params") or {}).get("hash")
+                edit = next((item for item in EDITS if item["hash"] == wanted), None)
+                if edit is None:
+                    result = {"stat": STATIC_STAT, "diff": STATIC_DIFF}
+                else:
+                    result = {"stat": edit["stat"], "diff": edit["diff"]}
+                await connection.send(
+                    json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+                )
+            elif method == "rollback.restore":
+                # The way back (positions 8.4.1, 25.4.2): the snapshot's content
+                # goes back on disk — for the whole snapshot or for the one file
+                # `file_path` names. The manager's own verdict travels as
+                # `success`, a refusal as `success: false` with `error`, exactly as
+                # the contract has it (docs/history/specs/checkpoints-rollback.md).
+                params = request.get("params") or {}
+                wanted = params.get("hash")
+                file_path = params.get("file_path")
+                edit = next((item for item in EDITS if item["hash"] == wanted), None)
+                if edit is None and any(item["hash"] == wanted for item in STATIC_CHECKPOINTS):
+                    result = {"success": True, "restored_to": str(wanted)[:8], "reason": ""}
+                elif edit is None:
+                    result = {"success": False, "error": f"Checkpoint '{wanted}' not found"}
+                elif file_path is not None and file_path.replace("\\", "/") != edit["path"]:
+                    result = {"success": False, "error": f"File '{file_path}' not in checkpoint"}
+                else:
+                    Path(edit["abs_path"]).write_text(
+                        edit["before"], encoding="utf-8", newline="\n"
+                    )
+                    result = {
+                        "success": True,
+                        "restored_to": edit["hash"][:8],
+                        "reason": "",
+                        **({} if file_path is None else {"file": file_path}),
+                    }
+                print(f"MOCK_RESTORE {json.dumps(result, ensure_ascii=False)}", flush=True)
+                await connection.send(
+                    json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
+                )
+            elif method == "session.list":
+                # The app asks this after the machine wakes up, to find out whether
+                # the socket is still alive (task 3.28). A real gateway answers it,
+                # so the mock must too — otherwise every resume looks like a dead
+                # connection and the app re-dials for nothing.
+                # The list must contain the session this mock actually serves. An
+                # empty answer is not "no data" to the app — it is "the session you
+                # are in does not exist", and their sidebar drops it.
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {"sessions": visible_sessions()},
+                        }
+                    )
+                )
+            elif method == "model.options":
+                # Тот же довод, что и у REST-половины: неотвеченный метод превращался
+                # в поток уведомлений об ошибке поверх боковой панели.
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {"model": "mock-model", "provider": "mock", "providers": []},
+                        }
+                    )
+                )
+            elif method == "profiles.create":
+                # Задача 5.14. Мок печатает SOUL, с которым пришёл вызов: окно
+                # дописывает в него строку языка на проходе моста, и проверить это
+                # можно только с той стороны, куда вызов уехал.
+                created = request.get("params") or {}
+                print(
+                    "MOCK_PROFILE_SOUL " + json.dumps(created.get("soul", ""), ensure_ascii=False),
+                    flush=True,
+                )
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {"name": created.get("name", ""), "created": True},
+                        }
+                    )
+                )
+            elif method in ("projects.tree", "projects.project_sessions"):
+                # Their project grouping (0.21.5 sidebar): the stand has no core
+                # projects, and says so the way the core does — an empty tree and
+                # no project — instead of -32601, which their drill-in reads as
+                # "the session list failed to load".
+                result = {"projects": []} if method == "projects.tree" else {"project": None}
+                reply = {"jsonrpc": "2.0", "id": request_id, "result": result}
+                await connection.send(json.dumps(reply))
+            elif method == "connection.respond":
+                # The consent card's answer (SPEC UR23), printed so the test can
+                # prove the refusal travelled; then the turn the core held open ends.
+                answer = request.get("params") or {}
+                print("CONNECTION_RESPOND " + json.dumps(answer, ensure_ascii=False), flush=True)
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {"status": "ok", "settled": True},
+                        }
+                    )
+                )
+                consent = CONSENTS.get(str(answer.get("op_id")))
+                if consent is not None:
+                    consent.set()
+                else:
+                    await emit(
+                        connection, "message.complete", {"text": "", "status": "complete"}, pause=0
+                    )
+                    await settle_turn(connection, "")
+            elif method == "gateway.ping":
+                # The heartbeat, answered by the socket itself (`tui_gateway/ws.py`).
+                await checked_result(connection, request_id, method, {"ok": True})
+            elif method == "approval.pending":
+                await checked_result(connection, request_id, method, {"approvals": []})
+            elif method == "session.active_list":
+                await checked_result(connection, request_id, method, {"sessions": []})
+            elif method in NOT_MODELLED:
+                # A method the core serves (on both wires) that this mock knowingly
+                # leaves unanswered — the window takes its -32601 fallback here,
+                # which it never takes against the core. Listed, so a NEW method the
+                # window starts calling shows up as MOCK_UNKNOWN_METHOD instead.
+                print("MOCK_NOT_MODELLED " + method, flush=True)
+                await send_error(connection, request_id, -32601, f"method not found: {method}")
+            elif method == "session.close":
+                await connection.send(
+                    json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})
+                )
             else:
-                result = {"stat": edit["stat"], "diff": edit["diff"]}
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
-            )
-        elif method == "rollback.restore":
-            # The way back (positions 8.4.1, 25.4.2): the snapshot's content
-            # goes back on disk — for the whole snapshot or for the one file
-            # `file_path` names. The manager's own verdict travels as
-            # `success`, a refusal as `success: false` with `error`, exactly as
-            # the contract has it (docs/history/specs/checkpoints-rollback.md).
-            params = request.get("params") or {}
-            wanted = params.get("hash")
-            file_path = params.get("file_path")
-            edit = next((item for item in EDITS if item["hash"] == wanted), None)
-            if edit is None and any(item["hash"] == wanted for item in STATIC_CHECKPOINTS):
-                result = {"success": True, "restored_to": str(wanted)[:8], "reason": ""}
-            elif edit is None:
-                result = {"success": False, "error": f"Checkpoint '{wanted}' not found"}
-            elif file_path is not None and file_path.replace("\\", "/") != edit["path"]:
-                result = {"success": False, "error": f"File '{file_path}' not in checkpoint"}
-            else:
-                Path(edit["abs_path"]).write_text(edit["before"], encoding="utf-8", newline="\n")
-                result = {
-                    "success": True,
-                    "restored_to": edit["hash"][:8],
-                    "reason": "",
-                    **({} if file_path is None else {"file": file_path}),
-                }
-            print(f"MOCK_RESTORE {json.dumps(result, ensure_ascii=False)}", flush=True)
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
-            )
-        elif method == "session.list":
-            # The app asks this after the machine wakes up, to find out whether
-            # the socket is still alive (task 3.28). A real gateway answers it,
-            # so the mock must too — otherwise every resume looks like a dead
-            # connection and the app re-dials for nothing.
-            # The list must contain the session this mock actually serves. An
-            # empty answer is not "no data" to the app — it is "the session you
-            # are in does not exist", and their sidebar drops it.
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {"sessions": visible_sessions()},
-                    }
+                # Диагностика подъёма пина: раньше неизвестный метод оставался БЕЗ
+                # ОТВЕТА, и их клиент ждал его вечно — экран поднимался, но первый
+                # же вызов нового метода вешал цепочку. Печатаем имя и отвечаем
+                # ошибкой, как отвечает настоящий шлюз.
+                print("MOCK_UNKNOWN_METHOD " + method, flush=True)
+                await connection.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "error": {"code": -32601, "message": f"method not found: {method}"},
+                        }
+                    )
                 )
-            )
-        elif method == "model.options":
-            # Тот же довод, что и у REST-половины: неотвеченный метод превращался
-            # в поток уведомлений об ошибке поверх боковой панели.
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {"model": "mock-model", "provider": "mock", "providers": []},
-                    }
-                )
-            )
-        elif method == "profiles.create":
-            # Задача 5.14. Мок печатает SOUL, с которым пришёл вызов: окно
-            # дописывает в него строку языка на проходе моста, и проверить это
-            # можно только с той стороны, куда вызов уехал.
-            created = request.get("params") or {}
-            print(
-                "MOCK_PROFILE_SOUL " + json.dumps(created.get("soul", ""), ensure_ascii=False),
-                flush=True,
-            )
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {"name": created.get("name", ""), "created": True},
-                    }
-                )
-            )
-        elif method in ("projects.tree", "projects.project_sessions"):
-            # Their project grouping (0.21.5 sidebar): the stand has no core
-            # projects, and says so the way the core does — an empty tree and
-            # no project — instead of -32601, which their drill-in reads as
-            # "the session list failed to load".
-            result = {"projects": []} if method == "projects.tree" else {"project": None}
-            reply = {"jsonrpc": "2.0", "id": request_id, "result": result}
-            await connection.send(json.dumps(reply))
-        elif method == "connection.respond":
-            # The consent card's answer (SPEC UR23), printed so the test can
-            # prove the refusal travelled; then the turn the core held open ends.
-            answer = request.get("params") or {}
-            print("CONNECTION_RESPOND " + json.dumps(answer, ensure_ascii=False), flush=True)
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": {"status": "ok", "settled": True},
-                    }
-                )
-            )
-            await emit(connection, "message.complete", {"text": "", "status": "complete"}, pause=0)
-            await settle_turn(connection, "")
-        elif method == "session.close":
-            await connection.send(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"closed": True}})
-            )
-        else:
-            # Диагностика подъёма пина: раньше неизвестный метод оставался БЕЗ
-            # ОТВЕТА, и их клиент ждал его вечно — экран поднимался, но первый
-            # же вызов нового метода вешал цепочку. Печатаем имя и отвечаем
-            # ошибкой, как отвечает настоящий шлюз.
-            print("MOCK_UNKNOWN_METHOD " + method, flush=True)
-            await connection.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {"code": -32601, "message": f"method not found: {method}"},
-                    }
-                )
-            )
+        except ConnectionClosed:
+            raise
+        except Exception as exc:  # a mock bug: answer this request, keep the socket
+            print(f"MOCK_HANDLER_CRASH {type(exc).__name__}: {exc}", flush=True)
+            if request_id is not None:
+                await send_error(connection, request_id, -32603, f"mock crashed: {exc}")
 
 
 async def settle_turn(connection: ServerConnection, answer: str) -> None:
@@ -988,22 +1168,27 @@ async def settle_turn(connection: ServerConnection, answer: str) -> None:
     nowhere, the text still sitting in the composer (task 3F.4: no second
     prompt in one session ever reached the mock).
     """
+    sid = current_session()
     if answer:
-        remember_message(ACTIVE_SESSION, "assistant", answer)
+        remember_message(sid, "assistant", answer)
     if is_canonical(connection):
         # The captured frames: the turn's last frame is the owner's idle
         # `session.info` — the admission gone from `pending`, the revision one
         # up (a turn advances it without a `session.updated`).
-        state = session_state(ACTIVE_SESSION)
+        state = session_state(sid)
         state["revision"] += 1
-        await emit(connection, "session.info", session_info_payload(ACTIVE_SESSION, running=False))
-        TURNS.pop(ACTIVE_SESSION, None)
+        await emit(
+            connection, "session.info", session_info_payload(sid, running=False), session_id=sid
+        )
+        TURNS.pop(sid, None)
         return
     await emit(connection, "session.info", {"running": False, **SESSION_INFO})
 
 
 async def stream_pong(connection: ServerConnection) -> None:
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     await push("message.start")
@@ -1024,6 +1209,8 @@ async def stream_say(connection: ServerConnection, answer: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     await push("message.start")
@@ -1043,6 +1230,8 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     await push("message.start")
@@ -1064,6 +1253,14 @@ async def stream_mcp_setup(connection: ServerConnection) -> None:
             ],
         },
     )
+    if is_canonical(connection):
+        # The owner's turn stays open until the person answers the card; the
+        # answer (`connection.respond`) releases it here, inside the turn.
+        answered = CONSENTS.setdefault("op-e2e-mcp", asyncio.Event())
+        await answered.wait()
+        CONSENTS.pop("op-e2e-mcp", None)
+        await emit(connection, "message.complete", {"text": "", "status": "complete"}, pause=0)
+        await settle_turn(connection, "")
 
 
 async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
@@ -1078,6 +1275,8 @@ async def stream_full_turn(connection: ServerConnection, prompt: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     tool_id = f"call_{prompt[-1]}"
@@ -1162,6 +1361,8 @@ async def stream_edit_turn(connection: ServerConnection, relpath: str) -> None:
     """
 
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     cwd = current_cwd()
@@ -1254,6 +1455,8 @@ async def stream_artifact_turn(connection: ServerConnection) -> None:
     into an artifact card, and the card into a sandboxed preview tab (UR22)."""
 
     async def push(event_type: str, payload: dict | None = None) -> None:
+        if event_type == "message.start" and TURN_STARTED.get():
+            return
         await emit(connection, event_type, payload)
 
     await push("message.start")

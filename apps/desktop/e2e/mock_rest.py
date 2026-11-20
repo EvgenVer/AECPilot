@@ -195,6 +195,13 @@ def register_session(session_id: str) -> None:
         _SESSIONS.append(_session(session_id, "Новый сеанс", 0, messages=0))
 
 
+def known_session(session_id: str) -> bool:
+    """A row the database holds — what the owner can resume; any other id is
+    `not_found` there."""
+    with _LOCK:
+        return any(row["id"] == session_id for row in _SESSIONS)
+
+
 def remember_message(session_id: str, role: str, text: str) -> None:
     """One stored row, in the shape `db.get_messages` returns. The session's
     own row moves to the top of the list, as it does in the core."""
@@ -447,15 +454,15 @@ class Handler(BaseHTTPRequestHandler):
         # Test control: which wire each socket opened on and how the REST
         # requests were authorised — the proof a canonical run really was one.
         if route == "/api/_mock/wire":
+            # Copied under the lock, sent after it: the socket half spends
+            # tickets under the same lock from its event loop.
             with _LOCK:
-                self._send(
-                    200,
-                    {
-                        "ws": list(_WIRES),
-                        "rest_ticketed": _REST_TICKETED,
-                        "rest_plain": list(_REST_PLAIN),
-                    },
-                )
+                wire = {
+                    "ws": list(_WIRES),
+                    "rest_ticketed": _REST_TICKETED,
+                    "rest_plain": list(_REST_PLAIN),
+                }
+            self._send(200, wire)
             return
 
         # Their readiness probe. The SHAPE matters: `StatusResponse`

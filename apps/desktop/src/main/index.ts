@@ -2695,13 +2695,24 @@ ipcMain.handle('quick:submit', async (_event, payload: unknown) => {
     if (target === 'new') await newSession()
     const activeSessionId = await ensureSession()
     await ensureSecretFilter('prompt.submit', { session_id: activeSessionId })
-    // The single gateway admits identified input only (`session_controls.submission`): without
-    // a `submission_id` it refuses 4001 invalid_params. The legacy contract refuses the key, so
-    // it rides only on the canonical wire (found by the canonical e2e mock, 2026-11-20).
+    // The single gateway admits a turn only into a session THIS socket attached, and only
+    // identified input (`session_controls.submission`: permission_denied, 4001 invalid_params).
+    // Main's cached session may predate a reconnect, so it attaches first — cheaply, without
+    // the transcript. The legacy contract refuses both, so they ride only on the canonical wire
+    // (found by the canonical e2e mock, 2026-11-20).
+    const canonical = windowWire() === 'canonical'
+    if (canonical) {
+      await gateway.request('session.resume', {
+        session_id: activeSessionId,
+        defer_history: true,
+        omit_messages: true,
+        ...(sessionProfile ? { profile: sessionProfile } : {})
+      })
+    }
     await gateway.request('prompt.submit', {
       session_id: activeSessionId,
       text,
-      ...(windowWire() === 'canonical' ? { submission_id: randomUUID() } : {})
+      ...(canonical ? { submission_id: randomUUID() } : {})
     })
     // The answer arrives in the main window, so bring it forward — otherwise a
     // prompt fired from another app looks like it went nowhere.
@@ -3241,9 +3252,12 @@ function restTarget(): RestTarget | undefined {
   if (windowWire() === 'canonical') {
     // e2e: the mock stands in for the gateway — the same tickets and profile selectors, its
     // own address (the ticket is checked there, not minted by the core's client).
-    const mockRest = process.env.AEC_GATEWAY_URL ? process.env.AEC_GATEWAY_REST_URL : undefined
-    if (mockRest) {
-      return mockGatewayRestTarget(mockRest, () => windowProfile(sessionProfile), randomUUID)
+    // Under the mock there is no core to wait for: without its REST address, no REST.
+    if (process.env.AEC_GATEWAY_URL) {
+      const mockRest = process.env.AEC_GATEWAY_REST_URL
+      return mockRest
+        ? mockGatewayRestTarget(mockRest, () => windowProfile(sessionProfile), randomUUID)
+        : undefined
     }
     return gatewayRestTarget(() => windowProfile(sessionProfile))
   }
@@ -3610,15 +3624,6 @@ ipcMain.handle('sessions:messages', async (_event, storedId: unknown) => {
 ipcMain.handle('session:context-breakdown', async () => {
   if (!gateway) throw new Error('gateway is not connected')
   return gateway.request('session.context_breakdown', { session_id: await ensureSession() })
-})
-
-ipcMain.handle('session:steer', async (_event, text: unknown) => {
-  if (!gateway) throw new Error('gateway is not connected')
-  if (typeof text !== 'string' || text.trim() === '') throw new Error('invalid steer text')
-  return gateway.request('session.steer', {
-    session_id: await ensureSession(),
-    text: text.trim()
-  })
 })
 
 ipcMain.handle('commands:catalog', async () => {

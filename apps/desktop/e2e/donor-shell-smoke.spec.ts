@@ -26,6 +26,7 @@ import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ElectronApplication, Locator, Page } from 'playwright'
 import { prepareProfile, removeProfile } from './lib/core'
+import { canonicalRunFindings } from './lib/app'
 
 const desktopDir = join(__dirname, '..')
 const venvPython = join(desktopDir, '../../runtime/.hermes-venv/Scripts/python.exe')
@@ -448,6 +449,11 @@ test.afterAll(async () => {
     if (userDataDir) rmSync(userDataDir, { force: true, recursive: true })
     if (hermesHome) removeProfile(hermesHome)
   }
+  // Per worker, so a restart after a failure does not hide what the earlier worker's mock saw.
+  expect(
+    canonicalRunFindings(mockOutput),
+    'the canonical mock saw what the gateway would refuse'
+  ).toEqual([])
 })
 
 /** Жив ли ещё рендерер — не заменило ли его их аварийным экраном.
@@ -755,8 +761,11 @@ test('the window speaks the canonical gateway protocol to the mock, as the insta
   expect(mockOutput).not.toContain('MOCK_WIRE legacy')
   // `source: gui` and a `request_id` — the create only their canonical adapter sends.
   expect(mockOutput).toMatch(/MOCK_RPC session\.create wire=canonical source='gui' request_id=yes/)
-  // The admission path: refused without a `submission_id`, answered with a receipt.
+  // The admission path: the submit passed the canonical checks (an attached session, an
+  // identity) and was answered with a receipt, the turn queued and then run.
   expect(mockOutput).toMatch(/MOCK_RPC prompt\.submit session_id='e2e-\d+' text='canonical ping'/)
+  expect(mockOutput).toMatch(/MOCK_ADMISSION queued session_id='e2e-\d+'/)
+  expect(mockOutput).not.toContain('MOCK_CANONICAL_REFUSED')
   expect(mockOutput).not.toContain('MOCK_CONTRACT_DRIFT')
 
   const wire = await mockWire()
@@ -773,6 +782,7 @@ test('the window speaks the canonical gateway protocol to the mock, as the insta
 // OS chord is not pressed here (block 12 does that, and needs an unlocked desktop): a window
 // with the quick-entry preload calls the same `quick:submit` the capture window calls.
 test('quick entry sends into the current session over the canonical wire', async () => {
+  const refusedBefore = (mockOutput.match(/MOCK_CANONICAL_REFUSED/g) ?? []).length
   const result = await app.evaluate(async ({ app: electronApp, BrowserWindow }) => {
     const win = new BrowserWindow({
       show: false,
@@ -795,7 +805,46 @@ test('quick entry sends into the current session over the canonical wire', async
   await waitForMockLine(
     /MOCK_RPC prompt\.submit session_id='e2e-\d+' text='say: быстрый ввод канон'/
   )
-  expect(mockOutput).not.toContain('MOCK_CANONICAL_REFUSED prompt.submit')
+  // This test's own refusals only — an earlier test's would not be quick entry's fault.
+  expect((mockOutput.match(/MOCK_CANONICAL_REFUSED/g) ?? []).length).toBe(refusedBefore)
+})
+
+// Stop on a running turn (review of 9fb6fdc): the composer's Stop is their adapter's
+// `session.interrupt`, fenced by the execution generation the owner stamped on the turn. The
+// mock runs turns off its read loop like the owner, so the interrupt arrives mid-turn, and a
+// wrong generation would be refused `stale_generation` — the fence the gateway applies.
+test('Stop interrupts a running turn over the canonical wire, with its generation', async () => {
+  const page = await mainWindow()
+  await hideFirstRunSurfaces(page)
+  const refusedBefore = (mockOutput.match(/MOCK_CANONICAL_REFUSED/g) ?? []).length
+  await page.getByRole('textbox', { name: /Message|Сообщение/ }).click()
+  const startedBefore = (mockOutput.match(/MOCK_TURN_STARTED/g) ?? []).length
+  // `slow:` — the answer waits three seconds inside the running turn.
+  await page.keyboard.type('slow: say: не должно дойти')
+  await page.getByRole('button', { name: /^(Send|Отправить)$/ }).click()
+  // Stop once the owner STARTED this turn (its generation is on the wire): a Stop sent while
+  // the turn is still queued carries the previous turn's generation, and the gateway refuses
+  // that as stale — the same on the core.
+  await expect
+    .poll(() => (mockOutput.match(/MOCK_TURN_STARTED/g) ?? []).length, { timeout: 15000 })
+    .toBeGreaterThan(startedBefore)
+  await page.waitForTimeout(300)
+  // The composer's own Stop (the send button turned), not the status bar's twin.
+  await page
+    .locator('form')
+    .getByRole('button', { name: /^(Stop|Стоп)$/ })
+    .click({ timeout: 5000 })
+
+  await waitForMockLine(/MOCK_TURN_INTERRUPTED/)
+  expect(mockOutput).toMatch(
+    /MOCK_RPC session\.interrupt session_id='e2e-\d+' generation=\d+ running=True/
+  )
+  expect((mockOutput.match(/MOCK_CANONICAL_REFUSED/g) ?? []).length).toBe(refusedBefore)
+  // The interrupted answer never lands, and the composer is free again.
+  await page.waitForTimeout(4000)
+  await expect(page.getByText('не должно дойти', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^(Send|Отправить)$/ })).toBeVisible()
+  await assertRendererAlive(page, 'stop on the canonical wire')
 })
 
 // Task 3.3 (SPEC UR16/HX6). Runs against the app and project the test above
@@ -2664,6 +2713,10 @@ test('the whole run stayed on the canonical wire: no unserved verb, no refusal, 
   expect(lines('MOCK_CANONICAL_REFUSED'), 'requests the gateway refuses').toEqual([])
   expect(lines('MOCK_CANONICAL_UNSUPPORTED'), 'mutations the mock does not model').toEqual([])
   expect(lines('MOCK_CONTRACT_DRIFT'), 'answers off the core contract').toEqual([])
+  expect(
+    lines('MOCK_UNKNOWN_METHOD'),
+    'methods the mock has never seen (add or list them)'
+  ).toEqual([])
   expect(lines('MOCK_WS_REFUSED'), 'sockets the gateway would not open').toEqual([])
   expect(lines('MOCK_REST_REFUSED'), 'REST the gateway would refuse').toEqual([])
   const wire = await mockWire()

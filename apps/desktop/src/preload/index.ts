@@ -353,7 +353,6 @@ const api: AecpilotApi = {
   locateDocument: (target, baseDir) => ipcRenderer.invoke('document:locate', { target, baseDir }),
   previewArtifact: (value) => ipcRenderer.invoke('artifacts:preview', value),
   getContextBreakdown: () => ipcRenderer.invoke('session:context-breakdown'),
-  steerSession: (text) => ipcRenderer.invoke('session:steer', text),
   getCommandCatalog: () => ipcRenderer.invoke('commands:catalog'),
   dispatchCommand: (name, arg) => ipcRenderer.invoke('commands:dispatch', { name, arg }),
   setYolo: (enabled) => ipcRenderer.invoke('yolo:set', enabled),

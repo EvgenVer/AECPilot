@@ -2125,10 +2125,6 @@ export interface AecpilotApi {
   /** What is filling the context window (task 1.6.B5.12). Their `color` field
    * is ignored — see `ContextBreakdownCategory`. */
   getContextBreakdown(): Promise<ContextBreakdownResult>
-  /** Injects a note into the RUNNING turn (task 1.6.B5.16). `rejected` is a
-   * normal answer: the agent declined it. Error 4010 means this agent has no
-   * steering at all. */
-  steerSession(text: string): Promise<{ status: string }>
   /** The slash-command registry behind the palette (task 1.6.B5.18). */
   getCommandCatalog(): Promise<CommandsCatalogResult>
   /** Runs one command by name (task 1.6.B5.19). The five `type`s mean five

@@ -299,6 +299,10 @@ export interface SessionResumeParams {
   /** Resume a session that lives in another profile's `state.db` (task
    * 1.6.B5.23) — same meaning as on `session.create`. */
   profile?: string
+  /** Canonical wire only (`CanonicalResumeParams`): attach without paging the transcript —
+   *  what their adapter sends before a submit; the legacy contract refuses both. */
+  defer_history?: boolean
+  omit_messages?: boolean
 }
 
 /** The `session_id` returned here is a NEW live sid — NOT the one passed in

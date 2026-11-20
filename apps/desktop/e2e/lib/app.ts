@@ -611,6 +611,26 @@ function appProcess(
   }
 }
 
+/** What the mock saw that the gateway would not let pass (T53 debt, 2026-11-20): a verb it does
+ *  not serve, a refusal, an answer off the pinned core's contract, a method the mock has never
+ *  seen, a socket or REST request it would not admit. Only for a run on the canonical wire. */
+export function canonicalRunFindings(mockOutput: string): string[] {
+  if (!mockOutput.includes('MOCK_WIRE canonical')) return []
+  const markers = [
+    'MOCK_CANONICAL_NOT_SERVED',
+    'MOCK_CANONICAL_REFUSED',
+    'MOCK_CANONICAL_UNSUPPORTED',
+    'MOCK_CONTRACT_DRIFT',
+    'MOCK_UNKNOWN_METHOD',
+    'MOCK_HANDLER_CRASH',
+    'MOCK_WS_REFUSED',
+    'MOCK_REST_REFUSED'
+  ]
+  return mockOutput
+    .split(/\r?\n/)
+    .filter((line) => markers.some((marker) => line.startsWith(marker)))
+}
+
 export function standFixture(options: LaunchOptions): { get(): Stand } {
   let stand: Stand | undefined
 
@@ -620,8 +640,13 @@ export function standFixture(options: LaunchOptions): { get(): Stand } {
 
   test.afterAll(async () => {
     test.setTimeout(closeGraceMs + 30000)
+    const output = stand?.mockOutput() ?? ''
     await stand?.close()
     stand = undefined
+    // Every spec file on the mock, not only the smoke: a drift or a refusal in a block spec
+    // would otherwise pass silently (review of 9fb6fdc).
+    const findings = canonicalRunFindings(output)
+    expect(findings, 'the canonical mock saw what the gateway would refuse').toEqual([])
   })
 
   // eslint-disable-next-line no-empty-pattern

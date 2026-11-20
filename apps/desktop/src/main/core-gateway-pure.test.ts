@@ -54,7 +54,7 @@ describe('the e2e mock on the canonical wire', () => {
       url: 'ws://127.0.0.1:9/api/ws',
       protocols: ['hermes-gateway-v1', 'hermes-gateway-ticket.t1']
     })
-    expect((await dial()).protocols[1]).toBe('hermes-gateway-ticket.t2')
+    expect((await dial()).protocols?.[1]).toBe('hermes-gateway-ticket.t2')
   })
 
   it('grants a fresh ticket per REST request and scopes the profile routes', async () => {
