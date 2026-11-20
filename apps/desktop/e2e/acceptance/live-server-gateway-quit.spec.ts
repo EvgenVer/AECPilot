@@ -30,8 +30,30 @@ function portListening(port: number): boolean {
   return out === 'True'
 }
 
+/** A `hermes gateway ensure` process is running (live specs run one worker at a time). */
+function ensureRunning(): boolean {
+  const out = execFileSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-Command',
+      "[bool](Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -match 'gateway\\s+ensure' })"
+    ],
+    { encoding: 'utf-8' }
+  ).trim()
+  return out === 'True'
+}
+
 test('выход во время подъёма шлюза: ни шлюза, ни serve после выхода', async () => {
-  // Сразу после старта: `ensure` ещё идёт (или только что закончился — тоже годится).
+  // Выход — когда `ensure` уже идёт (или только что закончился — тоже годится). Сразу после
+  // запуска нельзя: главный процесс ещё готовит профиль и до `ensure` не дошёл, выход тогда
+  // проверяет не то (2026-11-20: так спека падала три раза из трёх).
+  await expect
+    .poll(() => ensureRunning() || /gateway ensure: exit/.test(serveLog()), {
+      timeout: 120000,
+      intervals: [200]
+    })
+    .toBe(true)
   const ensuringAtQuit = !/gateway ensure: exit/.test(serveLog())
   await stand.get().app.close()
 
