@@ -275,7 +275,7 @@ test('38.5.2 кнопка «Создать» не срабатывает, пок
   const dialog = await openNewRoom(page)
   console.log('38.5 ' + (await dialog.innerText()).replace(/\n/g, ' ⏎ '))
   await memberBox(dialog, 0).click()
-  await expect(dialog.getByRole('button', { name: /^Create Group/ })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: /^Создать комнату/ })).toBeDisabled()
   await dialog.getByRole('button', { name: /^Отмена$|^Cancel$/ }).click()
   await expect(dialog).toBeHidden()
 })
@@ -300,7 +300,7 @@ test('38.6.1 комната появилась в списке с именем �
   console.log('38.6 имя по составу: ' + byMembers)
   for (const member of TEAM)
     expect(byMembers).toMatch(new RegExp(`${member.title}|${member.name}`, 'i'))
-  await dialog.getByRole('button', { name: /^Create Group \(3\)$/ }).click()
+  await dialog.getByRole('button', { name: /^Создать комнату \(3\)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 30000 })
   await expect(page.getByRole('button', { name: byMembers }).first()).toBeVisible({
     timeout: 30000

@@ -3,7 +3,8 @@
  * Source:  apps/desktop/src/app/chat/right-rail/preview-browser-bar.tsx
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the saved-login key button (preview vault) — SPEC HX24
  */
 /**
  * BROWSER BAR: back / forward / reload / address / pop-out (or pop-in) for a
@@ -33,7 +34,6 @@ import { ANNOTATE_BLUE } from '@/lib/preview-annotate'
 import { cn } from '@/lib/utils'
 import { canOpenBrowserWindow, isBrowserWindow } from '@/store/windows'
 
-import { PreviewVaultButton } from './preview-vault-picker'
 
 interface PreviewBrowserBarProps {
   annotateMode?: boolean
@@ -133,7 +133,6 @@ export function PreviewBrowserBar({
   onToggleAnnotate,
   onToggleConsole,
   onToggleDevTools,
-  tabId,
   url
 }: PreviewBrowserBarProps) {
   const { t } = useI18n()
@@ -237,7 +236,7 @@ export function PreviewBrowserBar({
           text={url}
         />
       </div>
-      {tabId ? <PreviewVaultButton tabId={tabId} url={url} /> : null}
+      {/* EDIT [3] SPEC HX24: the saved-login key button is not mounted. */}
       {onToggleAnnotate ? (
         <PaneStripGlyph
           active={annotateMode}

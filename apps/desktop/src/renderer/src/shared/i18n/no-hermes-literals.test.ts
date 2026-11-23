@@ -88,8 +88,10 @@ const DEAD_SURFACE_FILES = new Set([
   join('lib', 'browser-notifications.ts'),
   join('lib', 'browser-transport.ts'),
   join('app', 'session', 'hooks', 'use-prompt-actions', 'browser-manage-refusal.ts'),
-  // 0.23.3 (T86): сохранённые подключения их веб-приложения (HX33) — зовёт только
-  // `lib/browser-connection.ts` хоста `browser`.
+  // 0.23.3 (T86): сохранённые подключения их веб-приложения (HX33) — зовут
+  // `lib/browser-connection.ts` хоста `browser` и поле `webapp-oauth-paste-field.tsx`
+  // (в окне приложения оно ничего не рисует). Если поле начнёт рисоваться — убрать
+  // строку отсюда, и страж увидит их тексты.
   join('lib', 'browser-saved-connections.ts'),
   join('lib', 'browser-saved-connection-oauth.ts'),
   // 0.23.3 (T86): палитра их раздела «Резервная копия» — перенос в Hermes Cloud (HX3);

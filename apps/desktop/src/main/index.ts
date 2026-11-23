@@ -58,7 +58,7 @@ import {
   type ServerScanState,
   type ServerState
 } from './remote-project-pure'
-import { isAllowedPermission } from './media-permission-pure'
+import { applyPermissionPolicy } from './permission-policy'
 import {
   AUTOWRITE_FILE,
   decideNoteWrite,
@@ -6867,17 +6867,7 @@ ipcMain.handle('vault:get-entry-path', (_event, payload: unknown) => {
  * `media-permission-pure.ts`; both callbacks are needed because most web APIs
  * check first and only then request. */
 function installPermissionPolicy(): void {
-  const ses = session.defaultSession
-
-  ses.setPermissionRequestHandler((_contents, permission, callback, details) => {
-    const kinds = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
-    callback(isAllowedPermission(permission, kinds))
-  })
-
-  ses.setPermissionCheckHandler((_contents, permission, _origin, details) => {
-    const kind = details.mediaType
-    return isAllowedPermission(permission, kind && kind !== 'unknown' ? [kind] : [])
-  })
+  applyPermissionPolicy(session.defaultSession)
 }
 
 // Задача 3.13b: схема для звука и видео с машины ядра. Регистрируется ДО

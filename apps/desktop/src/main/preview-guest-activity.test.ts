@@ -9,9 +9,10 @@ import {
   endPreviewGuestActivity,
   executePreviewGuestScript,
   holdOwnerAwake,
-  isPreviewPartition,
-  previewPartitionForProfile
+  isPreviewPartition
 } from './preview-guest-activity'
+// The window names the jar; main must admit exactly what it names.
+import { previewPartitionForProfile } from '../renderer/src/donor/hermes-electron/preview-guest-throttle'
 
 function contents(
   type: 'window' | 'webview',

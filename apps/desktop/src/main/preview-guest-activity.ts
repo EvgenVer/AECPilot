@@ -12,7 +12,7 @@
 // we have no pool, only the window's own background throttling.
 //
 // Since 0.23.3 their preview pane gives every profile but the default its own
-// cookie jar (`previewPartitionForProfile`), so the guest's session is no longer
+// cookie jar (`previewPartitionForProfile` in the donor's `preview-guest-throttle.ts`), so the guest's session is no longer
 // always the default one (task T86).
 //
 // Trust: the renderer could already call `webview.executeJavaScript` on its own
@@ -23,22 +23,6 @@ import type { Session, WebContents } from 'electron'
 
 /** The launch/default preview jar; every other profile rides a sibling of it. */
 export const PREVIEW_GUEST_PARTITION = 'persist:hermes-preview'
-
-// Colon-free on purpose (their note): Electron percent-escapes ':' in the on-disk
-// profile folder, and a Windows folder named with '%3A' gets a cookie store the
-// network stack can neither read nor write.
-function sanitizePartitionComponent(id: string): string {
-  return encodeURIComponent(id).replace(/%/g, '_')
-}
-
-/** The preview jar a tab owned by `profile` rides — byte-identical to the one the
- * window's `<webview>` carries (`donor/hermes-electron/preview-guest-throttle.ts`). */
-export function previewPartitionForProfile(profile: string | null | undefined): string {
-  const key = (profile ?? '').trim() || 'default'
-  return key === 'default'
-    ? PREVIEW_GUEST_PARTITION
-    : `${PREVIEW_GUEST_PARTITION}-${sanitizePartitionComponent(key)}`
-}
 
 /** The default jar and its per-profile siblings, and nothing else. */
 export function isPreviewPartition(partition: string | undefined): boolean {

@@ -167,7 +167,7 @@ test('53.1.2 комната, созданная в окне, — комната 
   const name = dialog.getByRole('textbox', { name: 'Имя комнаты' })
   roomName = (await name.getAttribute('placeholder')) ?? ''
   console.log('53.1.2 имя по составу: ' + roomName)
-  await dialog.getByRole('button', { name: /^Create Group \(3\)$/ }).click()
+  await dialog.getByRole('button', { name: /^Создать комнату \(3\)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 60000 })
   await expect(page.getByRole('button', { name: roomName }).first()).toBeVisible({
     timeout: 60000

@@ -180,7 +180,7 @@ test('53.6.2 подготовка: комната из трёх, ведущий 
   }
   roomName =
     (await dialog.getByRole('textbox', { name: 'Имя комнаты' }).getAttribute('placeholder')) ?? ''
-  await dialog.getByRole('button', { name: /^Create Group \(3\)$/ }).click()
+  await dialog.getByRole('button', { name: /^Создать комнату \(3\)$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 60000 })
   await expect(page.getByRole('button', { name: roomName }).first()).toBeVisible({
     timeout: 60000

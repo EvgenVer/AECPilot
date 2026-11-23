@@ -26,6 +26,7 @@ import { app, dialog, session, BrowserWindow, type WebContents } from 'electron'
 
 import { decidePreviewNavigation, describeNavigation } from './preview-nav-policy'
 import { admitPreviewGuestPartition } from './preview-guest-activity'
+import { applyPermissionPolicy } from './permission-policy'
 import { mainT } from './i18n'
 
 /** Адрес, с которого шла последняя разрешённая навигация каждого гостя. */
@@ -110,7 +111,16 @@ export function installPreviewGuestGuard(): void {
     // предпросмотра. Банку гостя запоминаем при подключении, чтобы аренда гостя
     // (`preview-guest-activity.ts`) узнала его сеанс.
     if (contents.getType() === 'window') {
-      contents.on('will-attach-webview', (_attachEvent, _webPreferences, params) => {
+      contents.on('will-attach-webview', (_attachEvent, webPreferences, params) => {
+        // Ревью T88: гость — чужая страница. Скрипт предзагрузки ему не положен, изоляция
+        // и песочница — всегда, что бы ни прислало окно (донор их и так ставит).
+        delete webPreferences.preload
+        webPreferences.nodeIntegration = false
+        webPreferences.contextIsolation = true
+        webPreferences.sandbox = true
+        // Без обработчика Electron выдаёт странице любое разрешение: банка любого гостя
+        // (у каждого профиля своя) получает ту же политику, что и окно.
+        if (params.partition) applyPermissionPolicy(session.fromPartition(params.partition))
         admitPreviewGuestPartition(params.partition, (partition) =>
           session.fromPartition(partition)
         )
