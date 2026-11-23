@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/browser-served-profiles.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -40,8 +40,14 @@ export class UnservedProfileError extends Error {
  * Only an inventory read (`refresh`) fetches the set. Routing reads the cached answer (`serves`)
  * and never waits on the network. Until a gateway reports the set, every installed profile counts
  * as served, which is how the tab treated them before the set was read.
+ *
+ * `ownProfile` names the profile the gateway runs as: this tab's launch profile on the serving
+ * gateway, the active one a relayed gateway reports (browser-saved-connections.ts).
  */
-export function createServedProfiles(api: <T>(request: HermesApiRequest) => Promise<T>) {
+export function createServedProfiles(
+  api: <T>(request: HermesApiRequest) => Promise<T>,
+  ownProfile: () => null | Promise<null | string | undefined> | string = browserLaunchProfileOrDefault
+) {
   let served: null | Set<string> = null
   // The installed list the last read went with. A reconnect clears it so the next read re-reads.
   let readFor: null | string = null
@@ -50,10 +56,13 @@ export function createServedProfiles(api: <T>(request: HermesApiRequest) => Prom
 
   const read = async () => {
     try {
-      const status = await api<{ gateway_shared_with?: null | string[] }>({
-        path: '/api/status',
-        timeoutMs: SERVED_SET_READ_TIMEOUT_MS
-      })
+      const [status, own] = await Promise.all([
+        api<{ gateway_shared_with?: null | string[] }>({
+          path: '/api/status',
+          timeoutMs: SERVED_SET_READ_TIMEOUT_MS
+        }),
+        ownProfile()
+      ])
 
       // An access token that expired since the tab's last gated request reads as signed out here,
       // and that body omits the set; it is no answer about which profiles are served. Keep the last
@@ -68,7 +77,7 @@ export function createServedProfiles(api: <T>(request: HermesApiRequest) => Prom
 
       // Absent on a backend older than the field; [] on a gateway that serves only its own profile.
       served = Array.isArray(shared)
-        ? new Set([...shared.map(name => profileKey(String(name))), browserLaunchProfileOrDefault()])
+        ? new Set([...shared.map(name => profileKey(String(name))), profileKey(own)])
         : null
     } catch {
       // A failed read keeps the last answer: a status blip must not change which profiles are reachable.
@@ -104,3 +113,5 @@ export function createServedProfiles(api: <T>(request: HermesApiRequest) => Prom
     serves: (profile?: null | string) => served === null || served.has(profileKey(profile))
   }
 }
+
+export type ServedProfiles = ReturnType<typeof createServedProfiles>

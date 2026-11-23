@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/types.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,6 +24,11 @@ export interface TimelinePartMetadata {
   /** Raw streamed text behind a `text` part whose MEDIA tags are already rendered,
    * so the next delta re-renders from the source instead of the render. */
   mediaSource?: string
+  /** Stored reply a live `text` tail part already shows ahead of its stream (a
+   * reconnect page's body the live row adopted): its raw text and the segment
+   * offset it reaches, so the stream's deltas that repeat it (including ones
+   * past a chunk the reconnect lost) are not drawn twice. */
+  storedTail?: { end: number; text: string }
   /** Stored tool result without a matching assistant call in the loaded page.
    *  Render for history, but never treat it as authoritative Todo state. */
   unpairedStoredToolResult?: boolean
@@ -88,6 +93,13 @@ export type ChatMessage = {
   serverRowSpan?: number
   /** Emoji reactions on this message — one per author (see MessageReaction). */
   reactions?: MessageReaction[]
+  /** A safety-refused turn kept for display only. The backend dropped the whole
+   *  refused turn from the model's context but retained the user's own message
+   *  (projected as a `content_refused` user row). It renders as a greyed,
+   *  non-interactive block showing the text plus `notice` — never a normal user
+   *  bubble and never the model's reply. `notice` is absent on older backends;
+   *  the renderer falls back to an i18n string. */
+  contentRefused?: { notice?: string }
 }
 
 export type GatewayEventPayload = {

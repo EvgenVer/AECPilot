@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_delegation_routing.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -74,6 +74,12 @@ export const arDelegationRouting: DelegationRoutingTranslations = {
   tierFast: 'سريعة',
   tierUltrafast: 'فائقة السرعة',
   tierHint: 'فقط في النماذج التي توفرها.',
+  daybreakLabel: 'Daybreak',
+  daybreakOff: 'إيقاف',
+  daybreakOn: 'تشغيل',
+  daybreakHint: 'وصول OpenAI الموثوق بقيود أقل، لهذا المسار فقط.',
+  daybreakUnlisted: 'هذا النموذج غير مدرج لـ Daybreak في حسابك. أوقفه أو اختر نموذجًا آخر.',
+  daybreakNeedsPlugin: 'إضافة Advanced Delegation لديك لا تشغّل مسارات Daybreak بعد. حدّثها أو أوقف هذا الخيار.',
   optional: 'اختياري',
   errors: { required: 'مطلوب', spaces: 'بلا مسافات', duplicate: 'مسار آخر يستخدم هذا الاسم بالفعل' },
   saveRoute: 'حفظ المسار',

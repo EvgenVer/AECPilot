@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/preview-browser-bar.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -31,6 +31,9 @@ import { useI18n } from '@/i18n'
 import { isSubmitEnter } from '@/lib/ime'
 import { ANNOTATE_BLUE } from '@/lib/preview-annotate'
 import { cn } from '@/lib/utils'
+import { canOpenBrowserWindow, isBrowserWindow } from '@/store/windows'
+
+import { PreviewVaultButton } from './preview-vault-picker'
 
 interface PreviewBrowserBarProps {
   annotateMode?: boolean
@@ -53,6 +56,8 @@ interface PreviewBrowserBarProps {
   onToggleAnnotate?: () => void
   onToggleConsole: () => void
   onToggleDevTools: () => void
+  /** The Browser tab this bar drives; set = offer the saved-login key button. */
+  tabId?: string
   /** The page's CURRENT address (it moves as the user navigates), not the
    *  target the tab was opened with. */
   url: string
@@ -103,6 +108,11 @@ export function normalizePreviewAddress(value: string): null | string {
   }
 }
 
+/** "Open in browser" for a window that can neither pop out nor pop in. */
+export function externalOpenerFor(url: string): (() => void) | undefined {
+  return !isBrowserWindow() && !canOpenBrowserWindow() ? () => void window.hermesDesktop?.openExternal(url) : undefined
+}
+
 export function PreviewBrowserBar({
   annotateMode = false,
   canGoBack,
@@ -123,6 +133,7 @@ export function PreviewBrowserBar({
   onToggleAnnotate,
   onToggleConsole,
   onToggleDevTools,
+  tabId,
   url
 }: PreviewBrowserBarProps) {
   const { t } = useI18n()
@@ -226,6 +237,7 @@ export function PreviewBrowserBar({
           text={url}
         />
       </div>
+      {tabId ? <PreviewVaultButton tabId={tabId} url={url} /> : null}
       {onToggleAnnotate ? (
         <PaneStripGlyph
           active={annotateMode}

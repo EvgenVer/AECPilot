@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-rounds.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -651,7 +651,7 @@ async function harvestGroupRoundMembers(context: GroupRoundMemberContext): Promi
  *  Watermarks are per thread+member (`${thread}::${memberKey}`), so parallel
  *  topics never eat each other's deltas. */
 export async function runGroupChatRounds(group: string, members: GroupMember[], thread: string, failedMembers = new Set<string>()) {
-  if (group.startsWith('canonical:')) {throw new Error('Canonical rooms are driven by the gateway')}
+  if (group.startsWith('canonical:')) {throw new Error('This group chat runs on its gateway')}
 
   const binding = followGroupChat(group, name => {
     group = name
@@ -887,7 +887,7 @@ export function sendToGroupChat(
   thread?: null | string,
   images?: Attachment[]
 ): null | string {
-  if (group.startsWith('canonical:')) {throw new Error('Canonical rooms are driven by the gateway')}
+  if (group.startsWith('canonical:')) {throw new Error('This group chat runs on its gateway')}
   const trimmed = String(text || '').trim()
 
   if (rejectGroupSlashCommand(trimmed)) {

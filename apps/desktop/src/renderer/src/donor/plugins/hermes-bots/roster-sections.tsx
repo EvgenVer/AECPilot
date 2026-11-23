@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/roster-sections.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import { cn, Codicon, ConnectionGlyph, DisclosureCaret, RowButton, Tip } from '@
 import type { ReactNode } from 'react'
 
 import { botHandle, botRosterKey, botSourceStatus, filterBots } from './data'
+import { botsText, useBots } from './i18n'
 import { displayName } from './labels'
 import { botRosterMeta } from './routing'
 import type { BotMeta, GatewaySource, RosterRow } from './types'
@@ -196,7 +197,7 @@ export function rosterGatewaySections<TRow extends RosterGatewayRow>(
       option: {
         connectionId: id,
         kind: bot?.connectionKind || 'remote',
-        label: bot?.connectionLabel || (id === 'legacy' ? 'Current gateway' : id),
+        label: bot?.connectionLabel || (id === 'legacy' ? botsText().roster.currentGateway : id),
         reachable: bot?.sourceReachable,
         error: bot?.sourceError
       },
@@ -309,12 +310,14 @@ interface GatewaySectionHeadingProps {
 }
 
 export function GatewaySectionHeading({ collapsed, count, onToggle, option }: GatewaySectionHeadingProps) {
+  const b = useBots()
+
   const status = botSourceStatus({
     sourceError: option?.error,
     sourceReachable: option?.reachable
   })
 
-  const label = option?.label || option?.connectionId || 'Current gateway'
+  const label = option?.label || option?.connectionId || b.roster.currentGateway
   const kind = option?.kind || 'remote'
 
   return (
@@ -325,7 +328,7 @@ export function GatewaySectionHeading({ collapsed, count, onToggle, option }: Ga
       label={label}
       onToggle={onToggle}
       status={status}
-      tip={`${label} · ${kind} · ${status.label}`}
+      tip={`${label} · ${status.label}`}
     />
   )
 }

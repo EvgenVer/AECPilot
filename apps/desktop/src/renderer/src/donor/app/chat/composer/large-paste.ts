@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/large-paste.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,6 +16,9 @@
 
 /** Characters beyond which a plain-text paste becomes a `.txt` attachment. */
 export const LARGE_PASTE_ATTACHMENT_THRESHOLD = 3_000
+
+/** savePastedText's byte cap (`electron/hardening.ts` COMPOSER_PASTE_MAX_BYTES); a paste kept inline honours it too. */
+export const LARGE_PASTE_MAX_BYTES = 64 * 1024 * 1024
 
 /** Maximum source text retained exclusively for automatic title generation. */
 export const LARGE_PASTE_TITLE_PREVIEW_CHARS = 1_000

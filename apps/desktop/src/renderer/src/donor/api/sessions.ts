@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/sessions.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -62,6 +62,17 @@ function sessionScoped(scope?: ProfileScope): { connectionId?: string; profile?:
  */
 function sessionWriteProfile(profile?: null | string): string | undefined {
   return String(profile ?? '').trim() || getApiRequestProfile() || undefined
+}
+
+/** Request scope for a list read that names ONE profile: the named profile
+ *  rides the request too, so a Bot Mode read of a bot other than the ambient
+ *  profile never pairs `?profile=<ambient>` with the bot's selector (the
+ *  gateway's grant check refuses the pair: 403 profile_scope_mismatch). */
+function listProfileScoped(profile: string): { profile?: string } {
+  const { priority: _priority, ...ambient } = profileScoped()
+  const named = String(profile || '').trim()
+
+  return named && named !== 'all' && named !== ambient.profile ? { ...ambient, profile: named } : ambient
 }
 
 function sessionScopeQuery(scope?: ProfileScope): string {
@@ -158,7 +169,7 @@ export async function listAllProfileSessions(
     : ''
 
   const result = await hermesApi<PaginatedSessions>({
-    ...profileScoped(),
+    ...listProfileScoped(profile),
     path:
       `/api/profiles/sessions?limit=${limit}&offset=${Math.max(0, offset)}&min_messages=${Math.max(0, minMessages)}` +
       `&archived=${archived}&order=${order}&profile=${encodeURIComponent(profile)}${sourceParam}${excludeParam}`,
@@ -343,7 +354,7 @@ export async function listSidebarSessions(req: SidebarSessionsRequest): Promise<
 
   try {
     result = await hermesApi<SidebarSessionsResponse>({
-      ...profileScoped(),
+      ...listProfileScoped(req.recentsProfile),
       path: `/api/profiles/sessions/sidebar?${params.toString()}`,
       timeoutMs: SESSION_LIST_REQUEST_TIMEOUT_MS
     })
@@ -656,8 +667,8 @@ export async function fetchStoredTranscriptAcrossBackends(id: string): Promise<S
 /**
  * One page of messages OLDER than the `offset` newest rows.
  *
- * Backend semantics (`_handle_session_messages` → `SessionDB.get_messages`
- * with `latest=True`): the offset is measured back from the NEWEST message
+ * Backend semantics (`_handle_session_messages` → `messages.read_transcript`
+ * with `TranscriptRead(latest=True)`): the offset is measured back from the NEWEST message
  * and the selected page is returned in chronological order. So after a tail
  * hydration of N rows, `getOlderSessionMessages(id, profile, N)` returns the
  * page immediately preceding it, ready to prepend.

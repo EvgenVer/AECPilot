@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ru_preview_web.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -56,5 +56,15 @@ export const ruPreviewWeb: TranslationOverride<Translations['preview']['web']> =
   loadFailedConsole: (code, message) => `Не удалось загрузить${code ? ` (${code})` : ''}: ${message}`,
   unreachableDescription: 'Страница предпросмотра недоступна.',
   openTarget: url => `Открыть ${url}`,
-  fallbackTitle: 'Предпросмотр'
+  fallbackTitle: 'Предпросмотр',
+  vaultFill: 'Подставить сохранённый вход',
+  vaultTitle: site => `Сохранённые входы для ${site}`,
+  vaultLoading: 'Загрузка сохранённых входов…',
+  vaultEmpty: 'Для этого сайта нет сохранённого входа',
+  vaultUnlock: name => `Разблокировать ${name}`,
+  vaultOpenSettings: 'Открыть настройки хранилища учётных данных',
+  vaultFilled: label => `${label}: данные подставлены. Проверьте форму и войдите.`,
+  vaultFillFailed: 'Не удалось подставить вход',
+  vaultLoadFailed: 'Не удалось загрузить сохранённые входы',
+  vaultPageNotReady: 'Страница ещё загружается. Повторите, когда загрузка завершится.'
 }

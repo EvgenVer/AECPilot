@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/sessions-settings.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -230,7 +230,7 @@ function ArchivedSessionsSettings({ includeDefaultDirectory }: { includeDefaultD
 
 // Opt-in retention: soft-hide chats untouched for N days. The policy itself
 // (last-activity sweep, pin exemption) lives in the backend
-// (sessions.auto_archive in config.yaml + SessionDB.maybe_auto_archive); this
+// (sessions.auto_archive in config.yaml + session_retention.run_auto_archive); this
 // just toggles the config keys, so CLI / gateway / Desktop all honour one
 // setting. Pins are exempt on the backend, so pinned chats survive regardless.
 function AutoArchiveSetting() {

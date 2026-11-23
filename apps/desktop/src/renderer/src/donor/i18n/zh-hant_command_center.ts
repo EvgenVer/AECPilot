@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_command_center.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -142,7 +142,12 @@ export const zhHantCommandCenter = {
     noModelUsage: '暫無模型使用量。',
     topSkills: '常用技能',
     noSkillActivity: '暫無技能活動。',
-    actions: count => `${count} 次動作`
+    actions: count => `${count} 次動作`,
+    maintenance: {
+      debugShareConfirm: '要將偵錯報告上傳到公開貼上服務嗎？',
+      debugShareConfirmDesc:
+        '將摘要上傳到公開貼上服務：Hermes、Python 與作業系統版本，已連線平台與工具集名稱，設定鍵名（不含值），以及警告/錯誤計數。不包含任何日誌行或訊息文字。貼上內容會在 6 小時後自動刪除；若 paste.rs 無法連線，備援的 dpaste.com 會將其公開保留 1 天，且無法提前刪除。'
+    }
   },
 
   messaging: {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/en_local_models.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -74,6 +74,8 @@ export const enLocalModels: Translations['settings']['localModels'] = {
   updateTitle: 'Engine update available',
   updateDetail: (next, current) =>
     `A newer llama.cpp build (${next}) is ready to install — you're on ${current}. Models keep working during the download.`,
+  updateSameBuildDetail: tag =>
+    `Hermes now packages llama.cpp ${tag} with files it needs to run. Updating downloads the engine again; models keep working during the download.`,
   updateAction: 'Update engine',
   updating: 'Updating engine…',
   upToDateTitle: 'Engine up to date',

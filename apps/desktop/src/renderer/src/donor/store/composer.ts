@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/composer.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -638,6 +638,13 @@ let announcedNewSessionDraftKey: string | null = null
 export function announceNewSessionDraftKey(toKey: string | null | undefined): void {
   announcedNewSessionDraftKey = toKey?.trim() || null
 }
+
+/** Whether the pending announcement names `toKey` (does not consume it). */
+export const newSessionDraftAnnouncedFor = (toKey: string | null | undefined): boolean =>
+  !!announcedNewSessionDraftKey && announcedNewSessionDraftKey === toKey?.trim()
+
+/** The session a fresh chat's draft is waiting to be adopted by, if any. */
+export const pendingNewSessionDraftKey = (): string | null => announcedNewSessionDraftKey
 
 /** Consume the announcement; move the `__new__` draft when it names `toKey`.
  *  True when the announcement named `toKey` (the caller hands the rest of the

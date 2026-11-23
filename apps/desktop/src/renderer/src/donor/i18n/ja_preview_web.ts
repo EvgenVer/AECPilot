@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_preview_web.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -53,5 +53,15 @@ export const jaPreviewWeb: TranslationOverride<Translations['preview']['web']> =
   loadFailedConsole: (code, message) => `読み込みに失敗しました${code ? ` (${code})` : ''}: ${message}`,
   unreachableDescription: 'プレビューページに到達できませんでした。',
   openTarget: url => `${url} を開く`,
-  fallbackTitle: 'プレビュー'
+  fallbackTitle: 'プレビュー',
+  vaultFill: '保存済みのログインを入力',
+  vaultTitle: site => `${site} の保存済みログイン`,
+  vaultLoading: '保存済みのログインを読み込み中…',
+  vaultEmpty: 'このサイトの保存済みログインはありません',
+  vaultUnlock: name => `${name} のロックを解除`,
+  vaultOpenSettings: '認証情報ボールトの設定を開く',
+  vaultFilled: label => `${label} を入力しました。フォームを確認してからサインインしてください。`,
+  vaultFillFailed: 'ログインを入力できませんでした',
+  vaultLoadFailed: '保存済みのログインを読み込めませんでした',
+  vaultPageNotReady: 'ページを読み込み中です。完了してから再試行してください。'
 }

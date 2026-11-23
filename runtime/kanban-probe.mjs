@@ -40,7 +40,7 @@ import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 const FORCE_PY = [
   "import json",
   "import sys",
-  "from tools.checkpoint_manager import CheckpointManager",
+  "from agent.checkpoints.manager import CheckpointManager",
   "mgr = CheckpointManager(enabled=True)",
   "print(json.dumps({\"taken\": mgr.ensure_checkpoint(sys.argv[1], reason=sys.argv[2])}))"
 ].join(String.fromCharCode(10));

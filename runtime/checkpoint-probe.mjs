@@ -17,7 +17,7 @@
 //      `wiki/` subdir with one file, mirroring docs/history/specs/workspace-sources.md).
 //   3. Forces a checkpoint via CheckpointManager.ensure_checkpoint() — the
 //      core's own public "take a snapshot now" method
-//      (tools/checkpoint_manager.py); no `hermes checkpoints ...` CLI
+//      (agent/checkpoints/manager.py since 0.23.3); no `hermes checkpoints ...` CLI
 //      subcommand does this for an arbitrary directory, so this is the
 //      documented way to provoke one without running the agent. First with
 //      no marker anywhere in the vault (case A), then again after dropping
@@ -45,7 +45,7 @@ import { startServe, waitHealthy, stopServe } from "./serve.mjs";
 
 // Small standalone helper run with the venv's own python.exe. Kept as a
 // generated temp file (not a tracked repo file) so this probe stays a
-// single new file per its brief. Talks to tools/checkpoint_manager.py
+// single new file per its brief. Talks to agent/checkpoints/ (tools/checkpoint_manager.py before 0.23.3)
 // directly — no agent, no model.
 const HELPER_PY = `
 import json
@@ -54,7 +54,7 @@ import sys
 
 def main():
     mode = sys.argv[1]
-    from tools.checkpoint_manager import CheckpointManager
+    from agent.checkpoints.manager import CheckpointManager
 
     if mode == "get_workdir":
         mgr = CheckpointManager(enabled=True)
@@ -64,7 +64,7 @@ def main():
         taken = mgr.ensure_checkpoint(sys.argv[2], reason=sys.argv[3])
         print(json.dumps({"taken": taken}))
     elif mode == "prune":
-        from tools.checkpoint_manager import prune_checkpoints
+        from agent.checkpoints.maintenance import prune_checkpoints
         # retention_days=0 disables the age-based sweep entirely (see
         # prune_checkpoints docstring) — only orphans (workdir no longer on
         # disk) are removed, so this can never touch a real, still-existing

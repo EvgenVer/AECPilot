@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/catalog/catalog-browser.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -106,6 +106,9 @@ function mergeInstalled(
         ...entry,
         id: installed.id,
         version: installed.version || entry.version,
+        locked: installed.locked,
+        usage: installed.usage,
+        updateAvailable: installed.updateAvailable,
         search: `${entry.search} ${installed.search}`
       }
     ]
@@ -159,6 +162,7 @@ function CatalogSortSelect({
 
   const sortLabels: Record<CatalogSort, string> = {
     discover: c.featured,
+    usage: c.mostUsed,
     stars: c.mostStarred,
     newest: c.newest,
     updated: c.recentlyUpdated,
@@ -268,12 +272,12 @@ const detailRelated = (entries: CatalogEntry[], selected: CatalogEntry | undefin
   selected && shown ? relatedEntries(entries, selected, RELATED_COUNT) : []
 
 /** Discovery shelves show only while browsing everything. */
-/** Shelves (not a flat grid) while nothing narrows the catalog, and also
+/** Shelves (not a flat grid) while nothing narrows or ranks by use the catalog, and also
  *  while only tiers (plugins) or several categories do: Official / Verified
  *  stay their own shelves, Community and multi-category picks keep their
  *  category shelves. One category is a drill-in, so it stays a flat grid. */
-const isDiscoverView = (facets: CatalogFacets, query: string, kind: CatalogKind) =>
-  (kind === 'plugins' || !facets.sources.length) && facets.categories.length !== 1 && !facets.tags.length && !query && !facets.installedOnly
+const isDiscoverView = (facets: CatalogFacets, query: string, kind: CatalogKind, sort: CatalogSort) =>
+  sort !== 'usage' && (kind === 'plugins' || !facets.sources.length) && facets.categories.length !== 1 && !facets.tags.length && !query && !facets.installedOnly && !facets.updatesOnly
 
 function CatalogLoadState({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   const { t } = useI18n()
@@ -376,7 +380,7 @@ export const CatalogBrowser = memo(function CatalogBrowser({
   const visible = isSuperseded ? entries.filter(entry => !isSuperseded(entry)) : entries
   const filtered = sortCatalog(filterCatalog(visible, facets, deferredQuery, isInstalled, kind), sort, kind)
 
-  const discover = isDiscoverView(facets, deferredQuery, kind)
+  const discover = isDiscoverView(facets, deferredQuery, kind, sort)
   const pageOrder = filtered
 
   const selected = visible.find(entry => entry.id === selectedId) ?? filtered[0]
@@ -479,10 +483,12 @@ export const CatalogBrowser = memo(function CatalogBrowser({
             onInstalled={filters.toggleInstalled}
             onSource={filters.toggleSource}
             onTag={filters.toggleTag}
+            onUpdates={filters.toggleUpdates}
             resultCount={filtered.length}
             sortControl={sortControl}
             sources={catalogSources(visible, kind)}
             tags={catalogTags(visible, facets.tags, TAG_LIMIT)}
+            updateCount={visible.filter(entry => entry.updateAvailable).length}
           />
           {notice}
           {error && entries.length > 0 && (
@@ -501,7 +507,7 @@ export const CatalogBrowser = memo(function CatalogBrowser({
                   <div
                     className="capabilities-scroll"
                     data-catalog-scroll
-                    key={`${filterKey}:${sort}:${deferredQuery}:${facets.installedOnly}`}
+                    key={`${filterKey}:${sort}:${deferredQuery}:${facets.installedOnly}:${facets.updatesOnly}`}
                   >
                     {discover ? (
                       <CatalogDiscovery actions={actions} byCategory={facets.categories.length > 1} card={card} entries={filtered} kind={kind} narrowed={facets.sources.length > 0 || facets.categories.length > 1} onCategory={filters.chooseCategory} />

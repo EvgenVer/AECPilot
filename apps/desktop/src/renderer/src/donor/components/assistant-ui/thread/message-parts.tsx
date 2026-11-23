@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/thread/message-parts.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -76,7 +76,13 @@ const ImageGenerateTool: FC<TimelineToolCallProps> = props => {
 const DelegateToolPart: FC<TimelineToolCallProps> = props => {
   // A call that failed outright dispatched nothing — there are no children to
   // list, only an error. The generic row extracts and expands it properly.
-  if (props.isError || settledWithoutResult(props)) {
+  //
+  // The gateway carries that failure inside `result` (a rejected batch answers
+  // `{"error": ...}`, never the top-level error that sets isError), so the body
+  // has to be read too. Without it a rejected batch still listed one row per
+  // goal it was handed — rows a sibling retry's live children then matched by
+  // goal text, so the same subagents painted twice.
+  if (toolCallFailed(props) || settledWithoutResult(props)) {
     return <ToolFallback {...props} />
   }
 

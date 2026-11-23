@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/chat-messages/hydration.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -189,8 +189,16 @@ const NOTICE_DISPLAY_KINDS = [
   'auto_continue',
   'personality_switch',
   // Hermes closing a failed turn, not the model speaking.
-  'failed_turn'
+  'failed_turn',
+  // A safety-refused turn retained for display: the user's own message, shown
+  // greyed with a notice. Rendered through the system path, never a user bubble.
+  'content_refused'
 ] as const
+
+// agent/turn_failure_copy.py::CONTENT_REFUSED_DISPLAY_KIND. The retained turn
+// arrives as a single `user` row carrying the user's original message plus a
+// notice in display_metadata.content_refused (CONTENT_REFUSED_METADATA_KEY).
+const CONTENT_REFUSED_DISPLAY_KIND = 'content_refused'
 
 function isMachineNotice(displayKind: SessionMessage['display_kind']): boolean {
   return displayKind !== undefined && (NOTICE_DISPLAY_KINDS as readonly string[]).includes(displayKind)
@@ -233,6 +241,36 @@ function failedTurnError(
   const error = typeof parsed?.error === 'string' && parsed.error.trim() ? parsed.error : errorSurface.code
 
   return { error, errorSurface }
+}
+
+// agent/turn_failure_copy.py::CONTENT_REFUSED_NOTICE, stored under
+// display_metadata.content_refused.notice. Absent on older backends — the
+// renderer falls back to an i18n string then.
+function contentRefusedNotice(metadata: SessionMessage['display_metadata']): string | undefined {
+  const refused = parseDisplayMetadata(metadata)?.content_refused
+
+  if (!refused || typeof refused !== 'object') {
+    return undefined
+  }
+
+  const notice = (refused as Record<string, unknown>).notice
+
+  return typeof notice === 'string' && notice.trim() ? notice : undefined
+}
+
+// The spreadable contentRefused field for a hydrated row: present only on a
+// retained safety-refused turn, carrying its notice when the backend supplied
+// one. Extracted so toChatMessages keeps its complexity within the ratchet.
+function contentRefusedField(
+  message: SessionMessage
+): { contentRefused: { notice?: string } } | Record<string, never> {
+  if (message.display_kind !== CONTENT_REFUSED_DISPLAY_KIND) {
+    return {}
+  }
+
+  const notice = contentRefusedNotice(message.display_metadata)
+
+  return { contentRefused: notice ? { notice } : {} }
 }
 
 function timelineTaskCount(metadata: SessionMessage['display_metadata']): number | undefined {
@@ -658,6 +696,9 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     }
 
     const reactions = messageReactions(message.display_metadata)
+
+    const contentRefused = contentRefusedField(message)
+
     // Gateway resume names the durable row id `row_id`; the REST transcript
     // prefetch ships the same messages.id as a numeric `id`. Either one lets
     // reactions address this exact row later.
@@ -675,7 +716,8 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       ...(pendingAbsorbedRows > 0 ? { serverRowSpan: pendingAbsorbedRows + 1 } : {}),
       ...(reactions.length ? { reactions } : {}),
       ...(message.role === 'assistant' && messageInterrupted(message.display_metadata) ? { interrupted: true } : {}),
-      ...(extractedAttachmentRefs ? { attachmentRefs: extractedAttachmentRefs } : {})
+      ...(extractedAttachmentRefs ? { attachmentRefs: extractedAttachmentRefs } : {}),
+      ...contentRefused
     })
 
     activeAssistantIndex = message.role === 'assistant' ? result.length - 1 : null
@@ -691,7 +733,11 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
   return withUniqueToolCallIds(
     withoutGeneratedImageEchoes.filter(
       m =>
-        chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text') || m.attachmentRefs?.length || m.error
+        chatMessageText(m).trim() ||
+        m.parts.some(part => part.type !== 'text') ||
+        m.attachmentRefs?.length ||
+        m.error ||
+        m.contentRefused
     )
   )
 }

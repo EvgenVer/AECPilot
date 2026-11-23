@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_catalog.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,9 @@ export const jaCatalog = {
   mostStarred: 'スターが多い順',
   newest: '新着',
   recentlyUpdated: '最近の更新',
+  mostUsed: 'よく使う順',
+  updateAvailable: '更新あり',
+  updatesAvailable: (count: number) => `更新 · ${count}`,
   alphabetical: '名前',
   sortBy: '並べ替え',
   seeAll: 'すべて表示',

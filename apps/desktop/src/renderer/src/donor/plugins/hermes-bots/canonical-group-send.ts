@@ -1,15 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/canonical-group-send.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits:
- *   [5] their product name in user-visible strings → ours (SPEC C12)
- * (no other edits)
+ * Edits: none
  */
 import { randomUuid } from '@hermes/plugin-sdk'
 
 import type { CanonicalGroupBinding } from './canonical-groups'
+import { botsText } from './i18n'
 
 const STORAGE_KEY = 'hermes.desktop.canonicalGroupSends.v1'
 
@@ -31,7 +30,7 @@ export interface PreparedCanonicalGroupSend {
 
 function journalKey(binding: CanonicalGroupBinding): string {
   if (![binding.connectionId, binding.profile, binding.roomId].every(value => typeof value === 'string' && value.trim())) {
-    throw new Error('Canonical group Send requires an explicit connection, profile and room')
+    throw new Error(botsText().group.sendRouteRequired)
   }
 
   // A separate namespace inside the existing origin-scoped native journal.
@@ -46,7 +45,7 @@ async function readJournal(): Promise<Record<string, PreparedCanonicalGroupSend>
     : window.localStorage.getItem(STORAGE_KEY) || '{}')
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Invalid canonical group Send journal')
+    throw new Error(botsText().group.savedMessagesUnreadable)
   }
 
   return parsed as Record<string, PreparedCanonicalGroupSend>
@@ -66,7 +65,7 @@ async function compareAndSet(
   // downgrade a native write failure to Chromium's deferred localStorage.
   if (native) {
     // An older preload has no atomic op: refuse rather than fall back to a racy read-then-write.
-    if (!native.compareAndSet) {throw new Error('Group Send needs an updated Desktop; restart AECPilot')}
+    if (!native.compareAndSet) {throw new Error(botsText().group.sendNeedsUpdate)}
 
     return native.compareAndSet(key, expected, entry)
   }
@@ -90,7 +89,7 @@ function validEntry(binding: CanonicalGroupBinding, key: string, entry: Prepared
     !entry.params.event_id || !entry.params.payload || typeof entry.params.payload !== 'object' ||
     (entry.attempts !== undefined && !(Number.isSafeInteger(entry.attempts) && entry.attempts >= 0)) ||
     (entry.handedBack !== undefined && (entry.handedBack !== true || entry.attempts !== 0)))) {
-    throw new Error('Invalid canonical group Send entry')
+    throw new Error(botsText().group.savedMessageUnreadable)
   }
 
   return entry

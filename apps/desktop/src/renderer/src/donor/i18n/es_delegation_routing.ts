@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_delegation_routing.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -85,6 +85,12 @@ export const esDelegationRouting: DelegationRoutingTranslations = {
   tierFast: 'Rápida',
   tierUltrafast: 'Ultrarrápida',
   tierHint: 'Solo en modelos que la ofrecen.',
+  daybreakLabel: 'Daybreak',
+  daybreakOff: 'Desactivado',
+  daybreakOn: 'Activado',
+  daybreakHint: 'Acceso de confianza de OpenAI con menos restricciones, solo para esta ruta.',
+  daybreakUnlisted: 'Este modelo no figura para Daybreak en tu cuenta. Desactívalo o elige otro modelo.',
+  daybreakNeedsPlugin: 'Tu plugin Advanced Delegation aún no ejecuta rutas Daybreak. Actualízalo o desactiva esto.',
   optional: 'opcional',
   errors: { required: 'Obligatorio', spaces: 'Sin espacios', duplicate: 'Otra ruta ya usa este nombre' },
   saveRoute: 'Guardar ruta',

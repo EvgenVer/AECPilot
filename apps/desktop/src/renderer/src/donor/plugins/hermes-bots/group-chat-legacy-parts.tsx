@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-legacy-parts.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -13,7 +13,6 @@
 import { cn, Codicon, Tip } from '@hermes/plugin-sdk'
 import type { ReactNode } from 'react'
 
-import { useNowSeconds } from './canonical-group-activity'
 import { useCanonicalGroupLabels } from './canonical-group-labels'
 import type { GroupActivityEntry } from './group-activity'
 import { RoomActivityRow, RoomTypingRow } from './group-room-ui'
@@ -23,10 +22,9 @@ import type { GroupMember } from './types'
  *  time counts from its latest `working` activity (ms). The legacy engine sees no tool frames. */
 export function LegacyTypingRow({ avatar, name, since }: { avatar: ReactNode; name: string; since?: number }) {
   const labels = useCanonicalGroupLabels()
-  const now = useNowSeconds(true)
-  const elapsedS = typeof since === 'number' ? Math.max(0, Math.floor(now - since / 1000)) : undefined
 
-  return <RoomTypingRow avatar={avatar} labels={labels} name={name} status={{ kind: 'working', elapsedS }} />
+  return <RoomTypingRow avatar={avatar} labels={labels} name={name}
+    status={{ kind: 'working', startedAt: typeof since === 'number' ? since / 1000 : undefined }} />
 }
 
 /** While the room runs: the member on turn as a typing row, else waiting-for-you / working. */
@@ -56,7 +54,7 @@ export function LegacyRoomTitle({ availabilityLabel, countLabel, group, image, m
       : <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-(--ui-bg-quaternary) text-(--ui-text-tertiary)">
         <Codicon name="organization" />
       </span>}
-    <span className="min-w-0 truncate">{group}</span>
+    <span className="min-w-0 truncate" title={group}>{group}</span>
     <Tip label={memberNames}>
       <span aria-label={availabilityLabel} className={cn('shrink-0 text-xs font-normal text-(--ui-text-tertiary)', short && 'text-amber-600 dark:text-amber-300')}>
         {short ? availabilityLabel : countLabel}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_delegation_routing.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -81,6 +81,13 @@ export const jaDelegationRouting: DelegationRoutingTranslations = {
   tierFast: '高速',
   tierUltrafast: '超高速',
   tierHint: '対応しているモデルのみ。',
+  daybreakLabel: 'Daybreak',
+  daybreakOff: 'オフ',
+  daybreakOn: 'オン',
+  daybreakHint: 'ガードレールを緩和した OpenAI の信頼済みアクセス（このルートのみ）。',
+  daybreakUnlisted: 'このモデルはお使いのアカウントで Daybreak の対象外です。オフにするか別のモデルを選んでください。',
+  daybreakNeedsPlugin:
+    'お使いの Advanced Delegation プラグインはまだ Daybreak ルートに対応していません。更新するか、オフにしてください。',
   optional: '任意',
   errors: { required: '必須', spaces: 'スペースは使えません', duplicate: 'この名前は別のルートで使われています' },
   saveRoute: 'ルートを保存',

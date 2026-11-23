@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/local-preview.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -229,7 +229,8 @@ export async function openPreviewTargetInBrowser(target: PreviewTarget): Promise
     throw new Error('Desktop preview buffer bridge is unavailable')
   }
 
-  const decoded = atob(dataUrl.slice(dataUrl.indexOf(',') + 1))
+  // saveImageBuffer refuses zero bytes, so an empty remote document is staged as a blank page.
+  const decoded = atob(dataUrl.slice(dataUrl.indexOf(',') + 1)) || '<!doctype html>'
   const bytes = Uint8Array.from(decoded, char => char.charCodeAt(0))
   const filePath = await bridge.saveImageBuffer(bytes, '.html')
 

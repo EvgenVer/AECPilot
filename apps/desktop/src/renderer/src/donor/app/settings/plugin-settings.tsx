@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/plugin-settings.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -89,6 +89,8 @@ export const PAGE_SCOPED_PARAMS = [
   'plugin',
   'ppage',
   'agent',
+  // Backup & Transfer's preselected cloud agent (the portal link names it).
+  'cloudAgent',
   PLUGIN_SETTINGS_PROFILE_PARAM
 ] as const
 

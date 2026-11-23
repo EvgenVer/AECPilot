@@ -1,17 +1,18 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/plugin-install-run.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { enablePackageDesktopHalf } from '@/contrib/plugins-store'
+import { enableCatalogDesktopPlugin, enablePackageDesktopHalf } from '@/contrib/plugins-store'
 import { discoverRuntimePlugins } from '@/contrib/runtime-loader'
 import type { useI18n } from '@/i18n'
 import { isBrowserHostedDesktop } from '@/lib/platform'
 import {
   type AgentPluginInstallResult,
   type AgentPluginLiveNow,
+  type DesktopHalfInstallResult,
   type GatewayRequest,
   installAgentPlugin,
   installDesktopPluginHalf,
@@ -92,7 +93,7 @@ export interface InstallDeps {
  *  source left it; only a replacement of both halves may follow. `needsConfirm`: the backend cannot hold the
  *  install to the reviewed commit and installed nothing; the user decides whether to install anyway. */
 export type InstallOutcome =
-  | { error: string; status: 'failed' }
+  | { canForce?: boolean; error: string; status: 'failed' }
   | { error: string; status: 'partial' }
   | { error: string; status: 'stale' }
   | { status: 'done' }
@@ -104,6 +105,8 @@ interface Report {
   successes: string[]
   /** A half was refused on the backend's or Electron's structured source-moved marker. */
   sourceMoved: boolean
+  /** The desktop half was refused because a plugin of that name is installed: Force replaces it. */
+  exists: boolean
 }
 
 /** What an agent-plugin install made usable, as toast fragments ("12 tools connected", ...). */
@@ -140,8 +143,8 @@ function notifyAgentFollowUps(result: AgentPluginInstallResult, name: string, de
 /** The commit the dialog showed, which both halves are held to: a branch that moved, or a catalog entry
  *  re-pinned, since must not install a tree nobody reviewed. A catalog pick shows its reviewed pin
  *  (`request.sha`), unless the backend read the entry at that pin (`probe.catalogPin`: the browser-hosted
- *  app), whose commit a re-inspection re-reads. Electron's probe reads the branch tip, which a catalog
- *  install never checks out. */
+ *  app), whose commit a re-inspection re-reads. Electron's probe reads the pin's peeled commit, while the
+ *  pin itself may name a tag object. */
 export function reviewedCommit({ probe, request }: Pick<InstallPlan, 'probe' | 'request'>): string | undefined {
   return !request.catalogName || probe.catalogPin ? probe.sha : request.sha
 }
@@ -187,18 +190,22 @@ async function cloneDesktopHalf(
   // clones the desktop half here: the host copies it out of that one checkout (`desktopHalfFromPackage`).
   const installFn = window.hermesDesktop?.installDesktopPlugin
 
-  const result: { error?: string; ok: boolean; pluginName?: string; sourceMoved?: boolean; unsupported?: boolean } =
-    installFn
-      ? await installFn({ identifier: plan.request.repo, force: plan.force, sha: plan.ref ?? reviewedCommit(plan) })
-      : await installDesktopPluginHalf(deps.requestGateway, {
-          identifier: plan.request.repo,
-          catalogName: plan.request.catalogName,
-          force: plan.force,
-          profile: plan.profile,
-          // The pin the user typed, else the commit the dialog showed: the host installs exactly that tree
-          // or refuses.
-          ref: plan.ref ?? reviewedCommit(plan)
-        })
+  const result: DesktopHalfInstallResult = installFn
+    ? await installFn({
+        identifier: plan.request.repo,
+        force: plan.force,
+        sha: plan.ref ?? reviewedCommit(plan),
+        catalogName: plan.request.catalogName
+      })
+    : await installDesktopPluginHalf(deps.requestGateway, {
+        identifier: plan.request.repo,
+        catalogName: plan.request.catalogName,
+        force: plan.force,
+        profile: plan.profile,
+        // The pin the user typed, else the commit the dialog showed: the host installs exactly that tree
+        // or refuses.
+        ref: plan.ref ?? reviewedCommit(plan)
+      })
 
   if (!result.ok) {
     // A backend older than this build has no place to put the half: say what this environment can do,
@@ -206,12 +213,18 @@ async function cloneDesktopHalf(
     report.errors.push(result.unsupported ? copy.desktopUnavailable : result.error || copy.desktopFailed)
     // A pin the user typed that the source lacks is their pin to fix; a fresh inspection cannot change it.
     report.sourceMoved ||= !plan.ref && Boolean(result.sourceMoved)
+    report.exists ||= Boolean(result.exists)
 
     return
   }
 
   report.successes.push(copy.desktopSuccess(result.pluginName ?? plan.request.repo))
   await discoverRuntimePlugins()
+
+  // A standalone plugin that ships off by default would otherwise sit off behind a dialog that said it turns on.
+  if (plan.enable && plan.request.catalogName) {
+    await enableCatalogDesktopPlugin(plan.request.catalogName)
+  }
 }
 
 /** Whether the app's desktop-plugins root holds `<name>/plugin.js` after a reconcile, read from the folder
@@ -321,7 +334,12 @@ function failedOutcome(plan: InstallPlan, deps: InstallDeps, report: Report, age
     return { status: 'partial', error: deps.copy.partialInstall(sha) }
   }
 
-  return { status: report.sourceMoved ? 'stale' : 'failed', error: report.errors.join(' ') }
+  const error = report.errors.join(' ')
+
+  // Force reinstalls every half the dialog installs: offered only when no half went in that it would replace.
+  return report.sourceMoved
+    ? { status: 'stale', error }
+    : { status: 'failed', error, canForce: report.exists && !agentInstalled }
 }
 
 /** Install every half `installComponents` picks, then refresh the inventory. A client timeout on the agent
@@ -333,7 +351,7 @@ export async function runPluginInstall(plan: InstallPlan, deps: InstallDeps): Pr
     return { status: 'failed', error: deps.copy.nothingToInstall }
   }
 
-  const report: Report = { errors: [], successes: [], sourceMoved: false }
+  const report: Report = { errors: [], exists: false, successes: [], sourceMoved: false }
   const agentResult = components.agent ? await installAgentHalf(plan, deps, report) : undefined
   const stopped = agentResult && agentStopsInstall(agentResult, plan, deps, report)
 

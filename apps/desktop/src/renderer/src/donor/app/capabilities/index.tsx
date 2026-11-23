@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/index.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -180,6 +180,9 @@ export function CapabilitiesView({
       onTabChange={id => setMode(id as CapabilityMode)}
       // Every tab renders the shared CapabilitySearch beside its own results.
       searchHidden
+      // The profile picker shares the tab row. Plugins scopes only its Agent
+      // half, so its picker lives in that column instead.
+      searchTrailingAction={mode !== 'plugins' && <CapabilityScopeSelector scope={scope} />}
       tabs={[
         { id: 'skills', label: t.skills.tabSkills, meta: skills?.length ?? null },
         { id: 'plugins', label: t.skills.tabPlugins },
@@ -188,10 +191,7 @@ export function CapabilitiesView({
       ]}
       tabsAlign="start"
     >
-      <div className="flex h-full flex-col">
-        {mode !== 'plugins' && <CapabilityScopeSelector scope={scope} />}
-        <div className="flex min-h-0 flex-1 flex-col">{loadGate ?? tabContent[mode]()}</div>
-      </div>
+      <div className="flex h-full flex-col">{loadGate ?? tabContent[mode]()}</div>
     </PageSearchShell>
   )
 }

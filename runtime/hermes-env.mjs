@@ -11,7 +11,7 @@ export const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 // 0.22.0 made Python 3.14 mandatory: every core dependency carries the marker
 // `python_version >= '3.14'` and `[tool.uv] environments` is >=3.14 — on 3.12 the
 // core installs with no dependencies at all. Owner permission 2026-10-15 (task T20.3).
-export const HERMES_VERSION = "0.23.0";
+export const HERMES_VERSION = "0.23.3";
 export const PYTHON_VERSION = "3.14.6";
 
 // The core is installed from git, not from PyPI: the author stopped publishing
@@ -51,6 +51,12 @@ export const PYTHON_VERSION = "3.14.6";
 // Python stays 3.14. The core now holds versions through `[tool.uv]
 // override-dependencies`, which setup.mjs passes on (`writeOverrides`).
 //
+// 0.23.3 (task T85, decision 0023; owner approval 2026-11-21): three patch rollups after
+// 0.23.0, raised for the MCP double result, the Windows gateway listener and the PyAV pin.
+// `git ls-remote --tags` on 2026-11-21:
+//   2861fe3744f8134b782659438961a4f69ab5d495  refs/tags/v0.23.3     (tag object)
+//   caafe5389ae585ef77387a962aee05b1bcf17029  refs/tags/v0.23.3^{}  (the commit)
+//
 // Previous pins:
 //   v2026.8.3  = 0.20.0, commit 3c27eb6234bf91b8ceee9e9071591b31e9b148cb
 //   v2026.8.18 = 0.20.4, commit e624e9fde561e1add9388384012b295fde669ade (task 3.B0)
@@ -62,10 +68,11 @@ export const PYTHON_VERSION = "3.14.6";
 //                Python 3.12.13
 //   v0.22.2    = 0.22.2, commit d923a5eb487a17c0a68801bba9ef0f56c81040a8 (task T20.3),
 //                Python 3.14.6
+//   v0.23.0    = 0.23.0, commit 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (task T51)
 // --8<-- [start:core_pin]
 export const HERMES_REPO = "https://github.com/NousResearch/hermes-agent";
-export const HERMES_TAG = "v0.23.0";
-export const HERMES_SHA = "2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19";
+export const HERMES_TAG = "v0.23.3";
+export const HERMES_SHA = "caafe5389ae585ef77387a962aee05b1bcf17029";
 // --8<-- [end:core_pin]
 
 // Mem0 left the core in 0.22.0: `plugins/memory/mem0` and the `mem0` extra are gone,

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/chat/zoomable-image.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils'
 import { $transcriptLightbox, closeTranscriptLightbox, openTranscriptLightbox } from '@/store/transcript-lightbox'
 
 export interface ZoomableImageProps extends ComponentProps<'img'> {
+  /** Classes for the click target around the image, e.g. a definite height inside a reserved frame. */
+  buttonClassName?: string
   containerClassName?: string
   slot?: string
   /** Full-resolution source for the lightbox and download. When set, the inline
@@ -37,6 +39,7 @@ export interface ImageActionCopy {
 }
 
 export function ZoomableImage({
+  buttonClassName,
   className,
   containerClassName,
   src,
@@ -69,7 +72,10 @@ export function ZoomableImage({
       >
         <button
           aria-label={canOpen ? copy.openImage : undefined}
-          className="block max-w-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
+          className={cn(
+            'block max-w-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
+            buttonClassName
+          )}
           disabled={!canOpen}
           onClick={() => canOpen && openTranscriptLightbox(fullSrc)}
           type="button"

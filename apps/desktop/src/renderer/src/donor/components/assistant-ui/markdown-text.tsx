@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/markdown-text.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] MarkdownLink's href dispatch registers one more of our own surfaces —
@@ -515,6 +515,11 @@ function MarkdownImageContent({
   // the w-fit container hugs it so the download button and shadow sit on the
   // image, not on the letterbox. Without a frame (a source that failed last
   // time) it lays out as a plain capped image, like before frames existed.
+  // The click target takes the frame's height so the image's max-h-full has a
+  // definite height to resolve against. Without it a portrait image ignores
+  // the cap and paints over the text below the frame (#154409). A button
+  // centres its content vertically, so it is a top-aligned flex box: a shorter
+  // image stays at the top, under the download button.
   const framed = Boolean(image.frameStyle)
 
   return (
@@ -523,6 +528,7 @@ function MarkdownImageContent({
         <ZoomableImage
           {...props}
           alt={alt}
+          buttonClassName={framed ? 'flex h-full items-start' : undefined}
           className={cn(
             'm-0 block h-auto w-auto max-w-full rounded-lg object-scale-down shadow-[0_0.0625rem_0.125rem_color-mix(in_srgb,#000_4%,transparent),0_0.625rem_1.5rem_color-mix(in_srgb,#000_5%,transparent)]',
             framed ? 'max-h-full' : 'max-h-(--image-preview-height)',

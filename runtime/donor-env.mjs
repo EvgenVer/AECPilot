@@ -16,7 +16,7 @@ import { DEV_HERMES_SRC_DIR, HERMES_SHA } from "./hermes-env.mjs";
 // let the UI and the core drift, which is the failure mode this pin exists to
 // prevent.
 export const DONOR_SHA = HERMES_SHA;
-export const DONOR_TAG = "v0.23.0";
+export const DONOR_TAG = "v0.23.3";
 
 // `apps/desktop/package.json` version at DONOR_SHA. Upstream stopped bumping it
 // with the core release train, so it is recorded as the

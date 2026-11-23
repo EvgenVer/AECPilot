@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-test-utils.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -465,6 +465,7 @@ export async function pluginSdkMock(host: Record<string, unknown>) {
   const { Textarea } = await import('@/components/ui/textarea')
   const { cn } = await import('@/lib/utils')
   const { randomUuid } = await import('@hermes/shared')
+  const { LruCache } = await import('@/lib/lru-cache')
 
   // The gateway Group Chat row's right-click menu (#143571) renders the real one.
   const { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } =
@@ -501,6 +502,7 @@ export async function pluginSdkMock(host: Record<string, unknown>) {
     Tip: ({ children }: { children: unknown }) => children,
     useGatewayActivationEpoch: () => 0,
     host,
+    LruCache,
     randomUuid,
     CapabilitiesView: undefined,
     MessageTextContent: undefined,

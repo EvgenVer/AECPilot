@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/voice-prefs.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -29,6 +29,18 @@ function storeAutoSpeak(enabled: boolean, provisional: boolean) {
   autoSpeakChosen = true
   persistBoolean(AUTO_SPEAK_KEY, enabled, { provisional })
   $autoSpeakReplies.set(enabled)
+}
+
+// Follow the toggle in every open window. The preference sync announces another
+// window's change with a `storage` event; without this, turning read-aloud off
+// in one window left every other window still speaking.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key === AUTO_SPEAK_KEY) {
+      autoSpeakChosen = event.newValue !== null
+      $autoSpeakReplies.set(storedBoolean(AUTO_SPEAK_KEY, false))
+    }
+  })
 }
 
 // Backend default for `voice.stop_phrases` (DEFAULT_VOICE_STOP_PHRASES in

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-turns.test.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -869,6 +869,7 @@ describe('clarify and approvals (#90694)', () => {
     }
 
     // Rejected member setup/submit must not publish failure cues into a new room.
+    // Each scenario needs a fresh ID: late sync callbacks can carry the previous room's tombstone.
     for (const continuation of [false, true]) {
       for (const rejectedMethod of ['session.resume', 'prompt.submit']) {
         const room = await loadRoom()
@@ -878,7 +879,7 @@ describe('clarify and approvals (#90694)', () => {
         const members = [{ name: 'research' }, { name: 'ops' }]
         room.chat.updateGroupChat('Core', current => ({
           ...current,
-          roomId: 'old-rejection-room',
+          roomId: `old-rejection-room-${continuation}-${rejectedMethod}`,
           running: true,
           log: continuation
             ? [
@@ -956,7 +957,7 @@ describe('clarify and approvals (#90694)', () => {
       const room = await loadRoom()
       const view = await import('./group-chat-view')
       const member = { name: 'research', title: '' }
-      room.chat.updateGroupChat('Core', current => ({ ...current, roomId: 'retired-room' }))
+      room.chat.updateGroupChat('Core', current => ({ ...current, roomId: `retired-room-${recreate}` }))
       let entered!: () => void
       let release!: () => void
 

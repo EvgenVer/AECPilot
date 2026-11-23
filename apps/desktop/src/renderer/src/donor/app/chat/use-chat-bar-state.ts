@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/use-chat-bar-state.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -68,7 +68,10 @@ export function useChatBarState({
     [currentModel, currentProvider, modelOptionsQuery.data]
   )
 
-  const supportsReasoning = currentModelCapabilities(modelOptionsQuery.data, currentProvider, currentModel)?.reasoning
+  const caps = currentModelCapabilities(modelOptionsQuery.data, currentProvider, currentModel)
+  const supportsReasoning = caps?.reasoning
+  const supportsFast = caps ? Boolean(caps.fast) : undefined
+  const supportsUltrafast = caps ? Boolean(caps.ultrafast) : undefined
 
   return useMemo<ChatBarState>(
     () => ({
@@ -80,7 +83,9 @@ export function useChatBarState({
         modelMenuContent,
         quickModels,
         reasoningMenuContent,
-        supportsReasoning
+        supportsFast,
+        supportsReasoning,
+        supportsUltrafast
       },
       tools: {
         enabled: true,
@@ -100,7 +105,9 @@ export function useChatBarState({
       modelMenuContent,
       quickModels,
       reasoningMenuContent,
-      supportsReasoning
+      supportsFast,
+      supportsReasoning,
+      supportsUltrafast
     ]
   )
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/canonical-group-routed.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -115,16 +115,20 @@ export function pausedDiscussions(events: readonly CanonicalGroupEvent[], maxCon
   const ordered = [...events].sort((a, b) => a.seq - b.seq)
   const { counts, grants } = pauseCounts(ordered)
   const moved = movedOnPauses(ordered)
-  // A Stop after the discussion's own message fences it for good, even one older than the cap notice.
+  // A Stop, or a newer user message in its thread, after the discussion's own message fences it for
+  // good, even one older than the cap notice (the gateway refuses that Continue).
   const lastStop = ordered.reduce((seq, event) => event.kind === 'room.stop_requested' ? event.seq : seq, 0)
   const sourceSeq = new Map(ordered.flatMap(event => event.kind === 'message.user' && event.event_id ? [[event.event_id, event.seq] as const] : []))
+  const lastUserInThread = new Map(ordered.flatMap(event => event.kind === 'message.user' && typeof event.payload.thread_id === 'string' ? [[event.payload.thread_id, event.seq] as const] : []))
   const result = new Map<number, CanonicalPausedDiscussion>()
 
   for (const event of ordered) {
     if (!isBoundedActivity(event)) {continue}
 
     const discussion = discussionOf(event)
-    const fenced = lastStop > (sourceSeq.get(discussion) ?? event.seq)
+    const source = sourceSeq.get(discussion) ?? event.seq
+    const thread = typeof event.payload.thread_id === 'string' ? event.payload.thread_id : ''
+    const fenced = lastStop > source || (!!thread && (lastUserInThread.get(thread) ?? 0) > source)
     result.set(event.seq, { count: counts.get(event.seq) ?? 0, actionable: !!discussion && !fenced && !moved.has(event.seq) && (grants.get(discussion) ?? 0) < maxContinues })
   }
 

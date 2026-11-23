@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/sidebar/profile-launch-menu.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { LOCAL_CONNECTION_ID } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import type { ReactNode } from 'react'
 
@@ -18,12 +19,19 @@ import {
 } from '@/components/ui/context-menu'
 import type { DesktopProfileRoute } from '@/global'
 import { useI18n } from '@/i18n'
+import { hostHas } from '@/lib/host-capabilities'
 import { $defaultProfileRoute, setDefaultProfile } from '@/store/default-profile'
 import { notify, notifyError } from '@/store/notifications'
 import { canOpenNewWindow, openNewWindow } from '@/store/windows'
 
 interface ProfileLaunchMenuProps extends DesktopProfileRoute {
   label: string
+}
+
+// A Webapp tab, and every window it opens, runs on the gateway serving the page, which is also the
+// one its startup profile names: a profile on a gateway it relays to opens from the switcher only.
+function launchesHere(connectionId: null | string): boolean {
+  return !hostHas('servingOriginConnection') || !connectionId || connectionId === LOCAL_CONNECTION_ID
 }
 
 export function ProfileLaunchMenuItems({ connectionId, label, profile }: ProfileLaunchMenuProps) {
@@ -64,6 +72,10 @@ export function ProfileLaunchMenuItems({ connectionId, label, profile }: Profile
 export function ProfileLaunchContextMenu({ children, ...route }: ProfileLaunchMenuProps & { children: ReactNode }) {
   const { t } = useI18n()
 
+  if (!launchesHere(route.connectionId)) {
+    return <>{children}</>
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -82,6 +94,10 @@ export function ProfileLaunchContextMenu({ children, ...route }: ProfileLaunchMe
 }
 
 export function ProfileLaunchMenuSection(props: ProfileLaunchMenuProps) {
+  if (!launchesHere(props.connectionId)) {
+    return null
+  }
+
   return (
     <>
       <ProfileLaunchMenuItems {...props} />

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/resolve-target-session.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,7 +15,7 @@ import type { GatewayRequest } from './utils'
  *
  * Both prompt pipelines need this answer and they must agree: `submit.ts`
  * sends the user's text into it, and `slash.ts` runs backend commands against
- * it. Per-session backend state — `/goal` (persisted in SessionDB `state_meta`
+ * it. Per-session backend state — `/goal` (persisted in the session store's `state_meta`
  * under `goal:<session_id>`), usage, status, yolo — is keyed by that id, so a
  * pipeline that resolves it differently reads and writes a DIFFERENT session's
  * state than the one the user is looking at.

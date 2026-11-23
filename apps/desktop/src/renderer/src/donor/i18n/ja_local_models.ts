@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ja_local_models.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -59,6 +59,8 @@ export const jaLocalModels: TranslationOverride<Translations['settings']['localM
   updateTitle: 'エンジンの更新があります',
   updateDetail: (next, current) =>
     `新しい llama.cpp ビルド（${next}）をインストールできます——現在は ${current} です。ダウンロード中もモデルは引き続き使えます。`,
+  updateSameBuildDetail: tag =>
+    `Hermes は llama.cpp ${tag} を実行に必要なファイル付きで提供するようになりました。更新するとエンジンを再ダウンロードします。ダウンロード中もモデルは引き続き使えます。`,
   updateAction: 'エンジンを更新',
   updating: 'エンジンを更新中…',
   upToDateTitle: 'エンジンは最新です',

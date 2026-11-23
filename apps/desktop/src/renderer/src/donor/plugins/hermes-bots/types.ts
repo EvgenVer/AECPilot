@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/types.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,8 @@
  */
 
 import type { ProfileSessionPreview } from '@hermes/plugin-sdk'
+
+import type { GroupEngine } from './group-engine'
 
 /**
  * The compact age suffixes the sidebar's session rows render ("now", "m", "h",
@@ -216,10 +218,9 @@ export interface GroupChat {
   holdDetection?: boolean
   /** Bumped to abandon in-flight member turns from a previous round. */
   epoch?: number
-  /** 'desktop': created with members on two or more connections, so this
-   *  Desktop drives it for good; a later membership edit never hands it to a
-   *  gateway. Absent on older records, which fall back to membership. */
-  engine?: 'desktop'
+  /** Execution ownership survives membership changes. Gateway records capture
+   *  their connection, profile and room id; older records are resolved on open. */
+  engine?: GroupEngine
   /** Room-entry ids consumed while a member was held, replayed into that
    *  member's next visible turn. Keyed by the durable member key. */
   heldMessages?: Record<string, string[]>

@@ -1,23 +1,36 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/browser-settings.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { normalizeBasePath } from '@hermes/shared'
+import { LOCAL_CONNECTION_ID, normalizeBasePath } from '@hermes/shared'
 
 import { type BrowserHostGlobals, browserLaunchProfileOrDefault } from './platform'
 import { readKey, writeKey } from './storage'
 
 interface BrowserSettingsOptions {
-  basePath: string
+  /** The gateway the folder is chosen on: read for each call, as the window moves between gateways. */
+  basePath: () => string
   currentProfile: () => null | string
 }
 
 /** This page's hosted gateway, the same scope `createBrowserSettings` keys on. */
 export function browserPageBasePath(): string {
   return normalizeBasePath((window as Window & BrowserHostGlobals).__HERMES_BASE_PATH__)
+}
+
+/**
+ * The gateway a default folder names a path on: this page's own, or another one its gateway relays
+ * to (keyed by that relay's path), so a folder chosen on another machine never lands on this one.
+ */
+export function browserFolderBasePath(connectionId?: null | string): string {
+  const page = browserPageBasePath()
+
+  return connectionId && connectionId !== LOCAL_CONNECTION_ID
+    ? `${page}/api/relay/${encodeURIComponent(connectionId)}`
+    : page
 }
 
 /** A profile not named is the one the serving gateway runs as, the profile its
@@ -104,7 +117,7 @@ export function createBrowserSettings({
   basePath,
   currentProfile
 }: BrowserSettingsOptions): Window['hermesDesktop']['settings'] {
-  const key = () => folderKey(basePath, currentProfile() ?? '')
+  const key = () => folderKey(basePath(), currentProfile() ?? '')
 
   return {
     getDefaultProjectDir: async () => ({

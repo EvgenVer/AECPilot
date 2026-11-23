@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/catalog/catalog-filter-bar.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -27,6 +27,9 @@ interface CatalogFilterBarProps {
   onCategory: (value: string | null) => void
   onTag: (value: string | null) => void
   onInstalled: () => void
+  onUpdates: () => void
+  /** Installed entries with an upstream update; the chip shows only when > 0. */
+  updateCount: number
   onClear: () => void
   sortControl: ReactNode
   actions: ReactNode
@@ -61,7 +64,7 @@ export function CatalogFilterBar(props: CatalogFilterBarProps) {
 
   const visible = rows.filter((row, index) => index < VISIBLE_CHIPS || selected.includes(row.value))
   const overflow = rows.filter(row => !visible.includes(row))
-  const activeCount = props.facets.categories.length + props.facets.sources.length + props.facets.tags.length
+  const activeCount = props.facets.categories.length + props.facets.sources.length + props.facets.tags.length + Number(props.facets.updatesOnly)
 
   return (
     <div className="catalog-filter-bar" data-catalog-filters>
@@ -78,6 +81,11 @@ export function CatalogFilterBar(props: CatalogFilterBarProps) {
             </PopoverContent>
           </Popover>}
         </div>
+        {(props.updateCount > 0 || props.facets.updatesOnly) && (
+          <Button aria-pressed={props.facets.updatesOnly} onClick={props.onUpdates} size="xs" variant={props.facets.updatesOnly ? 'default' : 'outline'}>
+            {c.updatesAvailable(props.updateCount)}
+          </Button>
+        )}
         <div className="catalog-filter-trigger">
           <span className="text-[0.625rem] font-medium uppercase tracking-wider text-(--ui-text-tertiary)" id={`${panelId}-label`}>{c.filters}{activeCount > 0 && ` · ${activeCount}`}</span>
           <Popover onOpenChange={setExpanded} open={expanded}>

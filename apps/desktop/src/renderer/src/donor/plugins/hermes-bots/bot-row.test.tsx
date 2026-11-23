@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/bot-row.test.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,7 +26,7 @@ import type * as HermesSdk from '@hermes/plugin-sdk'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BotRow } from './bot-row'
+import { BotRow, GroupRow } from './bot-row'
 import { $groupChats } from './group-chat'
 import { translateBotsIn } from './i18n-test-helper'
 import type { RosterRow } from './types'
@@ -180,7 +180,7 @@ describe('the menu opens the same forever-chat a row click does', () => {
     const bot = { name: 'alpha' } as RosterRow
 
     fireEvent.contextMenu(renderRow(bot))
-    fireEvent.click(await screen.findByText('Open Bot Chat'))
+    fireEvent.click(await screen.findByText('Open bot chat'))
 
     expect(openRosterBot.mock.calls).toEqual([[bot]])
   })
@@ -189,7 +189,7 @@ describe('the menu opens the same forever-chat a row click does', () => {
     const bot = { name: 'alpha' } as RosterRow
 
     fireEvent.contextMenu(renderRow(bot))
-    fireEvent.click(await screen.findByText('Open Bot Chat in new tab'))
+    fireEvent.click(await screen.findByText('Open bot chat in new tab'))
 
     expect(openRosterBot.mock.calls).toEqual([[bot, { intent: 'tab' }]])
   })
@@ -254,4 +254,14 @@ describe('age label reflects the last worker run, not only the last conversation
 
     expect(screen.getByText('3d')).toBeTruthy()
   })
+})
+
+it('offers Disband for a Desktop-run group chat, matching its header action', async () => {
+  const onDisband = vi.fn()
+  const members = [{ name: 'builder' }]
+  render(<GroupRow active={false} group="Local team" members={members} needsYou={false}
+    onDisband={onDisband} onNewSection={noop} onOpen={noop} />)
+  fireEvent.contextMenu(screen.getByRole('button', { name: /Local team,/ }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Disband' }))
+  expect(onDisband).toHaveBeenCalledExactlyOnceWith({ name: 'Local team', members })
 })

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/index.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the billing section (HX2)
@@ -11,6 +11,8 @@
  *       the other two lead to our pages (SPEC UR43, task 3H.10)
  *   [3] removed the Web Access entry and view — SPEC HX33 (owner decision
  *       2026-11-07)
+ *   [3] removed the Backup entry and view — backup and transfer to Hermes Cloud,
+ *       HX3 (task T86)
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -100,6 +102,7 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'keys',
   'notifications',
   'sessions',
+  // EDIT [3]: 'backup' (backup and transfer to Hermes Cloud) is HX3.
   'plugins',
   'about'
 ]
@@ -395,6 +398,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.sessions,
             onSelect: () => setActiveView('sessions')
           },
+          // EDIT [3]: the Backup entry — backup and transfer of the agent to Hermes Cloud
+          // (`lib/hermes-cloud-agents`) — is HX3.
           {
             active: activeView === 'plugins',
             children: pluginSettingsNavChildren(plugins.entries, plugins.target, plugins.open),

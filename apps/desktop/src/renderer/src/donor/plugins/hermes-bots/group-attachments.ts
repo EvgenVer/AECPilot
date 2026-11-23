@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-attachments.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -15,6 +15,7 @@
 
 import { host } from '@hermes/plugin-sdk'
 
+import { botsText } from './i18n'
 import type { Attachment, AttachmentKind } from './types'
 
 // ── group-chat attachments: pick/paste/drop files the room's members see ────
@@ -38,6 +39,7 @@ function groupAttachmentKind(file: File): AttachmentKind {
  *  the composer paste handler, and room drag & drop. */
 export async function filesToGroupAttachments(files: File[] | FileList | null | undefined): Promise<Attachment[]> {
   const picked: Attachment[] = []
+  const labels = botsText().group
 
   for (const file of [...(files || [])]) {
     if (!file) {
@@ -47,7 +49,7 @@ export async function filesToGroupAttachments(files: File[] | FileList | null | 
     if (file.size > 15_000_000) {
       host.notify({
         kind: 'error',
-        message: `${file.name || 'attachment'}: too large (max 15MB).`
+        message: labels.attachmentTooLarge(file.name || labels.attachmentFallback)
       })
 
       continue
@@ -66,7 +68,7 @@ export async function filesToGroupAttachments(files: File[] | FileList | null | 
 
     const kind = groupAttachmentKind(file)
     picked.push({
-      name: file.name || (kind === 'image' ? 'pasted image' : 'attachment'),
+      name: file.name || (kind === 'image' ? labels.pastedImage : labels.attachmentFallback),
       data: kind === 'image' ? await normalizeGroupAttachment(data) : data,
       kind
     })

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/browser-uploads.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -80,7 +80,7 @@ function withSrcdocBase(page: string): string {
   return page.slice(0, at) + SRCDOC_BASE + page.slice(at)
 }
 
-function sandboxedHtmlBlob(bytes: Uint8Array, bootstrap: BrowserBootstrap): Blob {
+function sandboxedHtmlBlob(bytes: Uint8Array, assetsBasePath: string): Blob {
   const srcdoc = withSrcdocBase(new TextDecoder('utf-8').decode(bytes))
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
@@ -92,8 +92,8 @@ function sandboxedHtmlBlob(bytes: Uint8Array, bootstrap: BrowserBootstrap): Blob
     '<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
     '<style>html,body,iframe{box-sizing:border-box;width:100%;height:100%;margin:0;border:0}</style>',
     '</head><body>',
-    `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" data-preview-html="${srcdoc}" src="${endpointUrl('/assets/webapp-preview.html', bootstrap.basePath).href}"></iframe>`,
-    `<script src="${endpointUrl('/assets/webapp-preview.js', bootstrap.basePath).href}"></script>`,
+    `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" data-preview-html="${srcdoc}" src="${endpointUrl('/assets/webapp-preview.html', assetsBasePath).href}"></iframe>`,
+    `<script src="${endpointUrl('/assets/webapp-preview.js', assetsBasePath).href}"></script>`,
     '</body></html>'
   ].join('')
 
@@ -212,6 +212,9 @@ function selectBrowserFiles(
 interface BrowserUploadsOptions {
   api: <T>(request: HermesApiRequest) => Promise<T>
   bootstrap: BrowserBootstrap
+  /** The serving gateway's base path. The preview wrapper runs on this origin, so its own scripts
+   *  come from here even when *bootstrap* is a relayed gateway's. */
+  assetsBasePath: string
   currentProfile: () => string | null
   /** Blob URLs handed to the page; the installer revokes them on unload. */
   objectUrls: Set<string>
@@ -223,6 +226,7 @@ interface BrowserUploadsOptions {
 export function createBrowserUploadsBridge({
   api,
   bootstrap,
+  assetsBasePath,
   currentProfile,
   objectUrls,
   previewUrls
@@ -284,7 +288,7 @@ export function createBrowserUploadsBridge({
     const isHtml = extension === '.htm' || extension === '.html'
 
     const blob = isHtml
-      ? sandboxedHtmlBlob(bytes, bootstrap)
+      ? sandboxedHtmlBlob(bytes, assetsBasePath)
       : new Blob([bytes.buffer], { type: 'application/octet-stream' })
 
     const url = URL.createObjectURL(blob)

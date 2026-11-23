@@ -1,11 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/agent-plugins.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { JsonRpcGatewayError, type PluginsManageParams } from '@hermes/shared'
+import { jsonRpcErrorReason, JsonRpcGatewayError, type PluginsManageParams } from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { notifyError } from '@/store/notifications'
@@ -332,12 +332,19 @@ function backendPredatesInspectedSha(params: Record<string, unknown>, error: unk
   )
 }
 
-/** The backend refused because the source is no longer at the commit the dialog reviewed
- *  (`tui_gateway/methods_tools.py::_source_moved_data`): read it again, never resend that commit. */
-export function isSourceMovedRefusal(error: unknown): boolean {
-  const data = error instanceof JsonRpcGatewayError ? (error.data as { reason?: unknown } | undefined) : undefined
+/** Why the backend refused an install (`tui_gateway/methods_tools.py::_refusal_data`): the source is no
+ *  longer at the commit the dialog reviewed (read it again, never resend that commit), or a plugin of that
+ *  name is installed (Force replaces it). */
+type RefusalReason = 'exists' | 'source_moved'
 
-  return data?.reason === 'source_moved'
+function refusalReason(error: unknown): RefusalReason | undefined {
+  const reason = jsonRpcErrorReason(error)
+
+  return reason === 'exists' || reason === 'source_moved' ? reason : undefined
+}
+
+export function isSourceMovedRefusal(error: unknown): boolean {
+  return refusalReason(error) === 'source_moved'
 }
 
 export async function installAgentPlugin(
@@ -497,20 +504,23 @@ export async function inspectAgentPlugin(
  *  install_desktop`). Native Desktop clones one itself; a browser-hosted renderer has no disk of its
  *  own, so it asks the backend that serves the tab and the plugin appears in the folder the Webapp
  *  already loads. Never rejects. */
-export async function installDesktopPluginHalf(
-  request: GatewayRequest,
-  opts: { identifier: string; catalogName?: string; force?: boolean; profile?: string | null; ref?: string }
-): Promise<{
+/** A desktop half's install answer, from Electron's installer or the backend's (`installDesktopPluginHalf`). */
+export interface DesktopHalfInstallResult {
   ok: boolean
-  pairedWithAgent?: boolean
   pluginName?: string
   /** The backend predates the action: no retry changes that (a build older than this one). */
   unsupported?: boolean
   /** Refused: the source moved off the reviewed commit (`isSourceMovedRefusal`). */
   sourceMoved?: boolean
-  warnings: string[]
+  /** Refused: a plugin of that name is installed there. Force replaces it. */
+  exists?: boolean
   error?: string
-}> {
+}
+
+export async function installDesktopPluginHalf(
+  request: GatewayRequest,
+  opts: { identifier: string; catalogName?: string; force?: boolean; profile?: string | null; ref?: string }
+): Promise<DesktopHalfInstallResult & { pairedWithAgent?: boolean; warnings: string[] }> {
   try {
     const result = await request<{
       ok?: boolean
@@ -548,6 +558,7 @@ export async function installDesktopPluginHalf(
       ok: false,
       unsupported: e instanceof JsonRpcGatewayError && INSTALL_DESKTOP_UNSUPPORTED_CODES.has(e.code ?? 0),
       sourceMoved: isSourceMovedRefusal(e),
+      exists: refusalReason(e) === 'exists',
       warnings: [],
       error: e instanceof Error ? e.message : String(e)
     }

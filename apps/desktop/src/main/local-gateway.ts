@@ -1,7 +1,7 @@
 /**
  * Ported from Hermes Desktop (decision 0017: the window on the core's single gateway).
  * Source:  apps/desktop/electron/local-gateway.ts and apps/desktop/electron/profile-routes.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (shipped in THIRD-PARTY-NOTICES.txt with the core)
  * This is main-process code, not the donor zone: only the parts our Windows app needs,
  * kept in their shape so a pin raise can be diffed against the source.

@@ -22,9 +22,10 @@
 // Отравленная страница уводит агента не только ссылкой: ответ `302` на чужой
 // хост — тот же увоз адреса, только без клика.
 
-import { app, dialog, BrowserWindow, type WebContents } from 'electron'
+import { app, dialog, session, BrowserWindow, type WebContents } from 'electron'
 
 import { decidePreviewNavigation, describeNavigation } from './preview-nav-policy'
+import { admitPreviewGuestPartition } from './preview-guest-activity'
 import { mainT } from './i18n'
 
 /** Адрес, с которого шла последняя разрешённая навигация каждого гостя. */
@@ -105,6 +106,17 @@ function guardNavigation(
  */
 export function installPreviewGuestGuard(): void {
   app.on('web-contents-created', (_event, contents) => {
+    // Задача T86 (донор 0.23.3): у каждого профиля, кроме основного, своя банка cookies
+    // предпросмотра. Банку гостя запоминаем при подключении, чтобы аренда гостя
+    // (`preview-guest-activity.ts`) узнала его сеанс.
+    if (contents.getType() === 'window') {
+      contents.on('will-attach-webview', (_attachEvent, _webPreferences, params) => {
+        admitPreviewGuestPartition(params.partition, (partition) =>
+          session.fromPartition(partition)
+        )
+      })
+      return
+    }
     if (contents.getType() !== 'webview') return
 
     contents.on('will-navigate', (event, url) => guardNavigation(contents, event, url))

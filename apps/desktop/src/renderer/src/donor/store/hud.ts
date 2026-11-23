@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/hud.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,7 +24,7 @@ import { atom } from 'nanostores'
 
 import { requestComposerDraftSync } from '@/store/composer'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
-import { $sessions, rememberedSessionProfile } from '@/store/session'
+import { ownerLookupSessionRows, rememberedSessionProfile } from '@/store/session'
 import { isHudWindow } from '@/store/windows'
 
 /** Whether a HUD window is currently up. In the HUD's own renderer this is
@@ -68,9 +68,10 @@ export function openHud(sessionId?: null | string): void {
   // wrong backend — the lookup misses and the HUD falls back to the default
   // profile's last session (#82285). Same ladder the remembered-navigation key
   // uses: the session's stamped owner wins, and a fresh/unstamped/uncached
-  // target inherits the profile the user is looking at.
+  // target inherits the profile the user is looking at. Messaging rows live
+  // outside recents, so resolve across every slice (#126732).
   const profile = normalizeProfileKey(
-    rememberedSessionProfile($sessions.get(), sessionId ?? null, $activeGatewayProfile.get())
+    rememberedSessionProfile(ownerLookupSessionRows(), sessionId ?? null, $activeGatewayProfile.get())
   )
 
   $hudActive.set(true)

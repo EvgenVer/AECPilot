@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/embeds/url-embed.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -58,9 +58,10 @@ export function UrlEmbed({ descriptor }: { descriptor: EmbedDescriptor }) {
 
   // Privacy gate: don't reach out to the provider until consented. `off` keeps
   // it a plain link; otherwise the placeholder shows until "Load" (this embed)
-  // or "Always allow" / global `always` permits the fetch.
+  // or "Always allow" / global `always` permits the fetch. The URL is the plain
+  // link's label: without one PrettyLink would fetch the provider page for a title.
   if (mode === 'off') {
-    return <PrettyLink className="wrap-anywhere" href={descriptor.sourceUrl} />
+    return <PrettyLink className="wrap-anywhere" fallbackLabel={descriptor.sourceUrl} href={descriptor.sourceUrl} />
   }
 
   const consented = mode === 'always' || loaded || allowed.includes(descriptor.provider)

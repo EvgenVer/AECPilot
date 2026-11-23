@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/host-capabilities.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -32,6 +32,8 @@ export const HOST_CAPABILITIES = Object.freeze({
   browserContextMenu: 'browser',
   /** Shortcuts whose native chord the browser takes first (new tab, close tab) default to another chord. */
   browserShortcutDefaults: 'browser',
+  /** Hermes Cloud sign-in runs here (a portal window); the Webapp signs in from Settings ▸ Providers. */
+  cloudPortalLogin: 'native',
   /** Writes go through Electron's clipboard IPC before `navigator.clipboard`. */
   clipboardIpc: 'native',
   /** Gateway connection management (switch, connect, recover) lives on this host. */

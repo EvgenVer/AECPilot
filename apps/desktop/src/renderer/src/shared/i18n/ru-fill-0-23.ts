@@ -118,5 +118,12 @@ export const RU_FILL_023: TranslationOverride<Translations> = {
         }
       }
     }
+  },
+  // Ядро 0.23.3 (задача T86): обновление движка локальной модели той же сборки.
+  settings: {
+    localModels: {
+      updateSameBuildDetail: (tag: string) =>
+        `AECPilot теперь поставляет llama.cpp ${tag} вместе с нужными ему файлами. Обновление скачает движок заново; модели работают и во время загрузки.`
+    }
   }
 }

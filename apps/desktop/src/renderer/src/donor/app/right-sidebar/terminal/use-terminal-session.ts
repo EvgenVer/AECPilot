@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/right-sidebar/terminal/use-terminal-session.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -24,6 +24,7 @@ import { makeTerminalReader, registerTerminalReader } from './buffer'
 import { mirrorSelection } from './clipboard'
 import { trackTerminalCwd } from './cwd-tracking'
 import { terminalLinkHandler, terminalWebLinksAddon } from './links'
+import { PTY_TERMINAL_LINE_OPTIONS } from './pty-output'
 import { createReviveHistory } from './revive-history'
 import { createBootGapFilter } from './revive-snapshot'
 import {
@@ -227,7 +228,7 @@ export function useTerminalSession({
       // reads soft on every platform; VS Code keeps it off and our surface
       // (--ui-bg-chrome) is opaque anyway, so withSurface paints it solid.
       allowTransparency: false,
-      convertEol: true,
+      ...PTY_TERMINAL_LINE_OPTIONS,
       cursorBlink: true,
       fontFamily: latestFontFamilyRef.current,
       fontSize: 11,

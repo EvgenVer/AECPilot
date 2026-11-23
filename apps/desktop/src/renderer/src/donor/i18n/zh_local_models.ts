@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_local_models.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -65,6 +65,8 @@ export const zhLocalModels: TranslationOverride<Translations['settings']['localM
   updateTitle: '引擎有可用更新',
   updateDetail: (next, current) =>
     `新的 llama.cpp 构建（${next}）可以安装——当前为 ${current}。下载期间模型仍可正常使用。`,
+  updateSameBuildDetail: tag =>
+    `Hermes 现在为 llama.cpp ${tag} 附带运行所需的文件。更新会重新下载引擎，下载期间模型仍可正常使用。`,
   updateAction: '更新引擎',
   updating: '正在更新引擎…',
   upToDateTitle: '引擎已是最新',

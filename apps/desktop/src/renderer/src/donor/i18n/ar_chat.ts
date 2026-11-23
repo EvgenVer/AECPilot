@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_chat.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -114,7 +114,7 @@ export const arChat = {
       '/topup': 'عرض رصيد Nous وإدارة الفواتير',
       '/platform': 'إيقاف منصة بوابة متعثرة مؤقتًا أو استئنافها أو عرضها',
       '/version': 'عرض إصدار Hermes Agent',
-      '/debug': 'رفع تقرير تصحيح يتضمن معلومات النظام والسجلات للحصول على رابط قابل للمشاركة',
+      '/debug': 'تقرير تصحيح الأخطاء (الإصدارات وأسماء مفاتيح الإعداد وأعداد الأخطاء؛ دون نص السجلات): يعرض إشعار الخصوصية أولًا؛ /debug upload يشارك الروابط',
       '/model': 'تبديل نموذج هذه الجلسة'
     },
     hotkeyDescs: {

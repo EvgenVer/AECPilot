@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/model-pick-ledger.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -11,13 +11,13 @@
 // the last confirmed selection (or the newest pick still in flight), never
 // that snapshot.
 
-import type { ComposerModelSource } from '@/store/session'
+import type { ComposerModelSelection } from '@/store/session'
 
 export interface ModelPickSnapshot {
+  composerSelection: ComposerModelSelection
   model: string
   provider: string
   reasoningEffortWire: string
-  source: ComposerModelSource
 }
 
 interface PendingPick {
@@ -27,6 +27,8 @@ interface PendingPick {
 
 interface SessionPicks {
   confirmed: ModelPickSnapshot
+  // The pick `confirmed` came from (0: the selection before any pick): an older pick's late reply never replaces it.
+  confirmedToken: number
   pending: PendingPick[]
   shown: ModelPickSnapshot
 }
@@ -47,7 +49,7 @@ export function beginModelPick(sessionId: string, before: ModelPickSnapshot, pai
     picks.pending.push({ painted, token })
     picks.shown = painted
   } else {
-    picksBySession.set(sessionId, { confirmed: before, pending: [{ painted, token }], shown: painted })
+    picksBySession.set(sessionId, { confirmed: before, confirmedToken: 0, pending: [{ painted, token }], shown: painted })
   }
 
   return token
@@ -78,15 +80,17 @@ export function settleModelPick(sessionId: string, token: number, applied: boole
     latestPickBySession.delete(sessionId)
   }
 
-  if (applied) {
+  if (applied && token > picks.confirmedToken) {
     picks.confirmed = settled.painted
+    picks.confirmedToken = token
   }
 
   if (picks.pending.length === 0) {
     picksBySession.delete(sessionId)
   }
 
-  const target = picks.pending.at(-1)?.painted ?? picks.confirmed
+  // A pick still in flight but older than the confirmed one was already overtaken; it is no rollback target.
+  const target = picks.pending.filter(pick => pick.token > picks.confirmedToken).at(-1)?.painted ?? picks.confirmed
 
   if (applied || target === picks.shown) {
     return null

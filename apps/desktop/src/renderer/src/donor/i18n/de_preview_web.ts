@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/de_preview_web.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -64,5 +64,15 @@ export const dePreviewWeb: TranslationOverride<Translations['preview']['web']> =
   commentPlaceholder: 'Kommentar hinzufügen …',
   commentTitle: n => `Kommentar ${n}`,
   saveComment: 'Speichern',
-  cancelComment: 'Kommentar abbrechen'
+  cancelComment: 'Kommentar abbrechen',
+  vaultFill: 'Gespeicherte Anmeldung ausfüllen',
+  vaultTitle: site => `Gespeicherte Anmeldungen für ${site}`,
+  vaultLoading: 'Gespeicherte Anmeldungen werden geladen…',
+  vaultEmpty: 'Keine gespeicherte Anmeldung für diese Website',
+  vaultUnlock: name => `${name} entsperren`,
+  vaultOpenSettings: 'Einstellungen für den Anmeldedaten-Tresor öffnen',
+  vaultFilled: label => `${label} ausgefüllt. Prüfe das Formular und melde dich dann an.`,
+  vaultFillFailed: 'Die Anmeldung konnte nicht ausgefüllt werden',
+  vaultLoadFailed: 'Gespeicherte Anmeldungen konnten nicht geladen werden',
+  vaultPageNotReady: 'Die Seite lädt noch. Versuche es erneut, sobald sie fertig ist.'
 }

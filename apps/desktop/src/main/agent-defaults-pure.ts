@@ -12,7 +12,8 @@
 
 /** Их умолчание (`config_defaults.py`, `tools.tool_search.defer`) — как есть.
  * С ядра 0.22.0 в нём сам `browser_vault` (сейф стал одним инструментом), а также
- * `manage_catalog` и `set_theme`; `apply_layout` снят (задача T20.5). */
+ * `manage_catalog` и `set_theme`; `apply_layout` снят (задача T20.5). С ядра 0.23.3 —
+ * `text_to_speech` и `manage_connections` (задача T85). */
 export const CORE_DEFERRED_TOOLS = [
   'computer_use',
   'session_search',
@@ -21,6 +22,8 @@ export const CORE_DEFERRED_TOOLS = [
   'process_manage',
   'cronjob_manage',
   'browser_vault',
+  'text_to_speech',
+  'manage_connections',
   'drive_preview',
   'gui_tour',
   'desktop_preview',
@@ -109,6 +112,31 @@ export const PREVIOUS_DEFERRED_TOOLS: readonly (readonly string[])[] = [
     'browser_vault_list',
     'browser_vault_save_login',
     'browser_vault_unlock'
+  ],
+  // Ядра 0.22.0–0.23.0 (задачи T20.5–T84): без `text_to_speech` и `manage_connections`,
+  // которые ядро 0.23.3 отложило само (задача T85).
+  [
+    'computer_use',
+    'session_search',
+    'image_generate',
+    'todo_list',
+    'process_manage',
+    'cronjob_manage',
+    'browser_vault',
+    'drive_preview',
+    'gui_tour',
+    'desktop_preview',
+    'annotate_preview',
+    'manage_catalog',
+    'show_tip',
+    'desktop_project',
+    'close_terminal',
+    'set_theme',
+    'read_terminal',
+    'read_window_below',
+    'focus_pane',
+    ...KANBAN_TOOLS,
+    'browser_exec'
   ]
 ]
 

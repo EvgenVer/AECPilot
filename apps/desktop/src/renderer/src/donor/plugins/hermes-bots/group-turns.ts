@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-turns.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -38,6 +38,7 @@ import {
   formatFreshThreadRoomContext,
   GROUP_PROMPT_HEADER_PREFIX
 } from './group-round-prompt'
+import { retainRouteSocket } from './route-lease'
 import { botConnectionRoute, requestForBot } from './routing'
 import type { Attachment, GroupMember, GroupPrompt, GroupPromptQuestion, ProfileRoute } from './types'
 
@@ -568,26 +569,15 @@ export function isSessionGoneError(error: GatewayErrorLike | null | undefined): 
  *  closes mid-turn) get a no-op release. A failed acquire must not kill the
  *  turn — the catch-retry on submit still covers the race. */
 async function retainGroupTurnRoute(member: GroupMember): Promise<() => void> {
-  const noop = () => undefined
   let route: ProfileRoute | null = null
 
   try {
     route = botConnectionRoute(member)
   } catch {
-    return noop
+    return () => undefined
   }
 
-  if (!route || typeof host.retainProfile !== 'function') {
-    return noop
-  }
-
-  try {
-    const release = await host.retainProfile(route, { spawnPriority: 'foreground' })
-
-    return typeof release === 'function' ? release : noop
-  } catch {
-    return noop
-  }
+  return (route ? await retainRouteSocket(route, { spawnPriority: 'foreground' }) : null) ?? (() => undefined)
 }
 
 /** prompt.submit with one belt-and-braces retry: when the runtime session was

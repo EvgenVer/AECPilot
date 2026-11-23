@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-parts.test.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ const { host } = vi.hoisted(() => ({ host: {} as Record<string, unknown> }))
 vi.mock('@hermes/plugin-sdk', async () => {
   const { pluginSdkMock } = await import('./group-test-utils')
   const base = await pluginSdkMock(host)
+  const { en } = await import('@/i18n/en')
 
   return {
     ...base,
@@ -31,7 +32,7 @@ vi.mock('@hermes/plugin-sdk', async () => {
     Input: (props: React.ComponentProps<'input'>) => <input {...props} />,
     RowButton: (props: React.ComponentProps<'button'>) => <button type="button" {...props} />,
     Textarea: (props: React.ComponentProps<'textarea'>) => <textarea {...props} />,
-    useI18n: () => ({ t: (_key: string, fallback: string) => fallback }),
+    useI18n: () => ({ t: en }),
     // The plugin bundle normally lands via `ctx.i18n.register` at load, so
     // without this every localized label renders empty.
     usePluginI18n: () => translateBots
@@ -245,9 +246,9 @@ describe('approval card (#91706)', () => {
     render(<GroupClarifyCard entry={entry} members={MEMBERS} />)
 
     expect(screen.queryByRole('button', { name: 'Respond' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'once' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
     // A second click while the first is in flight must not double-submit.
-    fireEvent.click(screen.getByRole('button', { name: 'session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow this session' }))
 
     await vi.waitFor(() => expect(answer).toHaveBeenCalledTimes(1))
     expect(answer).toHaveBeenCalledWith(entry, MEMBERS[0], 'once')

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_command_center.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -171,7 +171,12 @@ export const arCommandCenter = {
     noModelUsage: 'لا يوجد استخدام نماذج',
     topSkills: 'أكثر المهارات استخداما',
     noSkillActivity: 'لا يوجد نشاط مهارات',
-    actions: count => `${count} إجراء`
+    actions: count => `${count} إجراء`,
+    maintenance: {
+      debugShareConfirm: 'رفع تقرير التصحيح إلى خدمة لصق عامة؟',
+      debugShareConfirmDesc:
+        'يرفع ملخصا إلى خدمة لصق عامة: إصدارات Hermes وPython ونظام التشغيل، وأسماء المنصات المتصلة ومجموعات الأدوات، وأسماء مفاتيح الإعداد (دون قيمها)، وأعداد التحذيرات والأخطاء. لا يحتوي على أي أسطر من السجلات أو نصوص الرسائل. تُحذف اللصقات تلقائيا بعد 6 ساعات؛ وإذا تعذّر الوصول إلى paste.rs فإن البديل dpaste.com يبقيها عامة ليوم واحد ولا يمكن حذفها قبل ذلك.'
+    }
   },
   messaging: {
     search: 'بحث',

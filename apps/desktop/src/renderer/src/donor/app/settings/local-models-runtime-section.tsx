@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/local-models-runtime-section.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,13 @@ export interface LocalModelsRuntimeSectionProps {
   status: LocalModelsStatus
   jobs: readonly LocalRuntimeJob[]
   lastError: LocalRuntimeJob | undefined
+}
+
+// A repin under the same tag (a runtime library joining the archive set) is not "a newer build".
+function updateDescription(copy: LocalModelsActionScope['copy'], status: LocalModelsStatus): string {
+  return status.tag === status.configured_tag
+    ? copy.updateSameBuildDetail(status.tag)
+    : copy.updateDetail(status.configured_tag, status.tag)
 }
 
 export function LocalModelsRuntimeSection({ status, jobs, lastError }: LocalModelsRuntimeSectionProps): ReactElement {
@@ -129,7 +136,7 @@ export function LocalModelsRuntimeSection({ status, jobs, lastError }: LocalMode
               {copy.updateAction}
             </Button>
           }
-          description={copy.updateDetail(status.configured_tag, status.tag)}
+          description={updateDescription(copy, status)}
           title={copy.updateTitle}
         />
       )}

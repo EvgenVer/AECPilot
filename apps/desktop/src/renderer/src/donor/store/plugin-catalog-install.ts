@@ -1,10 +1,11 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/store/plugin-catalog-install.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
+import { $pluginRecords, installedDesktopCatalogEntries } from '@/contrib/plugins-store'
 import { translateNow } from '@/i18n'
 import { lookupPluginCatalogEntry, type PluginCatalogEntry, type PluginCatalogLookupError } from '@/lib/plugin-catalog'
 
@@ -25,8 +26,13 @@ export function openCatalogPluginInstall(
   options: Pick<PluginInstallRequest, 'stayAfterInstall' | 'tier' | 'title'> = {}
 ): void {
   const existing = $agentPlugins.get().find(row => row.catalog_name === entry.name || row.name === entry.name)
+  // A desktop-only entry has no agent row; its plugin on disk names the entry and commit it came from. At an
+  // older commit than the catalog's it is an update: the dialog installs it (Force replaces the old copy).
+  const desktop = installedDesktopCatalogEntries($pluginRecords.get())
+  const installedAt = existing ? undefined : desktop.get(entry.name)
+  const desktopCurrent = Boolean(installedAt && (!entry.sha || installedAt.includes(entry.sha.toLowerCase())))
 
-  if (existing && !existing.update_available) {
+  if ((existing && !existing.update_available) || desktopCurrent) {
     notify({ kind: 'success', message: translateNow('skills.plugins.alreadyInstalled', entry.name) })
 
     return

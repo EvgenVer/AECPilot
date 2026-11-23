@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/index.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,7 @@ import { type GatewayEvent, registryBackendScopeKey } from '@hermes/shared'
 import { useCallback, useEffect, useRef } from 'react'
 
 import type { GatewayEventPayload } from '@/lib/chat-messages'
-import { acceptExecutionEvent } from '@/lib/execution-authority'
+import { acceptExecutionEvent, executionAdmission } from '@/lib/execution-authority'
 import {
   approvalReplaySessionId,
   resolveGatewayEventSessionId,
@@ -145,7 +145,20 @@ function admitExecutionEvent(
     deps.updateSessionState(sessionId, state => (state.interrupted ? { ...state, interrupted: false } : state))
   }
 
+  noteExecutionAdmission(event, sessionId, deps)
+
   return true
+}
+
+/** Record which owner admission the session's live turn runs. The in-flight journal is keyed on it: the turn's
+ *  prompt bubble can name an earlier admission (a regenerate keeps its bubble) or none (a queue drain adds none). */
+function noteExecutionAdmission(event: GatewayEvent, sessionId: null | string, deps: GatewayEventDeps): void {
+  const admissionId = executionAdmission(event)
+  const state = sessionId ? deps.sessionStateByRuntimeIdRef.current.get(sessionId) : undefined
+
+  if (sessionId && admissionId && state && state.turnAdmissionId !== admissionId) {
+    deps.updateSessionState(sessionId, current => ({ ...current, turnAdmissionId: admissionId }))
+  }
 }
 
 /** The gateway-event dispatcher, extracted from useMessageStream. */

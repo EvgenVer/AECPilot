@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/global.d.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [4] dropped the pop-out pet overlay IPC block and its types (HX1)
@@ -341,6 +341,9 @@ declare global {
       readClipboard: () => Promise<string>
       saveGatewayFile?: (payload: {
         connectionId?: null | string
+        /** A route that serves this file from the host that wrote it (an allow-listed
+         *  `/api/ops/...` download), read instead of the workspace's `/api/fs/download`. */
+        downloadPath?: string
         path: string
         profile?: null | string
         sessionId?: string
@@ -647,6 +650,17 @@ declare global {
         write: (id: string, data: string) => Promise<boolean>
       }
       reachPreviewUrl?: (url: string) => Promise<string>
+      // Real-profile sign-ins for the in-app browser: main reads them from the backend host's real-profile
+      // browser and sets them on the preview partition. Counts only, never a cookie.
+      syncPreviewSignins?: (request: {
+        connectionId?: null | string
+        enabled: boolean
+        profile?: null | string
+      }) => Promise<PreviewSigninsResult>
+      // P2-7: the per-profile imported-sign-ins record + cookie jar live in Electron main (userData),
+      // so the renderer's local profile rename/delete flow signals main to move/clear them.
+      migratePreviewSigninsForProfile?: (request: { oldProfile: string; newProfile: string }) => Promise<{ ok: boolean }>
+      dropPreviewSigninsForProfile?: (request: { profile: string }) => Promise<{ ok: boolean }>
       setActiveConnectionRoute?: (
         route: {
           connectionId?: null | string
@@ -662,7 +676,12 @@ declare global {
         callback: (payload: { kind: string; name: string; params: Record<string, string> }) => void
       ) => () => void
       signalDeepLinkReady?: () => Promise<{ ok: boolean }>
-      probePluginRepo?: (payload: { identifier?: string; repo?: string }) => Promise<{
+      probePluginRepo?: (payload: {
+        identifier?: string
+        repo?: string
+        /** A catalog pick's pin: the repository is read at that commit, not its default branch. */
+        ref?: string
+      }) => Promise<{
         ok: boolean
         agent: boolean
         desktop: boolean
@@ -684,6 +703,8 @@ declare global {
         force?: boolean
         /** The commit the dialog reviewed; Electron installs exactly that tree or refuses. */
         sha?: string
+        /** The catalog entry being installed: a standalone plugin records it so its card shows it installed. */
+        catalogName?: string
       }) => Promise<{
         ok: boolean
         pluginName?: string
@@ -691,6 +712,8 @@ declare global {
         error?: string
         /** The reviewed commit is gone from the source: the dialog reads it again. */
         sourceMoved?: boolean
+        /** A plugin of that name is installed: Force replaces it. */
+        exists?: boolean
       }>
       /** Delete a STANDALONE desktop plugin folder (`<desktop-plugins root>/<name>`);
        *  Electron re-checks containment and refuses unified-package halves. */
@@ -1094,6 +1117,15 @@ export interface DesktopPluginProfileRoute {
   primary?: true
   profile: string
   targetProfile: string
+}
+
+export interface PreviewSigninsResult {
+  status: 'cleared' | 'disabled' | 'error' | 'imported' | 'remote'
+  imported: number
+  skipped: number
+  failed: number
+  cleared: number
+  error?: string
 }
 
 export interface HermesConnection {
@@ -1532,6 +1564,8 @@ export interface DesktopCloudAgentSignInResult {
   baseUrl: string
   // Whether the agent's gateway session cookie landed (silent cascade done).
   connected: boolean
+  // The saved connection the sign-in authenticated, when the sign-in itself saved one (Webapp).
+  connectionId?: string
 }
 
 export interface DesktopBootProgress {

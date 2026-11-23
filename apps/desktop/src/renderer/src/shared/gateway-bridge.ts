@@ -126,6 +126,10 @@ export interface GatewayClientOptions {
     error: Error,
     request: { id: string; method: string; params: Record<string, unknown> }
   ) => void
+  /** Accepted and NOT called (donor 0.23.3, task T86): an error frame with no request id
+   * (the backend's `-32700` parse-error reply) reaches main's socket, never this bridge —
+   * main's client is the one that sees the wire (SPEC C9). */
+  onUncorrelatedError?: (error: { code?: number; message: string }) => void
   /** Accepted and NOT called: their channel answers an unhandled request with
    * -32601 and then reports here, ours stays silent on purpose (see `onRequest`). */
   onUnhandledRequest?: (request: {

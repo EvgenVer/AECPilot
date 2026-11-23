@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_delegation_routing.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -73,6 +73,12 @@ export const zhDelegationRouting: DelegationRoutingTranslations = {
   tierFast: '快速',
   tierUltrafast: '极速',
   tierHint: '仅适用于提供该选项的模型。',
+  daybreakLabel: 'Daybreak',
+  daybreakOff: '关闭',
+  daybreakOn: '开启',
+  daybreakHint: 'OpenAI 受信访问，限制更少，仅用于此路由。',
+  daybreakUnlisted: '你的账户未为此模型列出 Daybreak。请关闭它或选择其他模型。',
+  daybreakNeedsPlugin: '你的 Advanced Delegation 插件尚不支持 Daybreak 路由。请更新插件，或关闭此项。',
   optional: '可选',
   errors: { required: '必填', spaces: '不能包含空格', duplicate: '其他路由已使用此名称' },
   saveRoute: '保存路由',

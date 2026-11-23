@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/scope-selector.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -209,7 +209,7 @@ export function CapabilityScopeSelector({
     <div
       className={cn(
         'flex min-w-0 items-center gap-2',
-        compact ? 'flex-1' : 'border-b border-(--ui-stroke-secondary) px-3 py-2'
+        compact && 'flex-1'
       )}
     >
       {!compact && (

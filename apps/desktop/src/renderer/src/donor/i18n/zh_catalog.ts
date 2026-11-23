@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh_catalog.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -17,6 +17,9 @@ export const zhCatalog = {
   mostStarred: '星标最多',
   newest: '最新发布',
   recentlyUpdated: '最近更新',
+  mostUsed: '最常使用',
+  updateAvailable: '可更新',
+  updatesAvailable: (count: number) => `更新 · ${count}`,
   alphabetical: '名称',
   sortBy: '排序方式',
   seeAll: '查看全部',

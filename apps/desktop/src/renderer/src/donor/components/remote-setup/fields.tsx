@@ -1,13 +1,14 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/remote-setup/fields.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import type { ReactElement, ReactNode } from 'react'
 
 import { ListRow, Pill } from '@/app/settings/primitives'
+import { WebappOauthPasteField } from '@/app/settings/webapp-oauth-paste-field'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from '@/i18n'
@@ -140,6 +141,7 @@ export function RemoteSetupFields({
           )}
         </Field>
       ) : null}
+      <WebappOauthPasteField />
       {!urlOnly && setup.authResolved && credentials.authMode === 'token' ? (
         <Field description={copy.tokenDesc} stacked={firstRun} title={copy.tokenTitle}>
           <Input

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/plugin-catalog.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
@@ -27,7 +27,7 @@
  * Plugin dialog, which still requires the user's explicit confirmation.
  */
 
-import type { ConnectionState } from '@hermes/shared'
+import { type ConnectionState, PLUGIN_CATALOG_NAME_RE } from '@hermes/shared'
 import type { ReadableAtom } from 'nanostores'
 
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
@@ -39,11 +39,8 @@ import { $gatewayState } from '@/store/session'
 export const CATALOG_ORIGIN = 'https://hermes-agent.nousresearch.com'
 export const PLUGIN_CATALOG_URL = `${CATALOG_ORIGIN}/docs/api/plugins.json`
 export const PLUGIN_CATALOG_DOCS_URL = `${CATALOG_ORIGIN}/docs/user-guide/features/plugin-catalog`
-export const SKILLS_DOCS_URL = `${CATALOG_ORIGIN}/docs/skills/`
+export const SKILLS_DOCS_URL = `${CATALOG_ORIGIN}/docs/user-guide/features/skills`
 export const SUBMIT_MOD_URL = 'https://github.com/NousResearch/hermes-agent/compare'
-
-/** Catalog names are directory names under `plugin-catalog/`; anything else is not a lookup key. */
-export const PLUGIN_CATALOG_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
 const FETCH_TIMEOUT_MS = 15_000
 const LOOKUP_TIMEOUT_MS = 20_000

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/screen-connection.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -20,6 +20,7 @@
 import { host, resolveSiblingWsUrl } from '@hermes/plugin-sdk'
 import type { DisplayLease, PluginProfileRoute, RpcEvent } from '@hermes/plugin-sdk'
 
+import { retainRouteSocket } from './route-lease'
 import { resolveBotConnectionRoute } from './routing'
 import type { RosterRow } from './types'
 
@@ -148,21 +149,9 @@ export function displayRequest<T>(bot: RosterRow, method: string, params: Record
  * routes, which never close) get a no-op release.
  */
 export async function retainBotScreen(bot: RosterRow): Promise<() => void> {
-  const noop = () => undefined
-
   const route = botScreenRoute(bot)
 
-  if (typeof host.retainProfile !== 'function' || route === null) {
-    return noop
-  }
-
-  try {
-    const release = await host.retainProfile(route)
-
-    return typeof release === 'function' ? release : noop
-  } catch {
-    return noop
-  }
+  return (route === null ? null : await retainRouteSocket(route)) ?? (() => undefined)
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/plugins/plugins-tab.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -671,7 +671,11 @@ export const PluginsTab = memo(function PluginsTab({
           sha: pkg.agent?.installed_sha ?? pkg.desktop?.packageOrigin?.sha ?? '',
           version: pkg.agent?.version ?? ''
         }))
-      ).map(entry => ({ ...entry, id: `installed:${entry.identifier}` })),
+      ).map(entry => ({
+        ...entry,
+        id: `installed:${entry.identifier}`,
+        updateAvailable: packages.some(pkg => pkg.key === entry.identifier && pkg.agent?.update_available)
+      })),
     [packages]
   )
 

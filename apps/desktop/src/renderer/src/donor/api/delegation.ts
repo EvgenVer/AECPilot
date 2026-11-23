@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/delegation.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,8 @@ export interface DelegationBackendInfo {
   available: boolean
   reason: string
   builtin: boolean
+  /** The backend's own route-entry keys an editor may write (e.g. `daybreak`); absent on older cores. */
+  route_keys?: string[]
 }
 
 /** One entry of `delegation.backends.model_map.options`. Unknown keys round-trip untouched. */

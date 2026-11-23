@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/assistant-ui/setup-beat/plugins-card.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,6 +18,7 @@ import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
 import { useConnectionOwner } from '@/components/assistant-ui/use-connection-owner'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
+import { $pluginRecords, installedDesktopCatalogEntries } from '@/contrib/plugins-store'
 import { useI18n } from '@/i18n'
 import { lookupPluginCatalogEntry } from '@/lib/plugin-catalog'
 import { cn } from '@/lib/utils'
@@ -73,6 +74,7 @@ export function PluginsCard({
   const owner = useConnectionOwner(storedId, true)
   const plugins = useStore($agentPlugins)
   const pluginsProfile = useStore($agentPluginsProfile)
+  const records = useStore($pluginRecords)
   const { requestGateway } = useGatewayRequest()
 
   // The shared plugin list may be empty or another profile's: load the chat's own.
@@ -90,7 +92,12 @@ export function PluginsCard({
   })
 
   const ownRows = owner && pluginsProfile === owner.profile ? plugins : []
-  const installed = new Set(ownRows.flatMap(row => (row.catalog_name ? [row.catalog_name, row.name] : [row.name])))
+
+  // Desktop plugins live in one app-level folder, not a profile's: a desktop-only entry installed is installed.
+  const installed = new Set([
+    ...ownRows.flatMap(row => (row.catalog_name ? [row.catalog_name, row.name] : [row.name])),
+    ...installedDesktopCatalogEntries(records).keys()
+  ])
 
   const rows = presence.data ?? []
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/server-requests.test.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,10 +35,15 @@ const requestPopoutPreviewRead = vi.hoisted(() =>
   vi.fn(async (_payload: unknown, _owner?: unknown): Promise<unknown> => null)
 )
 
+const requestPopoutPreviewVault = vi.hoisted(() =>
+  vi.fn(async (_payload: unknown, _owner?: unknown): Promise<unknown> => null)
+)
+
 vi.mock('@/app/chat/right-rail/preview-popout-bridge', () => ({
   hasLivePreviewSurface: (owner?: unknown) => hasLivePreviewSurface(owner),
   requestPopoutPreviewAct: (payload: unknown, owner?: unknown) => requestPopoutPreviewAct(payload, owner),
-  requestPopoutPreviewRead: (payload: unknown, owner?: unknown) => requestPopoutPreviewRead(payload, owner)
+  requestPopoutPreviewRead: (payload: unknown, owner?: unknown) => requestPopoutPreviewRead(payload, owner),
+  requestPopoutPreviewVault: (payload: unknown, owner?: unknown) => requestPopoutPreviewVault(payload, owner)
 }))
 
 const deps = {
@@ -380,6 +385,8 @@ describe('preview pop-out forwarding', () => {
     requestPopoutPreviewAct.mockResolvedValue(null)
     requestPopoutPreviewRead.mockClear()
     requestPopoutPreviewRead.mockResolvedValue(null)
+    requestPopoutPreviewVault.mockClear()
+    requestPopoutPreviewVault.mockResolvedValue(null)
     publishSessionState('session-a', createClientSessionState('stored-a'))
   })
 
@@ -422,6 +429,43 @@ describe('preview pop-out forwarding', () => {
     await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1), { timeout: 30_000 })
     expect(requestPopoutPreviewRead).toHaveBeenCalledWith({}, sessionAOwner)
     expect(respond.mock.calls[0][0].value).toBe('')
+  })
+
+  // #150283 pop-out vault forwarding: the vault binding ops used to run only in
+  // the chat window's local binding map and never reached the popped-out
+  // Browser renderer, so a fill could not reach the live runner after pop-out.
+  it('forwards a vault binding op to the pop-out when this window has no live surface', async () => {
+    requestPopoutPreviewVault.mockResolvedValue({ success: true, target: 'bind-xyz' })
+    deps.activeSessionIdRef.current = 'session-a'
+
+    const { respond } = deliver(
+      'preview.act',
+      { action: 'vault', session_id: 'session-a', vault: { operation: 'open' } },
+      'session-a'
+    )
+
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1), { timeout: 30_000 })
+    deps.activeSessionIdRef.current = null
+    expect(requestPopoutPreviewVault).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'open' }),
+      sessionAOwner
+    )
+    expect(JSON.parse(respond.mock.calls[0][0].value)).toMatchObject({ success: true, target: 'bind-xyz' })
+  })
+
+  it('does not forward the vault op when this window has a live surface', async () => {
+    hasLivePreviewSurface.mockReturnValue(true)
+    deps.activeSessionIdRef.current = 'session-a'
+
+    const { respond } = deliver(
+      'preview.act',
+      { action: 'vault', session_id: 'session-a', vault: { operation: 'open' } },
+      'session-a'
+    )
+
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1), { timeout: 30_000 })
+    deps.activeSessionIdRef.current = null
+    expect(requestPopoutPreviewVault).not.toHaveBeenCalled()
   })
 
   it('reads locally in a browser tab, which has no pop-out to wait on', async () => {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/catalog/catalog-data.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -47,6 +47,10 @@ export interface CatalogEntry {
   addedAt?: string
   /** Installed skill the user locked against agent edits. */
   locked?: boolean
+  /** Installed skill's use count (skills only). */
+  usage?: number
+  /** Installed entry with a newer upstream version. */
+  updateAvailable?: boolean
   updatedAt?: string
   stars: number | null
   /** 1-based curated hero rank from the catalog feed (`catalog-curation.json`). */
@@ -306,7 +310,29 @@ export function useCatalog(kind: CatalogKind) {
 
 /** Warm a catalog while the browser is idle so switching tabs doesn't pay the fetch + parse. */
 export function prefetchCatalogWhenIdle(kind: CatalogKind) {
-  const id = requestIdleCallback(() => void queryClient.prefetchQuery(catalogQuery(kind)), { timeout: 5_000 })
+  const prefetch = () => void queryClient.prefetchQuery(catalogQuery(kind))
 
-  return () => cancelIdleCallback(id)
+  if (typeof window.requestIdleCallback === 'function') {
+    let cancelled = false
+
+    const id = window.requestIdleCallback(() => {
+      if (!cancelled) {
+        prefetch()
+      }
+    }, { timeout: 5_000 })
+
+    return () => {
+      cancelled = true
+
+      if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(id)
+      }
+    }
+  }
+
+  const id = window.setTimeout(prefetch, 0)
+
+  return () => {
+    window.clearTimeout(id)
+  }
 }

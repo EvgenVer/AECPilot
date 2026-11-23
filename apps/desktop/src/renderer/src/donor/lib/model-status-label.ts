@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/model-status-label.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -226,22 +226,44 @@ export function modelVariantTag(model: string): string {
   return splitTrailingTags(modelBaseId(model)).variant
 }
 
+function pillSpeedTag(options?: {
+  fastMode?: boolean
+  requireCapabilities?: boolean
+  serviceTier?: string
+  supportsFast?: boolean
+  supportsUltrafast?: boolean
+}): string {
+  if (!options?.fastMode) {
+    return ''
+  }
+
+  const requireCaps = options.requireCapabilities === true
+
+  if (options.serviceTier === 'ultrafast') {
+    return (requireCaps ? options.supportsUltrafast === true : options.supportsUltrafast !== false) ? 'Ultrafast' : ''
+  }
+
+  return (requireCaps ? options.supportsFast === true : options.supportsFast !== false) ? 'Fast' : ''
+}
+
 /** Composer model-pill label — model name plus its variant tag (Fast, Flash,
  *  …) when one applies, separated by a `·` so the pill reads as
  *  "name · variant" at a glance. The reasoning level is NOT here: it has its
  *  own pill (`ReasoningPill`), so a long model name can no longer push the
  *  effort out of the truncating span. Fast shows when the speed=fast param is
  *  on OR the active model is a `…-fast` variant — never both. */
-export function formatModelPillLabel(model: string, options?: { fastMode?: boolean; serviceTier?: string }): string {
+export function formatModelPillLabel(
+  model: string,
+  options?: {
+    fastMode?: boolean
+    requireCapabilities?: boolean
+    serviceTier?: string
+    supportsFast?: boolean
+    supportsUltrafast?: boolean
+  }
+): string {
   const name = modelDisplayParts(model).name
-
-  const tag = model.trim()
-    ? options?.serviceTier === 'ultrafast'
-      ? 'Ultrafast'
-      : options?.fastMode
-        ? 'Fast'
-        : modelVariantTag(model)
-    : ''
+  const tag = model.trim() ? pillSpeedTag(options) || modelVariantTag(model) : ''
 
   return tag ? `${name} · ${tag}` : name
 }

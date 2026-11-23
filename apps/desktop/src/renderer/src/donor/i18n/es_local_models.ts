@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_local_models.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -64,6 +64,8 @@ export const esLocalModels: TranslationOverride<Translations['settings']['localM
   updateTitle: 'Hay una actualización del motor',
   updateDetail: (next, current) =>
     `Hay una compilación más reciente de llama.cpp (${next}) lista para instalar; tienes ${current}. Los modelos siguen funcionando durante la descarga.`,
+  updateSameBuildDetail: tag =>
+    `Hermes ahora incluye llama.cpp ${tag} con archivos que necesita para funcionar. Al actualizar, el motor se vuelve a descargar; los modelos siguen funcionando durante la descarga.`,
   updateAction: 'Actualizar motor',
   updating: 'Actualizando el motor…',
   upToDateTitle: 'Motor actualizado',

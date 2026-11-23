@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/en_preview_web.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -61,5 +61,15 @@ export const enPreviewWeb: Translations['preview']['web'] = {
   commentPlaceholder: 'Add a comment...',
   commentTitle: n => `Comment ${n}`,
   saveComment: 'Save',
-  cancelComment: 'Cancel comment'
+  cancelComment: 'Cancel comment',
+  vaultFill: 'Fill a saved login',
+  vaultTitle: site => `Saved logins for ${site}`,
+  vaultLoading: 'Loading saved logins…',
+  vaultEmpty: 'No saved login for this site',
+  vaultUnlock: name => `Unlock ${name}`,
+  vaultOpenSettings: 'Open Credential Vault settings',
+  vaultFilled: label => `Filled ${label}. Review the form, then sign in.`,
+  vaultFillFailed: 'Could not fill the login',
+  vaultLoadFailed: 'Could not load saved logins',
+  vaultPageNotReady: 'The page is still loading. Try again when it has finished.'
 }

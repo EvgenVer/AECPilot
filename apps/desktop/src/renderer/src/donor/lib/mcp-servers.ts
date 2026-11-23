@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/mcp-servers.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -30,16 +30,38 @@ export function normalizeEntry(entry: Record<string, unknown>): Record<string, u
   return entry
 }
 
-// `String()` folds the value first: false → 'false', 0 / 0.0 / -0 → '0'; everything
-// else (true, other numbers, null, absent, junk) lands outside this set and reads on.
+const ON_WORDS = new Set(['true', '1', 'yes', 'on'])
 const OFF_WORDS = new Set(['false', '0', 'no', 'off'])
+
+/** The backend's `_parse_boolish` minus its default: a bool, a number (0 is false) or a
+ *  word (any case, trimmed) parses; `undefined` means unparseable (null, absent, a list,
+ *  a mapping, junk) and the caller applies its default, as the backend's `default=` does. */
+const parseBoolish = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const word = value.trim().toLowerCase()
+
+  return ON_WORDS.has(word) ? true : OFF_WORDS.has(word) ? false : undefined
+}
 
 /** Whether a server entry is on. Mirrors the backend's one reader
  *  (`tools/mcp_tool_common.py::mcp_server_enabled`): false/0 and the off words
- *  (any case, trimmed) are off; absent, `null`, `""` and junk are on.
+ *  (any case, trimmed) are off; absent, `null`, `""` and junk are on. A truthy
+ *  legacy `disabled` wins over `enabled`.
  *  `mcp-enabled-cases.json` pins both sides to the same table, so the MCP page
  *  never shows a server on that the runtime skips. */
-export const serverEnabled = (entry: McpServerEntry) => !OFF_WORDS.has(String(entry.enabled).trim().toLowerCase())
+export const serverEnabled = (entry: McpServerEntry) =>
+  (parseBoolish(entry.enabled) ?? true) && !(parseBoolish(entry.disabled) ?? false)
 
 /** A value a reader can reach into: an object, not `null`, an array or a scalar. */
 const isEntry = (value: unknown): value is Record<string, unknown> =>

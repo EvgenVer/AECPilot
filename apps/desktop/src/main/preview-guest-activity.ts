@@ -5,19 +5,67 @@
 // this lease since 0.23.0 — without it those tools refuse.
 //
 // Adapted from Hermes Desktop (MIT) `apps/desktop/electron/preview-guest-throttle.ts`
-// at 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19. Changes: their
-// `applyPreviewGuestAttachPrefs` (a guest preload we do not ship) is dropped,
-// and their window-pool `holdWindow` is replaced by `holdOwnerAwake` below —
+// at caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3). Changes: their
+// `applyPreviewGuestAttachPrefs` keeps only the admission of the jar
+// (`admitPreviewGuestPartition`) — the guest preload it also sets is one we do not
+// ship — and their window-pool `holdWindow` is replaced by `holdOwnerAwake` below —
 // we have no pool, only the window's own background throttling.
+//
+// Since 0.23.3 their preview pane gives every profile but the default its own
+// cookie jar (`previewPartitionForProfile`), so the guest's session is no longer
+// always the default one (task T86).
 //
 // Trust: the renderer could already call `webview.executeJavaScript` on its own
 // guest, so the script door adds no capability; main still checks that the
-// guest is a `webview` hosted by the asking window in the preview partition.
+// guest is a `webview` hosted by the asking window in an admitted preview jar.
 
 import type { Session, WebContents } from 'electron'
 
-/** Partition the preview pane's `<webview>` always carries. */
+/** The launch/default preview jar; every other profile rides a sibling of it. */
 export const PREVIEW_GUEST_PARTITION = 'persist:hermes-preview'
+
+// Colon-free on purpose (their note): Electron percent-escapes ':' in the on-disk
+// profile folder, and a Windows folder named with '%3A' gets a cookie store the
+// network stack can neither read nor write.
+function sanitizePartitionComponent(id: string): string {
+  return encodeURIComponent(id).replace(/%/g, '_')
+}
+
+/** The preview jar a tab owned by `profile` rides — byte-identical to the one the
+ * window's `<webview>` carries (`donor/hermes-electron/preview-guest-throttle.ts`). */
+export function previewPartitionForProfile(profile: string | null | undefined): string {
+  const key = (profile ?? '').trim() || 'default'
+  return key === 'default'
+    ? PREVIEW_GUEST_PARTITION
+    : `${PREVIEW_GUEST_PARTITION}-${sanitizePartitionComponent(key)}`
+}
+
+/** The default jar and its per-profile siblings, and nothing else. */
+export function isPreviewPartition(partition: string | undefined): boolean {
+  return (
+    partition === PREVIEW_GUEST_PARTITION ||
+    (typeof partition === 'string' && partition.startsWith(`${PREVIEW_GUEST_PARTITION}-`))
+  )
+}
+
+// Every preview-family session a window has attached a guest in. Electron gives a
+// Session no partition name, so the jar is remembered by identity when the guest
+// attaches (`session.fromPartition` is memoized).
+const previewGuestSessions = new WeakSet<Session>()
+
+/** Called from `will-attach-webview`: remembers the guest's jar when it is a preview one. */
+export function admitPreviewGuestPartition(
+  partition: string | undefined,
+  resolveSession: (partition: string) => Session
+): void {
+  if (partition && isPreviewPartition(partition)) {
+    previewGuestSessions.add(resolveSession(partition))
+  }
+}
+
+export function isPreviewGuestSession(session: Session | undefined): boolean {
+  return Boolean(session && previewGuestSessions.has(session))
+}
 
 let nextLease = 0
 
@@ -42,7 +90,6 @@ const activeGuests = new WeakMap<WebContents, Set<number>>()
 export function beginPreviewGuestActivity(
   owner: WebContents,
   guest: undefined | WebContents,
-  previewSession: Session,
   holdOwner: () => () => void
 ): number {
   if (
@@ -52,7 +99,7 @@ export function beginPreviewGuestActivity(
     guest.isDestroyed() ||
     guest.getType() !== 'webview' ||
     guest.hostWebContents !== owner ||
-    guest.session !== previewSession
+    !isPreviewGuestSession(guest.session)
   ) {
     throw new Error('Preview guest does not belong to this window')
   }

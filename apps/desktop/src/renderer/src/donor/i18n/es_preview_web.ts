@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/es_preview_web.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -65,5 +65,15 @@ export const esPreviewWeb: TranslationOverride<Translations['preview']['web']> =
   commentPlaceholder: 'Añade un comentario...',
   commentTitle: (n: number) => `Comentario ${n}`,
   saveComment: 'Guardar',
-  cancelComment: 'Cancelar comentario'
+  cancelComment: 'Cancelar comentario',
+  vaultFill: 'Rellenar un inicio de sesión guardado',
+  vaultTitle: site => `Inicios de sesión guardados para ${site}`,
+  vaultLoading: 'Cargando inicios de sesión guardados…',
+  vaultEmpty: 'No hay ningún inicio de sesión guardado para este sitio',
+  vaultUnlock: name => `Desbloquear ${name}`,
+  vaultOpenSettings: 'Abrir los ajustes de la bóveda de credenciales',
+  vaultFilled: label => `Se rellenó ${label}. Revisa el formulario y luego inicia sesión.`,
+  vaultFillFailed: 'No se pudo rellenar el inicio de sesión',
+  vaultLoadFailed: 'No se pudieron cargar los inicios de sesión guardados',
+  vaultPageNotReady: 'La página aún se está cargando. Vuelve a intentarlo cuando termine.'
 }

@@ -1,12 +1,13 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-palette/index.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
  *   [3] removed the pet page and the two pet commands (HX1)
  *   [3] removed the "Import sessions" command — SPEC HX30 (owner decision
  *       2026-10-15), with its now-unused route import
+ *   [3] removed the Backup entries (backup and transfer to Hermes Cloud, HX3; task T86)
  * (no other edits)
  */
 
@@ -113,6 +114,7 @@ import {
   SETTINGS_ROUTE,
   STARMAP_ROUTE
 } from '../routes'
+// EDIT [3]: their Backup palette entries (backup and transfer to Hermes Cloud) are HX3.
 import { SECTIONS } from '../settings/constants'
 import { type SettingsSearchEntry, settingsSearchTargetQuery } from '../settings/settings-search'
 import { useSettingsSearchCatalog } from '../settings/use-settings-search'

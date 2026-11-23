@@ -1,16 +1,24 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/deferred-pick.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
 import { translateNow } from '@/i18n'
 import { surfaceModelSwitchConfirm } from '@/lib/guarded-model-switch'
 import { modelOptionsQueryKey } from '@/lib/model-options'
+import { releaseQueuedLaunchPick } from '@/store/composer-queued-pick'
 import { activeGatewayConnectionId, requestGatewayForAgent } from '@/store/gateway'
 import { notifyError } from '@/store/notifications'
-import { $currentModel, $currentProvider, setCurrentModelTransient, setCurrentProviderTransient } from '@/store/session'
+import {
+  $currentModel,
+  $currentProvider,
+  composerScopeForOwner,
+  getComposerSelectionScope,
+  setCurrentModelTransient,
+  setCurrentProviderTransient
+} from '@/store/session'
 
 import type { GatewayEventContext } from './types'
 
@@ -40,6 +48,15 @@ function repaintCommitted(
   }
 }
 
+// The queued-pick record lives with the owner whose composer saved it: another owner's event names its own.
+function queuedPickScope(ownSource: boolean, event: GatewayEventContext['event']): null | string {
+  if (ownSource) {
+    return getComposerSelectionScope()
+  }
+
+  return event.connectionId ? composerScopeForOwner(event.connectionId, event.profile ?? '') : null
+}
+
 export function handleDeferredPickEvent(ctx: GatewayEventContext): boolean {
   const { deps, event, payload, sessionId, fromActiveSource } = ctx
   const update = payload as Record<string, unknown> | undefined
@@ -54,8 +71,12 @@ export function handleDeferredPickEvent(ctx: GatewayEventContext): boolean {
   const profile = event.profile ?? deps.activeGatewayProfile
   const invalidate = () => void deps.queryClient.invalidateQueries({ queryKey: modelOptionsQueryKey(profile, sessionId) })
 
+  const scope = queuedPickScope(ownSource, event)
+
   if (update.status === 'refused') {
     const model = typeof update.model === 'string' ? update.model : ''
+
+    releaseQueuedLaunchPick(sessionId, update.target_model, scope)
 
     if (model && ownSource) {
       repaintCommitted(ctx, update.target_model, model, typeof update.provider === 'string' ? update.provider : '')
@@ -74,6 +95,7 @@ export function handleDeferredPickEvent(ctx: GatewayEventContext): boolean {
     const target = String(update.target_model ?? pick.model ?? '')
     const committed = typeof update.committed_model === 'string' ? update.committed_model : ''
 
+
     void surfaceModelSwitchConfirm({
       confirmMessage: typeof update.confirm_message === 'string' ? update.confirm_message : undefined,
       failureMessage: translateNow('desktop.modelSwitchFailed'),
@@ -86,6 +108,10 @@ export function handleDeferredPickEvent(ctx: GatewayEventContext): boolean {
         requestGatewayForAgent(connectionId, profile, 'session.model', { confirm: update.confirm, payload: pick, session_id: sessionId }),
       finish: invalidate
     }).then(applied => {
+      if (!applied) {
+        releaseQueuedLaunchPick(sessionId, target, scope)
+      }
+
       // Declined, or the confirmed resend failed: the committed model is still the session's.
       if (!applied && committed && ownSource) {
         repaintCommitted(ctx, target, committed, typeof update.committed_provider === 'string' ? update.committed_provider : '')

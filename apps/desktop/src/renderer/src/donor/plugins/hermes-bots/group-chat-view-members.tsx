@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-view-members.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -26,6 +26,7 @@ import {
   DialogTitle,
   host,
   RowButton,
+  useI18n,
   useValue
 } from '@hermes/plugin-sdk'
 import { useEffect, useMemo, useState } from 'react'
@@ -33,7 +34,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   botOnConnection,
   connectionName,
-  groupNeedsDesktopCourier,
+  groupDrivenByDesktop,
   seatableGroupBots,
   useGroupCapability
 } from './canonical-group-capabilities'
@@ -49,6 +50,7 @@ import {
 } from './data'
 import { $groupChats, GROUP_CHAT_MAX_MEMBERS, updateGroupChat } from './group-chat'
 import type { GroupChatRoom } from './group-chat'
+import { stickyGroupEngine } from './group-engine'
 import {
   botGroups,
   durableGroupChatMembers,
@@ -88,15 +90,15 @@ async function commitGroupChatRoster(group: string, previous: RosterRow[], seate
   // Watermarks are `<thread>::<memberKey>` (group-round-members); the member
   // key may itself carry a `::`, so split at the first one only.
   const watermarkMember = (key: string) => (key.includes('::') ? key.slice(key.indexOf('::') + 2) : key)
-  // A room that spans machines on either side of this edit is Desktop-driven
-  // for good: dropping its last remote member must not hand it to a gateway
-  // (older records carry no engine field until their first edit).
+  // An existing Desktop-driven room stays Desktop-driven through the edit, so
+  // dropping its last remote member never hands it to the migration gate (older
+  // records carry no engine field until their first edit). No edit ever makes a
+  // room Desktop-driven that was not already.
   const connectionId = host.state.connectionId.get()
-  const desktopDriven = groupNeedsDesktopCourier(previous, connectionId) || groupNeedsDesktopCourier(seated, connectionId)
 
   updateGroupChat(group, (room: GroupChatRoom) => ({
     ...room,
-    ...(desktopDriven ? { engine: 'desktop' as const } : {}),
+    ...stickyGroupEngine(room, groupDrivenByDesktop(room, previous, connectionId) ? { engine: 'desktop' } : undefined),
     members: durableGroupChatMembers(seated),
     heldMessages: without(room.heldMessages, key => key),
     holds: without(room.holds, key => key),
@@ -253,7 +255,7 @@ async function writeMembershipChanges(group: string, writes: MembershipWrite[], 
  * when a removed member's machine is offline or a remote write does not land. */
 export function setGroupChatMembers(group: string, selected: RosterRow[]) {
   if (selected.length < 2 || selected.length > GROUP_CHAT_MAX_MEMBERS) {
-    return Promise.reject(new Error(`A group chat needs between 2 and ${GROUP_CHAT_MAX_MEMBERS} bots`))
+    return Promise.reject(new Error(botsText().group.memberSizeError(GROUP_CHAT_MAX_MEMBERS)))
   }
 
   return queueMembershipEdit([...$lastRoster.get(), ...selected], () => saveGroupChatMembers(group, selected))
@@ -335,6 +337,7 @@ interface GroupMemberPickerProps {
  *  until Save; Cancel leaves membership untouched. */
 export function GroupMemberPicker({ group, members, open, onClose }: GroupMemberPickerProps) {
   const b = useBots()
+  const { t } = useI18n()
   const allMeta: Record<string, BotMeta> = useValue($botMeta)
   const liveRoster: RosterRow[] = useValue($lastRoster)
 
@@ -383,8 +386,8 @@ export function GroupMemberPicker({ group, members, open, onClose }: GroupMember
     <Dialog onOpenChange={value => !value && onClose()} open={open}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Manage members</DialogTitle>
-          <DialogDescription>{`Pick 2–${GROUP_CHAT_MAX_MEMBERS} bots for “${group}”. The room, its history and its member sessions stay as they are.`}</DialogDescription>
+          <DialogTitle>{b.group.manageMembers}</DialogTitle>
+          <DialogDescription>{b.group.manageMembersDesc(GROUP_CHAT_MAX_MEMBERS, group)}</DialogDescription>
         </DialogHeader>
         <div className="grid max-h-80 gap-0.5 overflow-y-auto" data-testid="group-member-picker">
           {roster.map(bot => {
@@ -441,10 +444,10 @@ export function GroupMemberPicker({ group, members, open, onClose }: GroupMember
         </div>
         <DialogFooter>
           <Button onClick={onClose} variant="secondary">
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button disabled={selected.size < 2 || selected.size > GROUP_CHAT_MAX_MEMBERS} onClick={() => void save()}>
-            Save members
+            {b.group.saveMembers}
           </Button>
         </DialogFooter>
       </DialogContent>

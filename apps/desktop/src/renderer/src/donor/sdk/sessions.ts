@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/sdk/sessions.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -12,16 +12,17 @@ import {
   setSidebarSessionOrderManual,
   unpinSession
 } from '@/store/layout'
-import { $sessions, sessionMatchesStoredId, sessionPinId } from '@/store/session'
+import { ownerLookupSessionRows, sessionMatchesStoredId, sessionPinId } from '@/store/session'
 import { setSessionColorOverride } from '@/store/session-color'
 
 /** Pins and colours are keyed by the DURABLE (lineage-root) id so they survive
  *  compression's session-id rotation; a row's live id resolves through
- *  `$sessions` (the app's own lineage matcher), and an id that resolves to
+ *  the all-slices owner index (recents + cron + messaging — a telegram row
+ *  lives only in messaging, #126732), and an id that resolves to
  *  nothing is passed through as-is (the stores tolerate ids for rows this
  *  window hasn't loaded). */
 function durableSessionPinId(storedSessionId: string): string {
-  const session = $sessions.get().find(s => sessionMatchesStoredId(s, storedSessionId))
+  const session = ownerLookupSessionRows().find(s => sessionMatchesStoredId(s, storedSessionId))
 
   return session ? sessionPinId(session) : storedSessionId
 }
@@ -33,7 +34,7 @@ function durableSessionPinId(storedSessionId: string): string {
  *  before writing; a durable id written verbatim would be dropped by the next
  *  reconcile and, if nothing else survived, flip the manual flag off. */
 function liveSessionId(storedSessionId: string): string {
-  const session = $sessions.get().find(s => sessionMatchesStoredId(s, storedSessionId))
+  const session = ownerLookupSessionRows().find(s => sessionMatchesStoredId(s, storedSessionId))
 
   return session ? session.id : storedSessionId
 }

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/capabilities/catalog/catalog-metadata.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -51,6 +51,7 @@ export function CatalogHeaderMeta({ entry }: { entry: CatalogEntry }) {
           <span className="truncate">{catalogLabel(entry.source)}</span>
         </Badge>
       )}
+      {entry.updateAvailable && <CatalogUpdateBadge />}
       {entry.version && (
         <Badge size="xs" variant="muted">
           v{entry.version}
@@ -60,7 +61,28 @@ export function CatalogHeaderMeta({ entry }: { entry: CatalogEntry }) {
   )
 }
 
+function CatalogUpdateBadge() {
+  const { t } = useI18n()
+
+  return (
+    <Badge size="xs" variant="warn">
+      {t.catalog.updateAvailable}
+    </Badge>
+  )
+}
+
 export function CatalogRating({ entry }: { entry: CatalogEntry }) {
+  const { t } = useI18n()
+
+  if ((entry.usage ?? 0) > 0) {
+    return (
+      <span className="flex shrink-0 items-center gap-0.5 text-[0.65rem] text-(--ui-text-tertiary)" title={t.skills.usageCount(entry.usage!)}>
+        <Codicon name="pulse" size="0.65rem" />
+        {compactNumber(entry.usage!)}
+      </span>
+    )
+  }
+
   if (entry.stars === null || entry.stars <= 0) {return null}
 
   return (

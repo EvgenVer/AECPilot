@@ -19,6 +19,10 @@ import { ru } from './ru'
 
 const EXCLUDED: Record<string, string> = {
   'settings.billing.': 'HX2 — оплата и кредиты',
+  // 0.23.3 (T86): раздел «Резервная копия» — перенос агента в Hermes Cloud; снят правкой [3].
+  'settings.backup.': 'HX3 — резервная копия и перенос в Hermes Cloud',
+  'settings.gateway.webappOauthPaste.': 'HX33 — вход их веб-приложения',
+  'settings.model.subagents.routing.daybreakLabel': 'HX35 — Daybreak',
   'settings.vault.': 'HX24 — хранилище логинов и карт',
   'settings.nav.vault': 'HX24',
   'prompts.vault': 'HX24',
@@ -63,6 +67,8 @@ const NAMES = new Set([
   'connectorsPage.add.authOauth',
   'settings.customEndpoints.namePlaceholder',
   'settings.plugins.installModal.repoPlaceholder',
+  // 0.23.3 (T86): название сервиса в выборе подписи вебхука.
+  'webhooks.signatureOptions.linear',
   'webhooks.deliverOptions.telegram',
   'webhooks.deliverOptions.discord',
   'webhooks.deliverOptions.slack',

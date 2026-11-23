@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/right-rail/real-profile-consent-dialog.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -22,6 +22,7 @@ import type { HermesConnection } from '@/global'
 import { saveHermesConfigRecord } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { Check, Globe } from '@/lib/icons'
+import { claimPreviewSigninsSync, syncPreviewSignins } from '@/lib/preview-signins'
 import { notify, notifyError } from '@/store/notifications'
 import {
   $realProfilePromptClaim,
@@ -118,7 +119,9 @@ export function RealProfileConsentDialog({ tabId }: RealProfileConsentDialogProp
 
     const next = { ...config, browser: { ...browser, use_real_profile: true } }
 
+    const scope = writeScope
     setBusy(true)
+    claimPreviewSigninsSync(true, scope)
     setConfig(next)
 
     try {
@@ -127,6 +130,8 @@ export function RealProfileConsentDialog({ tabId }: RealProfileConsentDialogProp
       await saveHermesConfigRecord({ browser: { use_real_profile: true } }, writeScope)
 
       notify({ kind: 'info', title: copy.enabledTitle, message: copy.enabledMessage })
+      // After the save, so the backend's own consent check sees it: signs this Browser tab in too.
+      void syncPreviewSignins(true, scope).catch(() => undefined)
     } catch (err) {
       setConfig(config)
       notifyError(err, copy.failedSave)

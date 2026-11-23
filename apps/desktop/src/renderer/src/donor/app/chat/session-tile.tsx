@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/session-tile.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -232,7 +232,7 @@ function buildTileView(storedSessionId: string): SessionView {
 }
 
 // Module-level constants so these ChatView props are referentially stable —
-// tiles have no pin/delete affordance, and transcription needs no per-tile state.
+// transcription needs no per-tile state.
 const noop = () => undefined
 
 const tileTranscribeAudio = async (audio: Blob, owner?: ResolvedOwner) => {
@@ -247,6 +247,21 @@ const tileTranscribeAudio = async (audio: Blob, owner?: ResolvedOwner) => {
   }
 
   return (await transcribeAudio(await blobToDataUrl(audio), audio.type, owner)).transcript
+}
+
+/** Toggle pin for a tile's session, keyed on the durable lineage-root id —
+ *  the same identity rule as the tab menu (`useTileMenuRow`) and the primary
+ *  chat (`toggleSelectedPin` in wiring.tsx). Exported so the tile title/header
+ *  menu and the tab context menu share one implementation and cannot drift. */
+export function toggleTilePin(storedSessionId: string): void {
+  const stored = tileStoredRow(storedSessionId)
+  const pinId = stored ? sessionPinId(stored) : storedSessionId
+
+  if ($pinnedSessionIds.get().includes(pinId)) {
+    unpinSession(pinId)
+  } else {
+    pinSession(pinId)
+  }
 }
 
 function TileChat({
@@ -333,7 +348,8 @@ function TileChat({
       target: scope.target,
       update: attachments.update,
       updateIfCurrent: attachments.updateIfCurrent
-    }
+    },
+    storedSessionId
   })
 
   // ChatView is memo()d — every callback prop must be referentially stable or
@@ -358,6 +374,10 @@ function TileChat({
   const onPickImages = useCallback(() => void pickImages(), [pickImages])
   const onRemoveAttachment = useCallback((id: string) => void removeAttachment(id), [removeAttachment])
   const onRetryResume = useCallback(() => patchSessionTile(storedSessionId, { error: undefined }), [storedSessionId])
+
+  // Pin toggle for the tile's title/header menu — shares the implementation
+  // with the tab context menu so both agree on pinned state and pin identity.
+  const onToggleTilePin = useCallback(() => toggleTilePin(storedSessionId), [storedSessionId])
 
   // Per-tile model menu — rendered under this tile's SessionView so the pill
   // + switch target THIS runtime, not the primary (which may be mid-turn).
@@ -433,7 +453,7 @@ function TileChat({
           onSteerHidden={actions.injectHiddenPrompt}
           onSubmit={actions.submitText}
           onThreadMessagesChange={actions.handleThreadMessagesChange}
-          onToggleSelectedPin={noop}
+          onToggleSelectedPin={onToggleTilePin}
           onTranscribeAudio={tileTranscribeAudio}
           reasoningMenuContent={reasoningMenuContent}
           requestModelOptionsForOwner={requestTileGateway}

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/profile-config-capabilities.test.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -201,7 +201,6 @@ describe('a build whose CapabilitiesView cannot route connections', () => {
     expect(sdk.seen.CapabilitiesView).toHaveLength(0)
     expect(sdk.seen.ConnectorsTab).toHaveLength(0)
     expect(sdk.seen.ToolsetConfigPanel).toHaveLength(0)
-    expect(screen.queryByText('Skills Hub')).toBeNull()
     expect(screen.queryByRole('button', { name: /Set up/ })).toBeNull()
     // Model + SOUL still edit, and stay staged until the user saves.
     expect(container.querySelector('textarea')).toBeTruthy()
@@ -220,9 +219,8 @@ describe('a build whose CapabilitiesView cannot route connections', () => {
       toolsets: [{ enabled: true, name: 'local-tools' }]
     })
 
-    // The staged checklist and the hub search section both survive here.
+    // The staged checklist survives here.
     expect(screen.getByText('staged-skill')).toBeTruthy()
-    expect(screen.getByText(translateBots('tools.skillsHub'))).toBeTruthy()
     expect(sdk.seen.ToolsetConfigPanel[0]).toEqual({
       profile: { connectionId: 'local', profile: 'default' },
       toolset: 'local-tools'

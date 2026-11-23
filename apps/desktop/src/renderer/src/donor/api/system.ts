@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/system.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -253,7 +253,8 @@ export const AUDIO_STT_LEASE_REQUEST_TIMEOUT_MS = 180_000
 
 /**
  * Tell the backend a voice-input session started (`active: true`) so it can
- * warm the STT engine, or ended (`active: false`) to drop the lease.
+ * warm the STT engine, or ended (`active: false`), which the backend only
+ * acknowledges: the model stays loaded.
  * `lease` names the session — `desktop:voice-input:<renderer>`. `owner` is
  * the voice operation's owner, resolved once when it started, so a queued call
  * is never re-routed by a later gateway/profile switch.
@@ -308,13 +309,15 @@ export function runBackup(): Promise<ActionResponse & { archive?: string }> {
   })
 }
 
-export function runDebugShare(): Promise<DebugShareResponse> {
-  return hermesApi<DebugShareResponse>({
-    ...profileScoped(),
+// `owner` is resolved before the consent dialog opens: profile shortcuts stay
+// live behind it, so the ambient scope at upload time may be another profile.
+export function runDebugShare(owner: ResolvedOwner): Promise<DebugShareResponse> {
+  return hermesApiAs<DebugShareResponse>(owner, {
     path: '/api/ops/debug-share',
     method: 'POST',
-    body: {},
-    // Synchronous upload of report + logs to the paste service.
+    // Only called after the user confirmed the upload; the backend refuses a missing consent.
+    body: { consent: true },
+    // Synchronous upload of the allowlisted summary to the public paste service.
     timeoutMs: 120_000
   })
 }

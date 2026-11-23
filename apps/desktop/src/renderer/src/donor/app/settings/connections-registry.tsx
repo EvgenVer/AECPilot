@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/settings/connections-registry.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -218,6 +218,26 @@ function scrollableAncestor(element: HTMLElement): HTMLElement | null {
 }
 
 /**
+ * Another window, the other host (native Desktop or a Webapp tab: they share one list) or a
+ * registry repair changed the list: show it without a spinner or closing an open editor.
+ */
+function useRegistryChanges(
+  bridge: Window['hermesDesktop']['connections'],
+  publish: (next: DesktopConnectionsRegistry) => void
+): void {
+  useEffect(
+    () =>
+      bridge?.onChanged?.(() => {
+        void bridge
+          .list()
+          .then(publish)
+          .catch(() => undefined)
+      }),
+    [bridge, publish]
+  )
+}
+
+/**
  * The connections registry section of Settings → Gateways: manage the named
  * agent sources (local runtime + any number of remote gateways / Hermes Cloud
  * instances / SSH hosts). Storage-level management — the active/primary
@@ -275,7 +295,6 @@ export function ConnectionsRegistrySection() {
   remoteAuthModeRef.current = remote.credentials.authMode
 
   const bridge = window.hermesDesktop?.connections
-
   const hasLocal = Boolean(registry?.connections.some(c => c.kind === 'local'))
 
   const publishRegistry = useCallback((next: DesktopConnectionsRegistry) => {
@@ -304,6 +323,7 @@ export function ConnectionsRegistrySection() {
   useEffect(() => {
     void load()
   }, [load])
+  useRegistryChanges(bridge, publishRegistry)
 
   const openEditor = (next: EditorState | null, saved?: DesktopRegistryConnection): void => {
     setDupeError(null)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-auto-speak-replies.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -9,7 +9,7 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
 import { releaseUnplayedSpokenReply, spokenReplyOf, spokenSegmentKey } from '@/lib/spoken-reply'
-import { playSpeechText } from '@/lib/voice-playback'
+import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { ownsAmbientCue } from '@/store/ambient'
 import { notifyError } from '@/store/notifications'
 import { $voicePlayback } from '@/store/voice-playback'
@@ -91,6 +91,11 @@ interface UseAutoSpeakReplies {
   sessionId: string | null | undefined
 }
 
+// Replies auto-speak started reading. Turning read-aloud off (here or in another
+// window) silences one of these mid-clip; a reply the user started by hand from
+// the message's own button keeps playing.
+const autoStartedReplies = new Set<string>()
+
 /**
  * Pure-TTS auto-speak: when `voice.auto_tts` is on, read each completed assistant
  * turn aloud — no dictation, no conversation loop. Stays off while a full voice
@@ -111,9 +116,21 @@ export function useAutoSpeakReplies({
   const { $messages, connectionId, profile } = useComposerScope()
   const latest = useRef({ connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile })
   latest.current = { connectionId, conversationActive, failureLabel, markSpoken, pendingReply, profile }
-
   useEffect(() => {
     if (!enabled) {
+      const playback = $voicePlayback.get()
+
+      if (
+        playback.status !== 'idle' &&
+        playback.source === 'read-aloud' &&
+        playback.messageId !== null &&
+        autoStartedReplies.has(playback.messageId)
+      ) {
+        stopVoicePlayback()
+      }
+
+      autoStartedReplies.clear()
+
       return undefined
     }
 
@@ -160,6 +177,8 @@ export function useAutoSpeakReplies({
 
           return
         }
+
+        autoStartedReplies.add(reply.id)
 
         void playSpeechText(reply.text, {
           connectionId,

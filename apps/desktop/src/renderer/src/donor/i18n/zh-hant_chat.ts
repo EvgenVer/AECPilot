@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_chat.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -135,7 +135,7 @@ export const zhHantChat = {
       '/topup': '顯示你的 Nous 餘額，並在 Portal 管理帳務',
       '/platform': '暫停、恢復或列出故障的閘道平台',
       '/version': '顯示 Hermes Agent 版本',
-      '/debug': '上傳偵錯報告（系統資訊與記錄），並取得可分享連結',
+      '/debug': '除錯報告（版本、設定鍵名、錯誤計數；不含日誌文字）：先顯示隱私聲明；/debug upload 分享連結',
       '/model': '切換此工作階段的模型'
     },
     hotkeyDescs: {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/session/hooks/use-session-actions/session-create-request.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -18,11 +18,9 @@ import {
 import {
   $currentCwdExplicit,
   $currentFastMode,
-  $currentModel,
-  $currentProvider,
   $currentReasoningEffort,
   $currentServiceTier,
-  getCurrentModelSource
+  getComposerModelSelection
 } from '@/store/session'
 import type { SessionCreateResponse } from '@/types/hermes'
 
@@ -105,7 +103,7 @@ export async function desktopSessionCreateParams(
   legacyProfileIntent = false,
   includeComposerSelection = true
 ): Promise<Record<string, unknown>> {
-  // Treat Send as the linearization point for the visible selector state. The
+  // Treat Send as the linearization point for the user's sticky selection. The
   // profile handshake below can yield long enough for background config/model
   // refreshes to finish; reading atoms afterward would silently create the
   // session with a different selection than the one the user submitted.
@@ -113,14 +111,15 @@ export async function desktopSessionCreateParams(
   // the live agent (applySavedMainModel) and only flips the source to 'default'.
   // Shipping that stale value as an override pins every new chat to the old
   // model. Omit model/provider unless the source is 'manual'.
-  const isManualSelection = getCurrentModelSource() === 'manual'
+  const picked = getComposerModelSelection()
+  const isManualSelection = picked.source === 'manual'
 
   const selection = {
     effort: $currentReasoningEffort.get().trim(),
     fast: $currentFastMode.get(),
     serviceTier: $currentServiceTier.get().trim(),
-    model: isManualSelection ? $currentModel.get().trim() : '',
-    provider: isManualSelection ? $currentProvider.get().trim() : ''
+    model: isManualSelection ? picked.model.trim() : '',
+    provider: isManualSelection ? picked.provider.trim() : ''
   }
 
   const profile =

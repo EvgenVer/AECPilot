@@ -57,6 +57,7 @@ export {
   JSON_RPC_METHOD_NOT_FOUND,
   jsonRpcErrorFromFrame,
   type JsonRpcErrorPayload,
+  jsonRpcErrorReason,
   type JsonRpcFrame,
   JsonRpcRequestChannel,
   type JsonRpcRequestChannelOptions,
@@ -64,6 +65,12 @@ export {
   type ServerRequestParams,
   wireFrameText
 } from '../../donor/hermes-shared/json-rpc-channel'
+// Donor 0.23.3 (task T86): plugin package markers shared by their catalog and loader.
+export {
+  INSTALL_ORIGIN,
+  PACKAGE_MARKER,
+  PLUGIN_CATALOG_NAME_RE
+} from '../../donor/hermes-shared/desktop-plugin-files'
 export { modelSearchText } from '../../donor/hermes-shared/model-search-text'
 export {
   DEFAULT_REASONING_EFFORT,

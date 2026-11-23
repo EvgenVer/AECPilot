@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant_capabilities.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -34,10 +34,7 @@ export const zhHantCapabilities = {
       searching: '搜尋中…',
       noResults: '技能中心沒有符合的技能。',
       installed: '已安裝',
-      installStarted: name => `正在安裝「${name}」…`,
-      pickerBrowse: '瀏覽完整技能中心',
-      pickerHide: '隱藏技能中心瀏覽器',
-      pickerHint: '按下任一技能的「+ Add to this Agent」，即可安裝並顯示在上方清單中。'
+      installStarted: name => `正在安裝「${name}」…`
     },
     tabSkills: '技能',
     tabToolsets: '工具集',

@@ -1,13 +1,21 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/browser-profile-prefs.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
-import { $defaultProfileRoute, noteDefaultProfileRoute } from '@/store/default-profile'
+import { LOCAL_CONNECTION_ID } from '@hermes/shared'
 
-import { browserPageBasePath, dropBrowserFolderPref, migrateBrowserFolderPref } from './browser-settings'
+import { $defaultProfileRoute, noteDefaultProfileRoute } from '@/store/default-profile'
+import { $connection } from '@/store/session'
+
+import {
+  browserFolderBasePath,
+  browserPageBasePath,
+  dropBrowserFolderPref,
+  migrateBrowserFolderPref
+} from './browser-settings'
 import {
   dropBrowserStartupProfile,
   migrateBrowserStartupProfile,
@@ -19,14 +27,21 @@ function hostedBasePath(): string | null {
   return hostHas('originScopedPrefs') ? browserPageBasePath() : null
 }
 
+// The gateway a profile was created, renamed or deleted on: the one the window is on unless the
+// caller names it. A folder names a path on that gateway; the startup profile is this page's own.
+function ownerOf(connectionId?: null | string): string {
+  return (connectionId === undefined ? $connection.get()?.connectionId : connectionId)?.trim() || LOCAL_CONNECTION_ID
+}
+
 function namesProfile(profile: string | undefined, target: string): boolean {
   return (profile ?? '').trim() === target.trim()
 }
 
-export function migrateBrowserProfilePrefs(from: string, to: string): void {
+export function migrateBrowserProfilePrefs(from: string, to: string, connectionId?: null | string): void {
   const basePath = hostedBasePath()
   const fromName = from.trim()
   const toName = to.trim()
+  const owner = ownerOf(connectionId)
 
   if (basePath === null || !fromName || !toName || fromName === toName) {
     return
@@ -35,8 +50,12 @@ export function migrateBrowserProfilePrefs(from: string, to: string): void {
   // A rename never lands on a live profile's name, so a folder or startup
   // profile already stored under the new name was left by a deleted profile.
   // The renamed profile's own prefs, or their absence, replace it.
-  dropBrowserProfilePrefs(toName)
-  migrateBrowserFolderPref(basePath, fromName, toName)
+  dropBrowserProfilePrefs(toName, owner)
+  migrateBrowserFolderPref(browserFolderBasePath(owner), fromName, toName)
+
+  if (owner !== LOCAL_CONNECTION_ID) {
+    return
+  }
 
   const movedStartup = migrateBrowserStartupProfile(basePath, fromName, toName)
   const current = $defaultProfileRoute.get()
@@ -52,15 +71,21 @@ export function migrateBrowserProfilePrefs(from: string, to: string): void {
   noteDefaultProfileRoute(saved ?? { ...current, profile: toName })
 }
 
-export function dropBrowserProfilePrefs(profile: string): void {
+export function dropBrowserProfilePrefs(profile: string, connectionId?: null | string): void {
   const basePath = hostedBasePath()
   const name = profile.trim()
+  const owner = ownerOf(connectionId)
 
   if (basePath === null || !name) {
     return
   }
 
-  dropBrowserFolderPref(basePath, name)
+  dropBrowserFolderPref(browserFolderBasePath(owner), name)
+
+  if (owner !== LOCAL_CONNECTION_ID) {
+    return
+  }
+
   dropBrowserStartupProfile(basePath, name)
 
   if (namesProfile($defaultProfileRoute.get()?.profile, name)) {

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/zh-hant.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -21,6 +21,11 @@ import { zhHantFirstRun } from './zh-hant_first_run'
 import { zhHantSettings } from './zh-hant_settings'
 
 export const zhHantOverrides = {
+  gatewayGroupOpen: {
+    opening: "正在開啟群組聊天…",
+    lookupFailed: "無法在閘道上查找此群組，請重試。",
+    missing: "此群組聊天已不存在。"
+  },
 
   catalog: {
     add: '新增',
@@ -32,6 +37,9 @@ export const zhHantOverrides = {
     mostStarred: '星標最多',
     newest: '最新發布',
     recentlyUpdated: '最近更新',
+    mostUsed: '最常使用',
+    updateAvailable: '可更新',
+    updatesAvailable: (count: number) => `更新 · ${count}`,
     alphabetical: '名稱',
     sortBy: '排序方式',
     seeAll: '查看全部',

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/plugins/hermes-bots/group-chat-parts.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -16,8 +16,8 @@
  */
 
 import { Button, cn, Codicon, host, Input, RowButton, Textarea, useI18n, useValue } from '@hermes/plugin-sdk'
-import type { ClipboardEvent } from 'react'
-import { useRef, useState } from 'react'
+import type { ClipboardEvent, Ref, RefObject } from 'react'
+import { useImperativeHandle, useRef, useState } from 'react'
 
 import { $imagenAvailable, normalizeAvatarImage, pickImageFromDevice, probeImagen } from './avatar-image'
 import { $botMeta, botHandle, botMentionTag } from './data'
@@ -87,7 +87,7 @@ export function GroupImageControls({ image, onImage, seedName, seedMembers }: Gr
       })
 
       if (!res?.success) {
-        throw new Error(res?.error || 'generation failed')
+        throw new Error(res?.error || b.group.pictureGenerationFailed)
       }
 
       const img = res.image_data || res.image
@@ -174,7 +174,22 @@ interface GroupMentionInputProps {
   onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void
   onSubmitDraft?: () => void
   placeholder?: string
+  ref?: Ref<HTMLTextAreaElement>
   value: string
+}
+
+/** A hover Reply moves the user into the composer, caret after the seeded words, once React has painted them. */
+export function focusComposerEnd(input: RefObject<HTMLTextAreaElement | null>) {
+  requestAnimationFrame(() => {
+    const el = input.current
+
+    if (!el) {
+      return
+    }
+
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  })
 }
 
 /** Mention-aware composer input for group rooms. The core composer's
@@ -184,10 +199,11 @@ interface GroupMentionInputProps {
  *  the strings parseGroupChatMentions resolves. Keyboard: Up/Down navigate,
  *  Enter/Tab insert (Enter falls through to submit when the popover is
  *  closed), Escape dismisses. */
-export function GroupMentionInput({ handleFor, members, onChange, onSubmitDraft, value, ...inputProps }: GroupMentionInputProps) {
+export function GroupMentionInput({ handleFor, members, onChange, onSubmitDraft, ref, value, ...inputProps }: GroupMentionInputProps) {
   const b = useBots()
   const allMeta: Record<string, BotMeta> = useValue($botMeta)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  useImperativeHandle(ref, () => inputRef.current as HTMLTextAreaElement)
   const [token, setToken] = useState<MentionToken | null>(null)
   const [selected, setSelected] = useState(0)
   const options: MentionOption[] = []
@@ -390,6 +406,13 @@ interface GroupClarifyCardProps {
  *    closed choice. Answer sends via the member's own source. */
 export function GroupClarifyCard({ entry, members }: GroupClarifyCardProps) {
   const b = useBots()
+  const { t } = useI18n()
+
+  const approvalLabels: Record<string, string> = {
+    once: b.canonical.allowOnce, deny: b.canonical.deny,
+    session: t.assistant.approval.allowSession, always: t.assistant.approval.alwaysAllow
+  }
+
   const { group } = entry
   const isApproval = entry.kind === 'approval'
   const member = members.find(m => groupMemberKey(m) === entry.memberKey) || members.find(m => m.name === entry.member)
@@ -544,7 +567,7 @@ export function GroupClarifyCard({ entry, members }: GroupClarifyCardProps) {
                     size="sm"
                     variant={chosen ? 'default' : 'secondary'}
                   >
-                    {choice}
+                    {isApproval ? approvalLabels[choice] || choice : choice}
                   </Button>
                 )
               })}
@@ -578,7 +601,7 @@ export function GroupClarifyCard({ entry, members }: GroupClarifyCardProps) {
                   void submit()
                 }
               }}
-              placeholder={q.choices.length ? 'Or type your own answer…' : 'Type your answer…'}
+              placeholder={q.choices.length ? b.group.ownAnswerPlaceholder : b.group.answerPlaceholder}
               value={drafts[q.qid] || ''}
             />
           )}
@@ -588,7 +611,7 @@ export function GroupClarifyCard({ entry, members }: GroupClarifyCardProps) {
       {isApproval ? null : (
         <div className="flex justify-end">
           <Button disabled={sending || !anyAnswered || !member} onClick={() => void submit()} size="sm">
-            {sending ? 'Sending…' : 'Answer'}
+            {sending ? b.group.sending : b.group.answer}
           </Button>
         </div>
       )}

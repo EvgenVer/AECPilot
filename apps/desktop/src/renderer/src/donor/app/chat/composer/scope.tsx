@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/chat/composer/scope.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -69,3 +69,20 @@ const ComposerSurfaceContext = createContext<string | null>(null)
 export const ComposerSurfaceProvider = ComposerSurfaceContext.Provider
 
 export const useComposerSurfaceId = (): string | null => useContext(ComposerSurfaceContext)
+
+/** The session a composer belongs to, as its `composer.top` contributions see it. */
+export interface ComposerSessionInfo {
+  /** The session id the composer was mounted for (`null` on a fresh draft). */
+  sessionId: null | string
+  /** The durable id it is filed under — the runtime id mapped through the session store. */
+  storedSessionId: null | string
+}
+
+const ComposerSessionContext = createContext<ComposerSessionInfo>({ sessionId: null, storedSessionId: null })
+
+export const ComposerSessionProvider = ComposerSessionContext.Provider
+
+/** Which session this composer is for, read from inside a `composer.top` contribution. A tile's
+ *  composer and the main one answer for their OWN session, so a plugin banner never shows one
+ *  chat's state above another chat's input. */
+export const useComposerSession = (): ComposerSessionInfo => useContext(ComposerSessionContext)

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/onboarding/flow.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -164,7 +164,7 @@ export function FlowPanel({
 
 function Step({ children, title }: { children: React.ReactNode; title: string }) {
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       {children}
     </div>
@@ -212,9 +212,9 @@ function CodeBlock({ copied, onCopy, text }: { copied: boolean; onCopy: () => vo
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-(--stroke-nous) px-3 py-2">
-      <code className="min-w-0 flex-1 truncate font-mono text-sm">
+      <code className="min-w-0 flex-1 break-all font-mono text-sm">
         <span className="mr-2 select-none text-muted-foreground">$</span>
-        {text}
+        <span data-selectable-text="true">{text}</span>
       </code>
       <Button onClick={onCopy} size="sm" variant="outline">
         {copied ? t.common.copied : t.onboarding.copy}

@@ -1,9 +1,12 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/contrib/surfaces.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the Move to Hermes Cloud redirect to their Backup page (HX3; task T86),
+ *       with its now-unused `useLocation` import
+ * (no other edits)
  */
 /**
  * Wiring surfaces — each pane is its own memoized component. Every surface
@@ -52,6 +55,8 @@ export function LegacySessionRedirect() {
 
   return <Navigate replace to={sessionId ? sessionRoute(sessionId) : NEW_CHAT_ROUTE} />
 }
+
+// EDIT [3]: the retired Move to Hermes Cloud page and its redirect to Backup are HX3.
 
 export const SidebarSurface = memo(function SidebarSurface({
   actions,

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/shared/src/json-rpc-channel.test.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -309,6 +309,16 @@ describe('JsonRpcRequestChannel', () => {
     expect(frames[1].id).toBe('srq-2')
     expect(frames[1].error?.code).toBe(-32601)
     expect(unhandled).toEqual(['tour'])
+  })
+
+  it('reports an error frame with no request id (the parse-error reply) instead of dropping it', () => {
+    const uncorrelated: Array<{ code?: number; message: string }> = []
+    const channel = new JsonRpcRequestChannel({ onUncorrelatedError: error => void uncorrelated.push({ code: error.code, message: error.message }) })
+
+    channel.attach(spyTransport().transport)
+    channel.handleFrame(JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'parse error' }, id: null }))
+
+    expect(uncorrelated).toEqual([{ code: -32700, message: 'parse error' }])
   })
 
   it('re-delivers open_requests from a response before the caller sees the result, tagged replayed', async () => {

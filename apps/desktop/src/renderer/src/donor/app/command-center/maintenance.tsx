@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/app/command-center/maintenance.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -19,6 +19,7 @@ import {
   getMemoryStatus,
   type MemoryStatusResponse,
   resetMemory,
+  resolveOwnerNow,
   runBackup,
   runCurator,
   runDebugShare,
@@ -148,12 +149,27 @@ export function MaintenancePanel() {
   )
 
   const shareDebug = useCallback(async () => {
+    // The backend refuses an unconfirmed upload; ask before anything leaves the machine.
+    // The consent covers the profile shown when it was asked, not one switched to behind the dialog.
+    const owner = resolveOwnerNow()
+
+    if (
+      !(await confirm({
+        confirmLabel: mm.debugShare,
+        description: mm.debugShareConfirmDesc,
+        destructive: true,
+        title: mm.debugShareConfirm
+      }))
+    ) {
+      return
+    }
+
     setSharing(true)
     setShare(null)
     setError('')
 
     try {
-      setShare(await runDebugShare())
+      setShare(await runDebugShare(owner))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       notifyError(err, mm.debugShareFailed)

@@ -182,8 +182,7 @@ import {
   beginPreviewGuestActivity,
   endPreviewGuestActivity,
   executePreviewGuestScript,
-  holdOwnerAwake,
-  PREVIEW_GUEST_PARTITION
+  holdOwnerAwake
 } from './preview-guest-activity'
 import { installBrowserNavGestures, installPreviewGuestHidden } from './preview-nav'
 import { readWindowBelow } from './os-windows'
@@ -5228,7 +5227,6 @@ ipcMain.handle('preview-guest-activity:begin', (event, webContentsId: unknown) =
   return beginPreviewGuestActivity(
     event.sender,
     webContents.fromId(webContentsId as number) ?? undefined,
-    session.fromPartition(PREVIEW_GUEST_PARTITION),
     () => holdOwnerAwake(event.sender)
   )
 })

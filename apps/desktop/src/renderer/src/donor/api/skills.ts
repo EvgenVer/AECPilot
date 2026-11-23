@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/api/skills.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -124,6 +124,21 @@ export function getOfficialSkills(profile?: ProfileScope): Promise<{ skills: Off
   return window.hermesDesktop.api<{ skills: OfficialSkillInfo[] }>({
     ...capabilityScoped(profile),
     path: '/api/skills/hub/official'
+  })
+}
+
+export interface SkillHubUpdate {
+  name: string
+  identifier: string
+  source: string
+}
+
+/** Hub skills with a newer upstream version (`hermes skills check`). Slow: fetches every source. */
+export function getSkillHubUpdates(profile?: ProfileScope): Promise<{ updates: SkillHubUpdate[] }> {
+  return window.hermesDesktop.api<{ updates: SkillHubUpdate[] }>({
+    ...capabilityScoped(profile),
+    path: '/api/skills/hub/updates',
+    timeoutMs: 120_000
   })
 }
 

@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/execution-authority.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -35,6 +35,14 @@ function executionStamp(event?: ExecutionStampedEvent): { epoch: string; generat
   const versioned = typeof epoch === 'string' && epoch.length > 0 && typeof generation === 'number' && Number.isSafeInteger(generation) && generation >= 0
 
   return versioned ? { epoch, generation } : null
+}
+
+/** The admission a claimed execution's frame runs (`SessionEvents.publish` spreads the claim's stamp onto every
+ *  frame), or null. An admission-only frame (a queued row's cancellation) names no execution, so it names none. */
+export function executionAdmission(event?: ExecutionStampedEvent): null | string {
+  const admission = event?.admission_id
+
+  return typeof admission === 'string' && admission && executionStamp(event) ? admission : null
 }
 
 /** Whether a versioned lifecycle frame is fenced off by the previous owner (retiring its epoch on a valid takeover). */

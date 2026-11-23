@@ -50,6 +50,12 @@ const SKIP_FILES = new Set([
   'intro-ja.ts',
   'intro-zh.ts',
   'intro-zh-hant.ts',
+  // 0.23.3 (T86): слои строк комнат на языках, которые не предлагаются (C7); русский
+  // слой их же (`group-surface-ru.ts`) не импортируется — строку `ru` держит наш каталог.
+  'group-surface-ar.ts',
+  'group-surface-de.ts',
+  'group-surface-es.ts',
+  'group-surface-fr.ts',
   'voice-stop-word.ts'
 ])
 
@@ -81,7 +87,14 @@ const DEAD_SURFACE_FILES = new Set([
   join('lib', 'browser-launch-session.ts'),
   join('lib', 'browser-notifications.ts'),
   join('lib', 'browser-transport.ts'),
-  join('app', 'session', 'hooks', 'use-prompt-actions', 'browser-manage-refusal.ts')
+  join('app', 'session', 'hooks', 'use-prompt-actions', 'browser-manage-refusal.ts'),
+  // 0.23.3 (T86): сохранённые подключения их веб-приложения (HX33) — зовёт только
+  // `lib/browser-connection.ts` хоста `browser`.
+  join('lib', 'browser-saved-connections.ts'),
+  join('lib', 'browser-saved-connection-oauth.ts'),
+  // 0.23.3 (T86): палитра их раздела «Резервная копия» — перенос в Hermes Cloud (HX3);
+  // её регистрации сняты правкой [3] в `command-palette/index.tsx` и `contrib/surfaces.tsx`.
+  join('app', 'settings', 'backup-palette.ts')
 ])
 
 /** Их каталоги, разрезанные по разделам (0.22.2, T20.7): `ar_boot.ts`,
@@ -198,7 +211,10 @@ const TECHNICAL = new RegExp(
     'historyHermes', // ключ каталога, а не текст
     'hermesHandleTaken', // код ошибки роестра
     'hermes gateway ensure', // команда их CLI в тексте ошибки, как `hermes update`
-    'requiresHermes' // имя поля записи каталога внутри шаблона
+    'requiresHermes', // имя поля записи каталога внутри шаблона
+    // Пополнение при подъёме донора на 0.23.3 (задача T86) — оба технические:
+    '\\.hermes-origin\\.json', // маркер-файл установленного пакета плагина, как `.hermes-package.json`
+    'hermes gateway run' // команда их CLI в подсказке, как `hermes gateway ensure`
   ].join('|')
 )
 

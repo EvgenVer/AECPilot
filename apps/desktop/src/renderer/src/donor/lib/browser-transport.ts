@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/lib/browser-transport.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -184,6 +184,33 @@ export async function browserFetch(
   } finally {
     if (timeout !== null) {window.clearTimeout(timeout)}
   }
+}
+
+/** A gateway route's body as a Blob, for a download a ticketed link cannot reach. */
+export async function browserFetchBlob(
+  bootstrap: BrowserBootstrap,
+  request: { path: string; profile?: null | string }
+): Promise<Blob> {
+  if (!bootstrap.authRequired && !bootstrap.token) {
+    throw webappSignInRequired()
+  }
+
+  const headers = new Headers()
+
+  if (bootstrap.token) {
+    headers.set(SESSION_HEADER, bootstrap.token)
+  }
+
+  const response = await fetch(endpointUrl(request.path, bootstrap.basePath, request.profile), {
+    credentials: 'same-origin',
+    headers
+  })
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${(await response.text()) || response.statusText}`)
+  }
+
+  return response.blob()
 }
 
 export async function browserApi<T>(bootstrap: BrowserBootstrap, request: HermesApiRequest): Promise<T> {

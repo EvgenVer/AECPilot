@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/components/notifications.tsx
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -152,7 +152,10 @@ function TopCenterStack({
             className="-mr-2"
             onClick={() => {
               notifications.forEach(notification => noteUserDismissed(notification.id))
+              // Clears every transient toast, as before; persistent cards in
+              // this stack go too, since Clear all is the explicit dismissal.
               clearNotifications()
+              notifications.filter(notification => notification.persistent).forEach(notification => dismissNotification(notification.id))
             }}
             size="xs"
             type="button"

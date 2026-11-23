@@ -433,7 +433,10 @@ function main() {
   }
   const emittedList = [...emitted].sort();
 
-  const checkpointManager = readIfPresent(path.join(CORE_DIR, "tools", "checkpoint_manager.py"));
+  // `tools/checkpoint_manager.py` until 0.23.0, `agent/checkpoints/manager.py` since 0.23.3
+  const checkpointManager =
+    readIfPresent(path.join(CORE_DIR, "agent", "checkpoints", "manager.py")) ||
+    readIfPresent(path.join(CORE_DIR, "tools", "checkpoint_manager.py"));
   // a local `markers = {…}` until 0.21.0, a module constant `_PROJECT_MARKERS = {…}` since 0.21.2
   const markerBlock = checkpointManager.match(/(?:_PROJECT_MARKERS|markers) = \{([^}]*)\}/);
   const markers = markerBlock

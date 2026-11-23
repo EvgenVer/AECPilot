@@ -1,7 +1,7 @@
 /**
  * Vendored from Hermes Desktop — do not refactor. See donor/README.md.
  * Source:  apps/desktop/src/i18n/ar_artifacts.ts
- * Commit:  2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 (v0.23.0)
+ * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits: none
  */
@@ -163,7 +163,17 @@ export const arArtifacts = {
       loadFailedConsole: (code, message) => `فشل التحميل${code ? ` (${code})` : ''}: ${message}`,
       unreachableDescription: 'تعذّر الوصول إلى صفحة المعاينة.',
       openTarget: url => `فتح ${url}`,
-      fallbackTitle: 'معاينة'
+      fallbackTitle: 'معاينة',
+      vaultFill: 'ملء بيانات دخول محفوظة',
+      vaultTitle: site => `بيانات الدخول المحفوظة لـ ${site}`,
+      vaultLoading: 'جارٍ تحميل بيانات الدخول المحفوظة…',
+      vaultEmpty: 'لا توجد بيانات دخول محفوظة لهذا الموقع',
+      vaultUnlock: name => `فتح قفل ${name}`,
+      vaultOpenSettings: 'فتح إعدادات خزنة بيانات الاعتماد',
+      vaultFilled: label => `تم ملء ${label}. راجع النموذج ثم سجّل الدخول.`,
+      vaultFillFailed: 'تعذّر ملء بيانات الدخول',
+      vaultLoadFailed: 'تعذّر تحميل بيانات الدخول المحفوظة',
+      vaultPageNotReady: 'لا تزال الصفحة قيد التحميل. أعد المحاولة عند اكتمالها.'
     }
   }
 } satisfies Pick<TranslationOverrides, 'artifacts' | 'artifactCard' | 'artifactPreview' | 'preview'>
