@@ -199,6 +199,7 @@ describe('умолчания ядра 0.22, закрытые в профиле (
       // Daybreak (HX35) — закреплены, хотя у ядра уже выключены
       'plugins.auto_apply': false,
       'webapp.enabled': false,
+      'browser.use_real_profile': false,
       'agent.daybreak': false,
       // T53 (UR47): предел обмена между ботами — включён, 4 перехода
       'gateway.bot_loop_guard.enabled': true,

@@ -87,6 +87,16 @@ without a person picking the folder, or a server gateway that listens beyond loo
   the core through spawn-env. `model.save_key` (writes plaintext to `.env`) and
   `POST /api/env/reveal` (returns the key in clear) are never called. `config.get
   {key:"full"}` returns MCP env unmasked — prefer the REST equivalent, which redacts.
+- **The agent backup to a file (UR57) never passes through the renderer.** The archive
+  holds the profile's `.env` and sign-ins in clear. The renderer may only start
+  `POST /api/ops/backup` without an `output` path, and only when the core runs on this
+  machine. The routes that read an archive back (`/api/ops/backup/download`, `/chunk`), the
+  Hermes Cloud transfer, and any REST call whose path, query or body names a backup archive
+  or a `backups` folder (the core's general file routes would serve the zip) are denied.
+  The main process takes only an archive a backup of this run wrote, checks it lies in a
+  `backups` folder of the core home (no network paths, links resolved), copies it through
+  Save As from a handle opened by that check, and deletes it; archives nobody saved are
+  deleted at quit.
 - **Renderer never opens a socket to the gateway** (SPEC C9). Donor components are adapted
   to our IPC bridge; `contextIsolation` and `sandbox` stay on, including for the artifact
   preview sandbox (UR22).

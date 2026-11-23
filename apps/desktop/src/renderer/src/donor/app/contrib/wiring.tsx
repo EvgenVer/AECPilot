@@ -23,6 +23,7 @@
  *       overlay their gate holds; the onboarding-run imports went with it
  *   [3] the session-import view (`SessionImportView`) is not mounted — SPEC
  *       HX30 (owner decision 2026-10-15)
+ *   [3] the real-profile preview sign-in sync is not mounted — SPEC HX36 (owner decision 2026-11-23)
  * (no other edits)
  */
 /**
@@ -184,7 +185,7 @@ import { useDesktopIntegrations } from './hooks/use-desktop-integrations'
 // is HX1.
 // EDIT [4]: their `useDesktopMetrics` (usage telemetry for Nous) is not wired —
 // SPEC HX31; without its requester every `recordAction` stays local and inert.
-import { PreviewSigninsBoot } from './hooks/use-preview-signins-boot'
+// EDIT [3] SPEC HX36 (owner decision 2026-11-23): the real-profile sign-in sync on launch is not mounted.
 import { useQuickEntryBridge } from './hooks/use-quick-entry-bridge'
 import { useSessionTileDelegate } from './hooks/use-session-tile-delegate'
 import { McpInstallDeepLinkDialog } from './mcp-install-deeplink-dialog'
@@ -1336,7 +1337,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       <NotificationStack />
 
       {/* Backs confirm() from @/store/confirm — renders only while one is open. */}
-      <ConfirmHost /><PreviewSigninsBoot />
+      <ConfirmHost />
 
       {/* EDIT [3]: the Petdex floating mascot is HX1. */}
       {/* EDIT [3]: their Send Diagnostics dialog uploads a debug bundle to

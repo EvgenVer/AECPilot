@@ -108,7 +108,13 @@ import { projectFenceRoots } from './project-fence'
 import { isNetworkPath, locateDocument } from './document-locate-pure'
 import { startVaultWatch, type VaultWatch } from './vault-watch'
 import { decideReveal, revealAllowed, revealOutsideError } from './reveal-path-pure'
-import { saveFileOut, saveImageOut, selectSavePath } from './save-out'
+import {
+  discardBackups,
+  saveBackupOut,
+  saveFileOut,
+  saveImageOut,
+  selectSavePath
+} from './save-out'
 import { installNotifications, showNativeNotification } from './native-notify'
 import { installPowerWatch, isOnBattery } from './power'
 import { installAppLog, logDirectory, logRendererError, recentLogs } from './app-log'
@@ -250,6 +256,10 @@ import {
   checkRpcAction,
   checkRpcCall,
   classifyEnvWrite,
+  canonicalRoute,
+  guardBackupArchiveAccess,
+  guardBackupRequest,
+  guardRealProfileConsent,
   guardDelegationRouteKeys,
   describeRpcFailure,
   explainProfileDeleteFailure,
@@ -4051,8 +4061,20 @@ ipcMain.handle(
     const envWrite = classifyEnvWrite(method, path, payload?.body)
     if (envWrite.action !== 'forward') return captureCredentialWrite(envWrite)
 
+    // Task T90: a backup goes only into the profile's own folder (UR57), is never read back
+    // through the core's file routes, and is made only where it can be saved — on this machine.
+    guardBackupRequest(method, path, payload?.body)
+    guardBackupArchiveAccess(path, payload?.body)
+    const startsBackup = method === 'POST' && canonicalRoute(path) === '/api/ops/backup'
+    if (startsBackup && remoteTarget() !== undefined) throw new Error(mainT('gateway.backupRemote'))
+
     // Task T54: a subagent route never carries a model key into config.yaml (C10).
-    const body = guardDelegationRouteKeys(method, path, payload?.body)
+    // Task T89 (review): a settings save never turns the real-profile browser on (HX36).
+    const body = guardRealProfileConsent(
+      method,
+      path,
+      guardDelegationRouteKeys(method, path, payload?.body)
+    )
     if (body !== payload?.body) {
       console.warn(
         'aecpilot: model keys under `delegation` were left out of a settings save (C10); ' +
@@ -4066,6 +4088,9 @@ ipcMain.handle(
         ...(body === undefined ? {} : { body }),
         ...(typeof payload?.timeoutMs === 'number' ? { timeoutMs: payload.timeoutMs } : {})
       })
+      // Task T90: the archive this backup writes is the only one `save:backup` will take.
+      const archive = (result as { archive?: unknown } | null)?.archive
+      if (startsBackup && typeof archive === 'string') backupsThisRun.add(archive)
       // Их страница профилей создаёт специалиста REST-ом — тот же шаг, что у
       // диалога (D-195, 3J.4).
       const created = createdProfileByRest(method, path, payload?.body)
@@ -5453,6 +5478,21 @@ ipcMain.handle('save:file', async (event, payload: unknown) => {
     BrowserWindow.fromWebContents(event.sender) ?? undefined,
     projectFenceRoots(currentProject?.vaultPath),
     request
+  )
+})
+
+// Task T90 (UR57): the agent backup leaves the core's home only through this dialog. Only an
+// archive a backup of this run wrote is taken, once; whatever was not saved is deleted at quit.
+const backupsThisRun = new Set<string>()
+
+ipcMain.handle('save:backup', async (event, archive: unknown) => {
+  if (typeof archive !== 'string' || !backupsThisRun.delete(archive)) {
+    return { saved: false, error: mainT('saveOut.backupRefused') }
+  }
+  return saveBackupOut(
+    BrowserWindow.fromWebContents(event.sender) ?? undefined,
+    (await loadServeModule()).HERMES_HOME_DIR,
+    archive
   )
 })
 
@@ -7197,6 +7237,8 @@ let quitting = false
 app.on('will-quit', () => {
   // Задача T83: локальная модель эмбеддингов не переживает приложение.
   localEmbeddings.stop()
+  // Задача T90: несохранённая резервная копия (ключи открытым текстом) не остаётся в профиле.
+  discardBackups(backupsThisRun)
   unregisterQuickEntry()
   releaseKeepAwake()
   // Задача 3.12: та же причина, но на чужой машине — ядро, оставшееся там

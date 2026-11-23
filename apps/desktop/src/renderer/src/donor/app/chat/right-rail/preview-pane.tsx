@@ -3,7 +3,8 @@
  * Source:  apps/desktop/src/app/chat/right-rail/preview-pane.tsx
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the first-open real-profile consent dialog — SPEC HX36 (owner decision 2026-11-23)
  */
 // Side-effect import: watches the turn edge so the overlay keeps a pulse while
 // the model reasons. Lives here because the pane is what makes it reachable.
@@ -88,7 +89,6 @@ import { type PreviewInputEvent } from './preview-input'
 import { PREVIEW_BROWSER_ATTR, registerPreviewNav } from './preview-nav'
 import { registerPreviewPageReader } from './preview-reader'
 import { watchPreviewDocumentLifecycle } from './preview-script-runner'
-import { RealProfileConsentDialog } from './real-profile-consent-dialog'
 
 type PreviewWebview = HTMLElement &
   PreviewNavigationSurface & {
@@ -1530,9 +1530,7 @@ export function PreviewPane({
           />
         )}
 
-        {/* First-open real-profile consent offer — Browser tabs only (URL
-            vessels the user browses with), never file/HTML previews. */}
-        {target.kind === 'url' && tabId && <RealProfileConsentDialog tabId={tabId} />}
+        {/* EDIT [3] SPEC HX36 (owner decision 2026-11-23): no first-open real-profile consent offer. */}
 
         <div
           className="pointer-events-auto relative min-h-0 flex-1 overflow-hidden bg-transparent"

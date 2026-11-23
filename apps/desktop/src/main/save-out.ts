@@ -10,8 +10,12 @@
 
 import * as fs from 'node:fs/promises'
 import { Buffer } from 'node:buffer'
+import { createWriteStream, rmSync } from 'node:fs'
+import { basename, resolve } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import { BrowserWindow, dialog, type SaveDialogOptions } from 'electron'
 
+import { checkBackupArchive } from './backup-archive-pure'
 import { isInside, resolveArtifactPath, type ProjectRoots } from './artifact-files-pure'
 import {
   classifySaveSource,
@@ -162,4 +166,62 @@ export async function saveFileOut(
   return writeWhereChosen(window, safeFileName(payload.suggestedName, fallback), async (target) => {
     await fs.copyFile(resolved.path, target)
   })
+}
+
+/** Task T90 (UR57): copies a backup archive the core wrote to the place the person picks, then
+ * removes the archive from the core's home whatever the answer, so a plain-text copy of the
+ * profile's keys does not stay behind in it. Which archive is allowed is `checkBackupArchive`
+ * (`backup-archive-pure.ts`); the caller also accepts only an archive a backup of this run
+ * wrote. The check runs again after the dialog (minutes may pass) and the copy reads from the
+ * handle opened by that check, so the file cannot be swapped between check and copy. */
+export async function saveBackupOut(
+  window: BrowserWindow | undefined,
+  hermesHome: string,
+  archive: unknown
+): Promise<SaveOutcome> {
+  const refused = (reason: string): SaveOutcome => {
+    console.warn(`aecpilot: backup save refused (${reason})`)
+    return { saved: false, error: mainT('saveOut.backupRefused') }
+  }
+
+  const first = await checkBackupArchive(hermesHome, archive)
+  if (!first.ok) return refused(first.reason)
+
+  try {
+    const suggested = basename(first.path).replace(/^hermes-backup-/, 'aecpilot-backup-')
+    const target = await askWhereToSave(window, { defaultPath: suggested })
+    if (!target) return { saved: false, canceled: true }
+    if (resolve(target).toLowerCase() === first.path.toLowerCase())
+      return refused('target is the source')
+
+    const again = await checkBackupArchive(hermesHome, archive)
+    if (!again.ok || again.path !== first.path) return refused('the archive changed')
+
+    const source = await fs.open(again.path, 'r')
+    try {
+      if (!(await source.stat()).isFile()) return refused('not a file')
+      await pipeline(source.createReadStream({ autoClose: false }), createWriteStream(target))
+      return { saved: true, path: target }
+    } catch (error: unknown) {
+      return { saved: false, error: mainT('saveOut.writeFailed', messageOf(error)) }
+    } finally {
+      await source.close()
+    }
+  } finally {
+    await fs.rm(first.path, { force: true }).catch(() => undefined)
+  }
+}
+
+/** Task T90: at quit, the archives backups of this run wrote and nobody saved are deleted from
+ * the core's home — each only after the same check, never by a path alone. */
+export function discardBackups(archives: Set<string>): void {
+  for (const archive of archives) {
+    if (
+      !/^[\\/]{2}/.test(archive) &&
+      /^hermes-backup-[A-Za-z0-9-]+\.zip$/.test(basename(archive))
+    ) {
+      rmSync(archive, { force: true })
+    }
+  }
+  archives.clear()
 }

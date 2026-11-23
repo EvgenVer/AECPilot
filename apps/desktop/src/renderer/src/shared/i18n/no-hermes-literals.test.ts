@@ -96,7 +96,12 @@ const DEAD_SURFACE_FILES = new Set([
   join('lib', 'browser-saved-connection-oauth.ts'),
   // 0.23.3 (T86): палитра их раздела «Резервная копия» — перенос в Hermes Cloud (HX3);
   // её регистрации сняты правкой [3] в `command-palette/index.tsx` и `contrib/surfaces.tsx`.
-  join('app', 'settings', 'backup-palette.ts')
+  join('app', 'settings', 'backup-palette.ts'),
+  // T90 (UR57): из `agent-transfer.ts` живёт только `runBackup` (копия в файл); их имя
+  // называет одна строка ПЕРЕНОСА в Hermes Cloud (HX3), до которой в окне никто не доходит —
+  // карточка переноса снята правкой [3] в `backup-settings.tsx`. Если перенос когда-нибудь
+  // вернут, строку убрать отсюда, и страж потребует правку [5].
+  join('lib', 'agent-transfer.ts')
 ])
 
 /** Их каталоги, разрезанные по разделам (0.22.2, T20.7): `ar_boot.ts`,

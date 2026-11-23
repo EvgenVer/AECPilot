@@ -6,6 +6,7 @@
  * Edits:
  *   [5] their product name in user-visible strings → ours (SPEC C12)
  *   [3] dropped the Voice section — all voice is SPEC HX19 (owner decision 2026-10-07)
+ *   [3] dropped `browser.use_real_profile` from the Browser section — SPEC HX36 (owner decision 2026-11-23)
  * (no other edits)
  */
 
@@ -779,7 +780,8 @@ export const SECTIONS: DesktopConfigSection[] = [
     id: 'browser',
     label: 'Browser',
     icon: Globe,
-    keys: ['browser.use_real_profile', 'browser.allow_private_urls', 'browser.auto_local_for_private_urls']
+    // EDIT [3] SPEC HX36 (owner decision 2026-11-23): `browser.use_real_profile` is not shown.
+    keys: ['browser.allow_private_urls', 'browser.auto_local_for_private_urls']
   },
   {
     id: 'memory',

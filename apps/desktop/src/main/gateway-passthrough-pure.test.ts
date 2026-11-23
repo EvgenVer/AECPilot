@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  guardBackupArchiveAccess,
+  guardBackupRequest,
+  guardRealProfileConsent,
   applyProjectCwd,
   checkRestCall,
   checkRpcAction,
@@ -597,6 +600,84 @@ describe('guardDelegationRouteKeys (задача T54, UR48, C10)', () => {
       guardDelegationRouteKeys('PUT', '/api/delegation/backend', { backend: 'model_map' })
     ).toEqual({
       backend: 'model_map'
+    })
+  })
+})
+
+describe('backup routes (task T90, UR57, rule R2)', () => {
+  it('the window cannot read a backup archive back or run the Hermes Cloud transfer', () => {
+    const archive = '?archive=C%3A%5Chome%5Cbackups%5Chermes-backup-x.zip'
+    expect(() => checkRestCall('GET', `/api/ops/backup/download${archive}`)).toThrow()
+    expect(() => checkRestCall('GET', `/api/ops/backup/chunk${archive}&offset=0`)).toThrow()
+    expect(() => checkRestCall('POST', '/api/ops/transfer/chunk')).toThrow()
+    expect(() => checkRestCall('POST', '/api/ops/transfer/restore')).toThrow()
+  })
+
+  it('the window may start a backup into the profile folder, but never name the output file', () => {
+    expect(checkRestCall('POST', '/api/ops/backup').path).toBe('/api/ops/backup')
+    expect(() => guardBackupRequest('POST', '/api/ops/backup', {})).not.toThrow()
+    expect(() => guardBackupRequest('POST', '/api/ops/backup', { output: null })).not.toThrow()
+    expect(() =>
+      guardBackupRequest('POST', '/api/ops/backup', { output: 'C:/Users/x/Desktop/a.zip' })
+    ).toThrow()
+    expect(() =>
+      guardBackupRequest('POST', '/api/ops/backup?profile=dev', { output: 'a.zip' })
+    ).toThrow()
+    expect(() => guardBackupRequest('POST', '/api/ops/%62ackup', { output: 'a.zip' })).toThrow()
+  })
+})
+
+describe('the window never reads a backup archive through the file routes (T90 review)', () => {
+  const zip = String.raw`C:\Users\x\AppData\hermes\backups\hermes-backup-2026-11-23-1-ab.zip`
+  const q = (value: string) => encodeURIComponent(value)
+
+  it('refuses every core file route that names an archive or a backups folder', () => {
+    for (const path of [
+      `/api/fs/read-data-url?path=${q(zip)}`,
+      `/api/fs/download?path=${q(zip)}`,
+      `/api/files/read?path=${q(zip)}`,
+      `/api/files/download?path=${q(zip)}`,
+      `/api/files/stream?path=${q(zip)}`,
+      // 8.3 short name of the archive: the folder still names it.
+      `/api/fs/download?path=${q(String.raw`C:\home\backups\HERMES~1.ZIP`)}`,
+      `/api/fs/download?path=${q('C:/home/profiles/eng/Backups/x.zip')}`
+    ]) {
+      expect(() => guardBackupArchiveAccess(path, undefined), path).toThrow()
+    }
+    expect(() => guardBackupArchiveAccess('/api/files/read', { path: zip })).toThrow()
+  })
+
+  it('lets starting a backup, reading its status and ordinary files through', () => {
+    expect(() => guardBackupArchiveAccess('/api/ops/backup', {})).not.toThrow()
+    expect(() =>
+      guardBackupArchiveAccess('/api/actions/backup/status?lines=200', undefined)
+    ).not.toThrow()
+    expect(() =>
+      guardBackupArchiveAccess(
+        `/api/fs/download?path=${q(String.raw`D:\Проект\backup-plan.docx`)}`,
+        undefined
+      )
+    ).not.toThrow()
+  })
+})
+
+describe('guardRealProfileConsent (T89 review, HX36)', () => {
+  it('a settings save cannot turn the real-profile browser on', () => {
+    const body = { config: { browser: { use_real_profile: true, allow_private_urls: true } } }
+    expect(guardRealProfileConsent('PUT', '/api/config', body)).toEqual({
+      config: { browser: { use_real_profile: false, allow_private_urls: true } }
+    })
+  })
+
+  it('other saves pass untouched', () => {
+    const body = { config: { browser: { allow_private_urls: true } } }
+    expect(guardRealProfileConsent('PUT', '/api/config', body)).toBe(body)
+    expect(
+      guardRealProfileConsent('POST', '/api/config', {
+        config: { browser: { use_real_profile: true } }
+      })
+    ).toEqual({
+      config: { browser: { use_real_profile: true } }
     })
   })
 })

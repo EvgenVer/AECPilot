@@ -3,7 +3,8 @@
  * Source:  apps/desktop/src/app/capabilities/toolsets/toolset-detail.tsx
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] removed the real-profile browser sign-in toggle — SPEC HX36 (owner decision 2026-11-23)
  */
 import { compactNumber } from '@hermes/shared'
 import { useNavigate } from 'react-router'
@@ -16,7 +17,6 @@ import type { ToolsetInfo } from '@/types/hermes'
 import { ToolChip } from '../../master-detail'
 import { PanelPill } from '../../overlays/panel'
 import { SETTINGS_ROUTE } from '../../routes'
-import { BrowserRealProfilePanel } from '../../settings/browser-real-profile-panel'
 import { ComputerUsePanel } from '../../settings/computer-use-panel'
 import { asText, toolNames, toolsetDisplayLabel } from '../../settings/helpers'
 import { TerminalBackendPanel } from '../../settings/terminal-backend-panel'
@@ -80,10 +80,7 @@ export function ToolsetDetail({
         </div>
       )}
       {toolset.name === 'computer_use' && <ComputerUsePanel onConfiguredChange={onConfiguredChange} />}
-      {/* Real-profile consent toggle ABOVE the backend/provider matrix — the
-          config option users kept missing because its only GUI home was the
-          generic Settings → Config editor. */}
-      {toolset.name === 'browser' && <BrowserRealProfilePanel profile={profile} />}
+      {/* EDIT [3] SPEC HX36 (owner decision 2026-11-23): the real-profile browser sign-in toggle is not offered. */}
       {toolset.name === 'terminal' && (
         <TerminalBackendPanel
           key={profileScopeKey(profile)}

@@ -3,7 +3,8 @@
  * Source:  apps/desktop/src/app/settings/config-subpages.ts
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the browser real-profile subpage — SPEC HX36 (owner decision 2026-11-23)
  */
 interface ConfigSubpageDefinition {
   id: string
@@ -61,7 +62,7 @@ const CONFIG_SUBPAGE_DEFINITIONS: Record<string, ConfigSubpageDefinition[]> = {
     { id: 'checkpoints', labelKey: 'safetyCheckpoints', prefixes: ['checkpoints.'] }
   ],
   browser: [
-    { id: 'profile', labelKey: 'browserProfile', fields: ['browser.use_real_profile'] },
+    // EDIT [3] SPEC HX36 (owner decision 2026-11-23): the real-profile subpage is dropped.
     {
       id: 'network',
       labelKey: 'browserNetwork',

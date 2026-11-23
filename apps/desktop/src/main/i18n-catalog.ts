@@ -167,6 +167,7 @@ const ru = {
     'за её пределами — откройте его в проводнике.',
   'saveOut.writeFailed': (message: string) => `Не удалось записать файл: ${message}`,
   'saveOut.fileGone': 'Файла нет на диске — возможно, он был удалён или переименован.',
+  'saveOut.backupRefused': 'Это не файл резервной копии агента — сохранять его нельзя.',
   'saveOut.imageEmpty': 'Картинка пустая — сохранять нечего.',
   'sheet.noSheets': 'В книге нет листов',
   'trash.failed': (message: string) => `Не удалось переместить в корзину: ${message}`,
@@ -315,6 +316,14 @@ const ru = {
   'gateway.delegationKeyRefused':
     'Маршрут не сохранён: ключ модели в маршруте лёг бы в config.yaml открытым текстом. ' +
     'Выберите в маршруте настроенного провайдера — ключ останется в его настройках.',
+  'gateway.backupOutputRefused':
+    'Резервная копия не запущена: путь файла выбирается только в окне «Сохранить как».',
+  'gateway.backupReadRefused':
+    'Файлы резервных копий и папок backups окну не отдаются: в копии ключи открытым текстом. ' +
+    'Сохранить копию можно в «Настройки → Резервная копия».',
+  'gateway.backupRemote':
+    'Резервная копия создаётся на компьютере, где работает агент. Сохраните её там: ' +
+    'откройте «Настройки → Резервная копия» в приложении на сервере.',
   'yolo.noLiveSession': 'нет живой сессии — YOLO переключается только в её пределах',
   'secretFilter.notLoaded':
     'Фильтр секретов не загрузился, поэтому ход не отправлен: без него агент мог бы ' +
@@ -574,6 +583,7 @@ const en: Catalog = {
     'outside it — open it in File Explorer.',
   'saveOut.writeFailed': (message) => `Could not write the file: ${message}`,
   'saveOut.fileGone': 'The file is not on disk — it may have been deleted or renamed.',
+  'saveOut.backupRefused': 'This is not an agent backup file, so it cannot be saved.',
   'saveOut.imageEmpty': 'The image is empty — there is nothing to save.',
   'sheet.noSheets': 'The workbook has no sheets',
   'trash.failed': (message) => `Could not move to the Recycle Bin: ${message}`,
@@ -712,6 +722,14 @@ const en: Catalog = {
   'gateway.delegationKeyRefused':
     'The route was not saved: a model key in a route would land in config.yaml as plain text. ' +
     'Pick a configured provider for the route — its key stays in that provider’s settings.',
+  'gateway.backupOutputRefused':
+    'The backup was not started: the file location is chosen only in the Save As dialog.',
+  'gateway.backupReadRefused':
+    'Backup files and backups folders are not served to the window: a backup holds keys in plain text. ' +
+    'Save a backup in Settings → Backup.',
+  'gateway.backupRemote':
+    'A backup is made on the computer the agent runs on. Save it there: ' +
+    'open Settings → Backup in the app on the server.',
   'yolo.noLiveSession': 'no live session — YOLO can only be toggled within one',
   'secretFilter.notLoaded':
     'The secret filter did not load, so the turn was not sent: without it the agent could ' +

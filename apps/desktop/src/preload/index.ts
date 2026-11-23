@@ -224,6 +224,7 @@ const api: AecpilotApi = {
   selectSavePath: (options) => ipcRenderer.invoke('dialog:select-save-path', options),
   saveImageOut: (source) => ipcRenderer.invoke('save:image', { source }),
   saveFileOut: (payload) => ipcRenderer.invoke('save:file', payload),
+  saveBackupOut: (archive) => ipcRenderer.invoke('save:backup', archive),
   saveTextFileAs: (request) => ipcRenderer.invoke('save:text', request),
   preparedSubmissions: {
     read: () => ipcRenderer.invoke('prepared-submissions:read'),

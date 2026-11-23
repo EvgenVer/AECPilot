@@ -20,7 +20,9 @@ import { ru } from './ru'
 const EXCLUDED: Record<string, string> = {
   'settings.billing.': 'HX2 — оплата и кредиты',
   // 0.23.3 (T86): раздел «Резервная копия» — перенос агента в Hermes Cloud; снят правкой [3].
-  'settings.backup.': 'HX3 — резервная копия и перенос в Hermes Cloud',
+  // T90 (UR57) вернул из него сохранение в файл: его строки переведены в `ru-fill-0-23.ts`,
+  // и их перевод сторожит `backup-to-file.test.ts` — префикс остаётся ради строк переноса.
+  'settings.backup.': 'HX3 — перенос в Hermes Cloud (сохранение в файл переведено, T90)',
   'settings.gateway.webappOauthPaste.': 'HX33 — вход их веб-приложения',
   'settings.model.subagents.routing.daybreakLabel': 'HX35 — Daybreak',
   'settings.vault.': 'HX24 — хранилище логинов и карт',

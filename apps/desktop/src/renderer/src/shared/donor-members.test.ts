@@ -149,11 +149,13 @@ const UNBRIDGED = [
   'removeDesktopPlugin',
   // (13) Приехало с пином 0.23.3 (задача T86): вход встроенного браузера настоящим
   // профилем браузера человека (`browser.use_real_profile`, `lib/preview-signins.ts`,
-  // `store/preview.ts`) — его cookies переносятся в предпросмотр. Это приватность,
-  // решает владелец (вопрос в TASKS); без моста функция молчит, у ядра она выключена.
+  // `store/preview.ts`) — его cookies переносятся в предпросмотр. Не берём: SPEC HX36
+  // (решение владельца 2026-11-23, задача T89) — переключатель, окно согласия и
+  // синхронизация при запуске сняты правкой [3] (`no-real-profile-signin.test.ts`);
+  // `store/preview.ts` зовёт два члена необязательно и без моста молчит;
+  // `syncPreviewSignins` ушёл вместе с переключателем.
   'dropPreviewSigninsForProfile',
-  'migratePreviewSigninsForProfile',
-  'syncPreviewSignins'
+  'migratePreviewSigninsForProfile'
   // `onExternalOpenFailed` (11) и `onKeepAwakeOffer` (12), приехавшие с пином 0.22.2
   // (задача T20.7), стояли здесь до задач T42.2 и T42.1 (решение владельца 2026-10-19):
   // отказ ОС открыть ссылку и разовое предложение «не засыпать» проброшены в шиме.

@@ -59,7 +59,15 @@ export const DENIED_REST_ROUTES: readonly { method: string; path: string }[] = [
   { method: 'POST', path: '/api/webapp-access/restart' },
   // Task T54 (review): the raw config.yaml write replaces the whole file from text, so a
   // model key in it would land there as plain text (C10). Their window never calls it.
-  { method: 'PUT', path: '/api/config/raw' }
+  { method: 'PUT', path: '/api/config/raw' },
+  // Task T90 (UR57): a backup archive holds the profile's `.env` and sign-ins as plain
+  // text. The window starts a backup but never reads the archive: the main process
+  // copies it out (`saveBackupOut` in `save-out.ts`). The two transfer routes are the Hermes Cloud
+  // move (HX3), which writes an uploaded archive and restores it over the agent.
+  { method: 'GET', path: '/api/ops/backup/download' },
+  { method: 'GET', path: '/api/ops/backup/chunk' },
+  { method: 'POST', path: '/api/ops/transfer/chunk' },
+  { method: 'POST', path: '/api/ops/transfer/restore' }
 ]
 // --8<-- [end:denied_methods]
 
@@ -228,6 +236,80 @@ export function guardDelegationRouteKeys(method: string, path: string, body: unk
   }
 
   return body
+}
+
+/** Task T90 (UR57). `POST /api/ops/backup` takes an `output` path and the core writes the
+ * archive — keys included — wherever it says. The window may only start a backup into the
+ * profile's own `backups` folder (no `output`); saving it elsewhere is the main process's
+ * save dialog, so the person picks the place. Throws on any `output`. */
+export function guardBackupRequest(method: string, path: string, body: unknown): void {
+  if (method !== 'POST' || canonicalRoute(path) !== '/api/ops/backup') return
+  const output = (body as { output?: unknown } | null)?.output
+  if (output === undefined || output === null || output === '') return
+  throw new Error(mainT('gateway.backupOutputRefused'))
+}
+
+/** Task T89 (review): HX36 — the core reads `browser.use_real_profile` for the agent's own
+ * browser and its login source, not only for the preview. Their generic settings save
+ * (`PUT /api/config`) could still send `true`; it is forwarded as `false`. */
+export function guardRealProfileConsent(method: string, path: string, body: unknown): unknown {
+  if (method !== 'PUT' || canonicalRoute(path) !== '/api/config') return body
+  const config = (body as { config?: unknown } | null)?.config
+  if (config === null || typeof config !== 'object') return body
+  const browser = (config as Record<string, unknown>).browser
+  if (browser === null || typeof browser !== 'object') return body
+  if ((browser as Record<string, unknown>).use_real_profile !== true) return body
+  return {
+    ...(body as Record<string, unknown>),
+    config: {
+      ...(config as Record<string, unknown>),
+      browser: { ...(browser as Record<string, unknown>), use_real_profile: false }
+    }
+  }
+}
+
+/** A value that names a backup archive: the core's archive name, or a `backups` folder as
+ * a path segment (the 8.3 short name of `backups` is the same word). */
+function namesBackupArchive(value: string): boolean {
+  return (
+    /hermes-backup-/i.test(value) ||
+    value.split(/[\\/]+/).some((part) => /^backups$/i.test(part.trim()))
+  )
+}
+
+function stringsIn(value: unknown, out: string[] = [], depth = 0): string[] {
+  if (depth > 8) return out
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) stringsIn(item, out, depth + 1)
+  else if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      out.push(key)
+      stringsIn(item, out, depth + 1)
+    }
+  }
+  return out
+}
+
+/** Task T90, review finding 1. Besides the backup routes themselves, the core's general file
+ * routes (`/api/fs/read-data-url`, `/api/fs/download`, `/api/files/*`) serve any regular file
+ * whose NAME is not on their sensitive list — a backup zip in `<home>/backups` passes, and it
+ * holds `.env` and `auth.json` in clear. The window learns that path from `POST
+ * /api/ops/backup`. So no REST call from the window may name a backup archive or a `backups`
+ * folder, in its path, its query or its body. Starting a backup and reading its status do not
+ * name one. A project folder literally called `backups` is the price: its files cannot be
+ * previewed through the core, and the error says why. */
+export function guardBackupArchiveAccess(path: string, body: unknown): void {
+  const route = canonicalRoute(path)
+  const query = path.includes('?') ? path.slice(path.indexOf('?') + 1).split('#', 1)[0] : ''
+  const values = [route]
+  try {
+    for (const [key, value] of new URLSearchParams(query)) values.push(key, value)
+  } catch {
+    throw new Error(`gateway REST: malformed query in "${path}"`)
+  }
+  stringsIn(body, values)
+  // `/api/ops/backup` and `/api/actions/backup/status` name `backup`, not `backups`: they pass.
+  if (values.some(namesBackupArchive)) throw new Error(mainT('gateway.backupReadRefused'))
 }
 
 const RPC_METHOD_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i

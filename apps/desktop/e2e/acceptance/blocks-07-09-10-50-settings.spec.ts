@@ -268,6 +268,25 @@ test('7.3.2 разделов расписаний, каналов, вебхук�
   await closeSettings(page)
 })
 
+test('7.3.3 «Резервная копия»: только сохранение агента в файл, без переноса в облако (UR57, HX3)', async () => {
+  const page = await ui()
+  await openSettings(page, 'tab=backup')
+  await expect(page.getByText('Сохранить агента в файл').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Сохранить…' })).toBeVisible()
+  const text = await page.locator('body').innerText()
+  expect(text).toMatch(/открытым текстом/)
+  expect(text).not.toMatch(/Hermes Cloud|Transfer|перенос/i)
+  await closeSettings(page)
+})
+
+test('7.3.4 настройки браузера: входа настоящим профилем браузера нет (HX36)', async () => {
+  const page = await ui()
+  await openSettings(page, 'tab=config:browser')
+  const text = await page.locator('body').innerText()
+  expect(text).not.toMatch(/профиль браузера|real.?profile/i)
+  await closeSettings(page)
+})
+
 // ───────────────────────── Блок 9. Язык и тема ─────────────────────────
 
 /** Выбрать язык в открытом списке: их список — cmdk, щелчок по строке

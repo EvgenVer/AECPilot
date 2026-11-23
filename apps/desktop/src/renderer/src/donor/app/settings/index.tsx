@@ -11,8 +11,10 @@
  *       the other two lead to our pages (SPEC UR43, task 3H.10)
  *   [3] removed the Web Access entry and view — SPEC HX33 (owner decision
  *       2026-11-07)
- *   [3] removed the Backup entry and view — backup and transfer to Hermes Cloud,
- *       HX3 (task T86)
+ *   [3] the Backup entry and view stay registered for the backup to a file only
+ *       (SPEC UR57, task T90): the entry shows their backup-only label and icon, and
+ *       the view is keyed by connection and profile (their `vaultOwnerKey` is HX24);
+ *       transfer to Hermes Cloud is HX3
  * (no other edits)
  */
 import { useStore } from '@nanostores/react'
@@ -90,6 +92,7 @@ import { SettingsSubpageHeader } from './subpage-navigation'
 import { resolveSettingsSubpage, settingsSubpageIcon, settingsSubpages } from './subpages'
 import type { SettingsPageProps, SettingsView as SettingsViewId } from './types'
 // EDIT [3]: the Credential Vault (HX24) and Web Access (HX33) views are not registered.
+import { BackupSettings } from './backup-settings'
 
 const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   ...SECTIONS.map(s => `config:${s.id}` as SettingsViewId),
@@ -102,7 +105,7 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'keys',
   'notifications',
   'sessions',
-  // EDIT [3]: 'backup' (backup and transfer to Hermes Cloud) is HX3.
+  'backup',
   'plugins',
   'about'
 ]
@@ -398,8 +401,14 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.sessions,
             onSelect: () => setActiveView('sessions')
           },
-          // EDIT [3]: the Backup entry — backup and transfer of the agent to Hermes Cloud
-          // (`lib/hermes-cloud-agents`) — is HX3.
+          // EDIT [3]: backup to a file only (UR57) — transfer to Hermes Cloud is HX3.
+          {
+            active: activeView === 'backup',
+            icon: Archive,
+            id: 'backup',
+            label: t.settings.nav.backupOnly,
+            onSelect: () => setActiveView('backup')
+          },
           {
             active: activeView === 'plugins',
             children: pluginSettingsNavChildren(plugins.entries, plugins.target, plugins.open),
@@ -560,6 +569,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
     />
   ) : activeView === 'keys' ? (
     <KeysSettings view={keysView} />
+  ) : activeView === 'backup' ? (
+    <BackupSettings key={`${activeConnectionId ?? ''}:${scopeProfile ?? ''}`} />
   ) : activeView === 'plugins' ? (
     <PluginSettingsPane
       entries={plugins.entries}
