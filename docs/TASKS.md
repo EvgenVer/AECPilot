@@ -24,7 +24,7 @@
   срочного по заголовкам коммитов не найдено, код 0.23.4 не запускался
 - Скачано для замера T58 (владелец разрешил 2026-11-24; удалять только по его слову):
   `D:/AI_models/aecpilot-dictation/small` (≈486 МБ) и `/medium` (≈1,53 ГБ), Hugging Face, MIT
-- T58 замерен 2026-11-24 (`eval/reports/dictation.md`): medium 39/49 терминов, small 34, base 17;
+- T58 замерен 2026-11-24 (`eval/reports/dictation.md`): medium 36–39 из 49, small со словарём 37–38, small 34, base 17;
   в коде пока стоит small — сменить после ответа владельца
 - Waiting for the owner: T58 — брать medium или ещё замерить large-v3-turbo (≈1,6 ГБ); T59 — пакет
   `av` (часть faster-whisper ядра) несёт x264/x265 под GPL, C3 велит спросить; связь сервера Lira с
