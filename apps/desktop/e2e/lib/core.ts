@@ -13,6 +13,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { findForeignPaths, isolateProfileMcp } from './profile-mcp'
 
 const repoRoot = join(__dirname, '..', '..', '..', '..')
@@ -49,7 +50,27 @@ export function prepareProfile(options: { withoutProviderKey?: boolean } = {}): 
   })
   copyShippedSkills(dir)
   isolateMcp(dir)
+  installCurrentSecretFilter(dir)
   return dir
+}
+
+/** Техдолг T85: `runtime/e2e-profile` не в git и держит копию фильтра секретов той даты, когда
+ *  его собрали, — пробы и стенды, которые не ставят фильтр сами, видели старый плагин. Каждая
+ *  временная копия получает текущий плагин из репозитория тем же путём, что и приложение при
+ *  открытии проекта (`runtime/register-secret-filter.mjs`). */
+function installCurrentSecretFilter(profile: string): void {
+  const module = pathToFileURL(join(repoRoot, 'runtime', 'register-secret-filter.mjs')).href
+  execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `const m = await import(${JSON.stringify(module)}); m.installSecretFilter(process.argv[1])`,
+      profile
+    ],
+    // Навыки поставки стенд видит копией в профиле — тот же путь, что `app.ts` передаёт приложению.
+    { stdio: 'pipe', env: { ...process.env, AEC_SKILLS_DIR: join(profile, SHIPPED_SKILLS_COPY) } }
+  )
 }
 
 /** Регистрации MCP в копии не должны вести наружу: `aec-roster` с `--home`

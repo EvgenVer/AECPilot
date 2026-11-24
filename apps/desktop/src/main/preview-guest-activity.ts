@@ -266,3 +266,22 @@ export function holdOwnerAwake(owner: WebContents): () => void {
     if (!owner.isDestroyed()) owner.setBackgroundThrottling(current.original)
   }
 }
+
+/** Task T88 (review debt): a deleted or renamed profile leaves its preview cookie jar behind,
+ * and a profile created later under the same name would open the sites still signed in. Their
+ * delete/rename hooks (`dropPreviewSigninsForProfile`, `migratePreviewSigninsForProfile`) clear
+ * only the cookies imported from a real browser profile (HX36, not taken); here the whole jar
+ * of that profile is cleared — the sign-ins a person made by hand in the preview included. The
+ * default profile's jar is never cleared this way (that profile cannot be deleted). */
+export async function clearPreviewJarForProfile(
+  profile: string,
+  partitionFor: (profile: string) => string,
+  resolveSession: (partition: string) => Session
+): Promise<boolean> {
+  const partition = partitionFor(profile)
+  if (partition === PREVIEW_GUEST_PARTITION || !isPreviewPartition(partition)) return false
+  const jar = resolveSession(partition)
+  await jar.clearStorageData()
+  await jar.clearCache()
+  return true
+}

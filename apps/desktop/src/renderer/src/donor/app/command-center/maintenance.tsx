@@ -3,7 +3,9 @@
  * Source:  apps/desktop/src/app/command-center/maintenance.tsx
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [3] dropped the Backup row — the backup to a file lives in Settings ▸ Backup (SPEC UR57,
+ *       task T90); this row wrote an archive with the keys in clear that the window cannot save
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -20,7 +22,6 @@ import {
   type MemoryStatusResponse,
   resetMemory,
   resolveOwnerNow,
-  runBackup,
   runCurator,
   runDebugShare,
   runDoctor,
@@ -240,12 +241,7 @@ export function MaintenancePanel() {
           label={mm.securityAudit}
           onRun={() => void launch(mm.securityAudit, runSecurityAudit)}
         />
-        <OpRow
-          description={mm.backupDesc}
-          disabled={actionStatus?.running === true}
-          label={mm.backup}
-          onRun={() => void launch(mm.backup, runBackup)}
-        />
+        {/* EDIT [3] SPEC UR57: the Backup row is dropped — backup to a file is Settings ▸ Backup. */}
         <OpRow
           description={mm.debugShareDesc}
           disabled={sharing}

@@ -225,6 +225,7 @@ const api: AecpilotApi = {
   saveImageOut: (source) => ipcRenderer.invoke('save:image', { source }),
   saveFileOut: (payload) => ipcRenderer.invoke('save:file', payload),
   saveBackupOut: (archive) => ipcRenderer.invoke('save:backup', archive),
+  clearPreviewProfileJar: (profile) => ipcRenderer.invoke('preview:clear-profile-jar', profile),
   saveTextFileAs: (request) => ipcRenderer.invoke('save:text', request),
   preparedSubmissions: {
     read: () => ipcRenderer.invoke('prepared-submissions:read'),

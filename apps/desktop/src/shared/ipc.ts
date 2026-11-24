@@ -1085,6 +1085,9 @@ export interface AecpilotApi {
    * place the person picks; main checks the path is one of the core's backup archives and
    * removes the archive from the core's home afterwards. */
   saveBackupOut(archive: string): Promise<SaveOutResult>
+  /** Task T88 debt: clear a deleted or renamed profile's preview cookie jar (never the
+   * default profile's). Their `dropPreviewSigninsForProfile` / `migratePreviewSigninsForProfile`. */
+  clearPreviewProfileJar(profile: string): Promise<{ ok: boolean }>
   /** Their journal of uncertain sends (task T52, donor 0.23.0): JSON strings in and
    * out, one store per renderer origin; `compareAndSet` is atomic in main. */
   preparedSubmissions: {

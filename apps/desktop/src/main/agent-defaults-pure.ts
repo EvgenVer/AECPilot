@@ -198,10 +198,6 @@ export const CORE_OPT_OUTS: readonly CoreOptOut[] = [
   { path: ['plugins', 'auto_apply'], value: false, what: 'the plugin self-update opt-out' },
   // Веб-приложение шлюза — слушающий порт и вход через Nous (HX33).
   { path: ['webapp', 'enabled'], value: false, what: 'the web-app opt-out' },
-  // Вход браузера агента и предпросмотра настоящим профилем браузера человека (HX36, задача
-  // T89). У ядра уже `false`; закреплено, а сохранение настроек окна включить его не может
-  // (`guardRealProfileConsent`).
-  { path: ['browser', 'use_real_profile'], value: false, what: 'the real-profile browser opt-out' },
   // Daybreak — тариф Codex с удалённой конфигурацией (HX35).
   { path: ['agent', 'daybreak'], value: false, what: 'the Daybreak opt-out' },
   // T53 (UR47): обмен между ботами без человека ограничен — в комнатах и в `message_agent`

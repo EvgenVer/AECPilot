@@ -1455,6 +1455,22 @@ const IMPLEMENTED: Record<string, unknown> = {
     return window.aecpilot.saveTextFileAs(request)
   },
 
+  /** Task T88 debt: their profile delete hook. They clear only the cookies imported from a
+   * real browser profile (HX36, not taken); ours clears the profile's whole preview jar, so a
+   * profile created later under the same name does not open sites signed in. */
+  dropPreviewSigninsForProfile(request: { profile: string }): Promise<{ ok: boolean }> {
+    return window.aecpilot.clearPreviewProfileJar(request.profile)
+  },
+
+  /** Their rename hook moves the imported cookies to the new name. Ours clears the old name's
+   * jar: the renamed profile signs in again, and no later profile inherits the old sign-ins. */
+  migratePreviewSigninsForProfile(request: {
+    oldProfile: string
+    newProfile: string
+  }): Promise<{ ok: boolean }> {
+    return window.aecpilot.clearPreviewProfileJar(request.oldProfile)
+  },
+
   async saveGatewayFile(payload: {
     path: string
     profile?: null | string

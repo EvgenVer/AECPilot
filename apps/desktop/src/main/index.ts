@@ -184,8 +184,10 @@ import { installPreviewGuestGuard } from './preview-guest'
 import { preparedJournal } from './prepared-submissions'
 import { saveTextFileAs } from './save-text-file'
 import { registerStreamWorkClock } from './stream-work-clock'
+import { previewPartitionForProfile } from '../renderer/src/donor/hermes-electron/preview-guest-throttle'
 import {
   beginPreviewGuestActivity,
+  clearPreviewJarForProfile,
   endPreviewGuestActivity,
   executePreviewGuestScript,
   holdOwnerAwake
@@ -1745,6 +1747,12 @@ function applyCoreOptOuts(homeDir: string): void {
         ensureNestedScalar(text, path[0], path[1], path[2], value)
       )
   }
+  // Задача T89 (HX36, техдолг ревью): вход браузера агента и предпросмотра настоящим профилем
+  // браузера человека выключается ВСЕГДА, а не только когда ключа нет: сборка T86 могла его
+  // включить. Сохранение настроек окна включить его не может (`guardRealProfileConsent`).
+  applyConfigMerge(homeDir, 'browser', 'the real-profile browser off (HX36)', (text) =>
+    forceSectionScalar(text, 'browser', 'use_real_profile', false)
+  )
   // Задача 3G.10 (UR42): канбан, браузер и сейф — за поиском инструментов.
   // Ключ заменяет их умолчание целиком, поэтому оно внутри списка. Наш прежний
   // список (ядро 0.21.5) заменяется новым, свой список человека — нет (T20.5).
@@ -5479,6 +5487,18 @@ ipcMain.handle('save:file', async (event, payload: unknown) => {
     projectFenceRoots(currentProject?.vaultPath),
     request
   )
+})
+
+// Task T88 debt: their delete/rename hooks for a profile clear its preview cookie jar. A
+// remote profile's deletion never reaches here (their store calls it for local ones only).
+ipcMain.handle('preview:clear-profile-jar', async (_event, profile: unknown) => {
+  if (!isValidProfileName(profile)) return { ok: false }
+  const cleared = await clearPreviewJarForProfile(
+    profile,
+    previewPartitionForProfile,
+    (partition) => session.fromPartition(partition)
+  )
+  return { ok: cleared }
 })
 
 // Task T90 (UR57): the agent backup leaves the core's home only through this dialog. Only an
