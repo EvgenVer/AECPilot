@@ -97,6 +97,34 @@ without a person picking the folder, or a server gateway that listens beyond loo
   `backups` folder of the core home (no network paths, links resolved), copies it through
   Save As from a handle opened by that check, and deletes it; archives nobody saved are
   deleted at quit.
+- **Dictation: the microphone opens for a press, and the sound stays with the core (UR49).**
+  `preload` — the isolated world — refuses the request without a live user gesture
+  (`navigator.userActivation`); main then lets the microphone out for one stream within ten
+  seconds, to that window's main frame only (`permission-policy.ts`). A page in the preview, a
+  frame, another window and the camera get nothing. What this does not stop: code already
+  running inside our own window can ask within the few seconds after ANY press or keystroke
+  in it — the gesture proves a person at the keyboard, not the microphone button.
+  Before the microphone opens, and again before the recording is sent (the agent can edit
+  `config.yaml`, and a recording lasts up to minutes), main asks the CORE which recogniser it
+  will use (`GET /api/config` of that profile) and refuses unless it is the local one with the
+  model of ours — on this machine by the exact folder, on a server by the folder's name. The
+  file is brought to order with a YAML parser at start, at every recording and, on a server,
+  every 30 seconds; what decides is the core's answer, not the file. The window's own ways to
+  a cloud recogniser — the live WebSocket and the direct provider call with its key — have no
+  caller (`voice-boundary.test.ts`), and the RPC verbs that open the HOST's microphone are
+  denied to the window. Voice messages of the messengers stay unrecognised (`stt_enabled:
+  false` in `gateway.json`); a Discord voice channel and the Teams meeting pipeline call the
+  recogniser past that switch — both channels are off by default, and the recogniser they
+  reach is the same local one. Not covered: a plugin the owner installs may hook the core's
+  `pre_transcription` and choose another model.
+- **The dictation model is downloaded by us, not by the core.** Left alone, the core fetches
+  it from Hugging Face without asking on the first recording. Recognition stays off until a
+  person presses "Download and turn on"; the files come from one pinned commit and each is
+  checked against its SHA256; the core gets the folder's path, so it does not touch the
+  network. On a server the consent is asked on the server machine, from its tray — a client
+  over the network cannot make it download anything. The consent is a dialog of the window,
+  which trust boundary 2 does not count as proof: the worst a compromised window gains is
+  the download of one fixed, verified file.
 - **Renderer never opens a socket to the gateway** (SPEC C9). Donor components are adapted
   to our IPC bridge; `contextIsolation` and `sandbox` stay on, including for the artifact
   preview sandbox (UR22).

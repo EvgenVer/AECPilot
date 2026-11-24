@@ -3,7 +3,10 @@
  * Source:  apps/desktop/src/app/chat/session-tile.tsx
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [1] the recording goes only to the core's relay, never from the window straight to a
+ *       cloud recogniser with its key (SPEC UR49, C9)
+ * (no other edits)
  */
 /**
  * SESSION TILES — a stored session rendered as a layout-tree pane BESIDE the
@@ -48,7 +51,6 @@ import { type ResolvedOwner, transcribeAudio } from '@/hermes'
 import { useI18n } from '@/i18n'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { NEW_SESSION_TITLE, sessionTitle } from '@/lib/chat-runtime'
-import { transcribeAudioClientDirect } from '@/lib/voice-client-direct'
 import { createComposerAttachmentScope, draftTitleFor, takeSessionDraft } from '@/store/composer'
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $pinnedSessionIds, pinSession, unpinSession } from '@/store/layout'
@@ -236,16 +238,6 @@ function buildTileView(storedSessionId: string): SessionView {
 const noop = () => undefined
 
 const tileTranscribeAudio = async (audio: Blob, owner?: ResolvedOwner) => {
-  // Client-direct first (profile's own STT provider, no gateway audio hop);
-  // relay when the provider is not client-callable. Same ladder as the main
-  // composer's transcribeVoiceAudio. `owner` is the recording's owner — the
-  // tile's (connection, profile), resolved when its mic opened.
-  const direct = await transcribeAudioClientDirect(audio, owner)
-
-  if (direct !== null) {
-    return direct
-  }
-
   return (await transcribeAudio(await blobToDataUrl(audio), audio.type, owner)).transcript
 }
 

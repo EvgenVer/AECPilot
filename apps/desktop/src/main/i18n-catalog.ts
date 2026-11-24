@@ -377,6 +377,32 @@ const ru = {
     `локальная модель эмбеддингов не скачана — нажмите «Скачать» в ${place}`,
   'provider.localNeedsExtraction': (place: string) =>
     `локальная модель только строит векторы — выберите модель разбора у другого провайдера в ${place}`,
+  'dictation.remote':
+    'диктовку распознаёт сервер: модель ставят на нём — значок AECPilot в трее, пункт «Диктовка»',
+  'dictation.engineMissing':
+    'в среде ядра нет пакетов распознавания речи — переустановите программу',
+  'dictation.configFailed':
+    'не удалось записать настройки диктовки в config.yaml — см. журнал приложения',
+  'dictation.removeFailed': (detail: string) => `модель не удалена: ${detail}`,
+  'dictation.notReady':
+    'запись не отправлена: ядро сейчас не настроено распознавать речь на этой машине — откройте окно «Диктовка» (Ctrl+K → «Диктовка»)',
+  'dictation.blocked':
+    'модель на месте, но ядро не настроено распознавать речь на этой машине: настройки голоса в config.yaml профиля не удалось привести в порядок или ядро ещё запускается. Микрофон закрыт.',
+  'dictation.noSpace': (mb: number) => `не хватает места на диске: нужно ${mb} МБ`,
+  'dictation.removeBusy':
+    'ядро ещё держит файл модели в памяти (до 15 минут после последней диктовки). Диктовка осталась включённой — повторите позже или после перезапуска программы.',
+  'dictation.trayOff': 'Диктовка: скачать модель…',
+  'dictation.trayOn': 'Диктовка включена — удалить модель…',
+  'dictation.trayBusy': (percent: number) => `Диктовка: загрузка модели, ${percent} %`,
+  'dictation.downloadTitle': 'Скачать модель диктовки на этот сервер?',
+  'dictation.downloadDetail': (repo: string, mb: number, license: string) =>
+    `Модель ${repo} с Hugging Face, ${mb} МБ, лицензия ${license}. Скачивается один раз, дальше ` +
+    'распознавание работает без сети. Речь клиентов распознаёт этот сервер; в облако звук не уходит.',
+  'dictation.downloadButton': 'Скачать и включить',
+  'dictation.removeTitle': 'Выключить диктовку и удалить модель?',
+  'dictation.removeDetail': 'Клиенты этого сервера больше не смогут диктовать.',
+  'dictation.removeButton': 'Удалить',
+  'dictation.failed': 'Диктовка: не получилось',
   'local.remote':
     'локальная модель работает только со своим ядром на этом компьютере; при подключении к серверу её ставят на сервере',
   'local.engineMissing': 'движок llama.cpp не установлен — нажмите «Скачать»',
@@ -783,6 +809,32 @@ const en: Catalog = {
     `the local embedding model is not downloaded — press “Download” in ${place}`,
   'provider.localNeedsExtraction': (place) =>
     `the local model only builds vectors — choose an extraction model from another provider in ${place}`,
+  'dictation.remote':
+    'dictation is recognised by the server: the model is set up there — the AECPilot tray icon, “Dictation”',
+  'dictation.engineMissing':
+    'the core has no speech recognition packages — reinstall the application',
+  'dictation.configFailed':
+    'the dictation settings could not be written to config.yaml — see the application log',
+  'dictation.removeFailed': (detail) => `the model was not removed: ${detail}`,
+  'dictation.notReady':
+    'the recording was not sent: the core is not set to recognise speech on this machine — open the “Dictation” dialog (Ctrl+K → “Dictation”)',
+  'dictation.blocked':
+    'the model is in place, but the core is not set to recognise speech on this machine: the voice settings in the profile’s config.yaml could not be put in order, or the core is still starting. The microphone stays closed.',
+  'dictation.noSpace': (mb) => `not enough disk space: ${mb} MB needed`,
+  'dictation.removeBusy':
+    'the core still holds the model file in memory (up to 15 minutes after the last dictation). Dictation stays on — try again later or after a restart.',
+  'dictation.trayOff': 'Dictation: download the model…',
+  'dictation.trayOn': 'Dictation is on — remove the model…',
+  'dictation.trayBusy': (percent) => `Dictation: downloading the model, ${percent}%`,
+  'dictation.downloadTitle': 'Download the dictation model to this server?',
+  'dictation.downloadDetail': (repo, mb, license) =>
+    `Model ${repo} from Hugging Face, ${mb} MB, ${license} license. Downloaded once; recognition then ` +
+    'works offline. This server recognises the clients’ speech; no sound goes to a cloud.',
+  'dictation.downloadButton': 'Download and turn on',
+  'dictation.removeTitle': 'Turn dictation off and remove the model?',
+  'dictation.removeDetail': 'Clients of this server will no longer be able to dictate.',
+  'dictation.removeButton': 'Remove',
+  'dictation.failed': 'Dictation: it did not work',
   'local.remote':
     'the local model works only with this computer’s own core; when connected to a server it is set up on the server',
   'local.engineMissing': 'the llama.cpp engine is not installed — press “Download”',

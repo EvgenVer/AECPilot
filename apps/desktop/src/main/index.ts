@@ -58,7 +58,7 @@ import {
   type ServerScanState,
   type ServerState
 } from './remote-project-pure'
-import { applyPermissionPolicy } from './permission-policy'
+import { applyPermissionPolicy, grantMicrophone } from './permission-policy'
 import {
   AUTOWRITE_FILE,
   decideNoteWrite,
@@ -391,6 +391,8 @@ import {
 import type { ScanReportEnvelope } from '../shared/ipc'
 import { mainT } from './i18n'
 import { LocalEmbeddings, localTargetSync } from './local-embeddings'
+import { Dictation, dictationInstalled, holdVoiceConfig } from './dictation'
+import { isDictationUpload, requestProfile } from './dictation-pure'
 import {
   downloadedModelId,
   LOCAL_PROVIDER,
@@ -501,6 +503,32 @@ const localEmbeddings = new LocalEmbeddings({
     void localEmbeddings
       .status()
       .then((status) => broadcastToWindows('local-embeddings:changed', status))
+      .catch(() => {})
+  }
+})
+
+// --- Локальная диктовка (задача T59, UR49) ----------------------------------
+//
+// Модель распознавания скачивается один раз с согласия человека в профиль ядра
+// (`aec/dictation-models`), распознаёт ядро в своём процессе. См. `dictation.ts`.
+const dictation = new Dictation({
+  hermesHome: async () => (await loadServeModule()).HERMES_HOME_DIR,
+  python: async () => (await loadServeModule()).ticketRuntime(),
+  remote: () => localRemoteReason() !== null,
+  // Стенд с подставным шлюзом: ядра этой установки за ним нет, спрашивать её пакеты не о чем.
+  ...(process.env.AEC_GATEWAY_URL ? { probeEngine: () => Promise.resolve(true) } : {}),
+  coreConfig: (profile) =>
+    hermesRest(
+      restTarget(),
+      profile ? `/api/config?profile=${encodeURIComponent(profile)}` : '/api/config'
+    ),
+  onChange: () => {
+    void dictation
+      .status()
+      .then((status) => {
+        broadcastToWindows('dictation:changed', status)
+        serverTray?.setDictation(status)
+      })
       .catch(() => {})
   }
 })
@@ -625,6 +653,8 @@ async function finishNewProfile(name: unknown): Promise<void> {
   if (!isValidProfileName(name)) return
   try {
     const { HERMES_HOME_DIR } = await loadServeModule()
+    // T59: у нового профиля свой конфиг — граница голоса нужна и в нём.
+    applyVoice(HERMES_HOME_DIR)
     const mainPath = join(HERMES_HOME_DIR, 'SOUL.md')
     const ownPath = join(HERMES_HOME_DIR, 'profiles', name, 'SOUL.md')
     if (!existsSync(mainPath)) return
@@ -1548,9 +1578,9 @@ function applyModelConfigOverride(
   }
 }
 
-/** Задача 3H.4 — голос вне продукта целиком (SPEC HX19, решение владельца
- * 2026-10-07): распознавание и слово-активатор выключены в `config.yaml` на
- * каждом старте, даже если профиль от прежней сборки держит их включёнными.
+/** Задачи 3H.4 и T59 — граница голоса (SPEC HX19, UR49) на каждом старте и во всех
+ * профилях: слово-активатор выключен, распознавание включено только с нашей моделью на
+ * диске и только локальное, русское.
  *
  * Почему не просто снять кнопки. Слово-активатор взводило ОКНО (`wake.start`),
  * и ядро в ответ ставило пакеты распознавания в своё окружение — замер
@@ -1559,36 +1589,8 @@ function applyModelConfigOverride(
  * `wake_surface_enabled` и `is_stt_enabled` читают именно эти поля. Синтез
  * речи как инструмент модели выключен отдельно — `agent.disabled_toolsets`
  * (D-67). Неудача здесь не останавливает старт. */
-function applyVoiceOff(homeDir: string): void {
-  const configPath = join(homeDir, 'config.yaml')
-  let text: string
-  try {
-    text = readFileSync(configPath, 'utf-8')
-  } catch (error: unknown) {
-    console.error('aecpilot: could not read config.yaml to switch voice off', error)
-    return
-  }
-
-  let changed = false
-  for (const [section, key] of [
-    ['stt', 'enabled'],
-    ['wake_word', 'enabled']
-  ] as const) {
-    const merged = forceSectionScalar(text, section, key, false)
-    if (merged.unexpectedStructure) {
-      console.warn(`aecpilot: config.yaml has a ${section}: scalar — leaving it untouched`)
-      continue
-    }
-    text = merged.text
-    changed = changed || merged.changed
-  }
-  if (!changed) return
-
-  try {
-    writeFileSync(configPath, text, 'utf-8')
-  } catch (error: unknown) {
-    console.error('aecpilot: could not write config.yaml with voice off', error)
-  }
+function applyVoice(homeDir: string): void {
+  holdVoiceConfig(homeDir, dictationInstalled(homeDir))
 }
 
 /** Задача 3.B1д — граница длительности одного прогона агента.
@@ -4076,6 +4078,16 @@ ipcMain.handle(
     const startsBackup = method === 'POST' && canonicalRoute(path) === '/api/ops/backup'
     if (startsBackup && remoteTarget() !== undefined) throw new Error(mainT('gateway.backupRemote'))
 
+    // UR49: the sound goes to the core only while its recogniser is the local one. Asked again
+    // here, not only at the press: a recording lasts up to minutes, and the agent may have
+    // edited `config.yaml` meanwhile.
+    if (
+      isDictationUpload(method, canonicalRoute(path)) &&
+      !(await dictation.mayRecord(requestProfile(path)))
+    ) {
+      throw new Error(mainT('dictation.notReady'))
+    }
+
     // Task T54: a subagent route never carries a model key into config.yaml (C10).
     // Task T89 (review): a settings save never turns the real-profile browser on (HX36).
     const body = guardRealProfileConsent(
@@ -4783,6 +4795,18 @@ async function localModelWarnings(nextId: string, confirmed: unknown): Promise<s
 /** The file picked before a warning, reused when the person confirms. */
 let pendingLocalModelFile: string | null = null
 
+ipcMain.handle('dictation:status', () => dictation.status())
+ipcMain.handle('dictation:setup', () => dictation.setup())
+ipcMain.handle('dictation:remove', () => dictation.remove())
+// UR49: микрофон — на одно нажатие. Само нажатие проверил preload (`userActivation`),
+// здесь — что просит главный кадр НАШЕГО окна и что диктовка готова.
+ipcMain.handle('dictation:request-microphone', async (event) => {
+  if (event.senderFrame !== event.sender.mainFrame) return false
+  if (!BrowserWindow.fromWebContents(event.sender)) return false
+  if (!(await dictation.mayRecord())) return false
+  grantMicrophone(event.sender)
+  return true
+})
 ipcMain.handle('local-embeddings:status', () => localEmbeddings.status(true))
 ipcMain.handle('local-embeddings:setup', async (_event, confirmed: unknown) => {
   const warnings = await localModelWarnings(RECOMMENDED_EMBEDDING.id, confirmed)
@@ -7037,7 +7061,7 @@ app
           // (if one is stored) into the child process env only — never written
           // to disk. This must happen before startServe spawns hermes.
           applyModelConfigOverride(HERMES_HOME_DIR, loadLlmSettings())
-          applyVoiceOff(HERMES_HOME_DIR)
+          applyVoice(HERMES_HOME_DIR)
           applyRunBudget(HERMES_HOME_DIR)
           applyLoopBudget(HERMES_HOME_DIR)
           applyCoreOptOuts(HERMES_HOME_DIR)
@@ -7158,8 +7182,16 @@ app
         getToken: () => serveToken() ?? '',
         rotateToken: rotateServerTokenAndRestart,
         openKeys: openServerKeys,
+        dictation,
         quit: () => app.quit()
       })
+      // T59: на сервере специалиста заводит и клиент — запросом к ядру, мимо этого процесса;
+      // его профилю граница голоса нужна без перезапуска сервера.
+      setInterval(() => {
+        void loadServeModule()
+          .then(({ HERMES_HOME_DIR }) => applyVoice(HERMES_HOME_DIR))
+          .catch(() => {})
+      }, 30_000).unref()
       // Задача T35.2: ярлык AECPilot, запущенный поверх работающего сервера, открывает
       // его окно ключей — второй сервер всё равно не поднимется (замок выше), а значок
       // в трее Windows часто спрятан за стрелкой.

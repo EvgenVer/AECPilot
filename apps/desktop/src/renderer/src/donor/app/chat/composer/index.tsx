@@ -8,9 +8,10 @@
  *       hook — auto-speak of replies and the continuous voice conversation are
  *       SPEC HX19 (owner decision 2026-09-08); their three hook files stay in the
  *       zone untouched and simply have no caller
- *   [3] the dictation recorder is not registered either, and the voice
- *       recording / playback banners are not rendered — all voice is SPEC HX19
- *       since the owner decision 2026-10-07
+ *   [3] the playback banner is not rendered — nothing is spoken aloud (SPEC HX19);
+ *       the dictation recorder, its key and its banner are back since UR49 (T59)
+ *   [1] starting a dictation goes through our gate first (`aec/dictation`): consent
+ *       to download the local model, and the microphone only on a press (SPEC UR49)
  * (no other edits)
  */
 import { ComposerPrimitive } from '@assistant-ui/react'
@@ -21,6 +22,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef
 } from 'react'
@@ -57,6 +59,8 @@ import { useForcedTextDirection } from '@/store/text-direction'
 import { $threadScrolledUpBySession } from '@/store/thread-scroll'
 import { useTheme } from '@/themes'
 
+import { useDictationGate } from '../../../../aec/dictation/use-dictation-gate'
+
 import { AttachmentList } from './attachments'
 import { deriveBusySubmitState } from './busy-submit-state'
 import { ComposerDockGlow, QueuedEditBanner } from './chat-bar-parts'
@@ -76,7 +80,8 @@ import { COMPOSER_AREAS } from './contrib'
 import { ComposerControls } from './controls'
 import { ComposerDirectiveActions } from './directive-actions'
 import { COMPOSER_DROP_ACTIVE_CLASS, COMPOSER_DROP_FADE_CLASS } from './drop-affordance'
-import { markActiveComposer, onComposerAttachImagesRequest } from './focus'
+import { pinFloatingComposerCapture } from './floating-target'
+import { markActiveComposer, onComposerAttachImagesRequest, onComposerDictationRequest } from './focus'
 import { HelpHint } from './help-hint'
 import { useAtCompletions } from './hooks/use-at-completions'
 import { useCardWaitingSubmit } from './hooks/use-card-waiting-submit'
@@ -130,7 +135,7 @@ import {
   resolveExactLinkPaste,
   selectionLinkLabel
 } from './url-refs'
-import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
+import { VoiceActivity } from './voice-activity'
 
 /** Grid areas for the menu / input / controls row: one row when roomy, input
  *  above menu + controls when stacked, and one area per row once two touch-size
@@ -1101,20 +1106,40 @@ export function ChatBar({
   // EDIT [3]: их `useComposerVoice` регистрировал ТРИ голосовые поверхности —
   // диктовку, авточтение всех ответов и непрерывный разговор с перебиванием.
   // Последние две — SPEC HX19 (решение владельца 2026-09-08: граница проходит по
-  // тому, кто решает; кнопка «прочитать вслух» у отдельного ответа остаётся).
+  // тому, кто решает).
   // Поэтому здесь регистрируется ровно диктовка — их же хок, вызванный напрямую;
   // `use-composer-voice.ts`, `use-voice-conversation.ts` и
   // `use-auto-speak-replies.ts` остаются в зоне дословно и просто без вызова.
   // Следствие: `voiceStopRef` навсегда остаётся `{ active: false }`, то есть
   // напечатанное «стоп» уходит агенту обычным сообщением — ровно то, что их же
   // код делает вне разговора.
-  // EDIT [3]: и диктовки тоже больше нет — голос исключён целиком, SPEC HX19
-  // (решение владельца 2026-10-07, задача 3H.2). `useVoiceRecorder` не
-  // вызывается: микрофон не открывается, клавиша диктовки некому слушать.
-  // Ряд управления получает неподвижные значения, а не пустые пропсы, — его
-  // тип остаётся их типом.
-  const dictate = (): void => undefined
-  const voiceStatus = 'idle' as const
+  // EDIT [1]: локальная диктовка вернулась (SPEC UR49, задача T59); начало записи идёт
+  // через нашу проверку — модель на диске, согласие на её загрузку. Клавиша и закрепление
+  // плавающего композера на время записи — их же строки из `use-composer-voice.ts`.
+  const {
+    dictate: record,
+    voiceActivityState,
+    voiceStatus
+  } = useVoiceRecorder({
+    focusInput,
+    maxRecordingSeconds,
+    onTranscribeAudio,
+    onTranscript: insertText
+  })
+
+  const dictate = useDictationGate(record, voiceStatus)
+  const dictationSurfaceId = useComposerSurfaceId()
+
+  useLayoutEffect(() => {
+    if (dictationSurfaceId && voiceStatus !== 'idle') {
+      return pinFloatingComposerCapture(dictationSurfaceId)
+    }
+  }, [dictationSurfaceId, voiceStatus])
+
+  useEffect(
+    () => onComposerDictationRequest(requested => requested === scope.target && !disabled && dictate()),
+    [dictate, disabled, scope.target]
+  )
 
   const contextMenu = (
     <ContextMenu
@@ -1491,8 +1516,8 @@ export function ChatBar({
                     onUndone={clearDraft}
                     readLiveText={syncDraftFromEditor}
                   />
-                  {/* EDIT [3]: таблички записи и воспроизведения голоса
-                      (`VoiceActivity`, `VoicePlaybackActivity`) — SPEC HX19. */}
+                  <VoiceActivity state={voiceActivityState} />
+                  {/* EDIT [3]: табличка воспроизведения голоса (`VoicePlaybackActivity`) — SPEC HX19. */}
                   {queueEdit && editingQueuedPrompt && <QueuedEditBanner onExit={exitQueuedEdit} />}
                   {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
                   <div className={cn('grid w-full', controlRowGridClass(singleColumn, stacked))}>

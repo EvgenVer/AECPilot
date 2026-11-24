@@ -4,23 +4,19 @@
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the "speak replies" disc and its two props — auto-speak of every
- *       reply is SPEC HX19 (owner decision 2026-09-08); the per-answer "read
- *       aloud" button stays on the message. Dictation and the wake word remain
- *   [5] their product name in the wake-word fallback → ours (SPEC C12), as in
- *       `controls.tsx`
+ *   [3] dropped the "speak replies" disc with its two props and the wake-word disc —
+ *       SPEC HX19; the hub keeps the one thing UR49 brought back, dictation, and the
+ *       fan has no discs to hint at
  * (no other edits)
  */
-import { useStore } from '@nanostores/react'
 import { useCallback, useMemo } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
-import { FanMenu, type FanMenuItem } from '@/components/ui/fan-menu'
+import { FanMenu } from '@/components/ui/fan-menu'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { Ear, EarOff, iconSize, Loader2, Square } from '@/lib/icons'
+import { iconSize, Loader2, Square } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN } from './control-classes'
 import type { ChatBarState, VoiceStatus } from './types'
@@ -46,12 +42,8 @@ export interface VoiceFanProps {
 export function VoiceFan({ disabled, state, voiceStatus, onDictate }: VoiceFanProps) {
   const { t } = useI18n()
   const c = t.composer
-  const wake = useStore($wakeWord)
 
-  const phrase = wake.phrase || 'hey pilot'
   const dictating = state.voice.active || voiceStatus !== 'idle'
-  const wakeListening = wake.listening
-  const wakePending = wake.pending
 
   const dictationLabel =
     voiceStatus === 'recording'
@@ -89,23 +81,8 @@ export function VoiceFan({ disabled, state, voiceStatus, onDictate }: VoiceFanPr
     [dictate, dictating, disabled, hubLabel, state.voice.enabled, voiceStatus]
   )
 
-  const items = useMemo<FanMenuItem[]>(
-    () => [
-      // EDIT [3]: the "speak replies" disc stood here — SPEC HX19.
-      {
-        id: 'wake',
-        active: wakeListening,
-        disabled: disabled || wakePending,
-        icon: wakeListening ? <Ear className={iconSize.sm} /> : <EarOff className={iconSize.sm} />,
-        label: c.wakeWord(phrase),
-        onSelect: () => {
-          triggerHaptic(wakeListening ? 'close' : 'open')
-          void toggleWakeWord()
-        }
-      }
-    ],
-    [c, disabled, phrase, wakeListening, wakePending]
-  )
-
-  return <FanMenu direction="vertical" hub={hub} items={items} label={c.voiceControls} />
+  // EDIT [3]: the "speak replies" and wake-word discs stood here — SPEC HX19.
+  return <FanMenu direction="vertical" hint={false} hub={hub} items={NO_DISCS} label={c.voiceControls} />
 }
+
+const NO_DISCS: [] = []

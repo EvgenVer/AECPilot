@@ -846,6 +846,28 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True})
             return
 
+        # Test handle: the `stt` section this mock's core claims to run on (T59).
+        if route == "/api/_mock/stt":
+            _CONFIG["stt"] = body
+            self._send(200, {"ok": True})
+            return
+
+        # Task T59 (UR49). What the window sends of a dictation: the warm-up lease and the
+        # recorded clip. The mock recognises nothing; it prints what arrived (the size is
+        # what tells a recording from an empty one) and answers with a fixed phrase.
+        if route == "/api/audio/stt-lease":
+            self._send(200, {"ok": True})
+            return
+
+        if route == "/api/audio/transcribe":
+            data_url = str(body.get("data_url") or "")
+            print(
+                f"MOCK_AUDIO {data_url[:24]} mime={body.get('mime_type')} chars={len(data_url)}",
+                flush=True,
+            )
+            self._send(200, {"ok": True, "transcript": "Проверить узел опирания плиты"})
+            return
+
         if route == "/api/profiles/active":
             self._send(200, {"ok": True, "active": "default"})
             return

@@ -69,7 +69,7 @@ const SKIP_FILES = new Set([
  *
  * Третий файл — их живой голосовой разговор (SPEC HX19, не берём; пин 0.21.3,
  * задача 3.B5ж): реплики, которые он ПРОИЗНОСИТ. Что его никто не зовёт,
- * держит `voice-by-human-decision.test.ts`. */
+ * держит `voice-boundary.test.ts`. */
 const DEAD_SURFACE_FILES = new Set([
   // 0.22.2 (T20.7): их онбординг-чат ушёл из их дерева вместе со своими
   // промптами (`onboarding-chat/*`, `onboarding-script.ts`) — три прежние

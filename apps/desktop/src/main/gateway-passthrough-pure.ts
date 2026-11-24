@@ -29,7 +29,14 @@ import { mainT } from './i18n'
 export const DENIED_RPC_METHODS: readonly string[] = [
   'model.save_key',
   // Core 0.23.0 (task T52): uploads a debug bundle to Nous-internal storage — HX3.
-  'diagnostics.share_nous'
+  'diagnostics.share_nous',
+  // T59 (UR49, HX19): the core opens the HOST's microphone by itself — no press, no window.
+  // What keeps it shut today is a missing package; recognition being on must not be the rest.
+  'voice.toggle',
+  'voice.record',
+  'voice.tts',
+  'wake.start',
+  'wake.feed'
 ]
 
 /** Actions of a method the renderer may never ask for (core 0.23.0, task T52).

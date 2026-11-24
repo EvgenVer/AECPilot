@@ -1966,22 +1966,30 @@ test('the HUD floats above other windows, lets clicks through, and closes', asyn
   await assertRendererAlive(page, 'end of test 10')
 })
 
-// Задача 3H.3: табличка «микрофон слушает» (задача 3.7b) снята вместе со всем
-// голосом — SPEC HX19, решение владельца 2026-10-07. Проверяется, что моста к
-// ней нет и окна такого не появляется.
-test('у окна нет моста к микрофону и табличке слова-активатора', async () => {
+// Задача 3H.3: табличка «микрофон слушает» (задача 3.7b) снята вместе со словом-активатором
+// и чтением вслух — SPEC HX19. Диктовка (UR49, T59) вернула одно: просьбу открыть микрофон
+// на одно нажатие — без нажатия она обязана отказать, а сам микрофон остаться закрытым.
+test('микрофон без нажатия закрыт, моста к слову-активатору и синтезу нет', async () => {
   const page = await mainWindow()
 
   const bridge = await page.evaluate(() => {
     const api = window.aecpilot as unknown as Record<string, unknown>
-    return [
-      'setWakeIndicator',
-      'getWakeIndicator',
-      'requestMicrophoneAccess',
-      'openSpeechStream'
-    ].filter((name) => typeof api[name] === 'function')
+    return ['setWakeIndicator', 'getWakeIndicator', 'openSpeechStream'].filter(
+      (name) => typeof api[name] === 'function'
+    )
   })
   expect(bridge, 'голосовые члены моста обязаны отсутствовать').toEqual([])
+
+  const refused = await page.evaluate(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((track) => track.stop())
+      return 'opened'
+    } catch (error) {
+      return error instanceof DOMException ? error.name : String(error)
+    }
+  })
+  expect(refused).not.toBe('opened')
 
   const wakeWindows = await app.evaluate(
     ({ BrowserWindow }) =>
@@ -2549,15 +2557,10 @@ test('рука агента попадает в цель при масштабе
   await assertRendererAlive(page, 'preview hand at 125%')
 })
 
-// Задача 3H.2 (SPEC HX19, решение владельца 2026-10-07): голос вне продукта
-// ЦЕЛИКОМ. Прежде здесь проверялась граница «кто решает» (3E.22) — диктовка и
-// «прочитать вслух» оставались. Теперь в окне не должно быть ни одной
-// голосовой кнопки, строки меню или клавиши.
-//
-// ЗАЧЕМ ЭТО ЗДЕСЬ, КОГДА ЕСТЬ ТЕСТ ПО ИСХОДНИКАМ. `voice-by-human-decision.
-// test.ts` доказывает, что голосовые хуки никто не вызывает. Он не видит ОКНА:
-// кнопку можно оставить нарисованной другим путём.
-test('в окне нет голоса: ни микрофона, ни меню голоса, ни «прочитать вслух»', async () => {
+// SPEC HX19 + UR49 (T59): из голоса в окне есть одна кнопка — диктовка. Ни «прочитать
+// вслух», ни голосового разговора, ни слова-активатора. `voice-boundary.test.ts` держит это
+// по исходникам, но не видит ОКНА: кнопку можно оставить нарисованной другим путём.
+test('из голоса в окне только диктовка: ни разговора, ни «прочитать вслух», ни активатора', async () => {
   const page = await mainWindow()
 
   await page.keyboard.press('Escape')
@@ -2568,10 +2571,22 @@ test('в окне нет голоса: ни микрофона, ни меню г
     timeout: 20000
   })
 
-  const voiceButtons = page.getByRole('button', {
-    name: /^(Voice|Голос)$|Voice dictation|Голосовая диктовка|Start voice conversation|Начать голосовой разговор|^(Read aloud|Stop reading|Зачитать вслух|Остановить чтение)$/
+  // Узкая строка композера сворачивает микрофон в меню «Голос» — в нём одна строка.
+  const microphone = page.getByRole('button', {
+    name: /^(Voice dictation|Голосовая диктовка|Voice|Голос)$/
   })
-  expect(await voiceButtons.count(), 'голосовых кнопок быть не должно').toBe(0)
+  await expect(microphone.first()).toBeVisible()
+  if (/^(Voice|Голос)$/.test((await microphone.first().getAttribute('aria-label')) ?? '')) {
+    await microphone.first().click()
+    const rows = page.getByRole('menu').last().getByRole('menuitemcheckbox')
+    await expect(rows).toHaveCount(1)
+    await expect(rows).toHaveText(/Voice dictation|Голосовая диктовка/)
+    await page.keyboard.press('Escape')
+  }
+  const voiceButtons = page.getByRole('button', {
+    name: /Start voice conversation|Начать голосовой разговор|^(Read aloud|Stop reading|Зачитать вслух|Остановить чтение)$|wake word|слово-активатор/i
+  })
+  expect(await voiceButtons.count(), 'других голосовых кнопок быть не должно').toBe(0)
 
   // Ctrl+B у них включал разговор; клавиша снята ещё в 3E.22 и обязана остаться
   // ничем.

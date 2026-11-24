@@ -34,6 +34,7 @@ import ChannelDisclosureDialog from './aec/channels-disclosure/ChannelDisclosure
 import InstallConsentDialog from './aec/install-consent/InstallConsentDialog'
 import WebhookConsentDialog from './aec/webhook-consent/WebhookConsentDialog'
 import DataProvidersDialog from './aec/data-providers/DataProvidersDialog'
+import DictationDialog from './aec/dictation/DictationDialog'
 import GraphAccessDialog from './aec/settings/GraphAccessDialog'
 import { ScanWatcher } from './aec/scan/ScanWatcher'
 // Задача 3.6а: строка состояния и команда палитры для запуска расписаний.
@@ -73,6 +74,7 @@ import { $desktopOnboarding } from './donor/store/onboarding'
 import { gatewayBridge } from './shared/gateway-bridge'
 import { registerResumeProgress } from './aec/resume-progress/register-resume-progress'
 import { registerDataProviders } from './aec/data-providers/register'
+import { registerDictation } from './aec/dictation/register'
 import { registerGraphAccess } from './aec/settings/register'
 import { AecI18nProvider } from './shared/i18n'
 
@@ -114,6 +116,8 @@ registerGraphAccess()
 // Задача 3G.47 (D-172): провайдер RAG и памяти. Команда палитры и окно — по той
 // же причине, что и доступы Graph.
 registerDataProviders()
+// Task T59 (UR49): the dictation model — download ahead of time or remove.
+registerDictation()
 // Task 3.3: «Изменения в документах» takes the place of their git review pane
 // (SPEC HX6/UR16). Called from the body on purpose — a same-id registration
 // wins only if it runs after their shell module, and module bodies run after
@@ -186,6 +190,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                         состояния и пропадали вместе с ней: донор прячет её в
                         простом режиме и по Ctrl+Shift+S. */}
                       <DataProvidersDialog />
+                      <DictationDialog />
                       <GraphAccessDialog />
                       <ScanWatcher />
                     </ProjectGate>

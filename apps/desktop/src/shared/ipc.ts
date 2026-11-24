@@ -787,6 +787,25 @@ export interface LocalEmbeddingsStatus {
   recommended: { id: string; repo: string; file: string; sizeBytes: number; license: string }
 }
 
+/** Локальная диктовка (UR49, задача T59): модель распознавания в профиле ядра,
+ *  распознаёт ядро. */
+export interface DictationStatus {
+  /** Ядро на другой машине: модель ставят там, из трея сервера. */
+  remote: boolean
+  /** В среде ядра есть пакеты распознавания. */
+  engine: boolean
+  /** Модель скачана и проверена (у сервера — распознавание там включено). */
+  installed: boolean
+  /** Можно записывать прямо сейчас: и модель на месте, и ядро ответило, что распознаёт ею. */
+  ready: boolean
+  /** На диске остались файлы незаконченной загрузки или прежней модели. */
+  leftovers: boolean
+  busy: boolean
+  progress: { doneBytes: number; totalBytes: number } | null
+  error: string | null
+  model: { id: string; repo: string; license: string; sizeBytes: number }
+}
+
 export interface LocalModelAnswer {
   ok: boolean
   error?: string
@@ -1790,6 +1809,13 @@ export interface AecpilotApi {
   downloadLocalModel(repo: string, paths: string[], confirmed?: boolean): Promise<LocalModelAnswer>
   pickLocalModelFile(confirmed?: boolean): Promise<LocalModelAnswer>
   onLocalEmbeddings(cb: (state: LocalEmbeddingsStatus) => void): () => void
+  /** Локальная диктовка (UR49, T59): состояние, «Скачать и включить», «Удалить модель». */
+  getDictation(): Promise<DictationStatus>
+  setupDictation(): Promise<{ ok: boolean; error?: string }>
+  removeDictation(): Promise<{ ok: boolean; error?: string }>
+  onDictation(cb: (state: DictationStatus) => void): () => void
+  /** Микрофон на одно нажатие человека: `false` — диктовка не готова или нажатия не было. */
+  requestMicrophone(): Promise<boolean>
   getGraphAddState(): Promise<GraphAddState>
   onGraphAddState(cb: (state: GraphAddState) => void): () => void
   /** Reads a document's bytes for the viewer (task 2.14). `sourceId` names a

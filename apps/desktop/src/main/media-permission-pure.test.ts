@@ -4,13 +4,22 @@ import { isAllowedPermission } from './media-permission-pure'
 /**
  * Task 3.7a. Before this policy existed the renderer got every permission it
  * asked for, because that is Electron's default when no handler is installed.
- * So the interesting cases here are the refusals. С задачи 3H.3 отказ получает
- * и микрофон: голос вне продукта (SPEC HX19).
+ * So the interesting cases here are the refusals. The microphone passes only with a grant
+ * main gave for one press (UR49, task T59).
  */
 
 describe('isAllowedPermission', () => {
-  test('микрофон запрещён — голос вне продукта (SPEC HX19, задача 3H.3)', () => {
+  test('микрофон без разрешения на это нажатие запрещён, с ним — открывается (UR49)', () => {
     expect(isAllowedPermission('media', ['audio'])).toBe(false)
+    expect(isAllowedPermission('media', ['audio'], false)).toBe(false)
+    expect(isAllowedPermission('media', ['audio'], true)).toBe(true)
+  })
+
+  test('разрешение на микрофон не открывает больше ничего', () => {
+    expect(isAllowedPermission('media', ['video'], true)).toBe(false)
+    expect(isAllowedPermission('media', ['audio', 'video'], true)).toBe(false)
+    expect(isAllowedPermission('media', [], true)).toBe(false)
+    expect(isAllowedPermission('geolocation', ['audio'], true)).toBe(false)
   })
 
   test('камера запрещена, в том числе вместе с микрофоном', () => {

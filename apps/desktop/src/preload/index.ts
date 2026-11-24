@@ -307,6 +307,21 @@ const api: AecpilotApi = {
     ipcRenderer.on('local-embeddings:changed', listener)
     return () => ipcRenderer.removeListener('local-embeddings:changed', listener)
   },
+  getDictation: () => ipcRenderer.invoke('dictation:status'),
+  setupDictation: () => ipcRenderer.invoke('dictation:setup'),
+  removeDictation: () => ipcRenderer.invoke('dictation:remove'),
+  onDictation: (cb) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
+      cb(state)
+    ipcRenderer.on('dictation:changed', listener)
+    return () => ipcRenderer.removeListener('dictation:changed', listener)
+  },
+  // UR49: the press is checked HERE, in the isolated world — the page's script cannot fake
+  // `userActivation`, and the window's code never gets to say «a person asked».
+  requestMicrophone: () =>
+    navigator.userActivation.isActive
+      ? ipcRenderer.invoke('dictation:request-microphone')
+      : Promise.resolve(false),
   onGraphAddState: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof cb>[0]): void =>
       cb(state)

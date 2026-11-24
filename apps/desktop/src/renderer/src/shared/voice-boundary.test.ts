@@ -1,23 +1,16 @@
-// Задача 3E.22 (SPEC HX19, замечание D-72): граница голоса проходит по тому,
-// КТО РЕШАЕТ — и этот тест держит её с обеих сторон.
+// Страж границы голоса (SPEC HX19, UR49; задача T59, прежде 3E.22/3H.2).
 //
-// ЧТО РЕШИЛ ВЛАДЕЛЕЦ 2026-09-08. Кнопка «прочитать вслух» у отдельного ответа
-// остаётся: человек нажимает её сам, на каждый ответ. Автоматическое чтение всех
-// ответов и непрерывный разговор с перебиванием снимаются: они говорят без
-// такого решения.
+// В продукте из голоса есть ОДНО — диктовка: человек нажал микрофон, речь стала текстом
+// в поле сообщения. Чтения вслух, голосового разговора и слова-активатора нет. Тест держит
+// обе стороны: снятое мертво, а диктовка достижима единственным путём — через нашу
+// проверку (`aec/dictation`), без сокета из окна и без облачного распознавания.
 //
-// ПОЧЕМУ ТЕСТ ЧИТАЕТ ИСХОДНИКИ, А НЕ РИСУЕТ ОКНО. Снятие сделано правкой вида
-// [3]: три файла донора (`use-composer-voice.ts`, `use-voice-conversation.ts`,
-// `use-auto-speak-replies.ts`) ОСТАЛИСЬ в зоне дословно и просто не
-// регистрируются. Значит проверять надо именно регистрацию: файл на диске есть,
-// вызывающего у него нет. Отсутствие кнопки окно показать не может: кнопку можно
-// убрать, оставив поверхность достижимой горячей клавишей, конфигом или
-// словом-активатором, а таких входов было СЕМЬ.
-//
-// С 2026-10-07 ГОЛОС ВНЕ ОБЪЁМА ЦЕЛИКОМ (решение владельца после приёмки, SPEC
-// HX19, задача 3H.2). Прежде тест держал границу с двух сторон — снятое мертво,
-// оставленное (диктовка, «прочитать вслух», слово-активатор) живо. Теперь
-// оставленного нет: вторая половина проверяет, что голоса нет нигде.
+// ПОЧЕМУ ТЕСТ ЧИТАЕТ ИСХОДНИКИ, А НЕ РИСУЕТ ОКНО. Снятие сделано правкой вида [3]: файлы
+// донора (`use-composer-voice.ts`, `use-voice-conversation.ts`, `use-auto-speak-replies.ts`)
+// ОСТАЛИСЬ в зоне дословно и просто не регистрируются. Значит проверять надо именно
+// регистрацию: файл на диске есть, вызывающего у него нет. Отсутствие кнопки окно показать
+// не может: кнопку можно убрать, оставив поверхность достижимой горячей клавишей, конфигом
+// или словом-активатором, а таких входов было СЕМЬ.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -145,22 +138,67 @@ describe('снятые поверхности лежат в зоне, но не 
   })
 })
 
-// ГРАНИЦА СДВИНУТА 2026-10-07 (решение владельца после приёмки, SPEC HX19,
-// задача 3H.2): голос исключён ЦЕЛИКОМ — диктовка, кнопка «прочитать вслух» и
-// слово-активатор ушли вслед за разговором. Прежняя вторая половина теста
-// («оставленное взятым работает») держала их живыми и заменена этой.
-describe('голоса нет ни на одной поверхности окна', () => {
-  it('композер не регистрирует диктовку и не рисует голосовые кнопки', () => {
-    const composer = code(read('donor/app/chat/composer/index.tsx'))
-    const controls = code(read('donor/app/chat/composer/controls.tsx'))
+// ГРАНИЦА СДВИНУТА ДВАЖДЫ: 2026-10-07 голос исключён целиком (3H.2), версия 0.2 вернула
+// из него локальную диктовку (UR49, T59) — и больше ничего.
+describe('диктовка живёт одним путём, и он проходит нашу проверку', () => {
+  const RECORDER = 'donor/app/chat/composer/hooks/use-voice-recorder.ts'
+  const COMPOSER = 'donor/app/chat/composer/index.tsx'
+  // Мёртвая цепочка разговора: её вершину (`useComposerVoice`) не зовёт никто — первый блок.
+  const DEAD = 'donor/app/chat/composer/hooks/use-composer-voice.ts'
 
-    expect(composer).not.toContain('useVoiceRecorder(')
-    expect(composer).not.toContain('<VoiceActivity')
+  it('запись начинает только композер, и только через проверку', () => {
+    expect(callers('useVoiceRecorder(')).toEqual([RECORDER, COMPOSER, DEAD].sort())
+
+    const composer = code(read(COMPOSER))
+    expect(composer).toContain('useDictationGate(record, voiceStatus)')
+    // `record` — голая запись без проверки: кроме проверки, её не берёт никто.
+    expect(composer.match(/\brecord\b/g)).toHaveLength(2)
     expect(composer).not.toContain('<VoicePlaybackActivity')
-    expect(controls).not.toContain('<VoiceFan')
-    expect(controls).not.toContain('<VoiceMenu')
   })
 
+  it('разрешение на микрофон просит один член моста, и только по живому нажатию', () => {
+    expect(callers('requestMicrophoneAccess')).toEqual([
+      'donor/app/chat/composer/hooks/use-mic-recorder.ts',
+      'donor/global.d.ts'
+    ])
+    // Сырой текст: шаблоны путей в файле моста похожи на начало комментария.
+    expect(callers('aecpilot.requestMicrophone(')).toEqual(['aec/dictation/store.ts'])
+    expect(readFileSync(join(RENDERER, '../../preload/index.ts'), 'utf8')).toMatch(
+      /requestMicrophone[\s\S]{0,200}userActivation[\s\S]{0,40}isActive/
+    )
+  })
+
+  it('звук уходит только ядру: ни живого сокета, ни распознавания из окна напрямую в облако', () => {
+    expect(callers('openDictationStream(')).toEqual(['donor/lib/voice-stream.ts'])
+    expect(callers('transcribeAudioClientDirect(')).toEqual(['donor/lib/voice-client-direct.ts'])
+    expect(callers('fetchVoiceClientConfigFor(')).toEqual(['donor/lib/voice-client-direct.ts'])
+  })
+
+  it('в ряду кнопок из голоса — только диктовка', () => {
+    const controls = code(read('donor/app/chat/composer/controls.tsx'))
+
+    expect(controls.match(/<Voice(Fan|Menu)\b[^>]*>/g)).toEqual([
+      '<VoiceMenu disabled={disabled} onDictate={onDictate} state={state} voiceStatus={voiceStatus} />',
+      '<VoiceFan disabled={disabled} onDictate={onDictate} state={state} voiceStatus={voiceStatus} />'
+    ])
+    for (const file of ['voice-fan.tsx', 'voice-menu.tsx']) {
+      expect(code(read(`donor/app/chat/composer/${file}`))).not.toMatch(
+        /wake|autoSpeak|conversation/i
+      )
+    }
+  })
+
+  it('у диктовки есть действие без клавиши по умолчанию', () => {
+    expect(code(read('donor/lib/keybinds/actions.ts'))).toContain(
+      "{ id: 'composer.dictate', category: 'composer', defaults: [] }"
+    )
+    expect(code(read('donor/app/hooks/use-keybinds.ts'))).toContain(
+      "'composer.dictate': requestComposerDictation"
+    )
+  })
+})
+
+describe('остального голоса нет ни на одной поверхности окна', () => {
   it('у ответа нет «прочитать вслух»', () => {
     expect(callers('<ReadAloudButton')).toEqual([])
   })
@@ -169,6 +207,12 @@ describe('голоса нет ни на одной поверхности окн
     const wiring = code(read('donor/app/contrib/wiring.tsx'))
 
     expect(callers('armWakeWord(')).toEqual(['donor/store/wake-word.ts'])
+    // Их `WakeWordButton` лежит в `controls.tsx` и у них самих нигде не рисуется.
+    expect(callers('<WakeWordButton')).toEqual([])
+    expect(callers('toggleWakeWord(')).toEqual([
+      'donor/app/chat/composer/controls.tsx',
+      'donor/store/wake-word.ts'
+    ])
     expect(wiring).not.toContain('playWakeSound(')
     expect(wiring).not.toContain('newSessionInProfile(')
   })
@@ -178,9 +222,7 @@ describe('голоса нет ни на одной поверхности окн
     expect(code(read('donor/lib/desktop-toolsets.ts'))).toContain("'tts'")
   })
 
-  it('нет клавиши диктовки и слэш-команды /wake', () => {
-    expect(code(read('donor/lib/keybinds/actions.ts'))).not.toContain("'composer.dictate'")
-    expect(code(read('donor/app/hooks/use-keybinds.ts'))).not.toContain("'composer.dictate'")
+  it('нет слэш-команды /wake', () => {
     expect(code(read('donor/lib/desktop-slash-commands.ts'))).not.toContain("name: '/wake'")
   })
 })

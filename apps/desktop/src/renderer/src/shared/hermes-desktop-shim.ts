@@ -28,6 +28,7 @@
 // opened to this" — `donor/lib/voice-playback.ts` did, and its speech stream
 // went from "unavailable, fall back" to "throws" (task 3.7a).
 
+import { requestMicrophone } from '../aec/dictation/store'
 import {
   channelBeingEnabled,
   isPlatformListing,
@@ -727,10 +728,11 @@ const IMPLEMENTED: Record<string, unknown> = {
     }
   },
 
-  // Задача 3H.3: голос вне продукта (SPEC HX19) — микрофон окну не нужен, и
-  // член объявлен отсутствующим, а не заглушкой (правило PLAN «заглушка шима
-  // обязана отказывать честно»). Их вызов `?.()` даёт `undefined`, не бросок.
-  requestMicrophoneAccess: undefined,
+  // Task T59 (UR49): the microphone is let out by main for one recording, and only on a
+  // press — `preload` refuses the call without a live user gesture.
+  requestMicrophoneAccess(): Promise<boolean> {
+    return requestMicrophone()
+  },
 
   // Task 3.19. Every "open this in a browser" in their code lands here: the
   // OAuth sign-in URL, a provider's docs link, a link clicked in the terminal

@@ -578,6 +578,35 @@ export const aecLocales: PluginLocaleBundles = {
         'the conversation is kept. Turn on the receiver?',
       confirm: 'Turn on'
     },
+    dictation: {
+      title: 'Dictation',
+      command: 'Dictation: recognition model',
+      lead: 'Dictation turns speech into text on this computer. It needs a recognition model, which has to be downloaded once.',
+      source: (repo: string, mb: number, license: string) =>
+        `Source: Hugging Face, ${repo}; ${mb} MB; ${license} license`,
+      once: 'Downloaded once; recognition then works without the internet',
+      privacy:
+        'The sound is not sent anywhere and is not kept: recognition runs on this computer’s processor',
+      microphone:
+        'The microphone opens only when you press the dictation button; the text lands in the message box and is not sent by itself',
+      download: 'Download and turn on',
+      later: 'Do not download',
+      close: 'Close',
+      remove: 'Turn off and delete the model',
+      removeLeftovers: 'Delete the downloaded files',
+      installedBlocked: (repo: string, mb: number) =>
+        `The model ${repo} is on disk (${mb} MB), but dictation cannot start now.`,
+      progress: (done: number, total: number) => `Downloading the model: ${done} of ${total} MB`,
+      installed: (repo: string, mb: number) =>
+        `Dictation is on. Model ${repo}, ${mb} MB on disk; recognition works without the internet, the sound does not leave this computer.`,
+      remoteOn:
+        'Dictation is recognised by the server this window is connected to: the recording goes to that server over your connection and nowhere else.',
+      remoteOff:
+        'This window is connected to a server, and dictation is not turned on there. It is turned on on the server: the AECPilot tray icon, “Dictation”.',
+      engineMissing: 'The program has no speech recognition packages. Reinstall AECPilot.',
+      failed: 'It did not work',
+      hud: 'Turn dictation on in the main AECPilot window first.'
+    },
     dataProviders: {
       errChoiceNotSaved: 'the choice was not saved',
       errListFailed: 'the list was not received',
@@ -1473,6 +1502,34 @@ export const aecLocales: PluginLocaleBundles = {
         'Ядро перезапустится — идущая работа агента прервётся, разговор сохранится. ' +
         'Включить приёмник?',
       confirm: 'Включить'
+    },
+    dictation: {
+      title: 'Диктовка',
+      command: 'Диктовка: модель распознавания',
+      lead: 'Диктовка превращает речь в текст на этом компьютере. Для неё нужна модель распознавания — её скачивают один раз.',
+      source: (repo: string, mb: number, license: string) =>
+        `Источник: Hugging Face, ${repo}; ${mb} МБ; лицензия ${license}`,
+      once: 'Скачивается один раз, дальше распознавание работает без интернета',
+      privacy: 'Звук никуда не отправляется и не хранится: распознаёт процессор этого компьютера',
+      microphone:
+        'Микрофон включается только нажатием кнопки диктовки; текст попадает в поле сообщения и сам не отправляется',
+      download: 'Скачать и включить',
+      later: 'Не скачивать',
+      close: 'Закрыть',
+      remove: 'Выключить и удалить модель',
+      removeLeftovers: 'Удалить скачанные файлы',
+      installedBlocked: (repo: string, mb: number) =>
+        `Модель ${repo} на диске (${mb} МБ), но диктовка сейчас не запускается.`,
+      progress: (done: number, total: number) => `Загрузка модели: ${done} из ${total} МБ`,
+      installed: (repo: string, mb: number) =>
+        `Диктовка включена. Модель ${repo}, ${mb} МБ на диске; распознавание работает без интернета, звук не покидает этот компьютер.`,
+      remoteOn:
+        'Диктовку распознаёт сервер, к которому подключено это окно: запись уходит на него по вашему соединению и больше никуда.',
+      remoteOff:
+        'Это окно подключено к серверу, и диктовка на нём не включена. Её включают на сервере: значок AECPilot в трее, пункт «Диктовка».',
+      engineMissing: 'В программе нет пакетов распознавания речи. Переустановите AECPilot.',
+      failed: 'Не получилось',
+      hud: 'Сначала включите диктовку в главном окне AECPilot.'
     },
     dataProviders: {
       errChoiceNotSaved: 'выбор не сохранён',

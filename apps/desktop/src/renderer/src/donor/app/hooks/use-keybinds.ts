@@ -6,8 +6,6 @@
  * Edits:
  *   [3] dropped the 'composer.voice' handler — the continuous voice
  *       conversation it toggled is SPEC HX19 (owner decision 2026-09-08)
- *   [3] dropped the 'composer.dictate' handler — all voice is SPEC HX19 (owner
- *       decision 2026-10-07)
  *   [3] dropped the five terminal handlers ('view.showTerminal' …) — SPEC HX7-прим. (owner decision 2026-10-12)
  * (no other edits)
  */
@@ -303,7 +301,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
     },
     // EDIT [3]: 'composer.voice' (Ctrl+B) включал непрерывный разговор — SPEC HX19 (owner decision 2026-09-08).
-    // EDIT [3]: 'composer.dictate' — диктовка снята, SPEC HX19 (решение владельца 2026-10-07).
+    'composer.dictate': requestComposerDictation,
     'composer.reasoningUp': () => stepSessionReasoning(1),
     'composer.reasoningDown': () => stepSessionReasoning(-1),
 

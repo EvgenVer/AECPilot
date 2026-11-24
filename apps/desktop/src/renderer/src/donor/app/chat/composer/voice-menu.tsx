@@ -4,16 +4,13 @@
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
  * Edits:
- *   [3] dropped the "start voice chat" item and the "speak replies" checkbox —
- *       SPEC HX19 (owner decision 2026-09-08). What is left is what HX19 keeps:
- *       dictation and the wake word. At v2026.9.14 the item came back as the
- *       live-voice entry plus `./voice-engine-rows` (engine picker for that
- *       conversation) — same surface, same [3]: not imported, not rendered
- *       (2026-09-15)
+ *   [3] dropped the "start voice chat" item, the "speak replies" checkbox and the
+ *       wake-word checkbox — SPEC HX19. What is left is dictation (UR49). At
+ *       v2026.9.14 the item came back as the live-voice entry plus
+ *       `./voice-engine-rows` (engine picker for that conversation) — same surface,
+ *       same [3]: not imported, not rendered (2026-09-15)
  * (no other edits)
  */
-import { useStore } from '@nanostores/react'
-
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import {
@@ -26,9 +23,8 @@ import {
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { Ear, EarOff, iconSize, Loader2, Square } from '@/lib/icons'
+import { iconSize, Loader2, Square } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { $wakeWord, toggleWakeWord } from '@/store/wake-word'
 
 import { ACTIVE_ICON_BTN, GHOST_ICON_BTN } from './control-classes'
 import type { ChatBarState, VoiceStatus } from './types'
@@ -41,9 +37,9 @@ export interface VoiceMenuProps {
 }
 
 /**
- * Every voice control behind one trigger: dictation and the "hey hermes" wake
- * word. EDIT [3]: spoken replies and starting a full conversation were the
- * other two rows — SPEC HX19.
+ * Every voice control behind one trigger: dictation. EDIT [3]: the wake word,
+ * spoken replies and starting a full conversation were the other three rows —
+ * SPEC HX19.
  *
  * The bar carried four separate icon buttons — mic, speaker, ear, and the
  * voice-conversation primary — which is most of a Spotlight-width composer
@@ -59,14 +55,10 @@ export interface VoiceMenuProps {
 export function VoiceMenu({ disabled, state, voiceStatus, onDictate }: VoiceMenuProps) {
   const { t } = useI18n()
   const c = t.composer
-  const wake = useStore($wakeWord)
 
-  const phrase = wake.phrase || 'hey hermes'
-  const dictating = state.voice.active || voiceStatus !== 'idle'
-  const wakeListening = wake.listening
   // Anything live keeps the trigger lit, so a folded menu can never look idle
   // while the mic is open.
-  const active = dictating || wakeListening
+  const dictating = state.voice.active || voiceStatus !== 'idle'
 
   const dictationLabel =
     voiceStatus === 'recording'
@@ -75,16 +67,15 @@ export function VoiceMenu({ disabled, state, voiceStatus, onDictate }: VoiceMenu
         ? c.transcribingDictation
         : c.voiceDictation
 
-  const wakeLabel = wakeListening ? c.wakeWordListening(phrase) : c.wakeWordOff(phrase)
-  const triggerLabel = dictating ? dictationLabel : wakeListening ? wakeLabel : c.voiceControls
+  const triggerLabel = dictating ? dictationLabel : c.voiceControls
 
   return (
     <DropdownMenu>
-      <Tip label={wake.notice && !dictating ? `${triggerLabel} — ${wake.notice}` : triggerLabel} placement="control">
+      <Tip label={triggerLabel} placement="control">
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={triggerLabel}
-            className={cn(GHOST_ICON_BTN, 'p-0', active && ACTIVE_ICON_BTN)}
+            className={cn(GHOST_ICON_BTN, 'p-0', dictating && ACTIVE_ICON_BTN)}
             disabled={disabled}
             size="icon"
             type="button"
@@ -94,8 +85,6 @@ export function VoiceMenu({ disabled, state, voiceStatus, onDictate }: VoiceMenu
               <Square className={cn('fill-current', iconSize.xs)} />
             ) : voiceStatus === 'transcribing' ? (
               <Loader2 className={cn('animate-spin', iconSize.sm)} />
-            ) : wakeListening ? (
-              <Ear className={iconSize.sm} />
             ) : (
               <Codicon name="mic" size="0.875rem" />
             )}
@@ -119,19 +108,6 @@ export function VoiceMenu({ disabled, state, voiceStatus, onDictate }: VoiceMenu
           }}
         >
           {dictationLabel}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={wakeListening}
-          className={dropdownMenuRow}
-          disabled={disabled || wake.pending}
-          onSelect={event => {
-            event.preventDefault()
-            triggerHaptic(wakeListening ? 'close' : 'open')
-            void toggleWakeWord()
-          }}
-        >
-          {wakeListening ? <Ear className={iconSize.sm} /> : <EarOff className={iconSize.sm} />}
-          {wakeLabel}
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

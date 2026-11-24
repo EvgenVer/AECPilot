@@ -3,15 +3,18 @@
  * Source:  apps/desktop/src/app/chat/composer/hooks/use-voice-recorder.ts
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [1] the live STT wire is not opened — it is a WebSocket from the window (SPEC C9) to a
+ *       streaming cloud recogniser (SPEC UR49: the sound stays with the core); the recorded
+ *       clip goes the relay way, which is their own path without a live wire
+ * (no other edits)
  */
 import { useEffect, useRef, useState } from 'react'
 
 import { type ResolvedOwner, resolveOwnerNow } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { syncSttLease, VOICE_INPUT_LEASE } from '@/lib/stt-lease'
-import { fetchVoiceClientConfigFor } from '@/lib/voice-client-direct'
-import { type DictationStreamSession, openDictationStream } from '@/lib/voice-stream'
+import type { DictationStreamSession } from '@/lib/voice-stream'
 import { recordFeatureUse } from '@/store/desktop-metrics'
 import { notify, notifyError } from '@/store/notifications'
 
@@ -186,15 +189,12 @@ export function useVoiceRecorder({
     }
 
     const owner = resolveOwnerNow(ownerRef.current)
-    const stream = liveStream(owner)
-    const dictation: Dictation = { live: stream.session, owner, warmup: Promise.resolve() }
+    const dictation: Dictation = { owner, warmup: Promise.resolve() }
     dictationRef.current = dictation
 
     try {
       await handle.start({
-        onError: error => notifyError(error, voiceCopy.recordingFailed),
-        onPcm: stream.push,
-        onPcmRate: stream.open
+        onError: error => notifyError(error, voiceCopy.recordingFailed)
       })
 
       if (dictationRef.current !== dictation) {
@@ -223,43 +223,6 @@ export function useVoiceRecorder({
       setVoiceStatus('idle')
       notifyError(error, voiceCopy.recordingFailed)
     }
-  }
-
-  // Live dictation plumbing for one take: chunks captured before the socket opens are buffered
-  // (bounded) and flushed, so the first words reach the provider too. `session()` is null when the
-  // host has no live wire, or when the meter never reported a rate (no PCM tap this take).
-  const liveStream = (owner: ResolvedOwner) => {
-    let session: DictationStreamSession | null = null
-    let settled = false
-    let buffered: ArrayBuffer[] = []
-    let opening: Promise<DictationStreamSession | null> | null = null
-
-    const open = (sampleRate: number) => {
-      opening = (async () => {
-        const config = await fetchVoiceClientConfigFor(owner).catch(() => null)
-        const opened = config?.stt.streaming ? await openDictationStream(owner, sampleRate, setPartial) : null
-
-        for (const chunk of opened ? buffered : []) {
-          opened!.pushAudio(chunk)
-        }
-
-        buffered = []
-        settled = true
-        session = opened
-
-        return opened
-      })()
-    }
-
-    const push = (chunk: ArrayBuffer) => {
-      if (session) {
-        session.pushAudio(chunk)
-      } else if (!settled && buffered.length < 64) {
-        buffered.push(chunk)
-      }
-    }
-
-    return { open, push, session: () => opening ?? Promise.resolve(null) }
   }
 
   const dictate = () => {

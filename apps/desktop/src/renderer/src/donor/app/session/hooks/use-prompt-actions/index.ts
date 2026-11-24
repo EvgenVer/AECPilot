@@ -3,7 +3,12 @@
  * Source:  apps/desktop/src/app/session/hooks/use-prompt-actions/index.ts
  * Commit:  caafe5389ae585ef77387a962aee05b1bcf17029 (v0.23.3)
  * License: MIT — Copyright (c) 2025 Nous Research (LICENSE.donor)
- * Edits: none
+ * Edits:
+ *   [1] "is recognition on" is asked from our main process, not from the config cached when
+ *       the gateway connected: the model may have been installed since (SPEC UR49, T59)
+ *   [1] the recording goes only to the core's relay, never from the window straight to a
+ *       cloud recogniser with its key (SPEC UR49, C9)
+ * (no other edits)
  */
 import type { AppendMessage, ThreadMessage } from '@assistant-ui/react'
 import { isUndeliveredCorrectionRefusal, JsonRpcGatewayError } from '@hermes/shared'
@@ -20,7 +25,6 @@ import { sanitizeComposerInput } from '@/lib/composer-input-sanitize'
 import { triggerHaptic } from '@/lib/haptics'
 import { setMutableRef } from '@/lib/mutable-ref'
 import { normalize } from '@/lib/text'
-import { transcribeAudioClientDirect } from '@/lib/voice-client-direct'
 import { clearClarifyRequest } from '@/store/clarify'
 import { setSessionCompacting } from '@/store/compaction'
 import {
@@ -64,6 +68,8 @@ import type {
   SessionRedirectResponse
 } from '../../../types'
 import type { CreateBackendSessionForSend } from '../use-session-actions/create-overrides'
+
+import { dictationReady } from '../../../../../aec/dictation/store'
 
 import {
   appendMidTurnUserMessage,
@@ -731,22 +737,8 @@ export function usePromptActions({
 
   const transcribeVoiceAudio = useCallback(
     async (audio: Blob, owner?: ResolvedOwner) => {
-      if (!sttEnabled) {
+      if (!sttEnabled && !(await dictationReady())) {
         throw new Error(copy.sttDisabled)
-      }
-
-      // Client-direct first: mic audio goes straight to the profile's STT
-      // provider (config + key fetched from the connected gateway), cutting
-      // the desktop→gateway audio hop. `null` = provider not client-callable
-      // (local whisper, command providers, older backend) → relay unchanged.
-      // Provider REJECTIONS surface — re-running the same request through
-      // the relay would fail identically, just slower. `owner` is the
-      // recording's owner, resolved when the mic opened: the config lookup and
-      // the relay decode on the backend its STT warm-up targeted.
-      const direct = await transcribeAudioClientDirect(audio, owner)
-
-      if (direct !== null) {
-        return direct
       }
 
       const dataUrl = await blobToDataUrl(audio)

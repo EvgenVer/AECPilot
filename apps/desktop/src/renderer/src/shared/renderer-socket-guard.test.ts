@@ -43,9 +43,9 @@ const UNREACHABLE_SOCKETS: Record<string, string> = {
 // and a re-copy that calls any link from outside fails here.
 //
 // `voice-stream.ts` (0.22.2, task T20.7): live dictation streams the mic to
-// `/api/audio/transcribe-stream`. Voice is SPEC HX19 — composer/index.tsx calls
-// neither `useComposerVoice` nor `useVoiceRecorder` (edit [3]). If voice ever
-// comes back, this socket must move to main first (SPEC C9).
+// `/api/audio/transcribe-stream`. Dictation is back (UR49, T59), its live wire is not:
+// `use-voice-recorder.ts` does not call it (edit [1]). If live text ever comes, this socket
+// must move to main first (SPEC C9).
 interface DeadLink {
   file: string
   /** The export whose call would bring the link to life. */
@@ -58,15 +58,7 @@ interface DeadLink {
 // and never calls it (main owns the only socket). Its one real call is
 // `voice-stream.ts`, the dictation chain above, which nothing calls either.
 const VOICE_CHAIN: readonly DeadLink[] = [
-  { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' },
-  {
-    file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-voice-recorder.ts'),
-    entry: 'useVoiceRecorder'
-  },
-  {
-    file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-composer-voice.ts'),
-    entry: 'useComposerVoice'
-  }
+  { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' }
 ]
 
 const UNREACHABLE_BY_CALLS: Record<string, readonly DeadLink[]> = {
@@ -74,17 +66,7 @@ const UNREACHABLE_BY_CALLS: Record<string, readonly DeadLink[]> = {
     { file: path.join('donor', 'api', 'canonical-protocol.ts'), entry: 'openGatewaySocket' },
     ...VOICE_CHAIN
   ],
-  [path.join('donor', 'lib', 'voice-stream.ts')]: [
-    { file: path.join('donor', 'lib', 'voice-stream.ts'), entry: 'openDictationStream' },
-    {
-      file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-voice-recorder.ts'),
-      entry: 'useVoiceRecorder'
-    },
-    {
-      file: path.join('donor', 'app', 'chat', 'composer', 'hooks', 'use-composer-voice.ts'),
-      entry: 'useComposerVoice'
-    }
-  ]
+  [path.join('donor', 'lib', 'voice-stream.ts')]: VOICE_CHAIN
 }
 
 /** Source without comments: a sentence about a hook is not a call of it. */

@@ -22,15 +22,22 @@
 const ALLOWED_PERMISSIONS = ['clipboard-sanitized-write']
 
 /**
- * `media` — микрофон и камера — запрещено ЦЕЛИКОМ (задача 3H.3). Микрофон был
- * разрешён ради голосового режима (задача 3.7a, UR21); голос вне продукта
- * (SPEC HX19, решение владельца 2026-10-07), и снимать с окна микрофон, оставив
- * разрешение на него, значит держать дверь, которой никто не пользуется.
- * `mediaKinds` остаётся в подписи: оба обработчика Electron его передают.
+ * `media` — микрофон и камера — по умолчанию отказ (задача 3H.3, HX19). Единственное
+ * исключение — локальная диктовка (UR49, задача T59): ровно микрофон, без камеры, и
+ * только пока у ЭТОГО окна действует разрешение, выданное нажатием человека
+ * (`microphoneGranted`, `permission-policy.ts`). Виды не объявлены — отказ: диктовка
+ * всегда называет звук, а камера не нужна ничему.
  */
 export function isAllowedPermission(
   permission: string,
-  _mediaKinds: readonly string[] = []
+  mediaKinds: readonly string[] = [],
+  microphoneGranted = false
 ): boolean {
-  return ALLOWED_PERMISSIONS.includes(permission)
+  if (ALLOWED_PERMISSIONS.includes(permission)) return true
+  return (
+    permission === 'media' &&
+    microphoneGranted &&
+    mediaKinds.length > 0 &&
+    mediaKinds.every((kind) => kind === 'audio')
+  )
 }
