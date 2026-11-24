@@ -136,6 +136,7 @@ flowchart LR
 | Тесты | Vitest (`*.test.ts` — node, `*.test.tsx` — jsdom), pytest, Playwright | тест рядом с кодом; e2e по живому окну Electron | — |
 | Линтеры | eslint + prettier, ruff | один стиль на весь репозиторий | — |
 | Разбор документов | pypdfium2 (текстовый слой PDF), RapidOCR на onnxruntime с моделью `eslav` (сканы), Docling (DOCX, XLSX), свой разбор TXT/MD/CSV | быстрый текстовый слой, русские сканы за 5,5 с на страницу | [0005](decisions/0005-two-tier-indexing.md) |
+| Правка `config.yaml` под диктовку | `yaml` 2.9.1 (ISC) в главном процессе | построчная правка не узнаёт законные формы записи, а незамеченная форма увела бы звук в облако (ревью T59) | — |
 | Просмотрщики | pdfjs-dist (PDF), docx-preview (DOCX), exceljs в главном процессе (XLSX), Milkdown (Markdown) | у донора просмотрщиков этих форматов нет (UR3) | — |
 | Граф в окне | sigma 4 + graphology, раскладка d3-force, по выгрузке `aec-rag` | своя поверхность на открытой библиотеке (UR44); sigma 4 с версии 0.2 (T57) | [0016](decisions/0016-core-0-23-0.md) |
 

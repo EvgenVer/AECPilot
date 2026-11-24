@@ -203,12 +203,11 @@ def run(args: argparse.Namespace) -> None:
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(CORE_SRC))
 
+    import psutil
     from tools import transcription_tools
     from tools.stt_lease import warm_stt_provider
     from tools.transcription_local import build_local_transcribe_kwargs
     from tools.voice_mode import transcribe_recording
-
-    import psutil
 
     provider = transcription_tools._get_provider(transcription_tools._load_stt_config())
     started = time.perf_counter()
@@ -285,7 +284,8 @@ def summary(folder: Path) -> None:
             f"  WER {errors / total:.0%}  time {spent:.1f}s for {audio:.1f}s of speech"
             f" (x{spent / audio:.2f}), per phrase {spent / len(rows):.1f}s"
             f" max {max(row['seconds'] for row in rows):.1f}s"
-            f"  load {report['load_seconds']}s  first phrase {report['cold_seconds']}s  memory {report['peak_mb']} MB"
+            f"  load {report['load_seconds']}s  first phrase {report['cold_seconds']}s"
+            f"  memory {report['peak_mb']} MB"
         )
         for row in rows:
             missed = [name for name, ok in row["items"].items() if not ok]
