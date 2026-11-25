@@ -35,7 +35,7 @@ import json
 import logging
 from typing import Any
 
-from . import key_source, memory_facts, shipped_skills, sources_guard
+from . import full_speed, key_source, memory_facts, shipped_skills, sources_guard
 from .mem0_shared import install_mem0_backend
 from .secrets import find_secrets, redact_secrets, refusal_message
 
@@ -311,6 +311,8 @@ def _status(_raw_args: str) -> str:
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     install_sync_guard()
+    # Задача T59: распознавание речи идёт в этом процессе — см. `full_speed.py`.
+    full_speed.ask_full_speed()
     # Задачи 3G.4 (D-157), T20.6: ключ памяти по имени переменной — см. `mem0_shared.py`;
     # один клиент Mem0 на папку (D-111) с плагина 1.3.0 держат они сами.
     install_mem0_backend()
