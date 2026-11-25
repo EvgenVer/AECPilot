@@ -111,6 +111,7 @@ Revit через сервер Autodesk: явную просьбу инженер
 | `plugins/aec_secret_filter/secrets.py` | шаблоны секретов |
 | `plugins/aec_secret_filter/key_source.py`, `mem0_shared.py`, `mem0_turns.py` | ключи профилям, общий клиент Mem0 |
 | `plugins/aec_secret_filter/shipped_skills.py`, `memory_facts.py` | поставляемые навыки, факты памяти |
+| `plugins/aec_secret_filter/full_speed.py` | просьба к Windows не переводить процесс ядра на энергосберегающие ядра (T59) |
 | `skills/aec-qa/SKILL.md`, `skills/aec-wiki/SKILL.md`, `skills/aec-revit/SKILL.md` | навыки агента |
 | `runtime/register-secret-filter.mjs`, `register-aec-roster.mjs` | установка плагина и сервера в профили; при запуске заодно ставит Mem0 и `advanced-delegation`; фильтр и `advanced-delegation` вписывает в `plugins.enabled` (второй — только если человек его не выключил) |
 
@@ -122,7 +123,7 @@ Revit через сервер Autodesk: явную просьбу инженер
 
 ## Тесты
 
-`plugins/aec_secret_filter/tests/` (6 файлов pytest): шаблоны секретов, отказ и вырезание,
+`plugins/aec_secret_filter/tests/` (8 файлов pytest): шаблоны секретов, отказ и вырезание,
 источник ключей, общий клиент Mem0, поставляемые навыки, факты памяти.
 `mcp/aec_roster/tests/` (4 файла): разбор вывода, поиск по имени, занятость, сервер по
 протоколу MCP. Поведение навыков — эвалы `eval/` на живой модели (AC2).
