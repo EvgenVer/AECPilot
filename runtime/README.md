@@ -12,7 +12,7 @@ node runtime/setup.mjs
 ```
 
 Creates a venv at `runtime/.hermes-venv` (CPython 3.14.6 managed by `uv`,
-`hermes-agent[mcp,ddgs,stt-whisper]` 0.23.0 installed editable from a shallow checkout at
+`hermes-agent[mcp,ddgs,stt-whisper]` 0.23.3 installed editable from a shallow checkout at
 `HERMES_SHA` in `runtime/.hermes-src` — upstream's build backend refuses to build a
 wheel, see docs/plan-details.md § Stack & package managers). Versions are constrained to the core's own `uv.lock`
 (`uv export` into `runtime/uv-constraints.txt` on every run), and the core's own

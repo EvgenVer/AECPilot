@@ -19,9 +19,7 @@
       "nemo-relay",
       "pty",
       "stt-whisper",
-      "trace-upload",
       "vision",
-      "voice",
       "web"
     ],
     "python": {

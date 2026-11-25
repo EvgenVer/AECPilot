@@ -22,8 +22,9 @@ two differences only, both decided by the owner:
 * **Extras.** `pm bundle` builds with `--all-extras`; we build the extras our
   setup has always installed (`EXTRAS`, same as `runtime/setup.mjs`).
 * **Local dictation.** `stt-whisper` is the core's faster-whisper (UR49, HX19). Its
-  `av` (PyAV) wheel carries libx264 and libx265 under the GPL; it ships as it is, the
-  exception the owner made for SPEC C3 on 2026-11-25 (task T59).
+  `av` (PyAV) wheel carries libx264 and libx265 under the GPL, which SPEC C3 excludes:
+  the owner's answer is pending (decision 0024), nothing is released before it. Its
+  `ctranslate2` wheel carries NVIDIA's `cudnn64_9.dll`: removed, recognition runs on the CPU.
 * **Mem0.** The memory provider plugin's requirements go into the same
   environment in one resolution with the core lock, exactly as `setup.mjs`
   does in development (`mem0-plugin-requirements.txt`, task T20.3).
@@ -65,8 +66,30 @@ TOOLS = ("python", "uv", "node", "npm", "git", "ripgrep", "chromium")
 EXTRAS = ("mcp", "ddgs", "stt-whisper")
 MEM0_REQUIREMENTS = RUNTIME / "mem0-plugin-requirements.txt"
 EXCLUDED_PACKAGES = ("pillow-heif",)
-# A fixed release of a package the core pins to a yanked one (`runtime/uv-overrides.txt`).
-PATCHED_PACKAGES = ("av==18.1.1",)
+# The core pins `av` to a release PyPI yanked; the fixed one is named once, in
+# `runtime/uv-overrides.txt`, and the payload takes it from there (task T59).
+OVERRIDES = RUNTIME / "uv-overrides.txt"
+YANKED_AV = "18.1.0"
+# NVIDIA's proprietary library, needed only to recognise on a GPU (SPEC C3).
+EXCLUDED_FILES = ("ctranslate2/cudnn64_9.dll",)
+# Extras PM derives from a package that happens to be there (`faster_whisper` for `voice`,
+# `huggingface_hub` for `trace-upload`). Recorded, they would come back with a rebuild:
+# `sounddevice` is voice, HX19.
+DERIVED_EXTRAS = ("voice", "trace-upload")
+
+
+def patched_av(repo_dir: Path) -> str:
+    """`av==<fixed version>` of the overrides; stops when the core's lock moved past the
+    yanked release, because then the override would silently downgrade it."""
+    import tomllib
+
+    lock = tomllib.loads((repo_dir / "uv.lock").read_text(encoding="utf-8"))
+    locked = [p["version"] for p in lock["package"] if p["name"] == "av"]
+    if locked != [YANKED_AV]:
+        raise ValueError(f"the core locks av {locked}: review `av` in {OVERRIDES.name}")
+    lines = OVERRIDES.read_text(encoding="utf-8").splitlines()
+    (line,) = [line.strip() for line in lines if line.startswith("av==")]
+    return line
 
 
 def _uv(store_dir: Path, facts) -> Path:
@@ -129,10 +152,13 @@ def add_mem0_and_exclusions(repo_dir: Path, venv_dir: Path, uv: Path) -> None:
     subprocess.run(
         [
             *(str(uv), "pip", "install", "--no-config", "--no-deps"),
-            *("--python", str(python), *PATCHED_PACKAGES),
+            *("--python", str(python), patched_av(repo_dir)),
         ],
         check=True,
     )
+    site = venv_dir / ("Lib/site-packages" if os.name == "nt" else "lib/python3/site-packages")
+    for name in EXCLUDED_FILES:
+        (site / name).unlink()
 
 
 def drop_excluded_from_cache(cache: Path) -> int:
@@ -245,7 +271,11 @@ def prepare(out: Path, cache: Path, ref: str) -> Path:
     add_mem0_and_exclusions(repo_dir, venv_dir, _uv(store_dir, facts))
     print("ok mem0 requirements; excluded: " + ", ".join(EXCLUDED_PACKAGES), flush=True)
 
-    features = installed_extras(repo_dir, venv_dir, python_exe=python_bin)
+    features = [
+        extra
+        for extra in installed_extras(repo_dir, venv_dir, python_exe=python_bin)
+        if extra not in DERIVED_EXTRAS
+    ]
     write_features(features, out)
     facts.record_state("venv", Venv(repo_dir).expected_stamp(features, plugin_dirs=[]), features)
 

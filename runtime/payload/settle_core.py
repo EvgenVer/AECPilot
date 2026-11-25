@@ -10,7 +10,7 @@ ffmpeg back.
 
 `pm.drift()` is PM's own verdict. A tool it reports as missing is one their lock
 calls required and we leave out on purpose (`stage_core.py::TOOLS`: ffmpeg — the
-owner's licensing decision, its only users are voice and text-to-speech, HX19);
+owner's licensing decision; dictation decodes its recording with PyAV);
 the entry is dropped from the payload's `pm/lock.json`, nothing else. Anything
 else left in the verdict fails the staging.
 

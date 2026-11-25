@@ -64,7 +64,7 @@ function replaceFile(path: string, text: string): void {
 }
 
 /** Whether the model folder holds a finished, verified download. Sizes, not checksums:
- *  half a gigabyte is hashed once, when it lands. */
+ *  a gigabyte and a half is hashed once, when it lands. */
 export function dictationInstalled(hermesHome: string): boolean {
   const dir = dictationModelDir(hermesHome)
   try {
@@ -261,8 +261,15 @@ export class Dictation {
     let before = 0
     mkdirSync(dir, { recursive: true })
     const free = (this.deps.freeBytes ?? freeBytes)(dir)
-    if (free < totalBytes + SPARE_BYTES) {
-      throw new Error(mainT('dictation.noSpace', Math.ceil((totalBytes + SPARE_BYTES) / 1_000_000)))
+    // What an interrupted download left is not downloaded again.
+    const present = DICTATION_MODEL.files.reduce((sum, file) => {
+      const dest = join(dir, file.name)
+      const part = [dest, `${dest}.part`].find((path) => existsSync(path))
+      return sum + (part ? Math.min(statSync(part).size, file.size) : 0)
+    }, 0)
+    const needed = totalBytes - present + SPARE_BYTES
+    if (free < needed) {
+      throw new Error(mainT('dictation.noSpace', Math.ceil(needed / 1_000_000)))
     }
     rmSync(join(dir, DICTATION_MARKER), { force: true })
     for (const file of DICTATION_MODEL.files) {

@@ -6,6 +6,6 @@
 pillow-heif; python_version < '0'
 # Second: the core pins `av==18.1.0` (PyAV 19 breaks faster-whisper 1.2.1), and PyPI yanked
 # that release for a double free when decoding audio; 18.1.1 is the fix within the same
-# major (task T59). Drop when the core's own pin moves past 18.1.0. The installer takes it
-# from `PATCHED_PACKAGES` in `payload/stage_core.py`: keep the two equal.
+# major (task T59). The installer takes this very line (`payload/stage_core.py::patched_av`)
+# and stops when the core's own lock moves past 18.1.0: drop it then.
 av==18.1.1

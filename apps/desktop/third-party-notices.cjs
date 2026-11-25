@@ -12,7 +12,7 @@
 // - Git for Windows (GPLv2, SPEC C3/N8): a link to the sources of the same version
 //   and a written offer to send them on request for three years;
 // - PyAV (`av`, speech recognition): its wheel carries libx264 and libx265 under the
-//   GPL — the same link-and-offer treatment (owner decision 2026-11-25, SPEC C3).
+//   GPL — the same link-and-offer treatment (decision 0024, the owner's answer pending).
 // Electron and Chromium bring their own `LICENSE.electron.txt`, `LICENSES.chromium.html`.
 // @ts-check
 'use strict'
@@ -379,7 +379,7 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
     'ships its license text inside the program folder, the path to that text is given.'
   )
 
-  // Git for Windows first: it is the one component with a source obligation.
+  // Components with a source obligation come first.
   const tools = coreTools(appOutDir)
   const git = tools.find((tool) => tool.folder.startsWith('git-'))
   if (git) {

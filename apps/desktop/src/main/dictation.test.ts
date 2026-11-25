@@ -407,6 +407,19 @@ describe('setting dictation up and taking it away', () => {
     expect(download).toHaveBeenCalledTimes(DICTATION_MODEL.files.length)
   })
 
+  it('an interrupted download needs room only for the rest of it', async () => {
+    const file = DICTATION_MODEL.files.find((candidate) => candidate.name === 'model.bin')!
+    const dir = dictationModelDir(home)
+    mkdirSync(dir, { recursive: true })
+    sparse(join(dir, 'model.bin.part'), file.size - 1_000_000)
+    const download = vi.fn((_url: string, dest: string) => {
+      sparse(dest, DICTATION_MODEL.files.find((c) => c.name === basename(dest))!.size)
+      return Promise.resolve()
+    })
+    const dictation = make({ download, freeBytes: () => 400_000_000 })
+    expect(await dictation.setup()).toEqual({ ok: true })
+  })
+
   it('a full disk is said before the download, not in the middle of it', async () => {
     const download = vi.fn()
     const dictation = make({ download, freeBytes: () => 1_000_000 })

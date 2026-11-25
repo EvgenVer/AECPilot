@@ -52,7 +52,7 @@ flowchart LR
 | Профиль | `runtime/dev-profile` | `<root>/data/profile` |
 
 `node runtime/setup.mjs` готовит разработку за 8 шагов: venv, исходники на пине,
-ограничения версий из `uv.lock` ядра, установка `hermes-agent[mcp,ddgs]` и зависимостей
+ограничения версий из `uv.lock` ядра, установка `hermes-agent[mcp,ddgs,stt-whisper]` и зависимостей
 плагина Mem0, профиль разработки, затем сборка обоих payload поставки (`runtime/core`,
 `runtime/mcp`) и сверка их хешей с записью `runtime/payload/payload-versions.json`. Так
 рабочая копия работает ровно на том, что получит инженер. Сборка payload описана на

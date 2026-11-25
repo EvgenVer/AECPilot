@@ -41,7 +41,7 @@
 главный процесс грузит во время работы (`exceljs`, `get-windows` и их замыкание). Payload
 ядра собирает `runtime/payload/stage_core.py` (их `native.py::_prepare_native` по частям)
 с нашим набором инструментов (`python`, `uv`, `node`, `npm`, `git`, `ripgrep`,
-`agent-browser`, `chromium`), extras `mcp`, `ddgs`, зависимостями Mem0, без `pillow-heif`.
+`agent-browser`, `chromium`), extras `mcp`, `ddgs`, `stt-whisper` (с версии 0.2), зависимостями Mem0, без `pillow-heif`.
 Python MCP — standalone CPython 3.12.13 со своим `site-packages` из нашего `uv.lock`
 (`runtime/payload/stage-mcp.mjs`). Версии записаны в `runtime/payload/payload-versions.json`
 (в git), хеши файлов — в `payload-hashes.json` внутри каждого payload.
