@@ -1108,6 +1108,12 @@ browser tools and TUI») и для сборки их веб-дашборда —
 Все зависимости проходят `dependency-vetting` перед установкой; версии пиннятся в
 lock-файлах. Лицензионное правило — C3.
 
+**Диктовка — 2026-11-25, T59.** Дополнение ядра `stt-whisper` по его `uv.lock`: `faster-whisper`
+1.2.1 и `ctranslate2` 4.8.3 (MIT; из колеса удалена NVIDIA `cudnn64_9.dll`, осталась Intel
+`libiomp5md.dll`), `onnxruntime` 1.31.0 (MIT), `tokenizers` 0.23.3 и `huggingface-hub` 1.33.0
+(Apache-2.0), `av` 18.1.1 (BSD-3-Clause, в колесе libx264 и libx265 под GPL — исключение C3).
+Разбор — [0024](decisions/0024-dictation-delivery.md).
+
 **Веттинг подъёма на 0.22.2 — 2026-10-15, задача T20.1 (решения владельца того же дня;
 `docs/plan-details.md` §«Подъём ядра на 0.22.2»).** Набор пакетов снят разрешением без
 установки (`uv pip compile` над `pyproject.toml` тега `v0.22.2`, `--extra mcp`, Python 3.14,
