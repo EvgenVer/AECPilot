@@ -12,7 +12,8 @@
 // - Git for Windows (GPLv2, SPEC C3/N8): a link to the sources of the same version
 //   and a written offer to send them on request for three years;
 // - PyAV (`av`, speech recognition): its wheel carries libx264 and libx265 under the
-//   GPL — the same link-and-offer treatment (decision 0024, the owner's answer pending).
+//   GPL and more under other licenses - their texts (`third-party-licenses/pyav`), links
+//   and the same offer (decision 0024); the Intel OpenMP runtime in the ctranslate2 wheel.
 // Electron and Chromium bring their own `LICENSE.electron.txt`, `LICENSES.chromium.html`.
 // @ts-check
 'use strict'
@@ -340,6 +341,205 @@ const TOOL_LICENSES = {
  *  this record is checked. */
 const PYAV_FFMPEG = { av: '18.1.1', ffmpeg: '8.1.3', build: '8.1.3-1' }
 
+/** Every library of that wheel (recipe: `scripts/pkg.py` of pyav-ffmpeg at the build tag):
+ *  the dll names it covers (null - built into FFmpeg), its license, the link to its
+ *  sources, its texts in `third-party-licenses/pyav`. A dll outside it stops the build. */
+const PYAV_LIBRARIES = [
+  {
+    name: 'FFmpeg 8.1.3',
+    dlls: /^(avcodec|avdevice|avfilter|avformat|avutil|swresample|swscale)-/,
+    license: 'LGPL-3.0-or-later',
+    source: 'https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz',
+    texts: ['ffmpeg', 'lgpl-3.0', 'gpl-3.0']
+  },
+  {
+    name: 'x264 (b35605ace3ddf7c1a5d67a2eb553f034aef41d55)',
+    dlls: /^libx264-/,
+    license: 'GPL-2.0-or-later',
+    source:
+      'https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2',
+    texts: ['gpl-2.0']
+  },
+  {
+    name: 'x265 4.3',
+    dlls: /^libx265-/,
+    license: 'GPL-2.0-or-later',
+    source: 'https://github.com/Multicorewareinc/x265/releases/download/4.3/x265_4.3.tar.gz',
+    texts: ['gpl-2.0']
+  },
+  {
+    name: 'bwlame 4.1.0 (LAME)',
+    dlls: null,
+    license: 'LGPL-2.1',
+    source: 'https://github.com/basswood-io/bwlame/archive/refs/tags/v4.1.0.tar.gz',
+    texts: ['lgpl-2.1']
+  },
+  {
+    name: 'libiconv (MSYS2)',
+    dlls: /^libiconv-/,
+    license: 'LGPL-2.1-or-later',
+    source: 'https://repo.msys2.org/mingw/sources/',
+    texts: ['lgpl-2.1']
+  },
+  {
+    name: 'libgcc, libstdc++ (GCC, MSYS2)',
+    dlls: /^(libgcc_s_seh|libstdc\+\+)-/,
+    license: 'GPL-3.0-or-later WITH GCC-exception-3.1',
+    source: 'https://repo.msys2.org/mingw/sources/',
+    texts: ['gcc-runtime-exception', 'gpl-3.0']
+  },
+  {
+    name: 'winpthreads (mingw-w64, MSYS2)',
+    dlls: /^libwinpthread-/,
+    license: 'MIT AND BSD-3-Clause',
+    source: 'https://repo.msys2.org/mingw/sources/',
+    texts: ['winpthreads']
+  },
+  {
+    name: 'zlib (MSYS2)',
+    dlls: /^zlib1-/,
+    license: 'Zlib',
+    source: 'https://repo.msys2.org/mingw/sources/',
+    texts: ['zlib']
+  },
+  {
+    name: 'Opus 1.6.1',
+    dlls: /^libopus-/,
+    license: 'BSD-3-Clause',
+    source: 'https://ftp.osuosl.org/pub/xiph/releases/opus/opus-1.6.1.tar.gz',
+    texts: ['opus']
+  },
+  {
+    name: 'dav1d 1.5.4',
+    dlls: /^libdav1d-/,
+    license: 'BSD-2-Clause',
+    source: 'https://code.videolan.org/videolan/dav1d/-/tree/1.5.4',
+    texts: ['dav1d']
+  },
+  {
+    name: 'SVT-AV1 4.3.0',
+    dlls: /^libSvtAv1Enc-/,
+    license: 'BSD-3-Clause-Clear',
+    source: 'https://gitlab.com/AOMediaCodec/SVT-AV1/-/tree/v4.3.0',
+    texts: ['svt-av1', 'svt-av1-patents']
+  },
+  {
+    name: 'libvpx 1.17.0',
+    dlls: /^libvpx-/,
+    license: 'BSD-3-Clause',
+    source: 'https://github.com/webmproject/libvpx/tree/v1.17.0',
+    texts: ['libvpx', 'libvpx-patents']
+  },
+  {
+    name: 'libwebp 1.6.0',
+    dlls: /^(libwebp|libwebpmux|libsharpyuv)-/,
+    license: 'BSD-3-Clause',
+    source: 'https://github.com/webmproject/libwebp/tree/v1.6.0',
+    texts: ['libwebp', 'libwebp-patents']
+  },
+  {
+    name: 'libvmaf 3.2.1',
+    dlls: /^libvmaf-/,
+    license: 'BSD-2-Clause-Patent',
+    source: 'https://github.com/Netflix/vmaf/tree/v3.2.1',
+    texts: ['libvmaf']
+  },
+  {
+    name: 'Intel VPL 2.17.0',
+    dlls: /^libvpl-/,
+    license: 'MIT',
+    source: 'https://github.com/intel/libvpl/tree/v2.17.0',
+    texts: ['libvpl']
+  },
+  {
+    name: 'nv-codec-headers 13.0.19.1',
+    dlls: null,
+    license: 'MIT',
+    source: 'https://github.com/FFmpeg/nv-codec-headers/tree/n13.0.19.1',
+    texts: ['nv-codec-headers']
+  },
+  {
+    name: 'AMF headers 1.5.3',
+    dlls: null,
+    license: 'MIT',
+    source: 'https://github.com/GPUOpen-LibrariesAndSDKs/AMF/tree/v1.5.3',
+    texts: ['amf-headers']
+  }
+]
+
+/** The section of the PyAV wheel `av` in `sitePackages`. */
+function pyavNotice(av, sitePackages, desktopDir, owner) {
+  if (av !== PYAV_FFMPEG.av)
+    throw new Error(
+      `third-party notices: PyAV ${av} ships, the GPL source links are for ${PYAV_FFMPEG.av}`
+    )
+  const libs = path.join(sitePackages, 'av.libs')
+  for (const dll of fs.existsSync(libs) ? fs.readdirSync(libs) : []) {
+    if (!PYAV_LIBRARIES.some((lib) => lib.dlls?.test(dll)))
+      throw new Error(`third-party notices: av.libs/${dll} is not in the PyAV record`)
+  }
+  const texts = [...new Set(PYAV_LIBRARIES.flatMap((lib) => lib.texts))]
+  return [
+    section(
+      'PyAV (av): FFmpeg, x264, x265 и другие / and others — GPL, LGPL и другие / and others'
+    ),
+    'Папка / folder: runtime/core/venv/Lib/site-packages/av.libs',
+    'Сам PyAV — BSD-3-Clause. Библиотеки в его колесе поставляются без изменений, из колеса',
+    'PyPI; лицензии, исходный код каждой и тексты лицензий — ниже.',
+    'PyAV itself is BSD-3-Clause. The libraries in its wheel ship unmodified, as in the PyPI',
+    'wheel; the license, the sources of each and the license texts follow.',
+    '',
+    `PyAV ${av}: https://github.com/PyAV-Org/PyAV/tree/v${av}`,
+    `Сценарий сборки и патчи / build scripts and patches: https://github.com/PyAV-Org/pyav-ffmpeg/tree/${PYAV_FFMPEG.build}`,
+    '',
+    ...PYAV_LIBRARIES.flatMap((lib) => [
+      `${lib.name} — ${lib.license}`,
+      `    ${lib.source}`,
+      `    ${lib.texts.join(', ')}`
+    ]),
+    '',
+    'Письменное предложение: в течение трёх лет с момента получения этой копии AECPilot',
+    `${owner.holder} по запросу на ${owner.contact} предоставит полный исходный код`,
+    'библиотек под GPL и LGPL в той версии, что поставлена с программой, за плату не выше',
+    'стоимости передачи.',
+    '',
+    `Written offer: for three years from receiving this copy of AECPilot, ${owner.holder} will, on`,
+    `request to ${owner.contact}, provide the complete corresponding source code of the GPL and`,
+    'LGPL libraries in the version shipped, for a charge no more than the cost of physically',
+    'performing the transfer.',
+    ...texts.flatMap((name) => [
+      '',
+      '-'.repeat(78),
+      name,
+      '-'.repeat(78),
+      licenseText(desktopDir, 'pyav', name)
+    ])
+  ]
+}
+
+/** The section of the Intel OpenMP runtime inside the ctranslate2 wheel. */
+function intelOpenmpNotice(desktopDir) {
+  return [
+    section('Intel OpenMP Runtime (libiomp5md.dll) — Intel End User License Agreement'),
+    'Файл / file: runtime/core/venv/Lib/site-packages/ctranslate2/libiomp5md.dll',
+    'Входит в колесо ctranslate2 без изменений (тот же файл, что в пакете intel-openmp 2025.3.0).',
+    'Разбирать, декомпилировать и дизассемблировать его нельзя.',
+    'Part of the ctranslate2 wheel, unmodified (the same file as in intel-openmp 2025.3.0).',
+    'Reverse engineering, decompiling and disassembling it is prohibited.',
+    '',
+    licenseText(desktopDir, 'ctranslate2', 'intel-eula'),
+    '',
+    '-'.repeat(78),
+    licenseText(desktopDir, 'ctranslate2', 'intel-openmp-third-party')
+  ]
+}
+
+function licenseText(desktopDir, folder, name) {
+  return fs
+    .readFileSync(path.join(desktopDir, 'third-party-licenses', folder, `${name}.txt`), 'utf-8')
+    .trim()
+}
+
 /** The version of `av` in `sitePackages`, or null when it is not there. */
 function pyavVersion(sitePackages) {
   if (!fs.existsSync(sitePackages)) return null
@@ -409,37 +609,11 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
     )
   }
 
-  const av = pyavVersion(path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages'))
-  if (av) {
-    if (av !== PYAV_FFMPEG.av)
-      throw new Error(
-        `third-party notices: PyAV ${av} ships, the GPL source links are for ${PYAV_FFMPEG.av}`
-      )
-    out.push(
-      section('PyAV (av): FFmpeg, libx264, libx265 — GNU General Public License v2 or later'),
-      'Папка / folder: runtime/core/venv/Lib/site-packages/av.libs',
-      'Сам PyAV — BSD-3-Clause; FFmpeg внутри колеса — LGPL версии 3 или новее; libx264 и',
-      'libx265 — GPL версии 2 или новее. Всё поставляется без изменений, из колеса PyPI.',
-      'PyAV itself is BSD-3-Clause; the FFmpeg in its wheel is LGPL v3 or later; libx264 and',
-      'libx265 are GPL v2 or later. All of it ships unmodified, as in the PyPI wheel.',
-      'Текст GPL / GPL text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt',
-      'Текст LGPL / LGPL text: https://www.gnu.org/licenses/lgpl-3.0.txt',
-      '',
-      'Исходный код / source code:',
-      `  PyAV ${av}: https://github.com/PyAV-Org/PyAV/tree/v${av}`,
-      `  FFmpeg ${PYAV_FFMPEG.ffmpeg}, libx264, libx265 (сборка / build): https://github.com/PyAV-Org/pyav-ffmpeg/tree/${PYAV_FFMPEG.build}`,
-      '',
-      'Письменное предложение: в течение трёх лет с момента получения этой копии AECPilot',
-      `${owner.holder} по запросу на ${owner.contact} предоставит полный исходный код`,
-      'этих библиотек в той версии, что поставлена с программой, за плату не выше стоимости',
-      'передачи.',
-      '',
-      `Written offer: for three years from receiving this copy of AECPilot, ${owner.holder} will, on`,
-      `request to ${owner.contact}, provide the complete corresponding source code of these`,
-      'libraries in the version shipped, for a charge no more than the cost of physically',
-      'performing the transfer.'
-    )
-  }
+  const coreSite = path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
+  const av = pyavVersion(coreSite)
+  if (av) out.push(...pyavNotice(av, coreSite, desktopDir, owner))
+  if (fs.existsSync(path.join(coreSite, 'ctranslate2', 'libiomp5md.dll')))
+    out.push(...intelOpenmpNotice(desktopDir))
 
   const donor = path.join(desktopDir, 'src', 'renderer', 'src', 'donor')
   out.push(

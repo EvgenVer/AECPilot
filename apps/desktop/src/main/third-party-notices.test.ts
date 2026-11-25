@@ -1,6 +1,6 @@
 // Task T43.2 (SPEC A8): THIRD-PARTY-NOTICES.txt of the installed tree, built from a
 // small fake of the packed folder (third-party-notices.cjs).
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -76,19 +76,58 @@ describe('renderThirdPartyNotices', () => {
     expect(text).toContain('runtime/core/tools/git-2.53.0+3-win32-x64/LICENSE.txt')
   })
 
-  it('offers the sources of the GPL libraries in the PyAV wheel, and nothing when it is not shipped', () => {
+  describe('speech recognition', () => {
+    const site = (): string => join(app, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
     const render = (): string =>
       renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
-    expect(render()).not.toContain('libx264')
-    const sp = join(app, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
-    const info = join(sp, 'av-18.1.1.dist-info')
-    const metadata =
-      'Metadata-Version: 2.4\nName: av\nVersion: 18.1.1\nLicense-Expression: BSD-3-Clause\n\nx\n'
-    put(join(info, 'METADATA'), metadata)
-    put(join(info, 'licenses', 'LICENSE.txt'), 'PYAV')
-    expect(render()).toContain('https://github.com/PyAV-Org/PyAV/tree/v18.1.1')
-    expect(render()).toContain('https://github.com/PyAV-Org/pyav-ffmpeg/tree/8.1.3-1')
-    expect(render()).toMatch(/libx264[\s\S]*Тест Владелец по запросу на owner@example\.org/)
+
+    beforeEach(() => {
+      // The real license texts, next to the script.
+      cpSync(
+        join(__dirname, '..', '..', 'third-party-licenses'),
+        join(desktop, 'third-party-licenses'),
+        { recursive: true }
+      )
+    })
+
+    function putAv(): void {
+      const info = join(site(), 'av-18.1.1.dist-info')
+      const metadata =
+        'Metadata-Version: 2.4\nName: av\nVersion: 18.1.1\nLicense-Expression: BSD-3-Clause\n\nx\n'
+      put(join(info, 'METADATA'), metadata)
+      put(join(info, 'licenses', 'LICENSE.txt'), 'PYAV')
+      put(join(site(), 'av.libs', 'libx264-165-aa.dll'), '')
+      put(join(site(), 'av.libs', 'libstdc++-6-aa.dll'), '')
+    }
+
+    it('gives nothing about PyAV and Intel OpenMP when they are not shipped', () => {
+      expect(render()).not.toMatch(/x264|Intel OpenMP/)
+    })
+
+    it('gives the PyAV libraries with their sources, license texts and the written offer', () => {
+      putAv()
+      const text = render()
+      expect(text).toContain('https://github.com/PyAV-Org/PyAV/tree/v18.1.1')
+      expect(text).toContain('https://github.com/PyAV-Org/pyav-ffmpeg/tree/8.1.3-1')
+      expect(text).toContain('/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/')
+      expect(text).toMatch(/x265 4\.3[\s\S]*Тест Владелец по запросу на owner@example\.org/)
+      expect(text).toMatch(/GNU GENERAL PUBLIC LICENSE\s+Version 2, June 1991/)
+      expect(text).toMatch(/GNU GENERAL PUBLIC LICENSE\s+Version 3, 29 June 2007/)
+      expect(text).toMatch(/GNU LESSER GENERAL PUBLIC LICENSE\s+Version 2\.1, February 1999/)
+      expect(text).toMatch(/GNU LESSER GENERAL PUBLIC LICENSE\s+Version 3, 29 June 2007/)
+      expect(text).toContain('GCC RUNTIME LIBRARY EXCEPTION')
+    })
+
+    it('stops the build on a library of the PyAV wheel it holds no license for', () => {
+      putAv()
+      put(join(site(), 'av.libs', 'libnew-1-aa.dll'), '')
+      expect(render).toThrow(/libnew-1-aa\.dll/)
+    })
+
+    it('gives the Intel license when its OpenMP runtime is shipped', () => {
+      put(join(site(), 'ctranslate2', 'libiomp5md.dll'), '')
+      expect(render()).toContain('Intel End User License Agreement for Developer Tools')
+    })
   })
 
   it('stops when the shipped PyAV is not the one the source links were checked for', () => {
