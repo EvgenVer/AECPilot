@@ -13,14 +13,17 @@ two differences only, both decided by the owner:
   `whispercpp-cpu` (voice, HX19), `gh` (developer skills are off, UR42) and the
   `llamacpp-*` builds (local models are downloaded on the person's explicit
   action, UR39 — not shipped).
-  `ffmpeg` stays out too: the core uses it only for voice and text-to-speech,
-  both removed (HX19), and the pinned build is the GPL one (SPEC N8). Git for
+  `ffmpeg` stays out too: the core's speech recognition decodes audio with PyAV, and
+  the pinned build is the GPL one (SPEC N8). Git for
   Windows ships although it is GPLv2: the core runs every terminal command
   through its bash on Windows (`tools/environments/local.py::_find_bash`), and
   checkpoints (UR14) live in git — an unmodified separate program, the one
   exception SPEC C3 makes (owner decision 2026-10-16).
 * **Extras.** `pm bundle` builds with `--all-extras`; we build the extras our
   setup has always installed (`EXTRAS`, same as `runtime/setup.mjs`).
+* **Local dictation.** `stt-whisper` is the core's faster-whisper (UR49, HX19). Its
+  `av` (PyAV) wheel carries libx264 and libx265 under the GPL; it ships as it is, the
+  exception the owner made for SPEC C3 on 2026-11-25 (task T59).
 * **Mem0.** The memory provider plugin's requirements go into the same
   environment in one resolution with the core lock, exactly as `setup.mjs`
   does in development (`mem0-plugin-requirements.txt`, task T20.3).
@@ -59,9 +62,11 @@ CORE_SRC = RUNTIME / ".hermes-src"
 # through `walk()`. `agent-browser` left with core 0.23.0: their PM retired it in
 # favour of `chromium` (`pm/defaults.py`, `RETIRED_DEFAULTS`; task T51).
 TOOLS = ("python", "uv", "node", "npm", "git", "ripgrep", "chromium")
-EXTRAS = ("mcp", "ddgs")
+EXTRAS = ("mcp", "ddgs", "stt-whisper")
 MEM0_REQUIREMENTS = RUNTIME / "mem0-plugin-requirements.txt"
 EXCLUDED_PACKAGES = ("pillow-heif",)
+# A fixed release of a package the core pins to a yanked one (`runtime/uv-overrides.txt`).
+PATCHED_PACKAGES = ("av==18.1.1",)
 
 
 def _uv(store_dir: Path, facts) -> Path:
@@ -120,6 +125,13 @@ def add_mem0_and_exclusions(repo_dir: Path, venv_dir: Path, uv: Path) -> None:
         requirements.unlink(missing_ok=True)
     subprocess.run(
         [str(uv), "pip", "uninstall", "--python", str(python), *EXCLUDED_PACKAGES], check=True
+    )
+    subprocess.run(
+        [
+            *(str(uv), "pip", "install", "--no-config", "--no-deps"),
+            *("--python", str(python), *PATCHED_PACKAGES),
+        ],
+        check=True,
     )
 
 

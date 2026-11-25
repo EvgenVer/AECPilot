@@ -10,7 +10,9 @@
 //   files ship in place inside the tree, so the file lists each with its version,
 //   license and the path of that text; a component that ships no text gets it here;
 // - Git for Windows (GPLv2, SPEC C3/N8): a link to the sources of the same version
-//   and a written offer to send them on request for three years.
+//   and a written offer to send them on request for three years;
+// - PyAV (`av`, speech recognition): its wheel carries libx264 and libx265 under the
+//   GPL — the same link-and-offer treatment (owner decision 2026-11-25, SPEC C3).
 // Electron and Chromium bring their own `LICENSE.electron.txt`, `LICENSES.chromium.html`.
 // @ts-check
 'use strict'
@@ -333,6 +335,21 @@ const TOOL_LICENSES = {
   ].join('\n')
 }
 
+/** What the wheel of PyAV `av` holds: the FFmpeg version and the tag of the build
+ *  that made it (`scripts/ffmpeg-latest.json` of PyAV). A new PyAV stops the build until
+ *  this record is checked. */
+const PYAV_FFMPEG = { av: '18.1.1', ffmpeg: '8.1.3', build: '8.1.3-1' }
+
+/** The version of `av` in `sitePackages`, or null when it is not there. */
+function pyavVersion(sitePackages) {
+  if (!fs.existsSync(sitePackages)) return null
+  const match = fs
+    .readdirSync(sitePackages)
+    .map((name) => /^av-(.+)\.dist-info$/.exec(name))
+    .find(Boolean)
+  return match ? match[1] : null
+}
+
 /** `git-2.53.0+3-win32-x64` -> Git for Windows `v2.53.0.windows.3`. */
 function gitForWindowsTag(folder) {
   const match = /^git-(\d+\.\d+\.\d+)\+(\d+)-/.exec(folder)
@@ -389,6 +406,38 @@ function renderThirdPartyNotices({ appOutDir, desktopDir, owner }) {
       `${owner.contact}, provide the complete corresponding source code of Git for Windows and its`,
       'GPL-licensed components in the version shipped, for a charge no more than the cost of',
       'physically performing the transfer.'
+    )
+  }
+
+  const av = pyavVersion(path.join(appOutDir, 'runtime', 'core', 'venv', 'Lib', 'site-packages'))
+  if (av) {
+    if (av !== PYAV_FFMPEG.av)
+      throw new Error(
+        `third-party notices: PyAV ${av} ships, the GPL source links are for ${PYAV_FFMPEG.av}`
+      )
+    out.push(
+      section('PyAV (av): FFmpeg, libx264, libx265 — GNU General Public License v2 or later'),
+      'Папка / folder: runtime/core/venv/Lib/site-packages/av.libs',
+      'Сам PyAV — BSD-3-Clause; FFmpeg внутри колеса — LGPL версии 3 или новее; libx264 и',
+      'libx265 — GPL версии 2 или новее. Всё поставляется без изменений, из колеса PyPI.',
+      'PyAV itself is BSD-3-Clause; the FFmpeg in its wheel is LGPL v3 or later; libx264 and',
+      'libx265 are GPL v2 or later. All of it ships unmodified, as in the PyPI wheel.',
+      'Текст GPL / GPL text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt',
+      'Текст LGPL / LGPL text: https://www.gnu.org/licenses/lgpl-3.0.txt',
+      '',
+      'Исходный код / source code:',
+      `  PyAV ${av}: https://github.com/PyAV-Org/PyAV/tree/v${av}`,
+      `  FFmpeg ${PYAV_FFMPEG.ffmpeg}, libx264, libx265 (сборка / build): https://github.com/PyAV-Org/pyav-ffmpeg/tree/${PYAV_FFMPEG.build}`,
+      '',
+      'Письменное предложение: в течение трёх лет с момента получения этой копии AECPilot',
+      `${owner.holder} по запросу на ${owner.contact} предоставит полный исходный код`,
+      'этих библиотек в той версии, что поставлена с программой, за плату не выше стоимости',
+      'передачи.',
+      '',
+      `Written offer: for three years from receiving this copy of AECPilot, ${owner.holder} will, on`,
+      `request to ${owner.contact}, provide the complete corresponding source code of these`,
+      'libraries in the version shipped, for a charge no more than the cost of physically',
+      'performing the transfer.'
     )
   }
 

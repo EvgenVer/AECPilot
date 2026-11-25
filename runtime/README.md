@@ -12,7 +12,7 @@ node runtime/setup.mjs
 ```
 
 Creates a venv at `runtime/.hermes-venv` (CPython 3.14.6 managed by `uv`,
-`hermes-agent[mcp,ddgs]` 0.23.0 installed editable from a shallow checkout at
+`hermes-agent[mcp,ddgs,stt-whisper]` 0.23.0 installed editable from a shallow checkout at
 `HERMES_SHA` in `runtime/.hermes-src` — upstream's build backend refuses to build a
 wheel, see docs/plan-details.md § Stack & package managers). Versions are constrained to the core's own `uv.lock`
 (`uv export` into `runtime/uv-constraints.txt` on every run), and the core's own
@@ -113,7 +113,7 @@ Exit 0 = the tool was called and returned the fixture's "demo" source. Exit
 Exit 3 = any other failure (protocol-level failure, non-auth model failure,
 or the model correctly reporting the tool isn't available).
 
-`setup.mjs` installs `hermes-agent[mcp,ddgs]` at the pinned SHA (0.23.0 since task
+`setup.mjs` installs `hermes-agent[mcp,ddgs,stt-whisper]` at the pinned SHA (0.23.0 since task
 T51) — the `mcp` extra (approved, see docs/plan-details.md § Selected dependencies) pulls
 in hermes's pinned `mcp==2.3.0` + `starlette==1.9.0` into
 `runtime/.hermes-venv`, which is what lets

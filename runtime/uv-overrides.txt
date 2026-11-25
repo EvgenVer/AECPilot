@@ -1,6 +1,11 @@
 # uv `--override` file for the core install (runtime/setup.mjs, step 3/4).
-# One entry: drop `pillow-heif` from hermes-agent's base dependencies. Its
+# First entry: drop `pillow-heif` from hermes-agent's base dependencies. Its
 # Windows wheel bundles libx265 (GPLv2) — excluded by SPEC N8/C3, owner
 # decision 2026-09-15 (task 3.B5е, docs/plan-details.md §Selected dependencies). The marker
 # below is never true, so the requirement is removed rather than pinned.
 pillow-heif; python_version < '0'
+# Second: the core pins `av==18.1.0` (PyAV 19 breaks faster-whisper 1.2.1), and PyPI yanked
+# that release for a double free when decoding audio; 18.1.1 is the fix within the same
+# major (task T59). Drop when the core's own pin moves past 18.1.0. The installer takes it
+# from `PATCHED_PACKAGES` in `payload/stage_core.py`: keep the two equal.
+av==18.1.1

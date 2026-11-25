@@ -201,9 +201,14 @@ function writeConstraints() {
       // (задача T20.9: `web-search-probe` показал «ddgs package is not installed»).
       "--extra",
       "ddgs",
+      "--extra",
+      "stt-whisper",
       "--no-dev",
       "--no-hashes",
       "--no-emit-project",
+      // Its version is ours (`uv-overrides.txt`, task T59).
+      "--no-emit-package",
+      "av",
       "--output-file",
       path.join(RUNTIME_DIR, "uv-constraints.txt"),
     ],
@@ -274,7 +279,7 @@ fetchDelegationPlugin();
 writeConstraints();
 writeOverrides();
 
-console.log(`== 4/${STEPS}: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
+console.log(`== 4/${STEPS}: installing hermes-agent[mcp,ddgs,stt-whisper] ${HERMES_VERSION} (editable) + Mem0 plugin deps`);
 // Editable is not a preference — upstream's build backend raises on any wheel or
 // sdist build ("Hermes is distributed via the shell installer, Docker image, or
 // Nix"; setup.py) and names `uv pip install -e .` as the developer path. So the
@@ -286,6 +291,8 @@ console.log(`== 4/${STEPS}: installing hermes-agent[mcp,ddgs] ${HERMES_VERSION} 
 // (connect to stdio/HTTP MCP servers like mcp/aec_sources) via
 // tools/mcp_tool.py. Without it, tools.mcp_tool._MCP_AVAILABLE is False and no
 // MCP server can ever connect, regardless of what's registered in config.yaml.
+//
+// `stt-whisper` is the core's local speech recognition (faster-whisper, task T59, UR49).
 //
 // Mem0 is the SECOND layer of agent memory (задача 5.1, решение владельца
 // 2026-08-31 — вариант A, «го» на установку 2026-09-08). Its requirements go
@@ -313,6 +320,10 @@ run(
   [
     "pip",
     "install",
+    // The root pyproject's `exclude-dependencies` (our MCP servers) would otherwise drop
+    // `tokenizers` and `huggingface-hub` here: uv reads it for every project under the
+    // repository, and faster-whisper cannot start without them (task T59).
+    "--no-config",
     "--python",
     VENV_DIR,
     "--override",
@@ -322,7 +333,7 @@ run(
     "-r",
     "mem0-plugin-requirements.txt",
     "-e",
-    `${HERMES_SRC_DIR}[mcp,ddgs]`,
+    `${HERMES_SRC_DIR}[mcp,ddgs,stt-whisper]`,
   ],
   RUNTIME_DIR,
 );

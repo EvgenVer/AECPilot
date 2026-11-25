@@ -76,6 +76,29 @@ describe('renderThirdPartyNotices', () => {
     expect(text).toContain('runtime/core/tools/git-2.53.0+3-win32-x64/LICENSE.txt')
   })
 
+  it('offers the sources of the GPL libraries in the PyAV wheel, and nothing when it is not shipped', () => {
+    const render = (): string =>
+      renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
+    expect(render()).not.toContain('libx264')
+    const sp = join(app, 'runtime', 'core', 'venv', 'Lib', 'site-packages')
+    const info = join(sp, 'av-18.1.1.dist-info')
+    const metadata =
+      'Metadata-Version: 2.4\nName: av\nVersion: 18.1.1\nLicense-Expression: BSD-3-Clause\n\nx\n'
+    put(join(info, 'METADATA'), metadata)
+    put(join(info, 'licenses', 'LICENSE.txt'), 'PYAV')
+    expect(render()).toContain('https://github.com/PyAV-Org/PyAV/tree/v18.1.1')
+    expect(render()).toContain('https://github.com/PyAV-Org/pyav-ffmpeg/tree/8.1.3-1')
+    expect(render()).toMatch(/libx264[\s\S]*Тест Владелец по запросу на owner@example\.org/)
+  })
+
+  it('stops when the shipped PyAV is not the one the source links were checked for', () => {
+    const info = join(app, 'runtime', 'core', 'venv', 'Lib', 'site-packages', 'av-19.0.0.dist-info')
+    put(join(info, 'METADATA'), 'Metadata-Version: 2.4\nName: av\nVersion: 19.0.0\n\nx\n')
+    expect(() =>
+      renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
+    ).toThrow(/PyAV 19\.0\.0/)
+  })
+
   it('gives npm licenses in full, and a standard text with the holder when a package has none', () => {
     const text = renderThirdPartyNotices({ appOutDir: app, desktopDir: desktop, owner: OWNER })
     expect(text).toContain('alpha 1.0.0 — MIT')
