@@ -37,8 +37,8 @@ function status(patch: Partial<DictationStatus> = {}): DictationStatus {
     progress: null,
     error: null,
     model: {
-      id: 'small',
-      repo: 'Systran/faster-whisper-small',
+      id: 'turbo',
+      repo: 'dropbox-dash/faster-whisper-large-v3-turbo',
       license: 'MIT',
       sizeBytes: 486_000_000
     },
@@ -157,7 +157,7 @@ describe('the consent dialog', () => {
     await screen.findByTestId('dictation-download')
     const text = screen.getByTestId('dictation-dialog').textContent ?? ''
     expect(text).toContain('Hugging Face')
-    expect(text).toContain('Systran/faster-whisper-small')
+    expect(text).toContain('dropbox-dash/faster-whisper-large-v3-turbo')
     expect(text).toContain('486')
     expect(text).toContain('MIT')
     expect(text).toContain('Звук никуда не отправляется')

@@ -76,7 +76,7 @@ function make(patch: Partial<DictationDeps> = {}): Dictation {
     onChange: () => {},
     probeEngine: () => Promise.resolve(true),
     download: (_url, dest) => {
-      const file = DICTATION_MODEL.files.find((candidate) => dest.endsWith(candidate.name))
+      const file = DICTATION_MODEL.files.find((candidate) => basename(dest) === candidate.name)
       if (!file) throw new Error(`unexpected file ${dest}`)
       sparse(dest, file.size)
       return Promise.resolve()
@@ -223,7 +223,7 @@ describe('the voice border of a profile', () => {
 })
 
 describe('what the core says it will recognise with', () => {
-  const dir = 'C:\\p\\aec\\dictation-models\\small-536b0662'
+  const dir = 'C:\\p\\aec\\dictation-models\\turbo-0a363e91'
   const good = { stt: { enabled: true, provider: 'local', local: { model: dir } } }
 
   it('our folder on this machine, however its separators are written', () => {
@@ -258,9 +258,9 @@ describe('what the core says it will recognise with', () => {
     expect(coreRecognisesLocally(at('E:\\srv\\aec\\dictation-models\\medium-08e178d4'), null)).toBe(
       true
     )
-    expect(coreRecognisesLocally(at('/srv/aec/dictation-models/small-536b0662'), null)).toBe(true)
+    expect(coreRecognisesLocally(at('/srv/aec/dictation-models/turbo-0a363e91'), null)).toBe(true)
     expect(coreRecognisesLocally(at('/srv/aec/dictation-models/large-00000000'), null)).toBe(false)
-    expect(coreRecognisesLocally(at('/srv/models/small-536b0662'), null)).toBe(false)
+    expect(coreRecognisesLocally(at('/srv/models/turbo-0a363e91'), null)).toBe(false)
   })
 })
 
@@ -316,7 +316,7 @@ describe('the model on disk', () => {
   })
 
   it('a marker cannot point outside its folder', () => {
-    const marker = { id: 'small', revision: 'r', files: [{ name: '../x', size: 1 }] }
+    const marker = { id: 'turbo', revision: 'r', files: [{ name: '../x', size: 1 }] }
     expect(parseDictationMarker(JSON.stringify(marker))).toBeNull()
     expect(parseDictationMarker('{}')).toBeNull()
     expect(parseDictationMarker('not json')).toBeNull()
@@ -347,7 +347,7 @@ describe('setting dictation up and taking it away', () => {
     const seen: number[] = []
     const dictation = make({
       download: (_url, dest, sha, onProgress) => {
-        const file = DICTATION_MODEL.files.find((candidate) => dest.endsWith(candidate.name))!
+        const file = DICTATION_MODEL.files.find((candidate) => basename(dest) === candidate.name)!
         expect(sha).toBe(file.sha256)
         onProgress({ step: 'model', detail: '', doneBytes: file.size, totalBytes: file.size })
         sparse(dest, file.size)
@@ -370,7 +370,7 @@ describe('setting dictation up and taking it away', () => {
     const dictation = make({
       download: (url, dest) => {
         asked.push(url)
-        const file = DICTATION_MODEL.files.find((candidate) => dest.endsWith(candidate.name))!
+        const file = DICTATION_MODEL.files.find((candidate) => basename(dest) === candidate.name)!
         if (fail && file.name === 'model.bin') return Promise.reject(new Error('нет сети'))
         sparse(dest, file.size)
         return Promise.resolve()
@@ -394,7 +394,7 @@ describe('setting dictation up and taking it away', () => {
     const gate = new Promise<void>((resolve) => (release = resolve))
     const download = vi.fn((_url: string, dest: string) =>
       gate.then(() => {
-        const file = DICTATION_MODEL.files.find((candidate) => dest.endsWith(candidate.name))!
+        const file = DICTATION_MODEL.files.find((candidate) => basename(dest) === candidate.name)!
         sparse(dest, file.size)
       })
     )
@@ -508,7 +508,7 @@ describe('the core on another machine', () => {
     expect((await off.remove()).ok).toBe(false)
     expect(await off.mayRecord()).toBe(false)
 
-    const model = 'D:\\srv\\aec\\dictation-models\\small-536b0662'
+    const model = 'D:\\srv\\aec\\dictation-models\\turbo-0a363e91'
     const on = make({
       ...remote,
       coreConfig: () =>
