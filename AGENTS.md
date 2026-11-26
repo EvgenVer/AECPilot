@@ -155,6 +155,11 @@ propose removing the rules whose reason no longer holds.
      `DONOR_SHA` and re-apply the edits its header lists.
   4. Our own surfaces live in `apps/desktop/src/renderer/src/aec/**`, use the same stack and
      carry no header.
+- **dotpm copy.** `apps/desktop/src/shared/vendor/dotpm/**` holds files copied from
+  dotpm/obsidian-pm (MIT) for tasks and the Gantt chart (decision 0025, 2026-11-26). Every
+  file carries a provenance header: source path, commit, license and the list of edits. Unlike
+  the donor zone, edits are free, but each one is listed in the header. Our own task and canvas
+  code lives in `apps/desktop/src/main/workbench/` and `apps/desktop/src/renderer/src/aec/workbench/`.
 - **Core checkout.** `runtime/.hermes-src` is the installed checkout of the pinned core; never
   edit it (a fix there disappears at the next pin lift). Read upstream sources in a separate
   blobless clone in the scratchpad. Before building our own solution, look for a ready one in

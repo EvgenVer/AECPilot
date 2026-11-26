@@ -19,6 +19,7 @@ nav = [
       "components/core-extensions.md",
       "components/packaging.md",
       "components/revit-mcp.md",
+      "components/workbench.md",
     ] },
     { "Сценарии" = [
       "flows/question-with-citation.md",
@@ -52,6 +53,8 @@ nav = [
       "decisions/0022-local-embeddings-process.md",
       "decisions/0023-core-0-23-3.md",
       "decisions/0024-dictation-delivery.md",
+      "decisions/0025-tasks-canvases-module.md",
+      "decisions/0026-index-on-disk.md",
     ] },
   ] },
   "operations.md",
