@@ -44,23 +44,7 @@ flowchart LR
   main -->|запуск CLI aec-rag| rag
   main -.->|запуск и остановка, по выбору| embed[llama-server --embeddings<br/>локальная модель эмбеддингов]
   rag -.->|/v1/embeddings, 127.0.0.1| embed
-  views[Окна доски, Ганта, холстов<br/>тот же рендерер] -->|IPC window.aecpilot| main
-  main -->|tasks:changed, canvas:changed| views
-  core -->|MCP по HTTP, 127.0.0.1 + токен| wb[Служба задач и холстов<br/>внутри главного процесса]
-  wb -->|файлы| vault
 ```
-
-С версии 0.2 (UR58–UR63, решение [0025](decisions/0025-tasks-canvases-module.md)) у программы
-есть доска задач, Гант и холсты.
-- **Окна.** Каждый вид — отдельное окно того же рендерера.
-- **Служба.** Файлы задач и холстов (`tasks/`, `canvases/` в папке проекта) пишет одна служба
-  внутри главного процесса. Она же рассылает изменения всем окнам и ведёт журнал правок агента
-  для отмены.
-- **Доступ агента.** Агент приходит к службе через MCP-сервер `aec-workbench`, который главный
-  процесс открывает по HTTP только на 127.0.0.1, с токеном на каждый запуск.
-
-Индекс с версии 0.2 не держится в памяти: векторы — в `index.db` через sqlite-vec, хранилища
-LightRAG, включая граф, — на SQLite ([0026](decisions/0026-index-on-disk.md)).
 
 Как читать: прямоугольники — процессы, цилиндры — данные; подпись стрелки — что по ней
 идёт. Путь одного вопроса: инженер пишет в окне → окно отдаёт вызов главному процессу →
@@ -118,8 +102,6 @@ flowchart LR
 | Рендерер: зона донора | интерфейс Hermes Desktop: чат, сессии, настройки, специалисты, предпросмотр, доска | React 19, Tailwind v4, shadcn/Radix, nanostores, React Query | `apps/desktop/src/renderer/src/donor/` | [Окно приложения](components/renderer.md) |
 | Рендерер: наши поверхности | проводник проекта и источников, просмотрщики PDF/DOCX/XLSX/CSV/MD, цитаты, страницы «Индекс», «Память», «Проект», согласия | тот же стек | `apps/desktop/src/renderer/src/aec/`, `shared/` | [Окно приложения](components/renderer.md) |
 | Локальная модель эмбеддингов | по выбору: сервер llama.cpp `--embeddings` на 127.0.0.1 — запуск, остановка, остаток после сбоя; «Скачать» (движок — заданием ядра, модель — с Hugging Face с проверкой SHA256), поиск модели и выбор файла | сборка llama.cpp ядра (UR39), bge-m3 GGUF Q8_0 | `apps/desktop/src/main/local-embeddings*.ts`, `apps/desktop/src/renderer/src/aec/data-providers/` | [0022](decisions/0022-local-embeddings-process.md) |
-| Служба задач и холстов (план, 0.2) | файлы задач, исполнителей, колонок и холстов проекта; журнал правок агента и отмена; раскладка плана по исполнителям в рабочем потоке; MCP `aec-workbench` для агента (HTTP 127.0.0.1, токен запуска) | TypeScript, копия dotpm (MIT), `@modelcontextprotocol/sdk` | `apps/desktop/src/main/workbench/`, `apps/desktop/src/shared/vendor/dotpm/` | [0025](decisions/0025-tasks-canvases-module.md) |
-| Окна доски, Ганта, холстов (план, 0.2) | отдельные окна вида: доска, Гант, холст; на компонентах приложения | тот же стек рендерера, Excalidraw 0.18.1 | `apps/desktop/src/renderer/src/aec/workbench/` | [0025](decisions/0025-tasks-canvases-module.md) |
 | Ядро | агент: модель, инструменты, сессии, память, навыки, расписания, групповые чаты, каналы | hermes-agent 0.23.0 по SHA, Python 3.14 | `runtime/` (установка и запуск) | [Ядро и его запуск](components/core-runtime.md) |
 | `aec-sources` | чтение папок источников; операций записи не существует | Python 3.12, MCP SDK 2 | `mcp/aec_sources/` | [aec-sources](components/aec-sources.md) |
 | `aec-rag` | индексация, гибридный поиск с цитатами, граф знаний, проверка выдержек, вики | Python 3.12, Docling, pdfium, RapidOCR, LightRAG, SQLite FTS5 | `mcp/aec_rag/` | [aec-rag](components/aec-rag.md) |
@@ -135,9 +117,7 @@ flowchart LR
 | Агентное ядро | hermes-agent 0.23.0, пин по коммиту `2bd378ed` (ветка `next/0.2`; выпуск 0.1.0 — 0.22.2, `d923a5eb`) | готовые агент, инструменты, MCP, память, навыки; без форка | [0001](decisions/0001-core-without-fork.md), [0012](decisions/0012-core-0-22-2.md), [0016](decisions/0016-core-0-23-0.md) |
 | Интерфейс | код Hermes Desktop в нашей оболочке, 6 разрешённых правок | их скорость и тесты вместо своих аналогов; право не брать лишнее | [0002](decisions/0002-donor-ui-in-our-shell.md) |
 | Настольная платформа | Electron 44 + React 19 + TypeScript | единственный UI, тот же стек, что у донора | [0003](decisions/0003-desktop-stack.md) |
-| Хранилище | файлы vault + SQLite FTS5 + LightRAG (NanoVectorDB, JSON, NetworkX); с версии 0.2 — файлы vault + SQLite (FTS5, sqlite-vec 0.1.9, свои хранилища LightRAG) | без серверов, бэкап = копия папки; с 0.2 индекс не держится в памяти | [0004](decisions/0004-files-first-storage.md), [0026](decisions/0026-index-on-disk.md) |
-| Задачи и Гант (план, 0.2) | копия dotpm (MIT) — модель задачи, YAML, сроки по зависимостям, отрисовка Ганта; раскладка по исполнителям — своя функция последовательной расстановки | готовая логика на TypeScript, свобода правки | [0025](decisions/0025-tasks-canvases-module.md) |
-| Холсты (план, 0.2) | `@excalidraw/excalidraw` 0.18.1 (MIT), картинки рядом с файлом холста | стабильная версия; стикер — наша кнопка | [0025](decisions/0025-tasks-canvases-module.md) |
+| Хранилище | файлы vault + SQLite FTS5 + LightRAG (NanoVectorDB, JSON, NetworkX) | без серверов, бэкап = копия папки | [0004](decisions/0004-files-first-storage.md) |
 | Индексация | два уровня: поиск всегда, граф по выбору | граф стоит вызова модели на каждый фрагмент | [0005](decisions/0005-two-tier-indexing.md) |
 | Память агента | записка ядра + Mem0 (локальный qdrant) | поиск по смыслу и дата у факта | [0006](decisions/0006-memory-mem0.md) |
 | Специалисты | перенос их плагина + наш `aec-roster` | плагин стал исходниками; одно подключение за раз; в версии 0.2 групповые чаты ведёт ядро (`groups.*`), маршруты субагентов — плагин `advanced-delegation` в поставке, ключи только через провайдера | [0007](decisions/0007-roster-donor-plugin.md), [0016](decisions/0016-core-0-23-0.md) |
@@ -173,17 +153,7 @@ LightRAG, журналы). Папки источников только чита
 временные файлы лежат под `<root>/data`. Локальная модель эмбеддингов — в профиле ядра,
 `aec/embedding-models/` (вне его папки `models/`, чтобы не попасть в список моделей чата), её
 выбор и порт — в `aec/local-embeddings.json`; движок llama.cpp — в хранилище пакетов ядра; модель диктовки —
-в `aec/dictation-models/`.
-
-С версии 0.2 в папке проекта есть ещё:
-- `tasks/` — задачи файлами `.md` с YAML-шапкой, `people.yaml` (исполнители),
-  `board.yaml` (колонки);
-- `canvases/` — холсты `.excalidraw` и картинки в `<холст>.files/`.
-
-Журнал правок лежит в `.aecpilot/workbench-journal.jsonl`. В индекс документов эти папки не
-попадают ([0025](decisions/0025-tasks-canvases-module.md)).
-
-Бэкап проекта — копия его папки. Подробно —
+в `aec/dictation-models/`. Бэкап проекта — копия его папки. Подробно —
 [данные](data.md).
 
 ## Outside services
@@ -236,8 +206,6 @@ pytest, e2e на Playwright по живому окну (smoke и приёмка 
 | [0018](decisions/0018-lira-update-feed.md) | 2026-11-08 | Обновления Lira Support — своей лентой, загрузка с согласия | owner | accepted |
 | [0019](decisions/0019-documents-environment.md) | 2026-11-12 | Библиотеки документов — отдельным окружением в поставке, без сети | owner | accepted |
 | [0022](decisions/0022-local-embeddings-process.md) | 2026-11-18 | Локальная модель эмбеддингов: процесс ведёт приложение, модель — в своей папке | owner | accepted |
-| [0025](decisions/0025-tasks-canvases-module.md) | 2026-11-26 | Задачи, Гант, холсты: служба в главном процессе, отдельные окна, dotpm копией, Excalidraw 0.18.1 | owner | accepted |
-| [0026](decisions/0026-index-on-disk.md) | 2026-11-26 | Индекс на диске: sqlite-vec, хранилища LightRAG на SQLite | owner | accepted |
 
 Решения, принятые агентом в рамках утверждённой архитектуры (замена мелкой библиотеки,
 вспомогательные зависимости, внутреннее устройство модуля), записаны в задачах

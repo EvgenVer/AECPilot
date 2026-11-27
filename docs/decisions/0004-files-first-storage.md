@@ -1,7 +1,7 @@
 # 0004 — Хранилище files-first: vault, SQLite FTS5, NanoVectorDB LightRAG
 
 - Date: 2026-07-06 (files-first, без серверов); 2026-08-15 (векторное хранилище)
-- Status: accepted; векторы и граф — superseded by [0026](0026-index-on-disk.md) (версия 0.2)
+- Status: accepted
 - Approved by: owner
 
 ## Context
